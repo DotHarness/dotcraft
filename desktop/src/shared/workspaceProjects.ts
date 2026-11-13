@@ -31,6 +31,7 @@ export interface WorkspaceProjectSummary {
   state: WorkspaceProjectState
   running: boolean
   loaded: boolean
+  threadListLoaded?: boolean
   threadCount: number
   threads: unknown[]
   pinnedThreadIds?: string[]

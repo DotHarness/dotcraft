@@ -9,6 +9,7 @@ export interface WorkspaceThreadCacheUpdateResult {
 
 export interface WorkspaceThreadListRefreshState {
   threads: unknown[]
+  threadListLoaded?: boolean
   errorMessage?: string
 }
 
@@ -23,7 +24,15 @@ export interface WorkspaceThreadListRefreshOptions {
 const threadListRevisions = new WeakMap<WorkspaceThreadListRefreshState, number>()
 const threadListRetryTimers = new WeakMap<WorkspaceThreadListRefreshState, ReturnType<typeof setTimeout>>()
 const readStateClocks = new WeakMap<WorkspaceThreadListRefreshState, { sequence: number; changedAt: Map<string, number> }>()
-const threadListRequestMarks = new WeakMap<WorkspaceThreadListRefreshState, number>()
+interface WorkspaceThreadDirectory {
+  cursor: string
+  requestedAtMark: number
+  seenIds: Set<string>
+  baselineIds: Set<string>
+  removedIds: Set<string>
+  updates: Map<string, Record<string, unknown>>
+}
+const threadDirectories = new WeakMap<WorkspaceThreadListRefreshState, WorkspaceThreadDirectory>()
 
 function readStateClock(entry: WorkspaceThreadListRefreshState): { sequence: number; changedAt: Map<string, number> } {
   let clock = readStateClocks.get(entry)
@@ -215,28 +224,98 @@ function withReadStates(
   })
 }
 
-export function applyWorkspaceThreadListRefreshSuccess(
+export function noteWorkspaceThreadNotification(
   entry: WorkspaceThreadListRefreshState,
+  method: string,
+  params: unknown
+): void {
+  const p = isRecord(params) ? params : {}
+  const id = stringField(p.threadId)
+  if (method === 'thread/readState/changed' && id) noteWorkspaceReadStateChange(entry, id)
+  const directory = threadDirectories.get(entry)
+  if (!directory) return
+  if (method === 'thread/deleted' || method === 'thread/archived') {
+    directory.removedIds.add(id)
+  } else if (method === 'thread/unarchived') {
+    directory.removedIds.delete(id)
+  } else {
+    let patch: Record<string, unknown> | undefined
+    let threadId = id
+    if (method === 'thread/started' && isRecord(p.thread)) {
+      threadId = getThreadId(p.thread)
+      directory.baselineIds.delete(threadId)
+      patch = p.thread
+    } else if (method === 'thread/renamed') {
+      patch = { displayName: p.displayName }
+    } else if (method === 'thread/status/changed') {
+      patch = { runtime: p.runtime }
+    } else if (method === 'thread/readState/changed') {
+      patch = { readState: p.readState }
+    }
+    if (threadId && patch) directory.updates.set(threadId, { ...directory.updates.get(threadId), ...patch })
+  }
+}
+
+function createThreadDirectory(entry: WorkspaceThreadListRefreshState): WorkspaceThreadDirectory {
+  const directory: WorkspaceThreadDirectory = {
+    cursor: '', requestedAtMark: readStateClock(entry).sequence, seenIds: new Set(),
+    baselineIds: new Set(entry.threads.map(getThreadId)), removedIds: new Set(), updates: new Map()
+  }
+  threadDirectories.set(entry, directory)
+  return directory
+}
+
+function mergeThreadDirectoryPage(
+  entry: WorkspaceThreadListRefreshState,
+  directory: WorkspaceThreadDirectory,
   result: WorkspaceThreadListResult,
-  requestedAtMark: number
+  complete: boolean
+): unknown[] {
+  const incoming = withReadStates(entry, result, directory.requestedAtMark)
+    .filter(thread => !directory.seenIds.has(getThreadId(thread)))
+    .filter(thread => {
+      const source = isRecord(thread) && isRecord(thread.source) ? thread.source : null
+      const subAgent = isRecord(source?.subAgent) ? source.subAgent : null
+      return ![getThreadId(thread), getSubAgentParentThreadId(thread), stringField(subAgent?.rootThreadId)]
+        .some(id => id && directory.removedIds.has(id))
+    })
+    .map(thread => isRecord(thread) ? { ...thread, ...directory.updates.get(getThreadId(thread)) } : thread)
+  const merged = new Map(entry.threads.map(thread => [getThreadId(thread), thread]))
+  for (const thread of incoming) {
+    const id = getThreadId(thread)
+    directory.seenIds.add(id)
+    merged.set(id, thread)
+  }
+  return [...merged.values()].filter(thread => {
+    const id = getThreadId(thread)
+    return !complete || directory.seenIds.has(id) || !directory.baselineIds.has(id)
+  })
+}
+
+function applyWorkspaceThreadListRefreshSuccess(
+  entry: WorkspaceThreadListRefreshState,
+  directory: WorkspaceThreadDirectory,
+  result: WorkspaceThreadListResult
 ): void {
   advanceThreadListRevision(entry)
   cancelWorkspaceThreadListRetry(entry)
-  entry.threads = withReadStates(entry, result, requestedAtMark)
+  entry.threads = mergeThreadDirectoryPage(entry, directory, result, true)
+  entry.threadListLoaded = true
+  threadDirectories.delete(entry)
   entry.errorMessage = undefined
 }
 
-function isCompleteWorkspaceThreadListRequest(
+function isWorkspaceThreadDirectoryRequest(
   entry: WorkspaceThreadListRefreshState & { workspacePath: string },
   method: string,
   params: unknown
-): boolean {
+): params is Record<string, unknown> {
   if (method !== 'thread/list' || !isRecord(params)) return false
   const identity = isRecord(params.identity) ? params.identity : null
   if (!sameWorkspaceProjectKey(stringField(identity?.workspacePath), entry.workspacePath)) return false
   if (params.scope !== 'workspace' || params.includeSubAgents !== true) return false
   if (params.includeArchived === true || params.includeInternal === true) return false
-  if (params.limit != null || stringField(params.cursor) || stringField(params.query) || stringField(params.channelName)) return false
+  if (stringField(params.query) || stringField(params.channelName)) return false
   return true
 }
 
@@ -245,8 +324,16 @@ export function beginWorkspaceThreadListRequest(
   method: string,
   params: unknown
 ): number | undefined {
-  if (!isCompleteWorkspaceThreadListRequest(entry, method, params)) return undefined
-  threadListRequestMarks.set(entry, readStateClock(entry).sequence)
+  if (!isWorkspaceThreadDirectoryRequest(entry, method, params)) return undefined
+  const cursor = stringField(params.cursor)
+  let directory = threadDirectories.get(entry)
+  if (cursor) {
+    if (!directory || directory.cursor !== cursor) return undefined
+  } else {
+    directory = createThreadDirectory(entry)
+    entry.threadListLoaded = false
+  }
+  directory.requestedAtMark = readStateClock(entry).sequence
   return advanceThreadListRevision(entry)
 }
 
@@ -258,10 +345,19 @@ export function applyWorkspaceThreadListRequestResult(
   requestGeneration: number | undefined
 ): boolean {
   if (requestGeneration == null || threadListRevisions.get(entry) !== requestGeneration) return false
-  if (!isCompleteWorkspaceThreadListRequest(entry, method, params)) return false
-  if (!isRecord(result) || !Array.isArray(result.data) || result.nextCursor != null) return false
-
-  applyWorkspaceThreadListRefreshSuccess(entry, result, threadListRequestMarks.get(entry) ?? 0)
+  if (!isWorkspaceThreadDirectoryRequest(entry, method, params)) return false
+  if (!isRecord(result) || !Array.isArray(result.data)) return false
+  if (result.nextCursor != null && (typeof result.nextCursor !== 'string' || params.limit == null)) return false
+  const directory = threadDirectories.get(entry)
+  if (!directory || directory.cursor !== stringField(params.cursor)) return false
+  directory.cursor = stringField(result.nextCursor)
+  if (directory.cursor) {
+    cancelWorkspaceThreadListRetry(entry)
+    entry.threads = mergeThreadDirectoryPage(entry, directory, result, false)
+    entry.errorMessage = undefined
+  } else {
+    applyWorkspaceThreadListRefreshSuccess(entry, directory, result)
+  }
   return true
 }
 
@@ -288,11 +384,11 @@ async function refreshWorkspaceThreadListAttempt(
 ): Promise<boolean> {
   cancelWorkspaceThreadListRetry(entry)
   const revision = advanceThreadListRevision(entry)
-  const requestedAtMark = readStateClock(entry).sequence
+  const directory = createThreadDirectory(entry)
   try {
     const result = await load()
     if (threadListRevisions.get(entry) !== revision) return false
-    applyWorkspaceThreadListRefreshSuccess(entry, result, requestedAtMark)
+    applyWorkspaceThreadListRefreshSuccess(entry, directory, result)
   } catch (error) {
     if (threadListRevisions.get(entry) !== revision) return false
     const retryDelayMs = options.retryDelaysMs?.[attempt]

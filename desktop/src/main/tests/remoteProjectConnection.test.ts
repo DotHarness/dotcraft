@@ -48,6 +48,7 @@ function fixture(source: 'ssh' | 'servers') {
     mainWindow: { isDestroyed: () => false, setTitle: vi.fn() }, runtimeIsStopping: () => false,
     findWorkspaceConnectionByClient: (value: unknown) => value === previous.client ? previous : entry,
     releaseConnectionViewAttachments: vi.fn(), updateSettings: vi.fn(async () => {}),
+    refreshConnectionThreadList: vi.fn(async () => {}),
     setActiveRemoteProject: vi.fn(), reregisterIpcForWorkspace: vi.fn(), emitCurrentWorkspaceStatus: vi.fn(),
     emitConnectionStatus: vi.fn(), emitWorkspaceProjects: vi.fn(), workspaceTitleName: () => 'Project',
     getSshMachinesManager: () => manager, sshMachinesManager: manager,
@@ -76,6 +77,16 @@ describe('remote project connection lifetime', () => {
     expect(ctx.emitConnectionStatus).toHaveBeenCalledWith(ctx.mainWindow, expect.objectContaining({
       status: 'connected', connectionKey: entry.key, connectionId: 'connection-a'
     }))
+  })
+
+  it.each([false, true])('refreshes a demoted connection only if its directory is incomplete (loaded: %s)', (loaded) => {
+    const { ctx, entry } = fixture('ssh')
+    entry.role = 'foreground'
+    entry.threadListLoaded = loaded
+    ctx.wireClient = entry.client
+    demoteWorkspaceConnection(ctx, entry)
+    if (loaded) expect(ctx.refreshConnectionThreadList).not.toHaveBeenCalled()
+    else expect(ctx.refreshConnectionThreadList).toHaveBeenCalledExactlyOnceWith(entry)
   })
 
   it('does not promote an older selection after settings persistence completes late', async () => {

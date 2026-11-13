@@ -413,7 +413,7 @@ export function ThreadList({
       const activity = getProjectActivity(detailThreads)
       const showProjectThreadSkeleton =
         openingProject &&
-        (foregroundOpening || project.state === 'connecting' || (projectThreads.length === 0 && !project.loaded))
+        (foregroundOpening || project.state === 'connecting' || (projectThreads.length === 0 && !project.threadListLoaded))
       const collapsed = cold || (!showProjectThreadSkeleton && collapsedProjectKeys.has(orderKey))
       return (
         <ProjectListItem
@@ -444,7 +444,7 @@ export function ThreadList({
               <ProjectThreadSkeletonList />
             ) : (
               <>
-                {project.loaded && rawProjectThreads.length === 0 && (
+                {project.threadListLoaded && rawProjectThreads.length === 0 && (
                   <ProjectHint
                     label={searchQuery
                       ? t('threadList.noSearchResults')

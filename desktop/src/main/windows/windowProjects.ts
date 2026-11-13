@@ -17,7 +17,7 @@ import { hasRemoteEndpointArg } from '../workspaceArgs'
 import {
   applyWorkspaceThreadListRequestResult,
   applyWorkspaceThreadNotificationToCache,
-  noteWorkspaceReadStateChange,
+  noteWorkspaceThreadNotification,
   refreshWorkspaceThreadListCache,
   WORKSPACE_THREAD_LIST_RETRY_DELAYS_MS,
   type WorkspaceThreadListResult
@@ -135,6 +135,7 @@ export function demoteWorkspaceConnection(ctx: DesktopWindowRuntime, entry: Work
   entry.lastUsedAt = Date.now()
   ctx.releaseConnectionViewAttachments(entry, 'workspace demote')
   if (ctx.wireClient === entry.client) ctx.wireClient = null
+  if (entry.connected && !entry.threadListLoaded) void ctx.refreshConnectionThreadList(entry)
 }
 
 export function releaseConnectionViewAttachments(
@@ -214,6 +215,7 @@ export function buildDefaultChatSummary(ctx: DesktopWindowRuntime): WorkspacePro
     state,
     running: Boolean(entry?.connected || entry?.connecting || state === 'foreground'),
     loaded: Boolean(entry?.connected),
+    threadListLoaded: entry?.threadListLoaded === true,
     threadCount: entry?.threads.length ?? 0,
     threads: entry?.threads ?? [],
     ...connectionSummary(entry),
@@ -246,6 +248,7 @@ export function getWorkspaceProjectsPayload(ctx: DesktopWindowRuntime): Workspac
       state,
       running: Boolean(entry?.connected || entry?.connecting || state === 'foreground' || state === 'connecting'),
       loaded: Boolean(entry?.connected),
+      threadListLoaded: entry?.threadListLoaded === true,
       threadCount: entry?.threads.length ?? 0,
       threads: entry?.threads ?? [],
       ...connectionSummary(entry),
@@ -270,6 +273,7 @@ export function getWorkspaceProjectsPayload(ctx: DesktopWindowRuntime): Workspac
         state: entry?.connecting ? 'connecting' : entry?.errorMessage ? 'error' : entry?.connected ? 'secondary' : 'cold',
         running: Boolean(entry?.connected || entry?.connecting),
         loaded: Boolean(entry?.connected),
+        threadListLoaded: entry?.threadListLoaded === true,
         threadCount: entry?.threads.length ?? 0,
         threads: entry?.threads ?? [],
         ...connectionSummary(entry),
@@ -299,6 +303,7 @@ export function getWorkspaceProjectsPayload(ctx: DesktopWindowRuntime): Workspac
       state,
       running: Boolean(entry?.connected || entry?.connecting),
       loaded: Boolean(entry?.connected || entry?.initializeResult),
+      threadListLoaded: entry?.threadListLoaded === true,
       threadCount: entry?.threads.length ?? 0,
       threads: entry?.threads ?? [],
       ...connectionSummary(entry),
@@ -316,6 +321,7 @@ export function getWorkspaceProjectsPayload(ctx: DesktopWindowRuntime): Workspac
       identityWorkspacePath: project.identityWorkspacePath, name: project.name, remote: project.remote,
       state: entry.connecting ? 'connecting' : entry.errorMessage ? 'error' : entry.connected ? 'secondary' : 'cold',
       running: entry.connected || entry.connecting, loaded: entry.connected,
+      threadListLoaded: entry.threadListLoaded === true,
       threadCount: entry.threads.length, threads: entry.threads,
       pinnedThreadIds: ctx.getPinnedThreadIdsForProject(project.projectId), pinned: ctx.isProjectPinned(project.projectId),
       ...connectionSummary(entry), ...(entry.errorMessage ? { errorMessage: entry.errorMessage } : {})
@@ -337,6 +343,7 @@ export function getWorkspaceProjectsPayload(ctx: DesktopWindowRuntime): Workspac
       state,
       running: Boolean(entry?.connected || entry?.connecting || state === 'foreground'),
       loaded: Boolean(entry?.connected),
+      threadListLoaded: entry?.threadListLoaded === true,
       threadCount: entry?.threads.length ?? 0,
       threads: entry?.threads ?? [],
       ...connectionSummary(entry),
@@ -388,11 +395,7 @@ export function applyWorkspaceThreadNotification(
 ): void {
   const result = applyWorkspaceThreadNotificationToCache(entry.threads, method, params)
   entry.threads = result.threads
-  const readStateThreadId =
-    method === 'thread/readState/changed' && params && typeof params === 'object'
-      ? (params as { threadId?: unknown }).threadId
-      : undefined
-  if (typeof readStateThreadId === 'string') noteWorkspaceReadStateChange(entry, readStateThreadId)
+  noteWorkspaceThreadNotification(entry, method, params)
   if (result.changed) {
     ctx.emitWorkspaceProjects()
   }

@@ -32,6 +32,7 @@ export interface WorkspaceConnectionEntry {
   lastUsedAt: number
   initializeResult?: InitializeResult
   threads: unknown[]
+  threadListLoaded?: boolean
   errorMessage?: string
   device?: DeviceProjectConnection
   remoteProject?: ActiveRemoteProject

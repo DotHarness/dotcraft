@@ -31,7 +31,7 @@ describe('device project connection actions', () => {
     installDesktopApiMock({
       pairedComputers: { openProject },
       settings: { get: vi.fn().mockResolvedValue({}) },
-      appServer: { sendRequest: vi.fn().mockResolvedValue({ data: [{ id: 'shared-thread', status: 'active' }] }) }
+      appServer: { onNotification: () => () => {}, sendRequest: vi.fn().mockResolvedValue({ data: [{ id: 'shared-thread', status: 'active' }] }) }
     })
     const activeProject = { current: 'remote:device:computer-b:project-b' }
     const { result } = renderHook(() => useForegroundThreadList(activeProject, { current: project.path }))
@@ -72,7 +72,7 @@ describe('device project connection actions', () => {
     const list = deferred<{ data: Array<{ id: string; status: string }> }>()
     installDesktopApiMock({
       settings: { get: vi.fn().mockResolvedValue({}) },
-      appServer: { sendRequest: vi.fn().mockReturnValue(list.promise) }
+      appServer: { onNotification: () => () => {}, sendRequest: vi.fn().mockReturnValue(list.promise) }
     })
     useUIStore.getState().setPendingProjectThreadOpen({
       projectKey: project.projectId!, workspacePath: project.path, threadId: 'old-thread'

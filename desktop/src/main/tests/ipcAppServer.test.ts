@@ -98,6 +98,47 @@ describe('AppServer ordered IPC requests', () => {
     expect(entryA.errorMessage).toBeUndefined()
   })
 
+  it('keeps paged foreground lists on their originating cache across workspace switches', async () => {
+    const a = wire(), b = wire()
+    let foreground = a.client
+    const entryA = { workspacePath: '/a', threads: [] as unknown[], errorMessage: 'timeout' }
+    const entryB = { workspacePath: '/b', threads: [] as unknown[] }
+    const entries = new Map([[a.client, entryA], [b.client, entryB]])
+    const ipc = bridge(() => foreground, {
+      getConnectionContext: client => ({
+        workspacePath: entries.get(client)!.workspacePath, capabilities: { dynamicToolRebind: true }
+      }),
+      onAppServerRequestStarted: (client, method, params) =>
+        beginWorkspaceThreadListRequest(entries.get(client)!, method, params),
+      onAppServerRequestCompleted: (client, method, params, result, generation) => {
+        applyWorkspaceThreadListRequestResult(entries.get(client)!, method, params, result, generation)
+      }
+    })
+    const paramsA = { identity: { workspacePath: '/a' }, scope: 'workspace', includeSubAgents: true, limit: 50 }
+    const firstPage = Array.from({ length: 50 }, (_, index) => ({ id: `a-${index}` }))
+    const pendingFirst = ipc.consumer.request('thread/list', paramsA)
+    const firstRequest = await a.read()
+    foreground = b.client
+    const pendingOther = ipc.consumer.request('thread/list', { ...paramsA, identity: { workspacePath: '/b' } })
+    const otherRequest = await b.read()
+    b.push({ id: otherRequest.id, result: { data: [{ id: 'b' }], nextCursor: null } })
+    await pendingOther
+    a.push({ id: firstRequest.id, result: { data: firstPage, nextCursor: 'a-next' } })
+    await pendingFirst
+    expect(entryA.threads).toEqual(firstPage)
+    expect(entryB.threads).toEqual([{ id: 'b' }])
+
+    foreground = a.client
+    const pendingLast = ipc.consumer.request('thread/list', { ...paramsA, cursor: 'a-next' })
+    const lastRequest = await a.read()
+    foreground = b.client
+    a.push({ id: lastRequest.id, result: { data: [{ id: 'a-50' }], nextCursor: null } })
+    await pendingLast
+    expect(entryA.threads).toEqual([...firstPage, { id: 'a-50' }])
+    expect(entryB.threads).toEqual([{ id: 'b' }])
+    expect(entryA.errorMessage).toBeUndefined()
+  })
+
   it('rejects a keyed request from an expired connection lifetime before sending it', async () => {
     const server = wire()
     const send = vi.spyOn(server.client, 'sendRequest')
