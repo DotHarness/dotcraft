@@ -30,7 +30,7 @@ internal static class PluginActivationBlockers
         if (deterministic)
         {
             return Create(
-                PluginDotnetDiagnosticCodes.EntryAssemblyInvalid,
+                DotNetExtensionDiagnosticCodes.EntryAssemblyInvalid,
                 message,
                 new Dictionary<string, object?>(StringComparer.Ordinal)
                 {

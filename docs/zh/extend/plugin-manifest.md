@@ -107,7 +107,7 @@
 dotcraft plugin verify --candidate <plugin-root> [--for-publish] [--json]
 ```
 
-该命令不写入任何文件、不访问网络，也不加载插件代码。.NET 项目的校验对象是 `DotNetPlugin.Build` 之后的 `plugin/` 目录。
+该命令不写入任何文件、不访问网络，也不加载插件代码。.NET 项目的校验对象是 `CSharp.Build` 之后的 `plugin/` 目录。
 
 它会检查清单以及声明的每个文件、描述文件、Desktop 产物和插件技能是否符合运行时规则，是否还留有 `[TODO: ...]` 占位符，以及上述字段和图标是否有效。
 

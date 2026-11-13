@@ -2729,7 +2729,7 @@ public sealed class PluginDiagnostic : ExtensibleJsonObject
 
 }
 
-public sealed class PluginDotnetInfo : ExtensibleJsonObject
+public sealed class DotNetExtensionInfo : ExtensibleJsonObject
 {
     [JsonPropertyName("displayName")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -2756,7 +2756,7 @@ public sealed class PluginDotnetInfo : ExtensibleJsonObject
     public Optional<string> MinHostVersion { get; init; }
 }
 
-public sealed class PluginDotnetRuntimeInfo : ExtensibleJsonObject
+public sealed class DotNetExtensionRuntimeInfo : ExtensibleJsonObject
 {
     [JsonPropertyName("state")]
     public Optional<string> State { get; init; }
@@ -2847,11 +2847,11 @@ public sealed class PluginInfo : ExtensibleJsonObject
 
     [JsonPropertyName("dotnet")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<PluginDotnetInfo?> Dotnet { get; init; }
+    public Optional<DotNetExtensionInfo?> Dotnet { get; init; }
 
     [JsonPropertyName("dotnetRuntime")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<PluginDotnetRuntimeInfo?> DotnetRuntime { get; init; }
+    public Optional<DotNetExtensionRuntimeInfo?> DotnetRuntime { get; init; }
 
     [JsonPropertyName("enabled")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -3135,7 +3135,7 @@ public sealed class PluginRuntimeProjection : ExtensibleJsonObject
     public Optional<bool> Enabled { get; init; }
 
     [JsonPropertyName("dotnetRuntime")]
-    public Optional<PluginDotnetRuntimeInfo> DotnetRuntime { get; init; }
+    public Optional<DotNetExtensionRuntimeInfo> DotnetRuntime { get; init; }
 }
 
 public sealed class PluginOperationResult : ExtensibleJsonObject

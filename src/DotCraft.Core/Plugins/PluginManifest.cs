@@ -44,7 +44,7 @@ public sealed record PluginManifest
 
     public PluginManifestHooks? Hooks { get; init; }
 
-    public PluginDotnetManifest? Dotnet { get; init; }
+    public DotNetExtensionManifest? Dotnet { get; init; }
 
     /// <summary>Minimum cross-plugin provider versions keyed by provider id. Only a plugin declaring <see cref="Dotnet"/> may declare dependencies.</summary>
     public IReadOnlyDictionary<string, string> Dependencies { get; init; }
@@ -256,7 +256,7 @@ public static partial class PluginManifestParser
             manifestPath,
             diagnostics);
         AddUnsupportedNativeToolsDiagnostics(raw, manifestPath, diagnostics);
-        var dotnetAdmission = PluginDotnetManifestAdmission.Admit(
+        var dotnetAdmission = DotNetExtensionManifestAdmission.Admit(
             pluginRoot,
             raw.Id?.Trim() ?? string.Empty,
             raw.Version,
@@ -264,7 +264,7 @@ public static partial class PluginManifestParser
             raw.Dependencies);
         if (!dotnetAdmission.DotnetDeclared
             && raw.Desktop != null
-            && !PluginDotnetManifestAdmission.IsCanonicalVersion(dotnetAdmission.Version))
+            && !DotNetExtensionManifestAdmission.IsCanonicalVersion(dotnetAdmission.Version))
         {
             diagnostics.Add(PluginDiagnostic.Error(
                 "InvalidPluginVersion",
@@ -333,7 +333,7 @@ public static partial class PluginManifestParser
         };
 
         if (manifest.Dotnet != null)
-            diagnostics.AddRange(PluginDotnetMetadataInspector.Inspect(manifest));
+            diagnostics.AddRange(DotNetExtensionMetadataInspector.Inspect(manifest));
 
         return new PluginManifestParseResult(manifest, diagnostics);
     }

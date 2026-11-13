@@ -21,7 +21,7 @@ internal sealed partial class PluginBundleSnapshotStore
             if (parsed.Manifest?.Dotnet is null)
                 throw new InvalidOperationException("The installed plugin identity is invalid.");
             var snapshot = new PluginAcceptedSnapshot(parsed.Manifest, root,
-                PluginBundleFingerprint.Compute(root), PluginDotnetFingerprint.Compute(parsed.Manifest), parsed.Diagnostics);
+                PluginBundleFingerprint.Compute(root), DotNetExtensionFingerprint.Compute(parsed.Manifest), parsed.Diagnostics);
             AddReference(root);
             return snapshot;
         }

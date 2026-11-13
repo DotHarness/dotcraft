@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 namespace DotCraft.Contributions;
 
 /// <summary>The default in-process <see cref="IContributionRegistry"/>.</summary>
-internal sealed class ContributionRegistry(ILogger<ContributionRegistry>? logger = null) : IContributionRegistry
+public sealed class ContributionRegistry(ILogger<ContributionRegistry>? logger = null) : IContributionRegistry
 {
     private readonly ConcurrentDictionary<Type, ContributionPoint> _points = new();
     private readonly object _batchGate = new();

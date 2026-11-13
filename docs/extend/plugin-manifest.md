@@ -107,7 +107,7 @@ Icons are square SVG, PNG, JPEG, or WebP files inside the plugin, at most 512 Ki
 dotcraft plugin verify --candidate <plugin-root> [--for-publish] [--json]
 ```
 
-The command writes nothing, uses no network, and does not load plugin code. For a .NET project, the candidate is its `plugin/` directory after `DotNetPlugin.Build`.
+The command writes nothing, uses no network, and does not load plugin code. For a .NET project, the candidate is its `plugin/` directory after `CSharp.Build`.
 
 It checks that the manifest and every declared file, descriptor, Desktop output, and plugin skill follow runtime rules, that no `[TODO: ...]` placeholder remains, and that the fields and icons above are valid.
 

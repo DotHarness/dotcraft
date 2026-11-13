@@ -7,7 +7,7 @@ Choose an extension surface by where the code runs and who owns its lifecycle.
 | Channel adapter | `@dotcraft/channel` declarations | `https://www.dotcraft.net/extend/sdks/channels` |
 | Channel module | `@dotcraft/channel` declarations and module manifest | `https://www.dotcraft.net/extend/channel-modules` |
 | Desktop extension | Installed `@dotcraft/plugin` declarations | `https://www.dotcraft.net/extend/desktop-extensions` and `https://www.dotcraft.net/extend/desktop-extension-api` |
-| Managed .NET extension | Public types bundled with `DotCraft.Harness` | `https://www.dotcraft.net/extend/dotnet-extensions` and `https://www.dotcraft.net/extend/dotnet-extension-api` |
+| Managed .NET extension | Installed `DotCraft.Core` declarations | `https://www.dotcraft.net/extend/dotnet-extensions` and `https://www.dotcraft.net/extend/dotnet-extension-api` |
 | Runtime Dynamic Tools | Installed SDK declarations | `https://www.dotcraft.net/extend/sdks/tools` |
 | App Binding | Installed SDK declarations and AppServer capabilities | `https://www.dotcraft.net/extend/app-binding` |
 | MCP App | MCP tool and resource contracts | `https://www.dotcraft.net/extend/mcp-apps` |

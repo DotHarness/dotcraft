@@ -69,7 +69,7 @@ public sealed class SetupImportConcurrencyTests : IDisposable
             var monitor = new AppConfigMonitor(new AppConfig { GlobalConfigPath = userConfig });
             var notifications = 0;
             monitor.Changed += (_, _) => notifications++;
-            var runtime = new ImportedSetupRuntime(DotCraftPaths.CreateForExecutionHost(Path.GetDirectoryName(data)!, data, user), monitor);
+            var runtime = new ImportedSetupRuntime(DotCraftPaths.Create(Path.GetDirectoryName(data)!, data, user), monitor);
             await runtime.RefreshAsync(default);
             await runtime.RefreshAsync(default);
             Assert.Equal("user", Assert.Single(monitor.Current.McpServers).Origin.Kind);
@@ -84,7 +84,7 @@ public sealed class SetupImportConcurrencyTests : IDisposable
         var data = _temp.CreateDirectory("other", ".craft");
         var skills = new SkillsLoader(data);
         var monitor = new AppConfigMonitor(new AppConfig { GlobalConfigPath = Path.Combine(user, "config.json") });
-        var runtime = new ImportedSetupRuntime(DotCraftPaths.CreateForExecutionHost(Path.GetDirectoryName(data)!, data, user), monitor, skills);
+        var runtime = new ImportedSetupRuntime(DotCraftPaths.Create(Path.GetDirectoryName(data)!, data, user), monitor, skills);
         var plugin = Path.Combine(user, "plugins", "demo-plugin");
         Directory.CreateDirectory(Path.Combine(plugin, ".craft-plugin"));
         Directory.CreateDirectory(Path.Combine(plugin, "skills", "demo-skill"));
@@ -117,7 +117,7 @@ public sealed class SetupImportConcurrencyTests : IDisposable
         var dotnet = new RecordingDotnetRuntime("removed-plugin");
         var monitor = new AppConfigMonitor(new AppConfig { GlobalConfigPath = Path.Combine(user, "config.json") });
         var runtime = new ImportedSetupRuntime(
-            DotCraftPaths.CreateForExecutionHost(Path.GetDirectoryName(data)!, data, user), monitor, new SkillsLoader(data), dotnet: dotnet);
+            DotCraftPaths.Create(Path.GetDirectoryName(data)!, data, user), monitor, new SkillsLoader(data), dotnet: dotnet);
 
         AtomicConfigDocument.Update(Path.Combine(user, "imports", "revision.json"), root => root["revision"] = "removed");
         await runtime.RefreshAsync(default);
@@ -156,13 +156,21 @@ public sealed class SetupImportConcurrencyTests : IDisposable
             ImportedSetupRuntime.PlanDotnetConvergence(installed, running));
     }
 
-    private sealed class RecordingDotnetRuntime(params string[] running) : CorePlugins.IPluginDotnetRuntimeCoordinator
+    private sealed class RecordingDotnetRuntime(params string[] running) : CorePlugins.IDotNetExtensionRuntimeCoordinator
     {
+        public IReadOnlySet<string> HostSharedAssemblies { get; } = new HashSet<string>();
+
+        public Task<CorePlugins.DotNetExtensionBuildApplyResult> ApplyBuildAsync(
+            string pluginId,
+            CorePlugins.DotNetExtensionBuild build,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
         public List<string> Calls { get; } = [];
 
         public CorePlugins.PluginRuntimeSnapshot Snapshot { get; } = new(
             1,
-            running.Select(id => new CorePlugins.PluginDotnetRuntimeInfo(id, "1.0.0", default, null, [])).ToArray(),
+            running.Select(id => new CorePlugins.DotNetExtensionRuntimeInfo(id, "1.0.0", default, null, [])).ToArray(),
             []);
 
         public event EventHandler<CorePlugins.PluginRuntimeSnapshotChangedEventArgs>? SnapshotChanged { add { } remove { } }

@@ -47,7 +47,7 @@ internal static class RemoteToolHostTestHost
         var lsp = enableLsp
             ? new LspServerManager(
                 config,
-                DotCraftPaths.CreateForExecutionHost(workspacePath, agentDataPath, agentDataPath))
+                DotCraftPaths.Create(workspacePath, agentDataPath, agentDataPath))
             : null;
         try
         {

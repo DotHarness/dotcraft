@@ -3,11 +3,11 @@ using DotCraft.Imaging;
 
 namespace DotCraft.Agents;
 
-internal static class ModelImageInputPreparer
+public static class ModelImageInputPreparer
 {
     internal const string CouldNotProcessPlaceholder = "image content omitted because it could not be processed";
     internal const string TooLargePlaceholder = "image content omitted because it exceeded the supported size limit";
-    internal const string ToolResultImagesMarker = "[Image content from tool results — attached for vision analysis.]";
+    public const string ToolResultImagesMarker = "[Image content from tool results — attached for vision analysis.]";
     private const int MaxInputBytes = 64 * 1024 * 1024;
 
     public static bool IsImageMediaType(string? mediaType) =>
@@ -47,7 +47,7 @@ internal static class ModelImageInputPreparer
     private static string NormalizeMediaType(string? mediaType) =>
         string.IsNullOrWhiteSpace(mediaType) ? "application/octet-stream" : mediaType.Trim().ToLowerInvariant();
 
-    internal sealed record PreparedModelImageInput(DataContent? Content, string? PlaceholderText)
+    public sealed record PreparedModelImageInput(DataContent? Content, string? PlaceholderText)
     {
         public bool HasImage => Content != null;
         public static PreparedModelImageInput Image(DataContent content) => new(content, null);

@@ -30,7 +30,7 @@ public static class CompactableToolPolicyCatalog
     /// <summary>Registers the built-in policy into a registry.</summary>
     /// <param name="registrar">Optional origin-scoped owner for the handle; when omitted the policy is attributed to <see cref="ContributionOrigin.Builtin"/> and lives for the registry's lifetime.</param>
     /// <returns>The registration handle.</returns>
-    internal static IReadOnlyList<IContributionHandle> RegisterBuiltIns(
+    public static IReadOnlyList<IContributionHandle> RegisterBuiltIns(
         IContributionRegistry registry,
         IContributionRegistrar? registrar = null)
     {

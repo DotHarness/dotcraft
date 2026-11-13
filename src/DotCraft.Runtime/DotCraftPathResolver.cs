@@ -2,9 +2,9 @@ using DotCraft.Workspaces;
 
 namespace DotCraft.Runtime;
 
-internal static class DotCraftPathResolver
+public static class DotCraftPathResolver
 {
-    internal static DotCraftPaths Resolve(DotCraftRuntimeOptions options)
+    public static DotCraftPaths Resolve(DotCraftRuntimeOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentException.ThrowIfNullOrWhiteSpace(options.WorkspacePath);
@@ -20,7 +20,7 @@ internal static class DotCraftPathResolver
         var userDataPath = string.IsNullOrWhiteSpace(options.UserDataPath)
             ? null
             : Normalize(options.UserDataPath);
-        return new DotCraftPaths(workspacePath, dataPath, userDataPath);
+        return DotCraftPaths.Create(workspacePath, dataPath, userDataPath);
     }
 
     private static void EnsureDirectChild(string workspacePath, string dataPath)

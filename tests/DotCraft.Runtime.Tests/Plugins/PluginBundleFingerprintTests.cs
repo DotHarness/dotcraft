@@ -3,7 +3,7 @@ using System.Text;
 using DotCraft.Plugins;
 using DotCraft.Runtime;
 using Xunit;
-using static DotCraft.Tests.Runtime.Plugins.DotNetPluginTestBundle;
+using static DotCraft.Tests.Runtime.Plugins.DotNetExtensionTestBundle;
 
 namespace DotCraft.Tests.Runtime.Plugins;
 

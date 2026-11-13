@@ -144,7 +144,7 @@ public sealed partial class AppServerHost(
             usage.SnapshotChanged += BroadcastOpenAiUsageChanged;
         if (_services.GetService<AppBindingCoordinator>() is { } bindings)
             bindings.BindingStatusChanged += BroadcastAppBindingStatusChanged;
-        if (_services.GetService<IPluginDotnetRuntimeCoordinator>() is { } plugins)
+        if (_services.GetService<IDotNetExtensionRuntimeCoordinator>() is { } plugins)
             plugins.SnapshotChanged += BroadcastPluginRuntimeSnapshotChanged;
         if (runtime.RemoteToolHostClient is { } remoteToolHostClient)
         {
@@ -185,7 +185,7 @@ public sealed partial class AppServerHost(
             usage.SnapshotChanged -= BroadcastOpenAiUsageChanged;
         if (_services.GetService<AppBindingCoordinator>() is { } bindings)
             bindings.BindingStatusChanged -= BroadcastAppBindingStatusChanged;
-        if (_services.GetService<IPluginDotnetRuntimeCoordinator>() is { } plugins)
+        if (_services.GetService<IDotNetExtensionRuntimeCoordinator>() is { } plugins)
             plugins.SnapshotChanged -= BroadcastPluginRuntimeSnapshotChanged;
         _remoteToolHostRouteBroadcaster?.Dispose();
         _remoteToolHostRouteBroadcaster = null;
@@ -209,8 +209,8 @@ public sealed partial class AppServerHost(
                     .GetServices<DotCraft.Modules.IRuntimeCapabilityProvider>()
                     .Any(static capability => capability.Capability == "dynamicWorkflows" && capability.IsAvailable),
                 PluginWorkflowSummaryProvider = runtime.Services.GetService<DotCraft.Plugins.IPluginWorkflowSummaryProvider>(),
-                PluginDotnetRuntimeCoordinator = runtime.Services
-                    .GetService<DotCraft.Plugins.IPluginDotnetRuntimeCoordinator>(),
+                DotNetExtensionRuntimeCoordinator = runtime.Services
+                    .GetService<DotCraft.Plugins.IDotNetExtensionRuntimeCoordinator>(),
                 PluginConfigStore = runtime.Services.GetService<DotCraft.Plugins.PluginConfigStore>(),
                 PluginManagementState = _services.GetRequiredService<AppServerPluginManagementState>(),
                 BroadcastPluginSnapshotUpdated = BroadcastPluginSnapshotUpdated,

@@ -1,8 +1,8 @@
 namespace DotCraft.Agents;
 
-internal sealed record PromptCacheMaintenanceScope(int SnapshotMessageCount);
+public sealed record PromptCacheMaintenanceScope(int SnapshotMessageCount);
 
-internal sealed record PromptCacheStateOverride(
+public sealed record PromptCacheStateOverride(
     string CacheStateKey,
     string? TraceSessionKey,
     PromptCacheMaintenanceScope? MaintenanceScope);
@@ -11,13 +11,13 @@ internal sealed record PromptCacheStateOverride(
 /// Narrows remembered breakpoints to an internal state key so a maintenance fork and the main
 /// conversation do not overwrite each other's remembered breakpoints.
 /// </summary>
-internal static class PromptCacheStateScope
+public static class PromptCacheStateScope
 {
     private static readonly AsyncLocal<PromptCacheStateOverride?> Override = new();
 
-    internal static PromptCacheStateOverride? Current => Override.Value;
+    public static PromptCacheStateOverride? Current => Override.Value;
 
-    internal static IDisposable Use(
+    public static IDisposable Use(
         string cacheStateKey,
         string? traceSessionKey = null,
         PromptCacheMaintenanceScope? maintenanceScope = null)

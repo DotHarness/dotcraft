@@ -7,9 +7,9 @@ This page targets plugin authors. For the user-facing view of plugins, see [Plug
 > [!CAUTION]
 > A .NET extension loads fully trusted code into the DotCraft process and receives that process's filesystem, network, credential, native interop, and OS authority. There is no managed sandbox and no permission model. Safety depends on which code you choose to build or trust, not on a runtime boundary. Use MCP when code needs a real trust boundary.
 
-![.NET extension authoring and runtime topology](/dotnet-plugin-topology.svg)
+![.NET extension authoring and runtime topology](/dotnet-extension-topology.svg)
 
-The runnable [DotNetPluginSample](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/DotNetPluginSample) contains two bundles, covers every public .NET contribution point, verifies the built result through the host's preflight and runtime, and includes Desktop presentation for one tool.
+The runnable [DotNetExtensionSample](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/DotNetExtensionSample) contains two bundles, covers every public .NET contribution point, verifies the built result through the host's preflight and runtime, and includes Desktop presentation for one tool.
 
 ## Create with DotCraft
 
@@ -23,15 +23,15 @@ Ask `$plugin-creator` to create a .NET extension in the current workspace. It cr
     └── lib/
 ```
 
-The project has no `.csproj` and does not restore NuGet packages. The agent edits `src/**/*.cs` and the manifest, uses `DotNetPlugin.Inspect` for exact API signatures and documentation, then calls `DotNetPlugin.Build`. The build compiles against the public plugin API and BCL shipped by the running host, runs metadata preflight, publishes the bundle atomically, and activates it. None of that needs an external .NET SDK or network access.
+The project has no `.csproj` and does not restore NuGet packages. The agent edits `src/**/*.cs` and the manifest, uses `CSharp.Inspect` for exact API signatures and documentation, then calls `CSharp.Build`. The build compiles against the public plugin API and BCL shipped by the running host, runs metadata preflight, publishes the bundle atomically, and activates it. None of that needs an external .NET SDK or network access.
 
-A successful build qualifies the exact plugin id and fingerprint only in the current host process; it does not change `dotnet-plugin-trust.json`. Build the project again after restarting DotCraft. Rebuilding the active fingerprint from the same project is a no-op.
+A successful build qualifies the exact plugin id and fingerprint only in the current host process; it does not change `dotnet-extension-trust.json`. Build the project again after restarting DotCraft. Rebuilding the active fingerprint from the same project is a no-op.
 
-`DotNetPlugin.Build` runs the host's fixed tool generator before compilation, so source projects support `[Tool]`, `[GeneratedTool]`, and `[ToolDeclaration]` too. Generated files stay in memory; source projects cannot supply analyzers or generators. Generation errors are reported with `phase: generate` and leave the previous published bundle and active generation unchanged.
+`CSharp.Build` runs the host's fixed tool generator before compilation, so source projects support `[Tool]`, `[GeneratedTool]`, and `[ToolDeclaration]` too. Generated files stay in memory; source projects cannot supply analyzers or generators. Generation errors are reported with `phase: generate` and leave the previous published bundle and active generation unchanged.
 
-For a custom Harness host that supports source authoring, set `<PreserveCompilationContext>true</PreserveCompilationContext>` in the host project. Harness copies the required Core and Agents XML documentation into build and publish output. When publishing a single-file host, also set `<IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>` so the compiler can read the extracted assemblies, documentation, and reference pack.
+The `CSharp` tools ship in the `DotCraft.CSharp` package. A custom Harness host that supports source authoring references that package and calls `AddDotCraftCSharp()` after `AddDotCraftHarness`. The package preserves the compilation context and copies the required API documentation into build and publish output. When publishing a single-file host, also set `<IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>` so the compiler can read the extracted assemblies, documentation, and reference pack.
 
-The Turn that performs the build keeps its frozen tool snapshot. New plugin tools become available on the next Turn, and the build does not invoke them. Source edits are applied only when the agent calls `DotNetPlugin.Build`.
+The Turn that performs the build keeps its frozen tool snapshot. New plugin tools become available on the next Turn, and the build does not invoke them. Source edits are applied only when the agent calls `CSharp.Build`.
 
 ## Prepare a prebuilt bundle
 
@@ -86,7 +86,7 @@ The plugin API is `DotCraft.Core` itself, plus what it references transitively �
 <ProjectReference Include="path/to/src/DotCraft.Core/DotCraft.Core.csproj" Private="false" />
 ```
 
-For a standalone project outside the DotCraft checkout, reference the released `DotCraft.Harness` package to obtain these APIs and the tool analyzer. When building against checkout project references, add `DotCraft.Generators.csproj` with `OutputItemType="Analyzer"` and `ReferenceOutputAssembly="false"`. A reference to Core alone does not run the generator. Target the same host version, and keep only the plugin and its private dependency closure in the bundle.
+For a standalone project outside the DotCraft checkout, reference the released `DotCraft.Core` package; it carries these APIs and the tool analyzer. When building against checkout project references, add `DotCraft.Generators.csproj` with `OutputItemType="Analyzer"` and `ReferenceOutputAssembly="false"`, because a project reference to Core does not run the generator. Target the same host version, and keep only the plugin and its private dependency closure in the bundle.
 
 The load context resolves every DotCraft assembly and its package closure **by simple name** against the copies already loaded in the host, ignoring the version a bundle ships. That is what keeps type identity single: a `ChatMessage` a middleware contribution rewrites is the same type the kernel dispatches on, even if the bundle carries its own `Microsoft.Extensions.AI.Abstractions.dll`. Shipping those assemblies only enlarges the bundle. Everything else resolves from the bundle's `.deps.json` and adjacent probing, confined to the bundle directory. An application that embeds DotCraft can add its own contract assemblies to the shared set; see [Share application contracts with plugins](./harness/hosting-lifecycle#share-application-contracts-with-plugins).
 
@@ -175,7 +175,7 @@ Its descriptor declares the backend ID, supported protocols, authentication meth
 `CreateProvider(ModelBackendContext)` returns an `IModelProvider` for each configured instance.
 Backend IDs must be unique.
 
-The [.NET extension sample](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/DotNetPluginSample#try-the-offline-model-backend)
+The [.NET extension sample](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/DotNetExtensionSample#try-the-offline-model-backend)
 demonstrates model discovery, chat and interactive login. After enabling and trusting Review Core,
 add its backend to configuration:
 
@@ -332,4 +332,4 @@ For the complete contribution catalog, ordering, typed exports, trust, and gener
 ## Related docs
 
 - [Desktop extensions](./desktop-extensions) — add a Desktop surface to the same bundle.
-- [.NET extension architecture specification](https://github.com/DotHarness/dotcraft/blob/main/specs/architecture/dotnet-plugins.md) — the normative source behind this page.
+- [.NET extension architecture specification](https://github.com/DotHarness/dotcraft/blob/main/specs/architecture/dotnet-extensions.md) — the normative source behind this page.

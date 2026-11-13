@@ -20,7 +20,7 @@ public sealed class RemotePluginPreparationTests
         using var data = new TemporaryDirectory();
         RemotePluginFixture.Write(harness);
         await using var host = new PluginExecutionHost(
-            DotCraftPaths.CreateForExecutionHost(harness.Workspace, data.Path, data.Path), harness.Services);
+            DotCraftPaths.Create(harness.Workspace, data.Path, data.Path), harness.Services);
         await host.PrepareAsync(Install(1));
         var planning = PluginRuntimeHarness.PlanningContext(1);
         var registration = Assert.Single(await host.GetRegistrationsAsync(planning));
@@ -47,7 +47,7 @@ public sealed class RemotePluginPreparationTests
             var destination = Path.Combine(data.Path, "plugins", id, fingerprint);
             if (!Directory.Exists(destination)) PluginBundleTree.CopyAndFingerprint(source, destination);
             return new RemotePluginBundleFiles(new(id, $"source-{revision}", revision, fingerprint,
-                PluginDotnetFingerprint.Compute(source), JsonSerializer.Deserialize<JsonElement>("{}")), destination);
+                DotNetExtensionFingerprint.Compute(source), JsonSerializer.Deserialize<JsonElement>("{}")), destination);
         }).ToArray();
     }
 

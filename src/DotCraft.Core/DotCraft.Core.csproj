@@ -1,15 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <Import Project="..\DotCraft.Package.props" />
+
   <PropertyGroup>
+    <Description>DotCraft product kernel: sessions, tools, context, plugins, MCP, and security.</Description>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
     <RootNamespace>DotCraft</RootNamespace>
-    <PackageId>DotCraft.Core</PackageId>
-    <Version>0.11.1</Version>
-    <IsPackable>false</IsPackable>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);1591;1572;1573;1574;1734</NoWarn>
   </PropertyGroup>
 
@@ -42,9 +41,13 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\DotCraft.Generators\DotCraft.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\DotCraft.Generators\DotCraft.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
     <ProjectReference Include="..\DotCraft.Agents\DotCraft.Agents.csproj" />
     <ProjectReference Include="..\DotCraft.Imaging\DotCraft.Imaging.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="$(DotCraftGeneratorsAssemblyPath)" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
   </ItemGroup>
 
   <ItemGroup>
@@ -62,9 +65,6 @@
     </AssemblyAttribute>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
       <_Parameter1>DotCraft.AppServer.Tests</_Parameter1>
-    </AssemblyAttribute>
-    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
-      <_Parameter1>DotCraft.Runtime</_Parameter1>
     </AssemblyAttribute>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
       <_Parameter1>DotCraft.Runtime.Tests</_Parameter1>

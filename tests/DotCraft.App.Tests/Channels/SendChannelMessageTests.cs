@@ -59,7 +59,7 @@ public sealed class SendChannelMessageTests : IDisposable
     [Fact]
     public async Task AppBindingThread_ResolvesTheBindingAtCallTime()
     {
-        var paths = DotCraftPaths.CreateForExecutionHost(_workspace, Path.Combine(_workspace, ".craft"));
+        var paths = DotCraftPaths.Create(_workspace, Path.Combine(_workspace, ".craft"));
         var bindings = new AppBindingService();
         var dataPath = paths.Data.RootPath;
         var request = bindings.CreateChannelRequest(dataPath, "desktop-thread", "telegram", "local");

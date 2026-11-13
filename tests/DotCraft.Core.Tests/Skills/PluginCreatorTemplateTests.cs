@@ -20,7 +20,7 @@ public sealed class PluginCreatorTemplateTests : IDisposable
     [Fact]
     public void DotnetTemplate_CompilesAgainstTheHostApi()
     {
-        var source = ReadTemplate("template-dotnet-plugin.txt")
+        var source = ReadTemplate("template-dotnet-extension.txt")
             .Replace("[TODO: PascalCaseId]", "MyPlugin", StringComparison.Ordinal);
         source = Regex.Replace(source, @"\[TODO: [^\]]*\]", "my_plugin");
 

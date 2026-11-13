@@ -9,7 +9,7 @@ internal static class PluginBundleFingerprint
 }
 
 /// <summary>Applies the bundle identity rules to the shared bounded plugin tree processor.</summary>
-internal static class PluginBundleTree
+public static class PluginBundleTree
 {
     private const string MarkerFileName = ".builtin";
     private static readonly byte[] FingerprintPrefix = "DotCraft.PluginBundleFingerprint\0v1\0"u8.ToArray();

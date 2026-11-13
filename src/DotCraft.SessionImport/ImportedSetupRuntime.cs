@@ -11,7 +11,7 @@ namespace DotCraft.SessionImport;
 
 public sealed class ImportedSetupRuntime(DotCraftPaths paths, IAppConfigMonitor monitor,
     SkillsLoader? skills = null, HookRunner? hooks = null, McpClientManager? mcp = null, LspServerManager? lsp = null,
-    IPluginDotnetRuntimeCoordinator? dotnet = null)
+    IDotNetExtensionRuntimeCoordinator? dotnet = null)
     : ISessionRuntimeRefresher, ISessionServiceConsumer
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -55,7 +55,7 @@ public sealed class ImportedSetupRuntime(DotCraftPaths paths, IAppConfigMonitor 
         finally { _gate.Release(); }
     }
 
-    private async Task ConvergeDotnetPluginsAsync(IPluginDotnetRuntimeCoordinator runtime, AppConfig config, CancellationToken cancellationToken)
+    private async Task ConvergeDotnetPluginsAsync(IDotNetExtensionRuntimeCoordinator runtime, AppConfig config, CancellationToken cancellationToken)
     {
         var installed = new PluginDiscoveryService(paths).DiscoverAll(config, paths.WorkspacePath, paths.Data.RootPath).Plugins
             .Where(plugin => plugin.Installed && plugin.Manifest.Dotnet != null)
@@ -75,7 +75,7 @@ public sealed class ImportedSetupRuntime(DotCraftPaths paths, IAppConfigMonitor 
             await runtime.SetEnabledAsync(pluginId, action == DotnetConvergence.Enable, cancellationToken).ConfigureAwait(false);
     }
 
-    private static Dictionary<string, DotnetPluginState> RunningDotnetPlugins(IPluginDotnetRuntimeCoordinator runtime) =>
+    private static Dictionary<string, DotnetPluginState> RunningDotnetPlugins(IDotNetExtensionRuntimeCoordinator runtime) =>
         runtime.Snapshot.Plugins.ToDictionary(
             plugin => PluginIds.Canonicalize(plugin.PluginId),
             plugin => new DotnetPluginState(plugin.Version, plugin.Enabled),

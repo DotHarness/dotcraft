@@ -23,9 +23,9 @@ using DotCraft.AppServerTestClient;
 //                                  -- Run real-provider native deferred loading smoke
 //    stream-retry-smoke --matrix <json> [--report <json>]
 //                                  -- Run real-provider stream retry smoke scenarios
-//    dotnet-plugin-smoke --bundles <dir> [--report <json>]
+//    dotnet-extension-smoke --bundles <dir> [--report <json>]
 //                                  -- Run the managed .NET extension sample through a real AppServer/provider
-//    dotnet-plugin-authoring-smoke [--report <json>]
+//    csharp-authoring-smoke [--report <json>]
 //                                  -- Create, build, invoke, and hot reload an agent-authored .NET extension
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -80,13 +80,13 @@ static void Usage()
               Run real-provider stream retry smoke scenarios. Each case starts a local
               fault proxy, drops the first streaming request, and verifies reconnect.
 
-          dotnet-plugin-smoke --bundles <dir> [--provider-id <id>] [--model <model>]
+          dotnet-extension-smoke --bundles <dir> [--provider-id <id>] [--model <model>]
                               [--report <report.json>] [--work-root <dir>]
                               [--timeout-minutes <n>] [--keep-workspace]
               Install, trust, activate, invoke, restart, disable, and remove the managed
               .NET extension sample through a real AppServer and the selected local provider.
 
-          dotnet-plugin-authoring-smoke [--provider-id <id>] [--model <model>]
+          csharp-authoring-smoke [--provider-id <id>] [--model <model>]
                                          [--report <report.json>] [--work-root <dir>]
                                          [--timeout-minutes <n>] [--keep-workspace]
               Use the built-in creator, Roslyn build Tool, and a real local provider to
@@ -164,8 +164,8 @@ try
         "deferred-loading-smoke" => await DeferredLoadingSmokeCli.RunAsync(dotcraftBin, commandArgs),
         "deferred-loading-smoke-mcp-server" => await DeferredLoadingSmokeMcpServer.RunAsync(),
         "stream-retry-smoke" => await StreamRetrySmokeCli.RunAsync(dotcraftBin, commandArgs),
-        "dotnet-plugin-smoke" => await DotNetPluginSmokeCli.RunAsync(dotcraftBin, commandArgs),
-        "dotnet-plugin-authoring-smoke" => await DotNetPluginAuthoringSmokeCli.RunAsync(dotcraftBin, commandArgs),
+        "dotnet-extension-smoke" => await DotNetExtensionSmokeCli.RunAsync(dotcraftBin, commandArgs),
+        "csharp-authoring-smoke" => await CSharpAuthoringSmokeCli.RunAsync(dotcraftBin, commandArgs),
         _ => PrintUnknownCommand(command)
     };
 }

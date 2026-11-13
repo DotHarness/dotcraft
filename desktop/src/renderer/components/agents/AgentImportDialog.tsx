@@ -24,7 +24,7 @@ import styles from './AgentPackageDialog.module.css'
 type Translate = ReturnType<typeof useT>
 
 interface AgentImportDialogProps {
-  onImported: (profile: { id: string; source: string }, dotnetPluginIds: string[]) => void
+  onImported: (profile: { id: string; source: string }, dotnetExtensionIds: string[]) => void
   onClose: () => void
 }
 

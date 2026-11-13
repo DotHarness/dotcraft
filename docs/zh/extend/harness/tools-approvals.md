@@ -109,14 +109,15 @@ Shell 请求带有 `request.Shell`，记录安全检查的结果：`Reasons` 解
 
 ## 让模型用脚本调用工具
 
-Code Mode 给模型一个 `CodeMode` 工具：模型写一段 JavaScript，在里面调用当前 Thread 的其他工具，一批调用只需一次模型往返。脚本在你的应用的子进程里运行，所以开启时要写明你的可执行文件名，并让它响应脚本子进程命令：
+Code Mode 给模型一个 `CodeMode` 工具：模型写一段 JavaScript，在里面调用当前 Thread 的其他工具，一批调用只需一次模型往返。它以 `DotCraft.CodeMode` 包发布。脚本在你的应用的子进程里运行，所以注册 Code Mode 时要写明你的可执行文件名，并让它响应脚本子进程命令：
+
+```bash
+dotnet add package DotCraft.CodeMode
+```
 
 ```csharp
-builder.Services.AddDotCraftHarness(config, options =>
-{
-    options.WorkspacePath = workspacePath;
-    options.CodeModeWorkerHost = "myapp";
-});
+builder.Services.AddDotCraftHarness(config, options => options.WorkspacePath = workspacePath);
+builder.Services.AddDotCraftCodeMode(workspacePath, config, "myapp");
 ```
 
 ```csharp

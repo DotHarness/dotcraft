@@ -90,7 +90,7 @@ public sealed class PluginMcpServerLoaderTests : IDisposable
         var workspace = Path.Combine(_root, "workspace");
         var bot = Path.Combine(workspace, ".craft");
         var user = configureUserData ? Path.Combine(_root, "user") : null;
-        var paths = DotCraftPaths.CreateForExecutionHost(workspace, bot, user);
+        var paths = DotCraftPaths.Create(workspace, bot, user);
         WritePlugin(new { command = "node", arguments = new[] { "${PLUGIN_DATA}/cache" } },
             Path.Combine("workspace", ".craft", "plugins", "demo"));
 

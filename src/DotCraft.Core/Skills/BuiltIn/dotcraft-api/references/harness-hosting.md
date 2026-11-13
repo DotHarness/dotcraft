@@ -15,4 +15,4 @@ Start at `https://www.dotcraft.net/extend/harness/`. Use the focused pages for:
 - tools and approvals: `https://www.dotcraft.net/extend/harness/tools-approvals`
 - model providers: `https://www.dotcraft.net/extend/harness/model-providers`
 
-Confirm service-registration signatures and public service types from the installed `DotCraft.Harness` package. Do not require the consumer to locate DotCraft source files.
+Confirm service-registration signatures and public service types from the installed DotCraft packages. `DotCraft.Harness` brings Runtime, Core, and the built-in providers. Optional features such as Code Mode (`DotCraft.CodeMode`) and agent-authored .NET extensions (`DotCraft.CSharp`) are separate packages with their own `AddDotCraft*` registration. Do not require the consumer to locate DotCraft source files.

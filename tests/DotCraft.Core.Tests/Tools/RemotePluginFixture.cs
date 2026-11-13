@@ -12,7 +12,7 @@ internal static class RemotePluginFixture
         Directory.CreateDirectory(root);
         File.WriteAllText(Path.Combine(root, "settings.schema.json"),
             """{"fields":[{"key":"label","type":"text","defaultValue":"default"}]}""");
-        DotNetPluginTestBundle.WritePluginBundle(root, "probe", "Probe.Plugin", Source
+        DotNetExtensionTestBundle.WritePluginBundle(root, "probe", "Probe.Plugin", Source
             .Replace("IMPLEMENTATION", implementation, StringComparison.Ordinal)
             .Replace("TOOL_NAME", toolName, StringComparison.Ordinal)
             .Replace("EXPOSURE", deferred ? "ToolExposure.Deferred" : "ToolExposure.Direct", StringComparison.Ordinal),

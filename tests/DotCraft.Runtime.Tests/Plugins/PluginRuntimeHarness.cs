@@ -29,7 +29,7 @@ internal sealed class PluginRuntimeHarness : IDisposable
     /// <summary>Every log line those managers wrote, formatted.</summary>
     public List<string> LogLines { get; } = [];
 
-    public IServiceProvider Services { get; set; } = DotNetPluginTestBundle.EmptyServices;
+    public IServiceProvider Services { get; set; } = DotNetExtensionTestBundle.EmptyServices;
 
     public string Workspace => Path.Combine(Root, "workspace");
 
@@ -64,12 +64,12 @@ internal sealed class PluginRuntimeHarness : IDisposable
         {
             _trustStore.SetTrusted(
                 Path.GetFileName(pluginRoot),
-                PluginDotnetFingerprint.Compute(pluginRoot),
+                DotNetExtensionFingerprint.Compute(pluginRoot),
                 trusted: true);
         }
     }
 
-    public DotNetPluginRuntimeManager CreateManager(
+    public DotNetExtensionRuntimeManager CreateManager(
         TimeSpan? activationTimeout = null,
         TimeSpan? cleanupTimeout = null,
         TimeSpan? collectionTimeout = null,
@@ -89,13 +89,13 @@ internal sealed class PluginRuntimeHarness : IDisposable
             UserDataPath = Path.Combine(Root, "user-data")
         };
         var paths = DotCraftPathResolver.Resolve(options);
-        return new DotNetPluginRuntimeManager(
+        return new DotNetExtensionRuntimeManager(
             new PluginDiscoveryService(paths, builtInPluginSourceRoots),
             Config,
             paths,
             Services,
             Registry,
-            new DotNetPluginRuntimeOptions
+            new DotNetExtensionRuntimeOptions
             {
                 ActivationTimeout = activationTimeout ?? TimeSpan.FromSeconds(10),
                 CleanupTimeout = cleanupTimeout ?? TimeSpan.FromSeconds(10),
@@ -103,7 +103,7 @@ internal sealed class PluginRuntimeHarness : IDisposable
                 CollectionPollInterval = collectionPollInterval ?? TimeSpan.FromMilliseconds(250),
                 LeakedGenerationRestartThreshold = leakedGenerationRestartThreshold ?? 3
             },
-            logger: new CollectingLogger<DotNetPluginRuntimeManager>(LogLines),
+            logger: new CollectingLogger<DotNetExtensionRuntimeManager>(LogLines),
             trustStore: trustStoreAvailable && string.IsNullOrWhiteSpace(Config.GlobalConfigPath)
                 ? _trustStore
                 : null);
@@ -131,7 +131,7 @@ internal sealed class PluginRuntimeHarness : IDisposable
         }
     }
 
-    private sealed class InMemoryTrustStore : IPluginDotnetTrustStore
+    private sealed class InMemoryTrustStore : IDotNetExtensionTrustStore
     {
         private readonly Dictionary<string, HashSet<string>> _grants = new(StringComparer.OrdinalIgnoreCase);
 
@@ -158,7 +158,7 @@ internal sealed class PluginRuntimeHarness : IDisposable
         string pluginId,
         string version = "1.0.0",
         IReadOnlyDictionary<string, string>? dependencies = null) =>
-        DotNetPluginTestBundle.WritePluginBundle(
+        DotNetExtensionTestBundle.WritePluginBundle(
             PluginRoot(pluginId),
             pluginId,
             "Noop.Plugin",
@@ -182,7 +182,7 @@ internal sealed class PluginRuntimeHarness : IDisposable
         string pluginId,
         string version = "1.0.0",
         IReadOnlyDictionary<string, string>? dependencies = null) =>
-        DotNetPluginTestBundle.WritePluginBundle(
+        DotNetExtensionTestBundle.WritePluginBundle(
             PluginRoot(pluginId),
             pluginId,
             "Leaking.Plugin",
@@ -212,18 +212,18 @@ internal sealed class PluginRuntimeHarness : IDisposable
                 .SelectMany(static root => Directory.EnumerateFiles(root, "*.dll", SearchOption.AllDirectories))
             : [];
 
-    public static PluginDotnetRuntimeInfo Plugin(DotNetPluginRuntimeManager manager, string pluginId) =>
+    public static DotNetExtensionRuntimeInfo Plugin(DotNetExtensionRuntimeManager manager, string pluginId) =>
         manager.Snapshot.Plugins.Single(plugin => plugin.PluginId == pluginId);
 
-    public static async Task<PluginDotnetRuntimeInfo> WaitForStateAsync(
-        DotNetPluginRuntimeManager manager,
+    public static async Task<DotNetExtensionRuntimeInfo> WaitForStateAsync(
+        DotNetExtensionRuntimeManager manager,
         string pluginId,
-        PluginDotnetRuntimeState expected,
+        DotNetExtensionRuntimeState expected,
         int attempts = 1500)
     {
         for (var attempt = 0; attempt < attempts; attempt++)
         {
-            if (expected == PluginDotnetRuntimeState.Stopped)
+            if (expected == DotNetExtensionRuntimeState.Stopped)
                 OfferCollection();
             var plugin = Plugin(manager, pluginId);
             if (plugin.State == expected)
@@ -250,8 +250,8 @@ internal sealed class PluginRuntimeHarness : IDisposable
 
     /// <summary>Waits for a plugin to stop with nothing left: no live generation, none awaiting
     /// collection, no shadow copy. "Stopped" and "reclaimed" are two different instants.</summary>
-    public static async Task<PluginDotnetRuntimeInfo> WaitForReclaimedAsync(
-        DotNetPluginRuntimeManager manager,
+    public static async Task<DotNetExtensionRuntimeInfo> WaitForReclaimedAsync(
+        DotNetExtensionRuntimeManager manager,
         string pluginId,
         string runtimeRoot,
         int attempts = 1500)
@@ -260,7 +260,7 @@ internal sealed class PluginRuntimeHarness : IDisposable
         {
             OfferCollection();
             var plugin = Plugin(manager, pluginId);
-            if (plugin.State == PluginDotnetRuntimeState.Stopped
+            if (plugin.State == DotNetExtensionRuntimeState.Stopped
                 && plugin.LeakedGenerations == 0
                 && GenerationCopies(runtimeRoot).Count == 0)
             {
@@ -271,7 +271,7 @@ internal sealed class PluginRuntimeHarness : IDisposable
         }
 
         var observed = Plugin(manager, pluginId);
-        AssertState(observed, PluginDotnetRuntimeState.Stopped);
+        AssertState(observed, DotNetExtensionRuntimeState.Stopped);
         Assert.Equal(0, observed.LeakedGenerations);
         var copies = GenerationCopies(runtimeRoot);
         Assert.True(
@@ -291,20 +291,20 @@ internal sealed class PluginRuntimeHarness : IDisposable
         GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true);
     }
 
-    public static void AssertState(PluginDotnetRuntimeInfo plugin, PluginDotnetRuntimeState expected) =>
+    public static void AssertState(DotNetExtensionRuntimeInfo plugin, DotNetExtensionRuntimeState expected) =>
         Assert.True(
             plugin.State == expected,
             $"Expected {expected} for '{plugin.PluginId}', observed {plugin.State}: "
             + string.Join(" | ", plugin.Blockers.Select(static blocker => $"{blocker.Code}: {blocker.Message}")));
 
     public static void AssertBlocker(
-        DotNetPluginRuntimeManager manager,
+        DotNetExtensionRuntimeManager manager,
         string pluginId,
         string code,
         string? reason = null)
     {
         var plugin = Plugin(manager, pluginId);
-        AssertState(plugin, PluginDotnetRuntimeState.Blocked);
+        AssertState(plugin, DotNetExtensionRuntimeState.Blocked);
         Assert.Contains(
             plugin.Blockers,
             blocker => blocker.Code == code

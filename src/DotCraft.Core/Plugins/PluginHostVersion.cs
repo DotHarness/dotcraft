@@ -26,7 +26,7 @@ internal sealed record PluginHostVersion(Version Product)
     public static bool TryParseCanonical(string? value, out Version version)
     {
         version = new Version(0, 0, 0);
-        if (!PluginDotnetManifestAdmission.IsCanonicalVersion(value))
+        if (!DotNetExtensionManifestAdmission.IsCanonicalVersion(value))
             return false;
 
         var parts = value!.Split('.');

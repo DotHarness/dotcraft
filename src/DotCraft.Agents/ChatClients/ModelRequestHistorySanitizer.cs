@@ -5,7 +5,7 @@ namespace DotCraft.Agents;
 /// <summary>
 /// Repairs model-visible chat history so strict providers never receive half of a tool-use pair.
 /// </summary>
-internal static class ModelRequestHistorySanitizer
+public static class ModelRequestHistorySanitizer
 {
     internal const string SyntheticToolResultText =
         "Tool result unavailable: DotCraft repaired an incomplete historical tool call. " +

@@ -1,6 +1,6 @@
 namespace DotCraft.Agents;
 
-internal sealed class AuxiliaryProviderRequestScope : IDisposable
+public sealed class AuxiliaryProviderRequestScope : IDisposable
 {
     private readonly IDisposable[] _scopes;
 

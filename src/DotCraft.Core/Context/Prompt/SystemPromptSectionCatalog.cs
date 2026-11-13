@@ -3,7 +3,7 @@ using DotCraft.Contributions;
 namespace DotCraft.Context;
 
 /// <summary>Registers DotCraft's own system prompt segments as ordinary built-in contributions.</summary>
-internal static class SystemPromptSectionCatalog
+public static class SystemPromptSectionCatalog
 {
     private static readonly Lazy<IContributionView> LazyDefaultView = new(CreateDefaultView, isThreadSafe: true);
 
@@ -13,7 +13,7 @@ internal static class SystemPromptSectionCatalog
     /// <summary>Registers every built-in system prompt section into a registry.</summary>
     /// <param name="registrar">Optional origin-scoped owner for the handles; when omitted the sections are attributed to <see cref="ContributionOrigin.Builtin"/> and live for the registry's lifetime.</param>
     /// <returns>The handles in prompt order.</returns>
-    internal static IReadOnlyList<IContributionHandle> RegisterBuiltIns(
+    public static IReadOnlyList<IContributionHandle> RegisterBuiltIns(
         IContributionRegistry registry,
         IContributionRegistrar? registrar = null)
     {

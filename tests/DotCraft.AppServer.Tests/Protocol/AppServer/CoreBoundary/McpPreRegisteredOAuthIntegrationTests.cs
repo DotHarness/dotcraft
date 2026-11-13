@@ -219,7 +219,7 @@ public sealed class McpPreRegisteredOAuthIntegrationTests : IAsyncLifetime
         return await completed.Task.WaitAsync(TimeSpan.FromSeconds(15));
     }
 
-    private McpClientManager Manager() => new(DotCraftPaths.CreateForExecutionHost(_root, Path.Combine(_root, ".craft"), Path.Combine(_root, "user-data")));
+    private McpClientManager Manager() => new(DotCraftPaths.Create(_root, Path.Combine(_root, ".craft"), Path.Combine(_root, "user-data")));
 
     private McpServerConfig Config() => new()
     {

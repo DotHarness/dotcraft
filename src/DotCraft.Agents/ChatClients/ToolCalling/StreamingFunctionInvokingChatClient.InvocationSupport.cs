@@ -31,7 +31,7 @@ public sealed partial class StreamingFunctionInvokingChatClient
             : [new ChatMessage(ChatRole.User, BuildHookFeedbackReminder(feedback))];
     }
 
-    internal static string BuildHookFeedbackReminder(IReadOnlyList<StreamingToolHookFeedback> feedback)
+    public static string BuildHookFeedbackReminder(IReadOnlyList<StreamingToolHookFeedback> feedback)
     {
         var sections = new List<string>
         {
@@ -114,11 +114,11 @@ public sealed partial class StreamingFunctionInvokingChatClient
             : sanitized[..(ToolFailureMessageMaxChars - 3)] + "...";
     }
 
-    internal static bool IsInvalidToolArgumentsResult(FunctionResultContent content) =>
+    public static bool IsInvalidToolArgumentsResult(FunctionResultContent content) =>
         content.AdditionalProperties?.TryGetValue(InvalidToolArgumentsMetadataKey, out var value) == true
         && value is true;
 
-    internal static string? GetToolResultErrorCode(FunctionResultContent content) =>
+    public static string? GetToolResultErrorCode(FunctionResultContent content) =>
         content.AdditionalProperties?.TryGetValue(ToolResultErrorCodeMetadataKey, out var value) == true
             ? value as string
             : null;
@@ -133,7 +133,7 @@ public sealed partial class StreamingFunctionInvokingChatClient
             }
         };
 
-    internal static FunctionResultContent CreateToolFailureResult(string callId, string message, string errorCode) =>
+    public static FunctionResultContent CreateToolFailureResult(string callId, string message, string errorCode) =>
         new(callId, message)
         {
             AdditionalProperties = new AdditionalPropertiesDictionary

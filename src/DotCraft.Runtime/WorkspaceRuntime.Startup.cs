@@ -114,7 +114,7 @@ public sealed partial class WorkspaceRuntime
 
             AgentFactory? agentFactory = null;
             DreamsService? dreamsService = null;
-            DotNetPluginRuntimeManager? pluginRuntime = null;
+            DotNetExtensionRuntimeManager? pluginRuntime = null;
             var pluginRuntimeStarted = false;
             try
             {
@@ -260,10 +260,10 @@ public sealed partial class WorkspaceRuntime
                     contextPageManager);
 
                 LogStartupStage(startupTimer, "session-kernel-and-configuration");
-                pluginRuntime = Services.GetRequiredService<DotNetPluginRuntimeManager>();
+                pluginRuntime = Services.GetRequiredService<DotNetExtensionRuntimeManager>();
                 await pluginRuntime.StartAsync(ct);
                 pluginRuntimeStarted = true;
-                LogStartupStage(startupTimer, "dotnet-plugin-activation");
+                LogStartupStage(startupTimer, "dotnet-extension-activation");
                 await dreamsService.StartAsync(ct);
 
                 _started = new StartedState(

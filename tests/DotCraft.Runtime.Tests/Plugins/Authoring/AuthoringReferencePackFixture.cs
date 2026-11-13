@@ -1,3 +1,4 @@
+using DotCraft.CSharp;
 using System.Collections.Frozen;
 using DotCraft.Agents;
 using DotCraft.Generators;
@@ -10,8 +11,8 @@ namespace DotCraft.Tests.Runtime.Plugins.Authoring;
 
 public sealed class AuthoringReferencePackFixture : IDisposable
 {
-    private readonly Lazy<DotNetPluginReferenceSet> _references;
-    private readonly Lazy<DotNetPluginApiInspector> _inspector;
+    private readonly Lazy<CSharpReferenceSet> _references;
+    private readonly Lazy<CSharpApiInspector> _inspector;
 
     public AuthoringReferencePackFixture()
     {
@@ -24,8 +25,8 @@ public sealed class AuthoringReferencePackFixture : IDisposable
         Directory.CreateDirectory(ReferencesRoot);
 
         HostAssemblyPath = Path.Combine(Root, "DotCraft.Core.dll");
-        _references = new(() => DotNetPluginReferenceSet.Load(HostAssemblyPath, FrozenSet<string>.Empty));
-        _inspector = new(() => new DotNetPluginApiInspector(Load()));
+        _references = new(() => CSharpReferenceSet.Load(HostAssemblyPath, FrozenSet<string>.Empty));
+        _inspector = new(() => new CSharpApiInspector(Load()));
         CopyWithDocumentation(typeof(IDotCraftPlugin).Assembly.Location, Root);
         CopyWithDocumentation(typeof(ChatClientAgent).Assembly.Location, Root);
         CopyFrameworkReferences();
@@ -33,7 +34,7 @@ public sealed class AuthoringReferencePackFixture : IDisposable
 
         foreach (var implementation in new[]
                  {
-                     typeof(DotNetPluginReferenceSet).Assembly,
+                     typeof(CSharpReferenceSet).Assembly,
                      typeof(ToolFunctionGenerator).Assembly,
                      typeof(Compilation).Assembly,
                      typeof(CSharpCompilation).Assembly
@@ -49,9 +50,9 @@ public sealed class AuthoringReferencePackFixture : IDisposable
 
     public string HostAssemblyPath { get; }
 
-    internal DotNetPluginReferenceSet Load() => _references.Value;
+    internal CSharpReferenceSet Load() => _references.Value;
 
-    internal DotNetPluginApiInspector Inspector => _inspector.Value;
+    internal CSharpApiInspector Inspector => _inspector.Value;
 
     public void Dispose()
     {

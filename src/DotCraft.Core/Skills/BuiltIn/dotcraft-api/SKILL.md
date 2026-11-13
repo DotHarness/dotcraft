@@ -27,8 +27,9 @@ The site describes the latest public release. Do not use a repository checkout, 
 When writing code, inspect the project's package manifest and the installed package declarations:
 
 - TypeScript: `@dotcraft/sdk` and its exported `.d.ts` files; `@dotcraft/plugin` for Desktop extensions.
-- .NET client: `DotCraft.Sdk` and the bundled `DotCraft.Protocol` assembly.
-- In-process hosting and managed plugins: `DotCraft.Harness` and its bundled public assemblies.
+- .NET client: `DotCraft.Sdk` and its `DotCraft.Protocol` dependency.
+- In-process hosting: `DotCraft.Harness`, or the narrower `DotCraft.Runtime`, `DotCraft.Core`, and `DotCraft.Agents.*` packages the project references instead.
+- Managed plugins: `DotCraft.Core`.
 
 Do not invent a method, DTO, event, option, or manifest field. If neither the official documentation nor the installed public types confirms it, state that it could not be verified.
 

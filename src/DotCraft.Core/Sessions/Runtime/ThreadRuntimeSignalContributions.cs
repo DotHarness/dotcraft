@@ -17,7 +17,7 @@ public interface IThreadRuntimeSignalContributor : IContributionContract
 }
 
 /// <summary>Fans signals out through a bounded queue so contributors cannot stall a turn.</summary>
-internal sealed class ThreadRuntimeSignalDispatcher : IDisposable
+public sealed class ThreadRuntimeSignalDispatcher : IDisposable
 {
     /// <summary>The number of signals buffered before the oldest undelivered one is dropped.</summary>
     public const int QueueCapacity = 256;

@@ -4,7 +4,7 @@ using System.Reflection;
 namespace DotCraft.Runtime;
 
 /// <summary>Which assemblies a plugin load context shares with the Host instead of loading from the bundle (spec §3).</summary>
-internal static class PluginHostAssemblies
+public static class PluginHostAssemblies
 {
     private const string ProductAssemblyPrefix = "DotCraft";
 
@@ -106,7 +106,7 @@ internal static class PluginHostAssemblies
         .ToFrozenSet(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Resolves a shared assembly from the default load context, ignoring the requested version.</summary>
-    internal static Assembly? TryResolveShared(string simpleName)
+    public static Assembly? TryResolveShared(string simpleName)
     {
         foreach (var loaded in System.Runtime.Loader.AssemblyLoadContext.Default.Assemblies)
         {

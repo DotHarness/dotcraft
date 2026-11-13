@@ -43,7 +43,7 @@ internal sealed partial class PluginRequestHandler
             RootPath = manifest.RootPath,
             MarketplaceName = OmitIfNull(plugin.MarketplaceName),
             Dotnet = manifest.Dotnet is { } dotnet
-                ? Protocol.Optional<Contract.PluginDotnetInfo?>.FromValue(new Contract.PluginDotnetInfo
+                ? Protocol.Optional<Contract.DotNetExtensionInfo?>.FromValue(new Contract.DotNetExtensionInfo
                 {
                     DisplayName = dotnet.DisplayName is { } displayName
                         ? Protocol.Optional<string>.FromValue(displayName)
@@ -59,7 +59,7 @@ internal sealed partial class PluginRequestHandler
                 : default,
             DotnetRuntime = runtime == null
                 ? default
-                : Protocol.Optional<Contract.PluginDotnetRuntimeInfo?>.FromValue(MapRuntimeToWire(runtime)),
+                : Protocol.Optional<Contract.DotNetExtensionRuntimeInfo?>.FromValue(MapRuntimeToWire(runtime)),
             Dependencies = manifest.Dotnet != null
                 ? (runtime?.DependencyObservations ?? plugin.DependencyObservations)
                     .Select(MapPluginDependencyToWire)
@@ -163,7 +163,7 @@ internal sealed partial class PluginRequestHandler
     private long AdvancePluginSnapshotRevision() =>
         managementState.SnapshotClock.Advance(dotnetRuntime?.Snapshot.Revision ?? 0);
 
-    private static Contract.PluginDotnetRuntimeInfo MapRuntimeToWire(PluginDotnetRuntimeInfo runtime) =>
+    private static Contract.DotNetExtensionRuntimeInfo MapRuntimeToWire(DotNetExtensionRuntimeInfo runtime) =>
         new()
         {
             State = CamelCase(runtime.State.ToString()),

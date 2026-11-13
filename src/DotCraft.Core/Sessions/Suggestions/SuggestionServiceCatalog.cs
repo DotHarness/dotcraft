@@ -9,12 +9,12 @@ public static class SuggestionServiceNames
     public const string CommitMessageSuggest = "commit-message-suggest";
 }
 
-internal static class SuggestionServiceCatalog
+public static class SuggestionServiceCatalog
 {
     private const int BuiltInOrder = 100;
 
     /// <summary>The runtime owns the instance, so disposing the handle only removes the contribution.</summary>
-    internal static IContributionHandle RegisterBuiltIn(
+    public static IContributionHandle RegisterBuiltIn(
         IContributionRegistry registry,
         ICommitMessageSuggester commitMessageSuggest,
         IContributionRegistrar? registrar = null)
@@ -42,7 +42,7 @@ internal static class SuggestionServiceCatalog
 }
 
 /// <summary>Resolves the effective source-control summary generator per call, so a replacement registered after a client connected is honored by it.</summary>
-internal sealed class ContributedCommitMessageSuggestService(
+public sealed class ContributedCommitMessageSuggestService(
     IContributionView contributions,
     ICommitMessageSuggester builtIn) : ICommitMessageSuggester
 {

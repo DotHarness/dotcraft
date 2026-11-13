@@ -5538,6 +5538,71 @@
       },
       "additionalProperties": true
     },
+    "DotNetExtensionInfo": {
+      "title": "DotNetExtensionInfo",
+      "type": "object",
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "entryAssembly": {
+          "type": "string"
+        },
+        "entryType": {
+          "type": "string"
+        },
+        "exportedApiAssemblies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "minHostVersion": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "DotNetExtensionRuntimeInfo": {
+      "title": "DotNetExtensionRuntimeInfo",
+      "type": "object",
+      "properties": {
+        "blockers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PluginRuntimeBlocker"
+          }
+        },
+        "generationId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "leakedGenerations": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "restartRecommended": {
+          "type": "boolean"
+        },
+        "state": {
+          "type": "string"
+        },
+        "trustStatus": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
     "DreamsCreateParams": {
       "title": "DreamsCreateParams",
       "type": "object",
@@ -10997,71 +11062,6 @@
       },
       "additionalProperties": true
     },
-    "PluginDotnetInfo": {
-      "title": "PluginDotnetInfo",
-      "type": "object",
-      "properties": {
-        "description": {
-          "type": "string"
-        },
-        "displayName": {
-          "type": "string"
-        },
-        "entryAssembly": {
-          "type": "string"
-        },
-        "entryType": {
-          "type": "string"
-        },
-        "exportedApiAssemblies": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "minHostVersion": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "PluginDotnetRuntimeInfo": {
-      "title": "PluginDotnetRuntimeInfo",
-      "type": "object",
-      "properties": {
-        "blockers": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/PluginRuntimeBlocker"
-          }
-        },
-        "generationId": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "leakedGenerations": {
-          "type": "integer",
-          "minimum": -9007199254740991,
-          "maximum": 9007199254740991
-        },
-        "restartRecommended": {
-          "type": "boolean"
-        },
-        "state": {
-          "type": "string"
-        },
-        "trustStatus": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
     "PluginFunctionInfo": {
       "title": "PluginFunctionInfo",
       "type": "object",
@@ -11146,7 +11146,7 @@
         "dotnet": {
           "anyOf": [
             {
-              "$ref": "#/$defs/PluginDotnetInfo"
+              "$ref": "#/$defs/DotNetExtensionInfo"
             },
             {
               "type": "null"
@@ -11156,7 +11156,7 @@
         "dotnetRuntime": {
           "anyOf": [
             {
-              "$ref": "#/$defs/PluginDotnetRuntimeInfo"
+              "$ref": "#/$defs/DotNetExtensionRuntimeInfo"
             },
             {
               "type": "null"
@@ -11592,7 +11592,7 @@
       "type": "object",
       "properties": {
         "dotnetRuntime": {
-          "$ref": "#/$defs/PluginDotnetRuntimeInfo"
+          "$ref": "#/$defs/DotNetExtensionRuntimeInfo"
         },
         "enabled": {
           "type": "boolean"

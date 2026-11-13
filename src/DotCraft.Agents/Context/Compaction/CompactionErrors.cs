@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 
 namespace DotCraft.Context.Compaction;
 
-internal static class CompactionErrors
+public static class CompactionErrors
 {
     private static readonly string[] ExplicitMarkers =
     [
@@ -49,7 +49,7 @@ internal static class CompactionErrors
         return false;
     }
 
-    internal static bool IsPromptTooLongMessage(string? message)
+    public static bool IsPromptTooLongMessage(string? message)
     {
         if (string.IsNullOrWhiteSpace(message))
             return false;

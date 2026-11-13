@@ -38,7 +38,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
     private static readonly ChatClientRegistry EmptyChatClients = new(EmptyModelProviders);
     private readonly string _tempDir = Path.Combine(Path.GetTempPath(), "ExternalChannelDeliveryTests_" + Guid.NewGuid().ToString("N")[..8]);
     private DotCraftPaths WorkspacePaths =>
-        DotCraftPaths.CreateForExecutionHost(_tempDir, Path.Combine(_tempDir, ".craft"));
+        DotCraftPaths.Create(_tempDir, Path.Combine(_tempDir, ".craft"));
 
     public ExternalChannelDeliveryTests()
     {
@@ -56,7 +56,7 @@ public sealed class ExternalChannelDeliveryTests : IDisposable
     [Fact]
     public async Task ExternalChannelHost_UsesResolvedWorkspaceTempPathForMedia()
     {
-        var paths = DotCraftPaths.CreateForExecutionHost(_tempDir, Path.Combine(_tempDir, ".agents"));
+        var paths = DotCraftPaths.Create(_tempDir, Path.Combine(_tempDir, ".agents"));
         var host = new ExternalChannelHost(
             new ExternalChannelEntry
             {

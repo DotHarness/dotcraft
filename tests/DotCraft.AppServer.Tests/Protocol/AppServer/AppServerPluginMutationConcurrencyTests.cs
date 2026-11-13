@@ -70,16 +70,16 @@ public sealed class AppServerPluginMutationConcurrencyTests : IDisposable
         WriteBrowserFixture(Path.Combine(WorkspaceCraftPath, "plugins", "browser"));
         var runtime = new BlockingPluginRuntimeCoordinator(new PluginRuntimeSnapshot(
             3,
-            [new PluginDotnetRuntimeInfo(
+            [new DotNetExtensionRuntimeInfo(
                 "browser",
                 "1.0.0",
-                PluginDotnetRuntimeState.Blocked,
+                DotNetExtensionRuntimeState.Blocked,
                 null,
                 [new PluginRuntimeBlocker(
-                    PluginDotnetDiagnosticCodes.Untrusted,
+                    DotNetExtensionDiagnosticCodes.Untrusted,
                     "The plugin has no trust grant.",
                     new Dictionary<string, JsonElement>())],
-                TrustStatus: PluginDotnetTrustStatus.Untrusted)],
+                TrustStatus: DotNetExtensionTrustStatus.Untrusted)],
             []));
         var managementState = new AppServerPluginManagementState();
         var broadcaster = new OrderedSnapshotBroadcaster();
@@ -132,13 +132,13 @@ public sealed class AppServerPluginMutationConcurrencyTests : IDisposable
         WriteBrowserFixture(Path.Combine(WorkspaceCraftPath, "plugins", "browser"));
         var runtime = new BlockingPluginRuntimeCoordinator(new PluginRuntimeSnapshot(
             3,
-            [new PluginDotnetRuntimeInfo(
+            [new DotNetExtensionRuntimeInfo(
                 "browser",
                 "1.0.0",
-                PluginDotnetRuntimeState.Active,
+                DotNetExtensionRuntimeState.Active,
                 "browser-g1",
                 [],
-                TrustStatus: PluginDotnetTrustStatus.Trusted)],
+                TrustStatus: DotNetExtensionTrustStatus.Trusted)],
             []));
         var managementState = new AppServerPluginManagementState();
         var broadcaster = new OrderedSnapshotBroadcaster();
@@ -199,16 +199,16 @@ public sealed class AppServerPluginMutationConcurrencyTests : IDisposable
         WriteBrowserFixture(Path.Combine(WorkspaceCraftPath, "plugins", "browser"));
         var runtime = new BlockingPluginRuntimeCoordinator(new PluginRuntimeSnapshot(
             3,
-            [new PluginDotnetRuntimeInfo(
+            [new DotNetExtensionRuntimeInfo(
                 "browser",
                 "1.0.0",
-                PluginDotnetRuntimeState.Blocked,
+                DotNetExtensionRuntimeState.Blocked,
                 null,
                 [new PluginRuntimeBlocker(
-                    PluginDotnetDiagnosticCodes.Untrusted,
+                    DotNetExtensionDiagnosticCodes.Untrusted,
                     "The plugin has no trust grant.",
                     new Dictionary<string, JsonElement>())],
-                TrustStatus: PluginDotnetTrustStatus.Untrusted)],
+                TrustStatus: DotNetExtensionTrustStatus.Untrusted)],
             []));
         var broadcasts = new List<DotCraft.Protocol.AppServer.PluginSnapshotUpdatedNotification>();
         using var harness = CreateHarness(
@@ -293,7 +293,7 @@ public sealed class AppServerPluginMutationConcurrencyTests : IDisposable
     }
 
     private AppServerTestHarness CreateHarness(
-        IPluginDotnetRuntimeCoordinator runtime,
+        IDotNetExtensionRuntimeCoordinator runtime,
         AppServerPluginManagementState managementState,
         Action<IAppServerTransport, DotCraft.Protocol.AppServer.PluginSnapshotUpdatedNotification, Task> broadcast,
         LspServerManager? lspServerManager = null,
@@ -301,7 +301,7 @@ public sealed class AppServerPluginMutationConcurrencyTests : IDisposable
         new(
             workspaceCraftPath: WorkspaceCraftPath,
             appConfigMonitor: appConfigMonitor ?? new AppConfigMonitor(new AppConfig()),
-            pluginDotnetRuntimeCoordinator: runtime,
+            dotNetExtensionRuntimeCoordinator: runtime,
             pluginManagementState: managementState,
             broadcastPluginSnapshotUpdated: broadcast,
             lspServerManager: lspServerManager);
@@ -455,8 +455,16 @@ public sealed class AppServerPluginMutationConcurrencyTests : IDisposable
     }
 
     private sealed class BlockingPluginRuntimeCoordinator(PluginRuntimeSnapshot snapshot)
-        : IPluginDotnetRuntimeCoordinator
+        : IDotNetExtensionRuntimeCoordinator
     {
+        public IReadOnlySet<string> HostSharedAssemblies { get; } = new HashSet<string>();
+
+        public Task<DotNetExtensionBuildApplyResult> ApplyBuildAsync(
+            string pluginId,
+            DotNetExtensionBuild build,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
         private readonly object _sync = new();
         private readonly TaskCompletionSource<bool> _releaseTrust =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -556,17 +564,25 @@ public sealed class AppServerPluginMutationConcurrencyTests : IDisposable
             new(PluginRuntimeMutationOutcome.Applied, [pluginId], []);
     }
 
-    private sealed class RecoveringPluginRuntimeCoordinator : IPluginDotnetRuntimeCoordinator
+    private sealed class RecoveringPluginRuntimeCoordinator : IDotNetExtensionRuntimeCoordinator
     {
+        public IReadOnlySet<string> HostSharedAssemblies { get; } = new HashSet<string>();
+
+        public Task<DotNetExtensionBuildApplyResult> ApplyBuildAsync(
+            string pluginId,
+            DotNetExtensionBuild build,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
         public PluginRuntimeSnapshot Snapshot { get; private set; } = new(
             10,
-            [new PluginDotnetRuntimeInfo(
+            [new DotNetExtensionRuntimeInfo(
                 "browser",
                 "1.0.0",
-                PluginDotnetRuntimeState.Active,
+                DotNetExtensionRuntimeState.Active,
                 "browser-g1",
                 [],
-                TrustStatus: PluginDotnetTrustStatus.Trusted)],
+                TrustStatus: DotNetExtensionTrustStatus.Trusted)],
             []);
 
         public event EventHandler<PluginRuntimeSnapshotChangedEventArgs>? SnapshotChanged;
@@ -586,7 +602,7 @@ public sealed class AppServerPluginMutationConcurrencyTests : IDisposable
             CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            Publish(pluginId, PluginDotnetRuntimeState.Stopped, generationId: null);
+            Publish(pluginId, DotNetExtensionRuntimeState.Stopped, generationId: null);
             return Task.FromResult(Result(pluginId));
         }
 
@@ -597,7 +613,7 @@ public sealed class AppServerPluginMutationConcurrencyTests : IDisposable
             cancellationToken.ThrowIfCancellationRequested();
             ReconcileCount++;
             RecoveredGenerationId = $"browser-g{Snapshot.Revision + 1}";
-            Publish(pluginId, PluginDotnetRuntimeState.Active, RecoveredGenerationId);
+            Publish(pluginId, DotNetExtensionRuntimeState.Active, RecoveredGenerationId);
             return Task.FromResult(Result(pluginId));
         }
 
@@ -611,7 +627,7 @@ public sealed class AppServerPluginMutationConcurrencyTests : IDisposable
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        private void Publish(string pluginId, PluginDotnetRuntimeState state, string? generationId)
+        private void Publish(string pluginId, DotNetExtensionRuntimeState state, string? generationId)
         {
             Snapshot = new PluginRuntimeSnapshot(
                 Snapshot.Revision + 1,

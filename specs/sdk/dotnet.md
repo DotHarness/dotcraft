@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.1 |
+| **Version** | 0.11.1 |
 | **Status** | Living |
-| **Date** | 2026-10-19 |
+| **Date** | 2026-11-13 |
 | **Related Specs** | [Unified SDK](sdk.md), [Protocol Contracts and Generation](protocol-contract-generation.md), [AppServer Protocol](../protocols/appserver-protocol.md), [App Binding](../protocols/app-binding.md), [Session Core](../architecture/session-core.md), [Hub Architecture](../architecture/hub-architecture.md) |
 
 Purpose: define the .NET package, its generated Wire binding, its Contracts-first public API, high-level Thread and Run behavior, raw extension boundary, and error model.
@@ -21,7 +21,7 @@ Purpose: define the .NET package, its generated Wire binding, its Contracts-firs
 
 ## 2. Package contract
 
-The package id is `DotCraft.Sdk` and the target framework is `net10.0`. The package contains `DotCraft.Sdk.dll` and `DotCraft.Protocol.dll`; Contracts is a separate transport-free assembly but not a separate package dependency, so a consumer installs only `DotCraft.Sdk`.
+The package id is `DotCraft.Sdk` and the target framework is `net10.0`. The package contains `DotCraft.Sdk.dll` and depends on the transport-free `DotCraft.Protocol` package, following [NuGet Packages](nuget-packages.md); a consumer installs only `DotCraft.Sdk`.
 
 Public namespaces are:
 

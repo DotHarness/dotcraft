@@ -66,6 +66,7 @@
     <ProjectReference Include="..\DotCraft.Automations\DotCraft.Automations.csproj" />
     <ProjectReference Include="..\DotCraft.DynamicWorkflows\DotCraft.DynamicWorkflows.csproj" />
     <ProjectReference Include="..\DotCraft.CodeMode\DotCraft.CodeMode.csproj" />
+    <ProjectReference Include="..\DotCraft.CSharp\DotCraft.CSharp.csproj" />
     <ProjectReference Include="..\DotCraft.SessionImport\DotCraft.SessionImport.csproj" />
     <ProjectReference Include="..\DotCraft.RemoteTools\DotCraft.RemoteTools.csproj" />
   </ItemGroup>

@@ -7,9 +7,9 @@
 > [!CAUTION]
 > .NET 扩展把完全受信任的代码加载进 DotCraft 进程，并获得该进程的文件系统、网络、凭据、原生互操作与操作系统权限。这里没有托管沙箱，也没有权限模型。安全性取决于你选择构建或信任哪些代码，而不是运行时边界。需要真正的信任边界时请使用 MCP。
 
-![.NET 扩展开发与运行时拓扑](/dotnet-plugin-topology.svg)
+![.NET 扩展开发与运行时拓扑](/dotnet-extension-topology.svg)
 
-可运行的 [DotNetPluginSample](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/DotNetPluginSample) 包含两个 bundle、覆盖全部公共 .NET 贡献点、通过宿主的预检与运行时校验构建产物，并为其中一个工具提供 Desktop 呈现。
+可运行的 [DotNetExtensionSample](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/DotNetExtensionSample) 包含两个 bundle、覆盖全部公共 .NET 贡献点、通过宿主的预检与运行时校验构建产物，并为其中一个工具提供 Desktop 呈现。
 
 ## 使用 DotCraft 创建
 
@@ -23,15 +23,15 @@
     └── lib/
 ```
 
-项目没有 `.csproj`，也不会还原 NuGet 包。Agent 编辑 `src/**/*.cs` 和 manifest，通过 `DotNetPlugin.Inspect` 查询准确的 API 签名与文档，再调用 `DotNetPlugin.Build`。构建过程使用当前宿主随附的公共插件 API 与 BCL 完成编译，执行 metadata preflight，原子发布 bundle 并将其激活。整个过程不需要外部 .NET SDK，也不访问网络。
+项目没有 `.csproj`，也不会还原 NuGet 包。Agent 编辑 `src/**/*.cs` 和 manifest，通过 `CSharp.Inspect` 查询准确的 API 签名与文档，再调用 `CSharp.Build`。构建过程使用当前宿主随附的公共插件 API 与 BCL 完成编译，执行 metadata preflight，原子发布 bundle 并将其激活。整个过程不需要外部 .NET SDK，也不访问网络。
 
-构建成功后，精确的插件 id 与指纹只在当前宿主进程中获得执行资格，`dotnet-plugin-trust.json` 不受影响。DotCraft 重启后需要重新构建。对同一项目中已激活的相同指纹重复构建不会产生变更。
+构建成功后，精确的插件 id 与指纹只在当前宿主进程中获得执行资格，`dotnet-extension-trust.json` 不受影响。DotCraft 重启后需要重新构建。对同一项目中已激活的相同指纹重复构建不会产生变更。
 
-`DotNetPlugin.Build` 在编译前运行宿主固定的工具生成器，因此源码项目也支持 `[Tool]`、`[GeneratedTool]` 与 `[ToolDeclaration]`。生成文件只存在于内存中。源码项目不能提供 analyzer 或 generator。生成错误带有 `phase: generate`，不会替换此前已发布的 bundle 或活动 generation。
+`CSharp.Build` 在编译前运行宿主固定的工具生成器，因此源码项目也支持 `[Tool]`、`[GeneratedTool]` 与 `[ToolDeclaration]`。生成文件只存在于内存中。源码项目不能提供 analyzer 或 generator。生成错误带有 `phase: generate`，不会替换此前已发布的 bundle 或活动 generation。
 
-自定义 Harness 宿主需要支持源码开发时，在宿主项目中设置 `<PreserveCompilationContext>true</PreserveCompilationContext>`。Harness 会把必需的 Core 与 Agents XML 文档复制到构建和发布输出。发布单文件宿主时，还需设置 `<IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>`，让编译器能够读取提取后的程序集、文档与引用包。
+`CSharp` 工具随 `DotCraft.CSharp` 包发布。自定义 Harness 宿主需要支持源码开发时，引用该包，并在 `AddDotCraftHarness` 之后调用 `AddDotCraftCSharp()`。该包会保留编译上下文，并把必需的 API 文档复制到构建和发布输出。发布单文件宿主时，还需设置 `<IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>`，让编译器能够读取提取后的程序集、文档与引用包。
 
-执行构建的 Turn 继续使用它已冻结的工具快照。新的插件工具从下一个 Turn 开始可用，构建本身不会调用它们。源码改动只在 Agent 调用 `DotNetPlugin.Build` 时生效。
+执行构建的 Turn 继续使用它已冻结的工具快照。新的插件工具从下一个 Turn 开始可用，构建本身不会调用它们。源码改动只在 Agent 调用 `CSharp.Build` 时生效。
 
 ## 准备预构建 bundle
 
@@ -86,7 +86,7 @@ acme.review-core/
 <ProjectReference Include="path/to/src/DotCraft.Core/DotCraft.Core.csproj" Private="false" />
 ```
 
-在 DotCraft checkout 之外建立独立项目时，引用已发布的 `DotCraft.Harness` 包即可获得这些 API 与工具 analyzer。使用 checkout 项目引用构建时，还需引用 `DotCraft.Generators.csproj`，并设置 `OutputItemType="Analyzer"`、`ReferenceOutputAssembly="false"`。单独引用 Core 不会运行生成器。请面向同一宿主版本构建，bundle 中只保留插件及其私有依赖闭包。
+在 DotCraft checkout 之外建立独立项目时，引用已发布的 `DotCraft.Core` 包即可获得这些 API 与工具 analyzer。使用 checkout 项目引用构建时，还需引用 `DotCraft.Generators.csproj`，并设置 `OutputItemType="Analyzer"`、`ReferenceOutputAssembly="false"`，因为对 Core 的项目引用不会运行生成器。请面向同一宿主版本构建，bundle 中只保留插件及其私有依赖闭包。
 
 加载上下文按**简单名称**把每个 DotCraft 程序集及其包闭包解析到宿主中已加载的副本，忽略 bundle 自带的版本。类型标识的单一性正来自于此：中间件贡献改写的 `ChatMessage`，与内核派发时使用的是同一个类型——哪怕 bundle 自带了 `Microsoft.Extensions.AI.Abstractions.dll`。随包分发这些程序集只会让 bundle 变大。其余内容都从 bundle 的 `.deps.json` 与相邻探测解析，并限制在 bundle 目录内。嵌入 DotCraft 的应用可以把自己的契约程序集加入共享集合，见[与插件共享应用契约](./harness/hosting-lifecycle#与插件共享应用契约)。
 
@@ -175,7 +175,7 @@ internal sealed class PluginTool : AIFunctionToolSource
 `CreateProvider(ModelBackendContext)` 为每个配置实例返回 `IModelProvider`。
 后端 ID 必须唯一。
 
-[.NET 扩展示例](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/DotNetPluginSample#try-the-offline-model-backend)
+[.NET 扩展示例](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/DotNetExtensionSample#try-the-offline-model-backend)
 演示模型发现、聊天和交互式登录。启用并信任 Review Core 后，在配置中添加其后端：
 
 ```json
@@ -327,4 +327,4 @@ internal sealed class EditorEventSink(IServiceProvider services)
 ## 相关文档
 
 - [桌面扩展](./desktop-extensions)——给同一个 bundle 加上 Desktop 界面。
-- [.NET 扩展架构规范](https://github.com/DotHarness/dotcraft/blob/main/specs/architecture/dotnet-plugins.md)——本页行为背后的规范原文。
+- [.NET 扩展架构规范](https://github.com/DotHarness/dotcraft/blob/main/specs/architecture/dotnet-extensions.md)——本页行为背后的规范原文。

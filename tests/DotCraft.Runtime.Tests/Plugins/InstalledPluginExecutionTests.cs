@@ -3,7 +3,7 @@ using DotCraft.Plugins;
 using DotCraft.Runtime;
 using DotCraft.Tools;
 using Xunit;
-using static DotCraft.Tests.Runtime.Plugins.DotNetPluginTestBundle;
+using static DotCraft.Tests.Runtime.Plugins.DotNetExtensionTestBundle;
 using static DotCraft.Tests.Runtime.Plugins.PluginRuntimeHarness;
 
 namespace DotCraft.Tests.Runtime.Plugins;
@@ -43,7 +43,7 @@ public sealed class InstalledPluginExecutionTests : IDisposable
             Assert.Equal(["installed.good", "installed.independent"], host.InstalledPlugins.Select(plugin => plugin.Id));
             Assert.Equal(good, host.InstalledPlugins.Single(plugin => plugin.Id == "installed.good").RootPath);
             Assert.Contains(host.Diagnostics, diagnostic => diagnostic.PluginId == "installed.newer"
-                && diagnostic.Code == PluginDotnetDiagnosticCodes.HostVersionUnsatisfied);
+                && diagnostic.Code == DotNetExtensionDiagnosticCodes.HostVersionUnsatisfied);
             Assert.Contains(host.Diagnostics, diagnostic => diagnostic.PluginId == "installed.faulted"
                 && diagnostic.Code == "PluginActivationFailed");
             Assert.Contains(host.Diagnostics, diagnostic => diagnostic.PluginId == "installed.dependent"

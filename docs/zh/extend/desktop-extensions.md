@@ -84,7 +84,7 @@ npm run build
 
 请在 DotCraft 发现插件或打包插件之前完成构建。刷新插件列表，然后启用插件。源码变更后重新构建，再刷新或重新启用插件。
 
-可运行的 [DotNetPluginSample](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/DotNetPluginSample) 包含两个同时带 .NET 与 Desktop 的 bundle。Core 插件替换背景、包装整个应用，并拥有一个 renderer service、一个 event 与一个自定义 surface。Consumer 插件添加 Composer 控件，并向 Core 拥有的 surface 注入 UI。
+可运行的 [DotNetExtensionSample](https://github.com/DotHarness/dotcraft/tree/main/sdk/dotnet/samples/DotNetExtensionSample) 包含两个同时带 .NET 与 Desktop 的 bundle。Core 插件替换背景、包装整个应用，并拥有一个 renderer service、一个 event 与一个自定义 surface。Consumer 插件添加 Composer 控件，并向 Core 拥有的 surface 注入 UI。
 
 完整的 surface 目录、context、组合语义、Host API 与 generation 生命周期请参阅 [桌面扩展 API](./desktop-extension-api)。
 
