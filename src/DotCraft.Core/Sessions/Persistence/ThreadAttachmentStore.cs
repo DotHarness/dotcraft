@@ -11,7 +11,7 @@ internal sealed class ThreadAttachmentStore(
     ThreadMetadataStore metadataStore,
     ThreadRolloutStore rolloutStore)
 {
-    public const int IndexVersion = 3;
+    public const int IndexVersion = 6;
 
     private readonly string _attachmentsDir = Path.Combine(botPath, "attachments");
     private readonly string _workspaceRoot = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(Path.GetFullPath(botPath)))!;

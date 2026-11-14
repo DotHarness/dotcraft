@@ -40,6 +40,7 @@ public sealed class DotCraftCommandLineTests
     [Theory]
     [InlineData(2, "tool-host")]
     [InlineData(0, "tool-host", "setup", "--help")]
+    [InlineData(0, "codex-remote-control", "status", "--help")]
     public async Task HelpForGroupsAndLeaves_DoesNotExecuteTheCommand(int expectedExitCode, string first, params string[] remaining)
     {
         using var output = new StringWriter();
@@ -48,7 +49,7 @@ public sealed class DotCraftCommandLineTests
         var exitCode = await DotCraftCommandLine.RunAsync([first, .. remaining], output, error);
 
         Assert.Equal(expectedExitCode, exitCode);
-        Assert.Contains(remaining.Length == 0 ? "invite" : "--name", output.ToString());
+        Assert.Contains(remaining.Length == 0 ? "invite" : "--help", output.ToString());
     }
 
     [Theory]

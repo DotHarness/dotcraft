@@ -22,6 +22,26 @@
     "id": {
       "type": "string"
     },
+    "invocationOrigin": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "invocationSourceId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "payload": {},
     "payloadKind": {
       "anyOf": [

@@ -36,6 +36,7 @@ public sealed class HubHost : IDotCraftHost
     private ManagedLocalServiceRegistry? _serviceRegistry;
     private SatelliteConnectionManager? _satellites;
     private MobileGateway? _mobile;
+    private CodexGateway? _codexRemote;
     private int _cleanupStarted;
     private Task? _optionalListenersTask;
 
@@ -115,6 +116,8 @@ public sealed class HubHost : IDotCraftHost
                 _registry,
                 _projects,
                 _loggerFactory);
+            _codexRemote = new CodexGateway(
+                _paths, _projects, _eventBus, _loggerFactory.CreateLogger<CodexGateway>(), _dotcraftBin);
             _app = BuildApp(apiBaseUrl, token, startedAt, binaryPath, _registry, _serviceRegistry, _eventBus);
             _app.Urls.Add(apiBaseUrl);
             await _app.StartAsync(cancellationToken);
@@ -194,11 +197,18 @@ public sealed class HubHost : IDotCraftHost
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
         catch (Exception ex) { _logger.LogWarning(ex, "Mobile listener startup failed"); }
+        try
+        {
+            await _codexRemote!.StartIfEnabledAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+        catch (Exception ex) { _logger.LogWarning(ex, "Codex remote startup failed"); }
     }
 
     private static bool RequiresRunningHub(PathString path) =>
         path == "/v1/appservers/ensure" || path == "/v1/appservers/restart"
-        || path == "/v1/services/ensure" || path == "/v1/services/restart";
+        || path == "/v1/services/ensure" || path == "/v1/services/restart"
+        || path == "/v1/codex-remote/enable" || path == "/v1/codex-remote/pairings";
 
     private static IResult StoppingResult() => Results.Json(
         new HubErrorResponse(new HubError("hubStopping", "DotCraft Hub is stopping.", null)),
@@ -403,6 +413,11 @@ public sealed class HubHost : IDotCraftHost
             _mobile!,
             request => Unauthorized(request, token),
             ProtectedAsync);
+        HubCodexRemoteApi.Map(
+            app,
+            _codexRemote!,
+            request => Unauthorized(request, token),
+            ProtectedAsync);
 
         return app;
     }
@@ -423,7 +438,8 @@ public sealed class HubHost : IDotCraftHost
                 Notifications: true,
                 Tray: false,
                 Satellites: true,
-                Mobile: true));
+                Mobile: true,
+                CodexRemote: true));
 
     private static bool IsAuthorized(HttpRequest request, string token)
     {
@@ -585,6 +601,12 @@ public sealed class HubHost : IDotCraftHost
         {
             await _mobile.DisposeAsync();
             _mobile = null;
+        }
+
+        if (_codexRemote is not null)
+        {
+            await _codexRemote.DisposeAsync();
+            _codexRemote = null;
         }
 
         var registry = _registry;

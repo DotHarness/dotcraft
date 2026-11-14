@@ -422,6 +422,8 @@ public sealed class ToolDispatcherTests
         Assert.False(denied.Success);
         Assert.Equal(ToolErrorCodes.ApprovalRejected, denied.Error?.Code);
         Assert.Equal(1, approval.FileApprovalCalls);
+        Assert.Equal("call", approval.LastCallId);
+        Assert.Null(ToolInvocationScope.Current);
         Assert.False(invoked);
 
         var inside = await dispatcher.DispatchAsync(
@@ -705,12 +707,14 @@ public sealed class ToolDispatcherTests
     private sealed class RecordingApprovalService(bool approved) : IApprovalService
     {
         public int FileApprovalCalls { get; private set; }
+        public string? LastCallId { get; private set; }
         public int ResourceApprovalCalls { get; private set; }
         public (string Kind, string Operation, string Target)? LastResourceApproval { get; private set; }
 
         public Task<bool> RequestFileApprovalAsync(string operation, string path, ApprovalContext? context = null)
         {
             FileApprovalCalls++;
+            LastCallId = ToolInvocationScope.Current?.CallId;
             return Task.FromResult(approved);
         }
 

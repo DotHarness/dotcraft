@@ -11,7 +11,7 @@ namespace DotCraft.Sdk.Hub;
 /// <summary>
 /// Client for local DotCraft Hub discovery and AppServer management.
 /// </summary>
-public sealed class HubClient
+public sealed partial class HubClient
 {
     private static readonly TimeSpan ProbeTimeout = TimeSpan.FromSeconds(2);
     private readonly DotCraftHubClientOptions _options;

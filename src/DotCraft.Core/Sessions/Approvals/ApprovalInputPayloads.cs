@@ -24,6 +24,8 @@ public sealed record ApprovalRequestPayload
 
     public string? TargetLabel { get; init; }
 
+    public string? CallId { get; init; }
+
     /// <summary>
     /// Unique ID for correlating with ApprovalResponse.
     /// </summary>

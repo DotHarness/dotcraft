@@ -4,6 +4,9 @@ namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 
 public partial class TestableSessionService
 {
+    public Task<ThreadHistoryBootstrap> ReadThreadHistoryBootstrapAsync(string threadId, CancellationToken ct = default) =>
+        _store.ReadThreadHistoryBootstrapAsync(threadId, ct);
+
     public Task<ThreadListPage> ListThreadsAsync(ThreadListQuery query, CancellationToken ct = default) =>
         _store.ListThreadsAsync(query, _cache.Values
             .Where(thread => !thread.Ephemeral)

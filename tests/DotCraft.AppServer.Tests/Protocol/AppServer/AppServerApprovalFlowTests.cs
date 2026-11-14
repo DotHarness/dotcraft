@@ -19,8 +19,11 @@ public sealed class AppServerApprovalFlowTests
         await harness.ExecuteRequestAsync(harness.BuildRequest(
             DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadResume, new { threadId = thread.Id }));
         using var restored = await harness.Transport.ReadNextSentAsync();
-        harness.Service.EnqueueSubmitEvents(
-            thread.Id, AppServerTestHarness.BuildApprovalEventSequence(thread.Id, "turn_001", "req_123"));
+        var events = AppServerTestHarness.BuildApprovalEventSequence(thread.Id, "turn_001", "req_123");
+        foreach (var evt in events)
+            if (evt.ItemPayload?.AsApprovalRequest is { } approval)
+                evt.ItemPayload.Payload = approval with { CallId = "actual-shell-call" };
+        harness.Service.EnqueueSubmitEvents(thread.Id, events);
         if (clientDecision != null)
             harness.Transport.ApprovalHandler = (_, _) => InMemoryTransport.BuildClientResponse(999, new { decision = clientDecision });
 
@@ -36,6 +39,7 @@ public sealed class AppServerApprovalFlowTests
             m.GetString() == DotCraft.Protocol.AppServer.AppServerMethodNames.ApprovalRequest);
         var @params = approvalRequest.RootElement.GetProperty("params");
         Assert.Equal("req_123", @params.GetProperty("requestId").GetString());
+        Assert.Equal("actual-shell-call", @params.GetProperty("callId").GetString());
         Assert.Equal("shell", @params.GetProperty("approvalType").GetString());
         Assert.Equal(thread.Id, @params.GetProperty("threadId").GetString());
         Assert.Equal(expected, Assert.Single(harness.Service.ResolvedApprovals).decision);

@@ -7,6 +7,16 @@
     "approvalType": {
       "type": "string"
     },
+    "callId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "itemId": {
       "type": "string"
     },

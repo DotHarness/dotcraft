@@ -35,20 +35,21 @@ public sealed class CodeModeSessionHistoryTests
     }
 
     [Fact]
-    public void InvocationOriginAndFreeformCall_ArePersistedButNotProjectedToTheWire()
+    public void InvocationOrigin_IsPersistedAndProjectedWhileFreeformCallRemainsInternal()
     {
         var item = Call("item_2", "exec-1", "ReadFile", ToolInvocationOrigin.CodeModeKind);
         item.FreeformCall = true;
 
         var persisted = JsonSerializer.Serialize(item, SessionJsonOptions.Default);
         var restored = JsonSerializer.Deserialize<SessionItem>(persisted, SessionJsonOptions.Default)!;
-        var wire = JsonSerializer.Serialize(item.ToWire(), SessionWireJsonOptions.Default);
+        using var wire = JsonDocument.Parse(JsonSerializer.Serialize(item.ToWire(), SessionWireJsonOptions.Default));
         var plain = JsonSerializer.Serialize(Call("item_1", "call_read", "ReadFile", null), SessionJsonOptions.Default);
 
         Assert.Equal(ToolInvocationOrigin.CodeModeKind, restored.InvocationOrigin);
         Assert.True(restored.FreeformCall);
-        Assert.DoesNotContain("invocationOrigin", wire, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("freeformCall", wire, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(ToolInvocationOrigin.CodeModeKind,
+            wire.RootElement.GetProperty("invocationOrigin").GetString());
+        Assert.False(wire.RootElement.TryGetProperty("freeformCall", out _));
         Assert.DoesNotContain("invocationOrigin", plain, StringComparison.Ordinal);
         Assert.DoesNotContain("freeformCall", plain, StringComparison.Ordinal);
     }

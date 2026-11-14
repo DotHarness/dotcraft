@@ -13,7 +13,7 @@ import type {
   HubClientOptions, HubLockInfo, HubAppServerResponse, HubStatusResponse,
   HubManagedServiceResponse, HubEnsureManagedServiceOptions, HubEvent,
   HubSatellite, HubSatelliteInvite, HubCreateSatelliteInviteOptions,
-  HubMobileState, HubMobilePairing, HubProject, HubRuntimeToolsRequest, HubEnsureAppServerOptions,
+  HubMobileState, HubMobilePairing, HubCodexRemoteStatus, HubCodexRemotePairing, HubProject, HubRuntimeToolsRequest, HubEnsureAppServerOptions,
 } from "./hubTypes.js";
 export type * from "./hubTypes.js";
 
@@ -251,6 +251,26 @@ export class HubClient {
     );
   }
 
+  async getCodexRemote(signal?: AbortSignal): Promise<HubCodexRemoteStatus> {
+    const hub = await this.ensureHub(signal);
+    return await this.requestJson<HubCodexRemoteStatus>(hub, "/v1/codex-remote", { method: "GET", signal });
+  }
+
+  async enableCodexRemote(signal?: AbortSignal): Promise<HubCodexRemoteStatus> {
+    const hub = await this.ensureHub(signal);
+    return await this.requestJson<HubCodexRemoteStatus>(hub, "/v1/codex-remote/enable", { method: "POST", body: "{}", signal });
+  }
+
+  async disableCodexRemote(signal?: AbortSignal): Promise<HubCodexRemoteStatus> {
+    const hub = await this.ensureHub(signal);
+    return await this.requestJson<HubCodexRemoteStatus>(hub, "/v1/codex-remote/disable", { method: "POST", body: "{}", signal });
+  }
+
+  async createCodexRemotePairing(signal?: AbortSignal): Promise<HubCodexRemotePairing> {
+    const hub = await this.ensureHub(signal);
+    return await this.requestJson<HubCodexRemotePairing>(hub, "/v1/codex-remote/pairings", { method: "POST", body: "{}", signal });
+  }
+
   async getMobile(signal?: AbortSignal): Promise<HubMobileState> {
     const hub = await this.ensureHub(signal);
     return await this.requestJson<HubMobileState>(hub, "/v1/mobile", { method: "GET", signal });
@@ -356,7 +376,7 @@ export class HubClient {
     await this.requestJson<{ ok: boolean }>(hub, "/v1/shutdown", { method: "POST", signal });
   }
 
-  async subscribeEvents(onEvent: (event: HubEvent) => void, signal: AbortSignal): Promise<void> {
+  async subscribeEvents(onEvent: (event: HubEvent) => void, signal: AbortSignal, onConnected?: () => void): Promise<void> {
     signal = this.cancellation(signal)!;
     const hub = await this.ensureHub(signal);
     signal.throwIfAborted();
@@ -365,6 +385,7 @@ export class HubClient {
       signal,
     });
     if (!response.ok || !response.body) throw await this.toError(response);
+    onConnected?.();
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();

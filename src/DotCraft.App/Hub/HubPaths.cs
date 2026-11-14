@@ -28,6 +28,10 @@ public sealed record HubPaths(
 
     public string MobilePath => Path.Combine(HubStatePath, "mobile.json");
 
+    public string CodexRemoteConfigPath => Path.Combine(HubStatePath, "codex-remote.json");
+
+    public string CodexRemoteStatePath => Path.Combine(CraftHomePath, "codex-remote-control");
+
     public string MobileCertificatePath => Path.Combine(HubStatePath, "mobile-certificate.pfx");
 
     /// <summary>

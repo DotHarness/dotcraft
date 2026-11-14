@@ -9,7 +9,7 @@ namespace DotCraft.Sdk.Wire;
 /// </summary>
 public sealed class WebSocketJsonRpcTransport : IReconnectableJsonRpcTransport
 {
-    private const int MaxMessageBytes = 4 * 1024 * 1024;
+    private const int MaxMessageBytes = 128 * 1024 * 1024;
     private WebSocket _socket;
     private readonly Uri? _reconnectUri;
     private readonly SemaphoreSlim _writeLock = new(1, 1);
@@ -82,11 +82,12 @@ public sealed class WebSocketJsonRpcTransport : IReconnectableJsonRpcTransport
                 continue;
             }
 
-            stream.Write(buffer, 0, result.Count);
-            if (stream.Length > MaxMessageBytes)
+            if (stream.Length + result.Count > MaxMessageBytes)
             {
-                throw new InvalidOperationException("DotCraft AppServer message exceeds 4 MB.");
+                _socket.Abort();
+                throw new JsonRpcMessageTooLargeException(MaxMessageBytes, stream.Length + result.Count);
             }
+            stream.Write(buffer, 0, result.Count);
 
             if (!result.EndOfMessage)
             {

@@ -131,6 +131,25 @@ div.dc-add-phone__qr[aria-busy='true'] {
   line-height: var(--type-secondary-prose-line-height);
 }
 
+.dc-codex-pair__manual {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-line-height);
+}
+
+.dc-codex-pair__manual code {
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--type-page-title-size);
+  letter-spacing: 0.12em;
+  line-height: 1.4;
+}
+
 .dc-add-phone__status {
   margin: 0;
   color: var(--text-primary);

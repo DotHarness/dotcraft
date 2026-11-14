@@ -54,6 +54,8 @@ public static class AppServerContractJson
 [JsonSerializable(typeof(ThreadSearchOccurrencesResult))]
 [JsonSerializable(typeof(ThreadItemsReadParams))]
 [JsonSerializable(typeof(ThreadItemsReadResult))]
+[JsonSerializable(typeof(ThreadTimelineListParams))]
+[JsonSerializable(typeof(ThreadTimelineListResult))]
 [JsonSerializable(typeof(TurnStartParams))]
 [JsonSerializable(typeof(TurnStartResult))]
 [JsonSerializable(typeof(TurnEnqueueParams))]

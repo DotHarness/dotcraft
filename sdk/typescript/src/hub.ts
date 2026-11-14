@@ -18,6 +18,8 @@ export type {
   HubAppServerResponse,
   HubBinaryMatchPolicy,
   HubCapabilities,
+  HubCodexRemoteStatus,
+  HubCodexRemotePairing,
   HubClientInfo,
   HubClientOptions,
   HubCreateSatelliteInviteOptions,

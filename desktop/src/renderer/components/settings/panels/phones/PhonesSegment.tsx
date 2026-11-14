@@ -15,6 +15,7 @@ import type { MobileDevice } from '../../../../../shared/mobile'
 import { SegmentSetupState } from '../connections/SegmentSetupState'
 import * as s from '../connections/connectionsStyles'
 import { AddPhoneDialog } from './AddPhoneDialog'
+import { CodexAppGroup } from './CodexAppGroup'
 import { PhoneRow } from './PhoneRow'
 import { RelayGroup } from './RelayGroup'
 import { failureReason } from './phonesFormat'
@@ -180,6 +181,8 @@ export function PhonesSegment(): JSX.Element {
       )}
 
       {gateway && <RelayGroup relay={gateway.relay} on={on} />}
+
+      <CodexAppGroup />
 
       {menu && menuDevice && (
         <ContextMenu

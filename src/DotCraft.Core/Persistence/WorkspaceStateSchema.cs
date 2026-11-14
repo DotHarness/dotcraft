@@ -338,6 +338,9 @@ internal static class WorkspaceStateSchema
             {
                 EnsureColumn(connection, "thread_turns", column, "INTEGER NOT NULL DEFAULT 0");
             }
+            EnsureColumn(connection, "thread_turns", "completed_rollout_ordinal", "INTEGER");
+            EnsureColumn(connection, "thread_items", "item_type", "INTEGER NOT NULL DEFAULT 0");
+            EnsureColumn(connection, "thread_items", "agent_phase", "TEXT");
             EnsureColumn(connection, "thread_items", "tool_call", "INTEGER NOT NULL DEFAULT 0");
             EnsureColumn(connection, "thread_items", "user_text", "TEXT");
             EnsureColumn(connection, "thread_items", "summary_kind", "INTEGER NOT NULL DEFAULT 0");
@@ -354,9 +357,16 @@ internal static class WorkspaceStateSchema
         usageIndexes.CommandText = """
                 CREATE INDEX IF NOT EXISTS idx_trace_events_type_ts
                     ON trace_events(type, timestamp, id);
+                CREATE INDEX IF NOT EXISTS idx_thread_turns_completed_ordinal
+                    ON thread_turns(thread_id, completed_rollout_ordinal)
+                    WHERE completed_rollout_ordinal IS NOT NULL;
+                CREATE INDEX IF NOT EXISTS idx_thread_items_type_phase
+                    ON thread_items(thread_id, turn_id, item_type, agent_phase, rollout_ordinal);
                 CREATE INDEX IF NOT EXISTS idx_thread_items_user_text
                     ON thread_items(thread_id, turn_id, rollout_ordinal, user_text)
                     WHERE user_text IS NOT NULL;
+                CREATE INDEX IF NOT EXISTS idx_thread_items_call
+                    ON thread_items(thread_id, turn_id, summary_call_id, rollout_ordinal);
                 CREATE INDEX IF NOT EXISTS idx_thread_items_summary
                     ON thread_items(thread_id, turn_id, rollout_ordinal, item_id, summary_kind,
                                     summary_call_id, summary_namespace, summary_tool_name);

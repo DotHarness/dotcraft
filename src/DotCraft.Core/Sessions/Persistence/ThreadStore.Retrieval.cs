@@ -24,6 +24,19 @@ public sealed partial class ThreadStore
             ct);
     }
 
+    internal Task<IReadOnlyList<ThreadHistoryItem>> ReadThreadCallItemsAsync(
+        string threadId, string turnId, IReadOnlyList<string> callIds, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(turnId);
+        ArgumentNullException.ThrowIfNull(callIds);
+        if (callIds.Count is < 1 or > 100)
+            throw new ArgumentOutOfRangeException(nameof(callIds), "Call reads require between 1 and 100 call IDs.");
+        foreach (var callId in callIds) ArgumentException.ThrowIfNullOrWhiteSpace(callId);
+        return ReadHistoryAsync(threadId, "call_items",
+            (path, repair) => _historyProjectionStore.ReadCallItemsAsync(threadId, path, turnId, callIds, repair, ct),
+            static items => items.Count, ct);
+    }
+
     internal Task<IReadOnlyList<ThreadHistoryItem>> ReadThreadItemsAsync(
         string threadId,
         string turnId,

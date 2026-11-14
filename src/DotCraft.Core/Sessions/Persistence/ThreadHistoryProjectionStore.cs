@@ -402,11 +402,13 @@ internal sealed partial class ThreadHistoryProjectionStore(
             SELECT rollout_ordinal, turn_json FROM thread_turns
             WHERE thread_id = $thread_id
               {cursorFilter}
+              AND rollout_ordinal <= $snapshot
             ORDER BY rollout_ordinal {order}
             LIMIT $limit
             """;
         command.Parameters.AddWithValue("$thread_id", threadId);
         command.Parameters.AddWithValue("$cursor", cursor?.RolloutOrdinal ?? 0);
+        command.Parameters.AddWithValue("$snapshot", cursor?.SnapshotOrdinal ?? long.MaxValue);
         command.Parameters.AddWithValue("$limit", limit + 1);
         using var reader = command.ExecuteReader();
         var rows = new List<(long Ordinal, SessionTurn Turn)>(limit + 1);
@@ -417,7 +419,7 @@ internal sealed partial class ThreadHistoryProjectionStore(
             turn.Items = [];
             rows.Add((reader.GetInt64(0), turn));
         }
-        return BuildPage(rows, limit, static row => row.Turn, static row => row.Ordinal);
+        return BuildPage(rows, limit, static row => row.Turn, static row => row.Ordinal, cursor?.SnapshotOrdinal);
     }
 
     private ThreadHistoryPage<ThreadHistoryItem> QueryItems(
@@ -430,12 +432,15 @@ internal sealed partial class ThreadHistoryProjectionStore(
         using var connection = stateDatabase.OpenConnection();
         using var command = connection.CreateCommand();
         var comparison = CursorComparison(cursor, direction);
+        var turnFilter = turnId is null ? "" : "AND turn_id = $turn_id";
+        var cursorFilter = cursor.HasValue ? $"AND rollout_ordinal {comparison} $cursor" : "";
         var order = direction == ThreadHistorySortDirection.Ascending ? "ASC" : "DESC";
         command.CommandText = $"""
             SELECT rollout_ordinal, turn_id, item_json FROM thread_items
             WHERE thread_id = $thread_id
-              AND ($turn_id IS NULL OR turn_id = $turn_id)
-              AND ($has_cursor = 0 OR rollout_ordinal {comparison} $cursor)
+              {turnFilter}
+              {cursorFilter}
+              AND rollout_ordinal <= $snapshot
             ORDER BY rollout_ordinal {order}
             LIMIT $limit
             """;
@@ -443,6 +448,7 @@ internal sealed partial class ThreadHistoryProjectionStore(
         command.Parameters.AddWithValue("$turn_id", (object?)turnId ?? DBNull.Value);
         command.Parameters.AddWithValue("$has_cursor", cursor.HasValue ? 1 : 0);
         command.Parameters.AddWithValue("$cursor", cursor?.RolloutOrdinal ?? 0);
+        command.Parameters.AddWithValue("$snapshot", cursor?.SnapshotOrdinal ?? long.MaxValue);
         command.Parameters.AddWithValue("$limit", limit + 1);
         using var reader = command.ExecuteReader();
         var rows = new List<(long Ordinal, ThreadHistoryItem Item)>(limit + 1);
@@ -452,24 +458,25 @@ internal sealed partial class ThreadHistoryProjectionStore(
                 ?? throw new JsonException("Projected Item is empty.");
             rows.Add((reader.GetInt64(0), new ThreadHistoryItem(reader.GetString(1), item)));
         }
-        return BuildPage(rows, limit, static row => row.Item, static row => row.Ordinal);
+        return BuildPage(rows, limit, static row => row.Item, static row => row.Ordinal, cursor?.SnapshotOrdinal);
     }
 
     private static ThreadHistoryPage<T> BuildPage<TRow, T>(
         List<TRow> rows,
         int limit,
         Func<TRow, T> select,
-        Func<TRow, long> ordinal)
+        Func<TRow, long> ordinal,
+        long? snapshotOrdinal = null)
     {
         var hasMore = rows.Count > limit;
         if (hasMore)
             rows.RemoveAt(rows.Count - 1);
         var data = rows.Select(select).ToList();
         ThreadHistoryCursor? next = hasMore && rows.Count > 0
-            ? new ThreadHistoryCursor(ordinal(rows[^1]))
+            ? new ThreadHistoryCursor(ordinal(rows[^1]), SnapshotOrdinal: snapshotOrdinal)
             : null;
         ThreadHistoryCursor? backwards = rows.Count > 0
-            ? new ThreadHistoryCursor(ordinal(rows[0]), Inclusive: true)
+            ? new ThreadHistoryCursor(ordinal(rows[0]), Inclusive: true, SnapshotOrdinal: snapshotOrdinal)
             : null;
         return new ThreadHistoryPage<T>(data, next, backwards);
     }

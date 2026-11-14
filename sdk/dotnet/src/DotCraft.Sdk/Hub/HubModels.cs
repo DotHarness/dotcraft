@@ -120,7 +120,8 @@ public sealed record HubCapabilities(
     bool Notifications,
     bool Tray,
     bool ManagedServiceManagement = false,
-    bool Satellites = false);
+    bool Satellites = false,
+    bool CodexRemote = false);
 
 /// <summary>Hub status response.</summary>
 public sealed record HubStatusResponse(

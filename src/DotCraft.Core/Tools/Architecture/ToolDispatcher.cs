@@ -237,6 +237,7 @@ public sealed class ToolDispatcher(
             }
         }
 
+        using var invocationScope = ToolInvocationScope.Enter(invocationContext);
         try
         {
             decision = await ResolvePolicyEvaluator(request.ThreadId)

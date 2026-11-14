@@ -5,6 +5,8 @@ import type { WorkspaceStatusPayload } from '../shared/workspaceSetup'
 import { ChannelModuleManager, type ModuleStatusMap } from './channelModuleManager'
 import type { DesktopAppServerClient } from './DesktopAppServerClient'
 import { unregisterDesktopPluginModuleIpc } from './desktopPluginModuleIpc'
+import { getCodexRemoteHubBridge } from './codexRemote/codexRemoteHubBridge'
+import { registerCodexRemoteHandlers } from './codexRemote/codexRemoteIpc'
 import { getMobileHubBridge } from './mobile/mobileHubBridge'
 import { registerMobileHandlers } from './mobile/mobileIpc'
 import { clearDesktopPluginModuleRoutes } from './pluginFileProtocol'
@@ -142,6 +144,8 @@ export function registerIpcHandlers(
     })
     registerScreenViewHandlers({ handleSafe, getHubClient })
     registerMobileHandlers({ handleSafe, getHubClient, bridge: getMobileHubBridge({ getHubClient }) })
+    getCodexRemoteHubBridge(getHubClient)
+    registerCodexRemoteHandlers({ handleSafe, getHubClient })
   }
   if (workspacePath) warmFileSearchIndex(workspacePath, owner.webContents.id)
 }

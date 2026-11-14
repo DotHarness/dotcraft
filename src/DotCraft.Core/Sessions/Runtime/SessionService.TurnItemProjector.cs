@@ -91,12 +91,13 @@ public sealed partial class SessionService
             channel.EmitItemDelta(_reasoning, new ReasoningContentDelta { TextDelta = text });
         }
 
-        public void FinalizeAgentMessage()
+        public void FinalizeAgentMessage(string phase = AgentMessagePhases.Commentary)
         {
             if (_agentMessage == null)
                 return;
 
-            _agentMessage.Payload = new AgentMessagePayload { Text = _agentText };
+            var message = (AgentMessagePayload)_agentMessage.Payload!;
+            _agentMessage.Payload = message with { Text = _agentText, Phase = phase };
             _agentMessage.Status = ItemStatus.Completed;
             _agentMessage.CompletedAt = DateTimeOffset.UtcNow;
             channel.EmitItemCompleted(_agentMessage);

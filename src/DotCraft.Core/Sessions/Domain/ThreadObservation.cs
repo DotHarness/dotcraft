@@ -3,6 +3,7 @@ namespace DotCraft.Sessions;
 public sealed record ThreadObservationItemSelection
 {
     public IReadOnlySet<string>? ItemIds { get; init; }
+    public IReadOnlySet<string>? CallIds { get; init; }
     public string? AfterItemId { get; init; }
     public int? Limit { get; init; }
     public ThreadHistorySortDirection Direction { get; init; } = ThreadHistorySortDirection.Ascending;

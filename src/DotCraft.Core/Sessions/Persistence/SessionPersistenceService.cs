@@ -25,7 +25,7 @@ public static class SessionPersistenceDeletionScopes
 /// Unified persistence facade for Session Core thread and tracing state.
 /// ThreadStore and TraceStore remain the low-level implementations behind this facade.
 /// </summary>
-public sealed class SessionPersistenceService(
+public sealed partial class SessionPersistenceService(
     ThreadStore threadStore,
     TraceStore? traceStore = null,
     UsageStatisticsStore? tokenUsageStore = null,
@@ -176,6 +176,10 @@ public sealed class SessionPersistenceService(
         IReadOnlyList<string> itemIds,
         CancellationToken ct = default)
         => threadStore.ReadThreadItemsAsync(threadId, turnId, itemIds, ct);
+
+    internal Task<IReadOnlyList<ThreadHistoryItem>> ReadThreadCallItemsAsync(
+        string threadId, string turnId, IReadOnlyList<string> callIds, CancellationToken ct = default) =>
+        threadStore.ReadThreadCallItemsAsync(threadId, turnId, callIds, ct);
 
     public Task<SessionThread?> LoadThreadFromPathAsync(string path, CancellationToken ct = default)
         => threadStore.LoadThreadFromPathAsync(path, ct);

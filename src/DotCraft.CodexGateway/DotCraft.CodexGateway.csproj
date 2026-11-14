@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Release'">
+    <DebugSymbols>false</DebugSymbols>
+    <DebugType>None</DebugType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../sdk/dotnet/src/DotCraft.Sdk/DotCraft.Sdk.csproj" />
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>DotCraft.CodexGateway.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+</Project>

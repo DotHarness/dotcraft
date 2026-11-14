@@ -157,7 +157,7 @@ public sealed partial class SessionService
                     Status = ItemStatus.Completed,
                     CreatedAt = DateTimeOffset.UtcNow,
                     CompletedAt = DateTimeOffset.UtcNow,
-                    Payload = new AgentMessagePayload { Text = text }
+                    Payload = new AgentMessagePayload { Text = text, Phase = AgentMessagePhases.FinalAnswer }
                 };
 
             turn.Items.Add(item);

@@ -3,6 +3,8 @@ import {
   HubClientError,
   type HubAppServerResponse,
   type HubCreateSatelliteInviteOptions,
+  type HubCodexRemoteStatus,
+  type HubCodexRemotePairing,
   type HubEnsureAppServerOptions,
   type HubEvent,
   type HubManagedServiceResponse,
@@ -103,6 +105,22 @@ export class DesktopHubClient {
     return this.run(() => this.inner.revokeSatellite(peerId))
   }
 
+  getCodexRemote(): Promise<HubCodexRemoteStatus> {
+    return this.run(() => this.inner.getCodexRemote())
+  }
+
+  enableCodexRemote(): Promise<HubCodexRemoteStatus> {
+    return this.run(() => this.inner.enableCodexRemote())
+  }
+
+  disableCodexRemote(): Promise<HubCodexRemoteStatus> {
+    return this.run(() => this.inner.disableCodexRemote())
+  }
+
+  createCodexRemotePairing(): Promise<HubCodexRemotePairing> {
+    return this.run(() => this.inner.createCodexRemotePairing())
+  }
+
   getMobile(): Promise<HubMobileState> {
     return this.run(() => this.inner.getMobile())
   }
@@ -139,8 +157,8 @@ export class DesktopHubClient {
     return this.run(() => this.inner.clearMobileRelay())
   }
 
-  subscribeEvents(onEvent: (event: HubEvent) => void, signal: AbortSignal): Promise<void> {
-    return this.run(() => this.inner.subscribeEvents(onEvent, signal))
+  subscribeEvents(onEvent: (event: HubEvent) => void, signal: AbortSignal, onConnected?: () => void): Promise<void> {
+    return this.run(() => this.inner.subscribeEvents(onEvent, signal, onConnected))
   }
 
   async resolveScreenBridge(peerId: string, sessionId: string): Promise<SatelliteBridgeTarget> {

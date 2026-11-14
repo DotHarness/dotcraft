@@ -8,6 +8,8 @@ public sealed record AgentMessagePayload
     public string Text { get; init; } = string.Empty;
 
     public string? DeliveryMode { get; init; }
+
+    public string? Phase { get; init; }
 }
 
 /// <summary>

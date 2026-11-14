@@ -35,6 +35,7 @@ vi.mock('../desktopWindowManager', () => ({
     dispose = async () => {}
   }
 }))
+vi.mock('../codexRemote/codexRemoteHubBridge', () => ({ disposeCodexRemoteHubBridge: vi.fn() }))
 vi.mock('../mobile/mobileHubBridge', () => ({ disposeMobileHubBridge: vi.fn() }))
 vi.mock('../nativeThemeSource', () => ({ applyNativeThemeSource: vi.fn() }))
 vi.mock('../nodeReplManager', () => ({ nodeReplManager: { disposeAll: vi.fn() } }))

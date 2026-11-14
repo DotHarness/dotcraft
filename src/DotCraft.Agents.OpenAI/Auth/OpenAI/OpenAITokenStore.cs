@@ -26,14 +26,20 @@ public sealed class OpenAITokenStore : IOpenAITokenStore
     {
         lock (_gate)
         {
-            if (_filePath is null || !File.Exists(_filePath))
+            if (_filePath is null)
                 return null;
             try
             {
-                var json = File.ReadAllText(_filePath);
+                using var stream = new FileStream(_filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                using var reader = new StreamReader(stream);
+                var json = reader.ReadToEnd();
                 if (string.IsNullOrWhiteSpace(json))
                     return null;
                 return JsonSerializer.Deserialize<AuthDotJson>(json, JsonOptions);
+            }
+            catch (IOException error) when (error is FileNotFoundException or DirectoryNotFoundException)
+            {
+                return null;
             }
             catch (JsonException)
             {
