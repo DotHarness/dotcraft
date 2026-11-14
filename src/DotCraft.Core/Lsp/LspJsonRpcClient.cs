@@ -138,10 +138,12 @@ internal sealed class LspJsonRpcClient(string serverName, ILogger? logger = null
             {
                 if (!_process.HasExited)
                     _process.Kill(entireProcessTree: true);
+                await _process.WaitForExitAsync(CancellationToken.None)
+                    .WaitAsync(TimeSpan.FromSeconds(5));
             }
-            catch
+            catch (Exception ex)
             {
-                // best-effort
+                logger?.LogDebug(ex, "Failed to stop LSP server process {Server}", serverName);
             }
         }
 

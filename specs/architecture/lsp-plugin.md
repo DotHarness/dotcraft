@@ -117,6 +117,6 @@ Plugin-bundled LSP servers execute local processes, so enabling an LSP plugin is
 equivalent to enabling a plugin-bundled stdio MCP server.
 
 - Plugin LSP commands never run during plugin discovery or AppServer readiness; servers start lazily when a file needs one.
-- LSP tool cancellation reaches file access, server startup, and protocol requests. The owning runtime stops its server processes on disposal.
+- LSP tool cancellation reaches file access, server startup, and protocol requests. On disposal, the owning runtime kills its server processes and waits up to five seconds for exit before releasing their handles; cleanup remains best-effort if termination fails or times out.
 - Manifest-relative `lspServers` paths and plugin-relative commands never escape the plugin root.
 - Plugin diagnostics expose enough path and plugin identity for a user to inspect the source before enabling it.
