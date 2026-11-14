@@ -16,7 +16,11 @@ public sealed partial class CodexWorkspaceSession
         if (state != WireConnectionState.Ready)
         {
             foreach (var thread in _attached.Keys)
-                _attachmentReady[thread] = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                _attachmentReady.AddOrUpdate(thread,
+                    _ => new(TaskCreationOptions.RunContinuationsAsynchronously),
+                    (_, existing) => existing.Task.IsCompleted
+                        ? new(TaskCreationOptions.RunContinuationsAsynchronously)
+                        : existing);
             return;
         }
         _restoration = RestoreConnectionsAsync(_lifetime.Token);

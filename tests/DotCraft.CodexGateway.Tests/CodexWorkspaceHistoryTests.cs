@@ -321,6 +321,40 @@ public sealed class CodexWorkspaceHistoryTests
     }
 
     [Fact]
+    public async Task ReconnectReleasesWaitingRequestAndQueuedNotificationAfterInitialization()
+    {
+        using var fixture = new GatewayHistoryFixture();
+        var renamed = new TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var session = await fixture.ConnectAsync(message =>
+        {
+            if (message.GetProperty("method").GetString() == "thread/name/updated") renamed.TrySetResult(message);
+        });
+        var thread = await DiscoverAsync(session);
+        await CallAsync(session, "thread/resume", new { threadId = thread, excludeTurns = true });
+        var turns = await CallAsync(session, "thread/turns/list", new { threadId = thread, itemsView = "notLoaded" });
+        var turn = turns.GetProperty("data")[0].GetProperty("id").GetString();
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var waiting = new TaskCompletionSource<Task<object?>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        fixture.Wire.StateChanged += (state, _) =>
+        {
+            if (state != DotCraft.Sdk.Wire.WireConnectionState.Reconnecting) return;
+            waiting.TrySetResult(session.HandleAsync("turn/steer", Json(new
+            {
+                threadId = thread, expectedTurnId = turn, input = Array.Empty<object>()
+            }), deadline.Token));
+            fixture.Transport.Notify("thread/renamed", new { threadId = "history-source", displayName = "After reconnect" });
+        };
+
+        fixture.Transport.Disconnect();
+        var request = await waiting.Task.WaitAsync(deadline.Token);
+        var result = Json(await request.WaitAsync(deadline.Token));
+        Assert.Equal(turn, result.GetProperty("turnId").GetString());
+        var notification = await renamed.Task.WaitAsync(deadline.Token);
+        Assert.Equal(thread, notification.GetProperty("params").GetProperty("threadId").GetString());
+        Assert.Equal("After reconnect", notification.GetProperty("params").GetProperty("threadName").GetString());
+    }
+
+    [Fact]
     public async Task EmptyHistoryReturnsNullBootstrapAndNoFabricatedRealtime()
     {
         using var fixture = new GatewayHistoryFixture(turns: 0);

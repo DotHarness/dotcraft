@@ -14,6 +14,7 @@ internal sealed class GatewayHistoryFixture : IDisposable
     private readonly Dictionary<string, SourceCursor> _cursors = [];
     private long _position;
     public HistoryTransport Transport { get; private set; } = null!;
+    public DotCraftWireClient Wire { get; private set; } = null!;
     public bool EmptyNextItemPage { get; set; }
     public int SourcePageSize { get; set; } = 100;
 
@@ -70,6 +71,7 @@ internal sealed class GatewayHistoryFixture : IDisposable
     {
         Transport = new HistoryTransport(Respond);
         var client = await DotCraftClient.ConnectAsync(Transport, new DotCraftClientOptions { AutoReconnect = true });
+        Wire = client.Wire;
         return new(client, Path.GetTempPath(), _state, (message, _) =>
         {
             notification?.Invoke(message);
@@ -104,6 +106,7 @@ internal sealed class GatewayHistoryFixture : IDisposable
         "thread/items/list" => ItemPage(p),
         "thread/items/read" => ReadItems(p),
         "thread/timeline/list" => TimelinePage(p),
+        "turn/steer" => new { turnId = p.GetProperty("expectedTurnId").GetString() },
         "config/read" => new { config = new { Permissions = new { DefaultApprovalPolicy = "Prompt" } } },
         _ => throw new InvalidOperationException("Unexpected history fixture method " + method)
     };
@@ -246,6 +249,9 @@ internal sealed class GatewayHistoryFixture : IDisposable
 
         public async Task<JsonDocument?> ReadAsync(CancellationToken cancellationToken = default) =>
             await _incoming.Reader.ReadAsync(cancellationToken);
+
+        public void Notify(string method, object parameters) =>
+            _incoming.Writer.TryWrite(JsonDocument.Parse(Json(new { method, @params = parameters }).GetRawText()));
 
         public void Disconnect() => _incoming.Writer.TryWrite(null);
         public Task ReconnectAsync(CancellationToken cancellationToken = default)
