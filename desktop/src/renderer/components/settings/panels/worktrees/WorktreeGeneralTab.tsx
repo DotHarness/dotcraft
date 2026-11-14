@@ -1,8 +1,8 @@
 import { useEffect, useState, type JSX } from 'react'
 import { useT } from '../../../../contexts/LocaleContext'
+import { SettingsEmptyRow, SettingsGroup } from '../../SettingsGroup'
 import { SettingsPanelSkeleton } from '../../SettingsSkeleton'
 import { WorktreeSettingsGroup } from './WorktreeSettingsGroup'
-import styles from './environments.module.css'
 
 export function WorktreeGeneralTab({ workspacePath }: { workspacePath?: string }): JSX.Element {
   const t = useT()
@@ -23,6 +23,12 @@ export function WorktreeGeneralTab({ workspacePath }: { workspacePath?: string }
   }, [workspacePath])
 
   if (git === null) return <SettingsPanelSkeleton />
-  if (!git) return <div className={styles.emptyState}>{t('settings.worktrees.general.unavailable')}</div>
+  if (!git) {
+    return (
+      <SettingsGroup>
+        <SettingsEmptyRow>{t('settings.worktrees.general.unavailable')}</SettingsEmptyRow>
+      </SettingsGroup>
+    )
+  }
   return <WorktreeSettingsGroup workspacePath={workspacePath} />
 }

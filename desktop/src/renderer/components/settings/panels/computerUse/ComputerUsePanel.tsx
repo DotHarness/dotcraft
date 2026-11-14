@@ -10,7 +10,7 @@ import { PluginIcon, pluginSubtitle, pluginTitle } from '../../../plugins/Plugin
 import { PluginInstallDialog } from '../../../plugins/PluginInstallDialog'
 import { showPluginInstalledToast } from '../../../plugins/pluginToasts'
 import { StatusIndicator } from '../../../ui/StatusIndicator'
-import { SettingsGroup, SettingsRow } from '../../SettingsGroup'
+import { SettingsEmptyRow, SettingsGroup } from '../../SettingsGroup'
 import { SettingsPanelShell } from '../../SettingsPanelShell'
 import { AlwaysAllowedAppsGroup } from './AlwaysAllowedAppsGroup'
 import { ChromeDetailPage } from './ChromeDetailPage'
@@ -161,13 +161,9 @@ export function ComputerUsePanel({
     <SettingsPanelShell title={t('settings.chrome.pageTitle')} description={t('settings.chrome.pageDescription')}>
       <SettingsGroup title={t('settings.chrome.control')}>
         {!pluginManagementEnabled ? (
-          <SettingsRow>
-            <div className={styles.empty}>{t('plugins.unavailable')}</div>
-          </SettingsRow>
+          <SettingsEmptyRow>{t('plugins.unavailable')}</SettingsEmptyRow>
         ) : !computerPlugin && !chromePlugin ? (
-          <SettingsRow>
-            <div className={styles.empty}>{t('plugins.loading')}</div>
-          </SettingsRow>
+          <SettingsEmptyRow>{t('plugins.loading')}</SettingsEmptyRow>
         ) : (
           <>
             {computerPlugin && (

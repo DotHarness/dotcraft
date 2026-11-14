@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Download, FileText, Search, Trash2, X } from 'lucide-react'
+import { FileText, Search, Trash2, X } from 'lucide-react'
 import type { BrowserDownloadRecord } from '../../../shared/viewer/browserFeedback'
 import { useT } from '../../contexts/LocaleContext'
 import { useUIStore } from '../../stores/uiStore'
@@ -8,7 +8,7 @@ import { Button } from '../ui/Button'
 import { IconButton } from '../ui/IconButton'
 import { SettingsPanelShell } from './SettingsPanelShell'
 import { SettingsBreadcrumb } from './SettingsBreadcrumb'
-import { SettingsGroup } from './SettingsGroup'
+import { SettingsEmptyRow, SettingsGroup, SettingsRow } from './SettingsGroup'
 import css from './BrowserDownloadHistory.module.css'
 
 export function BrowserDownloadHistory(): JSX.Element {
@@ -42,12 +42,12 @@ export function BrowserDownloadHistory(): JSX.Element {
     <div className={css.search}><Search size={16} /><Input bare value={query} aria-label={t('browser.downloads.search')}
       placeholder={t('browser.downloads.search')} onChange={event => setQuery(event.target.value)} /></div>
     {error && <p role="alert">{error}</p>}
-    <SettingsGroup title={t('browser.downloads.allTime')} flush
+    <SettingsGroup title={t('browser.downloads.allTime')} flush={!loading && filtered.length > 0}
       headerAction={<Button size="sm" disabled={loading || !records.some(record => record.state !== 'progressing')}
         onClick={() => void run(() => api.removeDownload({}))}>{t('browser.downloads.clearAll')}</Button>}>
-      {loading ? <div className={css.empty} role="status">{t('common.loading')}</div> : filtered.length === 0 ?
-        <div className={css.empty}><Download size={28} /><strong>{t(search ? 'browser.downloads.noResults' : 'viewer.browser.noDownloads')}</strong>
-          {!search && <span>{t('browser.downloads.emptyHint')}</span>}</div> : filtered.map(record =>
+      {loading ? <SettingsEmptyRow>{t('common.loading')}</SettingsEmptyRow> : filtered.length === 0 ?
+        search ? <SettingsEmptyRow>{t('browser.downloads.noResults')}</SettingsEmptyRow> :
+          <SettingsRow label={t('viewer.browser.noDownloads')} description={t('browser.downloads.emptyHint')} /> : filtered.map(record =>
           <div key={record.id} className={css.record}>
             <FileText size={22} />
             <div className={css.file}>

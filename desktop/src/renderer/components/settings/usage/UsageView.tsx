@@ -4,9 +4,8 @@ import { useUsageConnectionStore } from '../../../stores/usageConnectionStore'
 import { usePluginStore } from '../../../stores/pluginStore'
 import { useUsageStore, USAGE_RANGE_DAYS, type UsageRange } from '../../../stores/usageStore'
 import { addLocalDays, localDayKeys } from '../../../utils/localDay'
-import { SettingsGroup, SettingsRow } from '../SettingsGroup'
+import { SettingsEmptyRow, SettingsGroup } from '../SettingsGroup'
 import { SettingsPanelShell } from '../SettingsPanelShell'
-import { settingsPlaceholderStyle } from '../settingsTypography'
 import { ToolActivityCharts } from './ToolActivityCharts'
 import { TopThreadsTable } from './TopThreadsTable'
 import { UsageHistoryChart } from './UsageHistoryChart'
@@ -56,9 +55,7 @@ export function UsageView(): JSX.Element {
     <SettingsPanelShell title={t('settings.tab.usage')} description={t('settings.usage.description')}>
       {!capable ? (
         <SettingsGroup>
-          <SettingsRow>
-            <div style={settingsPlaceholderStyle()}>{t('settings.usage.unavailable')}</div>
-          </SettingsRow>
+          <SettingsEmptyRow>{t('settings.usage.unavailable')}</SettingsEmptyRow>
         </SettingsGroup>
       ) : (
         <div className={styles.sections}>

@@ -4,7 +4,8 @@ import {
   settingsDescriptionStyle,
   settingsHeadingStyle,
   settingsHintStyle,
-  settingsLabelStyle
+  settingsLabelStyle,
+  settingsPlaceholderStyle
 } from './settingsTypography'
 
 interface SettingsGroupProps {
@@ -121,6 +122,33 @@ export function SettingsRow({
       {control !== undefined && <div style={{ flexShrink: 0, minWidth: controlMinWidth, maxWidth: '100%' }}>{control}</div>}
     </div>
   )
+}
+
+interface SettingsEmptyRowProps {
+  tone?: 'dimmed' | 'error'
+  action?: ReactNode
+  children: ReactNode
+}
+
+export function SettingsEmptyRow({ tone = 'dimmed', action, children }: SettingsEmptyRowProps): JSX.Element {
+  return (
+    <div className="dc-settings-row" style={emptyRowStyle(tone)}>
+      <span>{children}</span>
+      {action}
+    </div>
+  )
+}
+
+function emptyRowStyle(tone: 'dimmed' | 'error'): CSSProperties {
+  return {
+    ...rowStyle(),
+    ...settingsPlaceholderStyle(),
+    gap: '12px',
+    minHeight: 'calc(28px + var(--type-ui-line-height) + 4px + var(--type-hint-line-height))',
+    justifyContent: 'center',
+    textAlign: 'center',
+    color: tone === 'error' ? 'var(--error)' : 'var(--text-dimmed)'
+  }
 }
 
 function groupStyle(): CSSProperties {

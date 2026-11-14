@@ -9,10 +9,9 @@ import { PillSwitch } from '../../../ui/PillSwitch'
 import { Skeleton } from '../../../ui/Skeleton'
 import { StatusIndicator } from '../../../ui/StatusIndicator'
 import { SettingsBreadcrumb } from '../../SettingsBreadcrumb'
-import { SettingsGroup, SettingsRow } from '../../SettingsGroup'
+import { SettingsEmptyRow, SettingsGroup, SettingsRow } from '../../SettingsGroup'
 import { SettingsDescriptionWithLearnMore } from '../../SettingsLearnMoreLink'
 import { SettingsPanelShell } from '../../SettingsPanelShell'
-import { settingsPlaceholderStyle } from '../../settingsTypography'
 import { SettingsSelect } from '../../ui/SettingsSelect'
 import styles from './DreamsPanel.module.css'
 import {
@@ -173,9 +172,7 @@ export function DreamsPanel({ dreams, memoryEnabled, dashboardUrl, locale, onBac
           ))}
 
         {!dreams.runsLoading && dreams.runs.length === 0 && (
-          <SettingsRow>
-            <div style={settingsPlaceholderStyle()}>{t('settings.dreams.empty')}</div>
-          </SettingsRow>
+          <SettingsEmptyRow>{t('settings.dreams.empty')}</SettingsEmptyRow>
         )}
 
         {dreams.runs.map((run) => {

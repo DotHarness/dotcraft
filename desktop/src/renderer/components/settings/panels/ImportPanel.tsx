@@ -16,7 +16,7 @@ import { importSourceLabel } from '../../../utils/sessionImport'
 import { Button } from '../../ui/Button'
 import { PillSwitch } from '../../ui/PillSwitch'
 import { Skeleton } from '../../ui/Skeleton'
-import { SettingsGroup, SettingsRow } from '../SettingsGroup'
+import { SettingsEmptyRow, SettingsGroup, SettingsRow } from '../SettingsGroup'
 import { SettingsPanelShell } from '../SettingsPanelShell'
 import { settingsHintStyle, settingsLabelStyle } from '../settingsTypography'
 import { ImportItemsDialog } from './ImportItemsDialog'
@@ -239,11 +239,7 @@ export function ImportPanel({ workspacePath }: ImportPanelProps): JSX.Element {
         }
       >
         {sources == null && detectError ? (
-          <SettingsRow>
-            <div className={styles.placeholder} data-tone="error">
-              {t('settings.import.sources.loadFailed', { error: detectError })}
-            </div>
-          </SettingsRow>
+          <SettingsEmptyRow tone="error">{t('settings.import.sources.loadFailed', { error: detectError })}</SettingsEmptyRow>
         ) : sources == null ? (
           [0, 1].map((index) => (
             <SettingsRow
@@ -254,9 +250,7 @@ export function ImportPanel({ workspacePath }: ImportPanelProps): JSX.Element {
             />
           ))
         ) : available.length === 0 ? (
-          <SettingsRow>
-            <div className={styles.placeholder}>{t('settings.import.sources.empty')}</div>
-          </SettingsRow>
+          <SettingsEmptyRow>{t('settings.import.sources.empty')}</SettingsEmptyRow>
         ) : (
           available.map((entry) => {
             const label = importSourceLabel(entry.source)

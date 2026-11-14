@@ -2,7 +2,7 @@ import { useState, type JSX } from 'react'
 import { ArrowUpRight, Folder, MessagesSquare, Plus, RefreshCw, Trash2 } from 'lucide-react'
 
 import { SettingsBreadcrumb } from '../../SettingsBreadcrumb'
-import { SettingsGroup } from '../../SettingsGroup'
+import { SettingsEmptyRow, SettingsGroup } from '../../SettingsGroup'
 import { SettingsPageHeader } from '../../SettingsPageHeader'
 import { ActionTooltip } from '../../../ui/ActionTooltip'
 import { Button } from '../../../ui/Button'
@@ -179,7 +179,7 @@ export function PairedComputerDetail({
       {!identityChanged &&
         (computer.projects.length === 0 ? (
           <SettingsGroup title={t('settings.otherDevices.projects.title')} headerAction={addFolder}>
-            <p className="dc-other-device-empty">{blockedReason}</p>
+            <SettingsEmptyRow>{blockedReason}</SettingsEmptyRow>
           </SettingsGroup>
         ) : (
           <SettingsGroup title={t('settings.otherDevices.projects.title')} headerAction={addFolder}>

@@ -7,7 +7,7 @@ import { useAddProjectFlow } from '../../../projects/AddProject'
 import { Button } from '../../../ui/Button'
 import { DisclosureChevron } from '../../../ui/DisclosureChevron'
 import { IconButton } from '../../../ui/IconButton'
-import { SettingsGroup } from '../../SettingsGroup'
+import { SettingsEmptyRow, SettingsGroup } from '../../SettingsGroup'
 import type { ProjectEnvironmentListState } from './useProjectEnvironmentLists'
 import styles from './environments.module.css'
 
@@ -119,7 +119,7 @@ export function EnvironmentProjectList({ projects, lists, onOpenProject, onOpenE
         )}
       >
         {projects.length === 0 ? (
-          <div className={styles.empty}>{t('settings.environments.noProjects')}</div>
+          <SettingsEmptyRow>{t('settings.environments.noProjects')}</SettingsEmptyRow>
         ) : projects.map((project) => (
           <ProjectRows
             key={project.path}

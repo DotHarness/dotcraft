@@ -1,5 +1,5 @@
 ---
-version: "0.10.3"
+version: "0.12.0"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 colors:
@@ -1782,6 +1782,8 @@ never shorter than the settings control band (`28px`); a title-only header keeps
 its text height. The card follows 8px below and holds rows only: `--bg-secondary`,
 `1px` `--border-default`, radius 12, hairline dividers between rows inset by the
 row's own 16px padding at both ends, never edge to edge, and none above the first.
+A divider is a `1px` border, never a filled `1px` box, so it rounds to the same
+device-pixel width at every interface zoom.
 Groups stand 20px apart.
 
 Explanatory text belongs to the row it explains: label, hint (in `--type-hint`
@@ -1789,6 +1791,15 @@ under the label), control on the right. A group description is reserved for list
 groups whose rows are items (paired PCs, servers, people) and for a group whose
 rows together configure one feature; it defines the feature in one sentence. A row
 never repeats its group's title.
+
+An empty, loading, or failed list inside a group is one row as tall as a row
+with a label and hint (`66px`), not as tall as its own text: one centred line of
+`--type-secondary` in `--text-dimmed` (`--error` for a failure), optionally
+followed by one small button that creates the first item or retries. An empty
+state that names what to set up uses an ordinary row with a label and hint
+instead. Every settings page uses the same row, so switching pages or adding the
+first item never changes the card's height. Skeletons that mirror the loaded
+rows and charts that keep their plot height are exempt.
 
 A setting that works only while another is on keeps its row when the prerequisite
 is off: the control is disabled with its stored value unchanged, and a tooltip

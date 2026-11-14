@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useState, type CSSProperties, type JSX } from 'react'
+import { useCallback, useEffect, useState, type JSX } from 'react'
 import { useT } from '../../../../contexts/LocaleContext'
 import { useConfigSetting } from '../../../../stores/configStore'
 import { useThreadStore } from '../../../../stores/threadStore'
-import { SettingsGroup, SettingsRow } from '../../SettingsGroup'
+import { SettingsEmptyRow, SettingsGroup, SettingsRow } from '../../SettingsGroup'
 import { settingsDescriptionStyle } from '../../settingsTypography'
 import { useConfirmDialog } from '../../../ui/ConfirmDialog'
 import { Button } from '../../../ui/Button'
@@ -112,9 +112,9 @@ export function WorktreeSettingsGroup({ workspacePath }: { workspacePath?: strin
           />
         }
       />
-      {loadError && <SettingsRow><span style={errorStyle}>{loadError}</span></SettingsRow>}
+      {loadError && <SettingsEmptyRow tone="error">{loadError}</SettingsEmptyRow>}
       {worktrees.length === 0 && !loadError ? (
-        <SettingsRow><span style={settingsDescriptionStyle(false)}>{t('settings.worktrees.empty')}</span></SettingsRow>
+        <SettingsEmptyRow>{t('settings.worktrees.empty')}</SettingsEmptyRow>
       ) : worktrees.map((worktree) => {
         const owner = worktree.threadId ? threads.find((thread) => thread.id === worktree.threadId) : undefined
         const inUse = owner != null && owner.status !== 'archived'
@@ -171,7 +171,3 @@ function request(method: 'worktree/remove', params: { path: string; discardChang
   return window.api.appServer.sendRequest(method, params)
 }
 
-const errorStyle: CSSProperties = {
-  color: 'var(--error)',
-  fontSize: '13px'
-}

@@ -3,7 +3,7 @@ import { useId, type JSX } from 'react'
 import { useT } from '../../../../contexts/LocaleContext'
 import { Button } from '../../../ui/Button'
 import { Input } from '../../../ui/Input'
-import { SettingsGroup } from '../../SettingsGroup'
+import { SettingsEmptyRow, SettingsGroup } from '../../SettingsGroup'
 import { newActionDraft, type EnvironmentDraft } from './environmentDraft'
 import { ActionEditorCard } from './ActionEditorCard'
 import { ScriptEditorGroup } from './ScriptEditorGroup'
@@ -74,10 +74,10 @@ export function EnvironmentDraftFields({
             {t('settings.environments.actions.add')}
           </Button>
         )}
-        framed={false}
+        framed={draft.actions.length === 0}
       >
         {draft.actions.length === 0 ? (
-          <div className={styles.actionsEmpty}>{t('settings.environments.actions.empty')}</div>
+          <SettingsEmptyRow>{t('settings.environments.actions.empty')}</SettingsEmptyRow>
         ) : <div className={styles.actionList}>{draft.actions.map((action, index) => (
           <ActionEditorCard
             key={action.key}

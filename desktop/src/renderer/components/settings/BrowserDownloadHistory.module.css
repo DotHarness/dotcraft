@@ -20,21 +20,6 @@
   flex: 1;
   min-width: 0;
 }
-.empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  padding: 40px 20px;
-  text-align: center;
-  color: var(--text-secondary);
-}
-.empty strong {
-  color: var(--text-primary);
-}
-.empty span {
-  max-width: 340px;
-}
 .record {
   display: flex;
   align-items: center;

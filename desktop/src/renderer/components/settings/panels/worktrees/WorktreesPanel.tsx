@@ -7,6 +7,7 @@ import { useUIStore } from '../../../../stores/uiStore'
 import { localProjectsByLastOpened, useWorkspaceProjectsStore } from '../../../../stores/workspaceProjectsStore'
 import { useConfirmDialog } from '../../../ui/ConfirmDialog'
 import { Button } from '../../../ui/Button'
+import { SettingsEmptyRow, SettingsGroup } from '../../SettingsGroup'
 import { SettingsBreadcrumb } from '../../SettingsBreadcrumb'
 import { SettingsPageHeader } from '../../SettingsPageHeader'
 import { SettingsPanelSkeleton } from '../../SettingsSkeleton'
@@ -205,7 +206,11 @@ export function WorktreesPanel({ workspacePath }: { workspacePath?: string }): J
 
   let content: JSX.Element
   if (pageList === 'failed') {
-    content = <div className={styles.emptyState}>{t('settings.environments.loadFailed')}</div>
+    content = (
+      <SettingsGroup>
+        <SettingsEmptyRow tone="error">{t('settings.environments.loadFailed')}</SettingsEmptyRow>
+      </SettingsGroup>
+    )
   } else if (page.kind === 'edit') {
     content = page.path === null ? <SettingsPanelSkeleton /> : (
       <EnvironmentEditor
@@ -221,12 +226,17 @@ export function WorktreesPanel({ workspacePath }: { workspacePath?: string }): J
     content = <SettingsPanelSkeleton />
   } else if (!environment) {
     content = (
-      <div className={styles.emptyState}>
-        <span>{t('settings.environments.empty')}</span>
-        <Button variant="primary" onClick={() => startCreate(projectPath, loadedList)}>
-          {t('settings.environments.create')}
-        </Button>
-      </div>
+      <SettingsGroup>
+        <SettingsEmptyRow
+          action={(
+            <Button size="sm" variant="primary" onClick={() => startCreate(projectPath, loadedList)}>
+              {t('settings.environments.create')}
+            </Button>
+          )}
+        >
+          {t('settings.environments.empty')}
+        </SettingsEmptyRow>
+      </SettingsGroup>
     )
   } else {
     content = (

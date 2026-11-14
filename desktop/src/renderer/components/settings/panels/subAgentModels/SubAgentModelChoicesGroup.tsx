@@ -10,8 +10,7 @@ import { StatusIndicator } from '../../../ui/StatusIndicator'
 import type { ProviderInfoWire } from '../../providerInfo'
 import { ProviderPresetMark } from '../../providers/ProviderPresetMark'
 import { providerPresetMark } from '../../providers/providerPresets'
-import { SettingsGroup, SettingsRow } from '../../SettingsGroup'
-import { settingsPlaceholderStyle } from '../../settingsTypography'
+import { SettingsEmptyRow, SettingsGroup, SettingsRow } from '../../SettingsGroup'
 import { SettingsSelect } from '../../ui/SettingsSelect'
 import { providerUsable } from '../../providers/providerDraft'
 import { ProviderSelect } from '../../providers/ProviderSelect'
@@ -58,11 +57,7 @@ export function SubAgentModelChoicesGroup({ providers, mainProviderId }: SubAgen
       }
     >
       {choices.length === 0 && !adding && (
-        <SettingsRow>
-          <div style={{ ...settingsPlaceholderStyle(), width: '100%', textAlign: 'center' }}>
-            {t('settings.llm.subAgentModels.empty')}
-          </div>
-        </SettingsRow>
+        <SettingsEmptyRow>{t('settings.llm.subAgentModels.empty')}</SettingsEmptyRow>
       )}
       {choices.map((choice) => (
         <ChoiceRow

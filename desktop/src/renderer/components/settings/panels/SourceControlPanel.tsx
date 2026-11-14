@@ -6,8 +6,7 @@ import { useT } from '../../../contexts/LocaleContext'
 import type { MessageKey } from '../../../../shared/locales'
 import { normalizeConfigChangedPayload } from '../../../utils/configChanged'
 import { SettingsPanelShell } from '../SettingsPanelShell'
-import { SettingsGroup, SettingsRow } from '../SettingsGroup'
-import { settingsPlaceholderStyle } from '../settingsTypography'
+import { SettingsEmptyRow, SettingsGroup, SettingsRow } from '../SettingsGroup'
 import { SegmentedControl } from '../ui/SegmentedControl'
 import { SettingsSelect } from '../ui/SettingsSelect'
 import { PillSwitch } from '../../ui/PillSwitch'
@@ -368,8 +367,8 @@ export function SourceControlPanel({ workspacePath }: SourceControlPanelProps): 
       description={t('settings.sourceControl.description')}
     >
       {loading && (
-        <SettingsGroup flush>
-          <div style={settingsPlaceholderStyle()}>{t('settings.sourceControl.loading')}</div>
+        <SettingsGroup>
+          <SettingsEmptyRow>{t('settings.sourceControl.loading')}</SettingsEmptyRow>
         </SettingsGroup>
       )}
 

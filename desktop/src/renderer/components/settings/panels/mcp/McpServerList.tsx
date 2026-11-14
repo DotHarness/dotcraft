@@ -4,12 +4,11 @@ import type { McpServerConfigWire, McpServerStatusWire } from '../../../../store
 import { Button } from '../../../ui/Button'
 import { PillSwitch } from '../../../ui/PillSwitch'
 import { StatusIndicator, type StatusIndicatorTone } from '../../../ui/StatusIndicator'
-import { SettingsGroup, SettingsRow } from '../../SettingsGroup'
+import { SettingsEmptyRow, SettingsGroup, SettingsRow } from '../../SettingsGroup'
 import {
   settingsHintStyle,
   settingsLabelStyle,
-  settingsMetaTextStyle,
-  settingsPlaceholderStyle
+  settingsMetaTextStyle
 } from '../../settingsTypography'
 import styles from './McpServerList.module.css'
 
@@ -64,17 +63,11 @@ export function McpServerList({
     <>
       <SettingsGroup title={t('settings.group.servers')}>
         {loading ? (
-          <SettingsRow>
-            <div style={settingsPlaceholderStyle()}>{t('settings.mcp.loading')}</div>
-          </SettingsRow>
+          <SettingsEmptyRow>{t('settings.mcp.loading')}</SettingsEmptyRow>
         ) : error ? (
-          <SettingsRow>
-            <div style={{ ...settingsPlaceholderStyle(), color: 'var(--error)' }}>{error}</div>
-          </SettingsRow>
+          <SettingsEmptyRow tone="error">{error}</SettingsEmptyRow>
         ) : own.length === 0 ? (
-          <SettingsRow>
-            <div style={settingsPlaceholderStyle()}>{t('settings.mcp.empty.title')}</div>
-          </SettingsRow>
+          <SettingsEmptyRow>{t('settings.mcp.empty.title')}</SettingsEmptyRow>
         ) : (
           own.map((server) => row(server, false))
         )}

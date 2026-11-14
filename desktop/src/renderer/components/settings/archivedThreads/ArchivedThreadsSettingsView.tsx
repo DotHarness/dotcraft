@@ -13,8 +13,7 @@ import { Skeleton } from '../../ui/Skeleton'
 import { Button } from '../../ui/Button'
 import { IconButton } from '../../ui/IconButton'
 import { MoreActionsButton } from '../../ui/MoreActionsButton'
-import { SettingsGroup, SettingsRow } from '../SettingsGroup'
-import { settingsPlaceholderStyle } from '../settingsTypography'
+import { SettingsEmptyRow, SettingsGroup, SettingsRow } from '../SettingsGroup'
 import { SettingsPanelShell } from '../SettingsPanelShell'
 import {
   archivedThreadSources,
@@ -338,11 +337,9 @@ export function ArchivedThreadsSettingsView({
 
       {!loading && groups.length === 0 && failedSources.length === 0 && (selectedSource?.live ?? true) && (
         <SettingsGroup>
-          <SettingsRow>
-            <div style={settingsPlaceholderStyle()}>
-              {deferredQuery.trim() ? t('archivedThreads.noMatches') : t('archivedThreads.empty')}
-            </div>
-          </SettingsRow>
+          <SettingsEmptyRow>
+            {deferredQuery.trim() ? t('archivedThreads.noMatches') : t('archivedThreads.empty')}
+          </SettingsEmptyRow>
         </SettingsGroup>
       )}
 

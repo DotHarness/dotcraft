@@ -14,8 +14,7 @@ import { IconButton } from '../../ui/IconButton'
 import { canProviderCreateImages } from '../panels/imageGeneration/imageGenerationModel'
 import type { ProviderInfoWire } from '../providerInfo'
 import { ProviderModelSummary } from '../ProviderModelSummary'
-import { SettingsGroup } from '../SettingsGroup'
-import { settingsPlaceholderStyle } from '../settingsTypography'
+import { SettingsEmptyRow, SettingsGroup, SettingsRow } from '../SettingsGroup'
 import { providerDetails, providerProblem } from './providerDraft'
 import { ProviderIdentityIcon } from './ProviderIdentityIcon'
 import { ProviderUsageMeter } from './ProviderUsageMeter'
@@ -85,26 +84,15 @@ export function ProviderListGroup({
           {t('settings.llm.addProvider')}
         </Button>
       }
-      flush
+      flush={!providersLoading && providers.length > 0}
     >
+      {providersLoading && <SettingsEmptyRow>{t('settings.llm.providersLoading')}</SettingsEmptyRow>}
+
+      {!providersLoading && providers.length === 0 && (
+        <SettingsRow label={t('settings.llm.emptyProvidersTitle')} description={t('settings.llm.emptyProvidersHint')} />
+      )}
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        {providersLoading && (
-          <div style={{ fontSize: '13px', color: 'var(--text-dimmed)' }}>
-            {t('settings.llm.providersLoading')}
-          </div>
-        )}
-
-        {!providersLoading && providers.length === 0 && (
-          <div style={{ padding: '8px 0' }}>
-            <div style={{ fontSize: '14px', color: 'var(--text-primary)', marginBottom: '6px' }}>
-              {t('settings.llm.emptyProvidersTitle')}
-            </div>
-            <div style={settingsPlaceholderStyle()}>
-              {t('settings.llm.emptyProvidersHint')}
-            </div>
-          </div>
-        )}
-
         {!providersLoading && providers.map((provider) => {
           const active = provider.id === selectedProviderId
           const rememberedMainAgentPreference = active

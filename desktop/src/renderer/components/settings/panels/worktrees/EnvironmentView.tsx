@@ -12,7 +12,7 @@ import { PROJECT_ACTION_GLYPHS } from '../../../projectActions/AddProjectActionD
 import { Button } from '../../../ui/Button'
 import { DisclosureChevron } from '../../../ui/DisclosureChevron'
 import { IconButton } from '../../../ui/IconButton'
-import { SettingsGroup } from '../../SettingsGroup'
+import { SettingsEmptyRow, SettingsGroup } from '../../SettingsGroup'
 import { SettingsPanelSkeleton } from '../../SettingsSkeleton'
 import { SegmentedControl } from '../../ui/SegmentedControl'
 import { scriptOverrides, type ScriptTab } from './environmentDraft'
@@ -126,7 +126,7 @@ export function EnvironmentView({
               <ScriptPreviewGroup title={t('settings.environments.cleanup.title')} script={document.cleanup} />
               <SettingsGroup title={t('settings.environments.actions.title')}>
                 {document.actions.length === 0 ? (
-                  <div className={styles.empty}>{t('settings.environments.actions.empty')}</div>
+                  <SettingsEmptyRow>{t('settings.environments.actions.empty')}</SettingsEmptyRow>
                 ) : document.actions.map((action, index) => (
                   <ActionPreview key={`${index}:${action.name}`} action={action} />
                 ))}

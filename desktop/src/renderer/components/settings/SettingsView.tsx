@@ -58,7 +58,7 @@ import { IconButton } from '../ui/IconButton'
 import { Button } from '../ui/Button'
 import { PillSwitch } from '../ui/PillSwitch'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
-import { SettingsGroup, SettingsRow } from './SettingsGroup'
+import { SettingsEmptyRow, SettingsGroup, SettingsRow } from './SettingsGroup'
 import {
   SETTINGS_SURFACE_CLASS,
   settingsHintStyle,
@@ -1516,11 +1516,7 @@ export function SettingsView({
 
                 {!providerManagementEnabled && (
                   <SettingsGroup>
-                    <SettingsRow>
-                      <div style={{ fontSize: '13px', color: 'var(--text-dimmed)' }}>
-                        {t('settings.llm.unsupported')}
-                      </div>
-                    </SettingsRow>
+                    <SettingsEmptyRow>{t('settings.llm.unsupported')}</SettingsEmptyRow>
                   </SettingsGroup>
                 )}
 
@@ -1901,11 +1897,7 @@ export function SettingsView({
                       }
                     >
                       {browserUseBlockedDomains.length === 0 ? (
-                        <SettingsRow>
-                          <div style={{ ...settingsPlaceholderStyle(), width: '100%', textAlign: 'center' }}>
-                            {t('settings.browserUse.noBlockedDomains')}
-                          </div>
-                        </SettingsRow>
+                        <SettingsEmptyRow>{t('settings.browserUse.noBlockedDomains')}</SettingsEmptyRow>
                       ) : browserUseBlockedDomains.map((domain) => (
                         <SettingsRow
                           key={domain}
@@ -1933,11 +1925,7 @@ export function SettingsView({
                       }
                     >
                       {browserUseAllowedDomains.length === 0 ? (
-                        <SettingsRow>
-                          <div style={{ ...settingsPlaceholderStyle(), width: '100%', textAlign: 'center' }}>
-                            {t('settings.browserUse.noAllowedDomains')}
-                          </div>
-                        </SettingsRow>
+                        <SettingsEmptyRow>{t('settings.browserUse.noAllowedDomains')}</SettingsEmptyRow>
                       ) : browserUseAllowedDomains.map((domain) => (
                         <SettingsRow
                           key={domain}
@@ -2034,11 +2022,7 @@ export function SettingsView({
               >
                 {!mcpEnabled && (
                   <SettingsGroup>
-                    <SettingsRow>
-                    <div style={{ fontSize: '14px', color: 'var(--text-primary)' }}>
-                      {t('settings.mcp.unsupported')}
-                    </div>
-                    </SettingsRow>
+                    <SettingsEmptyRow>{t('settings.mcp.unsupported')}</SettingsEmptyRow>
                   </SettingsGroup>
                 )}
 

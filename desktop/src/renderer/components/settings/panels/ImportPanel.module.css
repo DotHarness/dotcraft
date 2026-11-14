@@ -15,14 +15,7 @@
   line-height: var(--type-hint-line-height);
 }
 
-.placeholder {
-  color: var(--text-dimmed);
-  font-size: var(--type-secondary-size);
-  line-height: var(--type-secondary-line-height);
-}
-
 .status[data-tone="error"],
-.placeholder[data-tone="error"],
 .error {
   color: var(--error);
 }

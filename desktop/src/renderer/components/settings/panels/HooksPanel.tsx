@@ -23,7 +23,7 @@ import { Button } from '../../ui/Button'
 import { PillSwitch } from '../../ui/PillSwitch'
 import { SettingsBreadcrumb } from '../SettingsBreadcrumb'
 import { SettingsDescriptionWithLearnMore } from '../SettingsLearnMoreLink'
-import { SettingsGroup, SettingsRow } from '../SettingsGroup'
+import { SettingsEmptyRow, SettingsGroup, SettingsRow } from '../SettingsGroup'
 import { SettingsPanelShell } from '../SettingsPanelShell'
 
 type SourceKey = 'user' | 'workspace' | `plugin:${string}`
@@ -198,9 +198,7 @@ export function HooksPanel(): JSX.Element {
       )}
       <SettingsGroup title={t('settings.hooks.fromPlugins')}>
         {pluginSummaries.length === 0 ? (
-          <SettingsRow>
-            <div style={emptyTextStyle}>{loading ? t('settings.loading') : t('settings.hooks.noPluginHooks')}</div>
-          </SettingsRow>
+          <SettingsEmptyRow>{loading ? t('settings.loading') : t('settings.hooks.noPluginHooks')}</SettingsEmptyRow>
         ) : (
           pluginSummaries.map((summary) => {
             const plugin = summary.pluginId ? pluginById.get(summary.pluginId) : null
@@ -245,9 +243,7 @@ function SourceDetail({
   if (summary.hooks.length === 0) {
     return (
       <SettingsGroup>
-        <SettingsRow>
-          <div style={emptyTextStyle}>{t('settings.hooks.noHooks')}</div>
-        </SettingsRow>
+        <SettingsEmptyRow>{t('settings.hooks.noHooks')}</SettingsEmptyRow>
       </SettingsGroup>
     )
   }
@@ -651,12 +647,6 @@ const sourceSubtitleStyle: CSSProperties = {
   fontSize: 12,
   color: 'var(--text-dimmed)',
   lineHeight: 1.35
-}
-
-const emptyTextStyle: CSSProperties = {
-  width: '100%',
-  color: 'var(--text-dimmed)',
-  fontSize: 12
 }
 
 const hookHeaderStyle: CSSProperties = {

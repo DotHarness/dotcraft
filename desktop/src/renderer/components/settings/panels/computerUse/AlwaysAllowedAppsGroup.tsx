@@ -7,7 +7,7 @@ import { DesktopIcon } from '../../../ui/AppIcons'
 import { useConfirmDialog } from '../../../ui/ConfirmDialog'
 import { IconButton } from '../../../ui/IconButton'
 import { IdentityMark } from '../../../ui/IdentityMark'
-import { SettingsGroup, SettingsRow } from '../../SettingsGroup'
+import { SettingsEmptyRow, SettingsGroup, SettingsRow } from '../../SettingsGroup'
 import styles from './ComputerUsePanel.module.css'
 
 interface AllowedApp {
@@ -71,9 +71,7 @@ export function AlwaysAllowedAppsGroup(): JSX.Element {
   return (
     <SettingsGroup title={t('settings.computerUse.allowedApps.title')}>
       {apps.length === 0 ? (
-        <SettingsRow>
-          <div className={styles.empty}>{t('settings.computerUse.allowedApps.empty')}</div>
-        </SettingsRow>
+        <SettingsEmptyRow>{t('settings.computerUse.allowedApps.empty')}</SettingsEmptyRow>
       ) : apps.map((app) => (
         <SettingsRow key={app.id}>
           <div className={styles.appRow}>

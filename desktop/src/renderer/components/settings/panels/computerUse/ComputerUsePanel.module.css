@@ -77,14 +77,6 @@
   line-height: var(--type-ui-line-height);
 }
 
-.empty {
-  width: 100%;
-  text-align: center;
-  color: var(--text-dimmed);
-  font-size: var(--type-secondary-size);
-  line-height: var(--type-secondary-line-height);
-}
-
 .detailStatus {
   display: flex;
   flex-wrap: wrap;
