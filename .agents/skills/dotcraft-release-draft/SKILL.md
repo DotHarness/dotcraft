@@ -64,6 +64,8 @@ DotCraft vX.Y.Z brings ...
 ## Writing Rules
 
 - Write the complete release body in English. Keep identifiers, product names, code, and URLs in their canonical form.
+- Prefer one concise sentence per curated bullet, focused on the user or developer outcome rather than implementation details.
+- Combine related UI/UX adjustments into a short summary instead of listing each polish item separately; keep consequential correctness fixes distinct when merging would hide their impact.
 - Select Highlights by impact on user workflows or developer use, not by PR size or whether a change has a What's New card. Include significant standalone commits. Use the fixes section for meaningful reliability and correctness outcomes.
 - Review documentation-only changes, routine UI wording, localization, and small polish without automatically promoting them into the release body. Include them when their impact defines this release or the user asks for them. The "What's Changed" list can remain broader than the curated summary.
 - Use media URLs exactly from the What's New catalog when available, after verifying they resolve. Do not add a GIF merely to fill the template.
