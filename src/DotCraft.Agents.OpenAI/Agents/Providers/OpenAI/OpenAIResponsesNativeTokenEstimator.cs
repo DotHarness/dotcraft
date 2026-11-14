@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using DotCraft.Context.Compaction;
 using Microsoft.Extensions.AI;
@@ -10,6 +11,11 @@ internal static class OpenAIResponsesNativeTokenEstimator
     private const double BytesPerToken = 4.0;
     private const int ImageTokenCost = 2000;
     private const int AudioTokenCost = 1000;
+
+    private static readonly JsonSerializerOptions ContentJsonOptions = new()
+    {
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+    };
 
     public static long Estimate(
         IReadOnlyList<JsonElement> items,
@@ -69,166 +75,81 @@ internal static class OpenAIResponsesNativeTokenEstimator
         return SaturatingAdd(nativeTokens, MessageTokenEstimator.EstimateDelta(pendingTail));
     }
 
-    private static long EstimateElementBytes(JsonElement element)
-    {
-        if (element.ValueKind is not (JsonValueKind.Object or JsonValueKind.Array))
-            return Encoding.UTF8.GetByteCount(element.GetRawText());
+    private static long EstimateElementBytes(JsonElement item) =>
+        TryGetString(item, "type") switch
+        {
+            "message" => EstimateContentBytes(GetProperty(item, "content")),
+            "agent_message" => TextBytes(item, "author") + TextBytes(item, "recipient")
+                + EstimateContentBytes(GetProperty(item, "content")),
+            "reasoning" => Math.Max(0, EncodedLength(item) * 3 / 4 - 650),
+            // Replay caches inflate the encrypted compaction payload beyond its text content.
+            "compaction" or "context_compaction" => (EncodedLength(item) + 2) / 3,
+            "function_call" => EstimateCallBytes(item, "arguments"),
+            "custom_tool_call" => EstimateCallBytes(item, "input"),
+            "function_call_output" => EstimateOutputBytes(GetProperty(item, "output"))
+                + TextBytes(item, "call_id") + TextBytes(item, "name") + TextBytes(item, "namespace"),
+            "custom_tool_call_output" => EstimateOutputBytes(GetProperty(item, "output"))
+                + TextBytes(item, "call_id") + TextBytes(item, "name"),
+            "additional_tools" or "tool_search_output" => EstimateJsonBytes(GetProperty(item, "tools")),
+            "tool_search_call" => EstimateJsonBytes(GetProperty(item, "arguments")),
+            "local_shell_call" or "web_search_call" => EstimateJsonBytes(GetProperty(item, "action")),
+            "image_generation_call" => TextBytes(item, "revised_prompt")
+                + (TryGetString(item, "result") is { Length: > 0 } ? ImageTokenCost * 4L : 0),
+            _ => 0
+        };
 
-        long bytes = Encoding.UTF8.GetByteCount(element.GetRawText());
-        Visit(element, ref bytes);
+    private static long EstimateCallBytes(JsonElement item, string inputProperty) =>
+        TextBytes(item, "name")
+        + Encoding.UTF8.GetByteCount(TryGetString(item, "namespace") ?? "functions")
+        + TextBytes(item, inputProperty);
+
+    private static long EstimateOutputBytes(JsonElement output) =>
+        output.ValueKind == JsonValueKind.String
+            ? Encoding.UTF8.GetByteCount(output.GetString() ?? string.Empty)
+            : EstimateContentBytes(output);
+
+    private static long EstimateContentBytes(JsonElement content)
+    {
+        if (content.ValueKind != JsonValueKind.Array)
+            return 0;
+
+        long bytes = 0;
+        foreach (var part in content.EnumerateArray())
+        {
+            var partBytes = TryGetString(part, "type") switch
+            {
+                "input_text" or "output_text" => TextBytes(part, "text"),
+                "input_image" or "output_image" => ImageTokenCost * 4L,
+                "input_audio" or "audio" => AudioTokenCost * 4L,
+                "encrypted_content" => (EncodedLength(part) * 9 + 15) / 16,
+                _ => 0
+            };
+            bytes = SaturatingAdd(bytes, partBytes);
+        }
         return bytes;
     }
 
-    private static void Visit(JsonElement element, ref long bytes)
-    {
-        switch (element.ValueKind)
-        {
-            case JsonValueKind.Object:
-                {
-                    var type = TryGetString(element, "type");
-                    if (type is "input_image" or "output_image")
-                        ApplyDataUrlMediaAdjustment(element, "image_url", "image/", ImageTokenCost, ref bytes);
-                    else if (type is "input_audio" or "audio")
-                        ApplyAudioAdjustment(element, ref bytes);
+    private static long EstimateJsonBytes(JsonElement content) =>
+        content.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null
+            ? 0
+            : JsonSerializer.SerializeToUtf8Bytes(content, ContentJsonOptions).LongLength;
 
-                    if (type is "reasoning" or "compaction" or "context_compaction"
-                        && TryGetString(element, "encrypted_content") is { Length: > 0 } protectedPayload)
-                    {
-                        bytes = SaturatingSubtract(bytes, Encoding.UTF8.GetByteCount(protectedPayload));
-                        bytes = SaturatingAdd(bytes, EstimateDecodedPayloadBytes(protectedPayload));
-                    }
+    private static long EncodedLength(JsonElement item) =>
+        TryGetString(item, "encrypted_content")?.Length ?? 0;
 
-                    foreach (var property in element.EnumerateObject())
-                        Visit(property.Value, ref bytes);
-                    break;
-                }
-            case JsonValueKind.Array:
-                foreach (var item in element.EnumerateArray())
-                    Visit(item, ref bytes);
-                break;
-        }
-    }
+    private static long TextBytes(JsonElement item, string propertyName) =>
+        Encoding.UTF8.GetByteCount(TryGetString(item, propertyName) ?? string.Empty);
 
-    private static void ApplyAudioAdjustment(JsonElement element, ref long bytes)
-    {
-        if (TryGetString(element, "audio_url") is { Length: > 0 })
-        {
-            ApplyDataUrlMediaAdjustment(element, "audio_url", "audio/", AudioTokenCost, ref bytes);
-            return;
-        }
-
-        if (TryGetString(element, "data") is { Length: > 0 })
-        {
-            ApplyAudioDataAdjustment(element, "data", ref bytes);
-            return;
-        }
-
-        if (element.TryGetProperty("input_audio", out var inputAudio)
-            && inputAudio.ValueKind == JsonValueKind.Object)
-        {
-            ApplyAudioDataAdjustment(inputAudio, "data", ref bytes);
-        }
-    }
-
-    private static void ApplyAudioDataAdjustment(
-        JsonElement element,
-        string propertyName,
-        ref long bytes)
-    {
-        if (TryGetString(element, propertyName) is not { Length: > 0 } value)
-            return;
-
-        if (value.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
-        {
-            if (TryGetBase64DataUrlPayload(value, "audio/", out var payload))
-                bytes = SaturatingSubtract(bytes, Encoding.UTF8.GetByteCount(payload));
-        }
-        else
-        {
-            bytes = SaturatingSubtract(bytes, Encoding.UTF8.GetByteCount(value));
-        }
-
-        bytes = SaturatingAdd(bytes, AudioTokenCost * 4L);
-    }
-
-    private static void ApplyDataUrlMediaAdjustment(
-        JsonElement element,
-        string propertyName,
-        string expectedMimePrefix,
-        int tokenCost,
-        ref long bytes)
-    {
-        if (TryGetString(element, propertyName) is not { Length: > 0 } value)
-            return;
-
-        if (TryGetBase64DataUrlPayload(value, expectedMimePrefix, out var payload))
-            bytes = SaturatingSubtract(bytes, Encoding.UTF8.GetByteCount(payload));
-
-        bytes = SaturatingAdd(bytes, tokenCost * 4L);
-    }
-
-    private static bool TryGetBase64DataUrlPayload(
-        string value,
-        string expectedMimePrefix,
-        out string payload)
-    {
-        payload = string.Empty;
-        if (!value.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
-            return false;
-
-        var separator = value.IndexOf(',');
-        if (separator < 0)
-            return false;
-
-        var metadata = value.AsSpan(5, separator - 5);
-        var semicolon = metadata.IndexOf(';');
-        var mimeType = semicolon >= 0 ? metadata[..semicolon] : metadata;
-        if (!mimeType.StartsWith(expectedMimePrefix, StringComparison.OrdinalIgnoreCase))
-            return false;
-
-        var parameters = semicolon >= 0 ? metadata[semicolon..] : ReadOnlySpan<char>.Empty;
-        var hasBase64Marker = false;
-        foreach (var parameterRange in parameters.Split(';'))
-        {
-            var parameter = parameters[parameterRange].Trim();
-            if (parameter.Equals("base64", StringComparison.OrdinalIgnoreCase))
-            {
-                hasBase64Marker = true;
-                break;
-            }
-        }
-        if (!hasBase64Marker)
-            return false;
-
-        payload = value[(separator + 1)..];
-        return true;
-    }
+    private static JsonElement GetProperty(JsonElement element, string propertyName) =>
+        element.ValueKind == JsonValueKind.Object && element.TryGetProperty(propertyName, out var value)
+            ? value
+            : default;
 
     private static long SaturatingAdd(long left, long right)
     {
         if (right <= 0)
             return left;
         return left > long.MaxValue - right ? long.MaxValue : left + right;
-    }
-
-    private static long SaturatingSubtract(long left, long right) =>
-        right <= 0 ? left : Math.Max(0, left - right);
-
-    private static long EstimateDecodedPayloadBytes(string value)
-    {
-        try
-        {
-            var padding = value.EndsWith("==", StringComparison.Ordinal)
-                ? 2
-                : value.EndsWith("=", StringComparison.Ordinal)
-                    ? 1
-                    : 0;
-            return Math.Max(0, value.Length * 3L / 4L - padding);
-        }
-        catch
-        {
-            return Encoding.UTF8.GetByteCount(value);
-        }
     }
 
     private static long EstimateOptionBytes(object? value)
@@ -246,7 +167,8 @@ internal static class OpenAIResponsesNativeTokenEstimator
     }
 
     private static string? TryGetString(JsonElement element, string propertyName) =>
-        element.TryGetProperty(propertyName, out var value)
+        element.ValueKind == JsonValueKind.Object
+        && element.TryGetProperty(propertyName, out var value)
         && value.ValueKind == JsonValueKind.String
             ? value.GetString()
             : null;
