@@ -60,7 +60,6 @@ public static class PromptRequestFingerprints
     public static string ComputeContextUsageFingerprint(
         string? providerId,
         string? modelId,
-        string? mode,
         string? toolFingerprint,
         ReasoningOptions? reasoning,
         ChatResponseFormat? responseFormat,
@@ -71,7 +70,6 @@ public static class PromptRequestFingerprints
         var normalized = new ContextUsageFingerprintEntry(
             providerId ?? string.Empty,
             modelId ?? string.Empty,
-            mode ?? string.Empty,
             toolFingerprint ?? string.Empty,
             NormalizeOption(reasoning),
             NormalizeOption(responseFormat),
@@ -215,7 +213,6 @@ public static class PromptRequestFingerprints
     private sealed record ContextUsageFingerprintEntry(
         string ProviderId,
         string ModelId,
-        string Mode,
         string ToolFingerprint,
         string? Reasoning,
         string? ResponseFormat,

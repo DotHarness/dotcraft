@@ -1,3 +1,4 @@
+using DotCraft.Context;
 using DotCraft.Context.Compaction;
 using Microsoft.Extensions.AI;
 using Xunit;
@@ -265,6 +266,41 @@ public sealed class ContextUsageTokenCounterTests
             requireRequestFingerprint: true,
             contextUsageFingerprint: "context-new",
             baseInstructionsTokenEstimate: 1_125));
+    }
+
+    [Theory]
+    [InlineData("agent", "plan")]
+    [InlineData("plan", "agent")]
+    public void ContextTokenUsageEstimator_ModeSwitchPreservesUsageAndCountsOnlyUncoveredTail(string previousMode, string mode)
+    {
+        const long providerTokens = 537_448;
+        var history = new List<ChatMessage> { new(ChatRole.User, "existing history") };
+        var options = new ChatOptions { ModelId = "gpt-test", Instructions = "stable instructions" };
+        var previous = PromptRequestSnapshot.Capture(history, options, "openai", previousMode);
+        var anchor = new ContextUsageAnchor(
+            providerTokens,
+            history.Count,
+            previous.MessageFingerprint,
+            previous.RequestFingerprint,
+            previous.ContextUsageFingerprint,
+            previous.BaseInstructionsTokenEstimate);
+        history.Add(new ChatMessage(new ChatRole("developer"), $"Current mode: {mode}"));
+        history.Add(new ChatMessage(ChatRole.User, "continue"));
+        var current = PromptRequestSnapshot.Capture(history, options, "openai", mode);
+
+        var estimate = ContextTokenUsageEstimator.Estimate(
+            history,
+            memoryAnchor: anchor,
+            persistedAnchor: null,
+            latestContextTokens: 0,
+            persistedDisplayTokens: providerTokens,
+            requestFingerprint: current.RequestFingerprint,
+            contextUsageFingerprint: current.ContextUsageFingerprint,
+            baseInstructionsTokenEstimate: current.BaseInstructionsTokenEstimate,
+            persistedDisplaySource: "provider_context");
+
+        Assert.Equal(providerTokens + MessageTokenEstimator.EstimateDelta(history, 1, 2), estimate.Tokens);
+        Assert.True(estimate.EligibleForAutoCompact);
     }
 
     [Fact]

@@ -637,6 +637,7 @@ Context usage accounting:
 
 - `contextUsage.tokens` is server-authoritative active context-window occupancy, separate from billing usage: after each provider usage snapshot, the latest request's provider-visible input plus its output.
 - Sources, in order: a valid provider usage anchor plus model-visible messages appended after it; a prefix-adjusted anchor when the anchored prefix and non-instruction request shape still match (base-instruction changes adjust by their estimated token delta, and prompt drift alone does not force a fallback); the latest provider snapshot only while it belongs to the current request boundary; persisted provider display values for UI only; and finally a full model-visible history estimate.
+- Ordinary Plan/Agent mode changes preserve the provider usage anchor for unchanged history; appended mode instructions and input count only as uncovered tail, with base-instruction changes adjusted by their estimated token delta.
 - Auto-compaction may trigger from provider context only while the anchor or request-boundary snapshot is valid for the current history. After rollback, compaction, deletion, or another history replacement, anchors and trackers are invalidated and a replacement-history estimate drives the next decision until a new provider snapshot arrives; a provider-native replacement uses its generation-scoped estimator. Persisted display values without a valid anchor never trigger auto-compaction.
 - The effective context window is resolved for the thread's effective model (Section 12.2).
 

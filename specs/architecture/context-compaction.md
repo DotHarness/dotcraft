@@ -336,15 +336,17 @@ anchors that refer to the replaced request boundary. Both produce the `partial` 
 ## Context usage
 
 Neutral history cannot estimate a provider-native compacted window because the opaque item has no
-semantic `ChatMessage` representation. When a provider-native generation is active, threshold
-evaluation uses a provider-native estimator.
+semantic `ChatMessage` representation. A valid provider usage anchor plus uncovered tail takes
+precedence over the provider-native estimator, including across ordinary Plan/Agent mode changes.
 
 The OpenAI Responses estimator includes:
 
 - base instructions and final tool/request controls;
-- serialized model-visible bytes for ordinary response items;
-- decoded-payload estimates for `reasoning`, `compaction`, and `context_compaction`
-  `encrypted_content`;
+- model-visible content for ordinary response items, excluding transport IDs, metadata, and outer
+  JSON escaping;
+- reasoning payload bytes estimated as `max(0, encoded length × 3 / 4 − 650)` to remove encryption
+  overhead, and compaction payload bytes estimated as `ceil(encoded length / 3)` to normalize
+  replay-cache expansion;
 - adjusted image, audio, and encrypted tool-output payload costs;
 - the mapped token estimate of any neutral tail not covered by the native generation.
 

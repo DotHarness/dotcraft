@@ -34,8 +34,8 @@ public sealed record PromptRequestSnapshot
     public string? RequestFingerprint { get; init; }
 
     /// <summary>
-    /// Fingerprint of context-usage-relevant request-shape fields, excluding
-    /// base instructions so prompt text drift can be accounted for as a token delta.
+    /// Fingerprint of context-usage-relevant request-shape fields, excluding mode and
+    /// base instructions so their context changes can be counted as token deltas.
     /// </summary>
     public string? ContextUsageFingerprint { get; init; }
 
@@ -118,7 +118,6 @@ public sealed record PromptRequestSnapshot
         var contextUsageFingerprint = PromptRequestFingerprints.ComputeContextUsageFingerprint(
             providerId,
             options?.ModelId,
-            mode,
             toolFingerprint,
             options?.Reasoning,
             options?.ResponseFormat,
