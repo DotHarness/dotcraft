@@ -132,7 +132,9 @@
               "queuedInputs": []
             },
             "instructionSources": ["/workspace/sample/AGENTS.md"],
-            "currentState": { "itemCount": 0, "pendingRequests": [] }
+            "currentState": { "itemCount": 0, "pendingRequests": [] },
+            "turnsBackwardsCursor": null,
+            "itemsBackwardsCursor": null
           }
         }
       ]

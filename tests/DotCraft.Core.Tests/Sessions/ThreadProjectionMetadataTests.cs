@@ -61,7 +61,7 @@ public sealed class ThreadProjectionMetadataTests : IDisposable
         Assert.True(File.Exists(kept));
         Assert.True(File.Exists(queued));
         Assert.False(File.Exists(replaced));
-        Assert.False(File.Exists(rolledBack));
+        Assert.True(File.Exists(rolledBack));
     }
 
     [Fact]

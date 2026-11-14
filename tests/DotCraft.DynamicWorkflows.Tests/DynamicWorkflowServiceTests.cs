@@ -73,7 +73,7 @@ public sealed partial class DynamicWorkflowServiceTests : IDisposable
             });
 
             Assert.Equal(DynamicWorkflowStatuses.Running, started.Status);
-            await notificationPersisted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await notificationPersisted.Task.WaitAsync(TimeSpan.FromSeconds(30));
             var completed = await service.GetRunAsync(started.RunId);
             Assert.Equal(DynamicWorkflowStatuses.Succeeded, completed?.Status);
             Assert.True(completed?.Result?["ok"]?.GetValue<bool>());

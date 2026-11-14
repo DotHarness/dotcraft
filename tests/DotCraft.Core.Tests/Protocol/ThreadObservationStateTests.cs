@@ -116,8 +116,11 @@ public sealed class ThreadObservationStateTests
         });
         Assert.Equal("{\"value\":7}", first.ToolArguments["call"]);
         Assert.Equal(1, JsonNode.Parse(JsonSerializer.Serialize(first.ToolProgress["call"].Progress))!["step"]!.GetValue<int>());
-        Assert.Empty(Capture(state, ThreadObservationView.Metadata).ToolArguments);
-        Assert.Empty(Capture(state, ThreadObservationView.Metadata).ToolProgress);
+        var metadata = Capture(state, ThreadObservationView.Metadata);
+        Assert.Empty(metadata.Turn!.Items);
+        Assert.Equal("call", Assert.Single(metadata.ActiveItems).Id);
+        Assert.Equal("{\"value\":7}", metadata.ToolArguments["call"]);
+        Assert.Equal(2, JsonNode.Parse(JsonSerializer.Serialize(metadata.ToolProgress["call"].Progress))!["step"]!.GetValue<int>());
         var unrelated = state.Capture(Header(), null, ThreadObservationView.Full, [],
             new ThreadObservationItemSelection { ItemIds = new HashSet<string> { "unrelated" } });
         Assert.Empty(unrelated.Turn!.Items);
