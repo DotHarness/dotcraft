@@ -95,15 +95,15 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotCraft.Imaging", "src\Dot
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotCraft.Imaging.Tests", "tests\DotCraft.Imaging.Tests\DotCraft.Imaging.Tests.csproj", "{038482FF-8517-4BE3-8289-0FCE166BA515}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{827E0CD3-B72D-47B6-A68D-7590B98EB39B}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotCraft.Agents.OpenRouter", "src\DotCraft.Agents.OpenRouter\DotCraft.Agents.OpenRouter.csproj", "{1462E839-17AA-44AB-BE76-4045B7BC9604}"
-EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{0AB3BF05-4346-4AA6-1389-037BE0695223}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotCraft.Agents.OpenRouter.Tests", "tests\DotCraft.Agents.OpenRouter.Tests\DotCraft.Agents.OpenRouter.Tests.csproj", "{94197D50-39DF-4BBF-8965-FAA7F298EAC8}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotCraft.CSharp", "src\DotCraft.CSharp\DotCraft.CSharp.csproj", "{F79CE212-049D-4F02-B34A-CD65EE1A8A0F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotCraft.CodexGateway", "src\DotCraft.CodexGateway\DotCraft.CodexGateway.csproj", "{FE9AEB0E-7F5E-48D1-A3CC-B2E697C8D21E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotCraft.CodexGateway.Tests", "tests\DotCraft.CodexGateway.Tests\DotCraft.CodexGateway.Tests.csproj", "{D6FEFC1A-3DD7-4541-B4B2-E16489200853}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -703,13 +703,34 @@ Global
 		{F79CE212-049D-4F02-B34A-CD65EE1A8A0F}.Release|Any CPU.Build.0 = Release|Any CPU
 		{F79CE212-049D-4F02-B34A-CD65EE1A8A0F}.Release|x86.ActiveCfg = Release|Any CPU
 		{F79CE212-049D-4F02-B34A-CD65EE1A8A0F}.Release|x86.Build.0 = Release|Any CPU
+		{FE9AEB0E-7F5E-48D1-A3CC-B2E697C8D21E}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{FE9AEB0E-7F5E-48D1-A3CC-B2E697C8D21E}.Debug|x64.Build.0 = Debug|Any CPU
+		{FE9AEB0E-7F5E-48D1-A3CC-B2E697C8D21E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FE9AEB0E-7F5E-48D1-A3CC-B2E697C8D21E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FE9AEB0E-7F5E-48D1-A3CC-B2E697C8D21E}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{FE9AEB0E-7F5E-48D1-A3CC-B2E697C8D21E}.Debug|x86.Build.0 = Debug|Any CPU
+		{FE9AEB0E-7F5E-48D1-A3CC-B2E697C8D21E}.Release|x64.ActiveCfg = Release|Any CPU
+		{FE9AEB0E-7F5E-48D1-A3CC-B2E697C8D21E}.Release|x64.Build.0 = Release|Any CPU
+		{FE9AEB0E-7F5E-48D1-A3CC-B2E697C8D21E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FE9AEB0E-7F5E-48D1-A3CC-B2E697C8D21E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FE9AEB0E-7F5E-48D1-A3CC-B2E697C8D21E}.Release|x86.ActiveCfg = Release|Any CPU
+		{FE9AEB0E-7F5E-48D1-A3CC-B2E697C8D21E}.Release|x86.Build.0 = Release|Any CPU
+		{D6FEFC1A-3DD7-4541-B4B2-E16489200853}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{D6FEFC1A-3DD7-4541-B4B2-E16489200853}.Debug|x64.Build.0 = Debug|Any CPU
+		{D6FEFC1A-3DD7-4541-B4B2-E16489200853}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D6FEFC1A-3DD7-4541-B4B2-E16489200853}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D6FEFC1A-3DD7-4541-B4B2-E16489200853}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{D6FEFC1A-3DD7-4541-B4B2-E16489200853}.Debug|x86.Build.0 = Debug|Any CPU
+		{D6FEFC1A-3DD7-4541-B4B2-E16489200853}.Release|x64.ActiveCfg = Release|Any CPU
+		{D6FEFC1A-3DD7-4541-B4B2-E16489200853}.Release|x64.Build.0 = Release|Any CPU
+		{D6FEFC1A-3DD7-4541-B4B2-E16489200853}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D6FEFC1A-3DD7-4541-B4B2-E16489200853}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D6FEFC1A-3DD7-4541-B4B2-E16489200853}.Release|x86.ActiveCfg = Release|Any CPU
+		{D6FEFC1A-3DD7-4541-B4B2-E16489200853}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
-		{1462E839-17AA-44AB-BE76-4045B7BC9604} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
-		{94197D50-39DF-4BBF-8965-FAA7F298EAC8} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
-		{F79CE212-049D-4F02-B34A-CD65EE1A8A0F} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 EndGlobal

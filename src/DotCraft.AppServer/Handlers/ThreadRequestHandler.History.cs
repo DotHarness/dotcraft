@@ -33,10 +33,10 @@ internal sealed partial class ThreadRequestHandler
         {
             Data = page.Data,
             NextCursor = page.NextCursor is { } next
-                ? ThreadHistoryCursorCodec.Encode(p.ThreadId, "turns", null, directionName, next.RolloutOrdinal)
+                ? ThreadHistoryCursorCodec.Encode(p.ThreadId, "turns", null, directionName, next.RolloutOrdinal, next.SnapshotOrdinal)
                 : null,
             BackwardsCursor = page.BackwardsCursor is { } anchor
-                ? ThreadHistoryCursorCodec.EncodeBackwards(p.ThreadId, "turns", anchor.RolloutOrdinal)
+                ? ThreadHistoryCursorCodec.EncodeBackwards(p.ThreadId, "turns", anchor.RolloutOrdinal, anchor.SnapshotOrdinal)
                 : null
         });
     }
@@ -113,7 +113,7 @@ internal sealed partial class ThreadRequestHandler
                 Item = AppServerContractMapper.ToContract(entry.Item)
             }).ToArray(),
             NextCursor = page.NextCursor is { } next
-                ? ThreadHistoryCursorCodec.Encode(p.ThreadId, scope, turnId, directionName, next.RolloutOrdinal)
+                ? ThreadHistoryCursorCodec.Encode(p.ThreadId, scope, turnId, directionName, next.RolloutOrdinal, next.SnapshotOrdinal)
                 : null
         });
     }

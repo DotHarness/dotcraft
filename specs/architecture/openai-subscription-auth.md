@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.9.9 |
+| Version | 0.12.0 |
 | Status | Living |
-| Date | 2026-10-29 |
+| Date | 2026-11-14 |
 
 DotCraft can authenticate outgoing model requests against a user's ChatGPT subscription (Plus,
 Pro, Team, Business, Enterprise, Edu) as an alternative to a pay-as-you-go OpenAI API key. This
@@ -50,7 +50,7 @@ encrypted database storage. Remote workers obtain only provider metadata and aut
 status. The model service owns token reads and refresh for their requests; workers never receive
 credentials.
 
-Token access is serialized within each process. A normal token read refreshes credentials when
+Token access is serialized within each process. File-backed reads share atomic replacement and deletion across processes; a file removed before opening represents missing credentials, while other I/O failures remain errors. A normal token read refreshes credentials when
 `last_refresh` is absent or at least 8 days old, or the access-token JWT expires within 5 minutes.
 
 A forced token read first reloads `auth.json` under the process auth lock. If the stored token

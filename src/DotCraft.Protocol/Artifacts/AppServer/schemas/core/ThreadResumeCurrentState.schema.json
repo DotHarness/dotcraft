@@ -4,6 +4,19 @@
   "title": "ThreadResumeCurrentState",
   "type": "object",
   "properties": {
+    "activeItems": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "$ref": "./SessionItem.schema.json"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "diff": {
       "anyOf": [
         {

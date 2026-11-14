@@ -230,7 +230,9 @@ internal sealed partial class ThreadHistoryProjector(
         turn.Error = payload.Error;
         turn.OriginChannel = payload.OriginChannel;
         turn.Initiator = payload.Initiator;
+        ApplyHistoricalPhases(turn);
         UpsertTurn(turn, preserveOrdinal: true);
+        SetCompletionOrdinal(turn, NextOrdinal++);
     }
 
     private void ApplyItem(ItemAppendedPayload payload, DateTimeOffset timestamp)
@@ -264,6 +266,9 @@ internal sealed partial class ThreadHistoryProjector(
         var replacement = payload.Turn;
         RaiseWatermark(replacement.Id);
         replacement.ThreadId = threadId;
+        foreach (var item in replacement.Items)
+            PreserveHistoricalPhase(replacement.Id, item);
+        AgentMessagePhases.ApplyHistoricalTurn(replacement);
         var items = replacement.Items.ToList();
         replacement.Input ??= items.FirstOrDefault(static item => item.Type == ItemType.UserMessage);
         replacement.Items = [];
@@ -287,6 +292,7 @@ internal sealed partial class ThreadHistoryProjector(
 
         foreach (var item in items)
             UpsertItem(replacement.Id, item);
+        SetCompletionOrdinal(replacement, NextOrdinal++);
 
         thread.Status = payload.ThreadStatus;
         thread.LastActiveAt = payload.LastActiveAt;

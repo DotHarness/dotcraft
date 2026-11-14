@@ -176,6 +176,8 @@ internal sealed class ThreadObservationState
 
         var runtime = GetRuntimeSnapshot(header, maintenanceKind);
         var selected = turn?.Items.Select(item => item.Id).ToHashSet(StringComparer.Ordinal) ?? [];
+        var activeItems = selection is null ? _items.CaptureActive() : [];
+        selected.UnionWith(activeItems.Select(item => item.Id));
         var toolExecutionCount = _items.Items.Count(item => item.Type == ItemType.ToolExecution);
         return new ThreadObservationSnapshot
         {
@@ -184,6 +186,7 @@ internal sealed class ThreadObservationState
             Configuration = header.Configuration is null ? null : ThreadConfigurationCloner.Clone(header.Configuration),
             Runtime = runtime,
             Turn = turn,
+            ActiveItems = activeItems,
             ItemCount = _items.Items.Count,
             ToolExecutionCount = toolExecutionCount,
             HasMoreItems = hasMoreItems,

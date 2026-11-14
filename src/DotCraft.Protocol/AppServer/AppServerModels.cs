@@ -1000,6 +1000,14 @@ public sealed class SessionItem : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public DateTimeOffset? CompletedAt { get; init; }
 
+    [JsonPropertyName("invocationOrigin")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? InvocationOrigin { get; init; }
+
+    [JsonPropertyName("invocationSourceId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? InvocationSourceId { get; init; }
+
     [JsonPropertyName("payloadKind")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? PayloadKind { get; init; }
@@ -1449,6 +1457,14 @@ public sealed class ThreadResumeResult : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ThreadTurnsListResult? InitialTurnsPage { get; init; }
 
+    [JsonPropertyName("turnsBackwardsCursor")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    public string? TurnsBackwardsCursor { get; init; }
+
+    [JsonPropertyName("itemsBackwardsCursor")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    public string? ItemsBackwardsCursor { get; init; }
+
     /// <summary>Ordered absolute logical paths that contributed to the thread instruction snapshot.</summary>
     [JsonPropertyName("instructionSources")]
     public required IReadOnlyList<string> InstructionSources { get; init; }
@@ -1833,6 +1849,10 @@ public sealed class ApprovalRequestParams : ExtensibleJsonObject
     [JsonPropertyName("targetLabel")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? TargetLabel { get; init; }
+
+    [JsonPropertyName("callId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? CallId { get; init; }
 
     [JsonPropertyName("scopeKey")]
     public required string ScopeKey { get; init; }

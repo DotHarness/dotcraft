@@ -76,7 +76,7 @@ internal sealed partial class ThreadHistoryProjectionStore
         foreach (var turn in page.Data)
         {
             ct.ThrowIfCancellationRequested();
-            summaries.Add(ReadSummary(connection, transaction, threadId, turn, summaryTools, ct));
+            summaries.Add(ReadSummary(connection, transaction, threadId, turn, summaryTools, ct, cursor?.SnapshotOrdinal));
         }
         transaction.Commit();
         return new(summaries, page.NextCursor, page.BackwardsCursor);
@@ -88,7 +88,8 @@ internal sealed partial class ThreadHistoryProjectionStore
         string threadId,
         SessionTurn turn,
         IReadOnlyList<ToolName> summaryTools,
-        CancellationToken ct)
+        CancellationToken ct,
+        long? snapshotOrdinal = null)
     {
         using var command = connection.CreateCommand();
         command.Transaction = transaction;
@@ -101,7 +102,7 @@ internal sealed partial class ThreadHistoryProjectionStore
                 SELECT item_id, rollout_ordinal, summary_kind, summary_call_id,
                        summary_namespace, summary_tool_name
                 FROM thread_items
-                WHERE thread_id = $thread_id AND turn_id = $turn_id
+                WHERE thread_id = $thread_id AND turn_id = $turn_id AND rollout_ordinal <= $snapshot
             ),
             kept_calls AS MATERIALIZED (
                 SELECT DISTINCT summary_call_id FROM metadata
@@ -129,6 +130,7 @@ internal sealed partial class ThreadHistoryProjectionStore
             """;
         command.Parameters.AddWithValue("$thread_id", threadId);
         command.Parameters.AddWithValue("$turn_id", turn.Id);
+        command.Parameters.AddWithValue("$snapshot", snapshotOrdinal ?? long.MaxValue);
         command.Parameters.AddWithValue("$retained", (int)ThreadSummaryKind.Retained);
         command.Parameters.AddWithValue("$file_change", (int)ThreadSummaryKind.FileChange);
         command.Parameters.AddWithValue("$calls", (int)(ThreadSummaryKind.ToolCall | ThreadSummaryKind.DynamicToolCall));

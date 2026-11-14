@@ -4,11 +4,31 @@
   "title": "ThreadItemsReadParams",
   "type": "object",
   "properties": {
+    "callIds": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "itemIds": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "threadId": {
       "type": "string"
@@ -19,7 +39,6 @@
   },
   "additionalProperties": true,
   "required": [
-    "itemIds",
     "threadId",
     "turnId"
   ]

@@ -46,6 +46,7 @@ internal sealed partial class ThreadRequestHandler(
         table.Map(Contract.AppServerRpc.ThreadItemsList, HandleThreadItemsListAsync);
         table.Map(Contract.AppServerRpc.ThreadSearchOccurrences, HandleThreadSearchOccurrencesAsync);
         table.Map(Contract.AppServerRpc.ThreadItemsRead, HandleThreadItemsReadAsync);
+        table.Map(Contract.AppServerRpc.ThreadTimelineList, HandleThreadTimelineListAsync);
         table.Map(Contract.AppServerRpc.ThreadGoalGet, HandleThreadGoalGetAsync);
         table.Map(Contract.AppServerRpc.ThreadGoalSet, HandleThreadGoalSetAsync);
         table.Map(Contract.AppServerRpc.ThreadGoalClear, HandleThreadGoalClearAsync);

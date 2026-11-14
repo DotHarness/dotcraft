@@ -189,6 +189,7 @@ export interface AgentImportUploadResult {
 
 export interface AgentMessagePayload {
   deliveryMode?: string | null;
+  phase?: string | null;
   text: string;
   [key: string]: unknown;
 }
@@ -729,6 +730,7 @@ export interface AppViewResult {
 
 export interface ApprovalRequestParams {
   approvalType: string;
+  callId?: string | null;
   itemId: string;
   operation: string;
   reason?: string | null;
@@ -744,6 +746,7 @@ export interface ApprovalRequestParams {
 
 export interface ApprovalRequestPayload {
   approvalType: string;
+  callId?: string | null;
   operation: string;
   reason: string;
   requestId: string;
@@ -3557,6 +3560,8 @@ export interface SessionItem {
   completedAt?: string | null;
   createdAt: string;
   id: string;
+  invocationOrigin?: string | null;
+  invocationSourceId?: string | null;
   payload?: JsonValue;
   payloadKind?: string | null;
   status: string;
@@ -4578,7 +4583,8 @@ export interface ThreadItemsListResult {
 }
 
 export interface ThreadItemsReadParams {
-  itemIds: string[];
+  callIds?: string[] | null;
+  itemIds?: string[] | null;
   threadId: string;
   turnId: string;
   [key: string]: unknown;
@@ -4775,6 +4781,7 @@ export interface ThreadRenamedNotification {
 }
 
 export interface ThreadResumeCurrentState {
+  activeItems?: SessionItem[] | null;
   diff?: string | null;
   itemCount: number;
   pendingRequests: ThreadPendingRequestState[];
@@ -4808,7 +4815,9 @@ export interface ThreadResumeResult {
   currentState: ThreadResumeCurrentState;
   initialTurnsPage?: ThreadTurnsListResult | null;
   instructionSources: string[];
+  itemsBackwardsCursor?: string | null;
   thread: SessionThread;
+  turnsBackwardsCursor?: string | null;
   [key: string]: unknown;
 }
 
@@ -4989,6 +4998,32 @@ export interface ThreadSummary {
 export interface ThreadSummaryTool {
   name: string;
   namespace?: string | null;
+  [key: string]: unknown;
+}
+
+export interface ThreadTimelineEntry {
+  completedAt?: string | null;
+  error?: string | null;
+  item?: SessionItem | null;
+  kind: string;
+  position: number;
+  providerError?: string | null;
+  startedAt?: string | null;
+  status?: string | null;
+  turnId: string;
+  [key: string]: unknown;
+}
+
+export interface ThreadTimelineListParams {
+  cursor?: string | null;
+  limit?: number | null;
+  threadId: string;
+  [key: string]: unknown;
+}
+
+export interface ThreadTimelineListResult {
+  data: ThreadTimelineEntry[];
+  nextCursor?: string | null;
   [key: string]: unknown;
 }
 

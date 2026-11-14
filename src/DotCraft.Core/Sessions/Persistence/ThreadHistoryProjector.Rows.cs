@@ -48,6 +48,7 @@ internal sealed partial class ThreadHistoryProjector
 
     private void UpsertItem(string turnId, SessionItem item)
     {
+        PreserveHistoricalPhase(turnId, item);
         var existing = LoadItemOrdinal(turnId, item.Id);
         var position = existing ?? NextOrdinal;
         var updated = NextOrdinal++;
@@ -56,15 +57,17 @@ internal sealed partial class ThreadHistoryProjector
         command.Transaction = transaction;
         command.CommandText = """
             INSERT INTO thread_items (
-                thread_id, turn_id, item_id, rollout_ordinal, updated_rollout_ordinal, item_json,
+                thread_id, turn_id, item_id, rollout_ordinal, updated_rollout_ordinal, item_json, item_type, agent_phase,
                 tool_call, user_text, summary_kind, summary_call_id, summary_namespace, summary_tool_name
             ) VALUES (
-                $thread_id, $turn_id, $item_id, $ordinal, $updated, $json, $tool_call, $user_text,
+                $thread_id, $turn_id, $item_id, $ordinal, $updated, $json, $item_type, $agent_phase, $tool_call, $user_text,
                 $summary_kind, $summary_call_id, $summary_namespace, $summary_tool_name
             )
             ON CONFLICT(thread_id, turn_id, item_id) DO UPDATE SET
                 updated_rollout_ordinal = excluded.updated_rollout_ordinal,
                 item_json = excluded.item_json,
+                item_type = excluded.item_type,
+                agent_phase = excluded.agent_phase,
                 tool_call = excluded.tool_call,
                 user_text = excluded.user_text,
                 summary_kind = excluded.summary_kind,
@@ -78,6 +81,8 @@ internal sealed partial class ThreadHistoryProjector
         command.Parameters.AddWithValue("$ordinal", position);
         command.Parameters.AddWithValue("$updated", updated);
         command.Parameters.AddWithValue("$json", JsonSerializer.Serialize(item, JsonOptions));
+        command.Parameters.AddWithValue("$item_type", (int)item.Type);
+        command.Parameters.AddWithValue("$agent_phase", (object?)item.AsAgentMessage?.Phase ?? DBNull.Value);
         command.Parameters.AddWithValue("$tool_call", item.IsToolInvocation ? 1 : 0);
         command.Parameters.AddWithValue("$user_text", (object?)UserText(item) ?? DBNull.Value);
         command.Parameters.AddWithValue("$summary_kind", (int)summary.Kind);

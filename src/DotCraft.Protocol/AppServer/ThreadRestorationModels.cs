@@ -28,6 +28,10 @@ public sealed class ThreadResumeCurrentState : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? TurnStatus { get; init; }
 
+    [JsonPropertyName("activeItems")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<SessionItem>? ActiveItems { get; init; }
+
     [JsonPropertyName("itemCount")]
     public int ItemCount { get; init; }
 

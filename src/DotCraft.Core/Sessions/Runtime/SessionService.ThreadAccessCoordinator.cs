@@ -5,7 +5,7 @@ namespace DotCraft.Sessions;
 
 public sealed partial class SessionService
 {
-    private sealed class ThreadAccessCoordinator(SessionService owner)
+    private sealed partial class ThreadAccessCoordinator(SessionService owner)
     {
         public ContextUsageSnapshot? TryGetContextUsageSnapshot(string threadId)
         {
@@ -100,6 +100,14 @@ public sealed partial class SessionService
             var normalized = NormalizeRequiredThreadId(threadId);
             ThrowIfEphemeral(normalized);
             return owner.Persistence.ReadThreadItemsAsync(normalized, turnId, itemIds, ct);
+        }
+
+        public Task<IReadOnlyList<ThreadHistoryItem>> ReadThreadCallItemsAsync(
+            string threadId, string turnId, IReadOnlyList<string> callIds, CancellationToken ct)
+        {
+            var normalized = NormalizeRequiredThreadId(threadId);
+            ThrowIfEphemeral(normalized);
+            return owner.Persistence.ReadThreadCallItemsAsync(normalized, turnId, callIds, ct);
         }
 
         private async Task<ThreadHistoryPage<SessionTurn>> ListTurnsCoreAsync(

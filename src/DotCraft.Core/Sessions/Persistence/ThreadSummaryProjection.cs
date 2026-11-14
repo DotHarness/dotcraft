@@ -23,13 +23,15 @@ internal readonly record struct ThreadSummaryProjection(
     public static ThreadSummaryProjection From(SessionItem item) => item.Type switch
     {
         ItemType.UserMessage or ItemType.AgentMessage or ItemType.Error or ItemType.SystemNotice or ItemType.WebSearch =>
-            new(ThreadSummaryKind.Retained),
-        ItemType.ImageGeneration when item.AsImageGeneration is { Status: not "inProgress" } =>
-            new(ThreadSummaryKind.Retained),
-        ItemType.McpToolCall when item.Status == ItemStatus.Completed
-            && item.AsMcpToolCall?.McpAppResourceUri is { } uri
-            && uri.StartsWith("ui://", StringComparison.Ordinal) =>
-            new(ThreadSummaryKind.Retained),
+            new(ThreadSummaryKind.Retained, item.AsWebSearch?.CallId),
+        ItemType.ImageGeneration when item.AsImageGeneration is { } image =>
+            new(image.Status != "inProgress" ? ThreadSummaryKind.Retained : ThreadSummaryKind.None, image.CallId),
+        ItemType.McpToolCall when item.AsMcpToolCall is { } mcp =>
+            new(item.Status == ItemStatus.Completed && mcp.McpAppResourceUri is { } uri
+                && uri.StartsWith("ui://", StringComparison.Ordinal) ? ThreadSummaryKind.Retained : ThreadSummaryKind.None,
+                mcp.CallId),
+        ItemType.CommandExecution when item.AsCommandExecution is { } command =>
+            new(ThreadSummaryKind.None, command.CallId),
         ItemType.ToolCall when item.AsToolCall is { } call =>
             new(ThreadSummaryKind.ToolCall, call.CallId, call.Namespace, call.ToolName),
         ItemType.DynamicToolCall when item.AsDynamicToolCall is { } call =>

@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.9 |
+| **Version** | 0.12.0 |
 | **Status** | Living |
-| **Date** | 2026-10-30 |
+| **Date** | 2026-11-14 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) (Section 4.4) |
 | **Related Specs** | [Session Core](../architecture/session-core.md) |
 
@@ -56,6 +56,8 @@ Summary selection preserves pinned results and the final reply without copying p
 6. a `toolCall` or `dynamicToolCall` of a tool named in `summaryTools`, with its `toolResult`.
 
 Every other Item is omitted: reasoning, other tool calls and results, command and tool executions, other dynamic tool calls, approvals, and user input requests and responses. Summary Items are never truncated or reshaped; a client merges them with full Items by stable id.
+
+These are DotCraft's summary rules. An external protocol adapter must perform its own selection rather than exposing this view unchanged when its summary contract differs.
 
 ### 5.2 Summary tools
 

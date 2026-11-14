@@ -128,6 +128,12 @@ reuse the DotCraft distribution while keeping Oratorio in an independent process
 The mobile relay (`dotcraft relay serve`) forwards phone tunnels for Hub without Session Core,
 workspace tools, or providers. Like Hub, it belongs to `DotCraft.App`.
 
+`DotCraft.CodexGateway` owns the reusable outbound remote-host transport and client protocol
+projection. It uses the SDK for workspace operations, not Core or Runtime. `DotCraft.App` owns the
+Hub-owned gateway lifecycle, authentication composition, state location, Desktop management API and
+CLI controls. Like the native device gateway, it is composed inside Hub; it starts no second Session
+Core and does not change the mobile relay.
+
 The official application owns CLI, ACP, AppServer, and Hub entry-point selection. Host factories,
 process policy, web-channel pooling, shared web addresses, logging policy, and exit codes are
 application responsibilities rather than Runtime contracts.

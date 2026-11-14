@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.10.4 |
+| **Version** | 0.12.0 |
 | **Status** | Living |
-| **Date** | 2026-11-07 |
+| **Date** | 2026-11-14 |
 
 Purpose: Define DotCraft Hub as a local coordinator that discovers, starts, reuses, monitors, and stops workspace-bound AppServer processes and a small set of product-owned local services, without changing the AppServer Protocol or the per-workspace runtime model. Hub is also the rendezvous point for paired Remote Tool Hosts and the gateway for paired devices; in both roles it relays connections as opaque byte streams.
 
@@ -115,6 +115,9 @@ Transport: HTTP JSON over loopback, discovered through `~/.craft/hub/hub.lock`. 
 | `DELETE /v1/mobile/devices/{deviceId}` | Revoke a paired device and close its connections. |
 | `PUT /v1/mobile/relay` | Set the relay URL and token that let devices reach the gateway from other networks. |
 | `DELETE /v1/mobile/relay` | Remove the relay. |
+| `GET /v1/codex-remote` | Codex gateway state and ChatGPT sign-in availability. |
+| `POST /v1/codex-remote/enable`, `/disable` | Persist enabled intent and start or stop the Hub-owned Codex gateway. |
+| `POST /v1/codex-remote/pairings` | Create a Codex pairing link, manual code and expiry. |
 
 `GET /v1/status` reports `capabilities.satellites: true` when Hub serves the `/v1/satellites*` routes and the satellite listener, and `capabilities.mobile: true` when it serves the `/v1/mobile*` routes and the device gateway, so a client can tell a Hub without them from a failure. The mutating `/v1/mobile*` routes other than `PUT /v1/mobile/relay` ignore any request body; clients may send `{}`. These routes serve local AppServers and local clients, never the remote machine or a paired device.
 
@@ -168,6 +171,12 @@ The device gateway is a second, opt-in listener that paired devices use to reach
 When a relay is configured and the gateway is on, Hub keeps an outbound WebSocket control channel to the user's relay, reconnecting with jittered backoff from 1 to 30 seconds. For each tunnel the relay opens, Hub connects the relay's accept route to a loopback TCP connection to the gateway port and copies bytes both ways without interpreting them, so a relayed device reaches the gateway from loopback, completes TLS with the pinned certificate, and authenticates as on the local network. The relay runs as `dotcraft relay serve` on a server both sides reach; it is not part of Hub.
 
 Hub emits `mobile.stateChanged`, `mobile.pairingRequested`, `mobile.pairingCancelled`, `mobile.devicePaired`, `mobile.deviceRevoked`, and `mobile.deviceSeen` on SSE. The `/m/*` routes, pairing ceremony, relay protocol, and event payloads are owned by [Device Gateway](../protocols/device-gateway.md), not by this spec.
+
+### 6.3 Codex remote gateway
+
+Hub composes the outbound Codex gateway using the native device gateway's lifecycle: optional startup, persisted enabled intent and disposal on Hub shutdown. Desktop and CLI control the same instance through authenticated `/v1/codex-remote*` endpoints. `capabilities.codexRemote` advertises these endpoints. State changes and claimed pairings publish `codexRemote.stateChanged` and `codexRemote.paired` on SSE. Failure remains local to this optional feature. Within it, source-request and virtual-stream failures do not end the shared relay host. Authentication availability is reported independently; data and protocol failures do not imply sign-out or require a sign-in action.
+
+The gateway exposes all current local projects from ProjectRegistry, without copying that registry or scanning directories. Enabling and listing projects do not start AppServers; workspace operations use normal ensure and direct SDK connections. Authentication is read from the shared ChatGPT store, and account transitions release the old host. The protocol, authorization and recovery contracts belong to [Codex remote gateway](../protocols/codex-remote-gateway.md).
 
 ## 7. Registry, Locks, and State
 

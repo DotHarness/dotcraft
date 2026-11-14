@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.10.3 |
+| **Version** | 0.12.0 |
 | **Status** | Living |
-| **Date** | 2026-11-05 |
+| **Date** | 2026-11-14 |
 
 Purpose: Define the **server-managed** session model (Thread / Turn / Item), including lifecycle, persistence, event semantics, approval semantics, and adapter boundaries.
 
@@ -73,6 +73,8 @@ Terminal persistence is owned by one Turn committer, which atomically commits te
 Each loaded runtime has a thread-scoped projection of its latest published Turn, Items and streaming presentation data. Event publication updates that projection before fan-out; capturing its snapshot and registering a future observer use the same ordering boundary. Every update belongs to the captured prefix or the observer's continuation, without historical lifecycle replay. Ending an older Turn preserves the newer published Turn and its runtime.
 
 Metadata, summary and full views select Items before payload copying. The current view retains streaming text, argument previews, progress and diff state, including the latest terminal head while durable history catches up.
+
+AgentMessage carries source-owned optional `phase` (`commentary`, `partial_answer`, `final_answer`), independent of delivery and Turn trigger. Unknown streaming phase remains absent. Tool/reasoning boundaries complete progress text as commentary, a natural answer boundary completes final text, and interruption or truncation preserves partial-answer semantics. Each text Item is terminally completed once with its resolved phase before Turn completion; adapters do not need a second completion to reclassify it. Async delivery, tool output and internal notices do not replace the main response. Derived history recovers equivalent classification from canonical execution boundaries and message order when materializing historical Items.
 
 Observation captures runtime controls through the command owner and streamed state through the publication boundary. Cancellation or disposal unregisters the observer, including before enumeration. Runtime release clears the current view and invalidates its producers. An existing observation refresh invalidated by permanent deletion or runtime replacement completes as cancellation.
 
@@ -247,6 +249,7 @@ An Item is the atomic unit of input/output within a Turn, with a typed payload a
   - `SystemNotice` — persistent system marker in the timeline (for example a compaction point). Emitted as `item/started` + `item/completed` with no streaming phase.
 - `Status` — `Started` (payload may be partial), `Streaming` (receiving deltas; valid for `AgentMessage`, `ReasoningContent`, `CommandExecution`, and streamed `ToolCall` argument previews), `Completed` (payload final).
 - `Payload` — type-specific (Section 4.2).
+- `InvocationOrigin`, `InvocationSourceId` — actual invocation provenance, preserved through wire projection. A CodeMode source ID references its parent invocation/call, not an Item ID or a client-defined activity group.
 - `CreatedAt`, `CompletedAt`.
 
 Thread maintenance is a thread-level busy state for long-running blocking work outside the Turn stream, such as manual compaction. While active, new input is accepted only through the queue and starts after the maintenance terminal event.
@@ -373,6 +376,8 @@ Fields: `callId`, `command`, `workingDirectory`, `source` (`"host"`), `status` (
 #### ApprovalRequest
 
 Fields: `approvalType` (`file` or `shell`), `operation` (file: `read`, `write`, `edit`, `list`; shell: the command), `target` (file path, or shell working directory), `requestId`, and, for shell requests, a `shell` block produced by the shell safety kernel (`reasons`, `rememberedPrefixes` a permanent approval will store, `remembersExactCommand`). The shell runtime supplies the approval key in `scopeKey`; session-scoped approval never authorizes a command with a different key.
+
+An optional `callId` identifies the actual tool invocation that requested approval, captured from the invocation scope across hooks, approval evaluation and runtime execution. Requests outside a tool invocation omit it; consumers must not infer an association from item order.
 
 #### ApprovalResponse
 
@@ -889,7 +894,9 @@ Canonical writes and history repair derive metadata and attachment references fr
 
 Persisted display history is read from a rebuildable SQLite projection. Display reads never materialize a complete Thread or replay a complete rollout to return a Thread header, a Turn page, or an Item page. Execution, resume, rollback, compaction, and fork read older Turns from this projection or model history through the bounded replayer; none replays the complete rollout.
 
-The projection has one state row per Thread (rollout path, projected offset, next rollout ordinal, Thread snapshot without Turns, persisted runtime summary), one row per Turn (without Items), and one row per Item (keyed within its Turn, with its original and most recent rollout ordinal). All rows cascade from the owning thread row. Turns page by `(thread_id, rollout_ordinal)`; Items page by thread or by `(thread, turn)`. Process-local maintenance state is overlaid on the runtime summary at read time. These encodings are internal projections, not new authorities.
+The projection has one state row per Thread (rollout path, projected offset, next rollout ordinal, Thread snapshot without Turns, persisted runtime summary), one row per Turn (without Items, with original start and actual completion ordinals), and one row per Item (keyed within its Turn, with its original and most recent rollout ordinal). All rows cascade from the owning thread row. Turns page by `(thread_id, rollout_ordinal)`; Items page by thread or by `(thread, turn)`. Completion boundaries have an indexed ordinal separate from Turn start. A canonical timeline combines Item positions and both Turn boundaries in bounded indexed queries; a late first append remains after the actual completion boundary, while replacing an Item never moves its original position. An active Turn has its start and Items without a fabricated completion. Process-local maintenance state is overlaid on the runtime summary at read time. These encodings are internal projections, not new authorities.
+
+Historical bootstrap reads return inclusive descending Turn and thread-wide Item anchors from one committed source upper bound; only an empty corresponding history has a null anchor. The Item anchor may initialize different Turn filters without changing that upper bound, while ordinary continuation binds the selected filter and direction. Timeline pages select newest first but return each page in forward order, continuing strictly earlier with the complete position/kind/identity key and the retained snapshot upper bound. New identities beyond that bound are excluded; payload updates remain current. Rollback removes visible identities and boundaries without making old boundaries invalid or resurrecting removed history. Public typed history models expose positions so protocol adapters never decode another layer's private cursor. Derived rebuild recovers missing historical message phases through the source-owned historical Turn classifier without rewriting canonical rollouts. Indexed Item-type and Agent-phase metadata lets completion skip classification when no phase is missing; historical classification reads non-Agent type/position markers without tool payloads and updates only Agent rows whose missing phase was resolved.
 
 Ordinals are allocated monotonically per rollout. A Turn or Item keeps the ordinal from when it first became visible; updating an Item advances only its updated ordinal. Rollback removes the visible Turn tail and its Items without lowering the next ordinal, so positions are never reused.
 
@@ -924,6 +931,8 @@ Read-only query operations:
 - `ReadThreadSnapshot(threadId)` — Thread header and persisted runtime.
 - `ListThreadTurns(threadId, cursor, limit, direction)` — one ordered Turn page without Items.
 - `ListThreadItems(threadId, turnId?, cursor, limit, direction)` — one ordered Item page with owning Turn ids.
+- `ReadThreadHistoryBootstrap(threadId)` — inclusive Turn and thread-wide Item entry anchors at one committed historical upper bound.
+- `ListThreadTimeline(threadId, cursor, limit)` — a latest-first page of typed Item, Turn-start and Turn-completion entries with public canonical positions, in forward order within the page.
 - `SearchThreadMessageOccurrences(threadId, searchTerm, cursor, limit)` — chronological literal matches in current persisted user/assistant messages, including Item identity and Turn position.
 - `ReadThreadItems(threadId, turnId, itemIds)` — selected persisted Items in stored order without loading execution state; see [Thread Context Retrieval](../features/thread-context-retrieval.md).
 - `ReadThreadItem(threadId, turnId, itemId)` and `ReadThreadTurn(threadId, turnId)` — one Item or Turn, for actions on older history such as opening a View.
