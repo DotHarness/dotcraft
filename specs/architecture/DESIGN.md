@@ -2111,6 +2111,8 @@ the top band and above the footer.
 - A perched mascot stands on its surface over a soft contact shadow, inset from the
   corner radius, never overlapping a title bar; it changes pose in place.
 - The live Desktop demo renders at its real resolution, never transform-scaled.
+  Keep the home-page poster until the embedded demo reports that its initial
+  conversation and workspace resources are ready.
 
 ## Do's and don'ts
 

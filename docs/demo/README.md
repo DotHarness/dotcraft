@@ -24,14 +24,15 @@ Without `start`, the demo opens the way the homepage shows it.
 ## Homepage embed
 
 `docs/.vitepress/theme/home/DemoWindow.vue` mounts the built demo into the
-homepage hero: poster first, the iframe fades in once the demo has rendered,
+homepage hero: poster first, the iframe fades in on `dotcraft-showcase:ready`,
 pointer input only after explicit activation.
 The Pages workflow builds this project before the VitePress site; a demo build
 failure fails the deploy.
 
 Documentation pages embed the same page with `<LiveExample feature="desktop">`.
-Embedded, it posts `dotcraft-showcase:ready` to its parent once the main view
-has rendered.
+Embedded, it posts `dotcraft-showcase:ready` to its parent after the thread
+state, workspace configuration, providers, and model catalog have initialized
+and the main view has rendered.
 
 ## Live examples
 

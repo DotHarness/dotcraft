@@ -24,14 +24,17 @@ export const threadConfigurations = new Map<string, Record<string, unknown>>()
 const noop = (): void => {}
 const unsubscribe = (): (() => void) => noop
 
-const connectionStatusPayload = {
+export const connectionStatusPayload = {
   status: 'connected' as const,
+  connectionKey: DEMO_WORKSPACE_PATH,
+  connectionId: 'web-demo',
   serverInfo: { name: 'DotCraft AppServer', version: 'web-demo', protocolVersion: '1.0' },
   capabilities: {
     threadManagement: true,
     approvalFlow: true,
     modeSwitch: true,
     modelCatalogManagement: true,
+    providerManagement: true,
     workspaceConfigManagement: true,
     threadGoals: true,
     manualCompaction: true,
@@ -143,6 +146,10 @@ function handleAppServerRequest(method: string, params?: { threadId?: string; co
       return { skills: [] }
     case 'mcp/list':
       return { servers: [] }
+    case 'workflow/run/list':
+      return { runs: [] }
+    case 'terminal/list':
+      return { terminals: [] }
     case 'automation/list':
       return { automations: [] }
     case 'automation/presets/list':
@@ -172,6 +179,8 @@ const explicitApi = {
       handleAppServerRequest(method, params),
     sendRequest: async (method: string, params?: { threadId?: string; config?: Record<string, unknown> }) =>
       handleAppServerRequest(method, params),
+    sendRequestRaw: async (method: string, params?: { threadId?: string; config?: Record<string, unknown> }) =>
+      handleAppServerRequest(method, params),
     listModels: async () => modelListPayload,
     getConnectionStatus: async () => connectionStatusPayload,
     getResolvedBinary: async () => ({ source: 'bundled' as const, path: null }),
@@ -179,6 +188,7 @@ const explicitApi = {
     restartManaged: async () => {},
     applyConnectionSettings: async () => {},
     onNotification: unsubscribe,
+    onNotificationRaw: unsubscribe,
     onConnectionStatus: unsubscribe,
     onServerRequest: unsubscribe,
     sendServerResponse: noop

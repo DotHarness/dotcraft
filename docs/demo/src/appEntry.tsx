@@ -10,11 +10,10 @@ import { DemoApp } from './DemoApp'
 import { bootstrapDemo } from './demoController'
 import { demoTheme } from './mockApi'
 
-export function start(): void {
+export async function start(): Promise<void> {
   applyTheme(demoTheme)
-  bootstrapDemo()
+  await bootstrapDemo()
 
-  // Host pages (docs homepage embed) switch the demo theme in place.
   window.addEventListener('message', (event: MessageEvent) => {
     const data = event.data as { type?: string; theme?: string } | null
     if (data?.type === 'dotcraft-demo:set-theme' && (data.theme === 'dark' || data.theme === 'light')) {

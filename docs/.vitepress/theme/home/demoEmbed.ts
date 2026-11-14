@@ -22,11 +22,6 @@ export function fitDemo(container: HTMLElement, frame: HTMLIFrameElement): void 
   frame.style.height = `${container.clientHeight / zoom}px`
 }
 
-export function demoRendered(frame: HTMLIFrameElement | undefined): boolean {
-  const doc = frame?.contentDocument
-  return !doc || !!doc.getElementById('root')?.childElementCount
-}
-
 export function setDemoTheme(frame: HTMLIFrameElement | undefined, dark: boolean): void {
   frame?.contentWindow?.postMessage({ type: 'dotcraft-demo:set-theme', theme: dark ? 'dark' : 'light' }, '*')
 }

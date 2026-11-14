@@ -1,10 +1,4 @@
-/**
- * Canned demo content, authored in the AppServer wire shape that
- * `conversationStore.setTurns` ingests (the same conversion path real
- * sessions go through). Timestamps are fixed offsets from load time so
- * sidebar grouping ("Today") stays fresh while a given load renders
- * deterministically.
- */
+// Fix timestamps relative to load time so sidebar groups stay current and stable during a visit.
 import { createTwoFilesPatch } from 'diff'
 import type { AppLocale } from '../../../../desktop/src/shared/locales'
 import { DEMO_WORKSPACE_PATH } from '../mockApi'
@@ -22,8 +16,6 @@ export interface DemoPlan {
   todos: Array<{ id: string; content: string; status: 'pending' | 'in_progress' | 'completed' }>
 }
 
-/** Full plan markdown in the product's CreatePlan convention: one H1 title,
- * then concise sections (`content` carries the section body). */
 export function planToMarkdown(plan: DemoPlan): string {
   return `# ${plan.title}\n\n${plan.content}`
 }
@@ -205,6 +197,8 @@ function buildRetryTurns(threadId: string, s: RetryThreadStrings): Array<Record<
           id: t('i-rg-call'),
           type: 'toolCall',
           toolName: 'Exec',
+          source: { kind: 'CoreNative' },
+          presentation: { presentationId: 'core.shell', options: { operation: 'exec' } },
           toolCallId: t('c-rg'),
           arguments: { command: 'rg -n "retry" src/sync/worker.ts' },
           createdAt: minutesAgo(131)
@@ -239,6 +233,8 @@ function buildRetryTurns(threadId: string, s: RetryThreadStrings): Array<Record<
           id: t('i-edit-call'),
           type: 'toolCall',
           toolName: 'EditFile',
+          source: { kind: 'CoreNative' },
+          presentation: { presentationId: 'core.file-write', options: { operation: 'edit' } },
           toolCallId: t('c-edit'),
           arguments: {
             path: 'src/sync/worker.ts',
@@ -261,6 +257,8 @@ function buildRetryTurns(threadId: string, s: RetryThreadStrings): Array<Record<
           id: t('i-write-call'),
           type: 'toolCall',
           toolName: 'WriteFile',
+          source: { kind: 'CoreNative' },
+          presentation: { presentationId: 'core.file-write', options: { operation: 'write' } },
           toolCallId: t('c-write'),
           arguments: {
             path: 'src/sync/worker.test.ts',
@@ -282,6 +280,8 @@ function buildRetryTurns(threadId: string, s: RetryThreadStrings): Array<Record<
           id: t('i-test-call'),
           type: 'toolCall',
           toolName: 'Exec',
+          source: { kind: 'CoreNative' },
+          presentation: { presentationId: 'core.shell', options: { operation: 'exec' } },
           toolCallId: t('c-test'),
           arguments: { command: 'npm test -- src/sync' },
           createdAt: minutesAgo(129)
@@ -352,6 +352,8 @@ function buildPlanTurns(threadId: string, s: PlanThreadStrings): Array<Record<st
           id: t('i-plan-call'),
           type: 'toolCall',
           toolName: 'CreatePlan',
+          source: { kind: 'CoreNative' },
+          presentation: { presentationId: 'core.create-plan' },
           toolCallId: t('c-plan'),
           arguments: {
             plan: planToMarkdown(s.plan),
@@ -408,6 +410,8 @@ function buildDigestTurns(threadId: string, s: DigestThreadStrings): Array<Recor
           id: t('i-log-call'),
           type: 'toolCall',
           toolName: 'Exec',
+          source: { kind: 'CoreNative' },
+          presentation: { presentationId: 'core.shell', options: { operation: 'exec' } },
           toolCallId: t('c-log'),
           arguments: { command: 'git log --oneline --since=yesterday' },
           createdAt: minutesAgo(495)

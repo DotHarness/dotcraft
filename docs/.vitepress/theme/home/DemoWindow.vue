@@ -3,9 +3,7 @@ import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useData } from 'vitepress'
 import Icon from './Icon.vue'
 import { reducedMotion, useHome } from './home'
-import { demoRendered, findDemo, fitDemo, MIN_EMBED_VIEWPORT, setDemoTheme } from './demoEmbed'
-
-const READY_TIMEOUT = 15000
+import { findDemo, fitDemo, MIN_EMBED_VIEWPORT, setDemoTheme } from './demoEmbed'
 
 const { locale, t } = useHome()
 const { isDark } = useData()
@@ -16,7 +14,6 @@ const ready = ref(false)
 const active = ref(false)
 const optIn = ref(false)
 let resize: ResizeObserver | undefined
-let readyTimer = 0
 
 async function mount(): Promise<void> {
   if (src.value) return
@@ -30,21 +27,20 @@ function fit(): void {
 
 function onLoad(): void {
   fit()
-  const started = Date.now()
-  const settle = (): void => {
-    const painted = demoRendered(frame.value) || Date.now() - started > READY_TIMEOUT
-    readyTimer = window.setTimeout(() => {
-      if (!painted) return settle()
-      setDemoTheme(frame.value, isDark.value)
-      ready.value = true
-    }, painted ? 250 : 100)
-  }
-  settle()
+  setDemoTheme(frame.value, isDark.value)
+}
+
+function onMessage(event: MessageEvent): void {
+  if (!frame.value || event.source !== frame.value.contentWindow) return
+  if (event.data?.type !== 'dotcraft-showcase:ready') return
+  fit()
+  setDemoTheme(frame.value, isDark.value)
+  ready.value = true
 }
 
 function launch(): void {
   if (src.value) {
-    active.value = true
+    active.value = ready.value
     return
   }
   optIn.value = false
@@ -63,6 +59,7 @@ watch(frame, fit, { flush: 'post' })
 watch(isDark, (dark) => setDemoTheme(frame.value, dark))
 
 onMounted(() => {
+  window.addEventListener('message', onMessage)
   const wide = window.matchMedia(`(min-width: ${MIN_EMBED_VIEWPORT}px)`).matches
   if (wide && !reducedMotion()) {
     if (document.readyState === 'complete') void mount()
@@ -77,7 +74,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
-  window.clearTimeout(readyTimer)
+  window.removeEventListener('message', onMessage)
   resize?.disconnect()
   document.removeEventListener('click', onDocumentClick)
   document.removeEventListener('keydown', onDocumentKey)

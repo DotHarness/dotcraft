@@ -1,11 +1,8 @@
-/**
- * Seeds the real Desktop Zustand stores with canned demo data and keeps the
- * conversation/detail panels in sync when the user switches threads in the
- * sidebar. This replaces the App.tsx orchestration layer (which talks to the
- * AppServer) with a deterministic, local controller.
- */
 import { useThreadStore } from '@renderer/stores/threadStore'
 import { useConversationStore } from '@renderer/stores/conversationStore'
+import { openThreadState } from '@renderer/stores/threadState'
+import { activateWorkspaceResources, refreshWorkspaceResources } from '@renderer/stores/providerConnectionScope'
+import { useModelCatalogStore } from '@renderer/stores/modelCatalogStore'
 import { useConnectionStore } from '@renderer/stores/connectionStore'
 import { useWorkspaceProjectsStore } from '@renderer/stores/workspaceProjectsStore'
 import { useUIStore } from '@renderer/stores/uiStore'
@@ -21,6 +18,7 @@ import {
   DEMO_WORKSPACE_NAME,
   DEMO_WORKSPACE_PATH,
   demoLocale,
+  connectionStatusPayload,
   threadConfigurations
 } from './mockApi'
 
@@ -60,6 +58,7 @@ function toThread(thread: DemoThread): Thread {
 }
 
 function loadThread(thread: DemoThread): void {
+  openThreadState(thread.id)
   const conversation = useConversationStore.getState()
   conversation.reset()
 
@@ -81,21 +80,16 @@ function loadThread(thread: DemoThread): void {
   if (thread.plan) panel.setActiveDetailTab('plan')
 }
 
-export function bootstrapDemo(): void {
-  useConnectionStore.getState().setStatus({
-    status: 'connected',
-    serverInfo: { name: 'DotCraft AppServer', version: 'web-demo', protocolVersion: '1.0' },
-    capabilities: {
-      threadManagement: true,
-      approvalFlow: true,
-      modeSwitch: true,
-      modelCatalogManagement: true,
-      workspaceConfigManagement: true,
-      threadGoals: true,
-      manualCompaction: true,
-      usageTelemetry: true
-    }
+export async function bootstrapDemo(): Promise<void> {
+  useConnectionStore.getState().setStatus(connectionStatusPayload)
+  activateWorkspaceResources({
+    projectKey: DEMO_WORKSPACE_PATH,
+    connectionKey: connectionStatusPayload.connectionKey,
+    connectionId: connectionStatusPayload.connectionId
   })
+  await refreshWorkspaceResources()
+  const catalog = await useModelCatalogStore.getState().loadIfNeeded(false, DEMO_PROVIDER_ID)
+  if (catalog?.status !== 'ready') throw new Error('Demo model catalog failed to load.')
 
   useWorkspaceProjectsStore.getState().setPayload({
     foregroundWorkspacePath: DEMO_WORKSPACE_PATH,

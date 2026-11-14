@@ -15,6 +15,7 @@ onMounted(() => {
   const host = root.value
   if (!host) return
   field = startWelcomeBackdrop(host, {
+    active: true,
     still: reducedMotion(),
     canvasClassName: 'dc-glyphs__canvas',
     contrast: FIELD_CONTRAST,
