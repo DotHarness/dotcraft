@@ -112,7 +112,11 @@ export function UserMessageBlock({
     : displayText.length > 0
       ? parseUserMessageSegments(displayText)
       : []
-  const textSegments = segments
+  const textSegments = editing
+    ? nativeInputParts?.length
+      ? segmentsFromNativeInputParts(projected!.parts.filter((part) => part.type !== 'text'))
+      : []
+    : segments
   const sentTime = formatMessageTime(createdAt)
   const actionsVisible = hovered || focusedWithin
 
@@ -210,66 +214,7 @@ export function UserMessageBlock({
             userSelect: 'text'
           }}
         >
-          {!editing && <SentContextAttachments contexts={contexts} />}
-          {editing ? (
-            <>
-              <Textarea
-                ref={editAreaRef}
-                value={editText ?? displayText}
-                aria-label={t('conversation.editTextarea')}
-                disabled={editSubmitting}
-                onChange={(e) => onEditTextChange?.(e.currentTarget.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape') {
-                    e.preventDefault()
-                    onCancelEdit?.()
-                    return
-                  }
-                  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                    e.preventDefault()
-                    if (!editSubmitDisabled) {
-                      onSubmitEdit?.()
-                    }
-                  }
-                }}
-                bare
-                style={{
-                  minHeight: '72px',
-                  maxHeight: '184px',
-                  resize: 'none',
-                  overflowY: 'auto',
-                  font: 'inherit',
-                  lineHeight: 'inherit'
-                }}
-              />
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'flex-end',
-                  alignItems: 'center',
-                  gap: '8px'
-                }}
-              >
-                <Button
-                  variant="secondary"
-                  onClick={onCancelEdit}
-                  disabled={editSubmitting}
-                >
-                  {t('common.cancel')}
-                </Button>
-                <Button
-                  variant="primary"
-                  onClick={onSubmitEdit}
-                  disabled={editSubmitDisabled}
-                  loading={editSubmitting}
-                  aria-label={t('conversation.editSend')}
-                >
-                  {editSubmitting ? t('conversation.editSending') : t('conversation.editSend')}
-                </Button>
-              </div>
-            </>
-          ) : (
-            <>
+          <SentContextAttachments contexts={contexts} />
           {(hasImages || failedImages.length > 0) && (
           <div
             style={{
@@ -389,8 +334,64 @@ export function UserMessageBlock({
             )}
           </span>
         )}
+          {editing ? (
+            <>
+              <Textarea
+                ref={editAreaRef}
+                value={editText ?? displayText}
+                aria-label={t('conversation.editTextarea')}
+                disabled={editSubmitting}
+                onChange={(e) => onEditTextChange?.(e.currentTarget.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    e.preventDefault()
+                    onCancelEdit?.()
+                    return
+                  }
+                  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                    e.preventDefault()
+                    if (!editSubmitDisabled) {
+                      onSubmitEdit?.()
+                    }
+                  }
+                }}
+                bare
+                style={{
+                  minHeight: '72px',
+                  maxHeight: '184px',
+                  resize: 'none',
+                  overflowY: 'auto',
+                  font: 'inherit',
+                  lineHeight: 'inherit'
+                }}
+              />
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+              >
+                <Button
+                  variant="secondary"
+                  onClick={onCancelEdit}
+                  disabled={editSubmitting}
+                >
+                  {t('common.cancel')}
+                </Button>
+                <Button
+                  variant="primary"
+                  onClick={onSubmitEdit}
+                  disabled={editSubmitDisabled}
+                  loading={editSubmitting}
+                  aria-label={t('conversation.editSend')}
+                >
+                  {editSubmitting ? t('conversation.editSending') : t('conversation.editSend')}
+                </Button>
+              </div>
             </>
-          )}
+          ) : null}
         </div>
         {!editing && (
           <div

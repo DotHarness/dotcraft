@@ -122,6 +122,58 @@ public sealed class ThreadAttachmentStoreTests : IDisposable
         Assert.False(Directory.Exists(folder));
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Rollback_RetainsOriginalAttachmentPathsUntilResubmissionOrOrphanCleanup(bool resubmit)
+    {
+        var imagePath = CreateAttachment("image.png");
+        var filePath = CreateAttachment("notes.txt");
+        var thread = CreateThread("edited", imagePath);
+        var input = thread.Turns[0].Input!;
+        input.Payload = input.AsUserMessage! with
+        {
+            NativeInputParts =
+            [
+                new() { Type = "localImage", Path = imagePath },
+                new() { Type = "fileRef", Path = filePath, DisplayPath = "notes.txt" },
+                new() { Type = "contextRef", Context = new() { Id = "paste", Kind = "pastedText", Path = filePath } }
+            ]
+        };
+        File.SetLastWriteTimeUtc(imagePath, DateTime.UtcNow.AddDays(-2));
+        File.SetLastWriteTimeUtc(filePath, DateTime.UtcNow.AddDays(-2));
+        await _store.SaveThreadAsync(thread);
+        thread.Turns.Clear();
+
+        await _store.RollbackThreadAsync(thread, 1);
+        await _store.LoadIndexAsync();
+
+        Assert.Equal(new byte[] { 1, 2, 3, 4 }, await File.ReadAllBytesAsync(imagePath));
+        Assert.Equal(new byte[] { 1, 2, 3, 4 }, await File.ReadAllBytesAsync(filePath));
+        if (resubmit)
+        {
+            input.TurnId = "turn_002";
+            thread.Turns.Add(new()
+            {
+                Id = "turn_002", ThreadId = thread.Id, Status = TurnStatus.Completed,
+                Input = input, Items = [input]
+            });
+            await _store.SaveThreadAsync(thread);
+        }
+        File.SetLastWriteTimeUtc(imagePath, DateTime.UtcNow.AddDays(-2));
+        File.SetLastWriteTimeUtc(filePath, DateTime.UtcNow.AddDays(-2));
+        await using var reopened = new ThreadStore(_root);
+        await reopened.LoadIndexAsync();
+
+        Assert.Equal(resubmit, File.Exists(imagePath));
+        Assert.Equal(resubmit, File.Exists(filePath));
+        var restored = await reopened.LoadThreadAsync(thread.Id);
+        if (resubmit)
+            Assert.Equal(input.AsUserMessage.NativeInputParts, restored!.Turns[0].Input!.AsUserMessage!.NativeInputParts);
+        else
+            Assert.Empty(restored!.Turns);
+    }
+
     [Fact]
     public async Task IndexRepair_RemovesDayOldOrphansAndKeepsReferencedFiles()
     {

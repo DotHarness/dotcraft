@@ -3,12 +3,16 @@ import { restartThreadHistory } from '../stores/threadHistoryStore'
 import { useThreadStore } from '../stores/threadStore'
 import type { Thread } from '../types/thread'
 import { wireTurnToConversationTurn } from '../types/conversation'
-import { readThreadHistoryHead } from './threadHistory'
+import { readThreadHistoryHead, type HistoryRequest } from './threadHistory'
 
-export async function reloadThreadAfterRollback(threadId: string): Promise<void> {
+export async function reloadThreadAfterRollback(
+  threadId: string,
+  request: HistoryRequest = (method, params) => window.api.appServer.sendRequest(method, params),
+  isCurrent = () => useThreadStore.getState().activeThreadId === threadId
+): Promise<void> {
   const shownBeforeRollback = new Set(useConversationStore.getState().turns.map((turn) => turn.id))
-  const refreshed = await readThreadHistoryHead((method, params) => window.api.appServer.sendRequest(method, params), threadId)
-  if (useThreadStore.getState().activeThreadId !== threadId) return
+  const refreshed = await readThreadHistoryHead(request, threadId)
+  if (!isCurrent()) return
   const turns = refreshed.thread.turns ?? []
   const surviving = new Set(turns.map((turn) => turn.id))
   useConversationStore.setState((state) => ({

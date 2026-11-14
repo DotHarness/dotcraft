@@ -150,7 +150,7 @@ public sealed partial class ThreadStore : IAsyncDisposable
             thread.Id,
             () => TrackPersistedAsync(thread.Id, () => _rolloutStore.AppendRollbackAsync(thread, numTurns, ct)));
         ReleaseTrimmedProviderHistory(thread.Id);
-        await TryProjectHistoryAsync(thread.Id, result, ct);
+        await TryProjectHistoryAsync(thread.Id, result, ct, deleteUnreferencedAttachments: false);
     }
 
     internal async Task SaveThreadBaselineAsync(SessionThread thread, CancellationToken ct = default)
@@ -597,6 +597,8 @@ public sealed partial class ThreadStore : IAsyncDisposable
                 ct);
             if (deleteUnreferencedAttachments)
                 _attachmentStore.CleanupCandidates(removed);
+            else
+                _attachmentStore.DeferCleanup(removed);
         }
         catch (Exception ex) when (ex is ThreadHistoryUnavailableException or OperationCanceledException)
         {

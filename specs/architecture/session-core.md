@@ -975,6 +975,7 @@ The resume steps are in Section 5.5.
 - Rollback resets the Thread's runtime state. It is not a Turn completion and produces no Turn-completion notification.
 - Removed Turn sequence numbers are not reused: the projected Turn sequence high watermark covers every valid `turn_started`, including rolled-back ones, before allocating a new id.
 - Successful rollback also records a maintenance trace event; Dashboard de-duplicates it with the rollout-derived operation.
+- Rollback releases attachment references without deleting the files. Removed managed attachments enter the existing one-day orphan retention period from rollback time, so clients can resubmit their original input paths. Resubmission restores references; abandoned attachments are reclaimed by ordinary orphan cleanup.
 
 ### 9.8 Loaded Thread Runtime
 

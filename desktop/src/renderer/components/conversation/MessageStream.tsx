@@ -3,14 +3,12 @@ import { useToolCallReveal } from '../../hooks/useToolCallReveal'
 import { collectConversationImages, ConversationImagesContext, type GalleryImage } from './imagePreview/galleryImages'
 import { collectConversationVisualizations, ConversationVisualizationsContext, type VisualizationEntry } from './visualizationGallery'
 import { useHistoryGapLoading } from '../../hooks/useHistoryGapLoading'
-import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, memo, useMemo, useRef } from 'react'
 import { useConversationStore } from '../../stores/conversationStore'
 import { runningTurnFiles } from '../../stores/turnDiffs'
 import { useThreadStore } from '../../stores/threadStore'
 import { useThreadHistoryStore, type HistoryGap } from '../../stores/threadHistoryStore'
 import { useUIStore } from '../../stores/uiStore'
-import { addToast } from '../../stores/toastStore'
-import { useT } from '../../contexts/LocaleContext'
 import { ConversationFindSurface } from '../../find/ConversationFindSurface'
 import { useTranscriptViewport } from '../../hooks/useTranscriptViewport'
 import { useScrollToLatestOnSend, type ComposerSendScrollRequest } from '../../hooks/useComposerSendScroll'
@@ -24,17 +22,15 @@ import { FeedbackSurvey } from './FeedbackSurvey'
 import { SystemStatusDivider } from './SystemStatusDivider'
 import { ConversationColumn } from './ConversationColumn'
 import type { ConversationItem, ConversationTurn } from '../../types/conversation'
-import type { ContextUsageSnapshotWire } from '../../types/thread'
 import { getSpawnedFromThreadId } from '../../utils/subAgentThreads'
 import { findSupersededRetryTurnIds } from '../../utils/failedTurnResume'
-import { startTurnWithOptimisticUI } from '../../utils/startTurn'
-import { reloadThreadAfterRollback } from '../../utils/threadRollback'
 import { isVisibleQueuedInput, isVisibleUserMessage } from '../../utils/visibleUserMessage'
 import { isEmptyCompletedTurn } from '../../utils/turnPresentation'
-import { splitMessageComments } from '../../../shared/messageComments'
 import { estimateQueuedInputDockHeightPx } from './queuedInputDockLayout'
 import { TurnNavigation } from './turnNavigation/TurnNavigation'
 import { ConversationAsides } from './conversationAside/ConversationAside'
+import { hasInlineEditContent, isInlineEditableUserMessage } from '../../utils/inlineMessageEdit'
+import { useInlineMessageEdit, type InlineEditState } from './useInlineMessageEdit'
 
 const SCROLL_BUTTON_BASE_BOTTOM_PX = 10
 const SCROLL_BUTTON_DOCK_GAP_PX = 10
@@ -42,44 +38,6 @@ const CHANGES_PILL_CELL_PX = 32
 const CHANGES_PILL_BOTTOM_GAP_PX = 4
 export const MESSAGE_STREAM_BOTTOM_BASE_PX = 40
 const NO_HISTORY_GAPS: HistoryGap[] = []
-
-interface InlineEditState {
-  threadId: string
-  turnId: string
-  itemId: string
-  draftText: string
-  submitting: boolean
-  rollbackPending: boolean
-}
-
-interface RollbackThreadResult {
-  thread?: {
-    turns?: Array<Record<string, unknown>>
-    contextUsage?: ContextUsageSnapshotWire | null
-    [key: string]: unknown
-  }
-}
-
-function isTextOnlyEditableUserMessage(item: ConversationItem): boolean {
-  if (item.type !== 'userMessage') return false
-  if ((item.images?.length ?? 0) > 0 || (item.imageDataUrls?.length ?? 0) > 0) return false
-  if (!item.nativeInputParts || item.nativeInputParts.length === 0) return splitMessageComments(item.text ?? '').comments.length === 0
-  return item.nativeInputParts.every((part) => part.type === 'text' && splitMessageComments(part.text).comments.length === 0)
-}
-
-function editableUserText(item: ConversationItem): string {
-  if (item.nativeInputParts && item.nativeInputParts.length > 0) {
-    return item.nativeInputParts
-      .filter((part) => part.type === 'text')
-      .map((part) => part.text)
-      .join('')
-  }
-  return item.text ?? ''
-}
-
-function lastUserItem(turn: ConversationTurn): ConversationItem | undefined {
-  return [...turn.items].reverse().find(isVisibleUserMessage)
-}
 
 function getStoreConversationImages(): GalleryImage[] {
   const state = useConversationStore.getState()
@@ -106,7 +64,6 @@ export function MessageStream({ sendScrollRequest = null, viewportKey }: Message
 }
 
 function MessageStreamContent({ sendScrollRequest = null, viewportKey }: MessageStreamProps): JSX.Element {
-  const t = useT()
   const turns = useConversationStore((s) => s.turns)
   const turnStatus = useConversationStore((s) => s.turnStatus)
   const activeTurnId = useConversationStore((s) => s.activeTurnId)
@@ -118,7 +75,6 @@ function MessageStreamContent({ sendScrollRequest = null, viewportKey }: Message
   const workspacePath = useConversationStore((s) => s.workspacePath)
   const showThinkingContent = useUIStore((s) => s.showThinkingContent)
   const activeThreadId = useThreadStore((s) => s.activeThreadId)
-  const activeThread = useThreadStore((s) => s.activeThread)
   const historyGaps = useThreadHistoryStore((s) => s.threadId === activeThreadId ? s.gaps : NO_HISTORY_GAPS)
   const historyHeadLoaded = useThreadHistoryStore((s) => s.threadId === activeThreadId && s.headLoaded)
   const gapIdBeforeTurn = useMemo(
@@ -142,7 +98,7 @@ function MessageStreamContent({ sendScrollRequest = null, viewportKey }: Message
   }, [threadList, activeThreadId])
   const queuedInputCount = useConversationStore((s) => s.queuedInputs.filter(isVisibleQueuedInput).length)
   const changesPillVisible = useConversationStore((s) => runningTurnFiles(s).length > 0)
-  const [editing, setEditing] = useState<InlineEditState | null>(null)
+  const { editing, startEdit, changeDraft, cancelEdit, submitEdit } = useInlineMessageEdit()
   const columnRef = useRef<HTMLDivElement | null>(null)
 
   // Only the latest Turn changes during normal streaming, and ResizeObserver already
@@ -171,62 +127,6 @@ function MessageStreamContent({ sendScrollRequest = null, viewportKey }: Message
     + (dockHeightPx > 0 ? dockHeightPx + SCROLL_BUTTON_DOCK_GAP_PX : 0)
     + (changesPillVisible ? CHANGES_PILL_CELL_PX : 0)
   const bottomClearancePx = MESSAGE_STREAM_BOTTOM_BASE_PX + dockHeightPx
-
-  useEffect(() => {
-    setEditing(null)
-  }, [activeThreadId])
-
-  const submitInlineEdit = useCallback(async (): Promise<void> => {
-    const current = editing
-    if (!current || current.submitting) return
-    const draftText = current.draftText.trim()
-    if (!draftText) return
-
-    setEditing({ ...current, submitting: true })
-    let rollbackPending = current.rollbackPending
-    try {
-      if (rollbackPending) {
-        const state = useConversationStore.getState()
-        const latestTurn = state.turns[state.turns.length - 1]
-        const latestUser = latestTurn ? lastUserItem(latestTurn) : undefined
-        if (!latestTurn || latestTurn.id !== current.turnId || latestUser?.id !== current.itemId) {
-          setEditing(null)
-          addToast(t('conversation.editStale'), 'warning')
-          return
-        }
-
-        const rollbackResult = await window.api.appServer.sendRequest('thread/rollback', {
-          threadId: current.threadId,
-          numTurns: 1
-        }) as RollbackThreadResult
-        rollbackPending = false
-        if (rollbackResult.thread) {
-          await reloadThreadAfterRollback(current.threadId)
-        }
-      }
-
-      await startTurnWithOptimisticUI({
-        threadId: current.threadId,
-        workspacePath: workspacePath || activeThread?.workspacePath || '',
-        identityWorkspacePath: activeThread?.workspacePath || workspacePath || '',
-        text: draftText,
-        fallbackThreadName: t('toast.imageMessage'),
-        fileFallbackThreadName: t('toast.fileReferenceMessage'),
-        attachmentFallbackThreadName: t('toast.attachmentMessage'),
-        renameThreadFromText: false,
-        throwOnStartError: true
-      })
-      setEditing(null)
-    } catch (err) {
-      console.error('inline edit retry failed:', err)
-      setEditing((prev) =>
-        prev && prev.turnId === current.turnId && prev.itemId === current.itemId
-          ? { ...prev, submitting: false, rollbackPending }
-          : prev
-      )
-      addToast(err instanceof Error ? err.message : String(err), 'error')
-    }
-  }, [activeThread?.workspacePath, editing, t, workspacePath])
 
   return (
     <div style={{ position: 'relative', flex: 1, overflow: 'hidden' }}>
@@ -280,25 +180,10 @@ function MessageStreamContent({ sendScrollRequest = null, viewportKey }: Message
                     threadOrigin={threadOrigin}
                     isIdle={turnStatus === 'idle'}
                     editing={editing}
-                    onStartEdit={(item) => {
-                      setEditing({
-                        threadId: turn.threadId,
-                        turnId: turn.id,
-                        itemId: item.id,
-                        draftText: editableUserText(item),
-                        submitting: false,
-                        rollbackPending: true
-                      })
-                    }}
-                    onDraftChange={(draftText) => {
-                      setEditing((prev) => prev ? { ...prev, draftText } : prev)
-                    }}
-                    onCancelEdit={() => {
-                      setEditing(null)
-                    }}
-                    onSubmitEdit={() => {
-                      void submitInlineEdit()
-                    }}
+                    onStartEdit={(item) => startEdit(turn, item)}
+                    onDraftChange={changeDraft}
+                    onCancelEdit={cancelEdit}
+                    onSubmitEdit={() => { void submitEdit() }}
                   />
                 </div>}
               </Fragment>
@@ -310,21 +195,16 @@ function MessageStreamContent({ sendScrollRequest = null, viewportKey }: Message
           ) && (
             <UserMessageBlock
               text={editing.draftText}
+              nativeInputParts={editing.inputParts}
               editing
               editText={editing.draftText}
               editSubmitting={editing.submitting}
               editSubmitDisabled={
-                turnStatus !== 'idle' || editing.submitting || editing.draftText.trim().length === 0
+                turnStatus !== 'idle' || editing.submitting || !hasInlineEditContent(editing.draftText, editing.inputParts)
               }
-              onEditTextChange={(draftText) => {
-                setEditing((prev) => prev ? { ...prev, draftText } : prev)
-              }}
-              onCancelEdit={() => {
-                setEditing(null)
-              }}
-              onSubmitEdit={() => {
-                void submitInlineEdit()
-              }}
+              onEditTextChange={changeDraft}
+              onCancelEdit={cancelEdit}
+              onSubmitEdit={() => { void submitEdit() }}
             />
           )}
 
@@ -421,7 +301,7 @@ const TurnBlock = memo(function TurnBlock({
           triggerLabel={showOrigin ? threadOrigin?.label : item.triggerLabel}
           triggerRefId={showOrigin ? threadOrigin?.refId : item.triggerRefId}
           sentAsGoal={item.sentAsGoal === true}
-          editable={canEditUserMessage && idx === userItems.length - 1 && isIdle && isTextOnlyEditableUserMessage(item)}
+          editable={canEditUserMessage && idx === userItems.length - 1 && isIdle && isInlineEditableUserMessage(item)}
           onEdit={() => onStartEdit(item)}
           editing={editing?.turnId === turn.id && editing.itemId === item.id}
           editText={editing?.turnId === turn.id && editing.itemId === item.id ? editing.draftText : undefined}
@@ -429,7 +309,7 @@ const TurnBlock = memo(function TurnBlock({
           editSubmitDisabled={
             !isIdle ||
             (editing?.turnId === turn.id && editing.itemId === item.id
-              ? editing.submitting || editing.draftText.trim().length === 0
+              ? editing.submitting || !hasInlineEditContent(editing.draftText, editing.inputParts)
               : false)
           }
           onEditTextChange={onDraftChange}

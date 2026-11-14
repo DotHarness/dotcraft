@@ -1,5 +1,6 @@
 import { createOptimisticUserMessage } from './inputPresentation'
 import type { ComposerContextRecord } from '../../shared/composerContext'
+import type { TypedAppServerRequestApi } from '../../shared/appServerBoundary'
 import type { ComposerFileAttachment, ImageAttachment, InputPart } from '../types/conversation'
 import type { ConversationTurn, ThreadMode } from '../types/conversation'
 import type { ComposerDraftSegment } from '../types/composerDraft'
@@ -14,6 +15,7 @@ import { modelSettingsForThread, type TurnModelSettings } from './turnModelSetti
 
 interface StartTurnParams {
   clientUserMessageId?: string
+  request?: TypedAppServerRequestApi['sendRequest']
   threadId: string
   workspacePath: string
   identityWorkspacePath?: string
@@ -122,20 +124,21 @@ export async function submitOptimisticTurn(
     identityWorkspacePath,
     sentAsGoal = false,
     mode,
+    request = window.api.appServer.sendRequest,
     throwOnStartError = false
-  }: Pick<StartTurnParams, 'threadId' | 'workspacePath' | 'identityWorkspacePath' | 'sentAsGoal' | 'mode' | 'throwOnStartError'>
+  }: Pick<StartTurnParams, 'threadId' | 'workspacePath' | 'identityWorkspacePath' | 'sentAsGoal' | 'mode' | 'request' | 'throwOnStartError'>
 ): Promise<void> {
   const conversation = echo.onScreen ? useConversationStore.getState() : null
   try {
     const identityPath = identityWorkspacePath ?? workspacePath
     const workspaceUpdate = threadWorkspaceUpdateFor(threadId, identityPath)
     if (echo.title?.rename) {
-      await window.api.appServer.sendRequest('thread/rename', {
+      await request('thread/rename', {
         threadId,
         displayName: echo.title.request.provisionalTitle
       }).catch((error) => console.debug('[thread-title] provisional rename failed', { threadId, error }))
     }
-    const result = await window.api.appServer.sendRequest('turn/start', {
+    const result = await request('turn/start', {
       threadId,
       input: echo.inputParts,
       clientUserMessageId: echo.clientUserMessageId,

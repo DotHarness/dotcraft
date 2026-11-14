@@ -157,6 +157,24 @@ internal sealed class ThreadAttachmentStore(
             CleanupUnreferencedPaths(candidatePaths);
     }
 
+    public void DeferCleanup(IReadOnlyCollection<string> candidatePaths)
+    {
+        foreach (var path in candidatePaths)
+        {
+            if (!IsManagedPath(path))
+                continue;
+            try
+            {
+                if (File.Exists(path))
+                    File.SetLastWriteTimeUtc(path, DateTime.UtcNow);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                System.Diagnostics.Trace.TraceWarning($"Attachment retention could not be refreshed: {ex.Message}");
+            }
+        }
+    }
+
     public bool CleanupUnreferencedAttachments(TimeSpan minAge)
     {
         if (!Directory.Exists(_attachmentsDir))
