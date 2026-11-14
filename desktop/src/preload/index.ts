@@ -64,6 +64,7 @@ import type {
   MobileStatus,
   MobileStatusResult
 } from '../shared/mobile'
+import type { CodexRemoteApi, CodexRemoteEvent } from '../shared/codexRemote'
 import type {
   AddFolderFailureCode,
   PairedComputer,
@@ -467,6 +468,7 @@ ipcRenderer.on('window:visibility-changed', (_event: Electron.IpcRendererEvent, 
 let oratorioSubscriptionCount = 0
 let satellitesSubscriptionCount = 0
 let mobileSubscriptionCount = 0
+let codexRemoteSubscriptionCount = 0
 
 const api = {
   desktopPet,
@@ -2010,6 +2012,35 @@ const api = {
       }
     }
   },
+
+  codexRemote: {
+    status() {
+      return ipcRenderer.invoke('codexRemote:status')
+    },
+    enable() {
+      return ipcRenderer.invoke('codexRemote:enable')
+    },
+    disable() {
+      return ipcRenderer.invoke('codexRemote:disable')
+    },
+    createPairing() {
+      return ipcRenderer.invoke('codexRemote:create-pairing')
+    },
+    onEvent(callback: (event: CodexRemoteEvent) => void): () => void {
+      const wrapped = (_event: Electron.IpcRendererEvent, payload: CodexRemoteEvent): void => callback(payload)
+      ipcRenderer.on('codexRemote:event', wrapped)
+      codexRemoteSubscriptionCount += 1
+      if (codexRemoteSubscriptionCount === 1) ipcRenderer.send('codexRemote:subscribe')
+      let subscribed = true
+      return () => {
+        if (!subscribed) return
+        subscribed = false
+        ipcRenderer.removeListener('codexRemote:event', wrapped)
+        codexRemoteSubscriptionCount -= 1
+        if (codexRemoteSubscriptionCount === 0) ipcRenderer.send('codexRemote:unsubscribe')
+      }
+    }
+  } satisfies CodexRemoteApi,
 
   screenView: {
     open(request: ScreenViewOpenRequest): Promise<{ ok: boolean }> {
