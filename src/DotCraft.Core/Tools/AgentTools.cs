@@ -75,11 +75,11 @@ public sealed class AgentTools(
             waitForCompletion: false,
             subAgentCoordinator,
             cancellationToken);
-        result.Message ??= "The subagent is working in the background. You will be notified when it finishes. You know nothing about its result until then, so do not predict it or repeat its work. Continue other work, or briefly tell the user what you started and end your response.";
+        result.Message ??= "The subagent is working in the background. You will be notified when it finishes. You know nothing about its result until then, so do not predict it. Do not duplicate its work or touch the files and topics it is using. Continue other work, or briefly tell the user what you started and end your response.";
         return SerializeResult(result);
     }
 
-    [Description("Send a message to another agent. A running agent receives it during its current turn, and an idle or stopped agent is woken to handle it. A subagent you spawned works on it in the background, and you will be notified when it finishes. To wait for a reply, end your turn; the reply wakes you.")]
+    [Description("Send a message to another agent. A running agent reads it at its next step and adjusts its current work, and an idle or stopped agent is woken to handle it. A subagent you spawned works on it in the background, and you will be notified when it finishes. To wait for a reply, end your turn; the reply wakes you.")]
     [Tool]
     [ToolPresentation("core.subagent", Operation = "sendMessage")]
     public async Task<string> SendMessage(

@@ -241,6 +241,7 @@ public sealed partial class SessionService
             var thread = await owner.GetOrLoadThreadAsync(threadId, ct);
             IReadOnlyList<QueuedTurnInput> queueSnapshot;
             var changed = false;
+            var handsOverForeground = false;
             using (await owner.AcquireThreadQueueLockAsync(threadId, ct))
             {
                 if (owner._runtimeRegistry.TryGetThread(threadId, out var cachedThread))
@@ -281,6 +282,10 @@ public sealed partial class SessionService
                         ct);
                     queueSnapshot = queue.ToList();
                     changed = true;
+                    handsOverForeground = !string.Equals(
+                        queued.TriggerKind,
+                        SubAgentSessionControl.SubAgentFollowupTriggerKind,
+                        StringComparison.Ordinal);
                 }
                 else
                 {
@@ -306,7 +311,8 @@ public sealed partial class SessionService
                 owner.PublishQueueUpdated(thread.Id, queueSnapshot);
                 if (string.Equals(status, "guidancePending", StringComparison.Ordinal))
                 {
-                    owner.SignalForegroundHandOver(expectedTurnId);
+                    if (handsOverForeground)
+                        owner.SignalForegroundHandOver(expectedTurnId);
                     var rootThreadId = string.IsNullOrWhiteSpace(thread.Source.SubAgent?.RootThreadId)
                         ? thread.Id
                         : thread.Source.SubAgent.RootThreadId;

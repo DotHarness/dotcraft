@@ -23,7 +23,10 @@ internal static class SubAgentPromptSections
             return null;
 
         var continuation = context.IsToolAvailable("SendMessage")
-            ? "\n- Give a child more work with `SendMessage` to its `agentPath` instead of spawning a new one."
+            ? "\n- Give a child more work with `SendMessage` to its `agentPath` instead of spawning a new one. A running child reads each message at its next step as a course correction, so send one only when its task changes, not for status updates, acknowledgements, or retractions."
+            : string.Empty;
+        var stop = context.IsToolAvailable("TaskStop")
+            ? "\n- Stop a child that is heading the wrong way with `TaskStop`, then give it a corrected brief."
             : string.Empty;
 
         return
@@ -34,7 +37,8 @@ Use `SpawnAgent` for sizeable, independent work: parallel tracks, or reading acr
 
 - Brief each child precisely once. A child with the default `forkTurns` inherits this conversation, so state what to do and what is out of scope. A child with `forkTurns: "none"` starts with no context, so explain the goal, what you already know, and the report you need. Give concrete paths and changes instead of "based on your findings, fix it".
 - Use `agentRole: "explorer"` for read-only research and `agentRole: "worker"` for changes, giving each worker the files it owns. Start independent children together.
-- A child's report is visible only to you. Relay what matters, and check a worker's actual changes before reporting them as done.{{continuation}}
+- While a child works, leave its files and topics to it. Do not redo or review its unfinished work, and wait for its report.
+- A child's report is visible only to you. Relay what matters, and check a worker's actual changes before reporting them as done.{{continuation}}{{stop}}
 - Set `model` or `reasoningEffort` only when the user, `AGENTS.md`, or a skill asks for it. Overrides require `forkTurns` to be `"none"` or a positive integer string.
 """;
     }
