@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.10.3 |
+| **Version** | 0.12.0 |
 | **Status** | Living |
-| **Date** | 2026-11-07 |
+| **Date** | 2026-11-14 |
 | **Parent Specs** | [Session Core](../architecture/session-core.md), [AppServer Protocol](../protocols/appserver-protocol.md) |
 | **Related Specs** | [Thread History Loading](thread-history-loading.md), [Thread Read State](thread-read-state.md), [Desktop Client](../clients/desktop-client.md), [Mobile](../clients/mobile.md), [Protocol Contract Generation](../sdk/protocol-contract-generation.md) |
 
@@ -42,7 +42,7 @@ Execution policy, provider-native history, canonical rollout storage, read-recei
 
 Core retains the latest published Turn with its Item lifecycle, cumulative streaming text, argument previews, progress, diff, usage, and pending request identities. Configuration, plan, and queued input are captured with the view.
 
-Metadata copies no Item payloads but retains thread-level plan and context usage. Summary copies selected Items. Full copies the requested complete content. These views apply to every Turn status.
+Metadata copies no completed historical Item payloads but retains thread-level plan and context usage. Current Started/Streaming baselines are captured separately for continuation. Summary copies selected Items. Full copies the requested complete content. These views apply to every Turn status.
 
 The latest terminal head remains available until durable history can supply it. Older Turns belong to persistent history. Releasing the runtime releases its current view.
 
@@ -104,11 +104,11 @@ Resume retains its thread identity and explicit binding parameters. Optional `in
 - `itemsView`: `none`, `summary` (default), or `full`.
 - `summaryTools`: tool selection for summary view.
 
-The result contains the Thread header, instruction sources, required `currentState`, and the requested descending page with continuation/backwards cursors. `currentState` carries the current Turn identity, Item count, plan eligibility, progress, diff, and pending request identities. Items belong to the selected page.
+The result contains the Thread header, instruction sources, required `currentState`, and the requested descending page with continuation/backwards cursors. `currentState` carries the current Turn identity, Item count, plan eligibility, progress, diff, pending request identities, and optional `activeItems` containing only Started/Streaming baselines from the same publication boundary. Completed Items belong to the selected page or explicit Item reads.
 
 Omitting `initialTurnsPage` requests metadata-only restoration. An initial page reserves capacity for the captured head and reads the preceding durable Turns. Its continuation includes the first omitted durable Turn, including when `limit = 1`.
 
-Summary retains the pinned-result and summary-tool rules in [Thread History Loading](thread-history-loading.md). Full applies to selected Turns, not the whole thread.
+Summary retains the pinned-result and summary-tool rules in [Thread History Loading](thread-history-loading.md). Full applies to selected Turns, not the whole thread. External adapters apply their own protocol's summary selection to these candidates; a shared view name does not imply identical contents. Observation attachment does not force full hydration. Missing active Item baselines use selected, ordered current-view reads before their continuation is applied.
 
 Ephemeral threads expose current process-local state without durable history.
 

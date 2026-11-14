@@ -39,12 +39,17 @@ internal sealed partial class ThreadRequestHandler
         await RestoreAttachmentAsync(thread.Id, view, summaryTools, async snapshot =>
         {
             var wire = await ProjectRestorationThreadAsync(thread, snapshot, ct);
+            var anchors = thread.Ephemeral ? null : await sessionService.ReadThreadHistoryBootstrapAsync(thread.Id, ct);
             var result = new Contract.ThreadResumeResult
             {
                 Thread = AppServerContractMapper.ToContract(wire),
                 InstructionSources = instructionSources,
                 CurrentState = ProjectCurrentState(snapshot),
-                InitialTurnsPage = preparedPage is null ? null : await preparedPage.MergeAsync(snapshot)
+                InitialTurnsPage = preparedPage is null ? null : await preparedPage.MergeAsync(snapshot),
+                TurnsBackwardsCursor = anchors?.TurnsCursor is { } turnsCursor
+                    ? ThreadHistoryCursorCodec.EncodeBootstrap(thread.Id, "turns", turnsCursor) : null,
+                ItemsBackwardsCursor = anchors?.ItemsCursor is { } itemsCursor
+                    ? ThreadHistoryCursorCodec.EncodeBootstrap(thread.Id, "items", itemsCursor) : null
             };
             snapshot.EnsureCurrent();
             await responseWriter.WriteResponseAsync(request.Message.Id, result, ct);
@@ -208,6 +213,9 @@ internal sealed partial class ThreadRequestHandler
     {
         TurnId = snapshot.Turn?.Id,
         TurnStatus = snapshot.Turn is { } turn ? JsonNamingPolicy.CamelCase.ConvertName(turn.Status.ToString()) : null,
+        ActiveItems = snapshot.ActiveItems.Count == 0 ? null : threadProjector.ProjectHistoryItems(
+            snapshot.ActiveItems.Select(item => new ThreadHistoryItem(item.TurnId, item)).ToArray())
+            .Select(entry => AppServerContractMapper.ToContract(entry.Item)).ToArray(),
         ItemCount = VisibleItemCount(snapshot.ItemCount, snapshot.ToolExecutionCount),
         PlanTurnId = snapshot.PlanTurnId,
         ToolArguments = snapshot.ToolArguments.Count == 0 ? null : snapshot.ToolArguments,

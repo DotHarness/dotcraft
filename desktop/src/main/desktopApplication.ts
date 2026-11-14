@@ -17,6 +17,7 @@ import { isDefaultChatWorkspace } from './defaultChatWorkspace'
 import { isLocalDirectory } from './newThreadDeepLink'
 import { restoreRecentProjects } from './recentProjectRestore'
 import { getWorkspaceStatus } from './workspaceSetup'
+import { disposeCodexRemoteHubBridge } from './codexRemote/codexRemoteHubBridge'
 import { disposeMobileHubBridge } from './mobile/mobileHubBridge'
 import { broadcastPairedComputerEvent } from './pairedComputers/pairedComputersIpc'
 import { PairedComputersManager } from './pairedComputers/pairedComputersManager'
@@ -279,6 +280,7 @@ export class DesktopApplication implements DesktopApplicationServices {
     this.updateTimer = null
     this.tray?.dispose()
     this.localProjects.stop()
+    disposeCodexRemoteHubBridge()
     disposeMobileHubBridge()
     disposeSatellitesHubBridge()
     this.pairedComputersManager?.dispose()

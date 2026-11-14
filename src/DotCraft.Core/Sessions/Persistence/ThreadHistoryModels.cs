@@ -13,7 +13,7 @@ public enum ThreadHistorySortDirection
 /// Rollout position used by Session Core history queries.
 /// Protocol adapters own the opaque wire encoding around this value.
 /// </summary>
-public readonly record struct ThreadHistoryCursor(long RolloutOrdinal, bool Inclusive = false);
+public readonly record struct ThreadHistoryCursor(long RolloutOrdinal, bool Inclusive = false, long? SnapshotOrdinal = null);
 
 /// <summary>
 /// One bounded page from the persisted history projection.

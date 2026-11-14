@@ -55,8 +55,11 @@ internal sealed partial class ThreadRequestHandler
         var p = request.Params;
         if (string.IsNullOrWhiteSpace(p.ThreadId) || string.IsNullOrWhiteSpace(p.TurnId))
             throw AppServerErrors.InvalidParams("'threadId' and 'turnId' are required.");
-        if (p.ItemIds is null || p.ItemIds.Count is < 1 or > 100 || p.ItemIds.Any(string.IsNullOrWhiteSpace))
-            throw AppServerErrors.InvalidParams("'itemIds' must contain 1 to 100 non-empty IDs.");
+        if ((p.ItemIds is null) == (p.CallIds is null))
+            throw AppServerErrors.InvalidParams("Specify exactly one of 'itemIds' or 'callIds'.");
+        var ids = p.ItemIds ?? p.CallIds!;
+        if (ids.Count is < 1 or > 100 || ids.Any(string.IsNullOrWhiteSpace))
+            throw AppServerErrors.InvalidParams("The selector must contain 1 to 100 non-empty IDs.");
         var currentResponseWritten = false;
         await WithCurrentThreadViewAsync(p.ThreadId, ThreadObservationView.Full, [], async snapshot =>
         {
@@ -76,7 +79,8 @@ internal sealed partial class ThreadRequestHandler
             currentResponseWritten = true;
         }, ct, new ThreadObservationItemSelection
         {
-            ItemIds = p.ItemIds.ToHashSet(StringComparer.Ordinal),
+            ItemIds = p.ItemIds?.ToHashSet(StringComparer.Ordinal),
+            CallIds = p.CallIds?.ToHashSet(StringComparer.Ordinal),
             IncludeToolExecutions = connection.SupportsToolExecutionLifecycle
         });
         if (currentResponseWritten)
@@ -85,7 +89,9 @@ internal sealed partial class ThreadRequestHandler
         IReadOnlyList<ThreadHistoryItem> items;
         try
         {
-            items = await sessionService.ReadThreadItemsAsync(p.ThreadId, p.TurnId, p.ItemIds, ct);
+            items = p.CallIds is { } calls
+                ? await sessionService.ReadThreadCallItemsAsync(p.ThreadId, p.TurnId, calls, ct)
+                : await sessionService.ReadThreadItemsAsync(p.ThreadId, p.TurnId, p.ItemIds!, ct);
         }
         catch (NotSupportedException ex)
         {

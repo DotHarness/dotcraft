@@ -65,7 +65,12 @@ public sealed class ThreadItemsReadParams : ExtensibleJsonObject
     public required string TurnId { get; init; }
 
     [JsonPropertyName("itemIds")]
-    public required IReadOnlyList<string> ItemIds { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<string>? ItemIds { get; init; }
+
+    [JsonPropertyName("callIds")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<string>? CallIds { get; init; }
 }
 
 public sealed class ThreadItemsReadResult : ExtensibleJsonObject

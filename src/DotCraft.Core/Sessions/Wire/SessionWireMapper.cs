@@ -156,6 +156,8 @@ public static class SessionWireMapper
             Status = item.Status,
             CreatedAt = item.CreatedAt,
             CompletedAt = item.CompletedAt,
+            InvocationOrigin = item.InvocationOrigin,
+            InvocationSourceId = item.InvocationSourceId,
             PayloadKind = GetPayloadKind(item.Payload),
             Payload = item.Payload
         };

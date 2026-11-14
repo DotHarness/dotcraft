@@ -54,6 +54,7 @@ internal sealed class AppServerInteractiveRequestSender
             TurnId = turnId,
             ItemId = itemId,
             RequestId = request.RequestId,
+            CallId = request.CallId,
             ApprovalType = request.ApprovalType,
             Operation = request.Operation,
             Target = request.Target,

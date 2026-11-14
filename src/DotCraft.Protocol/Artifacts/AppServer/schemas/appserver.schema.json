@@ -712,6 +712,16 @@
             }
           ]
         },
+        "phase": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "text": {
           "type": "string"
         }
@@ -2591,6 +2601,16 @@
         "approvalType": {
           "type": "string"
         },
+        "callId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "itemId": {
           "type": "string"
         },
@@ -2661,6 +2681,16 @@
       "properties": {
         "approvalType": {
           "type": "string"
+        },
+        "callId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "operation": {
           "type": "string"
@@ -13921,6 +13951,26 @@
         "id": {
           "type": "string"
         },
+        "invocationOrigin": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "invocationSourceId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "payload": {},
         "payloadKind": {
           "anyOf": [
@@ -18242,11 +18292,31 @@
       "title": "ThreadItemsReadParams",
       "type": "object",
       "properties": {
+        "callIds": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "itemIds": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "threadId": {
           "type": "string"
@@ -18257,7 +18327,6 @@
       },
       "additionalProperties": true,
       "required": [
-        "itemIds",
         "threadId",
         "turnId"
       ]
@@ -19035,6 +19104,19 @@
       "title": "ThreadResumeCurrentState",
       "type": "object",
       "properties": {
+        "activeItems": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/SessionItem"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "diff": {
           "anyOf": [
             {
@@ -19262,8 +19344,28 @@
             "type": "string"
           }
         },
+        "itemsBackwardsCursor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "thread": {
           "$ref": "#/$defs/SessionThread"
+        },
+        "turnsBackwardsCursor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": true,
@@ -20172,6 +20274,150 @@
       "additionalProperties": true,
       "required": [
         "name"
+      ]
+    },
+    "ThreadTimelineEntry": {
+      "title": "ThreadTimelineEntry",
+      "type": "object",
+      "properties": {
+        "completedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "item": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SessionItem"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "type": "string"
+        },
+        "position": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "providerError": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "startedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "turnId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "kind",
+        "position",
+        "turnId"
+      ]
+    },
+    "ThreadTimelineListParams": {
+      "title": "ThreadTimelineListParams",
+      "type": "object",
+      "properties": {
+        "cursor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "limit": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "threadId"
+      ]
+    },
+    "ThreadTimelineListResult": {
+      "title": "ThreadTimelineListResult",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ThreadTimelineEntry"
+          }
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "data"
       ]
     },
     "ThreadTokenUsage": {

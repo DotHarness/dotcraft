@@ -32,6 +32,7 @@ public sealed record ThreadObservationSnapshot
     public ThreadConfiguration? Configuration { get; init; }
     public required ThreadSummaryRuntime Runtime { get; init; }
     public SessionTurn? Turn { get; init; }
+    public IReadOnlyList<SessionItem> ActiveItems { get; init; } = [];
     public int ItemCount { get; init; }
     public int ToolExecutionCount { get; init; }
     public bool HasMoreItems { get; init; }

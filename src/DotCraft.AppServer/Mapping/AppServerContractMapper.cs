@@ -114,6 +114,8 @@ public static class AppServerContractMapper
         Status = WireString(value.Status),
         CreatedAt = value.CreatedAt,
         CompletedAt = value.CompletedAt,
+        InvocationOrigin = value.InvocationOrigin,
+        InvocationSourceId = value.InvocationSourceId,
         PayloadKind = value.PayloadKind,
         Payload = value.Payload is null
             ? default

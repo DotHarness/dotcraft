@@ -65,6 +65,7 @@ export interface HubCapabilities {
   notifications: boolean;
   tray: boolean;
   satellites?: boolean;
+  codexRemote: boolean;
   [key: string]: unknown;
 }
 
@@ -155,6 +156,20 @@ export interface HubMobileState {
 export interface HubMobilePairing {
   pairingId: string;
   qrPayload: string;
+  expiresAt: string;
+}
+
+export interface HubCodexRemoteStatus {
+  state: "off" | "connecting" | "on" | "failed";
+  signedIn: boolean;
+  hostName: string;
+  failureCode?: string;
+  failureMessage?: string;
+}
+
+export interface HubCodexRemotePairing {
+  pairingUrl: string;
+  manualCode: string | null;
   expiresAt: string;
 }
 

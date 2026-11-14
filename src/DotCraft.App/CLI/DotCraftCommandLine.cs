@@ -62,6 +62,7 @@ public static partial class DotCraftCommandLine
         root.Subcommands.Add(CreateModelServiceCommand());
         root.Subcommands.Add(CreateOratorioCommand());
         root.Subcommands.Add(CreateRelayCommand());
+        root.Subcommands.Add(CreateCodexRemoteControlCommand());
         root.Subcommands.Add(CreateScriptWorkerCommand());
         return root;
     }

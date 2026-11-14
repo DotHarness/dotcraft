@@ -221,7 +221,8 @@ public sealed partial class SessionService
                     Payload = new AgentMessagePayload
                     {
                         Text = message,
-                        DeliveryMode = "async"
+                        DeliveryMode = "async",
+                        Phase = AgentMessagePhases.FinalAnswer
                     }
                 };
 
@@ -727,7 +728,7 @@ public sealed partial class SessionService
 
             async Task FailAndPersistTurnAsync(string errorMsg, string errorCode)
             {
-                FinalizeStreamingAgentMessage();
+                itemProjector.FinalizeAgentMessage(AgentMessagePhases.PartialAnswer);
                 FinalizeStreamingReasoning();
                 var errorItem = CreateErrorItem(turn, NextItemSeq(), errorMsg, errorCode, fatal: true);
                 turn.Items.Add(errorItem);
@@ -1623,7 +1624,6 @@ public sealed partial class SessionService
                                     if (!string.IsNullOrWhiteSpace(fr.CallId)
                                         && turnRuntime?.ToolInvocationItems.ContainsKey(fr.CallId) == true)
                                     {
-                                        FinalizeStreamingAgentMessage();
                                         break;
                                     }
                                     var resultText = ImageContentSanitizingChatClient.DescribeResult(fr.Result);
@@ -1661,7 +1661,6 @@ public sealed partial class SessionService
                                     turn.Items.Add(toolResultItem);
                                     eventChannel.EmitItemStarted(toolResultItem);
                                     eventChannel.EmitItemCompleted(toolResultItem);
-                                    FinalizeStreamingAgentMessage();
                                     break;
                                 }
 
@@ -1767,6 +1766,10 @@ public sealed partial class SessionService
                                 }
                             }
                         }
+
+                        if (AgentMessagePhases.IsResponseBoundary(chatResponseUpdate.FinishReason))
+                            itemProjector.FinalizeAgentMessage(AgentMessagePhases.ResponseEnded(
+                                chatResponseUpdate.FinishReason, executionCt.IsCancellationRequested));
                     }
                 }
                 finally
@@ -1781,7 +1784,8 @@ public sealed partial class SessionService
                     approvalContextDisposable?.Dispose();
                 }
 
-                FinalizeStreamingAgentMessage();
+                itemProjector.FinalizeAgentMessage(AgentMessagePhases.ResponseEnded(
+                    lastFinishReason, executionCt.IsCancellationRequested));
                 FinalizeStreamingReasoning();
 
                 var mainTraceUsageDelta = Math.Max(
@@ -1896,7 +1900,7 @@ public sealed partial class SessionService
             }
             catch (OperationCanceledException) when (cts.IsCancellationRequested)
             {
-                FinalizeStreamingAgentMessage();
+                itemProjector.FinalizeAgentMessage(AgentMessagePhases.PartialAnswer);
                 FinalizeStreamingReasoning();
                 await AccountGoalUsageAsync(
                     turnKey,
@@ -1927,7 +1931,7 @@ public sealed partial class SessionService
             }
             catch (OperationCanceledException) when (callerCt.IsCancellationRequested)
             {
-                FinalizeStreamingAgentMessage();
+                itemProjector.FinalizeAgentMessage(AgentMessagePhases.PartialAnswer);
                 FinalizeStreamingReasoning();
                 await RestoreUndrainedGuidanceAsync(() =>
                 {
@@ -1947,7 +1951,7 @@ public sealed partial class SessionService
             }
             catch (OperationCanceledException)
             {
-                FinalizeStreamingAgentMessage();
+                itemProjector.FinalizeAgentMessage(AgentMessagePhases.PartialAnswer);
                 FinalizeStreamingReasoning();
                 await RestoreUndrainedGuidanceAsync(() =>
                 {
@@ -1976,7 +1980,7 @@ public sealed partial class SessionService
             }
             catch (RolloutPersistenceException ex)
             {
-                FinalizeStreamingAgentMessage();
+                itemProjector.FinalizeAgentMessage(AgentMessagePhases.PartialAnswer);
                 FinalizeStreamingReasoning();
                 PublishTurnPersistenceFailure(thread, turn, turnRuntime, eventChannel, NextItemSeq(), ex);
             }

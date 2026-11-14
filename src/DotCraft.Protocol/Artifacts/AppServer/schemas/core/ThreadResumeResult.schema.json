@@ -23,8 +23,28 @@
         "type": "string"
       }
     },
+    "itemsBackwardsCursor": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "thread": {
       "$ref": "./SessionThread.schema.json"
+    },
+    "turnsBackwardsCursor": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "additionalProperties": true,

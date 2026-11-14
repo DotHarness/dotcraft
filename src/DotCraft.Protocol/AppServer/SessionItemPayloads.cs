@@ -99,6 +99,10 @@ public sealed class AgentMessagePayload : ExtensibleJsonObject
     [JsonPropertyName("text")]
     public required string Text { get; init; }
 
+    [JsonPropertyName("phase")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Phase { get; init; }
+
     [JsonPropertyName("deliveryMode")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? DeliveryMode { get; init; }
@@ -663,6 +667,10 @@ public sealed class ApprovalRequestPayload : ExtensibleJsonObject
 
     [JsonPropertyName("requestId")]
     public required string RequestId { get; init; }
+
+    [JsonPropertyName("callId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? CallId { get; init; }
 
     [JsonPropertyName("scopeKey")]
     public required string ScopeKey { get; init; }

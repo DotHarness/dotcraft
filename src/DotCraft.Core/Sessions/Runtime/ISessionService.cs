@@ -428,6 +428,13 @@ public interface ISessionService
         CancellationToken ct = default) =>
         throw new NotSupportedException("Paged Thread history is not supported by this session service.");
 
+    Task<ThreadHistoryBootstrap> ReadThreadHistoryBootstrapAsync(string threadId, CancellationToken ct = default) =>
+        throw new NotSupportedException("Paged Thread history is not supported by this session service.");
+
+    Task<ThreadTimelinePage> ListThreadTimelineAsync(
+        string threadId, ThreadTimelineCursor? cursor, int limit, CancellationToken ct = default) =>
+        throw new NotSupportedException("Paged Thread history is not supported by this session service.");
+
     Task<ThreadMessageSearchPage> SearchThreadMessageOccurrencesAsync(
         string threadId,
         string searchTerm,
@@ -442,6 +449,13 @@ public interface ISessionService
         IReadOnlyList<string> itemIds,
         CancellationToken ct = default) =>
         throw new NotSupportedException("Exact history reads are not supported by this session service.");
+
+    Task<IReadOnlyList<ThreadHistoryItem>> ReadThreadCallItemsAsync(
+        string threadId,
+        string turnId,
+        IReadOnlyList<string> callIds,
+        CancellationToken ct = default) =>
+        throw new NotSupportedException("Call-scoped history reads are not supported by this session service.");
 
     /// <summary>Returns one visible Turn with its Items, or null when the Thread has no such Turn.</summary>
     async Task<SessionTurn?> ReadThreadTurnAsync(string threadId, string turnId, CancellationToken ct = default) =>

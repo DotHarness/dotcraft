@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.11.1 |
+| **Version** | 0.12.0 |
 | **Status** | Living |
-| **Date** | 2026-11-13 |
+| **Date** | 2026-11-14 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
 | **Related Specs** | [Plugin Architecture](../architecture/plugin-architecture.md), [.NET Extension Runtime](../architecture/dotnet-extensions.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md) |
 
@@ -333,16 +333,19 @@ Approval policy:
 
 Prepare or reuse an active (non-archived) thread's runtime and attach the requesting connection at an ordered current-state boundary. Params: `threadId`, plus optional `dynamicTools`, `additionalContext`, `chat`, `cwd`, `runtimeWorkspaceRoots`, and `initialTurnsPage`. Resume is an execution-preparation operation even when no transcript page is requested. A warm resume without binding overrides reuses the loaded runtime, configuration, instruction sources, Agent and tool resources rather than rebuilding them.
 
-`initialTurnsPage?: { limit?, itemsView?: "none" | "summary" | "full", summaryTools? }` requests the newest descending Turn page under the normal Turn-page limits and summary-tool rules. Its default view is `summary`. Omitting this parameter requests header/current metadata and attachment without materializing or copying Turn Items. View selection happens before database payload reads, hydration, copying, and serialization, including for a running Turn. `full` covers selected Turns, not the complete thread history.
+`initialTurnsPage?: { limit?, itemsView?: "none" | "summary" | "full", summaryTools? }` requests the newest descending Turn page under the normal Turn-page limits and summary-tool rules. Its default view is `summary`. Omitting this parameter requests header/current metadata and attachment without materializing completed Turn history; only Started/Streaming baselines needed for continuation are copied into currentState. View selection happens before database payload reads, hydration, copying, and serialization, including for a running Turn. `full` covers selected Turns, not the complete thread history.
 
-**Result**: `{ thread, instructionSources, currentState, initialTurnsPage? }`. `thread` is a header without embedded history. `initialTurnsPage`, when requested, is `{ data: Turn[], nextCursor?, backwardsCursor? }`. Required `currentState` contains:
+**Result**: `{ thread, instructionSources, currentState, initialTurnsPage?, turnsBackwardsCursor, itemsBackwardsCursor }`. `thread` is a header without embedded history. `initialTurnsPage`, when requested, is `{ data: Turn[], nextCursor?, backwardsCursor? }`. Required `currentState` contains:
 
 - Optional `turnId`, `turnStatus`, and `planTurnId`, plus required `itemCount`.
+- Optional `activeItems: Item[]`: only current Started/Streaming Item baselines captured at the same boundary. Completed history belongs to the selected initial page or Item reads.
 - Optional `toolArguments: Record<itemId, string>` for cumulative argument-preview text.
 - Optional `toolProgress: Record<itemId, { callId, toolName, progress: JSON }>` and `diff`.
 - Required `pendingRequests: [{ method, requestId, itemId, turnId, isBlocking }]` using current logical request identities.
 
-`currentState` does not duplicate Turn Items. The Thread header supplies its existing runtime, mode, plan, queued-input, and context-usage projections. Metadata-only restoration does not hydrate Item payloads.
+`turnsBackwardsCursor` and `itemsBackwardsCursor` initialize descending history at a committed source upper bound, independently of the optional initial page. They are null for empty corresponding history or ephemeral threads. The Item entry anchor is thread-wide and can initialize different Turn filters; subsequent continuations retain their actual scope. These anchors are read through bounded metadata queries, not transcript materialization.
+
+`currentState` does not duplicate historical Turn Items. The Thread header supplies its existing runtime, mode, plan, queued-input, and context-usage projections. Metadata-only restoration does not hydrate completed Item payloads; it copies only the current active baselines needed to apply subsequent deltas. Adapters obtain other required Item baselines through selected summary Items or ordered targeted/paged current-view reads, not an implicit full Turn read. The snapshot's continuation must be applied after those baselines without replaying pre-boundary text deltas.
 
 The snapshot and observation are captured in the same thread-event order. The successful response precedes subsequent feed delivery, and an update is represented in the snapshot or a later delta, not both. An initial page prepared outside that boundary is reconciled with the current head and its cursors before publication. Capacity is reserved for a head not yet in durable history; continuation always starts at the first omitted durable boundary. A repeated resume refreshes the same observation, not another event pump. Clients apply the response as state and stage later events until that application finishes; a resolved RPC promise alone is not UI readiness.
 
@@ -433,7 +436,7 @@ Search uses current visible projected history, excluding tool Items, reasoning a
 
 Read the current Thread header without resuming it. Params: `threadId`. Result: `{ thread }`.
 
-`thread/read` is read-only: it does not load the thread, resume execution, start background services, apply execution-time configuration, or replay the rollout. The header omits historical `turns`; current state such as `queuedInputs`, `runtime`, `goal`, `plan`, and `contextUsage` is included when available. History is read only through `thread/turns/list` and `thread/items/list`.
+`thread/read` is read-only: it does not load the thread, resume execution, start background services, apply execution-time configuration, or replay the rollout. The header omits historical `turns`; current state such as `queuedInputs`, `runtime`, `goal`, `plan`, and `contextUsage` is included when available. History is read through bounded `thread/turns/list`, `thread/items/list`, and `thread/timeline/list` queries, with entry anchors supplied by `thread/resume`.
 
 - `readState`: the thread's `ThreadReadState` ([4.19](#419-threadreadstateupdate)); omitted for a thread without a receipt or when receipts are unavailable.
 - `plan`: the current persisted plan for the thread, in the `plan/updated` shape; clients use it to restore plan UI after switching threads.
@@ -453,7 +456,8 @@ Read one page of provider-neutral Items. Params: `threadId`, optional `turnId` (
 
 ### 4.4.3 History cursor and projection rules
 
-- Cursors are opaque, versioned tokens bound to thread, scope (Turns, thread-wide Items, or one Turn's Items), optional Turn, a rollout ordinal, and (for `nextCursor`) direction. A mismatch, malformed token, or out-of-range limit returns `InvalidParams`.
+- Cursors are opaque, versioned tokens bound to thread, scope (Turns, thread-wide Items, one Turn's Items, or timeline), optional Turn, canonical position, and continuation direction. A mismatch, malformed token, or out-of-range limit returns `InvalidParams`. Snapshot cursors and their continuations retain their inclusive historical upper bound; newly appended identities do not enter an older snapshot. Updates still replace the existing identity's payload.
+- Resume Item entry anchors are the sole scope exception: the same thread-wide snapshot anchor may initialize `thread/items/list` with different `turnId` filters in descending order. The returned ordinary continuation is bound to that exact filter. Bootstrap anchors are not the next cursor of an already-consumed first page.
 - A cursor whose ordinal was removed by rollback remains a valid boundary; the query continues from surviving rows and never restores removed history.
 - Pages apply the same connection-scoped presentation enrichment and filtering as live Item projection.
 - Provider-native recovery records (such as OpenAI Responses raw history) are never returned.
@@ -463,9 +467,15 @@ Read one page of provider-neutral Items. Params: `threadId`, optional `turnId` (
 
 ### 4.4.4 `thread/items/read`
 
-Read specific persisted Items without loading or resuming the thread. Params: `threadId`, `turnId`, `itemIds` (1–100). Result: `{ data: [{ turnId, item }] }`, using the same connection-scoped filtering and presentation as `thread/items/list`.
+Read specific Items without loading or resuming the thread. Params: `threadId`, `turnId`, and exactly one of `itemIds` or `callIds` (1–100). `callIds` selects the invocation, result and dedicated lifecycle Items carrying those call identities within the requested Turn, through the existing call index. Current-view matches are captured in observation order. Result: `{ data: [{ turnId, item }] }`, using the same connection-scoped filtering and presentation as `thread/items/list`. This supports bounded operation hydration without scanning unrelated Item pages.
 
 Items appear in stored order. Duplicate IDs do not duplicate results; missing IDs are omitted. The history visibility, projection repair and unsupported-history rules in Section 4.4.3 apply.
+
+### 4.4.5 `thread/timeline/list`
+
+Read one canonical history page. Params: `{ threadId, cursor?, limit? }`, with default 100 and range 1–500; there is no sort-direction parameter. Result: `{ data: ThreadTimelineEntry[], nextCursor: string | null }`. Every entry has `kind` (`item`, `turnStarted`, or `turnCompleted`), `position` and `turnId`. Item entries carry only `item`. Start boundaries carry `startedAt`; completion boundaries carry `status`, error details and start/completion times. Entries do not duplicate a whole Turn header. There are no synthesized voice/realtime records or deferred-output placeholders.
+
+The first request selects the latest page; each returned page is in forward canonical order and `nextCursor` selects strictly earlier entries at the same snapshot upper bound. Position is the source-assigned canonical rollout ordinal, never a timestamp or offset in a display array. Turn completion has its actual canonical boundary position; Items first appended after completion retain later positions, while updates retain their original Item position. Continuations use the full `(position, kind, turnId, itemId)` key, not position alone. Rollback removes all boundaries and Items of removed Turns and old cursors remain boundaries over surviving rows. Presentation filtering is the same as Item history and never silently truncates an Item payload.
 
 ### 4.5 `thread/rollback`
 
@@ -836,12 +846,12 @@ Carries the **complete latest snapshot** of the Turn's aggregated diff of tool-m
 
 Items follow `item/started` → zero or more deltas → `item/completed` ([Session Core, Section 5.3](../architecture/session-core.md#53-item-lifecycle)). `item/started` and `item/completed` carry `{ threadId, turnId, item }`; on `item/completed` the item is final.
 
-Canonical payload schemas are in [Session Core, Section 4.2](../architecture/session-core.md#42-item-payload-schemas). `item.type` is the discriminator. Wire-specific notes:
+Canonical payload schemas are in [Session Core, Section 4.2](../architecture/session-core.md#42-item-payload-schemas). `item.type` is the discriminator. Optional root `invocationOrigin` and `invocationSourceId` preserve actual invocation provenance; CodeMode source identity refers to the parent call, not an Item or UI group. Wire-specific notes:
 
 | `item.type` | Wire-specific notes |
 |-------------|---------------------|
 | `userMessage` | `text` is a display field. `nativeInputParts` is authoritative for history rendering; `materializedInputParts` is the exact model snapshot. `deliveryMode` is `normal`, `queued`, `guidance`, or `subagentMailbox`. `sentAsGoal` marks goal submission. Trigger fields (`triggerKind` — `automation`, `goal`, `app`, `mcpApp`, `workflow`, `sideChat`, `subagentFollowupTask`, `subagentMailbox`, `subagentInput`, `terminal`, `subagent` — plus `triggerLabel`, `triggerRefId`, `triggerStatus`) mark synthesized input. Task notifications and `subagentMailbox` items are model-visible and must not render as user bubbles. SubAgent `triggerRefId` values are agent paths, not thread ids. |
-| `agentMessage` | Text streams through `item/agentMessage/delta`. `deliveryMode = "async"` marks a model-initiated message during a running Turn: delivered immediately, does not complete the Turn, excluded from final-text aggregation, not restored into model-visible history. |
+| `agentMessage` | Text streams through `item/agentMessage/delta`. Optional source-owned `phase` is commentary, partial_answer or final_answer; unknown streaming phase is absent, and terminal Item completion resolves the role once. `deliveryMode = "async"` marks a model-initiated message during a running Turn: delivered immediately, does not complete the Turn, excluded from final-text aggregation, not restored into model-visible history. Trigger kind does not imply async delivery. |
 | `reasoningContent` | Text streams through `item/reasoning/delta`. |
 | `toolCall` | Optional canonical `namespace`, local `toolName`, required `providerFlatName`, `arguments`, `callId`, plus optional definition and source provenance. Argument construction may stream through `item/toolCall/argumentsDelta`. |
 | `commandExecution` | Shell projection (`command`, `workingDirectory`, `source`, `status`, `aggregatedOutput`, `exitCode`, `durationMs`, `callId`, `sessionId`). Gated by `commandExecutionStreaming`. |
@@ -1012,6 +1022,7 @@ When the agent hits an operation that requires consent (file write, shell comman
 | `operation` | Shell: the command. File: `read`, `write`, `edit`, `list`. Channel message: `send`. |
 | `target` | Shell: working directory. File: path. Computer use: target application identity reported by the client backend. Channel message: `<channelName>:<target>`. |
 | `targetLabel` | Optional display label for `target`. |
+| `callId` | Optional actual source tool invocation id, also persisted on the approval request item. Present for approvals within tool dispatch, including its hooks and approval evaluation; absent for unlinked requests. It is not the logical `requestId` or the approval item's id. |
 | `scopeKey` | Session cache key applied when the client returns `acceptForSession`. Shell uses `"shell:" + approvalKey` (this command, shell, and directory only); channel messages use `"channelmessage:send:" + target` (later sends to the same address). |
 | `reason` | Human-readable explanation. |
 | `shell` | For shell approvals: `reasons`, `rememberedPrefixes`, `remembersExactCommand` as defined by [Shell Command Safety](../architecture/shell-command-safety.md) Section 9. |

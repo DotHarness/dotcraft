@@ -2,6 +2,7 @@ using DotCraft.Security;
 using DotCraft.Security.ShellCommands;
 using DotCraft.Tests.Security.ShellCommands;
 using DotCraft.Sessions;
+using DotCraft.Tools;
 using SessionTurn = DotCraft.Sessions.SessionTurn;
 using ApprovalRequestPayload = DotCraft.Sessions.ApprovalRequestPayload;
 using Xunit;
@@ -124,6 +125,10 @@ public sealed class SessionApprovalServiceTests : IDisposable
         Assert.False(svc.HasPendingApproval);
         Assert.False(svc.TryResolve("nonexistent_req", SessionApprovalDecision.AcceptOnce));
 
+        using var invocation = ToolInvocationScope.Enter(new ToolInvocationContext(
+            turn.ThreadId, turn.Id, "actual-file-call", ToolInvocationAudience.Model,
+            new ToolName(null, "WriteFile"), new ToolDefinitionId(ToolSourceKind.CoreNative, "test", new SourceToolId("WriteFile")),
+            new RuntimeBindingId("test"), 1, DateTimeOffset.UtcNow));
         var requestTask = svc.RequestFileApprovalAsync("write", "/path");
         var requestId = await GetApprovalRequestIdAsync(channel);
 
@@ -134,6 +139,7 @@ public sealed class SessionApprovalServiceTests : IDisposable
         Assert.Equal(requestId, request.RequestId);
         Assert.Equal("file", request.ApprovalType);
         Assert.Equal("write", request.Operation);
+        Assert.Equal("actual-file-call", request.CallId);
 
         Assert.True(svc.TryResolve(requestId!, SessionApprovalDecision.AcceptOnce));
         Assert.True(await requestTask);

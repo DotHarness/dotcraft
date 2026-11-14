@@ -371,6 +371,10 @@ public sealed record SessionWireItem
 
     public DateTimeOffset? CompletedAt { get; init; }
 
+    public string? InvocationOrigin { get; init; }
+
+    public string? InvocationSourceId { get; init; }
+
     public string? PayloadKind { get; init; }
 
     public object? Payload { get; init; }

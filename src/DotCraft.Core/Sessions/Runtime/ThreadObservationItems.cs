@@ -164,6 +164,8 @@ internal sealed class ThreadObservationItems
                 selected = selected.Where(item => item.Type != ItemType.ToolExecution);
             if (selection.ItemIds is { } ids)
                 selected = selected.Where(item => ids.Contains(item.Id));
+            if (selection.CallIds is { } calls)
+                selected = selected.Where(item => ThreadSummaryProjection.From(item).CallId is { } call && calls.Contains(call));
             if (selection.Direction == ThreadHistorySortDirection.Descending)
                 selected = selected.Reverse();
             if (selection.AfterItemId is { } after)
@@ -171,6 +173,10 @@ internal sealed class ThreadObservationItems
         }
         return selected;
     }
+
+    public IReadOnlyList<SessionItem> CaptureActive() => Items
+        .Where(item => item.Status is ItemStatus.Started or ItemStatus.Streaming)
+        .Select(CaptureItem).ToArray();
 
     public IReadOnlyDictionary<string, string> CaptureArguments(HashSet<string> selected) =>
         _arguments.Where(entry => selected.Contains(entry.Key))

@@ -14,11 +14,16 @@ internal static class ThreadHistoryCursorCodec
         string scope,
         string? turnId,
         string direction,
-        long exclusiveOrdinal) =>
-        Serialize(new CursorPayload(1, threadId, scope, turnId, direction, exclusiveOrdinal, null));
+        long exclusiveOrdinal,
+        long? snapshotOrdinal = null) =>
+        Serialize(new CursorPayload(1, threadId, scope, turnId, direction, exclusiveOrdinal, null, snapshotOrdinal));
 
-    public static string EncodeBackwards(string threadId, string scope, long inclusiveOrdinal) =>
-        Serialize(new CursorPayload(1, threadId, scope, null, null, null, inclusiveOrdinal));
+    public static string EncodeBackwards(string threadId, string scope, long inclusiveOrdinal, long? snapshotOrdinal = null) =>
+        Serialize(new CursorPayload(1, threadId, scope, null, null, null, inclusiveOrdinal, snapshotOrdinal));
+
+    public static string EncodeBootstrap(string threadId, string scope, ThreadHistoryCursor anchor) =>
+        Serialize(new CursorPayload(1, threadId, scope == "items" ? "item-bootstrap" : scope,
+            null, "descending", null, anchor.RolloutOrdinal, anchor.SnapshotOrdinal));
 
     public static ThreadHistoryCursor? Decode(
         string? cursor,
@@ -42,17 +47,27 @@ internal static class ThreadHistoryCursorCodec
             throw AppServerErrors.InvalidParams("'cursor' is invalid.");
         }
 
+        if (payload is { Version: 1, Scope: "item-bootstrap", TurnId: null, Direction: "descending",
+                InclusiveRolloutOrdinal: > 0 and long bootstrap, ExclusiveRolloutOrdinal: null,
+                SnapshotOrdinal: > 0 and long snapshot }
+            && snapshot >= bootstrap && payload.ThreadId == threadId && direction == "descending"
+            && scope is "items" or "turn-items")
+            return new ThreadHistoryCursor(bootstrap, Inclusive: true, SnapshotOrdinal: snapshot);
+
         if (payload is not null
             && payload.Version == 1
             && string.Equals(payload.ThreadId, threadId, StringComparison.Ordinal)
             && string.Equals(payload.Scope, scope, StringComparison.Ordinal)
             && string.Equals(payload.TurnId, turnId, StringComparison.Ordinal))
         {
-            if (payload is { InclusiveRolloutOrdinal: > 0 and long anchor, ExclusiveRolloutOrdinal: null, Direction: null })
-                return new ThreadHistoryCursor(anchor, Inclusive: true);
+            if (payload is { InclusiveRolloutOrdinal: > 0 and long anchor, ExclusiveRolloutOrdinal: null }
+                && (payload.Direction is null || payload.Direction == direction)
+                && (payload.SnapshotOrdinal is null || payload.SnapshotOrdinal >= anchor))
+                return new ThreadHistoryCursor(anchor, Inclusive: true, SnapshotOrdinal: payload.SnapshotOrdinal);
             if (payload is { ExclusiveRolloutOrdinal: > 0 and long next, InclusiveRolloutOrdinal: null }
-                && string.Equals(payload.Direction, direction, StringComparison.Ordinal))
-                return new ThreadHistoryCursor(next);
+                && string.Equals(payload.Direction, direction, StringComparison.Ordinal)
+                && (payload.SnapshotOrdinal is null || payload.SnapshotOrdinal >= next))
+                return new ThreadHistoryCursor(next, SnapshotOrdinal: payload.SnapshotOrdinal);
         }
         throw AppServerErrors.InvalidParams("'cursor' does not match the requested history scope.");
     }
@@ -70,5 +85,6 @@ internal static class ThreadHistoryCursorCodec
         string? TurnId,
         [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Direction,
         [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] long? ExclusiveRolloutOrdinal,
-        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] long? InclusiveRolloutOrdinal);
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] long? InclusiveRolloutOrdinal,
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] long? SnapshotOrdinal = null);
 }

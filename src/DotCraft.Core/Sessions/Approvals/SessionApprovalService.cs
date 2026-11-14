@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using DotCraft.Security;
 using DotCraft.Security.ShellCommands;
+using DotCraft.Tools;
 
 namespace DotCraft.Sessions;
 
@@ -78,6 +79,7 @@ internal sealed class SessionApprovalService : IApprovalService
             Operation = operation,
             Target = path,
             RequestId = requestId,
+            CallId = ToolInvocationScope.Current?.CallId,
             ScopeKey = scopeKey,
             Reason = $"Agent wants to perform a '{operation}' file operation on: {path}"
         };
@@ -96,6 +98,7 @@ internal sealed class SessionApprovalService : IApprovalService
             Operation = request.Command,
             Target = request.WorkingDirectory,
             RequestId = requestId,
+            CallId = ToolInvocationScope.Current?.CallId,
             ScopeKey = scopeKey,
             Reason = ShellApprovalReason(request),
             Shell = ShellApprovalDetails.From(request)
@@ -130,6 +133,7 @@ internal sealed class SessionApprovalService : IApprovalService
             Target = request.Target,
             TargetLabel = request.TargetLabel,
             RequestId = requestId,
+            CallId = ToolInvocationScope.Current?.CallId,
             ScopeKey = scopeKey,
             Reason = string.IsNullOrWhiteSpace(request.TargetLabel)
                 ? $"Agent wants to perform '{request.Operation}' on remote resource: {request.Target}"
