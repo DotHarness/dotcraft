@@ -11,6 +11,7 @@ public sealed partial class BackgroundTerminalService
         private readonly object _sync = new();
         private readonly TerminalOutputPump _output;
         private bool _completionStarted;
+        private bool _isBackground;
         private string _status = BackgroundTerminalStatus.Running;
         private int? _exitCode;
         private DateTimeOffset? _completedAt;
@@ -59,6 +60,28 @@ public sealed partial class BackgroundTerminalService
         public ShellStdinSession StdinSession { get; }
 
         public TaskCompletionSource MetadataCompleted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public SemaphoreSlim MetadataGate { get; } = new(1, 1);
+
+        public bool CompletionStarted
+        {
+            get
+            {
+                lock (_sync)
+                    return _completionStarted;
+            }
+        }
+
+        public bool TryBackground()
+        {
+            lock (_sync)
+            {
+                if (_isBackground || _completionStarted || Process.HasExited)
+                    return false;
+                _isBackground = true;
+                return true;
+            }
+        }
 
         public void BeginReading() => _output.Start();
 
@@ -187,7 +210,8 @@ public sealed partial class BackgroundTerminalService
                     ExitCode = _exitCode,
                     StartedAt = StartedAt,
                     CompletedAt = _completedAt,
-                    BackgroundReason = Request.RunInBackground ? "runInBackground" : null
+                    BackgroundReason = Request.RunInBackground ? "runInBackground" : null,
+                    IsBackground = _isBackground
                 };
             }
         }
@@ -201,11 +225,13 @@ public sealed partial class BackgroundTerminalService
             int? exitCode;
             DateTimeOffset? completedAt;
             string effectiveStatus;
+            bool isBackground;
             lock (_sync)
             {
                 exitCode = _exitCode;
                 completedAt = _completedAt;
                 effectiveStatus = status ?? _status;
+                isBackground = _isBackground;
             }
 
             var (limited, original, truncated) = includeOutput
@@ -230,6 +256,7 @@ public sealed partial class BackgroundTerminalService
                 OriginalOutputChars = original,
                 Truncated = truncated,
                 BackgroundReason = backgroundReason ?? (Request.RunInBackground ? "runInBackground" : null),
+                IsBackground = isBackground,
                 Interactive = Request.Interactive
             };
         }
@@ -266,6 +293,8 @@ public sealed partial class BackgroundTerminalService
 
         public string? BackgroundReason { get; init; }
 
+        public bool IsBackground { get; init; }
+
         public BackgroundTerminalSnapshot ToSnapshot(string output, int originalChars, bool truncated) => new()
         {
             SessionId = SessionId,
@@ -284,7 +313,8 @@ public sealed partial class BackgroundTerminalService
             WallTimeMs = (long)Math.Max(0, ((CompletedAt ?? DateTimeOffset.UtcNow) - StartedAt).TotalMilliseconds),
             OriginalOutputChars = originalChars,
             Truncated = truncated,
-            BackgroundReason = BackgroundReason
+            BackgroundReason = BackgroundReason,
+            IsBackground = IsBackground
         };
     }
 }

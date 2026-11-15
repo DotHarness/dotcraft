@@ -12,7 +12,7 @@ function deferred<T>() {
 function terminal(sessionId: string, status = 'running') {
   return {
     sessionId, status, threadId: 'thread-1', turnId: 'turn-1', callId: `call-${sessionId}`,
-    command: `run ${sessionId}`, startedAt: '2026-10-28T07:00:00Z'
+    command: `run ${sessionId}`, isBackground: true, startedAt: '2026-10-28T07:00:00Z'
   }
 }
 
@@ -84,14 +84,16 @@ describe('Summary terminal state reconciliation', () => {
     expect(h.ids()).toEqual([])
   })
 
-  it('reveals the active-turn terminal after its Exec returns running rather than treating the return as exit', () => {
+  it('reveals a background handoff without relying on an Exec tool result', () => {
     const h = host()
-    h.feed.setActiveTurn('turn-1')
-    h.notify('terminal/started', terminal('a'))
+    const foreground = { ...terminal('a'), isBackground: false }
+    h.notify('terminal/started', foreground)
+    h.feed.addItems([result('a', 'running')])
     expect(h.ids()).toEqual([])
 
-    h.feed.addItems([result('a', 'running')])
-
+    h.notify('terminal/backgrounded', terminal('a'))
+    expect(h.ids()).toEqual(['a'])
+    h.notify('terminal/started', foreground)
     expect(h.ids()).toEqual(['a'])
   })
 

@@ -158,7 +158,7 @@ describe('foreground warm navigation', () => {
         act(() => { connect('/b') })
       }
       expect(useThreadStore.getState().activeThreadId).toBeNull()
-      expect(sendConnectionRequest).not.toHaveBeenCalled()
+      expect(sendConnectionRequest.mock.calls.filter(([, method]) => method === 'thread/read' || method === 'thread/resume')).toEqual([])
       act(() => {
         if (order === 'workspace-first') connect('/b')
         else view.rerender(<View path="/b" />)
@@ -169,14 +169,14 @@ describe('foreground warm navigation', () => {
       expect(useUIStore.getState().pendingProjectThreadOpen).toBeNull()
       fireEvent.click(screen.getByRole('button', { name: 'Send' }))
       expect(submit).toHaveBeenCalledTimes(1)
-      expect(sendConnectionRequest).not.toHaveBeenCalled()
+      expect(sendConnectionRequest.mock.calls.filter(([, method]) => method === 'thread/read' || method === 'thread/resume')).toEqual([])
       act(() => { projects('/b') })
       act(() => { connect('/b') })
       expect(screen.getByRole('log')).toHaveTextContent('Answer thread-b')
-      expect(sendConnectionRequest).not.toHaveBeenCalled()
+      expect(sendConnectionRequest.mock.calls.filter(([, method]) => method === 'thread/read' || method === 'thread/resume')).toEqual([])
       await act(async () => { list.resolve({ data: [b] }); settings.resolve({}) })
       expect(screen.getByRole('log')).toHaveTextContent('Answer thread-b')
-      expect(sendConnectionRequest).not.toHaveBeenCalled()
+      expect(sendConnectionRequest.mock.calls.filter(([, method]) => method === 'thread/read' || method === 'thread/resume')).toEqual([])
     }
   )
 
@@ -211,7 +211,7 @@ describe('foreground warm navigation', () => {
     act(() => { pending(); connect('/b'); view.rerender(<View path="/b" />) })
     expect(useConversationStore.getState().pendingUserInput?.requestId).toBe('question-b')
     expect(useConversationStore.getState().turns).toBe(turns)
-    expect(sendConnectionRequest).not.toHaveBeenCalled()
+    expect(sendConnectionRequest.mock.calls.filter(([, method]) => method === 'thread/read' || method === 'thread/resume')).toEqual([])
   })
 
   it('does not turn a same-workspace archived read into project-list navigation', async () => {
@@ -267,7 +267,7 @@ describe('foreground warm navigation', () => {
     })
     expect(useThreadStore.getState().activeThreadId).toBeNull()
     expect(useUIStore.getState().pendingProjectThreadOpen?.projectKey).toBe(remoteKey)
-    expect(sendConnectionRequest).not.toHaveBeenCalled()
+    expect(sendConnectionRequest.mock.calls.filter(([, method]) => method === 'thread/read' || method === 'thread/resume')).toEqual([])
     await act(async () => { list.resolve({ data: [b] }) })
     expect(sendConnectionRequest.mock.calls.some(([key, method]) => key === remoteKey && method === 'thread/resume')).toBe(true)
   })
@@ -310,7 +310,7 @@ describe('foreground warm navigation', () => {
     sendConnectionRequest.mockClear()
     act(() => { pending('/c', c.id); connect('/c') })
     expect(useThreadStore.getState().threadListProjectKey).toBe('/a')
-    expect(sendConnectionRequest).not.toHaveBeenCalled()
+    expect(sendConnectionRequest.mock.calls.filter(([, method]) => method === 'thread/read' || method === 'thread/resume')).toEqual([])
     await act(async () => { view.rerender(<View path="/c" />) })
     expect(sendConnectionRequest.mock.calls.some(([key, method, params]) =>
       key === '/c' && method === 'thread/resume' && params.threadId === c.id)).toBe(true)

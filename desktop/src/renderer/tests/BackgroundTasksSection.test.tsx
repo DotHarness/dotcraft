@@ -14,7 +14,7 @@ function deferred<T>() {
 }
 
 function terminal(sessionId: string, status = 'running') {
-  return { sessionId, threadId: 'thread-1', turnId: 't1', callId: null, command: `run ${sessionId}`, status }
+  return { sessionId, threadId: 'thread-1', turnId: 't1', callId: null, command: `run ${sessionId}`, status, isBackground: true }
 }
 
 function createHost(ids: string[]) {

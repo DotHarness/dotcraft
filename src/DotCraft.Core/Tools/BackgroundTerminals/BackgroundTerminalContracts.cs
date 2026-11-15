@@ -95,6 +95,8 @@ public sealed record BackgroundTerminalSnapshot
 
     public string? BackgroundReason { get; init; }
 
+    public bool IsBackground { get; init; }
+
     /// <summary>Output starts after earlier unread output that is now only in the log.</summary>
     public bool Lossy { get; init; }
 
@@ -110,6 +112,8 @@ public sealed record BackgroundTerminalSnapshot
 
 public static class BackgroundTerminalEventTypes
 {
+    public const string Backgrounded = "backgrounded";
+
     public const string Completed = "completed";
 
     /// <summary>A terminal handed to the model while running has exited without the model seeing it.</summary>

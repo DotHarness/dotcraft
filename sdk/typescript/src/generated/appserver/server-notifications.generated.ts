@@ -38,6 +38,7 @@ export interface ServerNotificationMethods {
   "subagent/progress": { params: Models.SubAgentProgressNotification; result: Models.RpcEmpty };
   "system/event": { params: Models.SystemEventNotification; result: Models.RpcEmpty };
   "system/jobResult": { params: Models.SystemJobResultNotification; result: Models.RpcEmpty };
+  "terminal/backgrounded": { params: Models.TerminalLifecycleNotification; result: Models.RpcEmpty };
   "terminal/cleaned": { params: Models.TerminalLifecycleNotification; result: Models.RpcEmpty };
   "terminal/completed": { params: Models.TerminalLifecycleNotification; result: Models.RpcEmpty };
   "terminal/outputDelta": { params: Models.TerminalLifecycleNotification; result: Models.RpcEmpty };

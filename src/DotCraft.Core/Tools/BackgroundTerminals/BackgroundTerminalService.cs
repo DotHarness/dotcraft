@@ -142,7 +142,7 @@ public sealed partial class BackgroundTerminalService : IBackgroundTerminalServi
                 matched: watch?.Token ?? default,
                 stalled: stalled).ConfigureAwait(false);
             if (outcome != ProcessWaitOutcome.Exited)
-                return WithWaitResult(HandToModel(terminal, BackgroundTerminalStatus.Running, request.MaxOutputChars, "runInBackground"), outcome, watch);
+                return WithWaitResult(await HandToModelAsync(terminal, request.MaxOutputChars, "runInBackground").ConfigureAwait(false), outcome, watch);
         }
         else
         {
@@ -162,7 +162,7 @@ public sealed partial class BackgroundTerminalService : IBackgroundTerminalServi
             if (outcome is ProcessWaitOutcome.HandedOver or ProcessWaitOutcome.Matched or ProcessWaitOutcome.Stalled
                 || outcome == ProcessWaitOutcome.TimedOut && canYield)
             {
-                return WithWaitResult(HandToModel(terminal, BackgroundTerminalStatus.Running, request.MaxOutputChars, null), outcome, watch);
+                return WithWaitResult(await HandToModelAsync(terminal, request.MaxOutputChars, null).ConfigureAwait(false), outcome, watch);
             }
             if (outcome == ProcessWaitOutcome.TimedOut)
             {
@@ -177,7 +177,7 @@ public sealed partial class BackgroundTerminalService : IBackgroundTerminalServi
         }
 
         await terminal.WaitForCompletionMetadataAsync(request.RunInBackground ? CancellationToken.None : ct).ConfigureAwait(false);
-        return WithWaitResult(HandToModel(terminal, null, request.MaxOutputChars, null), ProcessWaitOutcome.Exited, watch);
+        return WithWaitResult(await HandToModelAsync(terminal, request.MaxOutputChars, null).ConfigureAwait(false), ProcessWaitOutcome.Exited, watch);
     }
 
     private static BackgroundTerminalSnapshot WithWaitResult(
@@ -190,15 +190,17 @@ public sealed partial class BackgroundTerminalService : IBackgroundTerminalServi
             WaitingForInput = outcome == ProcessWaitOutcome.Stalled
         };
 
-    private BackgroundTerminalSnapshot HandToModel(
+    private async Task<BackgroundTerminalSnapshot> HandToModelAsync(
         ActiveTerminal terminal,
-        string? status,
         int maxOutputChars,
         string? backgroundReason)
     {
+        await EnsureBackgroundedAsync(terminal).ConfigureAwait(false);
+        if (terminal.CompletionStarted || terminal.Process.HasExited)
+            await terminal.WaitForCompletionMetadataAsync(CancellationToken.None).ConfigureAwait(false);
         // Capture the end first so output racing the preview is repeated rather than skipped.
         var end = terminal.OutputCharacters;
-        var snapshot = terminal.CreateSnapshot(status, maxOutputChars, backgroundReason);
+        var snapshot = terminal.CreateSnapshot(maxOutputChars: maxOutputChars, backgroundReason: backgroundReason);
         return HandToModel(terminal, snapshot, end);
     }
 
@@ -447,17 +449,24 @@ public sealed partial class BackgroundTerminalService : IBackgroundTerminalServi
                 exitCode = null;
                 _logger?.LogWarning(ex, "Terminal output persistence failed for {SessionId}.", terminal.SessionId);
             }
-            terminal.FinishCompletion(status, exitCode);
-
-            var metadata = terminal.ToMetadata(status);
-            _metadata[terminal.SessionId] = metadata;
+            await terminal.MetadataGate.WaitAsync().ConfigureAwait(false);
             try
             {
-                await PersistMetadataAsync(metadata, CancellationToken.None).ConfigureAwait(false);
+                terminal.FinishCompletion(status, exitCode);
+                var metadata = terminal.ToMetadata(status);
+                _metadata[terminal.SessionId] = metadata;
+                try
+                {
+                    await PersistMetadataAsync(metadata, CancellationToken.None).ConfigureAwait(false);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    _logger?.LogWarning(ex, "Terminal metadata persistence failed for {SessionId}.", terminal.SessionId);
+                }
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            finally
             {
-                _logger?.LogWarning(ex, "Terminal metadata persistence failed for {SessionId}.", terminal.SessionId);
+                terminal.MetadataGate.Release();
             }
         }
         catch (Exception ex)

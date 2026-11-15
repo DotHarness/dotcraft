@@ -15,8 +15,8 @@ interface TaskBase {
 }
 
 export type BackgroundTask =
-  | (TaskBase & { kind: 'shell'; turnId: string | null; output: string | null })
-  | (TaskBase & { kind: 'agent'; agentPath: string | null; open: boolean; role: string | null; model: string | null; activeTurnId: string | null; tokens: number | null })
+  | (TaskBase & { kind: 'shell'; output: string | null })
+  | (TaskBase & { kind: 'agent'; agentPath: string | null; open: boolean; role: string | null; model: string | null; activeTurnId: string | null; tokens: number | null; reconciling?: boolean })
   | (TaskBase & { kind: 'workflow'; agents: number })
 
 export type TaskSources = Partial<Record<TaskSource, BackgroundTask[]>>
@@ -47,11 +47,6 @@ function tail(output: string | undefined): string | null {
   return text.trim() ? text : null
 }
 
-export function isBackgroundTerminal(terminal: BackgroundTerminalSnapshot, activeTurnId: string | null): boolean {
-  if (terminal.backgroundReason === 'runInBackground') return true
-  return terminal.status === 'running' && (!terminal.turnId || terminal.turnId !== activeTurnId)
-}
-
 export function terminalTask(terminal: BackgroundTerminalSnapshot): BackgroundTask | null {
   if (!terminal.sessionId || !terminal.threadId) return null
   const status = TERMINAL_STATUS[terminal.status ?? ''] ?? 'failed'
@@ -64,7 +59,6 @@ export function terminalTask(terminal: BackgroundTerminalSnapshot): BackgroundTa
     startedAt: terminal.startedAt ?? null,
     endedAt: terminal.completedAt ?? null,
     stop: status === 'running' ? terminal.sessionId : null,
-    turnId: terminal.turnId ?? null,
     output: tail(terminal.output),
   }
 }
@@ -128,15 +122,8 @@ function time(value: string | null): number {
   return Date.parse(value ?? '') || 0
 }
 
-function ofActiveTurn(task: BackgroundTask, activeTurnId: string | null): boolean {
-  return task.kind === 'shell' && task.status === 'running' && !!task.turnId && task.turnId === activeTurnId
-}
-
-export function chatTasks(
-  sources: TaskSources | undefined,
-  activeTurnId: string | null = null,
-): { running: BackgroundTask[]; completed: BackgroundTask[] } {
-  const all = [...(sources?.shell ?? []), ...(sources?.agent ?? []), ...(sources?.workflow ?? [])].filter((task) => !ofActiveTurn(task, activeTurnId))
+export function chatTasks(sources: TaskSources | undefined): { running: BackgroundTask[]; completed: BackgroundTask[] } {
+  const all = [...(sources?.shell ?? []), ...(sources?.agent ?? []), ...(sources?.workflow ?? [])]
   return {
     running: all.filter((task) => task.status === 'running').sort((left, right) => time(right.startedAt) - time(left.startedAt)),
     completed: all

@@ -54,7 +54,9 @@ public sealed partial class BackgroundTerminalService
                 if (outcome == ProcessWaitOutcome.CallerCancelled)
                     ct.ThrowIfCancellationRequested();
             }
-            if (active?.Process.HasExited == true)
+            if (active != null)
+                await EnsureBackgroundedAsync(active).ConfigureAwait(false);
+            if (active != null && (active.CompletionStarted || active.Process.HasExited))
                 await active.WaitForCompletionMetadataAsync(ct).ConfigureAwait(false);
 
             var snapshot = await ReadForModelAsync(sessionId, active, state, limit, ct).ConfigureAwait(false);

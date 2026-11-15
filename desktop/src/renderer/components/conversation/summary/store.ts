@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import { startSummaryFeed, type SummaryFeed, type SummaryState } from './feed'
 import type { SummaryServices } from './summaryServices'
 import { useSubAgentTaskTree } from '../../../hooks/useSubAgentTaskTree'
+import { retainThreadTaskFeed } from '../../../stores/threadTaskFeed'
 
 const IDLE_FEED_LIMIT = 4
 
@@ -75,7 +76,6 @@ export function useSummaryState(services: SummaryServices, threadId: string): Su
     entry.listeners.add(setState)
     if (entry.state?.ready) {
       void entry.feed?.refreshTerminals()
-      void entry.feed?.refreshWorkflows()
     }
     return () => {
       entry.listeners.delete(setState)
@@ -86,26 +86,12 @@ export function useSummaryState(services: SummaryServices, threadId: string): Su
 }
 
 export function useRunningTaskCount(services: SummaryServices, threadId: string | null): number {
-  const tree = useSubAgentTaskTree(threadId)
   const scope = useSummaryScope(services)
-  const [summary, setSummary] = useState<SummaryState | null>(() => threadId ? entryFor(services, threadId).state : null)
   useEffect(() => {
-    if (!threadId) {
-      setSummary(null)
-      return
-    }
-    const entry = entryFor(services, threadId)
-    const listener = (state: SummaryState): void => setSummary(state)
-    setSummary(entry.state)
-    entry.listeners.add(listener)
-    return () => {
-      entry.listeners.delete(listener)
-      evictIdleFeeds()
-    }
+    if (!threadId) return
+    const tasks = retainThreadTaskFeed(services.appServer, threadId)
+    void tasks.ensure()
+    return tasks.release
   }, [services, threadId, scope])
-  const known = new Set(tree.children.map(child => child.childThreadId))
-  const unresolvedAgents = summary?.subagents.filter(agent => !known.has(agent.childThreadId)
-    && (agent.state === 'working' || agent.state === 'waiting')).length ?? 0
-  return (summary?.terminals.length ?? 0) + (summary?.workflows.length ?? 0) + unresolvedAgents + tree.activeAgents
-    + tree.owners.reduce((total, owner) => total + owner.terminals.length + owner.workflows.length, 0)
+  return useSubAgentTaskTree(threadId).count
 }

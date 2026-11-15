@@ -3,6 +3,7 @@ import { useThreadStore } from './threadStore'
 import { getThreadConversation } from './conversationStore'
 import { getThreadConnection } from './threadConnectionStore'
 import { useSubAgentStore } from './subAgentStore'
+import { beginSubAgentIdleReconciliation } from './subAgentTaskActivity'
 import { useTurnBookmarkStore } from './turnBookmarkStore'
 import { addToast } from './toastStore'
 import { normalizeThreadRuntime } from '../utils/threadRuntime'
@@ -152,6 +153,7 @@ export function applyThreadLifecycleNotification(
       const threadStore = useThreadStore.getState()
       const threadSummary = threadStore.threadList.find((thread) => thread.id === threadId)
       const runtimeSnapshot = normalizeThreadRuntime(pp.runtime ?? {})
+      if (!runtimeSnapshot.running) beginSubAgentIdleReconciliation(threadId)
       threadStore.applyRuntimeSnapshot(threadId, runtimeSnapshot, {
         isDesktopOrigin:
           (threadSummary?.originChannel ?? getThreadConnection(threadId)?.originChannel)?.toLowerCase() ===

@@ -38,26 +38,34 @@ public sealed class AppServerBackgroundTerminalTests : IAsyncLifetime
         Assert.True(caps.GetProperty("backgroundTerminals").GetBoolean());
     }
 
-    [Fact]
-    public async Task TerminalList_ReturnsSessions()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task TerminalList_ReturnsBackgroundStateWithoutThreadSubscription(bool background)
     {
         using var harness = new AppServerTestHarness(backgroundTerminalService: Terminals);
         await harness.InitializeAsync();
         var started = await Terminals.StartAsync(new BackgroundTerminalStartRequest
         {
             ThreadId = "thread_wire",
-            Command = OperatingSystem.IsWindows() ? "Write-Output 'wire'" : "echo 'wire'",
+            Command = background
+                ? OperatingSystem.IsWindows() ? "Start-Sleep -Seconds 30" : "sleep 30"
+                : OperatingSystem.IsWindows() ? "Write-Output 'wire'" : "echo 'wire'",
             WorkingDirectory = _tempDir,
-            TimeoutSeconds = 5
+            RunInBackground = background,
+            YieldTimeMs = background ? 100 : 5000,
+            TimeoutSeconds = 60
         });
+        Assert.False(harness.Connection.HasSubscription("thread_wire"));
+        var request = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TerminalList,
+            new { threadId = "thread_wire" });
+        await harness.ExecuteRequestAsync(request);
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.TerminalList, new { threadId = "thread_wire" });
-        await harness.ExecuteRequestAsync(msg);
-
-        var response = await harness.Transport.ReadNextSentAsync();
+        using var response = await harness.Transport.ReadNextSentAsync();
         AppServerTestHarness.AssertIsSuccessResponse(response);
-        var terminals = response.RootElement.GetProperty("result").GetProperty("terminals");
-        Assert.Contains(terminals.EnumerateArray(), t => t.GetProperty("sessionId").GetString() == started.SessionId);
+        var terminal = Assert.Single(response.RootElement.GetProperty("result").GetProperty("terminals").EnumerateArray());
+        Assert.Equal(started.SessionId, terminal.GetProperty("sessionId").GetString());
+        Assert.Equal(background, terminal.GetProperty("isBackground").GetBoolean());
     }
 
     [Fact]

@@ -27,8 +27,8 @@ async function openTree() {
     project.threads.push({ ...thread, id, source: 'subagent', displayName: nickname, items: [], turns: [], pending: [] })
   }
   computer.background.terminals.push(
-    { sessionId: 'term_child', threadId: child, command: 'npm run dev', status: 'running', startedAt: at, output: '' },
-    { sessionId: 'term_grandchild', threadId: grandchild, command: 'npm run check', status: 'running', startedAt: at, output: '' },
+    { sessionId: 'term_child', isBackground: true, threadId: child, command: 'npm run dev', status: 'running', startedAt: at, output: '' },
+    { sessionId: 'term_grandchild', isBackground: true, threadId: grandchild, command: 'npm run check', status: 'running', startedAt: at, output: '' },
   )
   computer.background.workflows.push({ runId: 'run_grandchild', threadId: grandchild, name: 'Nested check', description: 'Check', status: 'running', createdAt: at, agentCount: 1 })
   const harness = createHarness([computer])
@@ -44,7 +44,7 @@ async function openTree() {
 }
 
 describe('background task trees', () => {
-  it('discovers unopened descendants and keeps their work under an idle Agent without counting the idle Agent', async () => {
+  it('counts active families through idle Agents without opening descendants', async () => {
     const { computer, harness, state, project, tasks, key } = await openTree()
     expect(state().details[chatKey(project.id, grandchild)]).toBeUndefined()
     expect(tasks().running).toEqual(expect.arrayContaining([
@@ -53,15 +53,16 @@ describe('background task trees', () => {
       expect.objectContaining({ id: 'term_grandchild', ownerThreadId: grandchild }),
       expect.objectContaining({ id: 'run_grandchild', ownerThreadId: grandchild }),
     ]))
-    expect(tasks().running.some((task) => task.id === child)).toBe(false)
+    expect(tasks().running.find((task) => task.id === child)).toMatchObject({ stop: null, activeTurnId: null })
+    expect(tasks().running.filter((task) => task.id === child || [child, grandchild].includes(task.ownerThreadId))).toHaveLength(5)
 
     await harness.link().stopTask(key, tasks().running.find((task) => task.id === grandchild)!)
-    await waitFor(() => !tasks().running.some((task) => task.id === grandchild))
+    await waitFor(() => tasks().running.some((task) => task.id === grandchild && task.stop === null))
     expect(tasks().running.some((task) => task.id === 'term_grandchild')).toBe(true)
 
     computer.background.finishTerminal('term_grandchild')
     computer.background.finishWorkflow('run_grandchild')
-    await waitFor(() => !tasks().running.some((task) => task.ownerThreadId === grandchild))
+    await waitFor(() => !tasks().running.some((task) => task.ownerThreadId === grandchild || task.id === grandchild))
     expect(tasks().completed.find((task) => task.id === 'term_grandchild')?.status).toBe('completed')
   })
 
@@ -70,6 +71,7 @@ describe('background task trees', () => {
     const ownerKey = chatKey(project.id, child)
     harness.link().openChat(ownerKey)
     await waitFor(() => state().details[ownerKey]?.loading === false)
+    expect(chatTaskTree(state(), ownerKey).running).toHaveLength(4)
     expect(chatTaskTree(state(), ownerKey).running.some((task) => task.id === 'run_grandchild')).toBe(true)
     harness.link().closeChat(ownerKey)
 
@@ -109,7 +111,7 @@ describe('background task trees', () => {
     const template = computer.thread(parent).thread
     project.threads.push({ ...template, id: nested, source: 'subagent', items: [], turns: [], pending: [] })
     computer.background.agents.push({ childThreadId: nested, parentThreadId: child, nickname: 'Later', role: 'worker', running: false, createdAt: at, updatedAt: at })
-    computer.background.terminals.push({ sessionId: 'term_later', threadId: nested, command: 'npm run serve', status: 'running', startedAt: at, output: '' })
+    computer.background.terminals.push({ sessionId: 'term_later', isBackground: true, threadId: nested, command: 'npm run serve', status: 'running', startedAt: at, output: '' })
     computer.background.touchAgent(nested)
     await waitFor(() => tasks().running.some((task) => task.id === 'term_later'))
     expect(state().details[chatKey(project.id, nested)]).toBeUndefined()

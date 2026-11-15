@@ -1,18 +1,24 @@
 import { useConnectionStore } from './connectionStore'
 import { useWorkspaceProjectsStore } from './workspaceProjectsStore'
 import { workflowRunsFor, type WorkflowRunClient } from './workflowRunCache'
+import { getThreadConnection } from './threadConnectionStore'
+import { createScopedWorkflowClient } from './scopedWorkflowClient'
 
 export { selectWorkflowRunEntry } from './workflowRunCache'
 
-let lastConnection: { project: string; key: string } | undefined
+let lastConnection: { project: string; key: string; id: string | null } | undefined
 
 export const desktopWorkflowRunClient: WorkflowRunClient = {
+  forThread(threadId) {
+    const source = getThreadConnection(threadId) ?? useConnectionStore.getState()
+    return createScopedWorkflowClient(source.connectionKey ?? '', source.connectionId ?? '')
+  },
   connectionKey() {
     const project = useWorkspaceProjectsStore.getState().foregroundProjectId
-    const connection = useConnectionStore.getState().connectionKey
-    if (connection) lastConnection = { project, key: connection }
-    const key = connection ?? (lastConnection?.project === project ? lastConnection.key : null)
-    return key ? `${project}\u0000${key}` : project
+    const { connectionKey, connectionId } = useConnectionStore.getState()
+    if (connectionKey) lastConnection = { project, key: connectionKey, id: connectionId }
+    const source = lastConnection?.project === project ? lastConnection : null
+    return source ? `${project}\u0000${source.key}\u0000${source.id ?? ''}` : project
   },
   onConnectionChange(listener) {
     const stopConnection = useConnectionStore.subscribe((next, previous) => {
@@ -28,7 +34,9 @@ export const desktopWorkflowRunClient: WorkflowRunClient = {
   },
   onNotification(method, listener) {
     return window.api.appServer.onNotificationRaw((notification) => {
-      if (notification.method === method) listener(notification.params as never)
+      const source = useConnectionStore.getState()
+      if (source.status === 'connected' && notification.method === method && notification.connectionKey === source.connectionKey
+        && notification.connectionId === source.connectionId) listener(notification.params as never)
     })
   }
 }

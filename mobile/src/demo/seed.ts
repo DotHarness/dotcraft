@@ -772,6 +772,7 @@ function apiChecksBackground(now: Date): FakeBackgroundSeed {
     terminals: [
       {
         sessionId: 'term_api_dev',
+        isBackground: true,
         threadId,
         command: 'npm run api:dev',
         status: 'running',
@@ -782,6 +783,7 @@ function apiChecksBackground(now: Date): FakeBackgroundSeed {
       },
       {
         sessionId: 'term_integration',
+        isBackground: true,
         threadId,
         command: 'npm run test:integration',
         status: 'completed',
@@ -814,6 +816,7 @@ function releaseBackground(now: Date): FakeBackgroundSeed {
     terminals: [
       {
         sessionId: 'term_docs_dev',
+        isBackground: true,
         threadId,
         command: 'npm run docs:dev',
         status: 'running',
@@ -822,6 +825,7 @@ function releaseBackground(now: Date): FakeBackgroundSeed {
       },
       {
         sessionId: 'term_docs_build',
+        isBackground: true,
         threadId,
         command: 'npm run docs:build',
         status: 'completed',
@@ -832,6 +836,7 @@ function releaseBackground(now: Date): FakeBackgroundSeed {
       },
       {
         sessionId: 'term_test_watch',
+        isBackground: true,
         threadId,
         command: 'npm run test -- --watch',
         status: 'killed',

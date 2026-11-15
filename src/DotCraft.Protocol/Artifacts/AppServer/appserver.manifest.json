@@ -4591,6 +4591,13 @@
           "const": null
         },
         {
+          "name": "isBackground",
+          "type": "boolean",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
           "name": "originalOutputChars",
           "type": "integer",
           "required": false,
@@ -34127,6 +34134,22 @@
       "module": "core",
       "capability": null,
       "scope": "connection",
+      "notificationOptOut": true,
+      "errors": [],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "terminal/backgrounded",
+      "descriptorMember": "TerminalBackgrounded",
+      "kind": "notification",
+      "direction": "serverToClient",
+      "paramsType": "core.TerminalLifecycleNotification",
+      "resultType": "core.RpcEmpty",
+      "module": "core",
+      "capability": "backgroundTerminals",
+      "scope": "thread",
       "notificationOptOut": true,
       "errors": [],
       "since": "1",

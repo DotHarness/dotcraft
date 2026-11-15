@@ -402,6 +402,10 @@ public sealed class AgentProfileValidateResult : ExtensibleJsonObject
 
 public sealed class BackgroundTerminalSnapshot : ExtensibleJsonObject
 {
+    [JsonPropertyName("isBackground")]
+    [JsonRequired]
+    public bool IsBackground { get; init; }
+
     [JsonPropertyName("backgroundReason")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> BackgroundReason { get; init; }

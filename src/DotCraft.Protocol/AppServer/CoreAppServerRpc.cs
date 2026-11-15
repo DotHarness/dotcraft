@@ -214,6 +214,8 @@ public static partial class AppServerRpc
 
     public static readonly RpcRequest<TerminalCleanParams, TerminalCleanResult> TerminalClean = new("terminal/clean", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "thread", capability: "backgroundTerminals", errors: CommonErrors);
 
+    public static readonly RpcNotification<TerminalLifecycleNotification> TerminalBackgrounded = new("terminal/backgrounded", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", scope: "thread", capability: "backgroundTerminals", notificationOptOut: true);
+
     public static readonly RpcNotification<TerminalLifecycleNotification> TerminalCleaned = new("terminal/cleaned", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", scope: "thread", capability: "backgroundTerminals", notificationOptOut: true);
 
     public static readonly RpcNotification<TerminalLifecycleNotification> TerminalCompleted = new("terminal/completed", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", scope: "thread", capability: "backgroundTerminals", notificationOptOut: true);

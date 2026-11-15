@@ -18,7 +18,7 @@ const source = {
   capabilities: { subAgentSessions: true }
 }
 const listeners = new Set<(payload: RawNotificationPayload) => void>()
-const terminal = { sessionId: 'term-owned', threadId: child, turnId: 'turn-1', callId: 'call-1', command: 'work', status: 'running' }
+const terminal = { sessionId: 'term-owned', threadId: child, turnId: 'turn-1', callId: 'call-1', command: 'work', isBackground: true, status: 'running' }
 let terminals: typeof terminal[]
 const request = vi.fn()
 const children = () => useSubAgentStore.getState().childrenByParent.get(parent) ?? []
@@ -30,7 +30,7 @@ function notify(method: string, params: unknown): void {
 const services = {
   subagents: { list: listDesktopPluginSubAgents, onChange: onDesktopPluginSubAgentsChange },
   appServer: {
-    connectionKey: () => 'workspace',
+    connectionKey: () => 'workspace\u0000connection',
     onConnectionChange: () => () => {},
     request: (method: string, params: unknown) => request(source.connectionKey, method, params),
     onNotification(method: string, callback: (params: unknown) => void) {
@@ -88,7 +88,7 @@ describe('subagent activity in the running task count', () => {
   it('settles live completions and reconciles missed completions on idle without leaving the conversation', async () => {
     const count = renderHook(() => useRunningTaskCount(services, parent))
     await act(discover)
-    expect(count.result.current).toBe(1)
+    expect(count.result.current).toBe(2)
     expect(listDesktopPluginSubAgents(parent)[0].state).toBe('working')
 
     act(() => { notify('terminal/completed', { terminal: { ...terminal, status: 'completed' } }) })
@@ -98,7 +98,7 @@ describe('subagent activity in the running task count', () => {
     const next = { ...terminal, sessionId: 'term-next', callId: 'call-2' }
     terminals = [next]
     act(() => { notify('terminal/started', { terminal: next }) })
-    expect(count.result.current).toBe(1)
+    expect(count.result.current).toBe(2)
 
     const refreshed = deferred<void>()
     terminals = []
@@ -120,7 +120,7 @@ describe('subagent activity in the running task count', () => {
   it('reconciles tasks on reopening a cached parent without reloading child identities', async () => {
     const first = renderHook(() => useRunningTaskCount(services, parent))
     await act(discover)
-    expect(first.result.current).toBe(1)
+    expect(first.result.current).toBe(2)
     first.unmount()
     const childReads = request.mock.calls.filter(([, method]) => method === 'subagent/children/list').length
     terminals = []
