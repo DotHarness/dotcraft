@@ -103,7 +103,8 @@ public sealed class DotCraftThread
             ProviderId = value.ProviderId,
             Model = value.Model,
             Reasoning = value.Reasoning,
-            Speed = value.Speed
+            Speed = value.Speed,
+            ApprovalPolicy = value.ApprovalPolicy
         };
         var channel = Channel.CreateUnbounded<DotCraftRunEvent>(new UnboundedChannelOptions { SingleReader = true });
         string? turnId = null;

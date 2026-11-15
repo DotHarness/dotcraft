@@ -184,11 +184,12 @@ await foreach (var runEvent in thread.RunStreamedAsync("Now fix them."))
 | Sender context | `sender` | `RunOptions.Sender` |
 | Provider 和模型 | `providerId`、`model` | `RunOptions.ProviderId`、`RunOptions.Model` |
 | Reasoning 和速度 | `reasoning`、`speed` | `RunOptions.Reasoning`、`RunOptions.Speed` |
+| 审批策略 | `approvalPolicy` | `RunOptions.ApprovalPolicy` |
 | 收集 raw event | `collectRawEvents` | `RunOptions.CollectRawEvents` |
 | 返回失败终态 | 不支持 | `RunOptions.ThrowOnFailure = false` |
 | 通过取消中断 | `AbortSignal` | `CancellationToken` |
 
-Run 在空闲时启动 turn，或向活动的普通 turn 添加指导。模型设置随输入一起提交，并成为后续 turn 的默认值。新 turn 立即使用这些设置，指导输入不改变活动 turn 的模型。维护或不能接收指导的执行会被拒绝。需要独立的未来 turn 时，显式调用 `enqueue()` / `EnqueueAsync()`。
+Run 在空闲时启动 turn，或向活动的普通 turn 添加指导。模型设置和审批策略随输入一起提交，并成为 thread 默认设置。省略或 null 选项保留当前选择。新 turn 立即使用这些设置。指导输入保留活动 turn 的模型，但显式修改审批策略会应用于待处理审批和后续审批请求。策略接受 `default`、`prompt`、`autoApprove` 或 `deny`。维护或不能接收指导的执行会被拒绝。需要独立的未来 turn 时，显式调用 `enqueue()` / `EnqueueAsync()`。
 
 Run 加入活动 turn 后，返回该共享 turn 的完整最终回复，而不是仅本次输入之后生成的文本。因此，多次调用可能返回相同 turn ID 和结果。取消这样的 run 会中断共享 turn，而不只是撤销其指导消息。
 

@@ -5373,6 +5373,7 @@ export interface TurnQueueUpdateResult {
 }
 
 export interface TurnStartParams {
+  approvalPolicy?: string | null;
   clientUserMessageId?: string | null;
   cwd?: string | null;
   input: InputPart[];

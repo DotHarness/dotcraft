@@ -127,7 +127,8 @@ public sealed class RunProfileTests
             ProviderId = "provider-b",
             Model = "model-b",
             Reasoning = new ReasoningConfig { Enabled = true, Effort = "high" },
-            Speed = "fast"
+            Speed = "fast",
+            ApprovalPolicy = "autoApprove"
         });
         using var request = await transport.ReadOutboundAsync();
         Assert.Equal("turn/start", request.RootElement.GetProperty("method").GetString());
@@ -136,6 +137,7 @@ public sealed class RunProfileTests
         Assert.Equal("model-b", parameters.GetProperty("model").GetString());
         Assert.Equal("high", parameters.GetProperty("reasoning").GetProperty("effort").GetString());
         Assert.Equal("fast", parameters.GetProperty("speed").GetString());
+        Assert.Equal("autoApprove", parameters.GetProperty("approvalPolicy").GetString());
         await PushNotificationAsync(transport, "item/agentMessage/delta", new ItemDeltaNotification
         {
             ThreadId = "thread_1", TurnId = "turn_1", ItemId = "item_1", DeltaKind = "agentMessage", Delta = "after"

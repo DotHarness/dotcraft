@@ -31,10 +31,11 @@ public sealed partial class SessionServiceTurnAdmissionTests
         public ThreadStore Store { get; }
         public SessionService Service { get; }
 
-        public AdmissionHarness(bool blockRequests = false, AdmissionRefresher? refresher = null, IRolloutWriter? writer = null)
+        public AdmissionHarness(bool blockRequests = false, AdmissionRefresher? refresher = null, IRolloutWriter? writer = null,
+            bool requestApprovals = false)
         {
             Directory.CreateDirectory(Root);
-            Provider = new(blockRequests);
+            Provider = new(blockRequests, requestApprovals);
             Config = AppConfigTestFactory.CreateOpenAI(model: "initial-model", providerId: "source");
             Config.InstantInterruptEnabled = false;
             Config.Providers["target"] = new AppConfig.ModelProviderConfig
@@ -75,15 +76,15 @@ public sealed partial class SessionServiceTurnAdmissionTests
         }
     }
 
-    private sealed class RecordingProvider(bool blockRequests) : IModelProvider
+    private sealed class RecordingProvider(bool blockRequests, bool requestApprovals) : IModelProvider
     {
         public ConcurrentQueue<EffectiveModelRuntime> Requests { get; } = new();
         public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public IReadOnlyCollection<string> Protocols => [ModelProviderProtocols.OpenAIChatCompletions];
-        public IChatClient CreateChatClient(EffectiveModelRuntime runtime) => new Client(this, runtime, blockRequests);
+        public IChatClient CreateChatClient(EffectiveModelRuntime runtime) => new Client(this, runtime, blockRequests, requestApprovals);
 
-        private sealed class Client(RecordingProvider owner, EffectiveModelRuntime runtime, bool block) : IChatClient
+        private sealed class Client(RecordingProvider owner, EffectiveModelRuntime runtime, bool block, bool requestApprovals) : IChatClient
         {
             public Task<ChatResponse> GetResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null,
                 CancellationToken cancellationToken = default) =>
@@ -97,7 +98,16 @@ public sealed partial class SessionServiceTurnAdmissionTests
                 owner.Entered.TrySetResult();
                 if (block)
                     await owner.Release.Task.WaitAsync(cancellationToken);
-                yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("ok")]);
+                if (requestApprovals)
+                {
+                    var approvals = new SessionScopedApprovalService(new AutoApproveApprovalService());
+                    var approved = await approvals.RequestResourceApprovalAsync("test", "write", "first");
+                    var nextApproved = await approvals.RequestResourceApprovalAsync("test", "write", "second");
+                    yield return new ChatResponseUpdate(ChatRole.Assistant,
+                        [new TextContent($"approvals={approved},{nextApproved}")]);
+                }
+                else
+                    yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("ok")]);
             }
 
             public object? GetService(Type type, object? serviceKey = null) => null;

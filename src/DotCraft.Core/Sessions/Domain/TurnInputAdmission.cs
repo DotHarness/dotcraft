@@ -16,6 +16,7 @@ public sealed record TurnSettingsOverrides
     public TurnReasoningOverrides? Reasoning { get; init; }
     public InferenceSpeed? Speed { get; init; }
     public string? Mode { get; init; }
+    public ApprovalPolicy? ApprovalPolicy { get; init; }
     public string? Cwd { get; init; }
     public IReadOnlyList<string>? RuntimeWorkspaceRoots { get; init; }
 }

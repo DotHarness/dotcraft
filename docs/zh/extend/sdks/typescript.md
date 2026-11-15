@@ -87,7 +87,7 @@ Start 选项包含 identity 字段、显示名称、history mode、配置、运�
 
 `read()` 和 Thread handle 的 `refresh()` 返回当前 Thread 头部，不包含持久化的 Turn 或 Item。`listTurns()` 按 `itemsView` 读取 Turn 元数据或摘要，`listItems()` 跨 Thread 或按可选 `turnId` 读取 Item。两者都接受 `cursor`、`limit` 和 `sortDirection`，并返回 `data` 与 opaque `nextCursor`；`listTurns()` 还会返回 `backwardsCursor`，可从本页第一个 Turn 起向任一方向继续读取。Thread handle 也提供相同的两个分页方法，但不需要 `threadId` 参数。
 
-`run()` 和 `runStreamed()` 接受文本、`InputPart[]` 或 `{ input, sender }`。Run 选项包括 `providerId`、`model`、`reasoning`、`speed`、`sender`、`collectRawEvents` 和 `abortSignal`。Buffered 结果包含 `thread`、可选终止 `turn`、合并后的 `text`、`items`、可选 `usage` 和可选 raw event。Run 会启动 turn，或向活动的普通 turn 添加指导。模型继承、共享结果和显式排队见 [Run](./runs#run-选项)。
+`run()` 和 `runStreamed()` 接受文本、`InputPart[]` 或 `{ input, sender }`。Run 选项包括 `providerId`、`model`、`reasoning`、`speed`、`approvalPolicy`、`sender`、`collectRawEvents` 和 `abortSignal`。Buffered 结果包含 `thread`、可选终止 `turn`、合并后的 `text`、`items`、可选 `usage` 和可选 raw event。Run 会启动 turn，或向活动的普通 turn 添加指导。模型继承、共享结果和显式排队见 [Run](./runs#run-选项)。
 
 ## 模型、MCP 与 App Binding
 

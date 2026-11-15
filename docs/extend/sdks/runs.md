@@ -184,11 +184,12 @@ Raw events are collected only when the language-specific `collectRawEvents` / `C
 | Sender context | `sender` | `RunOptions.Sender` |
 | Provider and model | `providerId`, `model` | `RunOptions.ProviderId`, `RunOptions.Model` |
 | Reasoning and speed | `reasoning`, `speed` | `RunOptions.Reasoning`, `RunOptions.Speed` |
+| Approval policy | `approvalPolicy` | `RunOptions.ApprovalPolicy` |
 | Collect raw events | `collectRawEvents` | `RunOptions.CollectRawEvents` |
 | Return failed terminal turns | Not available | `RunOptions.ThrowOnFailure = false` |
 | Interrupt through cancellation | `AbortSignal` | `CancellationToken` |
 
-A run starts a turn when idle or adds guidance to an active regular turn. Model settings travel with the input and become defaults for later turns. A new turn uses them immediately; adding guidance does not change the active turn's model. Maintenance or an execution that cannot accept guidance is rejected. Use `enqueue()` / `EnqueueAsync()` explicitly to request a separate future turn.
+A run starts a turn when idle or adds guidance to an active regular turn. Model settings and approval policy travel with the input and become thread defaults. Omitted or null options retain the current selection. A new turn uses these settings immediately. Adding guidance preserves the active turn's model, while an explicit approval-policy change applies to pending approvals and later approval requests. The policy accepts `default`, `prompt`, `autoApprove`, or `deny`. Maintenance or an execution that cannot accept guidance is rejected. Use `enqueue()` / `EnqueueAsync()` explicitly to request a separate future turn.
 
 When a run joins an active turn, it returns that shared turn's full final reply, not just text generated after this input. Multiple calls can therefore return the same turn ID and result. Cancelling such a run interrupts the shared turn, not only its guidance message.
 

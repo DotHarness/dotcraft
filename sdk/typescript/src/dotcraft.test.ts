@@ -345,7 +345,7 @@ test("DotCraftThread joins a turn with model settings without waiting for anothe
   ];
   const sdk = createSdk(wire);
   const thread = await sdk.threads.start({ userId: "u" });
-  const settings = { providerId: "provider-b", model: "model-b", reasoning: { enabled: true, effort: "high" }, speed: "fast" };
+  const settings = { providerId: "provider-b", model: "model-b", reasoning: { enabled: true, effort: "high" }, speed: "fast", approvalPolicy: "autoApprove" };
 
   const result = await thread.run("continue", settings);
 

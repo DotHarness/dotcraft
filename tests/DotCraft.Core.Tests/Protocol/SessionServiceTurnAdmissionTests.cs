@@ -107,10 +107,14 @@ public sealed partial class SessionServiceTurnAdmissionTests
         try
         {
             await Assert.ThrowsAsync<ArgumentException>(() => h.Service.StartOrSteerTurnAsync(
-                thread.Id, [], settings: new() { Model = "must-not-apply", Mode = "plan" }));
+                thread.Id, [], settings: new()
+                {
+                    Model = "must-not-apply", Mode = "plan", ApprovalPolicy = ApprovalPolicy.AutoApprove
+                }));
             Assert.Empty(thread.QueuedInputs);
             Assert.Equal("initial-model", thread.Configuration!.Model);
             Assert.Equal("agent", thread.Configuration.Mode);
+            Assert.Equal(ApprovalPolicy.Default, thread.Configuration.ApprovalPolicy);
         }
         finally { h.Provider.Release.TrySetResult(); }
         await drain.WaitAsync(TimeSpan.FromSeconds(10));
@@ -154,7 +158,10 @@ public sealed partial class SessionServiceTurnAdmissionTests
         writer.RejectModel = "rejected-model";
         await Assert.ThrowsAsync<RolloutPersistenceException>(() => h.Service.StartOrSteerTurnAsync(
             thread.Id, [new TextContent("must not run")],
-            settings: new() { Model = "rejected-model", Mode = "plan" }));
+            settings: new()
+            {
+                Model = "rejected-model", Mode = "plan", ApprovalPolicy = ApprovalPolicy.AutoApprove
+            }));
         Assert.Empty(thread.Turns);
         Assert.Empty(h.Provider.Requests);
         Assert.Equal("initial-model", thread.Configuration!.Model);
@@ -162,6 +169,75 @@ public sealed partial class SessionServiceTurnAdmissionTests
         var saved = await h.Store.LoadThreadAsync(thread.Id);
         Assert.Equal("initial-model", saved!.Configuration!.Model);
         Assert.Equal("agent", saved.Configuration.Mode);
+        Assert.Equal(ApprovalPolicy.Default, saved.Configuration.ApprovalPolicy);
+        Assert.Equal(ApprovalPolicy.Default, thread.Configuration.ApprovalPolicy);
+    }
+
+    [Fact]
+    public async Task IdleApprovalOverride_PersistsBeforeExecutionAndInheritsOnTheNextTurn()
+    {
+        await using var h = new AdmissionHarness(requestApprovals: true);
+        var thread = await h.CreateThreadAsync(new ThreadConfiguration { ApprovalPolicy = ApprovalPolicy.Prompt });
+        var admitted = await h.Service.StartOrSteerTurnAsync(thread.Id, [new TextContent("first")],
+            settings: new() { ApprovalPolicy = ApprovalPolicy.AutoApprove });
+        var events = await DrainAsync(admitted.Events!).WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.DoesNotContain(events, item => item.EventType == SessionEventType.ApprovalRequested);
+        Assert.Equal(ApprovalPolicy.AutoApprove, (await h.Store.LoadThreadAsync(thread.Id))!.Configuration!.ApprovalPolicy);
+
+        var inherited = await h.Service.StartOrSteerTurnAsync(thread.Id, [new TextContent("next")]);
+        var nextEvents = await DrainAsync(inherited.Events!).WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.DoesNotContain(nextEvents, item => item.EventType == SessionEventType.ApprovalRequested);
+    }
+
+    [Theory]
+    [InlineData(ApprovalPolicy.AutoApprove, true)]
+    [InlineData(ApprovalPolicy.Deny, false)]
+    public async Task ActiveApprovalOverride_SettlesPendingAndLaterRequests(ApprovalPolicy policy, bool approved)
+    {
+        await using var h = new AdmissionHarness(requestApprovals: true);
+        var thread = await h.CreateThreadAsync(new ThreadConfiguration { ApprovalPolicy = ApprovalPolicy.Prompt });
+        var admitted = await h.Service.StartOrSteerTurnAsync(thread.Id, [new TextContent("first")]);
+        var pending = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var drain = ObserveAsync();
+        await pending.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        var steered = await h.Service.StartOrSteerTurnAsync(thread.Id, [new TextContent("continue")],
+            settings: new() { ApprovalPolicy = policy });
+        Assert.False(steered.Started);
+        Assert.Equal(admitted.Turn.Id, steered.Turn.Id);
+        var events = await drain.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Single(events.Where(item => item.EventType == SessionEventType.ApprovalRequested));
+        var response = Assert.Single(events, item => item.EventType == SessionEventType.ItemCompleted
+            && item.ItemPayload?.Type == ItemType.ApprovalResponse);
+        Assert.Equal(approved, response.ItemPayload!.AsApprovalResponse!.Decision.IsApproved());
+        Assert.Equal(policy, (await h.Store.LoadThreadAsync(thread.Id))!.Configuration!.ApprovalPolicy);
+
+        async Task<List<SessionEvent>> ObserveAsync()
+        {
+            var events = new List<SessionEvent>();
+            await foreach (var item in admitted.Events!)
+            {
+                events.Add(item);
+                if (item.EventType == SessionEventType.ApprovalRequested)
+                    pending.TrySetResult();
+            }
+            Assert.DoesNotContain(events, item => item.EventType == SessionEventType.TurnFailed);
+            return events;
+        }
+    }
+
+    [Fact]
+    public async Task InvalidApprovalOverride_DoesNotAcceptInputOrChangeConfiguration()
+    {
+        await using var h = new AdmissionHarness();
+        var thread = await h.CreateThreadAsync(new ThreadConfiguration { ApprovalPolicy = ApprovalPolicy.Prompt });
+        await Assert.ThrowsAsync<ArgumentException>(() => h.Service.StartOrSteerTurnAsync(
+            thread.Id, [new TextContent("must not run")],
+            settings: new() { Model = "must-not-apply", ApprovalPolicy = (ApprovalPolicy)999 }));
+        Assert.Empty(thread.Turns);
+        Assert.Empty(h.Provider.Requests);
+        var saved = (await h.Store.LoadThreadAsync(thread.Id))!.Configuration!;
+        Assert.Equal("initial-model", saved.Model);
+        Assert.Equal(ApprovalPolicy.Prompt, saved.ApprovalPolicy);
     }
 
     [Theory]

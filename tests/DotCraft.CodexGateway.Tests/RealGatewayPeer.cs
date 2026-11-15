@@ -46,6 +46,7 @@ internal sealed class RealGatewayPeer : IAsyncDisposable
     public List<CodexWorkspaceRegistration> Registrations { get; }
     public int SourceConnections { get; private set; }
     public ConcurrentQueue<(string Method, string ItemId, string? Phase, string? Delivery)> AssistantEvents { get; } = new();
+    public ConcurrentQueue<JsonElement> ServerRequests { get; } = new();
 
     private Task SendAsync(JsonElement message, CancellationToken ct)
     {
@@ -58,7 +59,11 @@ internal sealed class RealGatewayPeer : IAsyncDisposable
                     AssistantEvents.Enqueue((method.GetString()!, item.GetProperty("id").GetString()!,
                         item.GetProperty("phase").GetString(), item.GetProperty("delivery").GetString()));
             }
-            if (message.TryGetProperty("id", out _)) _requests.Writer.TryWrite(message.Clone());
+            if (message.TryGetProperty("id", out _))
+            {
+                ServerRequests.Enqueue(message.Clone());
+                _requests.Writer.TryWrite(message.Clone());
+            }
             else _notifications.Writer.TryWrite(message.Clone());
         }
         else if (message.TryGetProperty("id", out var id) && _responses.TryRemove(id.GetInt32(), out var response))

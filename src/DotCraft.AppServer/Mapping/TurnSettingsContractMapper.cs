@@ -15,6 +15,7 @@ internal static class TurnSettingsContractMapper
             ProviderId = value.ProviderId,
             Model = value.Model,
             Mode = value.Mode,
+            ApprovalPolicy = Parse<ApprovalPolicy>(value.ApprovalPolicy, "approvalPolicy"),
             Cwd = value.Cwd,
             RuntimeWorkspaceRoots = value.RuntimeWorkspaceRoots,
             Speed = Parse<InferenceSpeed>(value.Speed, "speed"),

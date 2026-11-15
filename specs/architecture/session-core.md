@@ -4,7 +4,7 @@
 |-------|-------|
 | **Version** | 0.12.0 |
 | **Status** | Living |
-| **Date** | 2026-11-14 |
+| **Date** | 2026-11-16 |
 
 Purpose: Define the **server-managed** session model (Thread / Turn / Item), including lifecycle, persistence, event semantics, approval semantics, and adapter boundaries.
 
@@ -58,7 +58,7 @@ Each runtime activation has a generation identity. Delayed completion from an ea
 
 ### 3.4 Turn Execution Ownership
 
-Start-or-steer admission accepts input and sparse execution settings in one runtime command. Candidate settings are resolved and validated against the latest configuration before accepting input. Idle admission commits defaults and captures the same commit's execution context. Active regular-Turn admission reuses guidance acceptance and then commits subsequent-Turn defaults without replacing the active execution or its owner. Empty guidance, maintenance, and non-steerable execution reject settings and input. Explicit queue admission remains separate; strict-start execution streams used by internal callers do not silently become guidance.
+Start-or-steer admission accepts input and sparse execution settings in one runtime command. Candidate settings are resolved and validated against the latest configuration before accepting input. Idle admission commits defaults and captures the same commit's execution context. Active regular-Turn admission reuses guidance acceptance and then commits subsequent-Turn defaults without replacing the active execution or its owner. An admitted approval-policy override follows the live policy rules in §12.2, including settling pending approvals, without replacing the active agent or tools. Empty guidance, maintenance, and non-steerable execution reject settings and input. Explicit queue admission remains separate. Strict-start execution streams used by internal callers do not silently become guidance.
 
 Turn admission captures an immutable execution context: effective configuration, agent, workspace and runtime roots, client capabilities, and request origin. The effective tool snapshot is frozen with the Turn; provider-history identity is derived from the admitted Thread and Turn before the first provider request. Caller-owned input, input snapshots, and client-managed history are copied at admission.
 
@@ -1123,7 +1123,7 @@ Approval fields:
 - A change to the effective approval policy, whether to the thread's own policy or to the workspace default a `default` thread falls back to, applies inside a running Turn. Later approval requests follow the new policy, and pending ones are settled again: accepted once under `autoApprove`, rejected under `deny`, and left waiting otherwise. The policy is not model-visible, so the change keeps the cached prompt.
 - `RequireApprovalOutsideWorkspace`: `true` sends outside-workspace file and shell operations through approval; `false` rejects them without prompting; null uses the workspace file-tool default, which governs both file and shell operations.
 
-When a thread is created or its configuration changes, Session Core rebuilds the effective agent and tool set; a Turn already running is never switched mid-flight, except for its approval policy (above) and the tool location a worktree tool moves (§4.1.1.2). Configuration changes never create Turns, and channels may expose only the subset their UX supports.
+Thread creation and configuration changes that affect execution resources rebuild the effective agent and tool set. An approval-policy-only admission keeps those resources. A Turn already running is never switched mid-flight, except for its approval policy (above) and the tool location a worktree tool moves (§4.1.1.2). Configuration changes never create Turns, and channels may expose only the subset their UX supports.
 
 Model preference:
 

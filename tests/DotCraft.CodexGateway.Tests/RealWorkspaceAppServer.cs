@@ -7,6 +7,7 @@ using DotCraft.Modules;
 using DotCraft.Security;
 using DotCraft.Sessions;
 using DotCraft.Skills;
+using DotCraft.Tools;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
@@ -65,12 +66,16 @@ internal sealed class RealWorkspaceAppServer : IAsyncDisposable
         File.WriteAllText(_config.WorkspaceConfigPath, JsonSerializer.Serialize(_config));
         var memory = new MemoryStore(CraftPath);
         var skills = new SkillsLoader(CraftPath);
+        var approvals = new SessionScopedApprovalService(new AutoApproveApprovalService());
+        var approvalEvaluator = new CommonToolApprovalEvaluator();
+        approvalEvaluator.Bind(approvals);
         _factory = new AgentFactory(CraftPath, Root, _config, memory, skills,
-            new AutoApproveApprovalService(), blacklist: null, chatClientRegistry: _clients, toolSources: []);
+            approvals, blacklist: null, chatClientRegistry: _clients, toolSources: [Model.ApprovalTool],
+            toolDispatcher: new ToolDispatcher(approvalEvaluator: approvalEvaluator));
         _store = new ThreadStore(CraftPath);
-        _sessions = new SessionService(_factory, _factory.CreateDefaultAgent(),
-            new SessionPersistenceService(_store), new SessionGate());
         _monitor = new AppConfigMonitor(_config);
+        _sessions = new SessionService(_factory, _factory.CreateDefaultAgent(),
+            new SessionPersistenceService(_store), new SessionGate(), appConfigMonitor: _monitor);
         _configuration = new ConfigurationService(ConfigSchemaRegistrations.CreateDescriptorRegistry(),
             _monitor, _config.GlobalConfigPath, _config.WorkspaceConfigPath);
         ConfigurationSubsystems.Register(_configuration, _monitor, _sessions, skills, null, null, null);

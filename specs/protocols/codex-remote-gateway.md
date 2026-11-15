@@ -4,7 +4,7 @@
 |---|---|
 | Version | 0.12.0 |
 | Status | Living |
-| Date | 2026-11-15 |
+| Date | 2026-11-16 |
 | Parent specs | [AppServer protocol](appserver-protocol.md), [Runtime boundaries](../architecture/runtime-module-boundaries.md) |
 
 ## 1. Purpose and scope
@@ -81,13 +81,15 @@ Explicit selections are validated against the target workspace. A model binding 
 
 Thread creation, turn admission, supported config writes and collaborationMode share one resolver. Collaboration settings take precedence over top-level model/effort. Agent/Plan modes use existing DotCraft modes and instructions; omission, null and explicit settings follow the pinned reference where equivalent.
 
-The existing atomic turn/start carries providerId/model/reasoning/speed, mode and workspace settings with input. Idle admission captures that configuration; active admission steers the existing turn and changes only future defaults. The gateway never approximates this with config/update followed by input.
+The atomic turn/start carries providerId/model/reasoning/speed, approvalPolicy, mode and workspace settings with input. Idle admission captures that configuration. Active admission steers the existing turn and retains subsequent-Turn defaults, with approval-policy changes following the source's live approval rules. The gateway never approximates this with config/update followed by input.
 
-The named permission profile dotcraft selects the existing DotCraft execution and approval chain without changing collaboration mode. permissionProfile/list exposes it as allowed; requirements select it through allowedPermissionProfiles and defaultPermissions, with danger-full-access as the available sandbox mode and user as the reviewer. Config reports default_permissions=dotcraft, sandbox_mode=danger-full-access and the effective approval policy. Thread start/resume return sandbox.type=dangerFullAccess and activePermissionProfile.id=dotcraft. No Codex outer sandbox is claimed. Selecting this profile does not auto-approve tools.
+Codex approvalPolicy=on-request selects DotCraft prompt, and never selects autoApprove. Explicit selections apply to thread creation, resume, turn admission and configuration writes. Omitted or null selections retain the source policy. Configuration writes persist prompt as the workspace's default policy value and autoApprove as its automatic approval value. Tool restrictions remain enforced independently of approval mode, and manual approvals use the phone's native approval interaction.
 
-Agent/Plan map to DotCraft agent/plan independently of the profile. Prompt maps to on-request. AutoApprove and Deny both omit prompting but retain their opposite source behavior: an equivalent never roundtrip preserves the actual policy and never promotes Deny to AutoApprove. Effective defaults are resolved before returning thread settings. Named-profile and equivalent no-sandbox submissions are accepted. Unsupported isolation selections are not mapped to unrelated working modes. Normal summary=none is accepted as no summary override, and null service tier has the defined standard-tier semantics. Model/effort conversion is identical in catalog, thread and nested collaboration settings; ordinary max does not enable a separate multi-agent mode.
+The named permission profile dotcraft and the built-in profiles :read-only, :workspace and :danger-full-access select DotCraft's existing tool chain. The built-in full-access profile supplies never when no approval policy is selected. Other profile and sandbox selections do not change the approval policy. Requirements and permissionProfile/list expose the supported profiles, with danger-full-access as the available sandbox mode and user as the reviewer. Codex sandbox and sandboxPolicy preferences, including read-only and workspace-write, do not impose isolation or prevent admission because execution uses DotCraft's own tool restrictions. Config and thread responses report the actual danger-full-access sandbox. Automatic approval reports the built-in :danger-full-access profile, while other policies report dotcraft, so Full Access and Custom match the effective approval mode.
 
-Non-null top-level sandbox, sandboxPolicy or permissions selections override the config-layer sandbox_mode and default_permissions defaults before validation. Top-level sandbox and permissions are mutually exclusive, as are turn-level sandboxPolicy and permissions. Only the effective selection is validated.
+Agent/Plan map to DotCraft agent/plan independently of permissions. Normal summary=none is accepted as no summary override, and null service tier has the defined standard-tier semantics. Model/effort conversion is identical in catalog, thread and nested collaboration settings. Ordinary max does not enable a separate multi-agent mode.
+
+Non-null top-level sandbox, sandboxPolicy or permissions selections override the config-layer sandbox_mode and default_permissions defaults. Top-level sandbox and permissions are mutually exclusive, as are turn-level sandboxPolicy and permissions. An explicit approval policy takes precedence over a profile's default.
 
 Normal core client parameters receive explicit mappings. Unsupported tier, non-none summary, schema or other extensions are reported honestly rather than ignored. Compatible configuration writes change only defined settings; Codex config objects are not copied into DotCraft configuration files. Config/read publishes a virtual project layer under <codexHome>/projects/<projectId>/config.toml with the actual source workspace-layer version. A write's filePath routes back to that authorized workspace, then maps to its source workspace layer; the host-default virtual config path selects the first workspace.
 
@@ -129,7 +131,7 @@ Conversation content traverses the upstream relay, even with non-OpenAI inferenc
 - Input, truthful model selection, streaming tools, terminal state and explicit cancellation form one shared task lifecycle.
 - Supported coding approvals and questions complete through Codex wire, including rejection, another client answering first and restoration of an outstanding request.
 - Metadata aggregation, history pagination, source recovery and reconnect preserve identity without transcript duplication or repeated submissions.
-- Client-shaped creation and repeated submission include the named profile, summary none, collaboration settings and null service tier; returned effective settings can be resubmitted without changing source authority.
+- Client-shaped creation and repeated submission include built-in and named profiles, read-only initialization, summary none, collaboration settings and null service tier. Manual and automatic approvals switch through configuration, resume and atomic turn admission, with matching returned settings.
 - A multi-tool Turn preserves invocation position, one operation identity, final-answer phase and exact Codex summary across history, live and recovery views, including tool completion after the final response.
 - History exceeding 4 MiB opens through lightweight restoration and real detail paging without repeated input or duplicated deltas; SDK reception satisfies the source message-size contract.
 - A failed RPC or virtual stream does not stop a second stream, interrupt source work or turn a source failure into an authentication failure.

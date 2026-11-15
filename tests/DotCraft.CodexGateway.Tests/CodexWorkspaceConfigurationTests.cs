@@ -14,7 +14,7 @@ public sealed class CodexWorkspaceConfigurationTests
     [InlineData("deny", "default", "max", "max", "plan")]
     [InlineData("autoApprove", "default", "xhigh", "extraHigh", "default")]
     [InlineData("default", "autoApprove", "ultra", "ultra", "default")]
-    public async Task ClientCreateAndRepeatedTurnsPreserveSourceAuthority(
+    public async Task OmittedOrNullApprovalSelectionPreservesSourcePolicyAndModelSettings(
         string threadPolicy, string workspacePolicy, string effort, string sourceEffort, string mode)
     {
         using var fixture = new ConfigurationFixture(threadPolicy, workspacePolicy);
@@ -23,7 +23,8 @@ public sealed class CodexWorkspaceConfigurationTests
         Assert.Contains(catalog.GetProperty("data")[0].GetProperty("supportedReasoningEfforts").EnumerateArray(),
             entry => entry.GetProperty("reasoningEffort").GetString() == effort);
         var configuration = Json(await session.HandleAsync("config/read", Json(new { }), default)).GetProperty("config");
-        Assert.Equal("dotcraft", configuration.GetProperty("default_permissions").GetString());
+        Assert.Equal(workspacePolicy == "autoApprove" ? ":danger-full-access" : "dotcraft",
+            configuration.GetProperty("default_permissions").GetString());
         Assert.Equal("danger-full-access", configuration.GetProperty("sandbox_mode").GetString());
 
         var created = Json(await session.HandleAsync("thread/start", Json(new
@@ -36,7 +37,9 @@ public sealed class CodexWorkspaceConfigurationTests
         Assert.Equal(JsonValueKind.Null, created.GetProperty("itemsBackwardsCursor").ValueKind);
         Assert.Equal("never", created.GetProperty("approvalPolicy").GetString());
         Assert.Equal("dangerFullAccess", created.GetProperty("sandbox").GetProperty("type").GetString());
-        Assert.Equal("dotcraft", created.GetProperty("activePermissionProfile").GetProperty("id").GetString());
+        Assert.Equal(threadPolicy == "autoApprove" || threadPolicy == "default" && workspacePolicy == "autoApprove"
+                ? ":danger-full-access" : "dotcraft",
+            created.GetProperty("activePermissionProfile").GetProperty("id").GetString());
         Assert.Equal(effort, created.GetProperty("reasoningEffort").GetString());
         Assert.Equal(effort, created.GetProperty("collaborationMode").GetProperty("settings").GetProperty("reasoning_effort").GetString());
         var start = fixture.Transport.Requests.Single(r => r.Method == "thread/start").Parameters.GetProperty("config");
@@ -46,13 +49,16 @@ public sealed class CodexWorkspaceConfigurationTests
         {
             var parameters = new Dictionary<string, object?>
             {
-                ["threadId"] = threadId, ["approvalPolicy"] = created.GetProperty("approvalPolicy"),
-                ["approvalsReviewer"] = "user", ["summary"] = "none", ["serviceTier"] = null,
+                ["threadId"] = threadId, ["approvalsReviewer"] = "user", ["summary"] = "none", ["serviceTier"] = null,
                 ["collaborationMode"] = created.GetProperty("collaborationMode"),
                 ["input"] = new[] { new { type = "text", text = "Continue " + attempt } }
             };
             if (attempt == 0) parameters["permissions"] = "dotcraft";
-            else parameters["sandboxPolicy"] = created.GetProperty("sandbox");
+            else
+            {
+                parameters["sandboxPolicy"] = created.GetProperty("sandbox");
+                parameters["approvalPolicy"] = null;
+            }
             await session.HandleAsync("turn/start", Json(parameters), default);
         }
 
@@ -69,60 +75,67 @@ public sealed class CodexWorkspaceConfigurationTests
         Assert.DoesNotContain(fixture.Transport.Requests, r => r.Method is "thread/config/update" or "config/batchWrite");
     }
 
+    [Theory]
+    [InlineData(":danger-full-access", null, "autoApprove")]
+    [InlineData(":danger-full-access", "on-request", "prompt")]
+    public async Task NativeProfilesUseExplicitApprovalOrTheFullAccessDefault(
+        string profile, string? approvalPolicy, string sourcePolicy)
+    {
+        using var fixture = new ConfigurationFixture("deny", "default");
+        await using var session = await fixture.ConnectAsync();
+        var created = Json(await session.HandleAsync("thread/start", Json(new
+        {
+            permissions = profile, approvalPolicy
+        }), default));
+        Assert.Equal(sourcePolicy, fixture.Transport.Configuration["approvalPolicy"]!.GetValue<string>());
+        Assert.Equal(sourcePolicy == "autoApprove" ? ":danger-full-access" : "dotcraft",
+            created.GetProperty("activePermissionProfile").GetProperty("id").GetString());
+    }
+
     [Fact]
-    public async Task EquivalentConfigWritesAreNoOpsButUnsupportedIsolationAndNeverCannotBypassPrompting()
+    public async Task IsolationOnlyConfigEditsDoNotWriteSource()
     {
         using var fixture = new ConfigurationFixture("default", "default");
         await using var session = await fixture.ConnectAsync();
-        var result = Json(await session.HandleAsync("config/batchWrite", Json(new
+        await session.HandleAsync("config/batchWrite", Json(new
         {
             expectedVersion = "workspace-v1",
             edits = new[]
             {
                 new { keyPath = "default_permissions", value = "dotcraft", mergeStrategy = "replace" },
-                new { keyPath = "sandbox_mode", value = "danger-full-access", mergeStrategy = "replace" },
-                new { keyPath = "approval_policy", value = "on-request", mergeStrategy = "replace" },
+                new { keyPath = "sandbox_mode", value = "workspace-write", mergeStrategy = "replace" },
                 new { keyPath = "model_reasoning_summary", value = "none", mergeStrategy = "replace" }
             }
-        }), default));
-        Assert.Equal("workspace-v1", result.GetProperty("version").GetString());
-        Assert.DoesNotContain(fixture.Transport.Requests, r => r.Method == "config/batchWrite");
-        var created = Json(await session.HandleAsync("thread/start", Json(new { sandbox = "danger-full-access" }), default));
-        Assert.Equal("on-request", created.GetProperty("approvalPolicy").GetString());
-        var threadId = created.GetProperty("thread").GetProperty("id").GetString();
-        var baseline = fixture.Transport.Requests.Count(r => r.Method == "thread/start");
+        }), default);
+        Assert.DoesNotContain(fixture.Transport.Requests, request => request.Method == "config/batchWrite");
+    }
 
+    [Fact]
+    public async Task UnsupportedSelectionsFailBeforeSourceAdmission()
+    {
+        using var fixture = new ConfigurationFixture("default", "default");
+        await using var session = await fixture.ConnectAsync();
         foreach (var unsupported in new object[]
         {
-            new { permissions = "other" }, new { sandbox = "read-only" },
-            new { sandbox = "danger-full-access", permissions = "dotcraft" },
-            new { sandbox = "workspace-write", config = new { sandbox_mode = "danger-full-access" } },
-            new { config = new { sandbox_mode = "workspace-write" }, sandbox = (string?)null, permissions = (string?)null },
-            new { summary = "auto" }, new { approvalPolicy = "never" }
+            new { permissions = "other" }, new { sandbox = "danger-full-access", permissions = "dotcraft" },
+            new { summary = "auto" }, new { approvalPolicy = "on-failure" }
         })
             await Assert.ThrowsAsync<ArgumentException>(() => session.HandleAsync("thread/start", Json(unsupported), default));
-        await Assert.ThrowsAsync<ArgumentException>(() => session.HandleAsync("turn/start", Json(new
-        {
-            threadId, sandboxPolicy = new { type = "workspaceWrite", networkAccess = true },
-            input = new[] { new { type = "text", text = "do not admit" } }
-        }), default));
+        Assert.DoesNotContain(fixture.Transport.Requests, request => request.Method == "thread/start");
+        var created = Json(await session.HandleAsync("thread/start", Json(new { sandbox = "read-only" }), default));
+        var threadId = created.GetProperty("thread").GetProperty("id").GetString();
         await Assert.ThrowsAsync<ArgumentException>(() => session.HandleAsync("turn/start", Json(new
         {
             threadId, permissions = "dotcraft", sandboxPolicy = new { type = "dangerFullAccess" },
             input = new[] { new { type = "text", text = "do not admit" } }
         }), default));
-        await Assert.ThrowsAsync<ArgumentException>(() => session.HandleAsync("turn/start", Json(new
-        {
-            threadId, approvalPolicy = "never", input = new[] { new { type = "text", text = "do not admit" } }
-        }), default));
-        Assert.Equal(baseline, fixture.Transport.Requests.Count(r => r.Method == "thread/start"));
-        Assert.DoesNotContain(fixture.Transport.Requests, r => r.Method == "turn/start");
+        Assert.DoesNotContain(fixture.Transport.Requests, request => request.Method == "turn/start");
     }
 
     [Theory]
-    [InlineData("sandbox", "danger-full-access")]
+    [InlineData("sandbox", "read-only")]
     [InlineData("permissions", "dotcraft")]
-    public async Task ExplicitFullAccessOverridesConfigDefaultsBeforeAdmission(string selection, string value)
+    public async Task ExplicitPermissionSelectionOverridesConfigDefaultsBeforeAdmission(string selection, string value)
     {
         using var fixture = new ConfigurationFixture("deny", "default");
         await using var session = await fixture.ConnectAsync();
@@ -136,10 +149,9 @@ public sealed class CodexWorkspaceConfigurationTests
         Assert.Equal("dangerFullAccess", created.GetProperty("sandbox").GetProperty("type").GetString());
         Assert.Equal("dotcraft", created.GetProperty("activePermissionProfile").GetProperty("id").GetString());
         parameters["threadId"] = threadId;
-        var resumed = Json(await session.HandleAsync("thread/resume", Json(parameters), default));
-        Assert.Equal("never", resumed.GetProperty("approvalPolicy").GetString());
+        await session.HandleAsync("thread/resume", Json(parameters), default);
         parameters.Remove(selection);
-        parameters["sandboxPolicy"] = created.GetProperty("sandbox");
+        parameters["sandboxPolicy"] = new { type = "workspaceWrite", networkAccess = true };
         parameters["input"] = new[] { new { type = "text", text = "continue" } };
         await session.HandleAsync("turn/start", Json(parameters), default);
 

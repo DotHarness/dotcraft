@@ -15,6 +15,8 @@ public sealed partial class SessionService
             throw new ArgumentException("Mode must be 'agent' or 'plan'.", nameof(settings));
         ValidateOptionalIdentifier(settings?.ProviderId, "providerId");
         ValidateOptionalIdentifier(settings?.Model, "model");
+        if (settings?.ApprovalPolicy is { } policy && !Enum.IsDefined(policy))
+            throw new ArgumentException("Approval policy is not supported.", nameof(settings));
 
         var current = thread.Configuration ?? new ThreadConfiguration();
         var candidate = ThreadConfigurationCloner.Clone(current);
@@ -25,12 +27,15 @@ public sealed partial class SessionService
         }
         if (mode is not null)
             candidate.Mode = mode;
+        if (settings?.ApprovalPolicy is { } approvalPolicy)
+            candidate.ApprovalPolicy = approvalPolicy;
         ThreadWorkspaceResolver.Apply(thread.WorkspacePath, candidate, settings?.Cwd, settings?.RuntimeWorkspaceRoots);
 
         var resourcesChanged = !SameTurnModelSettings(current, candidate)
             || !string.Equals(current.Cwd, candidate.Cwd, PathComparison)
             || !RootsEqual(current.RuntimeWorkspaceRoots, candidate.RuntimeWorkspaceRoots);
         return resourcesChanged || !string.Equals(current.Mode, candidate.Mode, StringComparison.Ordinal)
+            || current.ApprovalPolicy != candidate.ApprovalPolicy
             ? new(candidate, resourcesChanged)
             : null;
     }
@@ -109,6 +114,7 @@ public sealed partial class SessionService
         if (!thread.Turns.Any(turn => turn.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput)
             && runtime.ModeManager is { } modeManager)
             modeManager.SwitchMode(prepared.Configuration.Mode == "plan" ? AgentMode.Plan : AgentMode.Agent);
+        SettlePendingApprovals(thread);
         ThreadUpdatedForBroadcast?.Invoke(thread);
     }
 

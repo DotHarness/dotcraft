@@ -152,7 +152,7 @@ public sealed partial class CodexWorkspaceSession : IAsyncDisposable
     {
         ValidateWorkspace(p);
         p.Reject("dynamicTools", "environments", "baseInstructions");
-        var settings = await ExecutionSettingsAsync(p, ct, allowPolicy: true);
+        var settings = await ExecutionSettingsAsync(p, ct);
         if (p.Text("developerInstructions") is { } instructions) settings["developerInstructions"] = instructions;
         var result = await RequestAsync("thread/start", new
         {
@@ -172,7 +172,7 @@ public sealed partial class CodexWorkspaceSession : IAsyncDisposable
         JsonElement result;
         if (method == "thread/resume")
         {
-            var settings = await ExecutionSettingsAsync(p, ct, allowPolicy: true);
+            var settings = await ExecutionSettingsAsync(p, ct);
             if (p.Text("developerInstructions") is { } instructions) settings["developerInstructions"] = instructions;
             if (settings.Count > 0)
             {
@@ -223,7 +223,7 @@ public sealed partial class CodexWorkspaceSession : IAsyncDisposable
             instructionSources = response.Get("instructionSources").Value() ?? Array.Empty<string>(),
             approvalPolicy = ApprovalPolicy(policy), approvalsReviewer = "user",
             sandbox = CodexPermissionProfile.Sandbox(),
-            activePermissionProfile = CodexPermissionProfile.Active(),
+            activePermissionProfile = CodexPermissionProfile.Active(policy),
             reasoningEffort = effort,
             collaborationMode = new
             {
@@ -243,7 +243,7 @@ public sealed partial class CodexWorkspaceSession : IAsyncDisposable
         ValidateWorkspace(p);
         p.Reject("outputSchema", "environments", "serviceTierForTurn");
         var thread = ThreadId(p);
-        var settings = await ExecutionSettingsAsync(p, ct, allowPolicy: false);
+        var settings = await ExecutionSettingsAsync(p, ct);
         settings["threadId"] = thread;
         settings["input"] = Input(p);
         settings["clientUserMessageId"] = p.Text("clientUserMessageId");

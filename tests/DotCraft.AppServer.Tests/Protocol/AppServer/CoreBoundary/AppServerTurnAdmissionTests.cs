@@ -23,6 +23,7 @@ public sealed class AppServerTurnAdmissionTests
             providerId = "selected-provider",
             reasoning = new { effort = "high" },
             speed = "fast",
+            approvalPolicy = "autoApprove",
             input = new[] { new { type = "text", text = "Run with these settings." } }
         }));
 
@@ -32,10 +33,28 @@ public sealed class AppServerTurnAdmissionTests
         Assert.Equal("selected-provider", settings.ProviderId);
         Assert.Equal("selected-model", settings.Model);
         Assert.Equal(InferenceSpeed.Fast, settings.Speed);
+        Assert.Equal(Domain.ApprovalPolicy.AutoApprove, settings.ApprovalPolicy);
         Assert.Equal(ModelReasoningEffort.High, settings.Reasoning!.Effort);
         Assert.Null(settings.Reasoning.Enabled);
         Assert.Null(settings.Reasoning.Output);
         Assert.Equal("Run with these settings.", Assert.IsType<TextContent>(Assert.Single(harness.Service.LastSubmittedContent)).Text);
+    }
+
+    [Fact]
+    public async Task Start_RejectsInvalidApprovalPolicyBeforeInputSubmission()
+    {
+        using var harness = new AppServerTestHarness();
+        await harness.InitializeAsync();
+        var thread = await harness.Service.CreateThreadAsync(harness.Identity);
+        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethodNames.TurnStart, new
+        {
+            threadId = thread.Id, approvalPolicy = "never",
+            input = new[] { new { type = "text", text = "must not run" } }
+        }));
+        using var response = await harness.Transport.ReadNextSentAsync();
+        Assert.Equal(-32602, response.RootElement.GetProperty("error").GetProperty("code").GetInt32());
+        Assert.Null(harness.Service.LastSubmittedTurnSettings);
+        Assert.Empty(harness.Service.LastSubmittedContent);
     }
 
     [Fact]

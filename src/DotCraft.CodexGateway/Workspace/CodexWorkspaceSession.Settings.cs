@@ -14,7 +14,7 @@ public sealed partial class CodexWorkspaceSession
         "extraHigh" => "xhigh", _ => effort
     };
 
-    private async Task<Dictionary<string, object?>> ExecutionSettingsAsync(JsonElement p, CancellationToken ct, bool allowPolicy)
+    private async Task<Dictionary<string, object?>> ExecutionSettingsAsync(JsonElement p, CancellationToken ct)
     {
         var values = new Dictionary<string, JsonElement>();
         foreach (var entry in p.Get("config").ValueKind == JsonValueKind.Object
@@ -33,12 +33,7 @@ public sealed partial class CodexWorkspaceSession
             if (collaboration.Get("settings").Text("developer_instructions") is not null)
                 throw new ArgumentException("Custom collaboration developer instructions cannot be atomically replaced by this source.");
         }
-        var configuration = default(JsonElement);
-        if (p.Text("threadId") is not null &&
-            values.Any(entry => (entry.Key is "approvalPolicy" or "approval_policy") &&
-                entry.Value.ValueKind is not (JsonValueKind.Null or JsonValueKind.Undefined)))
-            configuration = (await RequestAsync("thread/read", new { threadId = ThreadId(p) }, ct)).Get("thread").Get("configuration");
-        var settings = await ResolveSettingsAsync(values, ct, configuration);
+        var settings = await ResolveSettingsAsync(values, ct);
         if (settings.GetValueOrDefault("speed") as string == "fast") await ValidateFastModeAsync(settings, p, ct);
         if (collaboration.ValueKind == JsonValueKind.Object)
         {
@@ -62,15 +57,12 @@ public sealed partial class CodexWorkspaceSession
         }
         if (p.Text("approvalsReviewer") is { } reviewer && reviewer != "user")
             throw new ArgumentException("Only the user approval reviewer is supported.");
-        ValidateSandboxPolicy(p.Get("sandboxPolicy"));
         p.Reject("permissionProfile");
-        if (settings.ContainsKey("approvalPolicy") && !allowPolicy)
-            throw new ArgumentException("Turn-level approval policy changes are not supported by atomic source admission.");
         return settings;
     }
 
     private async Task<Dictionary<string, object?>> ResolveSettingsAsync(
-        Dictionary<string, JsonElement> values, CancellationToken ct, JsonElement configuration = default)
+        Dictionary<string, JsonElement> values, CancellationToken ct)
     {
         var settings = new Dictionary<string, object?>();
         string? model = null;
@@ -106,11 +98,9 @@ public sealed partial class CodexWorkspaceSession
                     };
                     break;
                 case "approvalPolicy":
-                    if (await RequestedApprovalPolicyAsync(value.GetString()!, configuration, ct) is { } policy)
-                        settings["approvalPolicy"] = policy;
+                    settings["approvalPolicy"] = RequestedApprovalPolicy(value.GetString()!);
                     break;
                 case "sandbox":
-                    CodexPermissionProfile.ValidateSandbox(value.GetString());
                     break;
                 case "permissions":
                     CodexPermissionProfile.ValidateSelection(value.GetString());
@@ -126,6 +116,10 @@ public sealed partial class CodexWorkspaceSession
                 default: throw new ArgumentException("Unsupported configuration key: " + key);
             }
         }
+        if (!settings.ContainsKey("approvalPolicy") && values.Any(entry =>
+                (entry.Key is "permissions" or "default_permissions") &&
+                entry.Value.ValueKind == JsonValueKind.String && entry.Value.GetString() == CodexPermissionProfile.FullAccessId))
+            settings["approvalPolicy"] = "autoApprove";
         if (model is not null)
         {
             if (_models.Count == 0) await LoadModelsAsync(ct);
@@ -205,6 +199,7 @@ public sealed partial class CodexWorkspaceSession
         foreach (var (key, value) in values.Where(entry => entry.Value.ValueKind == JsonValueKind.Null))
         {
             if (key is "default_permissions" or "sandbox_mode" or "model_reasoning_summary" or "approvals_reviewer") continue;
+            if (key == "approval_policy" && source.ContainsKey("approvalPolicy")) continue;
             var sourceKey = key switch
             {
                 "model" => "ProviderPreferences." + provider + ".model",

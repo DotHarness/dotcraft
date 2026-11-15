@@ -21860,6 +21860,16 @@
       "title": "TurnStartParams",
       "type": "object",
       "properties": {
+        "approvalPolicy": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "clientUserMessageId": {
           "anyOf": [
             {
