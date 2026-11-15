@@ -12,6 +12,7 @@ import type { ChatsFolderInfo } from '../shared/chatFolders'
 import type { BrowserDownloadRecord, BrowserFeedbackEvent, BrowserFindState, BrowserPageReference, BrowserSelectRequest } from '../shared/viewer/browserFeedback'
 import { contextBridge, ipcRenderer, shell, webFrame, webUtils } from 'electron'
 import { desktopPet } from './desktopPet'
+import { themes } from './themes'
 import type { ClientRequestMethods } from '@dotcraft/sdk/contracts'
 import { resolveThemeMode, type ThemeMode } from '../shared/theme'
 import { readInitialWorkspaceStatusFromArgv } from '../shared/initialWorkspaceStatus'
@@ -472,6 +473,7 @@ let codexRemoteSubscriptionCount = 0
 
 const api = {
   desktopPet,
+  themes,
   platform: process.platform as 'darwin' | 'win32' | 'linux',
 
   initialTheme,

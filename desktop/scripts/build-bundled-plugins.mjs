@@ -41,7 +41,7 @@ function validateDesktopManifest(pluginRoot) {
   }
 }
 
-for (const pluginId of ['dotcraft', 'oratorio', 'token-hud', 'wallpaper']) {
+for (const pluginId of ['dotcraft', 'oratorio', 'token-hud', 'themes']) {
   const sourceRoot = resolve(desktopRoot, 'src/bundled-plugins', pluginId)
   const sourceDist = resolve(sourceRoot, 'dist')
   const resourceDist = resolve(

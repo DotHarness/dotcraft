@@ -1861,6 +1861,17 @@ card of rows, with wide visual choices in a block row rather than a card inside 
 card. Plugin artwork may carry its own colours; the controls around it stay on the
 shared neutral borders, radii, spacing, focus, and selection states.
 
+#### Backdrop glass
+
+Over a plugin backdrop the menu bar, the shell panel body, and the welcome
+surface share one glass layer. Its color is the requested tint, or
+`--bg-primary`, mixed with transparency at the requested opacity, and it blurs
+the backdrop behind it by the requested radius. The glass never drops below 30%
+coverage. The readability floors are 88% for a tint that does not suit the
+applied appearance, 70% without GPU compositing, and 100% under reduced
+transparency, increased contrast, forced colors, and print. Elevated overlays
+stay on their solid surface as everywhere else.
+
 #### Conversation side surfaces
 
 Content beside the conversation stays quieter than the conversation itself.

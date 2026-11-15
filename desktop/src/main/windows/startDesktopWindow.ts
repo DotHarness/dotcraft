@@ -17,6 +17,8 @@ import { fileURLToPath } from 'node:url'
 import { readAppServerChatGptAuth } from '../voice/VoiceChatGptTranscriber'
 import { registerVoiceIpc } from '../voice/voiceIpc'
 import { createWindowIpcMain } from '../windowIpc'
+import { registerThemeIpc } from '../themes/themeIpc'
+import { installThemeNavigationGuard } from '../themes/themeNavigation'
 import { hasRemoteEndpointArg, NO_WORKSPACE_ARG, resolveStartupWorkspacePath } from '../workspaceArgs'
 import { createWindowRuntime, type DesktopWindowRuntime } from './windowRuntime'
 
@@ -38,6 +40,7 @@ export function startDesktopWindow(
   const status = ctx.getWorkspaceStatusForRenderer(workspace)
   const win = ctx.createWindow(workspace, status)
   ctx.mainWindow = win
+  ctx.disposers.push(installThemeNavigationGuard(win))
   ctx.currentWorkspacePath = workspace ?? ''
   if (workspace && ctx.resolveConnectionMode(ctx.settings) === 'local' &&
     !hasRemoteEndpointArg(argv) && !argv.includes(NO_WORKSPACE_ARG)) {
@@ -62,6 +65,7 @@ export function startDesktopWindow(
     })
   )
   const features = createWindowIpcMain(win)
+  registerThemeIpc(features)
   ctx.disposers.push(() => features.dispose())
   const releaseVoice = registerVoiceIpc(
     {

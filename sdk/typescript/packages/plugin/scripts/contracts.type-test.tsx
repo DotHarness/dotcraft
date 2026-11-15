@@ -33,7 +33,7 @@ host.appearance.setThemeSeedOverride({
   light: { surface: '#ffffff', ink: '#1a1c1f', accent: '#4f6cce', contrast: 45 },
   dark: { surface: '#141515', accent: '#4566cc' }
 });
-host.appearance.setBackdropPresentation({ surfaceOpacity: 0.72 });
+host.appearance.setBackdropPresentation({ blur: 16, opacity: 0.72, tint: "#101624" });
 host.appearance.setThemeSeedOverride(null);
 host.appearance.setBackdropPresentation(null);
 

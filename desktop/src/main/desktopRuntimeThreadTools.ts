@@ -1,6 +1,7 @@
 import { handleDesktopThreadHistoryTool, threadHistoryToolDefinitions, threadHistoryToolNames } from './desktopThreadHistoryTools'
 import { DesktopThreadBindings } from './desktopThreadBindings'
 import { submitThreadMessage } from './desktopThreadMessageTool'
+import { themeToolDefinition, themeTool, type DesktopThemeHost } from './themes/themeTools'
 import {
   listTerminalTabsTool,
   listTerminalTabsToolDefinition,
@@ -77,6 +78,7 @@ export interface DesktopAppServerRequestOptions {
   projectWorkspaceFor?: (client: AppServerRequestClient, workspacePath: string) => ThreadTaskWorkspace | undefined
   tasks?: DesktopThreadTasks
   terminals?: DesktopTerminalHost
+  themes?: DesktopThemeHost
 }
 
 export interface DesktopThreadToolSettingsHost {
@@ -137,7 +139,8 @@ const TOOL_NAMES = new Set([
   'SetThreadArchived',
   'SetThreadPinned',
   'ReadTerminal',
-  'ListTerminalTabs'
+  'ListTerminalTabs',
+  'Theme'
 ])
 
 const DESKTOP_THREAD_COORDINATION_CONTEXT: RuntimeAdditionalContextEntry = {
@@ -312,14 +315,15 @@ export function buildDesktopThreadDynamicTools(): DynamicToolSpec[] {
       display: { title: 'Pin chat', subtitle: 'Desktop' }
     },
     readTerminalToolDefinition,
-    listTerminalTabsToolDefinition
+    listTerminalTabsToolDefinition,
+    { ...themeToolDefinition, namespace: DESKTOP_THREAD_TOOL_NAMESPACE }
   ]
 
   return [
     {
       type: 'namespace',
       name: DESKTOP_THREAD_TOOL_NAMESPACE,
-      description: 'Desktop thread management tools.',
+      description: 'Desktop chats, terminal output, and theme authoring.',
       tools: functions.map(({ namespace: _namespace, outputSchema: _outputSchema, display: _display, ...tool }) => ({
         type: 'function',
         deferLoading: true,
@@ -381,6 +385,8 @@ export async function handleDesktopRuntimeThreadToolCall(
         return await readTerminalTool(options.terminals, p.threadId, p.arguments)
       case 'ListTerminalTabs':
         return listTerminalTabsTool(options.terminals, p.threadId)
+      case 'Theme':
+        return await themeTool(options.themes, args, p.threadId)
       default:
         return fail('UnsupportedTool', `Desktop tool '${p.tool}' is not supported.`)
     }

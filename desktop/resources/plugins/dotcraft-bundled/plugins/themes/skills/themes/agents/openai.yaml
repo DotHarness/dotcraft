@@ -1,0 +1,6 @@
+interface:
+  display_name: "Themes"
+  short_description: "Create DotCraft themes"
+  default_prompt: "Use $themes to create a theme for DotCraft."
+  icon_small: "../../assets/themes.svg"
+  icon_large: "../../assets/themes.svg"

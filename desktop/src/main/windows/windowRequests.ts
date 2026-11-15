@@ -11,6 +11,7 @@ import {
 } from '../desktopRuntimeThreadTools'
 import { broadcastServerRequest, createServerRequestBridge } from '../ipcBridge'
 import { getLocalProjectDetails } from '../settings'
+import { themeHostFor } from '../themes/themeIpc'
 import type { DesktopThreadTasks } from '../threadTasks/threadTaskService'
 import { viewerTerminalManager } from '../viewerTerminal'
 import { NEW_TASK_OFFER_ATTENTION } from '../windowAttentionNotifier'
@@ -43,6 +44,7 @@ export function desktopThreadToolOptions(ctx: DesktopWindowRuntime, source?: Wor
     },
     tasks: ctx.getThreadTasks(),
     ownerId: ctx.mainWindow?.webContents.id,
+    themes: ctx.mainWindow ? themeHostFor(ctx.mainWindow) : undefined,
     terminals: {
       threadTabs: (threadId) =>
         ctx.mainWindow && !ctx.mainWindow.isDestroyed()

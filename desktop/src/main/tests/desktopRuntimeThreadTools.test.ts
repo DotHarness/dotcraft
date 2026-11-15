@@ -114,7 +114,7 @@ describe('desktop runtime thread tools', () => {
     expect(namespace.type).toBe('namespace')
     if (namespace.type !== 'namespace') throw new Error('Expected a namespace declaration')
     expect(namespace.name).toBe(DESKTOP_THREAD_TOOL_NAMESPACE)
-    expect(namespace.tools).toHaveLength(13)
+    expect(namespace.tools).toHaveLength(14)
     expect(namespace.tools.filter((tool) => tool.deferLoading !== true).map((tool) => tool.name)).toEqual(['ReadTerminal'])
     expect(namespace.tools.map((tool) => tool.name)).toEqual(expect.arrayContaining([
       'SetThreadPinned', 'ReadThread', 'SearchThreadMessages', 'ListThreadItems', 'ReadThreadItem', 'ListTerminalTabs'

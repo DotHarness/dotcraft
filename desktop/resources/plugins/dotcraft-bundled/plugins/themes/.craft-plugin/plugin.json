@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "themes",
+  "version": "0.12.0",
+  "displayName": "Themes",
+  "description": "Adds themes to DotCraft: app colors, backdrops, and Agent-created animated scenes.",
+  "capabilities": ["skill", "desktop"],
+  "skills": "./skills/",
+  "settings": "./settings.schema.json",
+  "desktop": {
+    "description": "Adds app colors, backdrops, and translucent app surfaces.",
+    "entry": "./desktop/dist/index.mjs",
+    "styles": ["./desktop/dist/index.css"]
+  },
+  "interface": {
+    "displayName": "Themes",
+    "shortDescription": "Change how DotCraft looks",
+    "longDescription": "Choose a theme for every chat or just one. Themes set app colors and a backdrop: an image, a gradient, or an animated scene. Create and refine themes with Agent.",
+    "developerName": "DotHarness",
+    "category": "Design",
+    "capabilities": ["Desktop", "Appearance", "Themes"],
+    "defaultPrompt": "Help me create a theme for DotCraft.",
+    "logo": "./assets/themes.svg",
+    "composerIcon": "./assets/themes.svg"
+  }
+}
