@@ -148,8 +148,8 @@ The `CodeMode` description states, in this order:
 5. that unlisted tools exist and are found through `ALL_TOOLS`, when there are any;
 6. the shared MCP preamble, when any nested tool is an MCP tool;
 7. in `only` mode, the declarations of §4.3 for every non-deferred nested registration, grouped by
-   namespace with the namespace description; in `on` mode, a pointer to the line attached to each
-   direct tool.
+   namespace with the namespace description, explicitly identified as functions called inside
+   `CodeMode`, not direct tool calls; in `on` mode, a pointer to the line attached to each direct tool.
 
 The description is built from the snapshot and is identical for every request that uses the same
 snapshot. It never contains volatile values such as call ids or timestamps.

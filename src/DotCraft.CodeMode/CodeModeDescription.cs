@@ -26,7 +26,7 @@ public static class CodeModeDescription
             "A program still running after `yield_time_ms` keeps running, and the call returns `Script running with cell ID <id>` with the output so far; pass the id to `CodeModeWait` for more output or the final result. `timeout_ms` ends the program.",
             "",
             mode == AppConfig.CodeModeSetting.Only
-                ? "The tools you can call from a program are declared below; they are not in your direct tool list."
+                ? "The functions declared below are available inside `CodeMode` through `tools`, not as direct tool calls."
                 : "Each tool in your tool list that a program can call ends its description with its call form and result type."
         };
         if (surface.HasUnlistedTools)
