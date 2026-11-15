@@ -217,6 +217,7 @@ A client that displays multiple workspaces routes each notification with the wor
 - When the turn stops working (it ends, sleeps, or waits on an approval), the glyph fades out at once. The line keeps its space while its turn is the latest, so the reply does not move, and gives it up in the same frame as the next message appears. A turn opened after it stopped has no working line.
 - While the thread has background tasks running (background terminals, running or paused Workflow runs, and working subagents, as the Summary lists them), the latest turn's working line shows their count. While the turn works, the count comes before the label, separated by a middle dot, and the label truncates first. Once the turn stops, the count stays on its own with a pulsing dot in the glyph's place, also on a turn opened after it stopped. Selecting the count shows the Summary. The count leaves when the last task ends.
 - Conversation Markdown renders math: display math between `$$` or `\[ \]` lines and inline `\( \)`, `\[ \]`, or `$$ $$`. A single `$` stays text, delimiters in code stay literal, and an unparseable formula shows its source. Copying a formula copies its TeX. Raw HTML in replies shows as text except a line break.
+- A Markdown table can open in an expanded view without leaving the conversation. The expanded view keeps the table's formatting, selectable text, and normal link actions, and scrolls independently in both directions. Closing it with Close or Escape returns focus to its expand action and preserves the inline table's position.
 
 ### 4.3 Item Events
 
@@ -902,7 +903,7 @@ Every result opens by automation id and run id. Follow-ups locate the exact turn
 
 **Worktrees**
 
-- Settings › Worktrees has a General tab (worktree settings, [§5.11.1](#5111-thread-fork-and-worktree-handoff)) and an Environments tab for every local project's environments ([Local Environments §6](../features/local-environments.md#6-settings--worktrees)).
+- Settings › Worktrees has a General tab (worktree settings, [§5.11.1](#5111-thread-fork-and-worktree-handoff)) and an Environments tab for every local project's environments ([Local Environments §6](../features/local-environments.md)).
 
 **Notifications**
 

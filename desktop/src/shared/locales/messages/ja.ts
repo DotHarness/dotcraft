@@ -3311,6 +3311,8 @@ export const MESSAGES_JA = {
   'markdown.mermaid.copiedSource': 'Mermaid ソースをコピーしました',
   'markdown.mermaid.diagramAria': 'Mermaid 図',
   'markdown.mermaid.openFullscreen': '全画面で開く',
+  'markdown.table.expand': '表を拡大',
+  'markdown.table.title': '表',
   'conversation.deepLink.rejectUnsupported': 'サポートされていないリンク ターゲット',
   'conversation.deepLink.rejectUnreadable': 'このファイルを開けません',
   'conversation.deepLink.rejectMalformed': '不正なリンクターゲット',

@@ -3311,6 +3311,8 @@ export const MESSAGES_KO = {
   'markdown.mermaid.copiedSource': 'Mermaid 소스를 복사했습니다',
   'markdown.mermaid.diagramAria': 'Mermaid 다이어그램',
   'markdown.mermaid.openFullscreen': '전체 화면으로 열기',
+  'markdown.table.expand': '표 확대',
+  'markdown.table.title': '표',
   'conversation.deepLink.rejectUnsupported': '지원되지 않는 링크 대상',
   'conversation.deepLink.rejectUnreadable': '이 파일을 열 수 없습니다.',
   'conversation.deepLink.rejectMalformed': '잘못된 링크 대상',

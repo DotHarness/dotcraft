@@ -1,17 +1,17 @@
-import { createContext, memo, useContext, useEffect, useMemo, useState, type ComponentProps } from 'react'
+import { memo, useEffect, useMemo, useState } from 'react'
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { Extension as FromMarkdownExtension } from 'mdast-util-from-markdown'
 import { mathFromMarkdown } from 'mdast-util-math'
 import type { Extension as MicromarkExtension } from 'micromark-util-types'
-import type { Components, ExtraProps, Options as MarkdownOptions } from 'react-markdown'
+import type { Components, Options as MarkdownOptions } from 'react-markdown'
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { isBareFileLocationLinkTarget } from '../../../shared/viewer/linkResolver'
 import { InlineReferenceLink } from './InlineReferenceLink'
 import { CodeBlock, HighlightedCode } from './MarkdownCodeBlock'
-import { tableCellMinWidths } from './markdownTable'
+import { MarkdownTableBlock, MarkdownTableCell, MarkdownTableHeader } from './MarkdownTableBlock'
 import { mathSyntax } from './mathSyntax'
 import { copySelectionWithMathSource } from './mathCopy'
 import { rehypeStreamingFade } from './streamingFade'
@@ -300,68 +300,10 @@ const baseComponents: Components = {
     )
   },
 
-  table({ children, node, ...props }) {
-    return (
-      <div style={{ overflowX: 'auto', margin: '8px 0 10px' }}>
-        <table
-          style={{
-            borderCollapse: 'collapse',
-            width: '100%',
-            fontSize: 'var(--conversation-secondary-size)',
-            lineHeight: 'var(--conversation-line-height)'
-          }}
-          {...props}
-        >
-          <TableCellMinWidths.Provider value={tableCellMinWidths(node)}>
-            {children}
-          </TableCellMinWidths.Provider>
-        </table>
-      </div>
-    )
-  },
+  table: MarkdownTableBlock,
 
   th: MarkdownTableHeader,
   td: MarkdownTableCell
-}
-
-const TableCellMinWidths = createContext<ReadonlyMap<object, string>>(new Map())
-
-function MarkdownTableHeader({ children, node, style, ...props }: ComponentProps<'th'> & ExtraProps): JSX.Element {
-  const minWidth = useContext(TableCellMinWidths).get(node as object)
-  return (
-    <th
-      style={{
-        padding: '8px 12px',
-        borderBottom: '1px solid var(--border-active)',
-        textAlign: 'left',
-        fontWeight: 600,
-        color: 'var(--text-primary)',
-        minWidth,
-        ...style
-      }}
-      {...props}
-    >
-      {children}
-    </th>
-  )
-}
-
-function MarkdownTableCell({ children, node, style, ...props }: ComponentProps<'td'> & ExtraProps): JSX.Element {
-  const minWidth = useContext(TableCellMinWidths).get(node as object)
-  return (
-    <td
-      style={{
-        padding: '8px 12px',
-        borderBottom: '1px solid var(--border-default)',
-        color: 'var(--text-secondary)',
-        minWidth,
-        ...style
-      }}
-      {...props}
-    >
-      {children}
-    </td>
-  )
 }
 
 function markdownUrlTransform(url: string, key: string): string | null | undefined {

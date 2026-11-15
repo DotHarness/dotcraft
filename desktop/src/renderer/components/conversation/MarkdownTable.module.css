@@ -1,0 +1,128 @@
+.root {
+  position: relative;
+  margin: 8px 0 10px;
+}
+
+.scroller {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--conversation-secondary-size);
+  line-height: var(--conversation-line-height);
+}
+
+.table th,
+.table td {
+  padding: 8px 12px;
+}
+
+.table th {
+  border-bottom: 1px solid var(--border-active);
+  color: var(--text-primary);
+  font-weight: 600;
+  text-align: left;
+}
+
+.root .table th:last-child {
+  padding-right: 40px;
+}
+
+.table td {
+  border-bottom: 1px solid var(--border-default);
+  color: var(--text-secondary);
+}
+
+.actions {
+  position: absolute;
+  top: 2px;
+  right: 0;
+  z-index: 1;
+  padding: 2px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.root:hover .actions,
+.root:focus-within .actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .root {
+    padding-top: 28px;
+  }
+
+  .actions {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: calc(var(--table-viewer-controls-top) + 48px) 24px 24px;
+  background: rgba(0, 0, 0, 0.88);
+}
+
+.viewer {
+  display: flex;
+  flex-direction: column;
+  width: 80%;
+  max-height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--bg-primary);
+  box-shadow: var(--shadow-level-3);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+}
+
+.viewerClose {
+  position: absolute;
+  top: var(--table-viewer-controls-top);
+  right: 16px;
+  background: var(--bg-elevated);
+}
+
+.viewerContent {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  padding: 16px 20px 24px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable both-edges;
+  user-select: text;
+}
+
+.viewerContent:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+@media (max-width: 600px) {
+  .overlay {
+    padding-inline: 8px;
+    padding-bottom: 8px;
+  }
+
+  .viewer {
+    width: 100%;
+  }
+
+  .viewerContent {
+    padding-inline: 12px;
+  }
+}

@@ -3311,6 +3311,8 @@ export const MESSAGES_DE = {
   'markdown.mermaid.copiedSource': 'Mermaid-Quelltext kopiert',
   'markdown.mermaid.diagramAria': 'Mermaid-Diagramm',
   'markdown.mermaid.openFullscreen': 'Im Vollbild öffnen',
+  'markdown.table.expand': 'Tabelle vergrößern',
+  'markdown.table.title': 'Tabelle',
   'conversation.deepLink.rejectUnsupported': 'Nicht unterstütztes Linkziel',
   'conversation.deepLink.rejectUnreadable': 'Diese Datei kann nicht geöffnet werden',
   'conversation.deepLink.rejectMalformed': 'Fehlerhaftes Linkziel',

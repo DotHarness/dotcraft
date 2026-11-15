@@ -2273,6 +2273,8 @@ export const MESSAGES_EN = {
   'markdown.mermaid.copiedSource': 'Mermaid source copied',
   'markdown.mermaid.diagramAria': 'Mermaid diagram',
   'markdown.mermaid.openFullscreen': 'Open fullscreen',
+  'markdown.table.expand': 'Expand table',
+  'markdown.table.title': 'Table',
   'conversation.deepLink.rejectUnsupported': 'Unsupported link target',
   'conversation.deepLink.rejectUnreadable': 'Unable to open this file',
   'conversation.deepLink.rejectMalformed': 'Malformed link target',

@@ -1465,7 +1465,18 @@ A markdown table is frameless: a rule under the header and hairlines between row
 Each column takes a minimum width from its longest cell (4, 6, 8, or 14
 twenty-fourths of the reading width for up to 40, 100, 160, or more characters),
 and a table wider than its column scrolls sideways rather than breaking short
-words.
+words. A quiet expand icon appears at the table's top trailing edge on hover or
+keyboard focus, and stays visible on coarse-pointer devices. The action has no
+resting fill or separate toolbar surface, and uses the shared icon button's
+neutral hover fill in both themes. It stays outside the horizontal scroller so
+wide tables do not scroll the action away.
+
+Expanded tables sit in a centred, rounded panel over the image viewer's dark
+scrim, with the shared Close control at the viewport's top trailing edge. The
+panel uses up to 80% of the viewport width on desktop and fills the available
+width on narrow windows. It has no visible title bar. The real table keeps its
+inline typography and scrolls in both directions. There is no second expand
+action inside the expanded view.
 
 ### Math
 
