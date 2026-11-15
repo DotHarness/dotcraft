@@ -68,6 +68,7 @@ afterEach(() => {
   useSubAgentStore.getState().reset()
   useThreadStore.getState().reset()
   releaseThreadConnection('root')
+  releaseThreadConnection('child')
   useConnectionStore.getState().reset()
   useWorkspaceProjectsStore.getState().reset()
   vi.unstubAllGlobals()
@@ -192,6 +193,73 @@ describe('retained conversation activity handoff', () => {
     notify('terminal/completed', { terminal: { ...terminal, status: 'completed' } })
     expect(activity().count).toBe(1)
     expect(activity('child').count).toBe(0)
+  })
+
+  it('retries deep discovery failures when reopening a ready parent without reloading ready lists', async () => {
+    let offline = true
+    request.mockImplementation(async (_connection, method, params) => {
+      if (method === 'subagent/children/list') {
+        if (params.parentThreadId === 'grandchild' && offline) throw new Error('offline')
+        const id = new Map([['root', 'child'], ['child', 'grandchild'], ['grandchild', 'leaf']]).get(params.parentThreadId)
+        return { data: id ? [{ edge: { parentThreadId: params.parentThreadId, childThreadId: id, status: 'open' },
+          thread: { id, runtime: { running: false } } }] : [] }
+      }
+      if (method === 'terminal/list') return { terminals: params.threadId === 'leaf' ? [{ ...terminal, threadId: 'leaf' }] : [] }
+      return { runs: [] }
+    })
+    await useSubAgentStore.getState().ensureChildren('root')
+    await vi.waitFor(() => expect(useSubAgentStore.getState().discoveryByParent.get('grandchild')?.status).toBe('error'))
+    expect(useSubAgentStore.getState().discoveryByParent.get('root')?.status).toBe('ready')
+    expect(useSubAgentStore.getState().discoveryByParent.get('child')?.status).toBe('ready')
+    const reads = (id: string) => request.mock.calls.filter(([, method, params]) =>
+      method === 'subagent/children/list' && params.parentThreadId === id).length
+    const before = { root: reads('root'), child: reads('child'), grandchild: reads('grandchild') }
+
+    offline = false
+    await useSubAgentStore.getState().ensureChildren('root')
+    expect(useSubAgentStore.getState().discoveryByParent.get('grandchild')?.status).toBe('ready')
+    await vi.waitFor(() => expect(activity().count).toBe(4))
+    expect(reads('grandchild')).toBe(before.grandchild + 1)
+    expect(reads('root')).toBe(before.root)
+    expect(reads('child')).toBe(before.child)
+  })
+
+  it('keeps a separately retained child and its descendants live until their last owner releases them', async () => {
+    let terminalRunning = true
+    const run = { runId: 'nested-run', threadId: 'grandchild', name: 'Nested work', status: 'running', createdAt: '2026-11-15T00:00:00Z' }
+    request.mockImplementation(async (_connection, method, params) => {
+      if (method === 'subagent/children/list') {
+        const id = params.parentThreadId === 'root' ? 'child' : params.parentThreadId === 'child' ? 'grandchild' : null
+        return { data: id ? [{ edge: { parentThreadId: params.parentThreadId, childThreadId: id, status: 'open' },
+          thread: { id, runtime: { running: false } } }] : [] }
+      }
+      if (method === 'terminal/list') return { terminals: params.threadId === 'child' && terminalRunning ? [terminal] : [] }
+      if (method === 'workflow/run/list') return { runs: params.threadId === 'grandchild' ? [{ ...run }] : [] }
+      if (method === 'workflow/run/read') return { run: { ...run } }
+      return {}
+    })
+    await discover()
+    await vi.waitFor(() => expect(activity('child').count).toBe(3))
+    registerThreadConnection('child', source)
+    const retained = retainThreadTaskFeed(desktopWorkflowRunClient, 'child')
+    await retained.ensure()
+    await useSubAgentStore.getState().ensureChildren('child')
+
+    releaseThreadConnection('root')
+    useSubAgentStore.getState().clearParent('root')
+    terminalRunning = false
+    notify('terminal/completed', { terminal: { ...terminal, status: 'completed' } })
+    expect(useSubAgentTaskActivity.getState().tasksByThread.get('child')?.terminals.length ?? 0).toBe(0)
+    expect(activity('child').count).toBe(2)
+    expect(await retained.refresh()).toBe(true)
+    run.status = 'succeeded'
+    notify('workflow/run/updated', { threadId: run.threadId, runId: run.runId, reason: 'terminal' })
+    await vi.waitFor(() => expect(activity('child').count).toBe(0))
+
+    retained.release()
+    releaseThreadConnection('child')
+    useSubAgentStore.getState().clearParent('child')
+    expect(listeners.size).toBe(0)
   })
 
   it('recursively counts each working agent and task once from snapshots alone', async () => {

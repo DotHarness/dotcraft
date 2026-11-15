@@ -5,7 +5,7 @@ import { useConnectionStore } from './connectionStore'
 import { useThreadStore } from './threadStore'
 import { getThreadConnection, requestThreadConnection } from './threadConnectionStore'
 import { syncSubAgentTaskActivity, clearSubAgentTaskActivity, resetSubAgentTaskActivity, useSubAgentTaskActivity, beginSubAgentIdleReconciliation } from './subAgentTaskActivity'
-import { childIsWorking } from './subAgentActivity'
+import { childIsWorking, subAgentDescendants } from './subAgentActivity'
 import {
   childFromWire, createPlaceholderChild,
   isSubAgentChildClosed, isTerminalSubAgentStatus, mergeExistingProgress,
@@ -176,7 +176,18 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
     const pending = requests.get(parentThreadId)
     if (pending?.lifetime === token) return pending.promise
     if (previous === token && get().discoveryByParent.get(parentThreadId)?.status === 'ready') {
-      return syncSubAgentTaskActivity(parentThreadId, get().childrenByParent.get(parentThreadId) ?? [], subAgentConnectionThread(parentThreadId))
+      const ids = [parentThreadId]
+      if (token.connectionKey && token.connectionId) {
+        ids.push(...subAgentDescendants(get().childrenByParent, parentThreadId)
+          .filter(child => !child.isPlaceholder).map(child => child.childThreadId))
+      }
+      return Promise.all(ids.map(id => {
+        const previous = lifetimes.get(id)
+        const token = lifetime(id)
+        return previous === token && get().discoveryByParent.get(id)?.status === 'ready'
+          ? syncSubAgentTaskActivity(id, get().childrenByParent.get(id) ?? [], subAgentConnectionThread(id))
+          : get().fetchChildren(id)
+      })).then(() => undefined)
     }
     return get().fetchChildren(parentThreadId)
   },
@@ -359,7 +370,9 @@ export const useSubAgentStore = create<SubAgentStore>((set, get) => ({
       return { childrenByParent, staleProgressBlockedParents, discoveryByParent, selectedChildByParent }
     })
     for (const child of descendants) {
-      if (get().childrenByParent.has(child.childThreadId)) get().clearParent(child.childThreadId)
+      if (!getThreadConnection(child.childThreadId) && get().childrenByParent.has(child.childThreadId)) {
+        get().clearParent(child.childThreadId)
+      }
     }
   },
 

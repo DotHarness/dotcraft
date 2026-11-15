@@ -14,6 +14,9 @@ export function createScopedWorkflowClient(connectionKey: string, connectionId: 
   const scope = (): string => !disposed && isThreadObservationCurrent({ connectionKey, connectionId })
     ? `${connectionKey}\u0000${connectionId}` : ''
   return {
+    forThread() {
+      return createScopedWorkflowClient(connectionKey, connectionId)
+    },
     connectionKey: scope,
     request(method, params) {
       return window.api.appServer.sendConnectionRequest(connectionKey, method, params, undefined, { connectionId })
