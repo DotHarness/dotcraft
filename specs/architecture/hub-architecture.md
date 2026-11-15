@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.12.0 |
+| **Version** | 0.12.1 |
 | **Status** | Living |
-| **Date** | 2026-11-14 |
+| **Date** | 2026-11-15 |
 
 Purpose: Define DotCraft Hub as a local coordinator that discovers, starts, reuses, monitors, and stops workspace-bound AppServer processes and a small set of product-owned local services, without changing the AppServer Protocol or the per-workspace runtime model. Hub is also the rendezvous point for paired Remote Tool Hosts and the gateway for paired devices; in both roles it relays connections as opaque byte streams.
 
@@ -341,10 +341,10 @@ A managed AppServer requests four kinds of turn notification, each naming the ch
 |------|-------------|-----------------|
 | `turnCompleted` | A turn completes | Task completion: `never`, `always`, or `whenUnfocused` |
 | `turnFailed` | A turn fails | Task completion |
-| `approvalRequested` | A turn starts waiting on an approval | Approval requests: on (default) or off, shown only when unfocused |
-| `inputRequested` | A turn starts waiting on a question | Questions: on (default) or off, shown only when unfocused |
+| `approvalRequested` | A turn starts waiting on an approval | Approval requests: on (default) or off, shown unless its chat is in view |
+| `inputRequested` | A turn starts waiting on a question | Questions: on (default) or off, shown unless its chat is in view |
 
-`never` and off suppress the notification; `always` displays it. `whenUnfocused`, and the approval and question kinds while on, display it only when no focused Desktop window has the related workspace in the foreground. The tray queries a read-only Desktop window-state endpoint; if the state cannot be queried, the notification is treated as unfocused.
+`never` and off suppress the notification; `always` displays it. `whenUnfocused` displays it only when no focused Desktop window has the related workspace in the foreground. The approval and question kinds, while on, display it unless a focused Desktop window shows the related chat. The tray queries a read-only Desktop window-state endpoint; if the state cannot be queried, the notification is treated as unfocused.
 
 `approvalRequested` and `inputRequested` are raised once per request, when the AppServer starts waiting. Resolving a request raises nothing. Clients that receive or replay a pending request do not raise their own OS notification while this path can deliver it, so one request produces at most one notification however many clients watch the thread.
 

@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.Json.Nodes;
 using DotCraft.Tools;
-using DotCraft.Utilities;
 
 namespace DotCraft.CodeMode;
 
@@ -13,20 +12,17 @@ internal sealed class CodeModeCell
     private readonly List<CodeModeNestedCall> _calls = [];
     private readonly CancellationTokenSource _termination = new();
 
-    private CodeModeCell(string id, ToolInvocationContext context, TimeSpan timeout)
+    private CodeModeCell(string id, ToolInvocationContext context)
     {
         Id = id;
         ThreadId = context.ThreadId;
         TurnId = context.TurnId;
-        Deadline = new PausableDeadline(timeout, _termination.Token);
-        Approvals = new CodeModeApprovals(Deadline);
     }
 
     public string Id { get; }
     public string ThreadId { get; }
     public string? TurnId { get; }
-    public PausableDeadline Deadline { get; }
-    public CodeModeApprovals Approvals { get; }
+    public CodeModeApprovals Approvals { get; } = new();
     public CancellationToken TerminationToken => _termination.Token;
     public bool TerminationRequested => _termination.IsCancellationRequested;
     public Task<CodeModeCellOutcome> Completion { get; private set; } = null!;
@@ -46,7 +42,7 @@ internal sealed class CodeModeCell
         CodeModeCellSession session,
         CodeModeProgram program)
     {
-        var cell = new CodeModeCell(session.Id, context, program.Timeout);
+        var cell = new CodeModeCell(session.Id, context);
         cell.Completion = Task.Run(() => cell.RunAsync(dependencies, context, session));
         return cell;
     }
@@ -95,7 +91,6 @@ internal sealed class CodeModeCell
         finally
         {
             session.Release();
-            Deadline.Dispose();
         }
     }
 }

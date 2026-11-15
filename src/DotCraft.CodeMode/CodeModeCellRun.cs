@@ -34,10 +34,9 @@ internal sealed class CodeModeCellRun(
 
     public async Task<CodeModeCellOutcome> RunAsync()
     {
-        var waitToken = cell.Deadline.Token;
+        var waitToken = cell.TerminationToken;
         CancellationTokenSource? grace = null;
         string? stopError = null;
-        var timedOut = false;
         try
         {
             while (true)
@@ -49,21 +48,20 @@ internal sealed class CodeModeCellRun(
                 }
                 catch (OperationCanceledException) when (grace is null)
                 {
-                    timedOut = !cell.TerminationRequested;
-                    grace = await StopAsync(timedOut ? CodeModeProtocol.TimeoutReason : CodeModeProtocol.Terminated).ConfigureAwait(false);
+                    grace = await StopAsync(CodeModeProtocol.Terminated).ConfigureAwait(false);
                     waitToken = grace.Token;
                     continue;
                 }
                 catch (OperationCanceledException)
                 {
                     await session.KillWorkerAsync("a stopped script did not end").ConfigureAwait(false);
-                    return Finish(timedOut, new CodeModeCellOutcome(CodeModeProtocol.Failed, stopError ?? "The script did not stop after it was cancelled.", null, null));
+                    return Finish(new CodeModeCellOutcome(CodeModeProtocol.Failed, stopError ?? "The script did not stop after it was cancelled.", null, null));
                 }
 
                 switch (next)
                 {
                     case CodeModeCellEvent.WorkerFailed failed:
-                        return Finish(timedOut, new CodeModeCellOutcome(CodeModeProtocol.Failed, $"The script stopped because {failed.Cause}.", null, null));
+                        return Finish(new CodeModeCellOutcome(CodeModeProtocol.Failed, $"The script stopped because {failed.Cause}.", null, null));
                     case CodeModeCellEvent.Frame { Value: var frame }:
                         switch (frame.Type)
                         {
@@ -81,9 +79,9 @@ internal sealed class CodeModeCellRun(
                                 break;
                             case CodeModeProtocol.CellDone:
                                 var outcome = ParseOutcome(frame.Payload as JsonObject);
-                                if (stopError is not null && !timedOut)
+                                if (stopError is not null)
                                     outcome = new CodeModeCellOutcome(CodeModeProtocol.Failed, stopError, null, null);
-                                return Finish(timedOut, outcome);
+                                return Finish(outcome);
                         }
                         break;
                 }
@@ -117,14 +115,10 @@ internal sealed class CodeModeCellRun(
         _concurrency.Dispose();
     }
 
-    private CodeModeCellOutcome Finish(bool timedOut, CodeModeCellOutcome outcome)
-    {
-        if (cell.TerminationRequested)
-            return new CodeModeCellOutcome(CodeModeProtocol.Terminated, null, null, null);
-        return timedOut
-            ? outcome with { Status = CodeModeProtocol.TimedOut, StoreWrites = null }
+    private CodeModeCellOutcome Finish(CodeModeCellOutcome outcome) =>
+        cell.TerminationRequested
+            ? new CodeModeCellOutcome(CodeModeProtocol.Terminated, null, null, null)
             : outcome;
-    }
 
     private async Task<CancellationTokenSource> StopAsync(string reason)
     {
@@ -241,8 +235,8 @@ internal sealed class CodeModeCellRun(
 
     private static CodeModeCellOutcome ParseOutcome(JsonObject? payload)
     {
-        var status = payload?["outcome"]?.GetValue<string>() is CodeModeProtocol.Completed or CodeModeProtocol.TimedOut
-            ? payload!["outcome"]!.GetValue<string>()
+        var status = payload?["outcome"]?.GetValue<string>() == CodeModeProtocol.Completed
+            ? CodeModeProtocol.Completed
             : CodeModeProtocol.Failed;
         return new CodeModeCellOutcome(
             status,

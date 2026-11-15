@@ -727,7 +727,7 @@ Desktop exposes a client-owned thread-management profile as Runtime Dynamic Tool
   - **Typed past**: the user sends a new message on that thread from Desktop (`turn/start`, `turn/enqueue`, or `turn/steer`) while the offer still waits for an answer. The offer closes, and the result tells the agent to deal with that message first.
   - **Not started**: New chat was chosen but creating the chat failed, including a worktree whose environment setup failed. The user sees why, and the result tells the agent to do the task here.
   - **Abandoned**: the Turn is interrupted, cancelled, failed, or completed, or Desktop's connection drops or is replaced, before an answer. The card is marked not answered, and the agent does nothing further with it.
-  - While an offer waits and the window is not focused, Desktop shows a system notification under the Questions notification switch; clicking it opens the chat. Auto modes never notify.
+  - While an offer waits, its chat shows the user-input waiting indicator in the sidebar. Unless that chat is open in a focused window, Desktop shows a system notification under the Questions notification switch; clicking it opens the chat. Auto modes never notify.
 - `proposalId` starts a waiting proposal exactly as proposed, or sends the brief of an accepted offer. For a proposal, `title`, `prompt`, and `background` may restate the brief. Any other argument refuses the call unless a `prompt` is given, in which case the extra arguments are ignored and the result says so. A proposal that is no longer waiting, expired, withdrawn, or unknown is refused with a result that says why.
 - `DismissProposal(taskId, reason?)` withdraws a waiting proposal. Results distinguish withdrawn, already started or handled here, already withdrawn, expired, being started, and unknown ids.
 
@@ -908,8 +908,8 @@ Every result opens by automation id and run id. Follow-ups locate the exact turn
 
 **Notifications**
 
-- Task completion notifications (`whenUnfocused` default, `always`, `never`) and on-by-default switches for approval requests and questions are Desktop-local preferences. They gate the Hub tray notification kinds in [Hub Architecture §10](../architecture/hub-architecture.md#10-tray-and-notifications): a waiting approval or question notifies only when no focused Desktop window has that workspace in the foreground, and clicking opens the chat.
-- When Hub cannot deliver (non-Hub foreground connections such as Remote, SSH, paired computers, and Docker, or no tray), the window notifies itself under the same switches while unfocused.
+- Task completion notifications (`whenUnfocused` default, `always`, `never`) and on-by-default switches for approval requests and questions are Desktop-local preferences. They gate the Hub tray notification kinds in [Hub Architecture §10](../architecture/hub-architecture.md#10-tray-and-notifications): a waiting approval or question notifies unless a focused Desktop window shows that chat, and clicking opens the chat.
+- When Hub cannot deliver (non-Hub foreground connections such as Remote, SSH, paired computers, and Docker, or no tray), the window notifies itself under the same switches unless the related chat is open in that window and the window is focused.
 - Each request notifies at most once; a replay after reconnect or thread switch does not notify again.
 
 **New tasks**

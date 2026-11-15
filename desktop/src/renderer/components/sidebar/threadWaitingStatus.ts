@@ -1,4 +1,5 @@
 import { getThreadConversation, selectLatestCreatePlanTurnId } from '../../stores/conversationStore'
+import { useThreadAwaitsOfferAnswer } from '../../stores/threadTasksStore'
 import { useUIStore } from '../../stores/uiStore'
 import type { ThreadRuntimeSnapshot } from '../../types/thread'
 
@@ -20,7 +21,8 @@ export function useThreadWaitingStatus(
   hidePlan = false
 ): ThreadWaitingStatus {
   const dismissed = useUIStore(state => state.planApprovalDismissed)
-  const status = threadWaitingStatus(runtime)
+  const awaitsOfferAnswer = useThreadAwaitsOfferAnswer(threadId)
+  const status = threadWaitingStatus(awaitsOfferAnswer ? { ...runtime, waitingOnInput: true } : runtime)
   if (status !== 'plan') return status
   if (hidePlan) return null
   const conversation = getThreadConversation(threadId)?.getState()

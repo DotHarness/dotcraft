@@ -120,10 +120,10 @@ public sealed class CodeModeWorkerProcessTests
         await worker.WriteAsync("cell_loop", "cell.start", StartPayload("text('started'); while (true) {}"));
         Assert.Equal("started", (await worker.ReadAsync())["payload"]!["text"]!.GetValue<string>());
 
-        await worker.WriteAsync("cell_loop", "cell.cancel", new JsonObject { ["reason"] = "timeout" });
+        await worker.WriteAsync("cell_loop", "cell.cancel", new JsonObject { ["reason"] = "terminated" });
         var done = await worker.ReadAsync().WaitAsync(TimeSpan.FromSeconds(10));
         Assert.Equal("cell_loop", done["scope"]!.GetValue<string>());
-        Assert.Equal("timedOut", done["payload"]!["outcome"]!.GetValue<string>());
+        Assert.Equal("failed", done["payload"]!["outcome"]!.GetValue<string>());
 
         await worker.WriteAsync("cell_next", "cell.start", StartPayload("text(typeof eval + typeof console + Object.isFrozen(tools));"));
         Assert.Equal("undefinedundefinedtrue", (await worker.ReadAsync())["payload"]!["text"]!.GetValue<string>());

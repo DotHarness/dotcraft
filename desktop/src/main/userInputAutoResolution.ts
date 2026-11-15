@@ -46,7 +46,7 @@ export class UserInputAutoResolutionCoordinator {
       timer: null
     }
     this.entries.set(input.bridgeId, entry)
-    if (this.isForeground(input.threadId)) {
+    if (this.isViewing(input.threadId)) {
       this.startInactivityWait(entry)
     } else {
       this.startResolutionTimer(entry)
@@ -72,7 +72,7 @@ export class UserInputAutoResolutionCoordinator {
       if (
         entry.threadId === threadId
         && entry.phase === 'waitingForInactivity'
-        && this.isForeground(threadId)
+        && this.isViewing(threadId)
       ) {
         this.startInactivityWait(entry)
         changed = true
@@ -110,7 +110,7 @@ export class UserInputAutoResolutionCoordinator {
   private reconcileForegroundState(): void {
     let changed = false
     for (const entry of this.entries.values()) {
-      if (this.isForeground(entry.threadId)) {
+      if (this.isViewing(entry.threadId)) {
         if (entry.phase === 'scheduled') {
           this.startInactivityWait(entry)
           changed = true
@@ -123,7 +123,7 @@ export class UserInputAutoResolutionCoordinator {
     if (changed) this.emitChanged()
   }
 
-  private isForeground(threadId: string): boolean {
+  isViewing(threadId: string): boolean {
     return this.windowFocused && this.presentedThreadId === threadId
   }
 

@@ -74,9 +74,9 @@ export function notifyNewTaskOffer(ctx: DesktopWindowRuntime, task: ThreadTask):
       { threadId: task.threadId, turnId: task.turnId, requestId: task.id },
       {
         connectionKind: entry.kind,
-        window: win,
         settings: ctx.settings,
         threads: entry.threads,
+        isViewingThread: (threadId) => ctx.userInputAutoResolution.isViewing(threadId),
         openThread: (threadId) => openSourceThread(ctx, entry, win, threadId)
       }
     )
@@ -190,9 +190,9 @@ export async function bridgeServerRequestToRenderer(
   void ctx.app
     .notifyWindowAttention(method, params, {
       connectionKind: entry.kind,
-      window: win,
       settings: ctx.settings,
       threads: entry.threads,
+      isViewingThread: (threadId) => ctx.userInputAutoResolution.isViewing(threadId),
       openThread: (threadId) => openSourceThread(ctx, entry, win, threadId)
     })
     .catch(console.warn)
