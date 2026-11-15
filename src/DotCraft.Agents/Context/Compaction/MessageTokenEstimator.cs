@@ -148,6 +148,9 @@ public static class MessageTokenEstimator
         return content switch
         {
             TextContent tc => Utf8ByteCount(tc.Text),
+            TextReasoningContent reasoning => Math.Max(
+                Utf8ByteCount(reasoning.Text),
+                Math.Max(0, (long)(reasoning.ProtectedData?.Length ?? 0) * 3 / 4 - 650)),
             DataContent dc when IsImageOrDocument(dc.MediaType) => EstimateMediaBytes(dc.MediaType),
             UriContent uc when IsImageOrDocument(uc.MediaType) => EstimateMediaBytes(uc.MediaType),
             FunctionCallContent fc => Utf8ByteCount(SerializeFunctionCall(fc)),

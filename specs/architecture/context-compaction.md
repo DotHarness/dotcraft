@@ -4,7 +4,7 @@
 |---|---|
 | **Version** | 0.9.7 |
 | **Status** | Draft |
-| **Date** | 2026-10-29 |
+| **Date** | 2026-11-15 |
 | **Parent Specs** | [Session Core](session-core.md), [Model Runtime](model-runtime.md), [Canonical OpenAI Responses Provider History](responses-provider-history.md), [OpenAI Subscription Auth](openai-subscription-auth.md) |
 
 Purpose: Define the backend-neutral context compaction pipeline. This spec owns backend selection,
@@ -338,6 +338,9 @@ anchors that refer to the replaced request boundary. Both produce the `partial` 
 Neutral history cannot estimate a provider-native compacted window because the opaque item has no
 semantic `ChatMessage` representation. A valid provider usage anchor plus uncovered tail takes
 precedence over the provider-native estimator, including across ordinary Plan/Agent mode changes.
+Native full-history SubAgent forks inherit the provider usage anchor for the retained request prefix
+and estimate only the uncovered tail and request-instruction changes. This context-usage baseline is
+independent of the child's cumulative token consumption.
 
 The OpenAI Responses estimator includes:
 
@@ -360,7 +363,9 @@ triggers compaction. While an active native replacement exists, the coordinator 
 complete neutral transcript instead.
 
 Without provider usage, the local context estimate counts the request's base instructions and tool
-schemas as well as the history.
+schemas as well as the history. Reasoning replay content is counted once, excluding transport
+metadata. Encrypted reasoning uses its normalized payload size, not its serialized ciphertext and
+replay metadata.
 
 `thread/contextUsage/read` splits the current usage into categories: instruction sections and tool
 schemas are rough local estimates captured with each sampled request and kept across compaction, and
