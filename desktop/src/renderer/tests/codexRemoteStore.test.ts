@@ -1,16 +1,44 @@
 import { beforeEach, expect, it, vi } from 'vitest'
 import { connectCodexRemote, useCodexRemoteStore } from '../stores/codexRemoteStore'
-import type { CodexRemoteEvent, CodexRemotePairing, CodexRemoteStatus } from '../../shared/codexRemote'
+import type { CodexRemoteClient, CodexRemoteEvent, CodexRemotePairing, CodexRemoteStatus } from '../../shared/codexRemote'
 
 const ON: CodexRemoteStatus = { state: 'on', signedIn: true, hostName: 'Test host' }
 const PAIRING: CodexRemotePairing = { pairingUrl: 'https://example.test/pair', manualCode: null, expiresAt: '2026-12-01T00:00:00Z' }
-const api = { status: vi.fn(), enable: vi.fn(), disable: vi.fn(), createPairing: vi.fn(), onEvent: vi.fn() }
+const CLIENT: CodexRemoteClient = {
+  clientId: 'phone', displayName: 'Pixel', deviceType: 'phone', platform: 'android',
+  osVersion: '16', deviceModel: null, appVersion: null, lastSeenAt: null
+}
+const api = {
+  status: vi.fn(), enable: vi.fn(), disable: vi.fn(), createPairing: vi.fn(),
+  listClients: vi.fn(), revokeClient: vi.fn(), onEvent: vi.fn()
+}
 
 beforeEach(() => {
   vi.resetAllMocks()
   Object.defineProperty(globalThis, 'window', { configurable: true, value: { api: { codexRemote: api } } })
   useCodexRemoteStore.getState().closePairing()
-  useCodexRemoteStore.setState({ status: null, loadFailure: null, pendingEnabled: null })
+  useCodexRemoteStore.setState({ status: null, loadFailure: null, pendingEnabled: null, clients: null, clientsFailure: null, revokingClientId: null })
+  api.listClients.mockResolvedValue({ ok: true, value: [] })
+})
+
+it('loads devices once connected, refreshes them after pairing, and drops them when access stops', async () => {
+  api.listClients.mockResolvedValue({ ok: true, value: [CLIENT] })
+  const store = useCodexRemoteStore.getState()
+  store.applyEvent({ kind: 'stateChanged', status: { ...ON, state: 'connecting' } })
+  expect(api.listClients).not.toHaveBeenCalled()
+  store.applyEvent({ kind: 'stateChanged', status: ON })
+  await vi.waitFor(() => expect(useCodexRemoteStore.getState().clients).toEqual([CLIENT]))
+  store.applyEvent({ kind: 'stateChanged', status: ON })
+  expect(api.listClients).toHaveBeenCalledTimes(1)
+  store.applyEvent({ kind: 'paired' })
+  expect(api.listClients).toHaveBeenCalledTimes(2)
+
+  api.revokeClient.mockResolvedValue({ ok: true, value: undefined })
+  expect(await useCodexRemoteStore.getState().revokeClient('phone')).toBeNull()
+  expect(useCodexRemoteStore.getState()).toMatchObject({ clients: [], revokingClientId: null })
+
+  store.applyEvent({ kind: 'stateChanged', status: { ...ON, state: 'off' } })
+  expect(useCodexRemoteStore.getState().clients).toBeNull()
 })
 
 it('shares a UI subscription and prevents a late initial snapshot from overwriting a live event', async () => {

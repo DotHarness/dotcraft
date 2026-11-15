@@ -167,6 +167,17 @@ export interface HubCodexRemoteStatus {
   failureMessage?: string;
 }
 
+export interface HubCodexRemoteClient {
+  clientId: string;
+  displayName: string | null;
+  deviceType: string | null;
+  platform: string | null;
+  osVersion: string | null;
+  deviceModel: string | null;
+  appVersion: string | null;
+  lastSeenAt: string | null;
+}
+
 export interface HubCodexRemotePairing {
   pairingUrl: string;
   manualCode: string | null;

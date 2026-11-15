@@ -30,6 +30,11 @@ test("Codex remote controls and events use the authenticated Hub contract", asyn
       response.end(JSON.stringify(status()));
     } else if (path === "/v1/codex-remote/pairings") {
       response.end(JSON.stringify(pairing));
+    } else if (path === "/v1/codex-remote/clients") {
+      response.end(JSON.stringify({ clients: [{ clientId: "phone", displayName: "Pixel", deviceType: "phone", platform: "android", osVersion: "16", deviceModel: null, appVersion: null, lastSeenAt: null }] }));
+    } else if (path.startsWith("/v1/codex-remote/clients/")) {
+      response.writeHead(204);
+      response.end();
     } else if (path === "/v1/events") {
       state = "on";
       response.writeHead(200, { "Content-Type": "text/event-stream" });
@@ -55,6 +60,8 @@ test("Codex remote controls and events use the authenticated Hub contract", asyn
     signedIn = true;
     assert.equal((await client.enableCodexRemote()).state, "connecting");
     await client.createCodexRemotePairing();
+    assert.deepEqual((await client.listCodexRemoteClients()).map((device) => device.clientId), ["phone"]);
+    await client.revokeCodexRemoteClient("phone /?");
     const events: HubEvent[] = [];
     let connected = false;
     await client.subscribeEvents((event) => {
@@ -67,6 +74,7 @@ test("Codex remote controls and events use the authenticated Hub contract", asyn
     assert.deepEqual(calls.filter((call) => call.path.startsWith("/v1/codex-remote")).map(({ method, path }) => [method, path]), [
       ["GET", "/v1/codex-remote"], ["POST", "/v1/codex-remote/enable"],
       ["POST", "/v1/codex-remote/enable"], ["POST", "/v1/codex-remote/pairings"],
+      ["GET", "/v1/codex-remote/clients"], ["DELETE", "/v1/codex-remote/clients/phone%20%2F%3F"],
       ["POST", "/v1/codex-remote/disable"],
     ]);
   } finally {

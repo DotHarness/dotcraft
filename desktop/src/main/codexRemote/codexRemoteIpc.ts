@@ -3,7 +3,7 @@ import type { CodexRemoteResult } from '../../shared/codexRemote'
 import type { DesktopHubClient } from '../desktopHub'
 
 interface CodexRemoteIpcDeps {
-  handleSafe: (channel: string, listener: (event: IpcMainInvokeEvent) => unknown) => void
+  handleSafe: (channel: string, listener: (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown) => void
   getHubClient: () => DesktopHubClient
 }
 
@@ -27,4 +27,9 @@ export function registerCodexRemoteHandlers({ handleSafe, getHubClient }: CodexR
   handleSafe('codexRemote:enable', () => settle(() => getHubClient().enableCodexRemote()))
   handleSafe('codexRemote:disable', () => settle(() => getHubClient().disableCodexRemote()))
   handleSafe('codexRemote:create-pairing', () => settle(() => getHubClient().createCodexRemotePairing()))
+  handleSafe('codexRemote:list-clients', () => settle(() => getHubClient().listCodexRemoteClients()))
+  handleSafe('codexRemote:revoke-client', (_event, clientId) =>
+    typeof clientId === 'string' && clientId
+      ? settle(() => getHubClient().revokeCodexRemoteClient(clientId))
+      : { ok: false, failure: { code: 'invalidClient', message: '' } })
 }

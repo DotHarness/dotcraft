@@ -23,5 +23,14 @@ internal static class HubCodexRemoteApi
         app.MapPost("/v1/codex-remote/pairings", async (HttpRequest request, CancellationToken ct) =>
             unauthorized(request) ?? await protectedAsync(async () =>
                 Results.Json(await gateway.CreatePairingAsync(ct), HubJson.Options)));
+        app.MapGet("/v1/codex-remote/clients", async (HttpRequest request, CancellationToken ct) =>
+            unauthorized(request) ?? await protectedAsync(async () =>
+                Results.Json(await gateway.ListClientsAsync(ct), HubJson.Options)));
+        app.MapDelete("/v1/codex-remote/clients/{clientId}", async (HttpRequest request, string clientId, CancellationToken ct) =>
+            unauthorized(request) ?? await protectedAsync(async () =>
+            {
+                await gateway.RevokeClientAsync(clientId, ct);
+                return Results.NoContent();
+            }));
     }
 }

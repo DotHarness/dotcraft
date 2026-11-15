@@ -109,14 +109,10 @@ internal sealed class CodexGateway : IAsyncDisposable
         await _operation.WaitAsync(ct);
         try
         {
-            RequireAuthentication();
-            await ReconcileAsync();
-            if (!_enabled || _connection is null || _status.State != "on")
-                throw new HubProtocolException("codexRemoteNotConnected",
-                    "Enable Codex remote access and wait for the connection before pairing.", StatusCodes.Status409Conflict);
+            var connection = await ConnectedAsync("Enable Codex remote access and wait for the connection before pairing.");
             await StopPairingAsync();
             RemoteControlPairing pairing;
-            try { pairing = await _connection.PairAsync(ct); }
+            try { pairing = await connection.PairAsync(ct); }
             catch (Exception error) when (error is not OperationCanceledException)
             {
                 _logger.LogWarning("Codex remote pairing failed errorType={ErrorType}", error.GetType().Name);
@@ -126,10 +122,58 @@ internal sealed class CodexGateway : IAsyncDisposable
             _pairingCancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
             var remaining = pairing.ExpiresAt - DateTimeOffset.UtcNow;
             _pairingCancellation.CancelAfter(remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero);
-            _pairing = ObservePairingAsync(_connection, pairing, _pairingCancellation.Token);
+            _pairing = ObservePairingAsync(connection, pairing, _pairingCancellation.Token);
             return new(pairing.PairingUri.ToString(), pairing.ManualPairingCode, pairing.ExpiresAt);
         }
         finally { _operation.Release(); }
+    }
+
+    public async Task<HubCodexRemoteClients> ListClientsAsync(CancellationToken ct)
+    {
+        await _operation.WaitAsync(ct);
+        try
+        {
+            var connection = await ConnectedAsync("Enable Codex remote access and wait for the connection to list devices.");
+            IReadOnlyList<RemoteControlClient> clients;
+            try { clients = await connection.ListClientsAsync(ct); }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                _logger.LogWarning("Codex remote device list failed errorType={ErrorType}", error.GetType().Name);
+                throw new HubProtocolException("codexRemoteClientsFailed",
+                    "Unable to load Codex devices.", StatusCodes.Status502BadGateway);
+            }
+            return new(clients.Select(client => new HubCodexRemoteClient(client.ClientId, client.DisplayName,
+                client.DeviceType, client.Platform, client.OsVersion, client.DeviceModel, client.AppVersion,
+                client.LastSeenAt)).ToArray());
+        }
+        finally { _operation.Release(); }
+    }
+
+    public async Task RevokeClientAsync(string clientId, CancellationToken ct)
+    {
+        await _operation.WaitAsync(ct);
+        try
+        {
+            var connection = await ConnectedAsync("Enable Codex remote access and wait for the connection to revoke a device.");
+            try { await connection.RevokeClientAsync(clientId, ct); }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                _logger.LogWarning("Codex remote device revoke failed errorType={ErrorType}", error.GetType().Name);
+                throw new HubProtocolException("codexRemoteRevokeFailed",
+                    "Unable to revoke the Codex device.", StatusCodes.Status502BadGateway);
+            }
+            _events.Publish("codexRemote.clientsChanged");
+        }
+        finally { _operation.Release(); }
+    }
+
+    private async Task<ICodexGatewayConnection> ConnectedAsync(string message)
+    {
+        RequireAuthentication();
+        await ReconcileAsync();
+        if (!_enabled || _connection is null || _status.State != "on")
+            throw new HubProtocolException("codexRemoteNotConnected", message, StatusCodes.Status409Conflict);
+        return _connection;
     }
 
     private void RequireAuthentication()

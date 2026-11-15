@@ -5,6 +5,7 @@ import {
   type HubCreateSatelliteInviteOptions,
   type HubCodexRemoteStatus,
   type HubCodexRemotePairing,
+  type HubCodexRemoteClient,
   type HubEnsureAppServerOptions,
   type HubEvent,
   type HubManagedServiceResponse,
@@ -119,6 +120,14 @@ export class DesktopHubClient {
 
   createCodexRemotePairing(): Promise<HubCodexRemotePairing> {
     return this.run(() => this.inner.createCodexRemotePairing())
+  }
+
+  listCodexRemoteClients(): Promise<HubCodexRemoteClient[]> {
+    return this.run(() => this.inner.listCodexRemoteClients())
+  }
+
+  revokeCodexRemoteClient(clientId: string): Promise<void> {
+    return this.run(() => this.inner.revokeCodexRemoteClient(clientId))
   }
 
   getMobile(): Promise<HubMobileState> {

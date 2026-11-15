@@ -196,3 +196,11 @@ div.dc-add-phone__qr[aria-busy='true'] {
   font-size: var(--type-ui-size);
   line-height: var(--type-ui-line-height);
 }
+
+.dc-codex-client {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}

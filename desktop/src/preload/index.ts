@@ -2026,6 +2026,12 @@ const api = {
     createPairing() {
       return ipcRenderer.invoke('codexRemote:create-pairing')
     },
+    listClients() {
+      return ipcRenderer.invoke('codexRemote:list-clients')
+    },
+    revokeClient(clientId: string) {
+      return ipcRenderer.invoke('codexRemote:revoke-client', clientId)
+    },
     onEvent(callback: (event: CodexRemoteEvent) => void): () => void {
       const wrapped = (_event: Electron.IpcRendererEvent, payload: CodexRemoteEvent): void => callback(payload)
       ipcRenderer.on('codexRemote:event', wrapped)

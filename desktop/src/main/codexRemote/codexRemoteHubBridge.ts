@@ -79,6 +79,8 @@ export class CodexRemoteHubBridge {
       this.publish({ kind: 'stateChanged', status: event.data as CodexRemoteStatus })
     } else if (event.kind === 'codexRemote.paired') {
       this.publish({ kind: 'paired' })
+    } else if (event.kind === 'codexRemote.clientsChanged') {
+      this.publish({ kind: 'clientsChanged' })
     }
   }
 

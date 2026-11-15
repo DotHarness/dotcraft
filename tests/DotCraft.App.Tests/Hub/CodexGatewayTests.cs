@@ -123,7 +123,34 @@ public sealed class CodexGatewayTests : IDisposable
             Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
             Assert.Contains("codexRemoteSignInRequired", await response.Content.ReadAsStringAsync());
         }
+        using var clients = await hub.SendAsync(HttpMethod.Get, "/v1/codex-remote/clients");
+        Assert.Equal(HttpStatusCode.Conflict, clients.StatusCode);
         Assert.Empty((await hub.JsonAsync(HttpMethod.Get, "/v1/appservers")).EnumerateArray());
+    }
+
+    [Fact]
+    public async Task Clients_RequireConnection_AndRevokeNotifiesOtherClients()
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var paths = HubPaths.Resolve(_profile);
+        Directory.CreateDirectory(paths.CraftHomePath);
+        SignIn(new(paths.CraftHomePath), "account", "token");
+        var events = new HubEventBus();
+        var updates = events.Subscribe(deadline.Token);
+        Connection? host = null;
+        await using var gateway = new DotCraft.Hub.CodexGateway(paths, new(paths), events, NullLogger.Instance,
+            connect: changed => host = new(changed));
+        var off = await Assert.ThrowsAsync<HubProtocolException>(() => gateway.ListClientsAsync(deadline.Token));
+        Assert.Equal("codexRemoteNotConnected", off.Code);
+
+        await gateway.EnableAsync(deadline.Token);
+        host!.Connected();
+        await StateAsync(updates, status => status.State == "on", deadline.Token);
+        var listed = await gateway.ListClientsAsync(deadline.Token);
+        Assert.Equal("Pixel", Assert.Single(listed.Clients).DisplayName);
+        await gateway.RevokeClientAsync("phone", deadline.Token);
+        Assert.Equal("phone", host.Revoked);
+        await EventAsync(updates, "codexRemote.clientsChanged", deadline.Token);
     }
 
     [Theory]
@@ -220,6 +247,15 @@ public sealed class CodexGatewayTests : IDisposable
             Checks.Writer.TryWrite(check);
             try { return await check.Answer.Task.WaitAsync(ct); }
             finally { check.Cancelled = ct.IsCancellationRequested; }
+        }
+        public string? Revoked { get; private set; }
+        public Task<IReadOnlyList<RemoteControlClient>> ListClientsAsync(CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<RemoteControlClient>>(
+                [new("phone", "Pixel", "phone", "android", "16", "Pixel 9", "1.0", DateTimeOffset.UtcNow)]);
+        public Task RevokeClientAsync(string clientId, CancellationToken ct)
+        {
+            Revoked = clientId;
+            return Task.CompletedTask;
         }
         public ValueTask DisposeAsync()
         {
