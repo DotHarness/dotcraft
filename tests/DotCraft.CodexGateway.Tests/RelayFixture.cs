@@ -29,6 +29,8 @@ internal sealed class RelayFixture : IAsyncDisposable
         fixture._app.UseWebSockets();
         fixture._app.MapPost("/backend-api/wham/remote/control/server/{**action}", fixture.HandleHttpAsync);
         fixture._app.MapGet("/backend-api/wham/remote/control/server", fixture.HandleWebSocketAsync);
+        fixture._app.MapGet("/backend-api/wham/remote/control/environments/{environment}/clients", fixture.HandleClientsAsync);
+        fixture._app.MapDelete("/backend-api/wham/remote/control/environments/{environment}/clients/{client}", fixture.HandleClientsAsync);
         await fixture._app.StartAsync();
         fixture.Backend = new Uri(fixture._app.Urls.Single() + "/backend-api/");
         return fixture;
@@ -74,6 +76,34 @@ internal sealed class RelayFixture : IAsyncDisposable
         {
             context.Response.StatusCode = 404;
         }
+    }
+
+    private async Task HandleClientsAsync(HttpContext context)
+    {
+        var headers = context.Request.Headers.ToDictionary(
+            header => header.Key, header => header.Value.ToString(), StringComparer.OrdinalIgnoreCase);
+        var target = context.Request.Method + " " + context.Request.Path.ToUriComponent() + context.Request.QueryString;
+        Requests.Enqueue(new(target, headers, default));
+        if (context.Request.Method == "DELETE")
+        {
+            context.Response.StatusCode = 204;
+            return;
+        }
+        var next = context.Request.Query["cursor"].ToString() == "" ? "page-2" : null;
+        await context.Response.WriteAsJsonAsync(new
+        {
+            items = new[]
+            {
+                new
+                {
+                    client_id = next is null ? "tablet" : "phone", account_user_id = "user",
+                    display_name = next is null ? null : "Test phone", device_type = "phone", platform = "android",
+                    os_version = "16", device_model = "Test model", app_version = "1.0",
+                    last_seen_at = next is null ? null : "2026-03-05T07:00:00Z"
+                }
+            },
+            cursor = next
+        });
     }
 
     private async Task HandleWebSocketAsync(HttpContext context)

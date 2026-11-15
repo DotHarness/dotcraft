@@ -8,6 +8,7 @@ namespace DotCraft.CodexGateway;
 
 public sealed class RemoteControlHost : IAsyncDisposable
 {
+    private const int MaxClientPages = 10;
     private readonly RemoteControlHostOptions _options;
     private readonly Func<bool, CancellationToken, Task<RemoteControlCredentials>> _credentials;
     private readonly Action<RemoteControlHostStatus>? _statusChanged;
@@ -75,6 +76,32 @@ public sealed class RemoteControlHost : IAsyncDisposable
         var result = await RelayRequestAsync<PairingStatusResponse>("pair/status",
             new { pairing_code = pairing.PairingCode }, cancellationToken);
         return result.Claimed;
+    }
+
+    public async Task<IReadOnlyList<RemoteControlClient>> ListClientsAsync(CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed != 0, this);
+        using var request = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _stop.Token);
+        await EnsureEnrollmentAsync(request.Token);
+        var clients = new List<RemoteControlClient>();
+        string? cursor = null;
+        for (var page = 0; page < MaxClientPages; page++)
+        {
+            var result = await _api.ListClientsAsync(_identity!.EnvironmentId, cursor, request.Token);
+            clients.AddRange(result.Items);
+            if (string.IsNullOrEmpty(result.Cursor))
+                break;
+            cursor = result.Cursor;
+        }
+        return clients;
+    }
+
+    public async Task RevokeClientAsync(string clientId, CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed != 0, this);
+        using var request = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _stop.Token);
+        await EnsureEnrollmentAsync(request.Token);
+        await _api.RevokeClientAsync(_identity!.EnvironmentId, clientId, request.Token);
     }
 
     private async Task<T> RelayRequestAsync<T>(string action, object body, CancellationToken ct)

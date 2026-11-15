@@ -28,6 +28,32 @@ public sealed partial class HubClient
     public Task<HubCodexRemotePairing> CreateCodexRemotePairingAsync(CancellationToken cancellationToken = default) =>
         PostCodexRemoteAsync<HubCodexRemotePairing>("/pairings", cancellationToken);
 
+    public async Task<IReadOnlyList<HubCodexRemoteClient>> ListCodexRemoteClientsAsync(CancellationToken cancellationToken = default)
+    {
+        var hub = await EnsureHubAsync(cancellationToken);
+        using var http = CreateHttpClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"{hub.ApiBaseUrl.TrimEnd('/')}/v1/codex-remote/clients");
+        ApplyAuthorization(request, hub);
+        using var response = await http.Client.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+            throw await ToClientExceptionAsync(response, cancellationToken);
+        var result = await response.Content.ReadFromJsonAsync<HubCodexRemoteClients>(DotCraftJson.Options, cancellationToken)
+                     ?? throw new HubClientException("hubInvalidResponse", "Hub returned an empty Codex device list.");
+        return result.Clients;
+    }
+
+    public async Task RevokeCodexRemoteClientAsync(string clientId, CancellationToken cancellationToken = default)
+    {
+        var hub = await EnsureHubAsync(cancellationToken);
+        using var http = CreateHttpClient();
+        using var request = new HttpRequestMessage(HttpMethod.Delete,
+            $"{hub.ApiBaseUrl.TrimEnd('/')}/v1/codex-remote/clients/{Uri.EscapeDataString(clientId)}");
+        ApplyAuthorization(request, hub);
+        using var response = await http.Client.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+            throw await ToClientExceptionAsync(response, cancellationToken);
+    }
+
     private async Task<T> PostCodexRemoteAsync<T>(string action, CancellationToken cancellationToken)
     {
         var hub = await EnsureHubAsync(cancellationToken);

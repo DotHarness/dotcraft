@@ -38,21 +38,47 @@ internal sealed class RemoteControlApi : IDisposable
 
     public async Task<T> AccountRequestAsync<T>(string action, object body, CancellationToken ct)
     {
+        using var response = await SendAccountAsync(token => Request(action, body, token), ct);
+        return await ReadAsync<T>(response, action, ct);
+    }
+
+    public async Task<ClientsPage> ListClientsAsync(string environmentId, string? cursor, CancellationToken ct)
+    {
+        var path = ClientsPath(environmentId) + "?limit=100"
+            + (cursor is null ? "" : "&cursor=" + Uri.EscapeDataString(cursor));
+        using var response = await SendAccountAsync(token => Authorized(new(HttpMethod.Get, path), token), ct);
+        return await ReadAsync<ClientsPage>(response, "clients", ct);
+    }
+
+    public async Task RevokeClientAsync(string environmentId, string clientId, CancellationToken ct)
+    {
+        var path = ClientsPath(environmentId) + "/" + Uri.EscapeDataString(clientId);
+        using var response = await SendAccountAsync(token => Authorized(new(HttpMethod.Delete, path), token), ct);
+        if (!response.IsSuccessStatusCode)
+            throw await RelayRequestException.FromResponseAsync(response, "clients/revoke", ct);
+    }
+
+    private async Task<HttpResponseMessage> SendAccountAsync(Func<string, HttpRequestMessage> create, CancellationToken ct)
+    {
         for (var attempt = 0; ; attempt++)
         {
             var credentials = await _credentials(attempt != 0, ct);
-            using var request = Request(action, body, credentials.AccessToken);
+            using var request = create(credentials.AccessToken);
             request.Headers.Add("chatgpt-account-id", credentials.AccountId);
             request.Headers.Add("x-codex-installation-id", _installationId);
             request.Headers.Add("originator", "codex_cli_rs");
-            using var response = await _http.SendAsync(request, ct);
+            var response = await _http.SendAsync(request, ct);
+            if (response.StatusCode is not (HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden))
+                return response;
+            response.Dispose();
             if (response.StatusCode == HttpStatusCode.Unauthorized && attempt == 0)
                 continue;
-            if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
-                throw new AuthenticationException("codex_remote_control.authentication_failed: ChatGPT authentication was rejected.");
-            return await ReadAsync<T>(response, action, ct);
+            throw new AuthenticationException("codex_remote_control.authentication_failed: ChatGPT authentication was rejected.");
         }
     }
+
+    private static string ClientsPath(string environmentId) =>
+        "wham/remote/control/environments/" + Uri.EscapeDataString(environmentId) + "/clients";
 
     public async Task<T> RelayRequestAsync<T>(string action, object body, string relayToken, CancellationToken ct)
     {
@@ -64,12 +90,14 @@ internal sealed class RemoteControlApi : IDisposable
     public static HttpMessageInvoker CreateWebSocketInvoker(Action<RelayRequestException> failed) =>
         new(new WebSocketResponseHandler(failed) { InnerHandler = new SocketsHttpHandler { AllowAutoRedirect = false } });
 
-    private static HttpRequestMessage Request(string action, object body, string token)
-    {
-        var request = new HttpRequestMessage(HttpMethod.Post, "wham/remote/control/server/" + action)
+    private static HttpRequestMessage Request(string action, object body, string token) =>
+        Authorized(new HttpRequestMessage(HttpMethod.Post, "wham/remote/control/server/" + action)
         {
             Content = JsonContent.Create(body, options: Json)
-        };
+        }, token);
+
+    private static HttpRequestMessage Authorized(HttpRequestMessage request, string token)
+    {
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         return request;
     }
@@ -124,6 +152,8 @@ internal sealed record PairingResponse(
     string PairingCode, string? ManualPairingCode, string ServerId, string EnvironmentId, DateTimeOffset ExpiresAt);
 
 internal sealed record PairingStatusResponse(bool Claimed);
+
+internal sealed record ClientsPage(RemoteControlClient[] Items, string? Cursor);
 
 internal sealed class RelayRequestException(
     string action, HttpStatusCode status, TimeSpan? retryAfter, bool serverMissing)

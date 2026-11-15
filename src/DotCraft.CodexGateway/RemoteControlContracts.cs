@@ -21,6 +21,10 @@ public sealed record RemoteControlPairing(
     public Uri PairingUri => new("https://chatgpt.com/codex/pair?pairing_code=" + Uri.EscapeDataString(PairingCode));
 }
 
+public sealed record RemoteControlClient(
+    string ClientId, string? DisplayName, string? DeviceType, string? Platform, string? OsVersion,
+    string? DeviceModel, string? AppVersion, DateTimeOffset? LastSeenAt);
+
 public sealed record RemoteControlPeer(string ClientId, string StreamId);
 
 public interface IRemoteControlRpcSession : IAsyncDisposable

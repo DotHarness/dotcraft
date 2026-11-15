@@ -7,6 +7,18 @@ public sealed record HubCodexRemoteStatus(
     string? FailureCode = null,
     string? FailureMessage = null);
 
+public sealed record HubCodexRemoteClient(
+    string ClientId,
+    string? DisplayName,
+    string? DeviceType,
+    string? Platform,
+    string? OsVersion,
+    string? DeviceModel,
+    string? AppVersion,
+    DateTimeOffset? LastSeenAt);
+
+public sealed record HubCodexRemoteClients(IReadOnlyList<HubCodexRemoteClient> Clients);
+
 public sealed record HubCodexRemotePairing(
     string PairingUrl,
     string? ManualCode,

@@ -13,7 +13,7 @@ import type {
   HubClientOptions, HubLockInfo, HubAppServerResponse, HubStatusResponse,
   HubManagedServiceResponse, HubEnsureManagedServiceOptions, HubEvent,
   HubSatellite, HubSatelliteInvite, HubCreateSatelliteInviteOptions,
-  HubMobileState, HubMobilePairing, HubCodexRemoteStatus, HubCodexRemotePairing, HubProject, HubRuntimeToolsRequest, HubEnsureAppServerOptions,
+  HubMobileState, HubMobilePairing, HubCodexRemoteStatus, HubCodexRemotePairing, HubCodexRemoteClient, HubProject, HubRuntimeToolsRequest, HubEnsureAppServerOptions,
 } from "./hubTypes.js";
 export type * from "./hubTypes.js";
 
@@ -269,6 +269,17 @@ export class HubClient {
   async createCodexRemotePairing(signal?: AbortSignal): Promise<HubCodexRemotePairing> {
     const hub = await this.ensureHub(signal);
     return await this.requestJson<HubCodexRemotePairing>(hub, "/v1/codex-remote/pairings", { method: "POST", body: "{}", signal });
+  }
+
+  async listCodexRemoteClients(signal?: AbortSignal): Promise<HubCodexRemoteClient[]> {
+    const hub = await this.ensureHub(signal);
+    const result = await this.requestJson<{ clients: HubCodexRemoteClient[] }>(hub, "/v1/codex-remote/clients", { method: "GET", signal });
+    return result.clients;
+  }
+
+  async revokeCodexRemoteClient(clientId: string, signal?: AbortSignal): Promise<void> {
+    const hub = await this.ensureHub(signal);
+    await this.requestJson<void>(hub, `/v1/codex-remote/clients/${encodeURIComponent(clientId)}`, { method: "DELETE", signal });
   }
 
   async getMobile(signal?: AbortSignal): Promise<HubMobileState> {

@@ -65,6 +65,45 @@ public sealed class RemoteControlHostTests
     }
 
     [Fact]
+    public async Task ClientsUseAccountCredentialsForTheEnrolledEnvironment()
+    {
+        await using var relay = await RelayFixture.StartAsync();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var directory = Path.Combine(Path.GetTempPath(), "dotcraft-codex-" + Guid.NewGuid().ToString("N"));
+        var options = new RemoteControlHostOptions { StateDirectory = directory, BackendBaseUri = relay.Backend };
+        try
+        {
+            await using (var host = new RemoteControlHost(options,
+                (_, _) => Task.FromResult(new RemoteControlCredentials("access", "one /?")),
+                (_, _) => throw new InvalidOperationException("No RPC expected.")))
+            {
+                var clients = await host.ListClientsAsync(timeout.Token);
+                Assert.Equal(["phone", "tablet"], clients.Select(client => client.ClientId));
+                Assert.Equal("Test phone", clients[0].DisplayName);
+                Assert.Equal(DateTimeOffset.Parse("2026-03-05T07:00:00Z"), clients[0].LastSeenAt);
+                Assert.Null(clients[1].LastSeenAt);
+                await host.RevokeClientAsync("phone /?", timeout.Token);
+            }
+
+            var requests = relay.Requests.Where(request => !request.Action.StartsWith("enroll")).ToArray();
+            Assert.Equal([
+                "GET /backend-api/wham/remote/control/environments/environment-one%20%2F%3F/clients?limit=100",
+                "GET /backend-api/wham/remote/control/environments/environment-one%20%2F%3F/clients?limit=100&cursor=page-2",
+                "DELETE /backend-api/wham/remote/control/environments/environment-one%20%2F%3F/clients/phone%20%2F%3F"
+            ], requests.Select(request => request.Action));
+            Assert.All(requests, request =>
+            {
+                Assert.Equal("Bearer access", request.Headers["Authorization"]);
+                Assert.Equal("one /?", request.Headers["chatgpt-account-id"]);
+            });
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task RelayIsolatesStreamsAndReplaysOnlyUnacknowledgedChunksWithoutReexecutingInput()
     {
         await using var relay = await RelayFixture.StartAsync();

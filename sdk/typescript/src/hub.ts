@@ -20,6 +20,7 @@ export type {
   HubCapabilities,
   HubCodexRemoteStatus,
   HubCodexRemotePairing,
+  HubCodexRemoteClient,
   HubClientInfo,
   HubClientOptions,
   HubCreateSatelliteInviteOptions,
