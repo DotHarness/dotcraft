@@ -36,6 +36,6 @@ public static class CodexPermissionProfile
     internal static void ValidateSandbox(string? sandbox)
     {
         if (sandbox is not null && sandbox != "danger-full-access")
-            throw new ArgumentException("Only danger-full-access is available; DotCraft retains tool permission enforcement.");
+            throw new ArgumentException("Only danger-full-access is available. DotCraft retains tool permission enforcement.");
     }
 }

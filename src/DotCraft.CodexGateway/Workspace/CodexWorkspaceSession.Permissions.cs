@@ -34,6 +34,18 @@ public sealed partial class CodexWorkspaceSession
         return "prompt";
     }
 
+    private static void ApplyPermissionOverrides(JsonElement p, Dictionary<string, JsonElement> values)
+    {
+        var sandbox = p.Get("sandbox").ValueKind is not (JsonValueKind.Undefined or JsonValueKind.Null);
+        var sandboxPolicy = p.Get("sandboxPolicy").ValueKind is not (JsonValueKind.Undefined or JsonValueKind.Null);
+        var permissions = p.Get("permissions").ValueKind is not (JsonValueKind.Undefined or JsonValueKind.Null);
+        if (permissions && (sandbox || sandboxPolicy))
+            throw new ArgumentException("Permissions cannot be combined with sandbox or sandboxPolicy.");
+        if (sandbox || sandboxPolicy || permissions)
+            foreach (var key in new[] { "sandbox", "sandbox_mode", "permissions", "default_permissions" })
+                values.Remove(key);
+    }
+
     private static void ValidateSandboxPolicy(JsonElement sandbox)
     {
         if (sandbox.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null) return;

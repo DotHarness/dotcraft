@@ -106,6 +106,7 @@ public sealed class CodexHandshakeSession(
             }
             catch (ArgumentException exception)
             {
+                observedMethod?.Invoke(method + ":invalidParams");
                 await ErrorAsync(id, -32602, exception.Message, cancellationToken);
                 return;
             }

@@ -75,7 +75,9 @@ public sealed class RealWorkspaceGatewayTests
         var projectB = phone.Catalog.Workspaces.Single(workspace => workspace.Path == fixture.B.Root);
         var created = await phone.RequestAsync("thread/start", new
         {
-            projectId = projectB.Id, model, permissions = profile, summary = "none", serviceTier = (string?)null,
+            projectId = projectB.Id, model, sandbox = "danger-full-access",
+            config = new { sandbox_mode = "workspace-write", default_permissions = "other" },
+            summary = "none", serviceTier = (string?)null,
             collaborationMode = new { mode = "default", settings = new { model, reasoning_effort = (string?)null, developer_instructions = (string?)null } }
         }, ct);
         var newThread = created.GetProperty("thread").GetProperty("id").GetString()!;

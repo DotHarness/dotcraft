@@ -20,6 +20,7 @@ public sealed partial class CodexWorkspaceSession
         foreach (var entry in p.Get("config").ValueKind == JsonValueKind.Object
                      ? p.Get("config").EnumerateObject() : Enumerable.Empty<JsonProperty>())
             values[entry.Name] = entry.Value.Clone();
+        ApplyPermissionOverrides(p, values);
         foreach (var name in new[] { "model", "modelProvider", "effort", "serviceTier", "summary", "approvalPolicy", "sandbox", "permissions" })
             if (p.Get(name).ValueKind != JsonValueKind.Undefined) values[name] = p.Get(name).Clone();
         var collaboration = p.Get("collaborationMode");

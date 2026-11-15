@@ -83,8 +83,21 @@ public sealed class CodexHandshakeSessionTests
         await ReceiveAsync(session, """{"method":"initialized"}""");
         await ReceiveAsync(session, """{"id":2,"method":"thread/list"}""");
         Assert.Equal("real-thread", messages[^1].GetProperty("result").GetProperty("data")[0].GetProperty("id").GetString());
-        await ReceiveAsync(session, """{"id":3,"method":"turn/start","params":{}}""");
+        await ReceiveAsync(session, """
+            {"id":3,"method":"turn/start","params":{"sandbox":"workspace-write","sandboxPolicy":{"type":"private-policy"},"permissions":"private-profile","config":{"sandbox_mode":"danger-full-access","default_permissions":"private-profile"}}}
+            """);
         Assert.Equal(-32602, messages[^1].GetProperty("error").GetProperty("code").GetInt32());
+        Assert.Contains("turn/start:invalidParams", diagnostics);
+        var admission = diagnostics.Select(entry => entry.StartsWith('{') ? JsonSerializer.Deserialize<JsonElement>(entry) : default)
+            .Single(entry => entry.ValueKind == JsonValueKind.Object && entry.GetProperty("stage").GetString() == "request" &&
+                entry.GetProperty("method").GetString() == "turn/start");
+        Assert.Equal("workspace-write", admission.GetProperty("sandbox").GetString());
+        Assert.Equal("danger-full-access", admission.GetProperty("configSandbox").GetString());
+        Assert.Equal("invalid", admission.GetProperty("sandboxPolicy").GetString());
+        Assert.True(admission.GetProperty("permissions").GetBoolean());
+        Assert.True(admission.GetProperty("configPermissions").GetBoolean());
+        Assert.DoesNotContain("private-profile", string.Join('\n', diagnostics));
+        Assert.DoesNotContain("private-policy", string.Join('\n', diagnostics));
         await ReceiveAsync(session, """{"id":4,"method":"unknown/method"}""");
         Assert.Equal(-32601, messages[^1].GetProperty("error").GetProperty("code").GetInt32());
         await ReceiveAsync(session, """{"id":5,"method":"thread/read","params":{}}""");
