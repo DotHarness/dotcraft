@@ -24,6 +24,7 @@ export interface DesktopApplicationServices {
   persistWindowSettings(settings: AppSettings): void
   restoreRecentProjects(window: DesktopWindowRuntime): Promise<void>
   refreshAppMenu(): void
+  hasTray(): boolean
   openNewWindow(): void
   openDesktopWindow(workspacePath?: string | null, threadId?: string | null): Promise<void>
   focusedWindow(): DesktopWindowRuntime | undefined

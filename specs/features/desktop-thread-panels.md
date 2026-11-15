@@ -4,7 +4,7 @@
 |---|---|
 | Version | 0.10.2 |
 | Status | Living |
-| Date | 2026-11-06 |
+| Date | 2026-11-15 |
 | Parent Specs | [Desktop Client](../clients/desktop-client.md), [In-App Browser](desktop-inapp-browser.md) |
 
 ## 1. Ownership
@@ -13,7 +13,7 @@ A panel belongs to a stable project identity and a thread, or that project's Wel
 
 The panel owns its viewer descriptors, open system tabs, active tab, preferred visibility, full-view state and layout. Closing an unselected tab preserves the actual selection; remembered viewer fallback changes are not activation. Responsive suppression changes presentation, not the saved preference. Switching threads, local projects, or non-conversation views does not close tabs. Welcome-to-thread creation transfers the panel and its live resources without duplication.
 
-React presentation, durable routes and running resources are separate. An inactive component need not remain mounted. A terminal detaches from its PTY; a browser presentation detaches or hides without closing a protected page. File editor navigation retains the existing editor session and save/conflict safeguards.
+React presentation, durable routes and running resources are separate. Hiding a retained window keeps its panel, live resources and window-owned authorization intact, without checkpoint reconstruction when shown again. An inactive component need not remain mounted. A terminal detaches from its PTY; a browser presentation detaches or hides without closing a protected page. File editor navigation retains the existing editor session and save/conflict safeguards.
 
 ## 2. Local Background Work
 

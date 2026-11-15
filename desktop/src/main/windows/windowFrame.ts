@@ -200,7 +200,15 @@ export function createWindow(
   win.on('blur', handleWindowBlur)
   ctx.userInputAutoResolution.setWindowFocused(win.isFocused())
 
-  win.on('close', () => {
+  win.on('close', (event) => {
+    const lastWindow = ![...ctx.app.windows.values()].some(window =>
+      window !== ctx && window.mainWindow && !window.mainWindow.isDestroyed())
+    if (!ctx.app.lifecycle.isStopping && lastWindow && (isMac || ctx.app.hasTray())) {
+      event.preventDefault()
+      clearShowFallbackTimer()
+      win.hide()
+      return
+    }
     ctx.disposed = true
     viewerBrowserManager.destroyAllTabs(win)
     void ctx
