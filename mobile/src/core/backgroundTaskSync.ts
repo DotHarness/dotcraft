@@ -1,8 +1,9 @@
-import type { SubAgentChild, TerminalLifecycleNotification } from '@dotcraft/sdk/contracts'
+import type { SubAgentChild, TerminalLifecycleNotification, ThreadRuntimeState } from '@dotcraft/sdk/contracts'
 import type { DotCraftWireClient } from '@dotcraft/sdk/wire'
-import { agentTask, isBackgroundTerminal, mergeAgents, terminalTask, upsertTask, workflowTask, type BackgroundTask, type TaskSource } from './backgroundTasks'
+import { agentTask, mergeAgents, terminalTask, upsertTask, workflowTask, type BackgroundTask, type TaskSource } from './backgroundTasks'
 import { chatKey, type ComputerAction, type ComputerState } from './state'
 import type { Store } from './store'
+import { TerminalTaskSnapshots } from './terminalTaskSnapshots'
 
 const WORKFLOW_PAGE = 200
 const TURN_PAGE = 100
@@ -13,7 +14,10 @@ export class BackgroundTaskSync {
   private readonly sources: TaskSource[] = []
   private readonly canStopWorkflows: boolean
   private readonly observed = new Set<string>()
-  private readonly activeTurns = new Map<string, string | null>()
+  private readonly runtimes = new Map<string, { version: number; runtime: ThreadRuntimeState | null }>()
+  private runtimeVersion = 0
+  private readonly terminals = new TerminalTaskSnapshots()
+  private active = true
 
   constructor(
     private readonly client: DotCraftWireClient,
@@ -41,13 +45,12 @@ export class BackgroundTaskSync {
     return this.store.getState().tasks[this.key(threadId)]?.[source]
   }
 
-  private activeTurn(threadId: string): string | null {
-    const activeTurnId = this.activeTurns.get(threadId)
-    return activeTurnId !== undefined ? activeTurnId : this.store.getState().chats[this.key(threadId)]?.runtime?.activeTurnId ?? null
+  dispose(): void {
+    this.active = false
   }
 
   private set(threadId: string, source: TaskSource, tasks: BackgroundTask[]): void {
-    this.store.dispatch({ type: 'tasks', key: this.key(threadId), source, tasks })
+    if (this.active) this.store.dispatch({ type: 'tasks', key: this.key(threadId), source, tasks })
   }
 
   private workflowTask(...args: Parameters<typeof workflowTask>): BackgroundTask {
@@ -57,35 +60,38 @@ export class BackgroundTaskSync {
 
   private register(): void {
     this.client.on('thread/status/changed', ({ threadId, runtime }) => {
+      if (!this.active || !threadId) return
+      this.runtimes.set(threadId, { version: ++this.runtimeVersion, runtime: runtime ?? null })
       if (!this.known(threadId)) return
-      this.activeTurns.set(threadId, runtime?.activeTurnId ?? null)
+      this.updateChildRuntime(threadId, runtime ?? null)
       this.childChanged(threadId)
-      if (this.sources.includes('shell') && !runtime?.activeTurnId) void this.refresh(threadId, 'shell').catch(() => undefined)
+      if (!runtime?.running) void this.load(threadId).catch(() => undefined)
     })
     const terminal = ({ terminal }: TerminalLifecycleNotification) => {
-      if (!terminal || !this.known(terminal.threadId)) return
-      const tasks = this.tasksOf(terminal.threadId, 'shell')
-      if (terminal.backgroundReason !== 'runInBackground' && !tasks?.some((task) => task.id === terminal.sessionId)) return
-      const task = terminalTask(terminal)
-      if (task) this.set(terminal.threadId, 'shell', upsertTask(tasks, task))
+      if (!this.active || !terminal) return
+      const current = this.terminals.observe(terminal)
+      if (!current?.isBackground || !this.known(current.threadId)) return
+      const task = terminalTask(current)
+      if (task) this.set(task.ownerThreadId, 'shell', upsertTask(this.tasksOf(task.ownerThreadId, 'shell'), task))
     }
     if (this.sources.includes('shell')) {
       this.client.on('terminal/started', terminal)
+      this.client.on('terminal/backgrounded', terminal)
       this.client.on('terminal/completed', terminal)
       this.client.on('terminal/cleaned', terminal)
     }
     if (this.sources.includes('agent')) {
       this.client.on('thread/tokenUsage/updated', ({ threadId, tokenUsage }) => {
         const total = tokenUsage?.total?.totalTokens
-        if (threadId && total !== undefined) this.childUsage(threadId, total)
+        if (this.active && threadId && total !== undefined) this.childUsage(threadId, total)
       })
       this.client.on('subagent/graph/changed', ({ parentThreadId }) => {
-        if (this.known(parentThreadId)) void this.refresh(parentThreadId, 'agent').catch(() => undefined)
+        if (this.active && this.known(parentThreadId)) void this.refresh(parentThreadId, 'agent').catch(() => undefined)
       })
     }
     if (this.sources.includes('workflow')) {
       this.client.on('workflow/run/updated', ({ threadId }) => {
-        if (this.known(threadId)) void this.refresh(threadId, 'workflow').catch(() => undefined)
+        if (this.active && this.known(threadId)) void this.refresh(threadId, 'workflow').catch(() => undefined)
       })
     }
   }
@@ -94,15 +100,15 @@ export class BackgroundTaskSync {
     return this.observed.has(threadId)
   }
 
-  async load(threadId: string, visited = new Set<string>()): Promise<void> {
-    if (visited.has(threadId)) return
-    visited.add(threadId)
-    const existing = new Set((this.tasksOf(threadId, 'agent') ?? [])
-      .filter((task) => task.kind === 'agent' && task.open && this.observed.has(task.id)).map((task) => task.id))
+  async load(threadId: string): Promise<void> {
+    if (!this.active) return
+    if (!this.observed.has(threadId)) {
+      const cached = this.terminals.ofThread(threadId).filter((terminal) => terminal.isBackground)
+      if (cached.length) this.set(threadId, 'shell', cached.flatMap((terminal) => terminalTask(terminal) ?? []))
+    }
     this.observed.add(threadId)
     await Promise.all(this.sources.map((source) => this.refresh(threadId, source)))
-    await Promise.all((this.tasksOf(threadId, 'agent') ?? []).flatMap((task) =>
-      task.kind === 'agent' && task.open && existing.has(task.id) ? [this.load(task.id, visited)] : []))
+    this.settleChild(threadId)
   }
 
   reloadKnown(except: string[]): void {
@@ -110,6 +116,31 @@ export class BackgroundTaskSync {
     for (const key of Object.keys(this.store.getState().tasks)) {
       const threadId = key.slice(prefix.length)
       if (key.startsWith(prefix) && this.store.getState().chats[key] && !except.includes(threadId)) void this.load(threadId).catch(() => undefined)
+    }
+  }
+
+  private updateChildRuntime(childThreadId: string, runtime: ThreadRuntimeState | null): void {
+    this.forParents(childThreadId, (task) => ({
+      ...task,
+      status: runtime?.running ? 'running' : task.status === 'running' ? 'completed' : task.status,
+      activeTurnId: runtime?.activeTurnId ?? null,
+      stop: runtime?.activeTurnId ? childThreadId : null,
+      reconciling: !runtime?.running && (task.status === 'running' || task.reconciling === true),
+    }))
+  }
+
+  private settleChild(childThreadId: string): void {
+    this.forParents(childThreadId, (task) => task.reconciling ? { ...task, reconciling: false } : task)
+  }
+
+  private forParents(childThreadId: string, update: (task: Extract<BackgroundTask, { kind: 'agent' }>) => BackgroundTask): void {
+    const prefix = `${this.projectId}:`
+    for (const [key, sources] of Object.entries(this.store.getState().tasks)) {
+      if (!key.startsWith(prefix)) continue
+      const task = sources.agent?.find((entry) => entry.id === childThreadId)
+      if (task?.kind !== 'agent' || !task.open) continue
+      const next = update(task)
+      if (next !== task) this.set(key.slice(prefix.length), 'agent', upsertTask(sources.agent, next))
     }
   }
 
@@ -123,6 +154,7 @@ export class BackgroundTaskSync {
   }
 
   private refresh(threadId: string, source: TaskSource): Promise<void> {
+    if (!this.active) return Promise.resolve()
     const id = `${source}:${threadId}`
     const running = this.loads.get(id)
     if (running) {
@@ -147,39 +179,39 @@ export class BackgroundTaskSync {
   private async fetch(threadId: string, source: TaskSource): Promise<void> {
     switch (source) {
       case 'shell': {
+        const version = this.terminals.version
         const { terminals } = await this.client.request('terminal/list', { threadId })
-        const listed = new Set((this.tasksOf(threadId, source) ?? []).map((task) => task.id))
-        const active = this.activeTurn(threadId)
-        const background = (terminals ?? []).filter((terminal) => listed.has(terminal.sessionId ?? '') || isBackgroundTerminal(terminal, active))
+        const background = this.terminals.reconcile(threadId, terminals ?? [], version).filter((terminal) => terminal.isBackground)
         this.set(threadId, source, background.flatMap((terminal) => terminalTask(terminal) ?? []))
         return
       }
       case 'agent': {
+        const version = this.runtimeVersion
         const { data } = await this.client.request('subagent/children/list', { parentThreadId: threadId, includeThreads: true })
-        const children = (data ?? []).filter((child) => child.edge?.status !== 'closed')
-        for (const child of children) {
+        if (!this.active || this.loads.get(`agent:${threadId}`)?.dirty) return
+        const children = (data ?? []).filter((child) => child.edge?.status !== 'closed').map((child) => {
           const id = child.edge?.childThreadId
-          if (!id) continue
-          const previous = this.activeTurns.get(id)
-          const activeTurnId = child.thread?.runtime.activeTurnId ?? null
-          this.activeTurns.set(id, activeTurnId)
-          if (this.observed.has(id) && this.sources.includes('shell') && previous && previous !== activeTurnId) {
-            void this.refresh(id, 'shell').catch(() => undefined)
-          }
-        }
+          const latest = id ? this.runtimes.get(id) : undefined
+          return latest && latest.version > version && latest.runtime && child.thread
+            ? { ...child, thread: { ...child.thread, runtime: latest.runtime } } : child
+        })
         const turns = await Promise.all(children.map((child) => this.childTurnsOf(child)))
+        if (!this.active || this.loads.get(`agent:${threadId}`)?.dirty) return
         const listed = this.tasksOf(threadId, source)
         const tasks = children.flatMap((child, index) => {
           const current = listed?.find((task) => task.id === child.edge?.childThreadId)
           const live = current?.kind === 'agent' ? current.tokens : null
           const tokens = turns[index] ? Math.max(turns[index].tokens, live ?? 0) : live
-          return agentTask(child, turns[index]?.status ?? null, tokens) ?? []
+          const task = agentTask(child, turns[index]?.status ?? null, tokens)
+          if (!task || task.kind !== 'agent') return []
+          return { ...task, reconciling: current?.kind === 'agent' && (current.reconciling || (current.status === 'running' && task.status !== 'running')) }
+        })
+        const discoveries = children.flatMap((child) => {
+          const id = child.edge?.childThreadId
+          return id && id !== threadId ? [this.load(id)] : []
         })
         this.set(threadId, source, mergeAgents(this.tasksOf(threadId, source), tasks))
-        await Promise.all(children.flatMap((child) => {
-          const id = child.edge?.childThreadId
-          return id && !this.observed.has(id) ? [this.load(id)] : []
-        }))
+        await Promise.all(discoveries)
         return
       }
       case 'workflow': {
@@ -190,7 +222,7 @@ export class BackgroundTaskSync {
           runs.push(...page.runs)
           cursor = page.nextCursor ?? undefined
         } while (cursor)
-        this.set(threadId, source, runs.map((run) => this.workflowTask(run)))
+        if (!this.loads.get(`workflow:${threadId}`)?.dirty) this.set(threadId, source, runs.map((run) => this.workflowTask(run)))
       }
     }
   }
@@ -234,7 +266,8 @@ export class BackgroundTaskSync {
     switch (task.kind) {
       case 'shell': {
         const { terminal } = await this.client.request('terminal/stop', { sessionId: task.stop })
-        const stopped = terminal && terminalTask(terminal)
+        const snapshot = terminal && this.terminals.observe(terminal)
+        const stopped = snapshot && terminalTask(snapshot)
         if (stopped) this.set(threadId, 'shell', upsertTask(this.tasksOf(threadId, 'shell'), stopped))
         return
       }

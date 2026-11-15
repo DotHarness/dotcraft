@@ -38,7 +38,7 @@ function addChild(state: ComputerState, owner: string, id: string, agentPath: st
 function addTerminal(state: ComputerState, threadId: string) {
   state.tasks[chatKey('project', threadId)] = {
     ...state.tasks[chatKey('project', threadId)],
-    shell: [terminalTask({ sessionId: 'term_test', threadId, command: 'npm test', status: 'running' })!],
+    shell: [terminalTask({ sessionId: 'term_test', isBackground: true, threadId, command: 'npm test', status: 'running' })!],
   }
 }
 
@@ -101,7 +101,7 @@ describe('subagent endings with background work', () => {
     addTerminal(state, 'unrelated')
     const sibling = addChild(state, parent, 'sibling', '/root/other')
     addTerminal(state, sibling.id)
-    state.tasks[chatKey('other-project', child)] = { shell: [terminalTask({ sessionId: 'term_foreign', threadId: child, status: 'running' })!] }
+    state.tasks[chatKey('other-project', child)] = { shell: [terminalTask({ sessionId: 'term_foreign', isBackground: true, threadId: child, status: 'running' })!] }
     const select = createWorkingSubagentSelector()
     expect(select(state, key)).toEqual(new Set(['/root/other']))
     const history = historyOf(notice('builder'))
@@ -138,7 +138,7 @@ describe('subagent endings with background work', () => {
     const at = new Date().toISOString()
     computer.background.agents.push({ childThreadId: child, parentThreadId: parentId, nickname: 'Builder', role: 'worker', running: false, createdAt: at, updatedAt: at })
     project.threads.push({ ...thread, id: child, source: 'subagent', items: [], turns: [], pending: [] })
-    computer.background.terminals.push({ sessionId: 'term_child', threadId: child, command: 'npm test', status: 'running', startedAt: at, output: '' })
+    computer.background.terminals.push({ sessionId: 'term_child', isBackground: true, threadId: child, command: 'npm test', status: 'running', startedAt: at, output: '' })
     const harness = createHarness([computer])
     harnesses.push(harness)
     await harness.session.boot()

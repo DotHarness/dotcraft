@@ -2,15 +2,14 @@ import type { DesktopPluginSubAgent } from '@dotcraft/plugin'
 import { THREAD_OPENING_PAGE } from '../../../utils/threadHistory'
 import { diffTotals, rolledBackTurns, toSummaryItem, type FileChanges, type SummaryItem } from './sources'
 import type { SummaryServices } from './summaryServices'
-import { createTerminalFeed, type SummaryTerminal } from './terminalFeed'
-import { workflowRunsFor } from '../../../stores/workflowRunCache'
+import type { SummaryTerminal } from './terminalFeed'
+import { retainThreadTaskFeed } from '../../../stores/threadTaskFeed'
 
 export type { SummaryTerminal } from './terminalFeed'
 
 export interface SummaryFeed {
   stop(): void
   refreshTerminals(): Promise<void>
-  refreshWorkflows(): Promise<void>
   stopWorkflow(runId: string): Promise<void>
   stopTerminal(sessionId: string): Promise<void>
 }
@@ -58,8 +57,7 @@ export function startSummaryFeed(
   const pendingItems: SummaryItem[] = []
   let reconcileInFlight = false
   let reconcileQueued = false
-  let pendingLoads = 5
-  let runtimeReceived = false
+  let pendingLoads = 4
   let state: SummaryState = {
     ready: false,
     workflows: [],
@@ -77,7 +75,8 @@ export function startSummaryFeed(
     onChange(state)
   }
 
-  const terminals = createTerminalFeed(services, threadId, (terminals) => publish({ terminals }))
+  const tasks = retainThreadTaskFeed(services.appServer, threadId)
+  const stopTasks = tasks.subscribe(values => publish(values))
 
   const addItems = (incoming: readonly SummaryItem[]): void => {
     if (incoming.length === 0) return
@@ -94,24 +93,13 @@ export function startSummaryFeed(
       }
     }
     publish({ items: next })
-    terminals.addItems(incoming)
+    tasks.addItems(incoming)
   }
 
   const settleLoad = (): void => {
     pendingLoads -= 1
     if (pendingLoads === 0) publish({ ready: true })
   }
-
-  const workflows = workflowRunsFor(services.appServer)
-  const stopWorkflows = workflows.getState().observe(threadId, (runs) => publish({
-    workflows: runs.map((run) => ({
-      runId: run.runId,
-      name: run.name,
-      paused: run.status === 'paused',
-      startedAt: run.startedAt ?? run.createdAt ?? null
-    }))
-  }))
-  const loadWorkflows = async (): Promise<void> => { await workflows.getState().list(threadId) }
 
   const loadHistory = async (): Promise<void> => {
     const loaded: SummaryItem[] = []
@@ -122,7 +110,7 @@ export function startSummaryFeed(
       if (disposed) return
       for (const turn of [...(page.data ?? [])].reverse()) {
         for (const raw of turn.items ?? []) {
-          terminals.observeCommandExecution(raw, turn.id)
+          tasks.observeCommandExecution(raw, turn.id)
           const item = toSummaryItem(raw, turn.id)
           if (item) loaded.push(item)
         }
@@ -155,7 +143,6 @@ export function startSummaryFeed(
     try {
       const result = await services.appServer.request('thread/read', { threadId })
       if (disposed) return
-      if (!runtimeReceived) terminals.setActiveTurn(result.thread?.runtime?.activeTurnId ?? null)
       publish({ plan: toPlan(result.thread?.plan) })
     } catch {
       return
@@ -195,12 +182,12 @@ export function startSummaryFeed(
 
   const stopItems = services.appServer.onNotification('item/completed', (params) => {
     if (params.threadId !== threadId) return
-    terminals.observeCommandExecution(params.item, params.turnId)
+    tasks.observeCommandExecution(params.item, params.turnId)
     const item = toSummaryItem(params.item, params.turnId)
     if (!item) return
     if (historyLoaded) addItems([item])
     else {
-      terminals.addItems([item])
+      tasks.addItems([item])
       pendingItems.push(item)
     }
   })
@@ -238,19 +225,17 @@ export function startSummaryFeed(
 
   const stopRuntime = services.appServer.onNotification('thread/status/changed', (params) => {
     if (params.threadId !== threadId) return
-    runtimeReceived = true
-    terminals.setActiveTurn(params.runtime?.activeTurnId ?? null)
+    if (params.runtime?.running === false) void tasks.refresh()
     void reconcileRollback()
   })
 
   onChange(state)
-  for (const load of [loadHistory, loadAutomations, loadThread, terminals.refresh, loadWorkflows]) void load().finally(settleLoad)
+  for (const load of [loadHistory, loadAutomations, loadThread, tasks.ensure]) void load().finally(settleLoad)
 
   return {
-    refreshTerminals: async () => { await terminals.refresh() },
-    refreshWorkflows: () => workflows.getState().refresh(threadId),
-    stopWorkflow: (runId) => workflows.getState().stop(threadId, runId),
-    stopTerminal: terminals.stop,
+    refreshTerminals: async () => { await tasks.refresh() },
+    stopWorkflow: tasks.stopWorkflow,
+    stopTerminal: tasks.stopTerminal,
     stop() {
       disposed = true
       stopSubAgents()
@@ -258,10 +243,10 @@ export function startSummaryFeed(
       stopTurnDiff()
       stopPlan()
       stopAutomations()
-      stopWorkflows()
+      stopTasks()
       stopTurnStarted()
       stopRuntime()
-      terminals.dispose()
+      tasks.release()
     }
   }
 }

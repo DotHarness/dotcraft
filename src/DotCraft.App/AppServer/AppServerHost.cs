@@ -705,6 +705,7 @@ public sealed partial class AppServerHost(
         eventType switch
         {
             "started" => DotCraft.Protocol.AppServer.AppServerMethodNames.TerminalStarted,
+            "backgrounded" => DotCraft.Protocol.AppServer.AppServerMethodNames.TerminalBackgrounded,
             "outputDelta" => DotCraft.Protocol.AppServer.AppServerMethodNames.TerminalOutputDelta,
             "completed" => DotCraft.Protocol.AppServer.AppServerMethodNames.TerminalCompleted,
             "stalled" => DotCraft.Protocol.AppServer.AppServerMethodNames.TerminalStalled,

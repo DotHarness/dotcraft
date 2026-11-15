@@ -1,4 +1,7 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { resetThreadTaskFeeds } from '../stores/threadTaskFeed'
+
+afterEach(resetThreadTaskFeeds)
 import { startSummaryFeed, type SummaryState } from '../components/conversation/summary/feed'
 import type { SummaryServices } from '../components/conversation/summary/summaryServices'
 
@@ -33,7 +36,7 @@ function createHost(responses: Record<string, (params: any) => unknown>) {
 }
 
 async function settle(): Promise<void> {
-  for (let index = 0; index < 5; index += 1) await Promise.resolve()
+  for (let index = 0; index < 12; index += 1) await Promise.resolve()
 }
 
 describe('Summary feed', () => {
@@ -122,9 +125,9 @@ describe('Summary feed', () => {
     stop()
   })
 
-  it('lists running terminals that outlived their turn, adding those of the active turn when it ends', async () => {
+  it('uses handoff evidence rather than the owning turn ending to classify background terminals', async () => {
     const terminal = (sessionId: string, turnId: string, status = 'running', threadId = 'thread-1') =>
-      ({ sessionId, threadId, turnId, command: `run ${sessionId}`, status })
+      ({ sessionId, threadId, turnId, command: `run ${sessionId}`, status, isBackground: sessionId !== 'b' })
     const { services, notify } = createHost({
       'thread/read': () => ({ thread: { plan: null, runtime: { activeTurnId: 't2' } } }),
       'terminal/list': () => ({
@@ -138,11 +141,13 @@ describe('Summary feed', () => {
     expect(state!.terminals.map((entry) => entry.sessionId)).toEqual(['a'])
 
     notify('thread/status/changed', { threadId: 'thread-1', runtime: { running: false } })
+    expect(state!.terminals.map((entry) => entry.sessionId)).toEqual(['a'])
+    notify('terminal/backgrounded', { terminal: { ...terminal('b', 't2'), isBackground: true } })
     expect(state!.terminals.map((entry) => entry.sessionId)).toEqual(['a', 'b'])
     stop()
   })
 
-  it('lists a command of the active turn once its Exec call has returned', async () => {
+  it('lists a handed-off command without waiting for the owning tool result', async () => {
     const { services, notify } = createHost({
       'thread/read': () => ({ thread: { plan: null, runtime: { activeTurnId: 't2' } } }),
       'terminal/list': () => ({
@@ -158,11 +163,10 @@ describe('Summary feed', () => {
 
     expect(state!.terminals).toEqual([])
 
-    notify('item/completed', {
-      threadId: 'thread-1',
-      turnId: 't2',
-      item: { id: 'r1', turnId: 't2', type: 'toolResult', status: 'completed', createdAt: '2026-10-01T10:05:00Z', payload: { callId: 'call-dev' } }
-    })
+    notify('terminal/backgrounded', { terminal: {
+      sessionId: 'dev', threadId: 'thread-1', turnId: 't2', callId: 'call-dev',
+      command: 'npm run dev', status: 'running', isBackground: true
+    } })
 
     expect(state!.terminals.map((entry) => entry.sessionId)).toEqual(['dev'])
     stop()
@@ -220,7 +224,7 @@ describe('Summary feed', () => {
     })
     let state: SummaryState | null = null
     const { stop } = startSummaryFeed(services, 'thread-1', (next) => { state = next })
-    const running = { sessionId: 'x', threadId: 'thread-1', turnId: 't1', callId: 'call-dev', command: 'npm run dev', status: 'running', startedAt: '2026-10-01T10:00:00Z' }
+    const running = { sessionId: 'x', threadId: 'thread-1', turnId: 't1', callId: 'call-dev', command: 'npm run dev', status: 'running', isBackground: true, startedAt: '2026-10-01T10:00:00Z' }
 
     notify('terminal/completed', { terminal: { ...running, status: 'killed' } })
     releaseList({ terminals: [running] })
@@ -240,7 +244,7 @@ describe('Summary feed', () => {
     let releaseHistory!: (value: unknown) => void
     const { services, notify } = createHost({
       'thread/turns/list': () => new Promise((resolve) => { releaseHistory = resolve }),
-      'terminal/list': () => ({ terminals: [{ sessionId: 'npx', threadId: 'thread-1', turnId: 't1', callId: 'exec-1', status: 'running' }] })
+      'terminal/list': () => ({ terminals: [{ sessionId: 'npx', threadId: 'thread-1', turnId: 't1', callId: 'exec-1', status: 'running', isBackground: true }] })
     })
     let state: SummaryState | null = null
     const { stop } = startSummaryFeed(services, 'thread-1', (next) => { state = next })
@@ -271,12 +275,12 @@ describe('Summary feed', () => {
     const { services, notify } = createHost({
       'thread/turns/list': () => new Promise((resolve) => { releaseHistory = resolve }),
       'thread/read': () => ({ thread: { runtime: { activeTurnId: 't1' } } }),
-      'terminal/list': () => ({ terminals: [{ sessionId: 'shell-session', threadId: 'thread-1', turnId: 't1', callId: 'exec-1', status: 'running' }] })
+      'terminal/list': () => ({ terminals: [{ sessionId: 'shell-session', threadId: 'thread-1', turnId: 't1', callId: 'exec-1', status: 'running', isBackground: true }] })
     })
     let state: SummaryState | null = null
     const { stop } = startSummaryFeed(services, 'thread-1', (next) => { state = next })
     await settle()
-    expect(state!.terminals).toEqual([])
+    expect(state!.terminals.map((entry) => entry.sessionId)).toEqual(['shell-session'])
     const returned = {
       threadId: 'thread-1', turnId: 't1', item: {
         id: 'result', type: 'toolResult', status: 'completed', payload: {
@@ -313,7 +317,7 @@ describe('Summary feed', () => {
   })
 
   it('reconciles a missed completion when the active turn ends', async () => {
-    let terminals = [{ sessionId: 'npx', threadId: 'thread-1', turnId: 't1', callId: 'exec-1', status: 'running' }]
+    let terminals = [{ sessionId: 'npx', threadId: 'thread-1', turnId: 't1', callId: 'exec-1', status: 'running', isBackground: true }]
     const { services, notify } = createHost({
       'thread/read': () => ({ thread: { runtime: { activeTurnId: 't1' } } }),
       'terminal/list': () => ({ terminals })

@@ -176,6 +176,7 @@ export class ProjectConnection {
       if (this.client !== client) return
       this.stream.flush()
       this.client = null
+      this.tasks?.dispose()
       this.readyValue = false
       this.held.clear()
       this.subscribed.clear()
@@ -227,6 +228,7 @@ export class ProjectConnection {
     this.capturing.clear()
     const client = this.client
     this.client = null
+    this.tasks?.dispose()
     await client?.stop()
   }
 

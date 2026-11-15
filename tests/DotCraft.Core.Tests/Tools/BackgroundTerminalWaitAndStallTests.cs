@@ -48,6 +48,7 @@ public sealed class BackgroundTerminalWaitAndStallTests : IAsyncLifetime
         });
 
         Assert.Equal(BackgroundTerminalStatus.Running, snapshot.Status);
+        Assert.True(snapshot.IsBackground);
         Assert.Equal("Listening on 3000", snapshot.MatchedLine);
         Assert.True(DateTimeOffset.UtcNow - started < TimeSpan.FromSeconds(20));
     }

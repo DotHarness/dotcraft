@@ -24,6 +24,7 @@ public static class TerminalContractMapper
         WallTimeMs = terminal.WallTimeMs,
         OriginalOutputChars = terminal.OriginalOutputChars,
         Truncated = terminal.Truncated,
-        BackgroundReason = terminal.BackgroundReason
+        BackgroundReason = terminal.BackgroundReason,
+        IsBackground = terminal.IsBackground
     };
 }

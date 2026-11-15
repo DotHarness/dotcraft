@@ -90,7 +90,7 @@ describe('subagent discovery lifecycle', () => {
     request.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({ data: [] })
     await expect(store().ensureChildren(parent)).rejects.toThrow('offline')
     expect(store().discoveryByParent.get(parent)).toEqual({ status: 'error', discovered: false })
-    await store().fetchChildren(parent)
+    await store().ensureChildren(parent)
     expect(store().discoveryByParent.get(parent)).toEqual({ status: 'ready', discovered: true })
   })
 

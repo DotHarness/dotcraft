@@ -2,7 +2,7 @@ import type { RawNotificationPayload } from '../../shared/appServerBoundary'
 import { getThreadConversation } from './conversationStore'
 import { useConnectionStore } from './connectionStore'
 import { getThreadConnection, matchesThreadConnection } from './threadConnectionStore'
-import { useSubAgentStore } from './subAgentStore'
+import { subAgentConnectionThread } from './subAgentStore'
 import { stageThreadNotification } from './threadRestoration'
 import { notificationThreadId, type ThreadNotificationContext } from './threadNotificationContext'
 import { applyThreadLifecycleNotification } from './threadLifecycleNotifications'
@@ -20,11 +20,9 @@ export function applyThreadNotification(payload: RawNotificationPayload, context
     }
   const threadId = notificationThreadId(payload)
   let ownerThreadId = threadId
-  if (threadId && !getThreadConnection(threadId) && payload.method === 'thread/status/changed') {
-    ownerThreadId =
-      [...useSubAgentStore.getState().childrenByParent.entries()].find(([, children]) =>
-        children.some((child) => child.childThreadId === threadId)
-      )?.[0] ?? threadId
+  if (threadId && !getThreadConnection(threadId)
+    && (payload.method === 'thread/status/changed' || payload.method.startsWith('subagent/'))) {
+    ownerThreadId = subAgentConnectionThread(threadId)
   }
   const target = ownerThreadId ? getThreadConnection(ownerThreadId) : undefined
   if (!context.foreground && !target) return false

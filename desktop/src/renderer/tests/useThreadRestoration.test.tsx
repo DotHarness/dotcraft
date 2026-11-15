@@ -174,7 +174,7 @@ describe('thread restoration', () => {
     sendRequest.mockClear()
     await select('thread-0')
     expect(useConversationStore.getState().streamingMessage).toBe('warm updated')
-    expect(sendRequest).not.toHaveBeenCalled()
+    expect(sendRequest.mock.calls.filter(([method]) => method === 'thread/read' || method === 'thread/resume')).toEqual([])
   })
 
   it('retains confirmed settings when returning to a warm conversation without reloading it', async () => {
@@ -197,7 +197,7 @@ describe('thread restoration', () => {
 
     expect(useConversationStore.getState().threadMode).toBe('plan')
     expect(useThreadStore.getState().activeThread?.configuration?.mode).toBe('plan')
-    expect(sendRequest).not.toHaveBeenCalled()
+    expect(sendRequest.mock.calls.filter(([method]) => method === 'thread/read' || method === 'thread/resume')).toEqual([])
   })
 
   it('keeps tools and interactive requests live across workspaces without reloading the warm transcript', async () => {
@@ -258,7 +258,7 @@ describe('thread restoration', () => {
     expect(useConversationStore.getState().streamingMessage).toBe('A updated')
     expect(useConversationStore.getState().pendingApproval?.bridgeId).toBe('A-bridge')
     expect(getThreadConnection('thread-0')?.connectionId).toBe('connection-1')
-    expect(sendRequest).not.toHaveBeenCalled()
+    expect(sendRequest.mock.calls.filter(([method]) => method === 'thread/read' || method === 'thread/resume')).toEqual([])
   })
 
   it('retains a restored plan choice across selection and a warm return without another request', async () => {
@@ -289,7 +289,7 @@ describe('thread restoration', () => {
     await select('thread-0')
     expect(useConversationStore.getState().restoredPlanTurnId).toBe('plan-turn')
     expect(useThreadStore.getState().pendingPlanConfirmationThreadIds.has('thread-0')).toBe(true)
-    expect(sendRequest).not.toHaveBeenCalled()
+    expect(sendRequest.mock.calls.filter(([method]) => method === 'thread/read' || method === 'thread/resume')).toEqual([])
   })
 
   it('keeps a newer selection authoritative when an earlier restore finishes late', async () => {

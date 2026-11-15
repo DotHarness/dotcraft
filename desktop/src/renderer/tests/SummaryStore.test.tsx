@@ -69,7 +69,7 @@ describe('Summary feed cache', () => {
 
   it('reconciles cached terminals on reopen even while a badge keeps the feed subscribed', async () => {
     const { services, request } = createHost()
-    let terminals = [{ sessionId: 'npx', threadId: 'thread-1', turnId: 't1', status: 'running' }]
+    let terminals = [{ sessionId: 'npx', threadId: 'thread-1', turnId: 't1', status: 'running', isBackground: true }]
     request.mockImplementation(async (method) => method === 'terminal/list' ? { terminals } : {})
     const badge = renderHook(() => useRunningTaskCount(services, 'thread-1'))
     const first = renderHook(() => useSummaryState(services, 'thread-1'))
@@ -91,7 +91,7 @@ describe('Summary feed cache', () => {
     services.appServer.onConnectionChange = desktopSummaryServices.appServer.onConnectionChange
     request.mockImplementation(async (method) => {
       if (method === 'terminal/list') return {
-        terminals: [{ sessionId: services.appServer.connectionKey(), threadId: 'thread-1', status: 'running' }]
+        terminals: [{ sessionId: services.appServer.connectionKey(), threadId: 'thread-1', status: 'running', isBackground: true }]
       }
       const workflow = { runId: 'run-1', threadId: 'thread-1', name: services.appServer.connectionKey(), status: 'running' }
       if (method === 'workflow/run/list') return { runs: [workflow] }

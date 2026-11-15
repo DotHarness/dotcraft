@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.12.0 |
+| **Version** | 0.12.1 |
 | **Status** | Living |
-| **Date** | 2026-11-14 |
+| **Date** | 2026-11-15 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
 | **Related Specs** | [Plugin Architecture](../architecture/plugin-architecture.md), [.NET Extension Runtime](../architecture/dotnet-extensions.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md) |
 
@@ -1692,7 +1692,9 @@ Server-managed, pipe-based host shell processes that may outlive the `Exec` call
 
 ### 19A.2 `BackgroundTerminal` Wire DTO
 
-A terminal snapshot carries `sessionId`, owning `threadId`, originating `turnId` and `callId` (correlating it to the `Exec` `toolCall` item that shows its output), `command`, `workingDirectory`, `source`, `status` (`running`, `completed`, `failed`, `killed`, `timedOut`, `lost`), bounded `output`, `outputPath` (complete log file), `exitCode`, timestamps, `wallTimeMs`, `originalOutputChars` (decoded UTF-16 characters excluding trailing line endings, saturating at `Int32.MaxValue`), `truncated`, and `backgroundReason` (for example `runInBackground`, or a hand-over after the yield time; both correlate to their `Exec` item the same way).
+A terminal snapshot carries `sessionId`, owning `threadId`, originating `turnId` and `callId` (correlating it to the `Exec` `toolCall` item that shows its output), `command`, `workingDirectory`, `source`, `status` (`running`, `completed`, `failed`, `killed`, `timedOut`, `lost`), bounded `output`, `outputPath` (complete log file), `exitCode`, timestamps, `wallTimeMs`, `originalOutputChars` (decoded UTF-16 characters excluding trailing line endings, saturating at `Int32.MaxValue`), `truncated`, `isBackground`, and `backgroundReason` (for example `runInBackground`).
+
+`isBackground` is false until a still-running command is handed back to the model, whether by explicit background execution, automatic yield, or an earlier handover. Once true it remains true for that session, including its final and restored snapshots. A foreground command that exits before handoff remains false. Listing or reading a session does not perform a handoff. Background task classification uses this field rather than inferring handoff from a reason string, a completed tool result, or an idle owning Turn.
 
 Snapshots retain at most 1 MiB of the latest output, including after server restart. `maxOutputChars` can shrink the preview but not lift the bound; nonpositive values use the retained preview. An output write failure terminates the process and reports a failed terminal rather than discarding output.
 
@@ -1710,7 +1712,9 @@ Snapshots retain at most 1 MiB of the latest output, including after server rest
 
 ### 19A.4 Notifications
 
-With the client's `backgroundTerminals` capability the server emits `terminal/started`, `terminal/outputDelta`, `terminal/completed`, `terminal/stalled`, and `terminal/cleaned`, each carrying the terminal snapshot. Desktop-style clients use them as the live output source for Shell tools, including foreground `Exec` calls, scoped by `threadId` and `turnId`.
+With the client's `backgroundTerminals` capability the server emits `terminal/started`, `terminal/backgrounded`, `terminal/outputDelta`, `terminal/completed`, `terminal/stalled`, and `terminal/cleaned`, each carrying the terminal snapshot. Desktop-style clients use them as the live output source for Shell tools, including foreground `Exec` calls, scoped by `threadId` and `turnId`.
+
+- `terminal/backgrounded` reports the first transition to `isBackground: true` after the updated state is readable through terminal requests. It does not require a subscription to the owning thread's transcript. Repeated model interactions do not repeat the transition. Completion takes precedence if a process exits during handoff, and delayed handoff evidence must not revive an ended session.
 
 - `terminal/outputDelta` also carries the delta text, decoded without added line endings, at most 8 KiB per delta on character boundaries. Writes may be coalesced; clients concatenate in order and must not depend on line boundaries.
 - Each terminal publishes at most 10,000 data deltas and at most `Tools.Shell.Background.OutputMaxBytes` bytes (64 MiB default); a slow consumer may also exhaust its bounded queue. At a limit, data deltas stop while the process continues and `outputPath` stays complete. `terminal/completed` is always published after accepted output is flushed and carries the final bounded snapshot.

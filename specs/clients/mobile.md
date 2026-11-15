@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.10.4 |
+| Version | 0.12.1 |
 | Status | Draft |
-| Date | 2026-11-07 |
+| Date | 2026-11-15 |
 | Parent spec | [Hub Architecture](../architecture/hub-architecture.md) |
 | Related Specs | [Device Gateway](../protocols/device-gateway.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Desktop Client](desktop-client.md), [TypeScript SDK](../sdk/typescript.md) |
 
@@ -279,17 +279,17 @@ control uses that surface at 70% with a hairline and no shadow, so it reads as t
 - **Background tasks** are the chat's work that outlives its turns, from three sources, each used
   only when `initialize` reports its capability:
   - Background shell commands (`capabilities.backgroundTerminals`): `terminal/list` for the thread,
-    keeping terminals started with `runInBackground` and terminals still running after their turn. A
-    running terminal of the active turn is left out until that turn ends, as on Desktop, and the
-    list is reread then. A listed terminal stays listed once it ends. They follow
-    `terminal/started`, `terminal/completed`, and `terminal/cleaned`; Stop calls `terminal/stop`.
+    keeping sessions whose canonical `isBackground` state confirms handoff, including handoff during
+    an active Turn. Foreground commands are excluded. A listed terminal stays listed once it ends.
+    They follow `terminal/started`, `terminal/backgrounded`, `terminal/completed`, and
+    `terminal/cleaned`. Stop calls `terminal/stop`.
   - SubAgents (`capabilities.subAgentSessions`): `subagent/children/list` without closed children,
     reread on `subagent/graph/changed` for the chat and `thread/status/changed` for a child. A child
     has an active turn per its thread runtime; Stop on that turn calls `turn/interrupt`, leaving it open. An
     agent's card adds its model and tokens used: the sum of its turns' `tokenUsage` from
     `thread/turns/list`, raised to `total` from each `thread/tokenUsage/updated`, never decreasing.
-    A non-running child reads how its latest turn ended (completed, failed, or stopped when
-    cancelled). A child that disappears while running counts as stopped.
+    Once its own Turn and its family's work have settled, a child reads how its latest Turn ended
+    (completed, failed, or stopped when cancelled). A child that disappears while running counts as stopped.
   - Workflow runs (`capabilities.extensions.dynamicWorkflows`): `workflow/run/list` for the thread,
     reread on `workflow/run/updated`; paused runs count as running; Stop calls `workflow/run/stop`
     when the run's controls allow it and the capability lists `stop`.
@@ -299,11 +299,20 @@ control uses that surface at 70% with a hairline and no shadow, so it reads as t
   and descendants' work in one list without source labels or grouping. Descendant tasks remain visible
   when their parent Agent has no active turn. Opening a child chat exposes its own tasks through the
   same entry. Each task retains its actual owner thread for controls and state updates; stopping a
-  command stops only that session, and stopping a Workflow uses its owner thread. An idle Agent is
-  not counted again as a running task just because its descendants or background commands are active.
+  command stops only that session, and stopping a Workflow uses its owner thread. Each open Agent
+  whose own Turn, background tasks, or descendants are active counts once as a running task, in addition
+  to its actual background tasks. The current conversation itself is excluded. A child with one active
+  background command therefore contributes two tasks to its parent and shows one inside its own chat,
+  even after the child's Turn ends. The task entry, task sheet, successful ending visibility, and live
+  session notifications use the same family activity classification. Derived activity does not grant
+  an idle Agent an interruptible Turn or change historical failed, cancelled, or stopped outcomes.
   Reconnecting reloads the observed task tree. Lifecycle and graph notifications update descendants
-  even if they were never opened as chats; repeated refreshes of one source for one thread coalesce
-  into one request at a time. Background tasks never mark the chat's model runtime as running.
+  even if they were never opened as chats. Handoffs received before child discovery remain available
+  when that child is discovered. Repeated refreshes of one source for one thread coalesce into one
+  request at a time, and failed discovery stays retryable when the parent reopens or reconnects.
+  Confirmed activity remains visible while an idle transition is reconciled. Failed reads retain the
+  current connection's confirmed tasks, and delayed snapshots or handoff events cannot revive ended
+  sessions or replace newer connection state. Background tasks never mark the chat's model runtime as running.
 
 ### 6.3.1 Runtime update budget
 

@@ -18,9 +18,31 @@ interface TerminalSnapshot {
   readonly command?: string
   readonly status?: string
   readonly startedAt?: string
+  readonly isBackground?: boolean
 }
 
 const TERMINAL_ENDS = new Set(['completed', 'failed', 'killed', 'timedOut', 'lost'])
+
+interface TerminalEvidence {
+  users: number
+  running: Map<string, TerminalSnapshot>
+  ended: Map<string, string>
+}
+
+const evidenceByConnection = new Map<string, TerminalEvidence>()
+
+function remember(evidence: TerminalEvidence, snapshot: TerminalSnapshot | undefined): void {
+  if (!snapshot?.sessionId || !snapshot.threadId) return
+  const { sessionId, status } = snapshot
+  if (TERMINAL_ENDS.has(status ?? '')) {
+    evidence.running.delete(sessionId)
+    evidence.ended.set(sessionId, snapshot.threadId)
+  } else if (status === 'running' && !evidence.ended.has(sessionId)) {
+    evidence.running.set(sessionId, {
+      ...snapshot, isBackground: snapshot.isBackground === true || evidence.running.get(sessionId)?.isBackground === true
+    })
+  }
+}
 
 export function createTerminalFeed(
   services: Pick<SummaryServices, 'appServer'>,
@@ -28,23 +50,21 @@ export function createTerminalFeed(
   onChange: (terminals: readonly SummaryTerminal[]) => void
 ) {
   const connectionKey = services.appServer.connectionKey()
+  const evidence = evidenceByConnection.get(connectionKey) ?? { users: 0, running: new Map(), ended: new Map() }
+  evidence.users += 1
+  evidenceByConnection.set(connectionKey, evidence)
   const running = new Map<string, { snapshot: TerminalSnapshot; revision: number }>()
   const ended = new Set<string>()
-  const returned = new Set<string>()
-  let activeTurnId: string | null = null
   let revision = 0
   let generation = 0
   let disposed = false
   let inFlight: Promise<boolean> | null = null
   let queued = false
   const current = (): boolean => !disposed && connectionKey === services.appServer.connectionKey()
-  const callKey = (turnId: string | null | undefined, callId: string): string => `${turnId}:${callId}`
 
   const publish = (): void => {
     if (!current()) return
-    onChange([...running].filter(([, { snapshot }]) => !activeTurnId
-      || snapshot.turnId !== activeTurnId
-      || (snapshot.callId != null && returned.has(callKey(snapshot.turnId, snapshot.callId))))
+    onChange([...running].filter(([, { snapshot }]) => snapshot.isBackground === true)
       .map(([sessionId, { snapshot }]) => ({
         sessionId, command: snapshot.command ?? '', callId: snapshot.callId ?? null, startedAt: snapshot.startedAt ?? null
       })))
@@ -55,7 +75,11 @@ export function createTerminalFeed(
     const { sessionId, status } = snapshot
     if (status !== 'running' && !TERMINAL_ENDS.has(status ?? '')) return
     if (live) revision += 1
-    if (status === 'running') running.set(sessionId, { snapshot, revision })
+    remember(evidence, snapshot)
+    if (status === 'running') running.set(sessionId, {
+      snapshot: { ...snapshot, isBackground: snapshot.isBackground === true || running.get(sessionId)?.snapshot.isBackground === true },
+      revision
+    })
     else {
       ended.add(sessionId)
       running.delete(sessionId)
@@ -87,6 +111,8 @@ export function createTerminalFeed(
             if (!ids.has(id) && entry.revision <= before) {
               running.delete(id)
               ended.add(id)
+              evidence.running.delete(id)
+              evidence.ended.set(id, threadId)
             }
           }
           publish()
@@ -115,18 +141,18 @@ export function createTerminalFeed(
     if (!current()) return
     for (const item of items) {
       const { payload } = item
-      if (item.type !== 'toolResult' || typeof payload.callId !== 'string') continue
-      returned.add(callKey(item.turnId, payload.callId))
-      if (resolveToolKind(payload as unknown as ToolKindSource) !== 'exec') continue
+      if (item.type !== 'toolResult' || typeof payload.callId !== 'string'
+        || resolveToolKind(payload as unknown as ToolKindSource) !== 'exec') continue
       const content = payload.structuredContent
-      if (!content || typeof content !== 'object') continue
-      applyResult(content as Record<string, unknown>, item.turnId, payload.callId)
+      if (content && typeof content === 'object') applyResult(content as Record<string, unknown>, item.turnId, payload.callId)
     }
     publish()
   }
 
-  const stops = (['terminal/started', 'terminal/completed', 'terminal/cleaned'] as const).map((method) =>
+  const stops = (['terminal/started', 'terminal/backgrounded', 'terminal/completed', 'terminal/cleaned'] as const).map((method) =>
     services.appServer.onNotification(method, (params) => {
+      if (!current()) return
+      remember(evidence, params.terminal)
       apply(params.terminal)
       publish()
     }))
@@ -137,6 +163,10 @@ export function createTerminalFeed(
     if (connected && current()) void refresh()
   })
 
+  for (const [id, owner] of evidence.ended) if (owner === threadId) ended.add(id)
+  for (const snapshot of evidence.running.values()) apply(snapshot, false)
+  publish()
+
   return {
     refresh,
     addItems,
@@ -146,13 +176,6 @@ export function createTerminalFeed(
       if (typeof payload.callId !== 'string') return
       applyResult({ ...payload, status: payload.status === 'cancelled' ? 'killed' : payload.status }, turnId ?? item.turnId, payload.callId)
       publish()
-    },
-    setActiveTurn(turnId: string | null): void {
-      if (turnId === activeTurnId) return
-      const previous = activeTurnId
-      activeTurnId = turnId
-      publish()
-      if (previous && previous !== turnId) void refresh()
     },
     async stop(sessionId: string): Promise<void> {
       if (!current()) return
@@ -169,10 +192,13 @@ export function createTerminalFeed(
       }
     },
     dispose(): void {
+      if (disposed) return
       disposed = true
       generation += 1
       for (const stop of stops) stop()
       stopConnection()
+      evidence.users -= 1
+      if (evidence.users === 0) evidenceByConnection.delete(connectionKey)
     }
   }
 }

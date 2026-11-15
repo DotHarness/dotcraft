@@ -95,17 +95,20 @@ public sealed class BackgroundTerminalServiceTests : IAsyncLifetime
         });
 
         Assert.Equal(BackgroundTerminalStatus.Running, started.Status);
+        Assert.True(started.IsBackground);
         Assert.False(string.IsNullOrWhiteSpace(started.SessionId));
 
         await File.WriteAllTextAsync(releasePath, "");
         await completion.Task.WaitAsync(TimeSpan.FromSeconds(15));
         var completed = await Service.ReadAsync(started.SessionId, maxOutputChars: 1000);
         Assert.Equal(BackgroundTerminalStatus.Completed, completed.Status);
+        Assert.True(completed.IsBackground);
         Assert.Contains("done", completed.Output);
 
         var listed = Assert.Single(await Service.ListAsync("thread_reason"));
         Assert.Equal(BackgroundTerminalStatus.Completed, listed.Status);
         Assert.Equal("runInBackground", listed.BackgroundReason);
+        Assert.True(listed.IsBackground);
     }
 
     [Fact]

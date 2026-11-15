@@ -936,6 +936,7 @@ export interface BackgroundTerminalSnapshot {
   command?: string;
   completedAt?: string | null;
   exitCode?: number | null;
+  isBackground: boolean;
   originalOutputChars?: number;
   output?: string;
   outputPath?: string;

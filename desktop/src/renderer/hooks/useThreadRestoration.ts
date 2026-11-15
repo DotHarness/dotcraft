@@ -149,6 +149,7 @@ export function useThreadRestoration(props: Props, warmThreads?: WarmThreads): {
     const owned = getThreadConnection(activeThreadId)
     if (owned && !isSameThreadObservationTarget(owned, target)) releaseThreadState(activeThreadId)
     registerThreadConnection(activeThreadId, target)
+    void useSubAgentStore.getState().ensureChildren(activeThreadId).catch(() => {})
     openThreadState(activeThreadId)
     if (reuseCached) {
       warm.take(activeThreadId)

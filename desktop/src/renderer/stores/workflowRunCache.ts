@@ -3,6 +3,7 @@ import type { ClientRequestMethods, ServerNotificationMethods, WorkflowRunSummar
 
 export interface WorkflowRunClient {
   connectionKey(): string
+  forThread?(threadId: string): WorkflowRunClient & { dispose(): void }
   onConnectionChange(listener: (connected: boolean) => void): () => void
   request<M extends keyof ClientRequestMethods>(
     method: M, params: ClientRequestMethods[M]['params']
@@ -24,7 +25,7 @@ export interface WorkflowRunState {
   entries: Map<string, WorkflowRunEntry>
   load(threadId: string, runId: string): Promise<void>
   list(threadId: string): Promise<boolean>
-  refresh(threadId: string): Promise<void>
+  refresh(threadId: string): Promise<boolean>
   stop(threadId: string, runId: string): Promise<void>
   observe(threadId: string, listener: (runs: readonly WorkflowRunSummary[]) => void): () => void
 }
@@ -182,16 +183,15 @@ function createWorkflowRunCache(client: WorkflowRunClient) {
     return pending.promise
   }
 
-  async function refresh(threadId: string): Promise<void> {
+  async function refresh(threadId: string): Promise<boolean> {
     ensureConnection()
     const started = epoch
     const existing = lists.get(threadId)
     if (existing) {
       await existing
-      if (!current(started)) return
+      if (!current(started)) return false
     }
-    await list(threadId)
-    if (!current(started)) return
+    if (!await list(threadId) || !current(started)) return false
     const prefix = `${threadId}\u0000`
     const known = [...store.getState().entries]
       .filter(([key, entry]) => key.startsWith(prefix) && (active(entry.summary?.status ?? '') || entry.error || loads.has(key)))
@@ -199,6 +199,7 @@ function createWorkflowRunCache(client: WorkflowRunClient) {
       if (loads.has(key)) dirty.add(key)
       return load(threadId, key.slice(prefix.length))
     }))
+    return current(started) && known.every(([key]) => !store.getState().entries.get(key)?.error)
   }
 
   async function stop(threadId: string, runId: string): Promise<void> {

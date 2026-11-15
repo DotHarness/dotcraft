@@ -111,6 +111,7 @@ public sealed class BackgroundTerminalModelReadTests : IAsyncLifetime
         });
 
         Assert.Equal(BackgroundTerminalStatus.Running, snapshot.Status);
+        Assert.True(snapshot.IsBackground);
         Assert.True(DateTimeOffset.UtcNow - started < TimeSpan.FromSeconds(20));
         await Service.StopAsync(snapshot.SessionId);
     }

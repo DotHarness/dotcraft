@@ -55,7 +55,9 @@ const WORKSPACE_DEFAULT: ApiOverrides<Api>['workspace'] = {
 
 const APP_SERVER_DEFAULT: ApiOverrides<Api>['appServer'] = {
   hasDesktopThreadTools: () => Promise.resolve(true),
-  onServerRequestSettled: () => () => undefined
+  onServerRequestSettled: () => () => undefined,
+  onNotificationRaw: () => () => undefined,
+  onNotification: () => () => undefined
 }
 
 export function installDesktopApiMock(overrides: ApiOverrides<Api>): Api {

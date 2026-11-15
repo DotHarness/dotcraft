@@ -3543,6 +3543,9 @@
             }
           ]
         },
+        "isBackground": {
+          "type": "boolean"
+        },
         "originalOutputChars": {
           "type": "integer"
         },
@@ -3590,7 +3593,10 @@
           "type": "string"
         }
       },
-      "additionalProperties": true
+      "additionalProperties": true,
+      "required": [
+        "isBackground"
+      ]
     },
     "BrowserUseCapability": {
       "title": "BrowserUseCapability",

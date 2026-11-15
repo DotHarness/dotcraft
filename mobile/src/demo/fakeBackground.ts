@@ -1,5 +1,6 @@
 export interface FakeTerminal {
   sessionId: string
+  isBackground: boolean
   threadId: string
   command: string
   status: 'running' | 'completed' | 'failed' | 'killed'
@@ -61,7 +62,7 @@ function terminalBody(terminal: FakeTerminal): Record<string, unknown> {
     source: 'host',
     exitCode: terminal.exitCode ?? null,
     completedAt: terminal.completedAt ?? null,
-    backgroundReason: terminal.backgroundReason === undefined ? 'runInBackground' : terminal.backgroundReason,
+    backgroundReason: terminal.backgroundReason ?? null,
   }
 }
 
@@ -217,9 +218,27 @@ export class FakeBackground {
     })
   }
 
+  finishAgent(childThreadId: string): void {
+    const agent = this.agents.find((entry) => entry.childThreadId === childThreadId)
+    if (!agent) return
+    Object.assign(agent, { running: false, lastTurn: 'completed', updatedAt: stamp() })
+    this.host.notify(childThreadId, 'thread/status/changed', {
+      threadId: childThreadId,
+      runtime: { running: false, busy: false, activeTurnId: null, waitingOnApproval: false, waitingOnInput: false },
+    })
+    this.touchAgent(childThreadId)
+  }
+
   touchAgent(childThreadId: string): void {
     const agent = this.agents.find((entry) => entry.childThreadId === childThreadId)
     if (agent) this.host.notify(agent.parentThreadId, 'subagent/graph/changed', { parentThreadId: agent.parentThreadId, childThreadId })
+  }
+
+  handoffTerminal(sessionId: string): void {
+    const terminal = this.terminals.find((entry) => entry.sessionId === sessionId)
+    if (!terminal || terminal.status !== 'running') return
+    terminal.isBackground = true
+    this.host.notify(terminal.threadId, 'terminal/backgrounded', { terminal: terminalBody(terminal) })
   }
 
   finishTerminal(sessionId: string): void {

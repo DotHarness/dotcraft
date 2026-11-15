@@ -50,25 +50,17 @@ describe('background tasks', () => {
     ])
   })
 
-  it('lists a command that outlived its turn and leaves out one that finished inside it', async () => {
+  it('lists handed-off commands and excludes foreground completion', async () => {
     const { tasks } = await openReview(0, (computer) => {
       const threadId = 'thread_release_review'
       const startedAt = new Date().toISOString()
       computer.background.terminals.push(
-        { sessionId: 'term_yielded', threadId, command: 'npm run build', status: 'running', startedAt, output: '', turnId: 'turn_earlier', backgroundReason: null },
-        { sessionId: 'term_quick', threadId, command: 'git status', status: 'completed', startedAt, completedAt: startedAt, output: '', turnId: 'turn_earlier', backgroundReason: null },
+        { sessionId: 'term_yielded', isBackground: true, threadId, command: 'npm run build', status: 'running', startedAt, output: '', turnId: 'turn_earlier', backgroundReason: null },
+        { sessionId: 'term_quick', isBackground: false, threadId, command: 'git status', status: 'completed', startedAt, completedAt: startedAt, output: '', turnId: 'turn_earlier', backgroundReason: null },
       )
     })
     expect(tasks().running.map((task) => task.id)).toContain('term_yielded')
     expect([...tasks().running, ...tasks().completed].map((task) => task.id)).not.toContain('term_quick')
-  })
-
-  it('leaves a running command of the active turn out until the turn ends', () => {
-    const shell = [
-      { kind: 'shell' as const, id: 'term_1', ownerThreadId: 'thread_1', title: 'npm run dev', status: 'running' as const, startedAt: null, endedAt: null, stop: 'term_1', turnId: 'turn_1', output: null },
-    ]
-    expect(chatTasks({ shell }, 'turn_1').running).toEqual([])
-    expect(chatTasks({ shell }, null).running.map((task) => task.id)).toEqual(['term_1'])
   })
 
   it('shows a command handed over after its yield time and how each subagent stands', async () => {

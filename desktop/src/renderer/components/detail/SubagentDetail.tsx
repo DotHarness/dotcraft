@@ -40,7 +40,7 @@ export function SubagentDetail({ child, onBack }: { child: SubAgentChild; onBack
   const connectionEpoch = useConnectionStore((s) => s.connectionEpoch)
   const projectKey = useWorkspaceProjectsStore((s) => s.foregroundProjectId)
   useThreadStore((s) => s.runtimeSnapshots.get(childThreadId))
-  useSubAgentTaskActivity((s) => s.tasksByThread)
+  useSubAgentTaskActivity()
   useSubAgentStore((s) => s.childrenByParent)
   const running = isSubAgentChildRunning(child)
   const working = isSubAgentChildWorking(child)
