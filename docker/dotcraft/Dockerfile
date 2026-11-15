@@ -36,6 +36,7 @@ RUN npm ci --ignore-scripts
 
 COPY desktop/scripts/build-bundled-plugins.mjs ./scripts/build-bundled-plugins.mjs
 COPY desktop/src/bundled-plugins ./src/bundled-plugins
+COPY desktop/src/shared ./src/shared
 COPY desktop/resources/plugins/dotcraft-bundled/plugins ./resources/plugins/dotcraft-bundled/plugins
 RUN npm run prepare:bundled-plugins
 
