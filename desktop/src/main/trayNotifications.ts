@@ -75,22 +75,25 @@ export function showHubNotification(
     locale: AppLocale
     settings: AppSettings
     isWorkspaceFocused(workspacePath: string): boolean
+    isViewingThread(workspacePath: string, threadId: string): boolean
     open(payload: HubNotificationPayload): void
   }
 ): boolean {
   const payload = parseHubNotificationPayload(event, options.locale)
   if (!payload || !Notification.isSupported()) return false
-  const focused = options.isWorkspaceFocused(payload.workspacePath ?? '')
+  const workspacePath = payload.workspacePath ?? ''
+  const focused = options.isWorkspaceFocused(workspacePath)
   if (payload.kind === 'turnCompleted' || payload.kind === 'turnFailed') {
     const mode = resolveTaskCompletionNotificationMode(options.settings)
     if (mode === 'never' || (mode !== 'always' && focused)) return false
   }
+  const viewing = payload.threadId ? options.isViewingThread(workspacePath, payload.threadId) : focused
   if (
     payload.kind === 'approvalRequested' &&
-    (options.settings.notifications?.approvalRequests === false || focused)
+    (options.settings.notifications?.approvalRequests === false || viewing)
   )
     return false
-  if (payload.kind === 'inputRequested' && (options.settings.notifications?.questions === false || focused))
+  if (payload.kind === 'inputRequested' && (options.settings.notifications?.questions === false || viewing))
     return false
   const notification = new Notification({
     title: payload.title,

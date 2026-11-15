@@ -908,7 +908,7 @@ Every result opens by automation id and run id. Follow-ups locate the exact turn
 
 **Notifications**
 
-- Task completion notifications (`whenUnfocused` default, `always`, `never`) and on-by-default switches for approval requests and questions are Desktop-local preferences. They gate the Hub tray notification kinds in [Hub Architecture §10](../architecture/hub-architecture.md#10-tray-and-notifications): a waiting approval or question notifies only when no focused Desktop window has that workspace in the foreground, and clicking opens the chat.
+- Task completion notifications (`whenUnfocused` default, `always`, `never`) and on-by-default switches for approval requests and questions are Desktop-local preferences. They gate the Hub tray notification kinds in [Hub Architecture §10](../architecture/hub-architecture.md#10-tray-and-notifications): a waiting approval or question notifies unless a focused Desktop window shows that chat, and clicking opens the chat.
 - When Hub cannot deliver (non-Hub foreground connections such as Remote, SSH, paired computers, and Docker, or no tray), the window notifies itself under the same switches unless the related chat is open in that window and the window is focused.
 - Each request notifies at most once; a replay after reconnect or thread switch does not notify again.
 

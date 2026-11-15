@@ -83,6 +83,7 @@ describe('application-owned tray', () => {
       openWindow,
       newWindow: vi.fn(),
       isWorkspaceFocused: () => false,
+      isViewingThread: () => false,
       exit
     })
     try {
@@ -112,6 +113,7 @@ describe('application-owned tray', () => {
       openWindow: vi.fn(async () => {}),
       newWindow: vi.fn(),
       isWorkspaceFocused: () => false,
+      isViewingThread: () => false,
       exit
     })
     try {
@@ -141,9 +143,29 @@ describe('application-owned tray', () => {
         locale: 'en',
         settings: { notifications: { taskCompletionMode: 'whenUnfocused' } },
         isWorkspaceFocused: () => true,
+        isViewingThread: () => true,
         open: vi.fn()
       })
     ).toBe(false)
     expect(fake.notifications).toHaveLength(0)
+  })
+
+  it('notifies about an approval in another chat of the focused workspace', () => {
+    const approval = (threadId: string) => ({
+      kind: 'notification.requested',
+      workspacePath: '/one',
+      data: { kind: 'approvalRequested', threadId, title: 'Fix login', body: 'Needs your approval' }
+    }) as unknown as HubEvent
+    const options = {
+      locale: 'en' as const,
+      settings: {},
+      isWorkspaceFocused: () => true,
+      isViewingThread: (_workspacePath: string, threadId: string) => threadId === 'thread_a',
+      open: vi.fn()
+    }
+
+    expect(showHubNotification(approval('thread_a'), options)).toBe(false)
+    expect(showHubNotification(approval('thread_b'), options)).toBe(true)
+    expect(fake.notifications).toHaveLength(1)
   })
 })

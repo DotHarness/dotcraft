@@ -21,6 +21,7 @@ export interface DesktopTrayHost {
   openWindow(workspacePath?: string | null, threadId?: string | null): Promise<void>
   newWindow(): void
   isWorkspaceFocused(workspacePath: string): boolean
+  isViewingThread(workspacePath: string, threadId: string): boolean
   exit(): Promise<void>
 }
 
@@ -204,6 +205,7 @@ export function createDesktopTray(host: DesktopTrayHost): DesktopTray {
           locale: normalizeLocale(host.getSettings().locale),
           settings: host.getSettings(),
           isWorkspaceFocused: host.isWorkspaceFocused,
+          isViewingThread: host.isViewingThread,
           open: openNotification
         })
         void refresh()

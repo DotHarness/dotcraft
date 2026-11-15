@@ -1,13 +1,27 @@
 import { act, renderHook } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ThreadTask, ThreadTasksSnapshot } from '../../shared/threadTasks'
 import { useThreadWaitingStatus } from '../components/sidebar/threadWaitingStatus'
 import { createThreadConversation, releaseThreadConversation } from '../stores/conversationStore'
 import { useUIStore } from '../stores/uiStore'
+import { installDesktopApiMock } from './desktopApiMock'
 
 const threadId = 'fixture-plan'
 const runtime = { waitingOnApproval: false, waitingOnInput: false, waitingOnPlanConfirmation: true }
 
-beforeEach(() => useUIStore.setState({ planApprovalDismissed: {} }))
+let publishTasks: (snapshot: ThreadTasksSnapshot) => void = () => {}
+
+beforeEach(() => {
+  useUIStore.setState({ planApprovalDismissed: {} })
+  installDesktopApiMock({
+    threadTasks: {
+      onChanged: vi.fn((listener: (snapshot: ThreadTasksSnapshot) => void) => {
+        publishTasks = listener
+        return () => {}
+      })
+    }
+  })
+})
 afterEach(() => releaseThreadConversation(threadId))
 
 describe('thread waiting classification', () => {
@@ -40,6 +54,31 @@ describe('thread waiting classification', () => {
     rerender({ selected: false })
     expect(result.current).toBe('plan')
     rerender({ selected: true })
+    expect(result.current).toBeNull()
+  })
+
+  it('reports a chat as needing an answer while its new-task offer waits, without a server flag', () => {
+    const offer = (state: ThreadTask['state']): ThreadTasksSnapshot => ({
+      threadId,
+      tasks: [{
+        id: 'task_00000001',
+        threadId,
+        workspacePath: 'C:/work',
+        kind: 'offer',
+        state,
+        title: 'Write the release notes',
+        defaults: {},
+        createdAt: '2026-11-15T00:00:00.000Z'
+      }]
+    })
+    const idle = { ...runtime, waitingOnPlanConfirmation: false }
+    const { result } = renderHook(() => useThreadWaitingStatus(threadId, idle))
+    expect(result.current).toBeNull()
+
+    act(() => publishTasks(offer('pending')))
+    expect(result.current).toBe('input')
+
+    act(() => publishTasks(offer('keptHere')))
     expect(result.current).toBeNull()
   })
 })

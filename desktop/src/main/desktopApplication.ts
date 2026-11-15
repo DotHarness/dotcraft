@@ -102,6 +102,10 @@ export class DesktopApplication implements DesktopApplicationServices {
         [...this.windows.values()].some(
           (window) => window.currentWorkspacePath === workspace && window.mainWindow?.isFocused()
         ),
+      isViewingThread: (workspace, threadId) =>
+        [...this.windows.values()].some(
+          (window) => window.currentWorkspacePath === workspace && window.userInputAutoResolution.isViewing(threadId)
+        ),
       exit: this.exitFromTray
     })
     await this.manager.routeLaunch(argv, true)
