@@ -156,6 +156,30 @@ public sealed partial class SessionService
         };
     }
 
+    private static async Task<PromptRequestSnapshot> CaptureProviderHistorySnapshotAsync(
+        PromptRequestSnapshot snapshot,
+        CancellationToken ct)
+    {
+        if (ProviderRequestContextScope.Current is not { History.IsNativeCompacted: true, Compaction: { } bridge } context)
+        {
+            return snapshot;
+        }
+
+        var input = await bridge.CaptureInputAsync(
+            ProviderCompactionPhase.MidTurn,
+            snapshot.Messages,
+            MaintenanceForkRunner.BuildOptions(snapshot),
+            ct);
+        return snapshot with
+        {
+            ProviderHistory = context.History.CaptureOpaqueSnapshot() with
+            {
+                Items = input.Items,
+                CoveredThroughTurnId = input.CoveredThroughTurnId
+            }
+        };
+    }
+
     private void InvalidatePromptRequestSnapshot(string threadId, string reason)
     {
         if (_runtimeRegistry.TryGetRuntime(threadId, out var runtime)

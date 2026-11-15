@@ -32,23 +32,27 @@ public sealed class NativeSubAgentGuidanceTests
     }
 
     [Fact]
-    public void Reconcile_ReplacesExistingGuidanceInPlace()
+    public void Reconcile_ReplacesOnlyLatestGuidanceInPlace()
     {
         var thread = CreateNativeThread("Old guidance.");
         var history = new List<ChatMessage>
         {
-            new(ChatRole.User, "parent task")
+            new(ChatRole.User, "parent task"),
+            ThreadContextItems.Create(ThreadContextCarrier.DeveloperMessage,
+                ThreadContextItems.SubAgentRoleKind, "Ancestor guidance."),
+            ThreadContextItems.Create(ThreadContextCarrier.DeveloperMessage,
+                ThreadContextItems.SubAgentRoleKind, "Old guidance.")
         };
-        NativeSubAgentGuidance.Reconcile(thread, history, ThreadContextCarrier.DeveloperMessage);
         history.Add(new ChatMessage(ChatRole.User, "child task"));
 
         thread.Configuration!.SubAgentRoleInstructions = "New guidance.";
         var replaced = NativeSubAgentGuidance.Reconcile(thread, history, ThreadContextCarrier.DeveloperMessage);
 
         Assert.Equal(NativeSubAgentGuidanceChange.Replaced, replaced);
-        Assert.Contains("New guidance.", history[1].Text);
-        Assert.DoesNotContain("Old guidance.", history[1].Text);
-        Assert.Equal(3, history.Count);
+        Assert.Equal("Ancestor guidance.", history[1].Text);
+        Assert.Contains("New guidance.", history[2].Text);
+        Assert.DoesNotContain("Old guidance.", history[2].Text);
+        Assert.Equal(4, history.Count);
     }
 
     [Fact]

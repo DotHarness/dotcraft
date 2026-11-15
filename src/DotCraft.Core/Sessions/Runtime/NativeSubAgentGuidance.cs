@@ -89,7 +89,7 @@ internal static class NativeSubAgentGuidance
 
     private static int FindExistingIndex(IList<ChatMessage> history)
     {
-        for (var i = 0; i < history.Count; i++)
+        for (var i = history.Count - 1; i >= 0; i--)
         {
             if (ThreadContextItems.IsKind(history[i], ThreadContextItems.SubAgentRoleKind))
                 return i;

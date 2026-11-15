@@ -59,6 +59,8 @@ public interface IProviderHistorySink
 /// <summary>Coordinates provider-owned history with generic retry and tool-loop middleware.</summary>
 public interface IProviderConversationHistory
 {
+    bool IsNativeCompacted { get; }
+
     /// <summary>Appends model-visible local input outside a sampling request, without replacing native history.</summary>
     ValueTask AppendLocalInputAsync(
         IReadOnlyList<ChatMessage> messages,

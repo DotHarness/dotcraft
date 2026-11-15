@@ -1081,6 +1081,8 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
         public ValueTask AbortAttemptAsync(string? attemptId, CancellationToken cancellationToken) =>
             ValueTask.CompletedTask;
 
+        public bool IsNativeCompacted => false;
+
         public OpaqueProviderHistorySnapshot CaptureOpaqueSnapshot() =>
             new(
                 new ProviderHistoryIdentity("test", "test", 1, "thread", null, "generation", "window"),

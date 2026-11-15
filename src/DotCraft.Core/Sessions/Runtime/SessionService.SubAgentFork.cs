@@ -33,11 +33,13 @@ public sealed partial class SessionService
                 forkMode: source.ForkTurns);
         }
 
+        var childContext = new List<ChatMessage>();
         NativeSubAgentGuidance.Reconcile(
             childThread,
-            forkHistory,
+            childContext,
             ResolveThreadContextCarrier(childThread),
             _subAgentGuidanceProviders);
+        forkHistory.AddRange(childContext);
 
         AgentInstructionContextPages.TryForkStablePages(parentThread.Id, childThread.Id);
 
@@ -57,24 +59,66 @@ public sealed partial class SessionService
                 tokensBefore: tokens,
                 tokensAfter: tokens,
                 ct);
+        }
 
-            var childWindow = GetOrCreateResponsesContextWindow(childThread.Id);
-            var childIdentity = ThreadConversationIdentity.Create(
-                childThread,
-                childThread.Turns[^1],
-                childWindow.CurrentWindowId,
-                ProviderRequestKind.Turn);
-            var childProviderState = new ProviderConversationState(childIdentity);
-            using var childResponsesScope = ProviderRequestContextScope.Push(
-                new ProviderRequestContext(childIdentity, ConversationState: childProviderState));
-            await TryReplaceResponsesProviderHistoryAsync(
-                childThread,
-                forkHistory,
-                ProviderHistoryReasons.Fork,
+        var childWindow = GetOrCreateResponsesContextWindow(childThread.Id);
+        var childIdentity = ThreadConversationIdentity.Create(
+            childThread,
+            childThread.Turns[^1],
+            childWindow.CurrentWindowId,
+            ProviderRequestKind.Turn);
+        var childProviderState = new ProviderConversationState(childIdentity);
+        using var childResponsesScope = ProviderRequestContextScope.Push(
+            new ProviderRequestContext(childIdentity, ConversationState: childProviderState));
+        await ForkSubAgentProviderHistoryAsync(parentThread.Id, childThread, forkHistory, ct);
+
+        return true;
+    }
+
+    private async Task ForkSubAgentProviderHistoryAsync(
+        string parentThreadId,
+        SessionThread childThread,
+        List<ChatMessage> forkHistory,
+        CancellationToken ct)
+    {
+        var parentRequest = TryGetLastPromptRequestSnapshot(parentThreadId);
+        if (parentRequest?.ProviderHistory is not { } sourceHistory)
+        {
+            await TryReplaceResponsesProviderHistoryAsync(childThread, forkHistory, ProviderHistoryReasons.Fork, ct);
+            return;
+        }
+
+        var identity = ProviderRequestContextScope.Current!.CurrentIdentity;
+        var inherited = sourceHistory with
+        {
+            Identity = sourceHistory.Identity with
+            {
+                ThreadId = childThread.Id,
+                TurnId = identity.TurnId,
+                GenerationId = identity.ContextWindowId,
+                ContextWindowId = identity.ContextWindowId
+            },
+            CoveredThroughTurnId = identity.TurnId
+        };
+        if (childThread.Ephemeral)
+        {
+            _runtimeRegistry.SetThread(childThread).ResponsesProviderHistorySnapshot = inherited;
+        }
+        else
+        {
+            await new SessionProviderHistorySink(persistence).ReplaceAsync(
+                inherited.Identity,
+                inherited.CoveredThroughTurnId,
+                ProviderHistoryReasons.ForkNativeCompaction,
+                inherited.Items,
                 ct);
         }
 
-        return true;
+        var history = (await CreateResponsesProviderHistoryContextAsync(
+            childThread, turn: null, parentRequest.Messages.ToList(), ct))!;
+        await history.AppendLocalInputAsync(forkHistory.Skip(parentRequest.Messages.Count).ToArray(), ct);
+        if (childThread.Ephemeral)
+            _runtimeRegistry.SetThread(childThread).ResponsesProviderHistorySnapshot = history.CaptureOpaqueSnapshot();
     }
 
     private async Task<long?> InheritSubAgentContextUsageAsync(

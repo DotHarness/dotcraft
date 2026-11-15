@@ -640,6 +640,8 @@ public sealed class StreamRetryingChatClientTests
 
         public void EndAttempt(string? attemptId) => Events.Add($"end:{attemptId}");
 
+        public bool IsNativeCompacted => false;
+
         public OpaqueProviderHistorySnapshot CaptureOpaqueSnapshot() => throw new NotSupportedException();
     }
 }
