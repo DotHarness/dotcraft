@@ -150,11 +150,12 @@
 }
 
 .dcw-scene-frame {
-  visibility: hidden;
+  /* Keep the frame renderable so Chromium can deliver its startup animation frame. */
+  opacity: 0;
 }
 
 .dcw-scene-frame-ready {
-  visibility: visible;
+  opacity: 1;
 }
 
 .dcw-theme-swatch {
