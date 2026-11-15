@@ -4,7 +4,7 @@
 |-------|-------|
 | **Version** | 0.12.1 |
 | **Status** | Living |
-| **Date** | 2026-11-15 |
+| **Date** | 2026-11-16 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
 | **Related Specs** | [Plugin Architecture](../architecture/plugin-architecture.md), [.NET Extension Runtime](../architecture/dotnet-extensions.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md) |
 
@@ -667,7 +667,7 @@ Submit input and sparse execution settings as one Session Core admission. The se
 
 When idle, the server commits the effective settings, captures that configuration and its execution resources, creates a Turn, and records non-empty input as a `userMessage`. The response contains the initial Turn (`running`, empty `items`), followed by `turn/started`, Item events, and a terminal notification.
 
-When a regular Turn accepts guidance, the input joins that Turn and the response contains its existing id with empty `items`. No second `turn/started` is emitted. Supplied settings become defaults for subsequent Turns; they do not change the active Turn's captured model, mode, workspace, tools, execution owner, or approval routing. Clients merge by the returned Turn id and correlate input through `clientUserMessageId`, rather than assuming each successful request created a Turn.
+When a regular Turn accepts guidance, the input joins that Turn and the response contains its existing id with empty `items`. No second `turn/started` is emitted. Supplied settings become defaults for subsequent Turns and do not change the active Turn's captured model, mode, workspace, tools, execution owner, or approval routing. An explicit approval-policy override follows Session Core's live policy rules, so later approval requests and pending approvals use the admitted policy. Clients merge by the returned Turn id and correlate input through `clientUserMessageId`, rather than assuming each successful request created a Turn.
 
 **Params**:
 
@@ -679,6 +679,7 @@ When a regular Turn accepts guidance, the input joins that Turn and the response
 - `providerId`, `model`, `reasoning`, `speed`: optional sparse model settings using the existing provider-neutral configuration types. Omission or top-level null inherits the current thread selection. A model-only override retains the current provider; changing provider requires an explicit model. Reasoning fields merge individually, `reasoning.enabled = false` disables reasoning, and `speed = "standard"` selects standard speed. An empty identifier or invalid setting fails before input is accepted. Provider changes seed omitted model options from the target provider's effective preference; otherwise omitted settings inherit the thread and are normalized for the selected model using the existing capability rules. These overrides do not change workspace provider preferences, Agent Profile identity, tools, MCP, memory, or approval policy.
 - `cwd`, `runtimeWorkspaceRoots`: sticky settings admitted together with the input, rather than applied by a preceding workspace update. An empty roots array explicitly clears runtime roots.
 - `mode`: optional `"agent"` or `"plan"`, admitted and retained with the other settings. Accepting a plan sends `mode = "agent"` with its execution input, without a preceding `thread/mode/set`. A steered input changes only the next-Turn default.
+- `approvalPolicy`: optional `"default"`, `"prompt"`, `"autoApprove"`, or `"deny"`, committed with input. Omission or null inherits the current thread policy. Invalid values reject settings and input. Policy-only changes preserve the agent and tools and apply to live approvals under Session Core's policy rules.
 - `clientUserMessageId`: also accepted by `turn/enqueue` and `turn/steer`. Clients using optimistic submission send a fresh UUID per submission (queue updates keep the existing id); user-message payloads and queued inputs echo it so clients correlate acknowledgements without content matching. Channels without optimistic presentation omit it.
 
 **Commit boundary**: Session Core merges sparse settings against the latest thread configuration inside the same command that accepts input. Prevalidation or admission rejection changes neither settings nor input. A started Turn owns its commit's configuration and execution resources; later updates cannot replace them. Settings persist as thread defaults and are not rolled back when accepted execution subsequently fails. Steering accepts guidance before committing subsequent-Turn settings, so a later persistence failure is not a guarantee that input was never accepted; callers must not automatically replay the request. This is a concurrency boundary, not a database transaction spanning all execution and persistence.

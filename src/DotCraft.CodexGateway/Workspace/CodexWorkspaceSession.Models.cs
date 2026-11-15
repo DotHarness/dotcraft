@@ -23,8 +23,8 @@ public sealed partial class CodexWorkspaceSession
         _defaultEffort = Config(Config(preference, "reasoning"), "effort").ValueKind == JsonValueKind.String
             ? Config(Config(preference, "reasoning"), "effort").GetString() : null;
         if (Config(Config(preference, "reasoning"), "enabled").ValueKind == JsonValueKind.False) _defaultEffort = "none";
-        _defaultPolicy = ApprovalPolicy(Config(Config(configuration, "Permissions"), "DefaultApprovalPolicy").ValueKind == JsonValueKind.String
-            ? Config(Config(configuration, "Permissions"), "DefaultApprovalPolicy").GetString() : null);
+        var policy = Config(Config(configuration, "Permissions"), "DefaultApprovalPolicy");
+        _defaultPolicy = policy.ValueKind == JsonValueKind.String ? policy.GetString() : null;
         _defaultSpeed = Config(preference, "speed").ValueKind == JsonValueKind.String ? Config(preference, "speed").GetString() : null;
         var providers = await RequestAsync("provider/list", new { }, ct);
         _models.Clear();
@@ -100,9 +100,9 @@ public sealed partial class CodexWorkspaceSession
             ["model_provider"] = _defaultBinding is { } id && _models.TryGetValue(id, out var binding) ? binding.Provider : null,
             ["model_reasoning_effort"] = _defaultEffort is { } effort ? CodexEffort(effort) : null,
             ["model_reasoning_summary"] = null, ["model_verbosity"] = null,
-            ["service_tier"] = _defaultSpeed == "fast" ? "fast" : null, ["approval_policy"] = _defaultPolicy, ["approvals_reviewer"] = "user",
+            ["service_tier"] = _defaultSpeed == "fast" ? "fast" : null, ["approval_policy"] = ApprovalPolicy(_defaultPolicy), ["approvals_reviewer"] = "user",
             ["sandbox_mode"] = "danger-full-access", ["sandbox_workspace_write"] = null,
-            ["default_permissions"] = CodexPermissionProfile.Id,
+            ["default_permissions"] = CodexPermissionProfile.ForPolicy(_defaultPolicy),
             ["permissions"] = null, ["forced_chatgpt_workspace_id"] = null,
             ["forced_login_method"] = null, ["web_search"] = null,
             ["tools"] = null, ["instructions"] = null, ["developer_instructions"] = null,

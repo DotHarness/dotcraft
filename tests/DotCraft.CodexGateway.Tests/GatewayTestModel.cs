@@ -11,6 +11,7 @@ internal sealed class GatewayTestModel(string name) : IModelProvider, IModelCata
     public const string ModelId = "gateway-fixture-model";
     public const int LargeReplyLength = 5 * 1024 * 1024;
     public TaskCompletionSource Blocked { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public GatewayApprovalTool ApprovalTool { get; } = new();
     public IReadOnlyCollection<string> Protocols => [ModelProviderProtocols.OpenAIChatCompletions];
     public IChatClient CreateChatClient(EffectiveModelRuntime runtime) => new Client(this, name);
 
@@ -38,6 +39,16 @@ internal sealed class GatewayTestModel(string name) : IModelProvider, IModelCata
             var lastInput = Array.FindLastIndex(history, message => message.Role == ChatRole.User);
             var result = history.Skip(lastInput + 1).SelectMany(message => message.Contents)
                 .OfType<FunctionResultContent>().LastOrDefault();
+            if (prompt == "approval" && result is null)
+            {
+                yield return new ChatResponseUpdate
+                {
+                    Role = ChatRole.Assistant, FinishReason = ChatFinishReason.ToolCalls,
+                    Contents = [new FunctionCallContent("approval-call", GatewayApprovalTool.Name,
+                        new Dictionary<string, object?> { ["path"] = Path.Combine(Path.GetTempPath(), "gateway-protected.txt") })]
+                };
+                yield break;
+            }
             if (prompt is "question" or "large-history" && result is null)
             {
                 if (prompt == "large-history")

@@ -155,7 +155,7 @@ export class InternalAppServerClient extends DotCraftWireClient {
     threadId: string,
     input: Record<string, unknown>[],
     sender?: Record<string, unknown> | null,
-    settings: Pick<ClientRequestMethods["turn/start"]["params"], "providerId" | "model" | "reasoning" | "speed"> = {},
+    settings: Pick<ClientRequestMethods["turn/start"]["params"], "providerId" | "model" | "reasoning" | "speed" | "approvalPolicy"> = {},
   ): Promise<SessionTurn> {
     const payload: Record<string, unknown> = { ...settings, threadId, input };
     if (sender) payload.sender = sender;

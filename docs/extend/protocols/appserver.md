@@ -279,9 +279,9 @@ An ACP client can expose client-owned Runtime Dynamic Tools through DotCraft's p
 
 ## Turns
 
-`turn/start` submits input and optional model settings together. When idle, the server starts a turn using those settings. When a regular turn accepts guidance, input joins that turn and the response returns its existing ID without another `turn/started` notification.
+`turn/start` submits input and optional execution settings together. When idle, the server starts a turn using those settings. When a regular turn accepts guidance, input joins that turn and the response returns its existing ID without another `turn/started` notification.
 
-The optional `providerId`, `model`, `reasoning`, and `speed` fields become thread defaults after acceptance. A newly started turn uses them immediately; guidance does not change the active turn's captured model or execution settings. Omitted or null fields retain the current selection. Changing provider requires a model, and reasoning fields merge individually. Use `turn/enqueue` explicitly when the input must wait for a separate turn.
+The optional `providerId`, `model`, `reasoning`, `speed`, and `approvalPolicy` fields become thread defaults after acceptance. A newly started turn uses them immediately. Guidance preserves the active turn's captured model and execution settings, except that an explicit approval-policy change applies to pending approvals and later approval requests. Omitted or null fields retain the current selection. `approvalPolicy` accepts `default`, `prompt`, `autoApprove`, or `deny`. Changing provider requires a model, and reasoning fields merge individually. Use `turn/enqueue` explicitly when the input must wait for a separate turn.
 
 ```json
 {

@@ -87,7 +87,7 @@ Start options contain identity fields, display name, history mode, configuration
 
 `read()` and a Thread handle's `refresh()` return the current Thread header without persisted Turns or Items. `listTurns()` reads Turn metadata or summary Items according to `itemsView`; `listItems()` reads Items across the Thread or for the optional `turnId`. Both accept `cursor`, `limit`, and `sortDirection`, and return `data` plus an opaque `nextCursor`; `listTurns()` also returns a `backwardsCursor` that reads outward from the first returned Turn in either direction. Thread handles expose the same two pagination methods without the `threadId` argument.
 
-`run()` and `runStreamed()` accept text, `InputPart[]`, or `{ input, sender }`. Run options include `providerId`, `model`, `reasoning`, `speed`, `sender`, `collectRawEvents`, and `abortSignal`. A buffered result contains `thread`, optional terminal `turn`, merged `text`, `items`, optional `usage`, and optional raw events. A run starts a turn or adds guidance to an active regular turn. See [Runs](./runs#run-options) for model inheritance, shared results, and explicit queueing.
+`run()` and `runStreamed()` accept text, `InputPart[]`, or `{ input, sender }`. Run options include `providerId`, `model`, `reasoning`, `speed`, `approvalPolicy`, `sender`, `collectRawEvents`, and `abortSignal`. A buffered result contains `thread`, optional terminal `turn`, merged `text`, `items`, optional `usage`, and optional raw events. A run starts a turn or adds guidance to an active regular turn. See [Runs](./runs#run-options) for model inheritance, shared results, and explicit queueing.
 
 ## Models, MCP, and App Binding
 

@@ -172,6 +172,7 @@ export class DotCraftThread {
       model: options.model,
       reasoning: options.reasoning ? { ...options.reasoning } : options.reasoning,
       speed: options.speed,
+      approvalPolicy: options.approvalPolicy,
     };
     const reducer = new RunReducer();
     const rawEvents: JsonRpcMessage[] = [];

@@ -374,7 +374,7 @@ export type RunInput =
       sender?: SenderContext;
     };
 
-export interface RunOptions extends Pick<ClientRequestMethods["turn/start"]["params"], "providerId" | "model" | "reasoning" | "speed"> {
+export interface RunOptions extends Pick<ClientRequestMethods["turn/start"]["params"], "providerId" | "model" | "reasoning" | "speed" | "approvalPolicy"> {
   sender?: SenderContext;
   collectRawEvents?: boolean;
   abortSignal?: AbortSignal;

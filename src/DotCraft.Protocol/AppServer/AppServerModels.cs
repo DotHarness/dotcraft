@@ -894,6 +894,10 @@ public sealed class TurnStartParams : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Mode { get; init; }
 
+    [JsonPropertyName("approvalPolicy")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ApprovalPolicy { get; init; }
+
     [JsonPropertyName("clientUserMessageId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? ClientUserMessageId { get; init; }

@@ -72,6 +72,8 @@ public sealed class RunOptions
 
     public string? Speed { get; set; }
 
+    public string? ApprovalPolicy { get; set; }
+
     /// <summary>When true (default), buffered runs throw on failed or cancelled turns.</summary>
     public bool ThrowOnFailure { get; set; } = true;
 }

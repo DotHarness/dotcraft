@@ -23,16 +23,12 @@ public sealed partial class CodexWorkspaceSession
         return policy is null or "default" ? "prompt" : policy;
     }
 
-    private async Task<string?> RequestedApprovalPolicyAsync(string policy, JsonElement configuration, CancellationToken ct)
+    private static string RequestedApprovalPolicy(string policy) => policy switch
     {
-        if (policy is not ("never" or "on-request"))
-            throw new ArgumentException("Only never and on-request approval policies map to DotCraft.");
-        var current = await EffectiveApprovalPolicyAsync(configuration, ct);
-        if (ApprovalPolicy(current) == policy) return null;
-        if (policy == "never")
-            throw new ArgumentException("The source approval policy requires prompting; never cannot disable source approval authority.");
-        return "prompt";
-    }
+        "never" => "autoApprove",
+        "on-request" => "prompt",
+        _ => throw new ArgumentException("Only never and on-request approval policies map to DotCraft.")
+    };
 
     private static void ApplyPermissionOverrides(JsonElement p, Dictionary<string, JsonElement> values)
     {
@@ -44,13 +40,6 @@ public sealed partial class CodexWorkspaceSession
         if (sandbox || sandboxPolicy || permissions)
             foreach (var key in new[] { "sandbox", "sandbox_mode", "permissions", "default_permissions" })
                 values.Remove(key);
-    }
-
-    private static void ValidateSandboxPolicy(JsonElement sandbox)
-    {
-        if (sandbox.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null) return;
-        if (sandbox.Text("type") != "dangerFullAccess")
-            throw new ArgumentException("Only the dangerFullAccess sandbox policy is available.");
     }
 
     private async Task<object> UnchangedConfigurationAsync(JsonElement p, CancellationToken ct)
