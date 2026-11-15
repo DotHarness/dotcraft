@@ -15,7 +15,12 @@ internal static class CodexGatewayDiagnostics
             initialPage = initial.ValueKind == JsonValueKind.Object,
             view = Choice(initial.Text("itemsView") ?? parameters.Text("itemsView"), "summary", "full", "notLoaded"),
             direction = Choice(initial.Text("sortDirection") ?? parameters.Text("sortDirection"), "asc", "desc"),
-            limit = Number(initial.Get("limit").ValueKind == JsonValueKind.Undefined ? parameters.Get("limit") : initial.Get("limit"))
+            limit = Number(initial.Get("limit").ValueKind == JsonValueKind.Undefined ? parameters.Get("limit") : initial.Get("limit")),
+            sandbox = Choice(parameters.Text("sandbox"), "danger-full-access", "read-only", "workspace-write"),
+            configSandbox = Choice(parameters.Get("config").Text("sandbox_mode"), "danger-full-access", "read-only", "workspace-write"),
+            sandboxPolicy = Choice(parameters.Get("sandboxPolicy").Text("type"), "dangerFullAccess", "readOnly", "workspaceWrite", "externalSandbox"),
+            permissions = Present(parameters.Get("permissions")),
+            configPermissions = Present(parameters.Get("config").Get("default_permissions"))
         }));
     }
 

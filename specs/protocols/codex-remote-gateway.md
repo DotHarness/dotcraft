@@ -4,7 +4,7 @@
 |---|---|
 | Version | 0.12.0 |
 | Status | Living |
-| Date | 2026-11-14 |
+| Date | 2026-11-15 |
 | Parent specs | [AppServer protocol](appserver-protocol.md), [Runtime boundaries](../architecture/runtime-module-boundaries.md) |
 
 ## 1. Purpose and scope
@@ -85,7 +85,9 @@ The existing atomic turn/start carries providerId/model/reasoning/speed, mode an
 
 The named permission profile dotcraft selects the existing DotCraft execution and approval chain without changing collaboration mode. permissionProfile/list exposes it as allowed; requirements select it through allowedPermissionProfiles and defaultPermissions, with danger-full-access as the available sandbox mode and user as the reviewer. Config reports default_permissions=dotcraft, sandbox_mode=danger-full-access and the effective approval policy. Thread start/resume return sandbox.type=dangerFullAccess and activePermissionProfile.id=dotcraft. No Codex outer sandbox is claimed. Selecting this profile does not auto-approve tools.
 
-Agent/Plan map to DotCraft agent/plan independently of the profile. Prompt maps to on-request. AutoApprove and Deny both omit prompting but retain their opposite source behavior: an equivalent never roundtrip preserves the actual policy and never promotes Deny to AutoApprove. Effective defaults are resolved before returning thread settings. Named-profile and equivalent no-sandbox submissions are accepted; unsupported isolation selections are not mapped to unrelated working modes. Normal summary=none is accepted as no summary override, and null service tier has the defined standard-tier semantics. Model/effort conversion is identical in catalog, thread and nested collaboration settings; ordinary max does not enable a separate multi-agent mode.
+Agent/Plan map to DotCraft agent/plan independently of the profile. Prompt maps to on-request. AutoApprove and Deny both omit prompting but retain their opposite source behavior: an equivalent never roundtrip preserves the actual policy and never promotes Deny to AutoApprove. Effective defaults are resolved before returning thread settings. Named-profile and equivalent no-sandbox submissions are accepted. Unsupported isolation selections are not mapped to unrelated working modes. Normal summary=none is accepted as no summary override, and null service tier has the defined standard-tier semantics. Model/effort conversion is identical in catalog, thread and nested collaboration settings; ordinary max does not enable a separate multi-agent mode.
+
+Non-null top-level sandbox, sandboxPolicy or permissions selections override the config-layer sandbox_mode and default_permissions defaults before validation. Top-level sandbox and permissions are mutually exclusive, as are turn-level sandboxPolicy and permissions. Only the effective selection is validated.
 
 Normal core client parameters receive explicit mappings. Unsupported tier, non-none summary, schema or other extensions are reported honestly rather than ignored. Compatible configuration writes change only defined settings; Codex config objects are not copied into DotCraft configuration files. Config/read publishes a virtual project layer under <codexHome>/projects/<projectId>/config.toml with the actual source workspace-layer version. A write's filePath routes back to that authorized workspace, then maps to its source workspace layer; the host-default virtual config path selects the first workspace.
 
@@ -111,7 +113,7 @@ The declared wire profile supports both Turn/Item pagination and thread/timeline
 
 Active Item baselines and pending interaction identities are restored at the ordered boundary before their continuation is released. Detail uses actual Item pages and targeted reads, including for a running Turn; explicit full remains full rather than an undisclosed summary. Count limits do not imply byte limits. Source SDK receivers follow the AppServer server-message contract, not its smaller inbound-request limit.
 
-Authentication availability is independent of source-data and protocol health. Local request/stream faults leave a connected host on and its signedIn state unchanged. Host failures use distinct authentication, relay and internal failure categories with accurate fallback text. Diagnostics include method, scoped identities, request view/limit/direction, excludeTurns and initial-page presence, response counts/cursor presence, elapsed time, byte counts and stable error categories. Lifecycle diagnostics contain Item type/identity/position, phase and delivery, not text or deltas. They never include credentials, request bodies or tool output.
+Authentication availability is independent of source-data and protocol health. Local request/stream faults leave a connected host on and its signedIn state unchanged. Host failures use distinct authentication, relay and internal failure categories with accurate fallback text. Diagnostics include method, scoped identities, request view/limit/direction, excludeTurns and initial-page presence, sanitized sandbox selections and permission-profile presence, response counts/cursor presence, elapsed time, byte counts and stable error categories. Invalid request parameters are reported with the invalidParams category. Lifecycle diagnostics contain Item type/identity/position, phase and delivery, not text or deltas. They never include credentials, request bodies or tool output.
 
 Enrollment restart preserves the registered host. Local state and project routing survive process restart; unfinished request outcomes are recovered from source state, not assumed from relay ACK. Affected-route errors remain actionable.
 

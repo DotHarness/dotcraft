@@ -95,6 +95,9 @@ public sealed class CodexWorkspaceConfigurationTests
         foreach (var unsupported in new object[]
         {
             new { permissions = "other" }, new { sandbox = "read-only" },
+            new { sandbox = "danger-full-access", permissions = "dotcraft" },
+            new { sandbox = "workspace-write", config = new { sandbox_mode = "danger-full-access" } },
+            new { config = new { sandbox_mode = "workspace-write" }, sandbox = (string?)null, permissions = (string?)null },
             new { summary = "auto" }, new { approvalPolicy = "never" }
         })
             await Assert.ThrowsAsync<ArgumentException>(() => session.HandleAsync("thread/start", Json(unsupported), default));
@@ -105,10 +108,45 @@ public sealed class CodexWorkspaceConfigurationTests
         }), default));
         await Assert.ThrowsAsync<ArgumentException>(() => session.HandleAsync("turn/start", Json(new
         {
+            threadId, permissions = "dotcraft", sandboxPolicy = new { type = "dangerFullAccess" },
+            input = new[] { new { type = "text", text = "do not admit" } }
+        }), default));
+        await Assert.ThrowsAsync<ArgumentException>(() => session.HandleAsync("turn/start", Json(new
+        {
             threadId, approvalPolicy = "never", input = new[] { new { type = "text", text = "do not admit" } }
         }), default));
         Assert.Equal(baseline, fixture.Transport.Requests.Count(r => r.Method == "thread/start"));
         Assert.DoesNotContain(fixture.Transport.Requests, r => r.Method == "turn/start");
+    }
+
+    [Theory]
+    [InlineData("sandbox", "danger-full-access")]
+    [InlineData("permissions", "dotcraft")]
+    public async Task ExplicitFullAccessOverridesConfigDefaultsBeforeAdmission(string selection, string value)
+    {
+        using var fixture = new ConfigurationFixture("deny", "default");
+        await using var session = await fixture.ConnectAsync();
+        var parameters = new Dictionary<string, object?>
+        {
+            [selection] = value,
+            ["config"] = new { sandbox_mode = "workspace-write", default_permissions = "other" }
+        };
+        var created = Json(await session.HandleAsync("thread/start", Json(parameters), default));
+        var threadId = created.GetProperty("thread").GetProperty("id").GetString();
+        Assert.Equal("dangerFullAccess", created.GetProperty("sandbox").GetProperty("type").GetString());
+        Assert.Equal("dotcraft", created.GetProperty("activePermissionProfile").GetProperty("id").GetString());
+        parameters["threadId"] = threadId;
+        var resumed = Json(await session.HandleAsync("thread/resume", Json(parameters), default));
+        Assert.Equal("never", resumed.GetProperty("approvalPolicy").GetString());
+        parameters.Remove(selection);
+        parameters["sandboxPolicy"] = created.GetProperty("sandbox");
+        parameters["input"] = new[] { new { type = "text", text = "continue" } };
+        await session.HandleAsync("turn/start", Json(parameters), default);
+
+        var admitted = Assert.Single(fixture.Transport.Requests, request => request.Method == "turn/start");
+        Assert.False(admitted.Parameters.TryGetProperty("approvalPolicy", out _));
+        Assert.Equal("deny", fixture.Transport.Configuration["approvalPolicy"]!.GetValue<string>());
+        Assert.DoesNotContain(fixture.Transport.Requests, request => request.Method is "thread/config/update" or "config/batchWrite");
     }
 
     private static object Collaboration(string mode, string effort) => new
