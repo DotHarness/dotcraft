@@ -382,6 +382,7 @@ public sealed partial class SessionServiceNativeCompactionTests : IDisposable
         public Exception? Failure { get; set; }
         public bool OverflowNextRequest { get; set; }
         public bool ReportHighUsageNextResponse { get; set; }
+        public long? InputTokensNextResponse { get; set; }
         public bool ToolNextResponse { get; set; }
         public bool ReasoningNextResponse { get; set; }
         public Func<CancellationToken, Task>? BeforeNextResponse { get; set; }
@@ -460,13 +461,18 @@ public sealed partial class SessionServiceNativeCompactionTests : IDisposable
                      "content":[{"type":"output_text","text":"ok","annotations":[]}]}}
                     """))!;
             }
-            if (ReportHighUsageNextResponse)
+            var inputTokens = ReportHighUsageNextResponse ? 900_000 : InputTokensNextResponse;
+            ReportHighUsageNextResponse = false;
+            InputTokensNextResponse = null;
+            if (inputTokens is { } tokens)
             {
-                ReportHighUsageNextResponse = false;
-                yield return ModelReaderWriter.Read<StreamingResponseUpdate>(BinaryData.FromString("""
+                yield return ModelReaderWriter.Read<StreamingResponseUpdate>(BinaryData.FromString($$"""
                     {"type":"response.completed","sequence_number":2,"response":{"id":"resp_test","object":"response",
                      "model":"gpt-test","status":"completed","output":[],
-                     "usage":{"input_tokens":900000,"output_tokens":10,"total_tokens":900010}}}
+                     "usage":{"input_tokens":{{tokens}},"output_tokens":10,"total_tokens":{{tokens + 10}}
+                     }
+                    }
+                    }
                     """))!;
             }
             await Task.CompletedTask;

@@ -1279,7 +1279,8 @@ public sealed partial class SessionService
                                     snapshot);
                                 if (_runtimeRegistry.TryGetRuntime(threadId, out var runtime))
                                 {
-                                    runtime.LastPromptRequest = preparedEstimate.RequestSnapshot ?? snapshot;
+                                    runtime.LastPromptRequest = await CaptureProviderHistorySnapshotAsync(
+                                        preparedEstimate.RequestSnapshot ?? snapshot, CancellationToken.None);
                                     runtime.ContextComposition = ContextUsageComposition.Capture(
                                         runtime.LastPromptRequest,
                                         promptSectionRecorder.Sections,

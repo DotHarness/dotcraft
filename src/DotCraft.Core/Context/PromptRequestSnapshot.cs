@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using DotCraft.Agents;
 using DotCraft.Context.Compaction;
 using Microsoft.Extensions.AI;
 
@@ -26,6 +27,8 @@ public sealed record PromptRequestSnapshot
 
     /// <summary>Final messages sent to the provider for this sampling request.</summary>
     public required IReadOnlyList<ChatMessage> Messages { get; init; }
+
+    internal OpaqueProviderHistorySnapshot? ProviderHistory { get; init; }
 
     /// <summary>Order-sensitive fingerprint of <see cref="Messages"/>.</summary>
     public required string MessageFingerprint { get; init; }

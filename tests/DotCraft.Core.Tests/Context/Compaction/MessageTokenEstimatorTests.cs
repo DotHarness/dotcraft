@@ -101,6 +101,31 @@ public sealed class MessageTokenEstimatorTests
     }
 
     [Fact]
+    public void EstimateDelta_ReasoningReplayMetadataDoesNotDuplicateProtectedPayload()
+    {
+        var protectedContent = new string('A', 40_000);
+        var reasoning = new TextReasoningContent("Reasoning summary") { ProtectedData = protectedContent };
+        ChatMessage[] history = [new(ChatRole.Assistant, [reasoning])];
+        var tokens = MessageTokenEstimator.EstimateDelta(history);
+        reasoning.AdditionalProperties = new()
+        {
+            ["openai.responses.reasoning"] = JsonSerializer.SerializeToElement(new
+            {
+                version = 1,
+                item = new
+                {
+                    type = "reasoning",
+                    encrypted_content = protectedContent,
+                    metadata = new string('m', 80_000)
+                }
+            })
+        };
+
+        Assert.Equal(tokens, MessageTokenEstimator.EstimateDelta(history));
+        Assert.InRange(tokens, 7_000, 8_000);
+    }
+
+    [Fact]
     public void EstimateDelta_ImagePayloadsStayBoundedByImageCost()
     {
         var imageBytes = new byte[1_000_000];

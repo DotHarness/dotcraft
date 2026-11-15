@@ -66,6 +66,8 @@ internal sealed partial class OpenAIResponsesProviderHistoryContext :
             .ToList();
     }
 
+    public bool IsNativeCompacted => _isNativeCompacted;
+
     public async ValueTask<CanonicalResponsesInput> PrepareInputAsync(
         IReadOnlyList<ChatMessage> samplingMessages,
         ChatOptions? options,
