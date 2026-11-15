@@ -2,7 +2,6 @@ using DotCraft.Security;
 using DotCraft.Security.ShellCommands;
 using DotCraft.Sessions;
 using DotCraft.Tools;
-using DotCraft.Utilities;
 
 namespace DotCraft.CodeMode;
 
@@ -12,7 +11,7 @@ internal static class CodeModeApprovalScope
     {
         if (ToolHostExecutionScope.Current is not { } host)
             return null;
-        var approval = new DeadlinePausingApprovalService(host.ApprovalService, approvals, cancellation);
+        var approval = new TrackedApprovalService(host.ApprovalService, approvals, cancellation);
         var sessionScope = SessionScopedApprovalService.SetOverride(approval);
         var hostScope = ToolHostExecutionScope.Set(host with { ApprovalService = approval });
         return new Scope(hostScope, sessionScope);
@@ -27,24 +26,24 @@ internal static class CodeModeApprovalScope
         }
     }
 
-    private sealed class DeadlinePausingApprovalService(IApprovalService inner, CodeModeApprovals approvals, CancellationToken cancellation)
+    private sealed class TrackedApprovalService(IApprovalService inner, CodeModeApprovals approvals, CancellationToken cancellation)
         : IApprovalService, IApprovalServiceDecorator
     {
         public Task<bool> RequestFileApprovalAsync(string operation, string path, ApprovalContext? context = null) =>
-            PausedAsync(() => inner.RequestFileApprovalAsync(operation, path, context));
+            TrackAsync(() => inner.RequestFileApprovalAsync(operation, path, context));
 
         public Task<bool> RequestShellApprovalAsync(ShellApprovalRequest request, ApprovalContext? context = null) =>
-            PausedAsync(() => inner.RequestShellApprovalAsync(request, context));
+            TrackAsync(() => inner.RequestShellApprovalAsync(request, context));
 
         public Task<bool> RequestResourceApprovalAsync(string kind, string operation, string target, ApprovalContext? context = null) =>
-            PausedAsync(() => inner.RequestResourceApprovalAsync(kind, operation, target, context));
+            TrackAsync(() => inner.RequestResourceApprovalAsync(kind, operation, target, context));
 
         public Task<bool> RequestResourceApprovalAsync(ResourceApprovalRequest request, ApprovalContext? context = null) =>
-            PausedAsync(() => inner.RequestResourceApprovalAsync(request, context));
+            TrackAsync(() => inner.RequestResourceApprovalAsync(request, context));
 
         public IApprovalService? GetInnerApprovalService(ApprovalContext? context) => inner;
 
-        private async Task<bool> PausedAsync(Func<Task<bool>> request)
+        private async Task<bool> TrackAsync(Func<Task<bool>> request)
         {
             approvals.Begin();
             try
@@ -63,8 +62,8 @@ internal static class CodeModeApprovalScope
     }
 }
 
-/// <summary>Tracks a cell's pending approvals: its deadline is paused and it does not yield while any is pending.</summary>
-internal sealed class CodeModeApprovals(PausableDeadline deadline)
+/// <summary>Tracks a cell's pending approvals: the cell does not yield while any is pending.</summary>
+internal sealed class CodeModeApprovals
 {
     private readonly Lock _gate = new();
     private int _pending;
@@ -77,12 +76,10 @@ internal sealed class CodeModeApprovals(PausableDeadline deadline)
             if (_pending++ == 0)
                 _cleared = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         }
-        deadline.Pause();
     }
 
     public void End()
     {
-        deadline.Resume();
         lock (_gate)
         {
             if (--_pending == 0)

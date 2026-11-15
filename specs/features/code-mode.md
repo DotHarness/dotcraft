@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.11.1 |
+| **Version** | 0.12.1 |
 | **Status** | Draft |
-| **Date** | 2026-11-13 |
+| **Date** | 2026-11-15 |
 | **Parent Specs** | [Tool Architecture](../architecture/tools-architecture.md), [Session Core](../architecture/session-core.md), [Prompt Cache](../architecture/prompt-cache.md) |
 | **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [Shell Command Safety](../architecture/shell-command-safety.md) |
 
@@ -123,13 +123,15 @@ Either way the call reaches the dispatcher as the arguments `{ "code": <source> 
 mechanism is generic; [Tool Architecture](../architecture/tools-architecture.md#61-freeform-input)
 defines its projection and replay.
 
-The optional first line `// @exec: {"yield_time_ms": 10000, "timeout_ms": 60000, "max_output_tokens": 10000}`
-sets per-call limits. Only those three keys are accepted. `yield_time_ms`, default 10,000, is how long
-the call waits before yielding a still-running cell (§4.4); `timeout_ms`, default 300,000, ends the cell;
-both are at most 3,600,000. `max_output_tokens` is at most 100,000, counted at 4 characters per token.
-Unknown keys, invalid JSON, or values outside these limits fail the call before execution. The pragma
-line is replaced by an empty line so stack trace line numbers match the submitted source. The `timeout_ms` clock starts once the worker has accepted the
-program; neither process start nor first-use engine warm-up counts against it.
+The optional first line `// @exec: {"yield_time_ms": 10000, "max_output_tokens": 10000}`
+sets per-call limits. Only those two keys are accepted. `yield_time_ms`, default 10,000 and at most
+3,600,000, is how long the call waits before yielding a still-running cell (§4.4). `max_output_tokens`
+is at most 100,000, counted at 4 characters per token. Unknown keys, invalid JSON, or values outside
+these limits fail the call before execution. The pragma line is replaced by an empty line so stack
+trace line numbers match the submitted source.
+
+A cell has no per-call deadline: it runs until its program ends, the model terminates it (§4.4), its
+Turn ends (§11), or it reaches the engine's 6-hour limit (§9.3).
 
 ### 4.2 Description
 
@@ -252,7 +254,7 @@ Each `tools.<name>(...)` call returns a Promise immediately and is dispatched as
 receives it, so `Promise.all` and `Promise.allSettled` run calls concurrently. A registration that the
 snapshot marks as sequential is still serialized by the dispatcher.
 
-A cell ends when its top-level program settles, when `exit()` runs, on timeout, on `CodeModeWait`
+A cell ends when its top-level program settles, when `exit()` runs, on `CodeModeWait`
 termination, when its Turn ends, or on a limit violation. Nested calls still pending at that point are cancelled and recorded as cancelled; an approval they still wait for counts as denied, so approving it later runs nothing.
 
 ## 6. Nested Invocation
@@ -265,9 +267,8 @@ the shell command safety kernel, and remote tool routing all apply unchanged. A 
 remote workspace carries the `codeMode` origin kind to the Host, so command execution there returns
 the same result object as it does locally.
 
-An approval requested by a nested call pauses only that call; the cell's timeout is suspended while an
-approval is pending, as it is for other approval-gated tools. A rejected approval rejects the nested
-Promise with the rejection message.
+An approval requested by a nested call pauses only that call, and the call does not yield while an
+approval is pending. A rejected approval rejects the nested Promise with the rejection message.
 
 The value a nested Promise resolves to is:
 
@@ -305,14 +306,14 @@ Output:
 ```
 
 The first line is `Script running with cell ID <id>` for a yielded cell, otherwise `Script completed`,
-`Script failed`, `Script timed out`, or `Script terminated`. Wall time is how long this call waited. A
+`Script failed`, or `Script terminated`. Wall time is how long this call waited. A
 yielded result holds the output since the previous yield; a final result holds the rest. A failed cell appends
 `Script error:` with the stack trace, then lists the nested calls that ran before the failure with
 their status under `Tool calls made before the failure:`, because their effects are not undone.
 
 Every cell outcome is a successful call, as a nonzero exit code is for a command. Only an invalid
 pragma or argument, an unknown cell, or an unavailable worker fails the call itself. The result's
-structured content says how the cell stands: `{ status: "running" | "completed" | "failed" | "timedOut" | "terminated", cellId?, wallTimeMs, nestedCalls, error? }`,
+structured content says how the cell stands: `{ status: "running" | "completed" | "failed" | "terminated", cellId?, wallTimeMs, nestedCalls, error? }`,
 with `cellId` only while running.
 
 Text output is limited to `max_output_tokens`, default 10,000, using the common truncation policy:
@@ -364,11 +365,11 @@ names the cause, and starts a new worker on the next `CodeMode`. It never retrie
 ### 9.3 Engine constraints
 
 Every engine runs in strict mode with string compilation disabled, a statement limit, a recursion
-limit, a memory ceiling, a regex timeout no longer than the cell deadline, and a Promise timeout. The
+limit, a memory ceiling, a 300-second regex timeout, and a 6-hour engine and Promise timeout. The
 host's cap on the worker's resident memory is the memory guarantee; the engine ceiling only stops a
 single runaway segment early.
 
-Default cell limits are a 300-second deadline, 256 MiB per cell, 50,000,000 statements, recursion
+Default cell limits are 256 MiB per cell, 50,000,000 statements, recursion
 depth 256, 2,048 nested calls, 1 MiB per nested result entering the engine, and 8 MiB of total output.
 At most 64 nested calls run at once; further calls wait for a slot, and only exceeding the 2,048 total
 is a limit violation. The worker as a whole is capped at 1 GiB resident memory.
@@ -395,5 +396,4 @@ Interrupting the Turn cancels a waiting `CodeMode` or `CodeModeWait` call, and t
 its cells; each cell cancels its pending nested calls through the dispatcher's cancellation path. Thread deletion cancels the thread's cells
 and clears its store. AppServer shutdown terminates the worker.
 
-A cell that exceeds its deadline is terminated and returns `Script timed out` with the output produced
-so far. Limit violations return `Script failed` with the limit that was hit.
+Limit violations return `Script failed` with the limit that was hit.

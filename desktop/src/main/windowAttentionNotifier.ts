@@ -1,4 +1,4 @@
-import { Notification, type BrowserWindow } from 'electron'
+import { Notification } from 'electron'
 import { DEFAULT_LOCALE, normalizeLocale, translate } from '../shared/locales'
 import type { WorkspaceProjectKind } from '../shared/workspaceProjects'
 import type { AppSettings } from './settings'
@@ -25,9 +25,9 @@ const ATTENTION_REQUESTS: Record<string, { setting: 'approvalRequests' | 'questi
 
 export interface WindowAttentionContext {
   connectionKind: WorkspaceProjectKind
-  window: BrowserWindow
   settings: AppSettings
   threads: unknown[]
+  isViewingThread: (threadId: string) => boolean
   openThread: (threadId: string) => void
 }
 
@@ -64,7 +64,7 @@ export function createWindowAttentionNotifier(
     if (seen.has(key)) return false
     seen.add(key)
 
-    if (context.settings.notifications?.[request.setting] === false || context.window.isFocused()) return false
+    if (context.settings.notifications?.[request.setting] === false || context.isViewingThread(threadId)) return false
     if (request.hubDelivers && context.connectionKind !== 'remote' && await trayRunning()) return false
     if (!Notification.isSupported()) return false
 

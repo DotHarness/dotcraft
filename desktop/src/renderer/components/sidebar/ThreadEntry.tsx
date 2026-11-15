@@ -15,6 +15,7 @@ import { Archive, ArrowRightLeft, CircleDot, Copy, Laptop, Link, Pencil, Pin, Tr
 import { AUTOMATION_TASK_DRAG_MIME } from '../../utils/automationDrag'
 import { THREAD_DRAG_MIME } from '../../utils/threadReferences'
 import { useAutomationsStore } from '../../stores/automationsStore'
+import { useThreadAwaitsOfferAnswer } from '../../stores/threadTasksStore'
 import { useDragDropStore } from '../../stores/dragDropStore'
 import { addToast } from '../../stores/toastStore'
 import { ActionTooltip } from '../ui/ActionTooltip'
@@ -127,9 +128,10 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
       : null,
     isPinned ? () => togglePinnedThread(thread.id) : undefined
   )
+  const awaitsOfferAnswer = useThreadAwaitsOfferAnswer(thread.id)
   const waitingStatus = useThreadWaitingStatus(thread.id, {
     waitingOnApproval: pendingApprovalThreadIds.has(thread.id),
-    waitingOnInput: pendingUserInputThreadIds.has(thread.id),
+    waitingOnInput: pendingUserInputThreadIds.has(thread.id) || awaitsOfferAnswer,
     waitingOnPlanConfirmation: pendingPlanConfirmationThreadIds.has(thread.id)
   }, isActive)
   const showPendingInStatus =

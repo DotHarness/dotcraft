@@ -3,14 +3,14 @@ namespace DotCraft.CodeMode;
 public sealed record CodeModeLimits
 {
     public TimeSpan DefaultYieldTime { get; init; } = TimeSpan.FromSeconds(10);
-    public TimeSpan DefaultTimeout { get; init; } = TimeSpan.FromSeconds(300);
-    public TimeSpan MaxTimeout { get; init; } = TimeSpan.FromHours(1);
+    public TimeSpan MaxYieldTime { get; init; } = TimeSpan.FromHours(1);
     public int DefaultMaxOutputTokens { get; init; } = 10_000;
     public int MaxOutputTokens { get; init; } = 100_000;
     public long MaxCellMemoryBytes { get; init; } = 256L * 1024 * 1024;
     public int MaxStatements { get; init; } = 50_000_000;
     public int MaxRecursionDepth { get; init; } = 256;
     public TimeSpan EngineTimeout { get; init; } = TimeSpan.FromHours(6);
+    public TimeSpan RegexTimeout { get; init; } = TimeSpan.FromSeconds(300);
     public int MaxNestedCalls { get; init; } = 2048;
     public int MaxConcurrentNestedCalls { get; init; } = 64;
     public int MaxNestedResultBytes { get; init; } = 1024 * 1024;

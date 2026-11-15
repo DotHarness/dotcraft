@@ -22,8 +22,8 @@ public static class CodeModeDescription
             "- `ALL_TOOLS` lists `{ name, description }` for every callable tool; each description ends with the tool's declaration.",
             "Only `text` and `image` produce output; the program's return value is ignored.",
             "",
-            $"An optional first line `// @exec: {{\"yield_time_ms\": 10000, \"timeout_ms\": 60000, \"max_output_tokens\": 10000}}` sets this call's limits; `yield_time_ms` defaults to {(long)limits.DefaultYieldTime.TotalMilliseconds}, `timeout_ms` to {(long)limits.DefaultTimeout.TotalMilliseconds}, and `max_output_tokens` to {limits.DefaultMaxOutputTokens}.",
-            "A program still running after `yield_time_ms` keeps running, and the call returns `Script running with cell ID <id>` with the output so far; pass the id to `CodeModeWait` for more output or the final result. `timeout_ms` ends the program.",
+            $"An optional first line `// @exec: {{\"yield_time_ms\": 10000, \"max_output_tokens\": 10000}}` sets this call's limits; `yield_time_ms` defaults to {(long)limits.DefaultYieldTime.TotalMilliseconds} and `max_output_tokens` to {limits.DefaultMaxOutputTokens}.",
+            "A program still running after `yield_time_ms` keeps running, and the call returns `Script running with cell ID <id>` with the output so far; pass the id to `CodeModeWait` for more output or the final result.",
             "",
             mode == AppConfig.CodeModeSetting.Only
                 ? "The functions declared below are available inside `CodeMode` through `tools`, not as direct tool calls."

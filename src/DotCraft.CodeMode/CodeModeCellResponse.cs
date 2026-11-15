@@ -108,7 +108,6 @@ internal static class CodeModeCellResponse
         {
             CodeModeProtocol.Running => $"Script running with cell ID {cell.Id}",
             CodeModeProtocol.Completed => "Script completed",
-            CodeModeProtocol.TimedOut => "Script timed out",
             CodeModeProtocol.Terminated => "Script terminated",
             _ => "Script failed"
         }).Append('\n');

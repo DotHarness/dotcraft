@@ -78,7 +78,7 @@ internal sealed class CodeModeExecRuntime(CodeModeExecDependencies dependencies)
                 ["maxStatements"] = limits.MaxStatements,
                 ["maxRecursionDepth"] = limits.MaxRecursionDepth,
                 ["engineTimeoutMs"] = (long)limits.EngineTimeout.TotalMilliseconds,
-                ["regexTimeoutMs"] = (long)program.Timeout.TotalMilliseconds,
+                ["regexTimeoutMs"] = (long)limits.RegexTimeout.TotalMilliseconds,
                 ["maxOutputBytes"] = limits.MaxCellOutputBytes
             }
         };
@@ -95,7 +95,7 @@ internal sealed class CodeModeWaitRuntime(CodeModeExecDependencies dependencies)
         var limits = dependencies.Host.Limits;
         if (arguments["cell_id"] is not JsonValue idValue || !idValue.TryGetValue<string>(out var cellId) || string.IsNullOrWhiteSpace(cellId))
             return Invalid("cell_id is required.");
-        var maxYieldMs = (long)limits.MaxTimeout.TotalMilliseconds;
+        var maxYieldMs = (long)limits.MaxYieldTime.TotalMilliseconds;
         if (!CodeModePragma.TryReadOptionalInteger(arguments["yield_time_ms"], 0, maxYieldMs, (long)limits.DefaultYieldTime.TotalMilliseconds, out var yieldMs))
             return Invalid($"yield_time_ms must be an integer from 0 to {maxYieldMs}.");
         if (!CodeModePragma.TryReadOptionalInteger(arguments["max_tokens"], 1, limits.MaxOutputTokens, limits.DefaultMaxOutputTokens, out var maxTokens))

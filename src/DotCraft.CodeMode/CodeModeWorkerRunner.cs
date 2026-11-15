@@ -87,7 +87,7 @@ public static class CodeModeWorkerRunner
                     ["maxStatements"] = limits.MaxStatements,
                     ["maxRecursionDepth"] = limits.MaxRecursionDepth,
                     ["engineTimeoutMs"] = (long)limits.EngineTimeout.TotalMilliseconds,
-                    ["regexTimeoutMs"] = (long)limits.DefaultTimeout.TotalMilliseconds,
+                    ["regexTimeoutMs"] = (long)limits.RegexTimeout.TotalMilliseconds,
                     ["maxOutputBytes"] = limits.MaxCellOutputBytes
                 }
             });
@@ -151,8 +151,6 @@ public static class CodeModeWorkerRunner
 
     private static (string Outcome, string? Error, string? Stack) Describe(WorkerCell cell, Exception exception)
     {
-        if (cell.CancelReason == CodeModeProtocol.TimeoutReason)
-            return (CodeModeProtocol.TimedOut, "The script exceeded its deadline.", null);
         if (cell.CancelReason is { } reason)
             return (CodeModeProtocol.Failed, $"The script was stopped: {reason}.", null);
         return exception switch
