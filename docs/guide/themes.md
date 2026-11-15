@@ -1,16 +1,16 @@
 # Themes
 
-Give DotCraft a look that suits the work: new app colors, a picture or animated scene behind the app, or a theme you describe to the Agent. A theme can apply to one chat, one project, or everywhere.
+Give DotCraft a look that suits the work: new app colors, a picture or animated scene behind the app, or a theme you describe to the Agent. A theme can apply everywhere or to one chat.
 
 ## Choose a theme
 
-Run the **Theme** command from the Composer's command picker. A row of themes for the current appearance opens above the Composer. Select one and it applies everywhere right away.
+Choose the theme for every chat in **Settings → Themes**.
 
-To give one chat its own look, turn on **Only this chat** before selecting a theme. That chat keeps its theme while every other chat uses the one chosen everywhere. In this mode, **Default** returns the chat to the theme used everywhere, and **No theme** shows the ordinary app in that chat alone.
+To give one chat its own look, run the **Theme** command from the Composer's command picker. A row of themes for the current appearance opens above the Composer. Select one and it applies to that chat right away, while every other chat keeps the theme from Settings. **Default** returns the chat to that theme, and **No theme** shows the ordinary app in that chat alone. In a new chat that has not started yet, the command sets the theme for every chat.
 
 Each theme is made for light or dark appearance. Many come as a pair, and applying one applies both, so the look carries over when the appearance changes.
 
-**Settings → Themes** shows the whole library. Selecting a theme there applies it everywhere. This is also where you add, import, and remove themes.
+**Settings → Themes** shows the whole library and is where you add, import, and remove themes.
 
 Themes is a bundled plugin. If the command and settings page are missing, enable **Themes** in **Settings → Plugins**.
 

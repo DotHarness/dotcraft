@@ -141,15 +141,23 @@ function markSoftwareCompositing(): void {
     .catch(() => undefined)
 }
 
+let appearanceObserver: MutationObserver | null = null
+
 function applyBackdropPresentation(value: DesktopPluginBackdropPresentation | null): void {
   const root = document.documentElement
   if (value === null) {
+    appearanceObserver?.disconnect()
+    appearanceObserver = null
     delete root.dataset.desktopPluginBackdrop
     delete root.dataset.desktopPluginBackdropUnsuited
     for (const property of BACKDROP_PROPERTIES) root.style.removeProperty(property)
     return
   }
   markSoftwareCompositing()
+  if (!appearanceObserver) {
+    appearanceObserver = new MutationObserver(() => applyBackdropPresentation(winning('backdrop')))
+    appearanceObserver.observe(root, { attributes: true, attributeFilter: ['data-theme'] })
+  }
   const variant: ThemeVariant = root.dataset.theme === 'light' ? 'light' : 'dark'
   const unsuited = value.tint !== undefined && !tintSuits(value.tint, variant)
   root.dataset.desktopPluginBackdrop = 'true'

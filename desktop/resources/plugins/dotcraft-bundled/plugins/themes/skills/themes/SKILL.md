@@ -22,13 +22,14 @@ Save with `action: "save"` and a `theme` object:
   - `{ kind: "color", color }`
   - `{ kind: "gradient", stops, angle, shape }` with 2 to 16 colors, an angle in degrees as in CSS, and `linear` or `radial`
   - `{ kind: "scene", format, source, poster }`, described below
+  - `{ kind: "image", fit }` only when editing a theme that already has an image backdrop. It keeps that picture. `fit` is `cover`, `contain`, or `tile`.
 - `tint`: the color of the sidebar, chat, and Composer surfaces over the backdrop. Pick it from the backdrop so the surfaces belong to the scene. Only valid with a backdrop. The user sets how blurred and solid the surfaces are.
 - `pair`: the id of the same theme made for the other appearance. Applying one applies both. Make the second a version of the idea, not an inversion, and point each at the other.
 - `expectedRevision`: the current revision, required when replacing an existing theme.
 
 A theme needs `colors`, a `backdrop`, or both. Backdrop and tint colors are hex, `rgb()`, or `hsl()`.
 
-Then call `action: "preview", id: "your-theme"`. When this is the foreground authoring conversation, the user sees the theme with the picker open and applies it by selecting it, everywhere or only in this chat. Saving does not apply a theme. Do not claim it was applied until the user applies it. For another iteration, read, revise, save, and preview the same theme.
+Then call `action: "preview", id: "your-theme"`. When this is the foreground authoring conversation, the user sees the theme with the picker open and applies it by selecting it. Saving does not apply a theme. Do not claim it was applied until the user applies it. For another iteration, read, revise, save, and preview the same theme.
 
 ## Scenes
 

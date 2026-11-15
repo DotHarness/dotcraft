@@ -89,6 +89,15 @@ describe('theme library', () => {
     expect(await store.list()).toEqual([])
   })
 
+  it('keeps the picture when an edit of an image theme leaves it out', async () => {
+    const image = `data:image/png;base64,${Buffer.alloc(64, 7).toString('base64')}`
+    const saved = await store.save({ id: 'beach', name: 'Beach', colorScheme: 'dark', backdrop: { kind: 'image', image, fit: 'cover' } })
+    const host = { store, preview: () => {} }
+    const edited = await themeTool(host, { action: 'save', theme: { id: 'beach', name: 'Beach', colorScheme: 'dark', tint: '#102030', backdrop: { kind: 'image', fit: 'tile' }, expectedRevision: saved.revision } }, 'author')
+    expect(edited.success).toBe(true)
+    expect(await store.list()).toMatchObject([{ id: 'beach', tint: '#102030', backdrop: { kind: 'image', image, fit: 'tile' } }])
+  })
+
   it('rejects authorless writes and stale edits with actionable tool errors', async () => {
     const host = { store, preview: () => {} }
     expect(await themeTool(host, { action: 'save', theme: theme() })).toMatchObject({ success: false, errorCode: 'InvalidParams' })

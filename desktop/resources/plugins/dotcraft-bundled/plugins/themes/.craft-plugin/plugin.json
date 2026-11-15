@@ -15,7 +15,7 @@
   "interface": {
     "displayName": "Themes",
     "shortDescription": "Change how DotCraft looks",
-    "longDescription": "Choose a theme for one chat, one project, or everywhere. Themes set app colors and a backdrop: an image, a gradient, or an animated scene. Create and refine themes with Agent and preview before applying.",
+    "longDescription": "Choose a theme for every chat or just one. Themes set app colors and a backdrop: an image, a gradient, or an animated scene. Create and refine themes with Agent.",
     "developerName": "DotHarness",
     "category": "Design",
     "capabilities": ["Desktop", "Appearance", "Themes"],

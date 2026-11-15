@@ -623,6 +623,10 @@ describe('DesktopPluginRuntime', () => {
     appearance.setBackdropPresentation({ blur: 12, opacity: 0.4, tint: '#f4efe4' })
     expect(document.documentElement.style.getPropertyValue('--desktop-plugin-backdrop-tint')).toBe('')
     expect(document.documentElement.dataset.desktopPluginBackdropUnsuited).toBe('true')
+
+    document.documentElement.dataset.theme = 'light'
+    await waitFor(() => expect(document.documentElement.style.getPropertyValue('--desktop-plugin-backdrop-tint')).toBe('#f4efe4'))
+    expect(document.documentElement.dataset.desktopPluginBackdropUnsuited).toBeUndefined()
   })
 
   it('does not republish an unchanged backdrop contribution', async () => {

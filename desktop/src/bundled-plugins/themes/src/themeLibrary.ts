@@ -58,7 +58,7 @@ export function isBackdropReady(theme: Theme): boolean {
 
 export function activeTheme(appearance: ThemeAppearance): Theme | null {
   if (!getSettings()?.enabled) return null
-  if (snapshot.preview) return snapshot.preview
+  if (snapshot.preview?.colorScheme === appearance) return snapshot.preview
   const choice = resolvedChoice(appearance)
   return choice.kind === 'theme' ? themeById(choice.id) ?? null : null
 }

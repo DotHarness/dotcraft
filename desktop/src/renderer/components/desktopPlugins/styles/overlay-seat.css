@@ -77,7 +77,7 @@ html[data-desktop-plugin-backdrop="true"][data-desktop-plugin-backdrop-unsuited]
 
 @media print, (prefers-reduced-transparency: reduce), (prefers-contrast: more), (forced-colors: active) {
   html[data-desktop-plugin-backdrop="true"] {
-    --desktop-plugin-backdrop-floor: 100%;
+    --desktop-plugin-backdrop-floor: 100% !important;
   }
 }
 

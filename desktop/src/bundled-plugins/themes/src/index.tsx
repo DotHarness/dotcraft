@@ -72,7 +72,7 @@ export const activate: DesktopPluginActivate = async (host) => {
         id: 'pick',
         label: { default: 'Theme', translations: translationsOf('pickCommand') },
         description: {
-          default: 'Choose a theme for this chat, this project, or everywhere.',
+          default: 'Choose a theme for this chat.',
           translations: translationsOf('pickDescription')
         },
         icon: ThemeIcon,

@@ -58,7 +58,8 @@ describe('theme library', () => {
   it('keeps a preview temporary, then applies a theme and its pair to the chosen scope only', async () => {
     const { library, setChoice, stored, dispose } = await setup()
     library.previewTheme(sky.id)
-    expect(library.activeTheme('light')?.id).toBe(sky.id)
+    expect(library.activeTheme('dark')?.id).toBe(sky.id)
+    expect(library.activeTheme('light')).toBeNull()
     expect(library.activeGlass('dark')).toEqual({ blur: 12, opacity: 0.5, tint: '#101020' })
     expect(setChoice).not.toHaveBeenCalled()
     library.cancelThemePreview()

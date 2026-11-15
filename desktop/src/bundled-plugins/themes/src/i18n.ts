@@ -43,7 +43,6 @@ export interface ThemeStrings {
   readonly fitTile: string
   readonly pickCommand: string
   readonly pickDescription: string
-  readonly onlyThisChat: string
   readonly toggleCommand: string
   readonly toggleDescription: string
   readonly toggledOn: string
@@ -90,8 +89,7 @@ const CATALOG: Record<ThemeLocale, ThemeStrings> = {
     fitContain: 'Fit',
     fitTile: 'Tile',
     pickCommand: 'Theme',
-    pickDescription: 'Choose a theme for this chat, this project, or everywhere.',
-    onlyThisChat: 'Only this chat',
+    pickDescription: 'Choose a theme for this chat.',
     toggleCommand: 'Toggle themes',
     toggleDescription: 'Turns themes off and back on.',
     toggledOn: 'Themes are on.',
@@ -136,8 +134,7 @@ const CATALOG: Record<ThemeLocale, ThemeStrings> = {
     fitContain: '完整显示',
     fitTile: '平铺',
     pickCommand: '主题',
-    pickDescription: '为此对话、此项目或全局选择主题。',
-    onlyThisChat: '仅此对话',
+    pickDescription: '为此对话选择主题。',
     toggleCommand: '开关主题',
     toggleDescription: '关闭或重新打开主题。',
     toggledOn: '主题已打开。',
@@ -182,8 +179,7 @@ const CATALOG: Record<ThemeLocale, ThemeStrings> = {
     fitContain: '全体を表示',
     fitTile: 'タイル',
     pickCommand: 'テーマ',
-    pickDescription: 'このチャット、このプロジェクト、またはすべてにテーマを選びます。',
-    onlyThisChat: 'このチャットのみ',
+    pickDescription: 'このチャットのテーマを選びます。',
     toggleCommand: 'テーマの切り替え',
     toggleDescription: 'テーマをオフにし、再びオンにします。',
     toggledOn: 'テーマをオンにしました。',
@@ -228,8 +224,7 @@ const CATALOG: Record<ThemeLocale, ThemeStrings> = {
     fitContain: '전체 보기',
     fitTile: '바둑판',
     pickCommand: '테마',
-    pickDescription: '이 채팅, 이 프로젝트 또는 전체에 테마를 고릅니다.',
-    onlyThisChat: '이 채팅만',
+    pickDescription: '이 채팅의 테마를 고릅니다.',
     toggleCommand: '테마 켜기/끄기',
     toggleDescription: '테마를 끄고 다시 켭니다.',
     toggledOn: '테마가 켜졌습니다.',
@@ -274,8 +269,7 @@ const CATALOG: Record<ThemeLocale, ThemeStrings> = {
     fitContain: 'Ajustar',
     fitTile: 'Mosaico',
     pickCommand: 'Tema',
-    pickDescription: 'Elige un tema para este chat, este proyecto o todo.',
-    onlyThisChat: 'Solo este chat',
+    pickDescription: 'Elige un tema para este chat.',
     toggleCommand: 'Activar o desactivar temas',
     toggleDescription: 'Desactiva y vuelve a activar los temas.',
     toggledOn: 'Los temas están activados.',
@@ -320,8 +314,7 @@ const CATALOG: Record<ThemeLocale, ThemeStrings> = {
     fitContain: 'Contenir',
     fitTile: 'Mosaïque',
     pickCommand: 'Thème',
-    pickDescription: 'Choisissez un thème pour ce chat, ce projet ou partout.',
-    onlyThisChat: 'Ce chat uniquement',
+    pickDescription: 'Choisissez un thème pour ce chat.',
     toggleCommand: 'Activer ou désactiver les thèmes',
     toggleDescription: 'Désactive puis réactive les thèmes.',
     toggledOn: 'Les thèmes sont activés.',
@@ -366,8 +359,7 @@ const CATALOG: Record<ThemeLocale, ThemeStrings> = {
     fitContain: 'Einpassen',
     fitTile: 'Kacheln',
     pickCommand: 'Theme',
-    pickDescription: 'Wähle ein Theme für diesen Chat, dieses Projekt oder überall.',
-    onlyThisChat: 'Nur dieser Chat',
+    pickDescription: 'Wähle ein Theme für diesen Chat.',
     toggleCommand: 'Themes ein- oder ausschalten',
     toggleDescription: 'Schaltet Themes aus und wieder ein.',
     toggledOn: 'Themes sind an.',

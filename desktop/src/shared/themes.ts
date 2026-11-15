@@ -221,7 +221,7 @@ function validateBackdrop(value: unknown): ThemeBackdrop {
   throw new Error('Theme backdrop kind must be scene, image, gradient or color.')
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 

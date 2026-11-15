@@ -193,14 +193,4 @@
   padding-bottom: 2px;
 }
 
-.dcw-composer-picker-switch {
-  display: inline-flex;
-  justify-self: start;
-  align-items: center;
-  gap: 8px;
-  color: var(--text-secondary);
-  font-size: var(--type-ui-size);
-  line-height: var(--type-ui-line-height);
-  cursor: pointer;
-}
 

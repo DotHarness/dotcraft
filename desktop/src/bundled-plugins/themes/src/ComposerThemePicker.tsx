@@ -1,6 +1,5 @@
-import { PillSwitch } from '@dotcraft/plugin'
 import type { DesktopPluginSurfaceProps } from '@dotcraft/plugin'
-import { useEffect, useRef, useState, type JSX } from 'react'
+import { useEffect, useRef, type JSX } from 'react'
 import type { Theme, ThemeChoice, ThemeScope } from '../../../shared/themes'
 import { choiceAt, scopeOf, setChoice, useChoices } from './choices'
 import { closeComposerPicker, useComposerPickerOpen } from './composerPicker'
@@ -14,15 +13,11 @@ export function ComposerThemePicker({ host }: DesktopPluginSurfaceProps<'compose
   const settings = useSettings()
   const appearance = useAppearance(host)
   const library = useThemeLibrary()
-  const { context } = useChoices()
-  const chat = scopeOf('chat')
-  const [onlyThisChat, setOnlyThisChat] = useState(false)
+  useChoices()
+  const scope: ThemeScope = scopeOf('chat') ?? { kind: 'everywhere' }
   const root = useRef<HTMLDivElement>(null)
   const strings = stringsFor(host.environment.locale)
 
-  useEffect(() => {
-    if (open) setOnlyThisChat(chat !== null && choiceAt(chat, appearance) !== undefined)
-  }, [open, context.threadId])
   useEffect(() => {
     if (!open) return
     const onKey = (event: KeyboardEvent): void => { if (event.key === 'Escape') closeComposerPicker() }
@@ -39,12 +34,11 @@ export function ComposerThemePicker({ host }: DesktopPluginSurfaceProps<'compose
   }, [open])
 
   if (!open || !settings?.enabled) return null
-  const scope: ThemeScope = onlyThisChat && chat ? chat : { kind: 'everywhere' }
   const active = choiceAt(scope, appearance) ?? (scope.kind === 'everywhere' ? { kind: 'none' as const } : undefined)
   const selectedId = library.preview?.id ?? (active?.kind === 'theme' ? active.id : null)
   const choose = (choice: ThemeChoice | null): void => {
     cancelThemePreview()
-    setChoice(scope, { [appearance]: choice })
+    setChoice(scope, choice === null ? { light: null, dark: null } : { [appearance]: choice })
     closeComposerPicker()
   }
   const apply = (theme: Theme): void => {
@@ -81,12 +75,6 @@ export function ComposerThemePicker({ host }: DesktopPluginSurfaceProps<'compose
           )
         })}
       </div>
-      {chat && (
-        <label className="dcw-composer-picker-switch">
-          <PillSwitch checked={onlyThisChat} aria-label={strings.onlyThisChat} onChange={setOnlyThisChat} />
-          <span>{strings.onlyThisChat}</span>
-        </label>
-      )}
     </div>
   )
 }
