@@ -24,9 +24,8 @@ function subscribe(): void {
 }
 
 export function useThreadAwaitsOfferAnswer(threadId: string): boolean {
-  useEffect(subscribe, [])
-  return useThreadTasksStore((state) =>
-    state.byThread[threadId]?.tasks.some((task) => task.kind === 'offer' && task.state === 'pending') === true)
+  const snapshot = useThreadTasks(threadId)
+  return snapshot?.tasks.some((task) => task.kind === 'offer' && task.state === 'pending') === true
 }
 
 export function useThreadTasks(threadId: string): ThreadTasksSnapshot | undefined {
