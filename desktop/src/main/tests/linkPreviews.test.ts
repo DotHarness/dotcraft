@@ -1,5 +1,7 @@
 import { PassThrough } from 'node:stream'
-import { gzipSync } from 'node:zlib'
+import { EventEmitter } from 'node:events'
+import { net, type ClientRequestConstructorOptions } from 'electron'
+import { lookup } from 'node:dns/promises'
 import { describe, expect, it, vi } from 'vitest'
 import { isPreviewableUrl } from '../../shared/linkPreviews'
 import {
@@ -11,7 +13,8 @@ import {
 } from '../linkPreviewFetch'
 import { createLinkPreviewService } from '../linkPreviews'
 
-vi.mock('electron', () => ({}))
+vi.mock('electron', () => ({ net: { request: vi.fn() } }))
+vi.mock('node:dns/promises', () => ({ lookup: vi.fn() }))
 
 const PNG = Buffer.concat([Buffer.from('89504e470d0a1a0a', 'hex'), Buffer.alloc(16)])
 
@@ -33,7 +36,7 @@ describe('link preview address policy', () => {
     for (const address of ['127.0.0.1', '10.1.2.3', '172.20.0.1', '192.168.1.1', '169.254.169.254', '100.64.0.1', '0.0.0.0', '::1', '::', 'fd00::1', 'fe80::1', '::ffff:127.0.0.1', '::ffff:7f00:1']) {
       expect(isPublicAddress(address), address).toBe(false)
     }
-    for (const address of ['93.184.216.34', '1.1.1.1', '2606:4700:4700::1111']) {
+    for (const address of ['93.184.216.34', '1.1.1.1', '198.18.0.39', '2606:4700:4700::1111']) {
       expect(isPublicAddress(address), address).toBe(true)
     }
   })
@@ -51,25 +54,64 @@ describe('link preview address policy', () => {
   })
 })
 
-describe('link preview body', () => {
-  const page = gzipSync(Buffer.from(`<html><head><title>${'x'.repeat(4000)}</title></head>`))
+describe('link preview desktop requests', () => {
+  it('uses the desktop transport for proxy-resolved hosts and checks redirect destinations', async () => {
+    vi.mocked(lookup).mockResolvedValue([{ address: '198.18.0.39', family: 4 }])
+    const abort = vi.fn()
+    vi.mocked(net.request).mockImplementation((options) => {
+      const req = Object.assign(new EventEmitter(), {
+        abort,
+        setHeader: vi.fn(),
+        end: () => queueMicrotask(() => {
+          const url = (options as ClientRequestConstructorOptions).url
+          if (url === 'https://example.com/start') {
+            req.emit('redirect', 302, 'GET', 'https://example.com/page')
+          } else if (url === 'https://example.com/private') {
+            req.emit('redirect', 302, 'GET', 'https://127.0.0.1/')
+          } else {
+            const response = Object.assign(new PassThrough(), {
+              statusCode: 200,
+              headers: { 'content-type': 'text/html', 'content-encoding': 'gzip' }
+            })
+            req.emit('response', response)
+            response.end('<head><title>Page</title></head>')
+          }
+        })
+      })
+      return req as ReturnType<typeof net.request>
+    })
+    const options = { accept: 'text/html', maxBytes: 1024, timeoutMs: 1000 }
+    const response = await fetchLinkPreviewResource('https://example.com/start', options)
+    expect(response.url).toBe('https://example.com/page')
+    expect(response.body.toString()).toContain('<title>Page</title>')
+    expect(net.request).toHaveBeenCalledWith({
+      url: 'https://example.com/page', method: 'GET', credentials: 'omit', referrerPolicy: 'no-referrer', redirect: 'manual'
+    })
+    await expect(fetchLinkPreviewResource('https://example.com/private', options)).rejects.toBeInstanceOf(LinkPreviewBlockedError)
+    expect(net.request).not.toHaveBeenCalledWith(expect.objectContaining({ url: 'https://127.0.0.1/' }))
+    expect(abort).toHaveBeenCalledTimes(3)
+  })
+})
 
-  it('reads a compressed body up to the end of the head and settles when it is cut off', async () => {
+describe('link preview body', () => {
+  const page = Buffer.from(`<html><head><title>${'x'.repeat(4000)}</title></head>`)
+
+  it('reads a decoded body up to the end of the head and settles when it is cut off', async () => {
     const source = new PassThrough()
-    const reading = readLinkPreviewBody(source, 'gzip', { maxBytes: 64 * 1024, stopAt: '</head' })
+    const reading = readLinkPreviewBody(source, { maxBytes: 64 * 1024, stopAt: '</head' })
     source.end(page)
     expect((await reading).toString()).toContain('</head')
 
     const failed = new PassThrough()
-    const failing = readLinkPreviewBody(failed, 'gzip', { maxBytes: 64 * 1024 })
+    const failing = readLinkPreviewBody(failed, { maxBytes: 64 * 1024 })
     failed.write(page.subarray(0, 24))
     failed.destroy(new Error('socket hang up'))
     await expect(failing).rejects.toThrow()
 
     const closed = new PassThrough()
-    const closing = readLinkPreviewBody(closed, 'gzip', { maxBytes: 64 * 1024 })
+    const closing = readLinkPreviewBody(closed, { maxBytes: 64 * 1024 })
     closed.write(page.subarray(0, 24))
-    closed.destroy()
+    closed.emit('aborted')
     await expect(closing).rejects.toThrow()
   })
 })

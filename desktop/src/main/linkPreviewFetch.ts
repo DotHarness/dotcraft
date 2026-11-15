@@ -1,8 +1,6 @@
-import { lookup as dnsLookup, type LookupAddress } from 'node:dns'
-import { request } from 'node:https'
-import { BlockList, isIP, type LookupFunction } from 'node:net'
-import type { Readable } from 'node:stream'
-import { createBrotliDecompress, createGunzip, createInflate } from 'node:zlib'
+import { net, type ClientRequest } from 'electron'
+import { lookup as dnsLookup } from 'node:dns/promises'
+import { BlockList, isIP } from 'node:net'
 import { bareHostname } from '../shared/linkPreviews'
 
 export class LinkPreviewBlockedError extends Error {}
@@ -18,7 +16,6 @@ for (const [address, prefix] of [
   ['192.0.0.0', 24],
   ['192.0.2.0', 24],
   ['192.168.0.0', 16],
-  ['198.18.0.0', 15],
   ['198.51.100.0', 24],
   ['203.0.113.0', 24],
   ['224.0.0.0', 4],
@@ -59,20 +56,6 @@ export function isPublicAddress(address: string): boolean {
   return !nonPublic.check(address, family === 4 ? 'ipv4' : 'ipv6')
 }
 
-// Validating inside the socket's own lookup means the connection reaches only the checked address.
-const publicOnlyLookup = ((hostname, options, callback) => {
-  dnsLookup(hostname, { ...options, all: true }, (error, addresses) => {
-    const done = callback as (error: Error | null, address: string | LookupAddress[], family?: number) => void
-    if (error) return done(error, '')
-    const list = addresses as LookupAddress[]
-    if (list.length === 0 || list.some((entry) => !isPublicAddress(entry.address))) {
-      return done(new LinkPreviewBlockedError(`${hostname} does not resolve to a public address`), '')
-    }
-    if (options.all) return done(null, list)
-    done(null, list[0].address, list[0].family)
-  })
-}) as LookupFunction
-
 export interface LinkPreviewResponse {
   url: string
   contentType: string
@@ -89,33 +72,8 @@ export interface LinkPreviewRequest {
 const USER_AGENT = 'Mozilla/5.0 (compatible; DotCraftLinkPreview/1.0)'
 const MAX_REDIRECTS = 3
 
-function decoded(source: Readable, encoding: string | undefined): Readable {
-  const decoder = (() => {
-    switch ((encoding ?? '').toLowerCase()) {
-      case 'gzip':
-      case 'x-gzip':
-        return createGunzip()
-      case 'deflate':
-        return createInflate()
-      case 'br':
-        return createBrotliDecompress()
-      default:
-        return null
-    }
-  })()
-  if (!decoder) return source
-  // pipe() does not forward errors, so an interrupted body would leave the decoder waiting forever.
-  source.on('error', (error) => decoder.destroy(error))
-  source.on('close', () => {
-    if (!source.readableEnded) decoder.destroy(new Error('Connection closed'))
-  })
-  return source.pipe(decoder)
-}
-
-/** Reads a (possibly compressed) body up to `maxBytes`, settling once even if the connection drops. */
 export function readLinkPreviewBody(
-  source: Readable,
-  encoding: string | undefined,
+  source: Pick<NodeJS.EventEmitter, 'on'>,
   options: Pick<LinkPreviewRequest, 'maxBytes' | 'stopAt'>
 ): Promise<Buffer> {
   return new Promise<Buffer>((resolve, reject) => {
@@ -126,12 +84,10 @@ export function readLinkPreviewBody(
     const settle = (error: Error | null): void => {
       if (settled) return
       settled = true
-      source.destroy()
       if (error) reject(error)
       else resolve(Buffer.concat(chunks, size))
     }
-    const stream = decoded(source, encoding)
-    stream.on('data', (chunk: Buffer) => {
+    source.on('data', (chunk: Buffer) => {
       if (settled) return
       const room = options.maxBytes - size
       chunks.push(chunk.length > room ? chunk.subarray(0, room) : chunk)
@@ -144,9 +100,10 @@ export function readLinkPreviewBody(
       }
       if (size >= options.maxBytes) settle(options.stopAt ? null : new Error('Response too large'))
     })
-    stream.on('end', () => settle(null))
-    stream.on('error', (error) => settle(error))
-    stream.on('close', () => settle(new Error('Connection closed')))
+    source.on('end', () => settle(null))
+    source.on('error', (error) => settle(error))
+    source.on('aborted', () => settle(new Error('Connection closed')))
+    source.on('close', () => settle(new Error('Connection closed')))
   })
 }
 
@@ -157,43 +114,43 @@ function requestOnce(url: URL, options: LinkPreviewRequest, deadline: number): P
   if (isIP(host) && !isPublicAddress(host)) {
     return Promise.reject(new LinkPreviewBlockedError(`${host} is not a public address`))
   }
+  let req: ClientRequest | undefined
   let timer: ReturnType<typeof setTimeout> | undefined
   return new Promise<Hop>((resolve, reject) => {
-    const req = request(
-      url,
-      {
+    timer = setTimeout(() => reject(new Error('Timed out')), Math.max(1, deadline - Date.now()))
+    dnsLookup(host, { all: true }).then((addresses) => {
+      if (Date.now() >= deadline) throw new Error('Timed out')
+      if (addresses.length === 0 || addresses.some((entry) => !isPublicAddress(entry.address))) {
+        throw new LinkPreviewBlockedError(`${host} does not resolve to a public address`)
+      }
+      req = net.request({
+        url: url.href,
         method: 'GET',
-        lookup: publicOnlyLookup,
-        agent: false,
-        headers: {
-          'User-Agent': USER_AGENT,
-          Accept: options.accept,
-          'Accept-Encoding': 'gzip, deflate, br'
-        }
-      },
-      (response) => {
-        const status = response.statusCode ?? 0
-        if (status >= 300 && status < 400 && response.headers.location) {
-          response.destroy()
-          resolve({ redirect: response.headers.location })
-          return
-        }
+        credentials: 'omit',
+        referrerPolicy: 'no-referrer',
+        redirect: 'manual'
+      })
+      req.setHeader('User-Agent', USER_AGENT)
+      req.setHeader('Accept', options.accept)
+      req.on('redirect', (_status, _method, redirectUrl) => resolve({ redirect: redirectUrl }))
+      req.on('response', (response) => {
+        const status = response.statusCode
         if (status < 200 || status >= 300) {
-          response.destroy()
           reject(new Error(`HTTP ${status}`))
           return
         }
-        readLinkPreviewBody(response, response.headers['content-encoding'], options).then(
-          (body) => resolve({ url: url.href, contentType: response.headers['content-type'] ?? '', body }),
+        readLinkPreviewBody(response, options).then(
+          (body) => resolve({ url: url.href, contentType: String(response.headers['content-type'] ?? ''), body }),
           reject
         )
-      }
-    )
-    // A wall-clock deadline: socket timeouts reset on every byte and do not cover DNS.
-    timer = setTimeout(() => req.destroy(new Error('Timed out')), Math.max(1, deadline - Date.now()))
-    req.on('error', reject)
-    req.end()
-  }).finally(() => clearTimeout(timer))
+      })
+      req.on('error', reject)
+      req.end()
+    }).catch(reject)
+  }).finally(() => {
+    clearTimeout(timer)
+    req?.abort()
+  })
 }
 
 export async function fetchLinkPreviewResource(rawUrl: string, options: LinkPreviewRequest): Promise<LinkPreviewResponse> {

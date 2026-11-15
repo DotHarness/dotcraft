@@ -4,7 +4,7 @@
 |-------|-------|
 | **Version** | 0.10.4 |
 | **Status** | Living |
-| **Date** | 2026-11-07 |
+| **Date** | 2026-11-15 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
 | **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Hub Architecture](../architecture/hub-architecture.md), [Device Gateway](../protocols/device-gateway.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Goal Design](../features/goal.md), [Session Import](../features/session-import.md), [Desktop DESIGN.md](../architecture/DESIGN.md) |
 
@@ -1217,8 +1217,8 @@ Surfaces beyond the conversation follow the same rules: protocol-driven behavior
 
 **Link previews**
 
-- Resting on or keyboard-focusing an ordinary web link in assistant Markdown opens a preview of the page: its host, favicon, preview image, and title. Only `https` links without credentials get a preview; other schemes, `localhost`, `.local`, `.internal`, `.test`, and literal IP hosts keep the plain URL hint, and forge references keep their own card. The preview's Open action does exactly what clicking the link does.
-- Metadata is fetched by the trusted host process only when a preview opens, never for every link in a transcript. The request carries only the URL: no cookies, credentials, or referrer, in a session separate from the browser panel's. The host refuses any address that resolves to a loopback, private, link-local, or otherwise non-public network, checking again on each redirect (at most three), and bounds each lookup by time and size: HTML is read only up to the end of its head, and the image and favicon are returned inline, limited to raster image types, so the renderer never loads the page's resources itself.
+- Resting on or keyboard-focusing an ordinary web link in assistant Markdown or a user message opens a preview of the page: its host, favicon, preview image, and title. Only `https` links without credentials get a preview; other schemes, `localhost`, `.local`, `.internal`, `.test`, and literal IP hosts keep the plain URL hint, and forge references keep their own card. The preview's Open action does exactly what clicking the link does.
+- Metadata is fetched by the trusted host process only when a preview opens, never for every link in a transcript. The request carries only the URL: no cookies, credentials, or referrer, in a session separate from the browser panel's. Requests use the desktop network stack and system proxy settings. The host refuses loopback, private, and link-local destinations, checking again on each redirect (at most three), and bounds each lookup by time and size: HTML is read only up to the end of its head, and the image and favicon are returned inline, limited to raster image types, so the renderer never loads the page's resources itself.
 - Results are cached by URL for a few minutes (failures briefly) and concurrent lookups for a URL are shared. A failed or refused lookup leaves the link usable and the preview says why.
 
 **Web links**

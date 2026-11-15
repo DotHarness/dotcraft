@@ -320,7 +320,6 @@ export function UserMessageBlock({
                   activeThreadId={activeThreadId}
                   linkMode="conversation"
                   labelMode="verbatim"
-                  enablePreview={false}
                   variant="message"
                   t={t}
                 >
