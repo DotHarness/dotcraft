@@ -473,7 +473,7 @@ A wallpaper plugin renders its media in `app.background`, then asks the Host to 
 region once over that media:
 
 ```ts
-host.appearance.setBackdropPresentation({ surfaceOpacity: 0.72 });
+host.appearance.setBackdropPresentation({ blur: 16, opacity: 0.72 });
 ```
 
 Each plugin generation owns one slot of each kind. A later activation has priority without
@@ -561,6 +561,7 @@ host.subagents.onChange(threadId, render);
 | `openDetailPanel(tab)` | The current thread's Detail Panel on `changes`, `plan`, or `subagents`. |
 | `openAutomation(automationId)` | That automation in the Automations view. |
 | `openSkill(name)` | That skill in the Skills view. |
+| `startChat({ prompt, skill? })` | A new chat in the current workspace with the prompt in the Composer, after a mention of the skill when it is installed. Nothing is sent until the user sends it. |
 | `revealToolCall(threadId, callId)` | That thread, scrolled to the tool call with that call id, opened and briefly highlighted. A background terminal's `callId` names the command that started it. |
 | `openExternal(url)` | An http(s) URL in the user's default browser, or a `dotcraft:` link inside Desktop. Other schemes are rejected. |
 | `openPath(path, options?)` | A local file or folder in another installed app. See [Open a path in another app](#open-a-path-in-another-app). |

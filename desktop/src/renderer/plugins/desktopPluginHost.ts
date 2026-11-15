@@ -14,6 +14,7 @@ import type {
 
 import { requestColorPickerDialog } from '../components/ui/ColorPickerDialog'
 import { loadLocalImageDataUrl } from '../components/conversation/imagePreview/galleryImages'
+import { stageChatDraft, stageSkillRequestInChat } from '../components/conversation/skillRequestDraft'
 import { requestConfirmDialog } from '../components/ui/ConfirmDialog'
 import { useConversationStore } from '../stores/conversationStore'
 import type { PluginEntry } from '../stores/pluginStore'
@@ -188,6 +189,11 @@ export function createDesktopPluginHost(
       },
       openThread(threadId, workspacePath) {
         return openThread(threadId, workspacePath)
+      },
+      startChat({ prompt, skill }) {
+        if (skill) return stageSkillRequestInChat(skill, prompt)
+        stageChatDraft(prompt, [{ type: 'text', value: prompt }])
+        return Promise.resolve()
       },
       openExternal(url) {
         return openExternalUrl(url)

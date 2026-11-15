@@ -41,9 +41,14 @@ export type DesktopPluginThemeSeedOverrides = Partial<
   Record<"light" | "dark", Partial<DesktopPluginThemeSeed>>
 >;
 
+/** Glass over a backdrop. The Host raises coverage and drops blur or tint where text would not stay readable. */
 export interface DesktopPluginBackdropPresentation {
+  /** How far the backdrop blurs behind Host shell surfaces, in pixels from 0 to 64. */
+  readonly blur: number;
   /** Opacity of each Host-owned shell surface, from 0 (clear) to 1 (opaque). */
-  readonly surfaceOpacity: number;
+  readonly opacity: number;
+  /** A raw hex, rgb() or hsl() color for the glass. Absent, the base surface color of the app. */
+  readonly tint?: string;
 }
 
 export interface DesktopPluginAppearance {
@@ -207,6 +212,11 @@ export interface DesktopPluginOpenPathOptions {
   column?: number;
 }
 
+export interface DesktopPluginChatDraft {
+  readonly prompt: string;
+  readonly skill?: string;
+}
+
 export interface DesktopPluginNavigation {
   openMainView(contributionId: string): void;
   openSettingsPage(contributionId: string): void;
@@ -221,6 +231,8 @@ export interface DesktopPluginNavigation {
   openDetailPanel(tab: DesktopPluginDetailPanelTab): void;
   openAutomation(automationId: string): void;
   openSkill(name: string): void;
+  /** Opens a new chat in the current workspace with the prompt in the Composer, after a mention of the skill when it is installed. Nothing is sent. */
+  startChat(draft: DesktopPluginChatDraft): Promise<void>;
   revealToolCall(threadId: string, callId: string): void;
   onOpenUrl(listener: (url: string) => boolean): DesktopPluginDispose;
 }

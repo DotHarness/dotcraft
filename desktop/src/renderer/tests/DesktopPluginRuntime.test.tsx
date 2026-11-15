@@ -589,7 +589,7 @@ describe('DesktopPluginRuntime', () => {
   it('owns and clamps backdrop presentation for the active generation', async () => {
     const deps = dependencies((value) => {
       const host = value as DesktopPluginHost
-      host.appearance.setBackdropPresentation({ surfaceOpacity: 1.4 })
+      host.appearance.setBackdropPresentation({ blur: 200, opacity: 1.4, tint: 'var(--bg-primary)' })
       return { mainViews: [], settingsPages: [] }
     })
     runtime = new DesktopPluginRuntime(deps)
@@ -597,17 +597,39 @@ describe('DesktopPluginRuntime', () => {
     runtime.reconcile([plugin()])
     await waitFor(() => expect(document.documentElement.dataset.desktopPluginBackdrop).toBe('true'))
     expect(document.documentElement.style.getPropertyValue('--desktop-plugin-backdrop-surface-opacity')).toBe('100%')
+    expect(document.documentElement.style.getPropertyValue('--desktop-plugin-backdrop-blur')).toBe('64px')
+    expect(document.documentElement.style.getPropertyValue('--desktop-plugin-backdrop-tint')).toBe('')
 
     runtime.reconcile([plugin(revisionA, false)])
     await waitFor(() => expect(document.documentElement.dataset.desktopPluginBackdrop).toBeUndefined())
     expect(document.documentElement.style.getPropertyValue('--desktop-plugin-backdrop-surface-opacity')).toBe('')
+    expect(document.documentElement.style.getPropertyValue('--desktop-plugin-backdrop-blur')).toBe('')
+  })
+
+  it('keeps a tint that suits the applied appearance and drops one that does not', async () => {
+    document.documentElement.dataset.theme = 'dark'
+    let appearance!: DesktopPluginHost['appearance']
+    const deps = dependencies((value) => {
+      appearance = (value as DesktopPluginHost).appearance
+      appearance.setBackdropPresentation({ blur: 12, opacity: 0.4, tint: '#0a1430' })
+      return { mainViews: [], settingsPages: [] }
+    })
+    runtime = new DesktopPluginRuntime(deps)
+
+    runtime.reconcile([plugin()])
+    await waitFor(() => expect(document.documentElement.style.getPropertyValue('--desktop-plugin-backdrop-tint')).toBe('#0a1430'))
+    expect(document.documentElement.dataset.desktopPluginBackdropUnsuited).toBeUndefined()
+
+    appearance.setBackdropPresentation({ blur: 12, opacity: 0.4, tint: '#f4efe4' })
+    expect(document.documentElement.style.getPropertyValue('--desktop-plugin-backdrop-tint')).toBe('')
+    expect(document.documentElement.dataset.desktopPluginBackdropUnsuited).toBe('true')
   })
 
   it('does not republish an unchanged backdrop contribution', async () => {
     const setProperty = vi.spyOn(document.documentElement.style, 'setProperty')
     const deps = dependencies((value) => {
       const host = value as DesktopPluginHost
-      const presentation = { surfaceOpacity: 0.3 }
+      const presentation = { blur: 8, opacity: 0.3 }
       host.appearance.setBackdropPresentation(presentation)
       host.appearance.setBackdropPresentation(presentation)
       return { mainViews: [], settingsPages: [] }

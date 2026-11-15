@@ -2,9 +2,9 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 0.9.5 |
+| Version | 0.12.0 |
 | Status | Living |
-| Date | 2026-10-25 |
+| Date | 2026-11-15 |
 | Parent Specs | [Plugin Architecture](plugin-architecture.md), [Tool Architecture](tools-architecture.md) |
 
 ## Overview
@@ -69,7 +69,16 @@ A plugin settings page is built from the Host's settings shell, groups, and rows
 
 Global appearance is Host-owned. A plugin may contribute a theme-seed override or request backdrop presentation through `host.appearance`; it never writes Desktop's private CSS custom properties. Core Appearance preferences remain the base layer. Each generation owns at most one theme override and one backdrop contribution, removed when the generation is disposed.
 
-When an `app.background` contribution requests backdrop presentation, the window frame becomes transparent and the Host composites one neutral layer over the media for the menu bar, the shared sidebar/main panel body, and the welcome surface. A plugin does not add its own translucent sidebar or main layer over that body.
+When an `app.background` contribution requests backdrop presentation, the window frame becomes transparent and the Host composites one glass layer over the media for the menu bar, the shared sidebar/main panel body, and the welcome surface. A plugin does not add its own translucent sidebar or main layer over that body.
+
+Backdrop presentation is a glass request: a blur radius from 0 to 64, an opacity from 0 to 1, and an optional tint as a raw hex, `rgb()`, or `hsl()` color. The Host clamps the numbers and ignores a tint that is not a raw color. Without a tint the glass takes the app's own base surface color.
+
+The Host keeps text readable over any backdrop, so a request is a preference rather than a guarantee:
+
+- A tint whose lightness does not suit the applied appearance, such as a pale tint in dark mode, is dropped and the glass covers at least 88% of the backdrop, because Host text is drawn for the applied appearance.
+- When the system asks for reduced transparency or increased contrast, in forced colors, and in print, the glass is opaque.
+- Without GPU compositing the glass does not blur and covers at least 70%.
+- Menus, dialogs, popovers, and approval prompts keep their own opaque surfaces.
 
 ## Package contract
 
@@ -167,7 +176,7 @@ The Core surfaces are:
 | `app.status` | The Host-owned trailing status rail at the bottom-right of the window. Empty by default and click-through outside interactive contributions. |
 | `composer` | The complete mounted Composer, including new-chat welcome, pre-thread embedded, and active-thread states. |
 | `composer.mascot` | The Composer mascot's visual stage. Core supplies the DotCraft robot and keeps placement, interaction, bubbles, menus, and outer motion. |
-| `composer.before` | Additive content immediately before the Composer body. Empty by default. |
+| `composer.before` | Additive content immediately before the Composer body. The Composer mascot stands on top of it while it has height. Empty by default. |
 | `composer.after` | Additive content immediately after the Composer shell. Empty by default. |
 | `composer.input` | The complete attachment and rich-input region. |
 | `composer.input.attachments` | The attachment strip inside the input region. |
@@ -348,6 +357,7 @@ interface DesktopPluginSubAgent {
 - `openDetailPanel(tab)` opens the current thread's Detail Panel on `changes`, `plan`, or `subagents`.
 - `openAutomation(automationId)` opens that automation in the Automations view.
 - `openSkill(name)` opens that skill in the Skills view.
+- `startChat({ prompt, skill? })` opens a new chat in the current workspace with the prompt in the Composer, after a mention of the skill when it is installed. It sends nothing.
 - `revealToolCall(threadId, callId)` opens that thread and reveals the tool item with that call id; a background terminal's `callId` names the `Exec` call that started it.
 - `openMainView` is limited to the plugin's own main views.
 - `openPath(path, { target?, line?, column? })` opens a local path in another app ([Desktop client §5.17](../clients/desktop-client.md#517-open-in-another-app)). `target` is an id from `listOpenTargets()`, such as `fileManager` or `custom:<id>`; without it the path's default target is used. It rejects on a remote workspace or an unavailable target.

@@ -1,0 +1,8 @@
+{
+  "fields": [
+    { "key": "enabled", "type": "bool", "defaultValue": true },
+    { "key": "animate", "type": "bool", "defaultValue": true },
+    { "key": "blur", "type": "number", "min": 0, "max": 64, "defaultValue": 0 },
+    { "key": "surfaceOpacity", "type": "number", "min": 0.3, "max": 1, "defaultValue": 0.3 }
+  ]
+}

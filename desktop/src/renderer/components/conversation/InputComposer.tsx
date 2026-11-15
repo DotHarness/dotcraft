@@ -1681,9 +1681,13 @@ function InputComposerCore({
     <>
       <div style={effectiveComposerDockStyle}>
         <ConversationColumn>
-        <DesktopPluginSurface name="composer.before" context={desktopPluginSurfaceContext} />
-        {visiblePendingMessage && <PendingMessageIndicator message={visiblePendingMessage} />}
       <ComposerShell
+        before={(
+          <>
+            <DesktopPluginSurface name="composer.before" context={desktopPluginSurfaceContext} />
+            {visiblePendingMessage && <PendingMessageIndicator message={visiblePendingMessage} />}
+          </>
+        )}
         adaptiveToolbar
         desktopPluginSurfaceContext={desktopPluginSurfaceContext}
         dragOver={dragOver}

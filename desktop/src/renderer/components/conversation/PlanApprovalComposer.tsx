@@ -198,8 +198,8 @@ export function PlanApprovalComposer({
   return (
     <div style={composerDockStyle}>
       <ConversationColumn>
-        <DesktopPluginSurface name="composer.before" context={mascotSurfaceContext} />
         <ComposerShell
+          before={<DesktopPluginSurface name="composer.before" context={mascotSurfaceContext} />}
           desktopPluginSurfaceContext={mascotSurfaceContext}
           dragOver={false}
           dropLabel=""

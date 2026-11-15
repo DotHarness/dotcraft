@@ -47,6 +47,7 @@ export const enSections: DocSection[] = [
         items: [
           { text: withIcon('pointerClick', 'Interactive Answers'), link: '/guide/interactive-answers' },
           { text: withIcon('chartLine', 'Visualizations'), link: '/guide/visualizations' },
+          { text: withIcon('monitor', 'Themes'), link: '/guide/themes' },
           { text: withIcon('users', 'Subagents'), link: '/guide/subagents' },
           { text: withIcon('branch', 'Worktrees'), link: '/guide/worktrees' },
           { text: withIcon('share', 'Workspace Handoff'), link: '/guide/workspace-handoff' },
@@ -300,6 +301,7 @@ export const zhSections: DocSection[] = [
         items: [
           { text: withIcon('pointerClick', '交互式回答'), link: '/zh/guide/interactive-answers' },
           { text: withIcon('chartLine', '交互式可视化'), link: '/zh/guide/visualizations' },
+          { text: withIcon('monitor', '主题'), link: '/zh/guide/themes' },
           { text: withIcon('users', 'Subagents'), link: '/zh/guide/subagents' },
           { text: withIcon('branch', '工作树'), link: '/zh/guide/worktrees' },
           { text: withIcon('share', '外部 Agent 协作'), link: '/zh/guide/workspace-handoff' },

@@ -469,7 +469,7 @@ Wallpaper 插件把媒体渲染到 `app.background`，再让 Host 在媒体上�
 一次表面：
 
 ```ts
-host.appearance.setBackdropPresentation({ surfaceOpacity: 0.72 });
+host.appearance.setBackdropPresentation({ blur: 16, opacity: 0.72 });
 ```
 
 每个插件 generation 在两类 contribution 中各有一个槽位。较晚 activation 的优先级更高，
@@ -557,6 +557,7 @@ host.subagents.onChange(threadId, render);
 | `openDetailPanel(tab)` | 当前 thread 的 Detail Panel，并切到 `changes`、`plan` 或 `subagents`。 |
 | `openAutomation(automationId)` | Automations 视图中的该自动化任务。 |
 | `openSkill(name)` | Skills 视图中的该技能。 |
+| `startChat({ prompt, skill? })` | 当前工作区中的新对话，提示词已填入输入框。技能已安装时，提示词前会带上该技能。用户发送前不会发出任何内容。 |
 | `revealToolCall(threadId, callId)` | 该 thread，并滚动到这个 call id 对应的工具调用，展开后短暂高亮。后台终端的 `callId` 指向启动它的命令。 |
 | `openExternal(url)` | 在用户默认浏览器中打开 http(s) URL，或在 Desktop 内处理 `dotcraft:` 链接。其他 scheme 会被拒绝。 |
 | `openPath(path, options?)` | 用其他已安装的应用打开本地文件或文件夹。见[用其他应用打开路径](#用其他应用打开路径)。 |

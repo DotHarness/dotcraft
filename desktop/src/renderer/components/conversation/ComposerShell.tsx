@@ -58,6 +58,7 @@ export const composerFooterControlBoxStyle: CSSProperties = {
 }
 
 interface ComposerShellProps {
+  before?: ReactNode
   dragOver: boolean
   dropLabel: string
   topAccessory?: ReactNode
@@ -98,6 +99,7 @@ interface ComposerPlanModeLabelProps {
 }
 
 export function ComposerShell({
+  before,
   dragOver,
   dropLabel,
   topAccessory,
@@ -139,6 +141,19 @@ export function ComposerShell({
     useComposerOverlayLiftHost()
   const topAccessoryRef = useRef<HTMLDivElement | null>(null)
   const topAccessoryHeightRef = useRef(0)
+  const beforeRef = useRef<HTMLDivElement | null>(null)
+  const [beforeHeight, setBeforeHeight] = useState(0)
+
+  useLayoutEffect(() => {
+    const element = beforeRef.current
+    if (!element) return undefined
+    const measure = (): void => setBeforeHeight(Math.round(element.getBoundingClientRect().height))
+    measure()
+    if (typeof ResizeObserver === 'undefined') return undefined
+    const observer = new ResizeObserver(measure)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [before])
 
   useLayoutEffect(() => {
     if (!topAccessoryVisible) {
@@ -185,6 +200,8 @@ export function ComposerShell({
   }, [topAccessoryVisible])
 
   return (
+    <>
+    {before !== undefined && <div ref={beforeRef}>{before}</div>}
     <div
       data-composer-root
       className={adaptiveToolbar ? css.adaptiveRoot : undefined}
@@ -215,7 +232,7 @@ export function ComposerShell({
           name={mascotName}
           appearance={petAppearance}
           onNameRendered={setRenderedMascotAvatar}
-          anchorOffset={Math.max(topAccessoryHeight, overlayLift)}
+          anchorOffset={Math.max(topAccessoryHeight, overlayLift, beforeHeight)}
           anchorPushSignal={topAccessoryPushSignal}
           handoff={mascotHandoff}
         />
@@ -341,6 +358,7 @@ export function ComposerShell({
         {belowFooter}
       </DesktopPluginSurface>
     </div>
+    </>
   )
 }
 

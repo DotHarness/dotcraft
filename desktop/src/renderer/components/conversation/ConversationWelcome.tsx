@@ -1119,8 +1119,8 @@ function ConversationWelcomeCore({
           </div>
 
           <div className="welcome-composer-dock">
-            <DesktopPluginSurface name="composer.before" context={desktopPluginSurfaceContext} />
             <ComposerShell
+              before={<DesktopPluginSurface name="composer.before" context={desktopPluginSurfaceContext} />}
               adaptiveToolbar
               desktopPluginSurfaceContext={desktopPluginSurfaceContext}
               dragOver={dragOver}

@@ -144,8 +144,8 @@ export function ApprovalDecisionComposer({
   return (
     <div ref={rootRef} style={composerDockStyle}>
       <ConversationColumn>
-        <DesktopPluginSurface name="composer.before" context={mascotSurfaceContext} />
         <ComposerShell
+          before={<DesktopPluginSurface name="composer.before" context={mascotSurfaceContext} />}
           desktopPluginSurfaceContext={mascotSurfaceContext}
           dragOver={false}
           dropLabel=""
