@@ -250,7 +250,7 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
             cancelled));
 
     private async ValueTask<JsonNode?> HandleWorkspaceListAsync(
-        JsonRpcRequest request,
+        RequestContext<JsonNode?> request,
         string peerId,
         CancellationToken cancellationToken)
     {
@@ -284,7 +284,7 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
     }
 
     private ValueTask<JsonNode?> HandleWorkspaceAcquireAsync(
-        JsonRpcRequest request,
+        RequestContext<JsonNode?> request,
         CancellationToken cancellationToken)
     {
         var parameters = Deserialize<WorkspaceAcquireRequest>(request);
@@ -299,7 +299,7 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
     }
 
     private async ValueTask<JsonNode?> HandleWorkspaceReleaseAsync(
-        JsonRpcRequest request,
+        RequestContext<JsonNode?> request,
         CancellationToken cancellationToken)
     {
         var parameters = Deserialize<WorkspaceLeaseRequest>(request);
@@ -311,7 +311,7 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
     }
 
     private ValueTask<JsonNode?> HandleWorkspaceHeartbeatAsync(
-        JsonRpcRequest request,
+        RequestContext<JsonNode?> request,
         CancellationToken cancellationToken)
     {
         var parameters = Deserialize<WorkspaceLeaseRequest>(request);
@@ -541,11 +541,11 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
             RemoteToolErrorCodes.HostOffline,
             "Remote Tool Host has not been set up.");
 
-    private static T Deserialize<T>(JsonRpcRequest request) where T : class =>
+    private static T Deserialize<T>(RequestContext<JsonNode?> request) where T : class =>
         request.Params?.Deserialize<T>(RemoteToolHostProtocol.JsonOptions)
         ?? throw new RemoteToolHostException(
             ToolErrorCodes.InputInvalid,
-            $"Invalid parameters for '{request.Method}'.");
+            $"Invalid parameters for '{request.JsonRpcRequest.Method}'.");
 
     private static void ValidateProfile(string version)
     {
@@ -566,7 +566,7 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
 
     private McpServerRequestHandler Raw(
         string method,
-        Func<JsonRpcRequest, CancellationToken, ValueTask<JsonNode?>> handler) => new()
+        Func<RequestContext<JsonNode?>, CancellationToken, ValueTask<JsonNode?>> handler) => new()
         {
             Method = method,
             Handler = async (request, cancellationToken) =>
@@ -585,7 +585,7 @@ internal sealed partial class RemoteToolHostMcpHandlers : IAsyncDisposable
                 catch (Exception ex)
                 {
                     _host.Logger.LogWarning(ex, "Remote request {Method} ({RequestId}) for peer {PeerId} failed.",
-                        method, request.Id, PeerId);
+                        method, request.JsonRpcRequest.Id, PeerId);
                     ExtensionError error;
                     if (ex is RemoteToolHostException remote)
                         error = new(remote.Code, string.IsNullOrWhiteSpace(remote.Message) ? $"{method} failed." : remote.Message);

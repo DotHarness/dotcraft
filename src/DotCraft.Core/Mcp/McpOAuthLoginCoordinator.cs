@@ -5,7 +5,6 @@ using ModelContextProtocol.Authentication;
 
 namespace DotCraft.Mcp;
 
-/// <summary>Runs an MCP OAuth authorization-code flow with an explicit loopback callback.</summary>
 public static class McpOAuthLoginCoordinator
 {
     /// <summary>
@@ -22,7 +21,7 @@ public static class McpOAuthLoginCoordinator
     {
         if (!string.Equals(server.NormalizedTransport, "streamableHttp", StringComparison.Ordinal))
             throw new InvalidOperationException("MCP OAuth is only available for streamable HTTP servers.");
-        if (!Uri.TryCreate(server.Url, UriKind.Absolute, out var endpoint))
+        if (!Uri.TryCreate(server.Url, UriKind.Absolute, out _))
             throw new InvalidOperationException("The MCP server endpoint is invalid.");
 
         if (string.IsNullOrWhiteSpace(userDataPath))
@@ -57,7 +56,7 @@ public static class McpOAuthLoginCoordinator
             return await WaitForAuthorizationResultAsync(listener, redirectUri, ct);
         };
 
-        _ = Task.Run(async () =>
+        var loginTask = Task.Run(async () =>
         {
             var terminalCompletionAttempted = false;
             try
@@ -93,7 +92,6 @@ public static class McpOAuthLoginCoordinator
             finally
             {
                 listener.Close();
-                timeoutCts.Dispose();
             }
         }, CancellationToken.None);
 
@@ -106,6 +104,11 @@ public static class McpOAuthLoginCoordinator
             timeoutCts.Cancel();
             listener.Close();
             throw;
+        }
+        finally
+        {
+            _ = loginTask.ContinueWith(_ => timeoutCts.Dispose(), CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
         }
     }
 

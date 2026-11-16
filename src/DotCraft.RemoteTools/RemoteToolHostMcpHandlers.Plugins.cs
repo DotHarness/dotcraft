@@ -4,7 +4,7 @@ using System.Text.Json.Nodes;
 using DotCraft.Plugins;
 using DotCraft.Runtime;
 using DotCraft.Tools;
-using ModelContextProtocol.Protocol;
+using ModelContextProtocol.Server;
 
 namespace DotCraft.RemoteTools;
 
@@ -13,7 +13,7 @@ internal sealed partial class RemoteToolHostMcpHandlers
     private readonly ConcurrentDictionary<string, PluginPreparation> _pluginPreparations = new(StringComparer.Ordinal);
     private readonly Dictionary<string, HashSet<string>> _pluginApprovals = new(StringComparer.Ordinal);
 
-    private async ValueTask<JsonNode?> PreparePluginsAsync(JsonRpcRequest request, string peerId, CancellationToken ct)
+    private async ValueTask<JsonNode?> PreparePluginsAsync(RequestContext<JsonNode?> request, string peerId, CancellationToken ct)
     {
         var input = Deserialize<PluginPrepareRequest>(request);
         using var call = EnterCall(input.LeaseId, input.WorkspaceId);
@@ -85,7 +85,7 @@ internal sealed partial class RemoteToolHostMcpHandlers
         }
     }
 
-    private async ValueTask<JsonNode?> ActivatePluginsAsync(JsonRpcRequest request, string peerId, CancellationToken ct)
+    private async ValueTask<JsonNode?> ActivatePluginsAsync(RequestContext<JsonNode?> request, string peerId, CancellationToken ct)
     {
         var input = Deserialize<PluginActivateRequest>(request);
         if (!_pluginPreparations.TryGetValue(input.PreparationId, out var pending) || pending.PeerId != peerId)
@@ -205,7 +205,7 @@ internal sealed partial class RemoteToolHostMcpHandlers
         }
     }
 
-    private async ValueTask<JsonNode?> AbortPluginsAsync(JsonRpcRequest request, string peerId, CancellationToken ct)
+    private async ValueTask<JsonNode?> AbortPluginsAsync(RequestContext<JsonNode?> request, string peerId, CancellationToken ct)
     {
         var input = Deserialize<PluginActivateRequest>(request);
         if (_pluginPreparations.TryGetValue(input.PreparationId, out var pending) && pending.PeerId == peerId)
@@ -225,7 +225,7 @@ internal sealed partial class RemoteToolHostMcpHandlers
         return new JsonObject();
     }
 
-    private async ValueTask<JsonNode?> ReleasePluginThreadAsync(JsonRpcRequest request, string peerId, CancellationToken ct)
+    private async ValueTask<JsonNode?> ReleasePluginThreadAsync(RequestContext<JsonNode?> request, string peerId, CancellationToken ct)
     {
         var input = Deserialize<PluginThreadRelease>(request);
         using var call = EnterCall(input.LeaseId, input.WorkspaceId);

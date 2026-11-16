@@ -96,7 +96,7 @@ public sealed class OratorioBindingMcpRuntimeTests
         using var crossed = await client.PostAsJsonAsync(
             "/dotcraft/bindings/binding-2/mcp",
             Rpc("tools/list", new { }));
-        Assert.False(crossed.IsSuccessStatusCode);
+        Assert.Equal(System.Net.HttpStatusCode.Forbidden, crossed.StatusCode);
     }
 
     [Fact]

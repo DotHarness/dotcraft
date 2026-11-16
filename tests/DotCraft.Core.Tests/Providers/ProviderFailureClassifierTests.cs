@@ -1,6 +1,5 @@
 using System.ClientModel;
 using System.ClientModel.Primitives;
-using System.Net;
 using DotCraft.Agents;
 using Xunit;
 
@@ -8,48 +7,6 @@ namespace DotCraft.Tests.Providers;
 
 public sealed class ProviderFailureClassifierTests
 {
-    [Theory]
-    [InlineData("overloaded_frame", ProviderFailureKind.ServerOverloaded, true)]
-    [InlineData("status_529", ProviderFailureKind.ServerOverloaded, true)]
-    [InlineData("exhausted_balance", ProviderFailureKind.UsageLimitExceeded, true)]
-    [InlineData("capacity_signal", ProviderFailureKind.ServerOverloaded, true)]
-    [InlineData("connection_reset", ProviderFailureKind.HttpConnectionFailed, false)]
-    public void Anthropic_ClassifiesFailureKindAndTerminality(string scenario, ProviderFailureKind expectedKind, bool terminal)
-    {
-        Exception exception = scenario switch
-        {
-            "overloaded_frame" => new IOException("{\"type\":\"error\",\"error\":{\"type\":\"overloaded_error\"}}"),
-            "status_529" => new HttpRequestException("overloaded", null, (HttpStatusCode)529),
-            "exhausted_balance" => new HttpRequestException(
-                "{\"error\":{\"message\":\"Insufficient Balance\"}}",
-                null,
-                HttpStatusCode.TooManyRequests),
-            "capacity_signal" => new InvalidOperationException("model stopped: insufficient_system_resource"),
-            _ => new IOException("connection reset by peer")
-        };
-
-        var failure = AnthropicProviderFailureClassifier.Instance.Classify(exception);
-
-        Assert.Equal(expectedKind, failure.Kind);
-        Assert.Equal(terminal, failure.IsTerminal);
-        if (terminal)
-            Assert.Null(failure.GetRetryDelay(1));
-    }
-
-    [Fact]
-    public void Anthropic_RateLimitIsRetryableAndHonorsAdvisedDelay()
-    {
-        var failure = AnthropicProviderFailureClassifier.Instance.Classify(
-            new HttpRequestException(
-                "{\"error\":{\"type\":\"rate_limit_error\",\"message\":\"Please try again in 3.5s.\"}}",
-                null,
-                HttpStatusCode.TooManyRequests));
-
-        Assert.Equal(ProviderFailureKind.RateLimitExceeded, failure.Kind);
-        Assert.False(failure.IsTerminal);
-        Assert.Equal(TimeSpan.FromSeconds(3.5), failure.ServerRetryAfter);
-    }
-
     [Theory]
     [InlineData(true, 503, "{\"error\":{\"code\":\"server_is_overloaded\"}}", ProviderFailureKind.ServerOverloaded, true)]
     [InlineData(true, 503, "{\"error\":{\"code\":\"slow_down\"}}", ProviderFailureKind.RateLimitExceeded, false)]

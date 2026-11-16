@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.9.9 |
+| Version | 0.12.1 |
 | Status | Living |
-| Date | 2026-10-29 |
+| Date | 2026-11-16 |
 | Parent Spec | [Session Core](session-core.md) |
 
 ## 1. Overview
@@ -346,6 +346,9 @@ history, tool schema, retry timing, or wire request.
   a stable classification and, when the provider supplies them, the upstream HTTP status, request
   ID, and a server-advised retry delay. Classification belongs to the provider integration; the
   provider-neutral layer does not re-derive it from message text.
+- Anthropic classification uses structured error types and codes before HTTP status. Unrelated
+  exception text does not override structured errors. Transport failures retain their
+  provider-neutral classification.
 - An invalid-request failure that a gateway wraps in a server error, such as a Bedrock
   `ValidationException` inside a 502, is classified as invalid-request and is not retried.
 - A rejection naming an unknown model, such as OpenAI `model_not_found` or Anthropic

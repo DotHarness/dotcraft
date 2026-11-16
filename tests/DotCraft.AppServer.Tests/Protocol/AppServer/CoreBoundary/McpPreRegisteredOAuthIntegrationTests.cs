@@ -5,6 +5,7 @@ using System.Text.Json.Nodes;
 using DotCraft.AppServerTestClient;
 using DotCraft.Mcp;
 using DotCraft.Workspaces;
+using ModelContextProtocol;
 using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol.AppServer;
@@ -97,6 +98,65 @@ public sealed class McpPreRegisteredOAuthIntegrationTests : IAsyncLifetime
         }
         Assert.Equal(2, _server.AuthorizationRequests);
         Assert.Equal(0, _server.OldClientRequests);
+    }
+
+    [Fact]
+    public async Task Refresh_WithoutReplacementToken_PreservesCredentialsAndCanonicalResourceAcrossRestarts()
+    {
+        await using var server = new McpOAuthSmokeServer
+        {
+            OmitRefreshTokenOnRefresh = true,
+            ResourcePath = "/"
+        };
+        server.RegisterClient("client-a", "secret-a", _callback);
+        await server.StartAsync();
+        var config = Config();
+        config.Url = server.McpUrl;
+        await LoginAsync(config);
+        var store = McpOAuthTokenStore.Create(config, Path.Combine(_root, "user-data"));
+        var original = await store.GetTokensAsync();
+        Assert.False(string.IsNullOrWhiteSpace(original!.RefreshToken));
+
+        server.ExpireAccessTokens();
+        await using var manager = Manager();
+        await ConnectAsync(manager, config);
+        await EchoAsync(manager);
+        Assert.Equal(original.RefreshToken, (await store.GetTokensAsync())!.RefreshToken);
+
+        var expired = (await store.GetTokensAsync())!;
+        expired.ObtainedAt = DateTimeOffset.UtcNow.AddHours(-1);
+        expired.ExpiresIn = 1;
+        await store.StoreTokensAsync(expired);
+        await EchoAsync(manager);
+
+        Assert.Equal(original.RefreshToken, (await store.GetTokensAsync())!.RefreshToken);
+        Assert.Equal(2, server.RefreshRequests);
+
+        Assert.Equal(1, server.AuthorizationRequests);
+        Assert.Equal(0, server.OldClientRequests);
+    }
+
+    [Fact]
+    public async Task MissingOAuthMetadata_FailsWithoutSynthesizingEndpoints()
+    {
+        await using var server = new McpOAuthSmokeServer { PublishOAuthMetadata = false };
+        server.RegisterClient("client-a", "secret-a", _callback);
+        await server.StartAsync();
+        var config = Config();
+        config.Url = server.McpUrl;
+        await using var manager = Manager();
+        await ConnectAsync(manager, config);
+        var status = Assert.Single(await manager.ListStatusesAsync());
+        Assert.Equal("unsupported", status.AuthStatus);
+        Assert.False(string.IsNullOrWhiteSpace(status.LastError));
+
+        await Assert.ThrowsAsync<McpException>(() => McpOAuthLoginCoordinator.BeginAsync(
+            config, null, 10, Path.Combine(_root, "user-data"),
+            (_, _) => Task.CompletedTask, CancellationToken.None));
+
+        Assert.Equal(0, server.AuthorizationRequests);
+        Assert.Equal(0, server.RegistrationRequests);
+        Assert.Equal(0, server.TokenRequests);
     }
 
     [Fact]
