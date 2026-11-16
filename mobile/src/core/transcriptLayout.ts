@@ -28,6 +28,8 @@ export function stabilizeEntries(next: TranscriptEntry[], previous: TranscriptEn
         children: sameReferences(entry.children, old.children) ? old.children : entry.children,
         label: sameLabel(entry.label, old.label) ? old.label : entry.label,
       }
+    } else if (entry.kind === 'assistant' && old.kind === 'assistant') {
+      entry = { ...entry, changes: sameReferences(entry.changes, old.changes) ? old.changes : entry.changes }
     } else if (entry.kind === 'activity' && old.kind === 'activity') {
       entry = { ...entry, children: stabilizeEntries(entry.children, old.children) }
     }
@@ -86,8 +88,7 @@ export function layoutTurn(
   const completed = !running && turn?.status === 'completed'
   const final = turn?.status === 'failed' ? -1 : replyIndex(body, completed)
   if (completed) {
-    const footer = lastIndex(body, (entry) => entry.kind === 'assistant')
-    if (footer >= 0) body[footer] = { ...(body[footer] as Extract<TranscriptEntry, { kind: 'assistant' }>), copy: true, changes }
+    if (final >= 0) body[final] = { ...(body[final] as Extract<TranscriptEntry, { kind: 'assistant' }>), copy: true, changes: changes ? [changes] : [] }
     else if (changes) body.push({ kind: 'changes', id: `changes-${turnId}`, changes })
   }
   if (!turn) return [...opening, ...body, ...tail]

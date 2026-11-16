@@ -115,7 +115,7 @@ function projectItem(item: HistoryItem, context: ItemContext): ItemProjection {
     case 'agentMessage': {
       const text = str(payload.text)
       const phase = str(payload.phase)
-      return text ? { entry: { kind: 'assistant', id, text, streaming: !isComplete(item), phase: phase === 'commentary' || phase === 'final' ? phase : null, at: item.createdAt, copy: false, changes: null } } : {}
+      return text ? { entry: { kind: 'assistant', id, text, streaming: !isComplete(item), phase: phase === 'commentary' || phase === 'final' ? phase : null, at: item.createdAt, copy: false, changes: [] } } : {}
     }
     case 'reasoningContent':
       return { heading: thinkingStatus(str(payload.text), isComplete(item)) }

@@ -51,6 +51,34 @@ describe('responses spanning turns', () => {
     expect(activity.children.filter((entry) => entry.kind === 'tool' || entry.kind === 'toolGroup')).toHaveLength(3)
   })
 
+  it('assigns Copy only to the final reply of a continued response', () => {
+    const items = [
+      item('t1', 'userMessage', { text: 'Clean up' }),
+      ...read('t1', 'r1'),
+      item('t1', 'toolCall', { toolName: 'EditFile', callId: 'e1', arguments: { path: 'a.ts' }, source: { kind: 'CoreNative', sourceId: 'core-native' }, presentation: { presentationId: 'core.file-write', options: { operation: 'edit' } } }),
+      item('t1', 'toolResult', { toolName: 'EditFile', callId: 'e1', result: 'ok', structuredContent: { kind: 'fileChange', changes: [{ path: 'a.ts', kind: 'update', additions: 2, deletions: 1 }] } }),
+      item('t1', 'agentMessage', { text: 'Waiting for the build.', phase: 'commentary' }),
+      commandEnded('t2'),
+      item('t2', 'agentMessage', { text: 'Checking the output.', phase: 'commentary' }),
+      ...read('t2', 'r2'),
+      item('t2', 'toolCall', { toolName: 'EditFile', callId: 'e2', arguments: { path: 'b.ts' }, source: { kind: 'CoreNative', sourceId: 'core-native' }, presentation: { presentationId: 'core.file-write', options: { operation: 'edit' } } }),
+      item('t2', 'toolResult', { toolName: 'EditFile', callId: 'e2', result: 'ok', structuredContent: { kind: 'fileChange', changes: [{ path: 'b.ts', kind: 'update', additions: 1, deletions: 0 }] } }),
+      item('t2', 'agentMessage', { text: 'Done.', phase: 'final' }),
+    ]
+    const transcript = buildTranscript(history(items, [['t1', 0, 10], ['t2', 30, 5]]))
+    const activity = transcript.find((entry) => entry.kind === 'activity') as Extract<(typeof transcript)[number], { kind: 'activity' }>
+    const messages = [...activity.children, ...transcript].filter((entry) => entry.kind === 'assistant')
+
+    expect(messages.filter((entry) => entry.copy)).toMatchObject([{ text: 'Done.', phase: 'final' }])
+    expect(messages.filter((entry) => entry.phase === 'commentary')).toMatchObject([{ copy: false, changes: [] }, { copy: false, changes: [] }])
+    expect(messages.find((entry) => entry.copy)).toMatchObject({ changes: [
+      { turnId: 't1', added: 2, removed: 1 },
+      { turnId: 't2', added: 1, removed: 0 },
+    ] })
+    expect(transcript.some((entry) => entry.kind === 'changes')).toBe(false)
+    expect(activity.children.some((entry) => entry.kind === 'changes')).toBe(false)
+  })
+
   it.each([
     { deliveryMode: 'queued', triggerKind: 'subagentMailbox' },
     { deliveryMode: 'subagentMailbox' },

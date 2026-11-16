@@ -1308,9 +1308,10 @@ Special state goes into the message action row below the bubble, after the
 actions, as the same small icon plus label. State is information, so it stays
 visible at rest while the timestamp and copy controls stay hover-revealed.
 
-The assistant answer's action row appears below its final reply once the turn
-completes. Commentary in an unanswered response has no action row and reserves no
-footer space. Background tasks still running do not suppress the final reply's
+The assistant answer's action row and completion cards appear below its final
+reply once the turn completes. An unanswered response has no action row or
+completion cards and reserves no footer space. A continued response presents the
+completion cards of its earlier turns after its final reply. Background tasks still running do not suppress the final reply's
 copy, fork, and timestamp controls.
 
 Tooltips on these markers carry only what the visible line does not already say,

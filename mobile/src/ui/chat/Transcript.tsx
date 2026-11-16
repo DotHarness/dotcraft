@@ -604,11 +604,11 @@ export const TranscriptLine = memo(function TranscriptLine({
               ),
             )}
           </View>
-          {entry.changes ? (
-            <View style={styles.changes}>
-              <TurnChangesCard changes={entry.changes} />
+          {entry.changes.map((changes) => (
+            <View key={changes.turnId} style={styles.changes}>
+              <TurnChangesCard changes={changes} />
             </View>
-          ) : null}
+          ))}
           {entry.copy ? <CopyButton text={copyableAssistantText(entry.text)} label={t('chat.copy')} style={styles.copy} /> : null}
         </View>
       )

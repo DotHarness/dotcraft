@@ -89,6 +89,17 @@ describe('turn layout', () => {
     expect(activity.kind === 'activity' && activity.children[0]).toMatchObject({ copy: false })
   })
 
+  it.each(['running', 'completed'])('keeps commentary without a final answer uncopyable in a %s turn', (status) => {
+    const items = [
+      item('userMessage', { text: 'Run the build' }),
+      ...read('a.ts', 'r1'),
+      item('agentMessage', { text: 'Waiting for the build.', phase: 'commentary' }),
+    ]
+    const progress = buildTranscript(history(items, status)).find((entry) => entry.kind === 'assistant')
+
+    expect(progress).toMatchObject({ copy: false, changes: [] })
+  })
+
   it('does not take an unphased message followed by work as the reply of a finished turn', () => {
     const items = [
       item('userMessage', { text: 'Keep going' }),
@@ -231,7 +242,7 @@ describe('turn changes', () => {
     const items = [item('userMessage', { text: 'Fix it' }), ...edit('a.ts', 'c1'), ...edit('b.ts', 'c2'), item('agentMessage', { text: 'Fixed.' })]
     const transcript = buildTranscript(history(items, 'completed'))
     expect(transcript.map((entry) => entry.kind)).toEqual(['user', 'activity', 'assistant'])
-    expect(transcript[2]).toMatchObject({ copy: true, changes: { turnId: 't1', added: 4, removed: 2 } })
+    expect(transcript[2]).toMatchObject({ copy: true, changes: [{ turnId: 't1', added: 4, removed: 2 }] })
   })
 
   it('gives a completed turn without a reply its own changes entry, and a stopped or failed turn none', () => {
@@ -240,6 +251,18 @@ describe('turn changes', () => {
     for (const status of ['cancelled', 'failed', 'running']) {
       expect(buildTranscript(history(items, status)).some((entry) => entry.kind === 'changes')).toBe(false)
     }
+  })
+
+  it('preserves changes independently of commentary while waiting for a final answer', () => {
+    const items = [
+      item('userMessage', { text: 'Fix it' }),
+      ...edit('a.ts', 'c1'),
+      item('agentMessage', { text: 'The edit is ready; waiting for the build.', phase: 'commentary' }),
+    ]
+    const transcript = buildTranscript(history(items, 'completed'))
+
+    expect(transcript.find((entry) => entry.kind === 'assistant')).toMatchObject({ copy: false, changes: [] })
+    expect(transcript.find((entry) => entry.kind === 'changes')).toMatchObject({ changes: { turnId: 't1', added: 2, removed: 1 } })
   })
 
   it('keeps the changes entry of a summarized turn without a reply', () => {

@@ -309,13 +309,12 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
     waitingForAnswer: pendingUserInput != null
   })
   const lastFinalAgentMessageIndex = activity.finalIndex
+  const completesResponse = !isRunning && turn.status === 'completed' && lastFinalAgentMessageIndex >= 0
   const footerAgentMessageId =
-    !isRunning && turn.status === 'completed' && !embedded && lastFinalAgentMessageIndex >= 0
-      ? renderableItems[lastFinalAgentMessageIndex]?.id : null
+    completesResponse && !embedded ? renderableItems[lastFinalAgentMessageIndex]?.id : null
   const completionOf = (turnId: string): ReactNode =>
     renderTurnCompletion ? renderTurnCompletion(turnId) : <TurnCompletionContent turnId={turnId} />
-  const liftsCompletion = turn.status === 'completed'
-  const turnCompletionContent = !liftsCompletion || embedded?.completion === false ? null
+  const turnCompletionContent = !completesResponse || embedded?.completion === false ? null
     : leadingTurns.length === 0 ? completionOf(turn.id)
       : <>{[...leadingTurns, turn].map((member) => <Fragment key={member.id}>{completionOf(member.id)}</Fragment>)}</>
   const omitsWork = turn.summary != null && turn.summary.itemCount > turn.items.length
@@ -330,7 +329,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
     <ResponseLeadingTurn key={leadingTurn.id} turnId={leadingTurn.id}>
       <AgentResponseBlock
         turn={leadingTurn}
-        embedded={{ ...state, wakeLine: index > 0, completion: !liftsCompletion }}
+        embedded={{ ...state, wakeLine: index > 0, completion: !completesResponse }}
         shellRuntimeScope={shellRuntimeScope}
         readOnly={readOnly}
         renderTurnCompletion={renderTurnCompletion}

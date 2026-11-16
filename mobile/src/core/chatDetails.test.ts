@@ -56,7 +56,7 @@ describe('changes', () => {
     expect(Object.keys(state().details[done].history.diffs ?? {})).toEqual([state().details[done].history.turns.at(-1)!.id])
     expect(runningTurnChanges(state().details[done].history, state().details[done].workspacePath)).toBeNull()
     const reply = buildTranscript(state().details[done].history, state().details[done].workspacePath).at(-1)
-    expect(reply?.kind === 'assistant' && reply.changes?.files.map((file) => [file.path, file.added, file.removed])).toEqual([
+    expect(reply?.kind === 'assistant' && reply.changes[0]?.files.map((file) => [file.path, file.added, file.removed])).toEqual([
       ['locales/de.ts', 4, 4],
       ['src/settings/SegmentedControl.tsx', 6, 2],
     ])

@@ -41,7 +41,7 @@ function work(piece: TurnPiece, first: boolean, lifted: boolean): TranscriptEntr
   return [
     ...(first ? [] : wakeLine(piece)),
     ...(lifted
-      ? body.flatMap((entry): TranscriptEntry[] => entry.kind === 'changes' ? [] : entry.kind === 'assistant' && entry.changes ? [{ ...entry, changes: null }] : [entry])
+      ? body.flatMap((entry): TranscriptEntry[] => entry.kind === 'changes' ? [] : entry.kind === 'assistant' && entry.changes.length > 0 ? [{ ...entry, changes: [] }] : [entry])
       : body),
     ...(activity?.pendingTurnId !== undefined ? [{ kind: 'turnWork' as const, id: `turn-work-${piece.turnId}`, turnId: activity.pendingTurnId }] : []),
   ]
@@ -64,14 +64,18 @@ function joinRun(run: TurnPiece[]): TranscriptEntry[] {
     origin: head.activity?.origin ?? null,
   }
   if (!folds) return [...head.opening, activity, ...earlier, ...wakeLine(last), ...tail.rest]
-  const working = tail.rest.findIndex((entry) => entry.kind === 'thinking')
-  const end = working < 0 ? tail.rest.length : working
+  const earlierChanges = leading.flatMap((piece) => piece.changes ? [piece.changes] : [])
+  const reply = last.replied ? tail.rest.findLastIndex((entry) => entry.kind === 'assistant' && (entry.copy || entry.phase === 'final')) : -1
+  const rest = reply < 0 || earlierChanges.length === 0 ? tail.rest : tail.rest.map((entry, index) =>
+    index === reply && entry.kind === 'assistant' ? { ...entry, changes: [...earlierChanges, ...entry.changes] } : entry)
+  const working = rest.findIndex((entry) => entry.kind === 'thinking')
+  const end = working < 0 ? rest.length : working
   return [
     ...head.opening,
     { ...activity, children: [...earlier, ...wakeLine(last), ...tail.activity.children] },
-    ...tail.rest.slice(0, end),
-    ...leading.flatMap((piece): TranscriptEntry[] => piece.changes ? [{ kind: 'changes', id: `changes-${piece.turnId}`, changes: piece.changes }] : []),
-    ...tail.rest.slice(end),
+    ...rest.slice(0, end),
+    ...(reply < 0 ? earlierChanges.map((changes): TranscriptEntry => ({ kind: 'changes', id: `changes-${changes.turnId}`, changes })) : []),
+    ...rest.slice(end),
   ]
 }
 

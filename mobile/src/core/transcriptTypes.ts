@@ -117,7 +117,7 @@ export type TranscriptEntry =
       phase: 'commentary' | 'final' | null
       at: string
       copy: boolean
-      changes: TurnChanges | null
+      changes: TurnChanges[]
     }
   | {
       kind: 'thinking'
