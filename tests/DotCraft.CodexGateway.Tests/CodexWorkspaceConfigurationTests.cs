@@ -161,6 +161,101 @@ public sealed class CodexWorkspaceConfigurationTests
         Assert.DoesNotContain(fixture.Transport.Requests, request => request.Method is "thread/config/update" or "config/batchWrite");
     }
 
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task ExplicitModelBindingOverridesInheritedProviderAcrossThreadAndTurnAdmission(
+        bool nullProvider, bool collaboration)
+    {
+        using var fixture = new ConfigurationFixture("default", "default");
+        await using var session = await fixture.ConnectAsync();
+        const string binding = "dotcraft/other-provider/other-model";
+        var parameters = new Dictionary<string, object?>
+        {
+            ["config"] = new { model_provider = "provider", model = "dotcraft/provider/model" },
+            ["model"] = collaboration ? "dotcraft/provider/model" : binding
+        };
+        if (nullProvider) parameters["modelProvider"] = null;
+        if (collaboration)
+            parameters["collaborationMode"] = new
+            {
+                mode = "default", settings = new { model = binding, reasoning_effort = "max", developer_instructions = (string?)null }
+            };
+
+        var created = Json(await session.HandleAsync("thread/start", Json(parameters), default));
+        parameters["threadId"] = created.GetProperty("thread").GetProperty("id").GetString();
+        parameters["excludeTurns"] = true;
+        var resumed = Json(await session.HandleAsync("thread/resume", Json(parameters), default));
+        parameters["input"] = new[] { new { type = "text", text = "continue on the selected provider" } };
+        await session.HandleAsync("turn/start", Json(parameters), default);
+
+        Assert.All(new[] { created, resumed }, response =>
+        {
+            Assert.Equal("other-provider", response.GetProperty("modelProvider").GetString());
+            Assert.Equal(binding, response.GetProperty("model").GetString());
+        });
+        var start = Assert.Single(fixture.Transport.Requests, request => request.Method == "thread/start");
+        var update = Assert.Single(fixture.Transport.Requests, request => request.Method == "thread/config/update");
+        var turn = Assert.Single(fixture.Transport.Requests, request => request.Method == "turn/start");
+        Assert.All(new[] { start.Parameters.GetProperty("config"), update.Parameters.GetProperty("config"), turn.Parameters }, settings =>
+        {
+            Assert.Equal("other-provider", settings.GetProperty("providerId").GetString());
+            Assert.Equal("other-model", settings.GetProperty("model").GetString());
+        });
+    }
+
+    [Theory]
+    [InlineData("modelProvider", "model_provider")]
+    [InlineData("model_provider", "modelProvider")]
+    public async Task ExplicitProviderOverridesConfigAliasesRegardlessOfInsertionOrder(string firstAlias, string secondAlias)
+    {
+        using var fixture = new ConfigurationFixture("default", "default");
+        await using var session = await fixture.ConnectAsync();
+        var config = new Dictionary<string, object?>
+        {
+            [firstAlias] = "provider", [secondAlias] = "provider", ["model"] = "dotcraft/other-provider/other-model"
+        };
+        var created = Json(await session.HandleAsync("thread/start", Json(new
+        {
+            config, modelProvider = "other-provider"
+        }), default));
+
+        Assert.Equal("other-provider", created.GetProperty("modelProvider").GetString());
+        var settings = Assert.Single(fixture.Transport.Requests, request => request.Method == "thread/start")
+            .Parameters.GetProperty("config");
+        Assert.Equal("other-provider", settings.GetProperty("providerId").GetString());
+        Assert.Equal("other-model", settings.GetProperty("model").GetString());
+    }
+
+    [Theory]
+    [InlineData("dotcraft/other-provider/other-model", "provider")]
+    [InlineData("dotcraft/missing/model", null)]
+    public async Task InvalidModelOrExplicitProviderConflictNeverReachesSourceAdmission(string model, string? provider)
+    {
+        using var fixture = new ConfigurationFixture("default", "default");
+        await using var session = await fixture.ConnectAsync();
+        var created = Json(await session.HandleAsync("thread/start", Json(new { }), default));
+        var threadId = created.GetProperty("thread").GetProperty("id").GetString();
+        fixture.Transport.Requests.Clear();
+        foreach (var method in new[] { "thread/start", "thread/resume", "turn/start" })
+            await Assert.ThrowsAsync<ArgumentException>(() => session.HandleAsync(method, Json(new
+            {
+                threadId, model, modelProvider = provider,
+                input = new[] { new { type = "text", text = "must not execute" } }
+            }), default));
+        await Assert.ThrowsAsync<ArgumentException>(() => session.HandleAsync("config/batchWrite", Json(new
+        {
+            edits = new[]
+            {
+                new { keyPath = "model", value = (string?)model, mergeStrategy = "replace" },
+                new { keyPath = "model_provider", value = provider, mergeStrategy = "replace" }
+            }
+        }), default));
+
+        Assert.DoesNotContain(fixture.Transport.Requests, request =>
+            request.Method is "thread/start" or "thread/config/update" or "turn/start" or "config/batchWrite");
+    }
+
     private static object Collaboration(string mode, string effort) => new
     {
         mode, settings = new { model = "dotcraft/provider/model", reasoning_effort = effort, developer_instructions = (string?)null }
@@ -214,12 +309,13 @@ public sealed class CodexWorkspaceConfigurationTests
                     },
                     layers = new[] { new { name = new { type = "workspace", file = Path.Combine(Path.GetTempPath(), ".craft", "config.json") }, version = "workspace-v1", config = new { } } }
                 },
-                "provider/list" => new { providers = new[] { new { id = "provider" } } },
+                "provider/list" => new { providers = new[] { new { id = "provider" }, new { id = "other-provider" } } },
                 "model/list" => new
                 {
                     success = true, models = new[] { new
                     {
-                        id = "model", inputModalities = new[] { "text" },
+                        id = p.GetProperty("providerId").GetString() == "other-provider" ? "other-model" : "model",
+                        inputModalities = new[] { "text" },
                         reasoning = new
                         {
                             defaultEnabled = true, defaultEffort = "max", supportsDisable = true,
@@ -227,7 +323,7 @@ public sealed class CodexWorkspaceConfigurationTests
                         }
                     } }
                 },
-                "thread/start" => Create(p),
+                "thread/start" or "thread/config/update" => Create(p),
                 "thread/read" => new { thread = Thread() },
                 "thread/resume" => new { thread = Thread(), instructionSources = Array.Empty<string>(),
                     turnsBackwardsCursor = (string?)null, itemsBackwardsCursor = (string?)null },

@@ -14,20 +14,34 @@ public sealed partial class CodexWorkspaceSession
         "extraHigh" => "xhigh", _ => effort
     };
 
+    private static string SettingName(string key) => key switch
+    {
+        "model_reasoning_effort" => "effort", "model_provider" => "modelProvider",
+        "service_tier" => "serviceTier", "model_reasoning_summary" => "summary",
+        "approval_policy" => "approvalPolicy", "sandbox_mode" => "sandbox",
+        "default_permissions" => "permissions", "approvals_reviewer" => "approvalsReviewer", _ => key
+    };
+
     private async Task<Dictionary<string, object?>> ExecutionSettingsAsync(JsonElement p, CancellationToken ct)
     {
         var values = new Dictionary<string, JsonElement>();
         foreach (var entry in p.Get("config").ValueKind == JsonValueKind.Object
                      ? p.Get("config").EnumerateObject() : Enumerable.Empty<JsonProperty>())
-            values[entry.Name] = entry.Value.Clone();
+            values[SettingName(entry.Name)] = entry.Value.Clone();
         ApplyPermissionOverrides(p, values);
-        foreach (var name in new[] { "model", "modelProvider", "effort", "serviceTier", "summary", "approvalPolicy", "sandbox", "permissions" })
-            if (p.Get(name).ValueKind != JsonValueKind.Undefined) values[name] = p.Get(name).Clone();
         var collaboration = p.Get("collaborationMode");
+        if (p.Get("model").ValueKind is not (JsonValueKind.Undefined or JsonValueKind.Null) ||
+            collaboration.Get("settings").Get("model").ValueKind is not (JsonValueKind.Undefined or JsonValueKind.Null))
+            values.Remove("modelProvider");
+        foreach (var name in new[] { "model", "modelProvider", "effort", "serviceTier", "summary", "approvalPolicy", "sandbox", "permissions" })
+        {
+            var value = p.Get(name);
+            if (value.ValueKind == JsonValueKind.Undefined ||
+                value.ValueKind == JsonValueKind.Null && name != "serviceTier") continue;
+            values[name] = value.Clone();
+        }
         if (collaboration.ValueKind == JsonValueKind.Object)
         {
-            values.Remove("model");
-            values.Remove("effort");
             values["model"] = collaboration.Get("settings").Get("model");
             values["effort"] = collaboration.Get("settings").Get("reasoning_effort");
             if (collaboration.Get("settings").Text("developer_instructions") is not null)
@@ -69,13 +83,7 @@ public sealed partial class CodexWorkspaceSession
         string? provider = null;
         foreach (var (key, value) in values)
         {
-            var name = key switch
-            {
-                "model_reasoning_effort" => "effort", "model_provider" => "modelProvider",
-                "service_tier" => "serviceTier", "model_reasoning_summary" => "summary",
-                "approval_policy" => "approvalPolicy", "sandbox_mode" => "sandbox",
-                "default_permissions" => "permissions", "approvals_reviewer" => "approvalsReviewer", _ => key
-            };
+            var name = SettingName(key);
             if (name == "serviceTier" && value.ValueKind == JsonValueKind.Null)
             {
                 settings["speed"] = "standard";
