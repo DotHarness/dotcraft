@@ -64,8 +64,8 @@ public sealed partial class CodexWorkspaceSession
             return new
             {
                 id = pair.Key, model = pair.Key,
-                displayName = (m.Text("displayName") ?? pair.Value.Model) + " · " + pair.Value.Provider,
-                description = "DotCraft provider: " + pair.Value.Provider,
+                displayName = m.Text("displayName") ?? pair.Value.Model,
+                description = pair.Value.Provider,
                 upgrade = (object?)null, upgradeInfo = (object?)null, availabilityNux = (object?)null,
                 hidden = false, modelSpecialty = (object?)null,
                 supportedReasoningEfforts = reasoning.Get("supportedEfforts").Rows()

@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.12.0 |
+| Version | 0.12.2 |
 | Status | Living |
-| Date | 2026-11-16 |
+| Date | 2026-11-17 |
 | Parent specs | [AppServer protocol](appserver-protocol.md), [Runtime boundaries](../architecture/runtime-module-boundaries.md) |
 
 ## 1. Purpose and scope
@@ -77,9 +77,9 @@ Thread and turn lifecycle transitions are source-owned. A steered turn does not 
 
 The host catalog aggregates the authorized workspaces' real provider/model bindings, preserving their availability per workspace. Duplicate provider/model ids use shared supported capabilities. Config/read with cwd projects that workspace's effective defaults; the host catalog has one default derived from the first workspace. ModelProvider filters follow the Codex contract.
 
-Explicit selections are validated against the target workspace. A model binding never selects the execution workspace, and an unavailable model never silently falls back. The phone must see truthful custom model ids and descriptions rather than an official model alias hiding another provider.
+Explicit selections are validated against the target workspace. A model binding never selects the execution workspace, and an unavailable model never silently falls back. Catalog ids encode real provider/model bindings. Display names contain only the model name, and descriptions contain only the provider id. Official model aliases must not hide another provider.
 
-Thread creation, turn admission, supported config writes and collaborationMode share one resolver. Collaboration settings take precedence over top-level model/effort. Agent/Plan modes use existing DotCraft modes and instructions; omission, null and explicit settings follow the pinned reference where equivalent.
+Thread creation, turn admission, supported config writes and collaborationMode share one resolver. Normalize configuration keys before applying non-null top-level overrides. An explicit model binding selects its provider and model regardless of an inherited model_provider. Explicit modelProvider selections and configuration writes must agree with the binding. Collaboration settings take precedence over top-level model/effort. Agent/Plan modes use existing DotCraft modes and instructions. Omission, null and explicit settings follow the pinned reference where equivalent.
 
 The atomic turn/start carries providerId/model/reasoning/speed, approvalPolicy, mode and workspace settings with input. Idle admission captures that configuration. Active admission steers the existing turn and retains subsequent-Turn defaults, with approval-policy changes following the source's live approval rules. The gateway never approximates this with config/update followed by input.
 
