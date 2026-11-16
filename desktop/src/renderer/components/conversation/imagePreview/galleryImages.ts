@@ -1,7 +1,28 @@
 import { createContext } from 'react'
+import type { AppServerConnectionSource } from '../../../../shared/appServerBoundary'
+import { useConnectionStore } from '../../../stores/connectionStore'
+import { useThreadStore } from '../../../stores/threadStore'
+import { getThreadConnection } from '../../../stores/threadConnectionStore'
 import type { ConversationItem, ConversationTurn } from '../../../types/conversation'
 import { projectInputParts } from '../../../utils/inputPresentation'
 import { isVisibleUserMessage } from '../../../utils/visibleUserMessage'
+
+export interface ImageReadScope {
+  source?: AppServerConnectionSource
+  workspacePath?: string
+}
+
+export const ImageReadScopeContext = createContext<ImageReadScope | null>(null)
+
+export function attachmentImageScope(threadId?: string, workspacePath?: string): ImageReadScope {
+  const target = threadId ? getThreadConnection(threadId) : undefined
+  const foreground = useConnectionStore.getState()
+  const source = target ? { connectionKey: target.connectionKey, connectionId: target.connectionId } : (foreground.connectionKey && foreground.connectionId
+    ? { connectionKey: foreground.connectionKey, connectionId: foreground.connectionId } : undefined)
+  const threads = useThreadStore.getState()
+  const thread = threads.activeThread?.id === threadId ? threads.activeThread : threads.threadList.find(t => t.id === threadId)
+  return { source, workspacePath: thread?.workspacePath ?? workspacePath }
+}
 
 export interface GalleryImage {
   key: string
@@ -9,28 +30,46 @@ export interface GalleryImage {
   localPath?: string
   title?: string
   revealPath?: string
+  scope?: ImageReadScope
 }
 
 export const ConversationImagesContext = createContext<(() => GalleryImage[]) | null>(null)
 
 const localImageDataUrls = new Map<string, string>()
 
-function cachedLocalImageDataUrl(path: string): string | undefined {
-  return localImageDataUrls.get(path)
+function imageCacheKey(path: string, scope: ImageReadScope): string {
+  return JSON.stringify([scope.source?.connectionKey, scope.source?.connectionId, scope.workspacePath, path])
 }
 
-export async function loadLocalImageDataUrl(path: string): Promise<string> {
-  const cached = localImageDataUrls.get(path)
+function cachedLocalImageDataUrl(path: string, scope: ImageReadScope): string | undefined {
+  return localImageDataUrls.get(imageCacheKey(path, scope))
+}
+
+export async function loadScopedImageDataUrl(path: string, scope: ImageReadScope): Promise<string> {
+  if (scope.workspacePath) {
+    const windows = /^[A-Za-z]:[\\/]|^\\\\/.test(scope.workspacePath)
+    const normalize = (value: string) => {
+      const normalized = value.replace(/\\/g, '/').replace(/\/+$/, '')
+      return windows ? normalized.toLowerCase() : normalized
+    }
+    if (!normalize(path).startsWith(normalize(scope.workspacePath) + '/')) throw new Error('Image belongs to a different workspace.')
+  }
+  const key = imageCacheKey(path, scope)
+  const cached = localImageDataUrls.get(key)
   if (cached) return cached
-  const { dataUrl } = await window.api.workspace.readImageAsDataUrl({ path })
+  const { dataUrl } = await window.api.workspace.readImageAsDataUrl({ path, ...scope })
   if (!dataUrl) throw new Error('Image is unavailable.')
-  localImageDataUrls.set(path, dataUrl)
+  localImageDataUrls.set(key, dataUrl)
   return dataUrl
+}
+
+export function loadLocalImageDataUrl(path: string, threadId?: string, workspacePath?: string): Promise<string> {
+  return loadScopedImageDataUrl(path, attachmentImageScope(threadId, workspacePath))
 }
 
 export function resolveGalleryImageSrc(image: GalleryImage): Promise<string> {
   if (image.src) return Promise.resolve(image.src)
-  if (image.localPath) return loadLocalImageDataUrl(image.localPath)
+  if (image.localPath) return image.scope ? loadScopedImageDataUrl(image.localPath, image.scope) : loadLocalImageDataUrl(image.localPath)
   return Promise.reject(new Error('Image is unavailable.'))
 }
 
@@ -49,16 +88,16 @@ export function userImageKeys(messageId: string, sources: string[]): string[] {
 
 export function collectConversationImages(
   turns: ConversationTurn[],
-  options: { localFiles: boolean }
+  options: { localFiles: boolean; scope?: ImageReadScope }
 ): GalleryImage[] {
   const images: GalleryImage[] = []
   for (const turn of turns) {
     const visibleUsers = turn.items.filter(isVisibleUserMessage)
-    for (const item of visibleUsers) images.push(...userMessageImages(item, options.localFiles))
+    for (const item of visibleUsers) images.push(...userMessageImages(item, options.localFiles, options.scope))
     for (const item of turn.items) {
       if (isVisibleUserMessage(item)) continue
       if (item.type === 'userMessage') {
-        images.push(...userMessageImages(item, options.localFiles))
+        images.push(...userMessageImages(item, options.localFiles, options.scope))
         continue
       }
       if (item.type === 'imageGeneration') {
@@ -95,20 +134,21 @@ function generatedImageLocalPath(item: ConversationItem, localFiles: boolean): s
   return localFiles && path && !item.savedHostId ? path : undefined
 }
 
-function userMessageImages(item: ConversationItem, localFiles: boolean): GalleryImage[] {
+function userMessageImages(item: ConversationItem, localFiles: boolean, scope?: ImageReadScope): GalleryImage[] {
   const projected = item.nativeInputParts ? projectInputParts(item.nativeInputParts) : null
   const dataUrls = projected?.imageDataUrls ?? item.imageDataUrls ?? []
   const refs = projected?.images ?? item.images ?? []
-  const localRefs = localFiles ? refs : []
+  const localRefs = localFiles || scope?.source ? refs : []
   const keys = userImageKeys(item.id, [...dataUrls, ...localRefs.map((ref) => ref.path)])
   return [
     ...dataUrls.map((url, index) => ({ key: keys[index], src: url })),
     ...localRefs.map((ref, index) => ({
       key: keys[dataUrls.length + index],
-      src: cachedLocalImageDataUrl(ref.path),
+      src: cachedLocalImageDataUrl(ref.path, scope ?? attachmentImageScope()),
       localPath: ref.path,
       title: ref.fileName,
-      revealPath: ref.path
+      revealPath: localFiles ? ref.path : undefined,
+      scope: scope ?? attachmentImageScope()
     }))
   ]
 }

@@ -276,6 +276,7 @@ export type InputPart =
 export interface ComposerFileAttachment {
   path: string
   fileName: string
+  source?: 'client' | 'host'
 }
 
 export interface PendingComposerMessage {
@@ -434,6 +435,7 @@ export function derivePluginFunctionResultText(
 
 /** User-attached image in the composer (temp file + preview) */
 export interface ImageAttachment {
+  source?: 'client' | 'host'
   tempPath: string
   dataUrl: string
   fileName: string

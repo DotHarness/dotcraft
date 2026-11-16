@@ -1382,7 +1382,7 @@ There is no per-connection identity isolation. Callers with different privilege 
 
 ### 15.6 Framing
 
-Each JSON-RPC message is exactly one complete text frame; messages are never split or combined, and binary frames are not used. The server accepts client messages up to 4 MB; larger messages close the connection with code `1009`. Clients accept server messages up to at least 128 MiB, and a message over a client's limit ends the connection like any other transport failure.
+Each JSON-RPC message is exactly one complete text frame; messages are never split or combined, and binary frames are not used. The server accepts client messages up to 16 MiB, enough for a 10 MiB file encoded as Base64 and its JSON envelope. Larger messages close the connection with code `1009`. Clients accept server messages up to at least 128 MiB, and a message over a client's limit ends the connection like any other transport failure.
 
 ### 15.7 Reconnection
 
@@ -2472,8 +2472,8 @@ Rules:
 - Paths must be absolute host paths (relative → `-32602`). They are not limited to the workspace: the client already has the host user's authority.
 - Other failures use `-32103` with `error.data.code` and the resolved path in `error.data.params.path`: `PathBlocked`, `FileNotFound`, `NotAFile`, `NotADirectory`, `DirectoryNotFound`, `DirectoryNotEmpty`, `FileTooLarge`.
 - A path under `Security.BlacklistedPaths` fails with `PathBlocked`, checked as given and after resolving links and junctions; methods then act on the resolved path, except `fs/remove`, which removes a link itself and never its target. `fs/copy` checks both paths; a recursive copy skips blocked entries and every link inside the tree; a recursive remove with a blocked path inside fails and removes nothing.
-- `fs/readFile` rejects directories (`NotAFile`) and files over 8 MiB (`FileTooLarge`).
-- `fs/writeFile` never creates parents (`DirectoryNotFound`); malformed base64 is `-32602`. Requests must fit the transport message limit ([Section 15.6](#156-framing)), so clients keep written files to about 2 MiB.
+- `fs/readFile` rejects directories (`NotAFile`) and files over 10 MiB (`FileTooLarge`).
+- `fs/writeFile` rejects decoded contents over 10 MiB (`FileTooLarge`) before replacing the file. It never creates parents (`DirectoryNotFound`). Malformed base64 is `-32602`. Reads and writes transfer the complete file.
 - `fs/createDirectory` fails with `NotADirectory` when a file exists at `path`, and `DirectoryNotFound` when non-recursive with a missing parent.
 - `fs/remove` fails with `FileNotFound` when missing without `force`, and `DirectoryNotEmpty` for a non-empty directory without `recursive`.
 - `fs/copy` rejects a directory source without `recursive` and copying a directory into itself or a descendant (`-32602`); a missing destination parent is `DirectoryNotFound`.

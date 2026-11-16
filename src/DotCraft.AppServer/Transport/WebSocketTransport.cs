@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
 using System.Net.WebSockets;
-using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
 using Microsoft.Extensions.Logging;
@@ -29,7 +28,7 @@ public sealed class WebSocketTransport : IAppServerTransport
     /// <summary>Completes when the reader exits without propagating reader errors.</summary>
     public Task Completed { get; private set; } = Task.CompletedTask;
 
-    private const int MaxMessageBytes = 4 * 1024 * 1024;
+    private const int MaxMessageBytes = 16 * 1024 * 1024;
 
     private static readonly JsonSerializerOptions ReadOptions = new()
     {
@@ -137,28 +136,20 @@ public sealed class WebSocketTransport : IAppServerTransport
     private async Task ReaderLoopAsync()
     {
         var ct = _disposeCts.Token;
-        var buffer = new byte[MaxMessageBytes];
+        var buffer = new byte[64 * 1024];
 
         try
         {
             while (!ct.IsCancellationRequested)
             {
-                int totalBytes = 0;
+                using var message = new MemoryStream();
                 WebSocketReceiveResult result;
 
                 do
                 {
-                    var remaining = MaxMessageBytes - totalBytes;
-                    if (remaining <= 0)
-                    {
-                        await CloseSocketAsync(WebSocketCloseStatus.MessageTooBig, "Message exceeds 4 MB limit");
-                        return;
-                    }
-
                     try
                     {
-                        result = await _socket.ReceiveAsync(
-                            new ArraySegment<byte>(buffer, totalBytes, remaining), ct);
+                        result = await _socket.ReceiveAsync(new ArraySegment<byte>(buffer), ct);
                     }
                     catch (OperationCanceledException)
                     {
@@ -175,21 +166,23 @@ public sealed class WebSocketTransport : IAppServerTransport
                     if (result.MessageType == WebSocketMessageType.Binary)
                         continue;
 
-                    totalBytes += result.Count;
+                    if (message.Length + result.Count > MaxMessageBytes)
+                    {
+                        await CloseOutputAsync(WebSocketCloseStatus.MessageTooBig, "Message exceeds 16 MiB limit");
+                        return;
+                    }
+                    message.Write(buffer, 0, result.Count);
 
                 } while (!result.EndOfMessage);
 
-                if (totalBytes == 0)
-                    continue;
-
-                var json = Encoding.UTF8.GetString(buffer, 0, totalBytes);
-                if (string.IsNullOrWhiteSpace(json))
+                var json = new ReadOnlyMemory<byte>(message.GetBuffer(), 0, (int)message.Length);
+                if (json.Span.Trim(" \t\r\n"u8).IsEmpty)
                     continue;
 
                 AppServerIncomingMessage? msg;
                 try
                 {
-                    msg = JsonSerializer.Deserialize<AppServerIncomingMessage>(json, ReadOptions);
+                    msg = JsonSerializer.Deserialize<AppServerIncomingMessage>(json.Span, ReadOptions);
                     if (msg == null) continue;
                 }
                 catch (JsonException)
@@ -240,16 +233,6 @@ public sealed class WebSocketTransport : IAppServerTransport
 
             _incoming.Writer.TryComplete();
         }
-    }
-
-    private async Task CloseSocketAsync(WebSocketCloseStatus status, string description)
-    {
-        try
-        {
-            if (_socket.State is WebSocketState.Open or WebSocketState.CloseReceived)
-                await _socket.CloseAsync(status, description, CancellationToken.None);
-        }
-        catch { }
     }
 
     private async Task CloseOutputAsync(WebSocketCloseStatus status, string description)

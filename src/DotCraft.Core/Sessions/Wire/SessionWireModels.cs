@@ -1,3 +1,4 @@
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using DotCraft.AppBinding;
@@ -19,7 +20,8 @@ public static class SessionWireJsonOptions
     {
         var options = new JsonSerializerOptions(JsonSerializerOptions.Web)
         {
-            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+            Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
         };
         // Wire-spec-compliant approval decision names must be registered before the generic camelCase converter
         // so that the specific converter takes precedence for SessionApprovalDecision.

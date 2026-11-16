@@ -16,7 +16,10 @@ import { readSpreadsheet } from './spreadsheet/readSpreadsheet'
 import { authorizeViewerFile, buildViewerUrl, getViewerWorkspaceRoot, resolveViewerFileForAccess } from './viewerFileProtocol'
 import { classifyFile, listDirectory, listViewerFiles, readTextFile, writeTextFile } from './viewerIpc'
 import { viewerTextWatchManager } from './viewerTextWatch'
-import { listWorkspaceFiles, readImageAsDataUrl, saveImageDataUrlToTemp } from './workspaceComposerIpc'
+import { listWorkspaceFiles } from './workspaceComposerIpc'
+import { WorkspaceAttachmentAccess } from './workspaceAttachments'
+import type { AttachmentReadParams } from '../shared/attachments'
+import type { AppServerConnectionSource } from '../shared/appServerBoundary'
 
 export function registerWorkspaceFileHandlers(context: WindowIpcContext): void {
   const { handleSafe, workspacePath, callbacks, owner } = context
@@ -32,25 +35,11 @@ export function registerWorkspaceFileHandlers(context: WindowIpcContext): void {
     return { text: await restorePastedTextAttachment(params.path) }
   })
 
-  handleSafe('workspace:save-image-to-temp', async (_event, params: { dataUrl: string; fileName?: string }) => {
-    const ws = workspacePath
-    if (!ws) {
-      throw new Error(translate(mainLocale(callbacks), 'ipc.noWorkspaceOpen'))
-    }
-    const loc = mainLocale(callbacks)
-    const pathAbs = await saveImageDataUrlToTemp(ws, params.dataUrl, params.fileName, loc)
-    return { path: pathAbs }
-  })
-
-  handleSafe('workspace:read-image-as-data-url', async (_event, params: { path: string }) => {
-    const ws = workspacePath
-    if (!ws) {
-      throw new Error(translate(mainLocale(callbacks), 'ipc.noWorkspaceOpen'))
-    }
-    const loc = mainLocale(callbacks)
-    const dataUrl = await readImageAsDataUrl(ws, params.path, loc)
-    return { dataUrl }
-  })
+  const attachments = new WorkspaceAttachmentAccess(context)
+  handleSafe('workspace:attachments:stat-local', (_event, params: { path: string }) => attachments.statLocalFile(params))
+  handleSafe('workspace:attachments:read-local', (_event, params: { path: string }) => attachments.readLocalFile(params))
+  handleSafe('workspace:save-image-to-temp', (_event, params: { dataUrl: string; fileName?: string; source?: AppServerConnectionSource }) => attachments.saveImage(params))
+  handleSafe('workspace:read-image-as-data-url', (_event, params: AttachmentReadParams) => attachments.readImage(params))
 
   handleSafe(
     'workspace:search-files',

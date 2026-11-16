@@ -9,7 +9,7 @@ internal sealed class FileSystemRequestHandler(
     AppServerConnection connection,
     IAppServerTransport transport) : IAppServerDomainHandler
 {
-    private const long MaxReadBytes = 8L * 1024 * 1024;
+    private const int MaxFileBytes = 10 * 1024 * 1024;
 
     private readonly FileSystemWatches _watches = new(connection, transport);
 
@@ -36,8 +36,8 @@ internal sealed class FileSystemRequestHandler(
         var file = new FileInfo(path);
         if (!file.Exists)
             throw FileNotFound(path);
-        if (file.Length > MaxReadBytes)
-            throw AppServerErrors.FileSystem("FileTooLarge", "The file is larger than 8 MiB.", path);
+        if (file.Length > MaxFileBytes)
+            throw AppServerErrors.FileSystem("FileTooLarge", "The file is larger than 10 MiB.", path);
 
         var bytes = await File.ReadAllBytesAsync(path, ct);
         return AppServerTypedResult<Contract.FsReadFileResult>.FromResult(
@@ -58,6 +58,8 @@ internal sealed class FileSystemRequestHandler(
         {
             throw AppServerErrors.InvalidParams("'dataBase64' is not valid base64.");
         }
+        if (bytes.Length > MaxFileBytes)
+            throw AppServerErrors.FileSystem("FileTooLarge", "The file is larger than 10 MiB.", path);
         RequireParentDirectory(path);
 
         await File.WriteAllBytesAsync(path, bytes, ct);

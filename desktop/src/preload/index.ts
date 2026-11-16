@@ -43,7 +43,8 @@ import type {
   SshMachineValidation
 } from '../shared/sshMachines'
 import { AppServerDeliveryConsumer } from './appServerDelivery'
-import type { AppServerDelivery, AppServerResponseOptions } from '../shared/appServerBoundary'
+import type { AppServerConnectionSource, AppServerDelivery, AppServerResponseOptions } from '../shared/appServerBoundary'
+import type { AttachmentReadParams } from '../shared/attachments'
 export type {
   AppServerErrorData,
   AppServerErrorFields,
@@ -1096,11 +1097,19 @@ const api = {
     restorePastedText(params: { path: string }): Promise<{ text: string }> {
       return ipcRenderer.invoke('workspace:restore-pasted-text', params)
     },
-    saveImageToTemp(params: { dataUrl: string; fileName?: string }): Promise<{ path: string }> {
+    attachments: {
+      statLocalFile(params: { path: string }): Promise<{ sizeBytes: number }> {
+        return ipcRenderer.invoke('workspace:attachments:stat-local', params)
+      },
+      readLocalFile(params: { path: string }): Promise<{ dataBase64: string }> {
+        return ipcRenderer.invoke('workspace:attachments:read-local', params)
+      }
+    },
+    saveImageToTemp(params: { dataUrl: string; fileName?: string; source?: AppServerConnectionSource }): Promise<{ path: string }> {
       return ipcRenderer.invoke('workspace:save-image-to-temp', params)
     },
 
-    readImageAsDataUrl(params: { path: string }): Promise<{ dataUrl: string }> {
+    readImageAsDataUrl(params: AttachmentReadParams): Promise<{ dataUrl: string }> {
       return ipcRenderer.invoke('workspace:read-image-as-data-url', params)
     },
 

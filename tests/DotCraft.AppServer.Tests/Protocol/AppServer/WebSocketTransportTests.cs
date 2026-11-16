@@ -43,6 +43,24 @@ public sealed class WebSocketTransportTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task Transport_MessageAboveSixteenMiB_ClosesWithMessageTooBig()
+    {
+        await using var transport = new WebSocketTransport(_serverWs);
+        transport.Start();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        var chunk = new byte[64 * 1024];
+
+        for (var sent = 0; sent < 16 * 1024 * 1024; sent += chunk.Length)
+            await _clientWs.SendAsync(new ArraySegment<byte>(chunk), WebSocketMessageType.Text, false, timeout.Token);
+        await _clientWs.SendAsync(new ArraySegment<byte>(chunk, 0, 1), WebSocketMessageType.Text, true, timeout.Token);
+        var close = await _clientWs.ReceiveAsync(new ArraySegment<byte>(new byte[256]), timeout.Token);
+
+        Assert.Equal(WebSocketMessageType.Close, close.MessageType);
+        Assert.Equal(WebSocketCloseStatus.MessageTooBig, close.CloseStatus);
+        await transport.Completed.WaitAsync(timeout.Token);
+    }
+
+    [Fact]
     public async Task StartClientRequestAsync_ClientResponds_ReturnsResponse()
     {
         await using var transport = new WebSocketTransport(_serverWs);

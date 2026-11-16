@@ -1,13 +1,20 @@
 import type { ClientRequestMethods } from '@dotcraft/sdk/contracts'
-import type { AppServerResponseOptions } from '../../shared/appServerBoundary'
+import type { AppServerConnectionSource, AppServerResponseOptions } from '../../shared/appServerBoundary'
 import { create } from 'zustand'
 import type { ComposerContextRecord } from '../../shared/composerContext'
 import type { ComposerDraftSegment } from '../types/composerDraft'
-import type { ComposerFileAttachment, ConversationTurn, ImageAttachment, InputPart } from '../types/conversation'
+import type { ComposerFileAttachment, ConversationTurn, ImageAttachment } from '../types/conversation'
 import { buildComposerInputParts } from '../utils/composeInputParts'
 import { createOptimisticUserMessage } from '../utils/inputPresentation'
 import { parsePendingApproval, parseUserInputRequest } from '../utils/interactiveRequestParsing'
 import { runtimeWorkspaceUpdateFor } from '../utils/workspaceRuntimeRoots'
+import {
+  captureComposerAttachmentTarget,
+  prepareComposerAttachments,
+  type ComposerAttachmentTarget
+} from '../utils/prepareComposerAttachments'
+import { normalizeWorkspaceProjectKey } from '../../shared/workspaceProjectKey'
+import { registerThreadConnection, releaseThreadConnection } from './threadConnectionStore'
 import { useThreadStore } from './threadStore'
 import { useComposerContextStore } from './composerContextStore'
 import { useComposerDraftStore } from './composerDraftStore'
@@ -32,6 +39,8 @@ export interface SideChat {
   identityWorkspacePath: string | undefined
   cwd: string | undefined
   executionWorkspaceOverride: string | undefined
+  source?: AppServerConnectionSource
+  remoteWorkspace?: boolean
   threadId: string | null
   tabId: string
   ordinal: number
@@ -52,11 +61,6 @@ export interface SideChatPrompt {
   images?: ImageAttachment[]
 }
 
-export interface SideChatInput {
-  inputParts: InputPart[]
-  visibleText: string
-}
-
 export interface OpenSideChatOptions {
   label: (ordinal: number) => string
   prompt?: SideChatPrompt
@@ -68,7 +72,7 @@ interface SideChatStore {
   focusRequest: { key: string; nonce: number } | null
   open(parentThreadId: string, options: OpenSideChatOptions): Promise<string | null>
   /** Starts a turn, or guides the running one. */
-  send(key: string, input: SideChatInput): Promise<void>
+  send(key: string, input: SideChatPrompt): Promise<void>
   interrupt(key: string): Promise<void>
   discard(key: string): void
   markRead(key: string): void
@@ -82,7 +86,7 @@ interface SideChatStore {
 const DELTA_FLUSH_MS = 50
 
 const readyByKey = new Map<string, Promise<string | null>>()
-const connectionByKey = new Map<string, Promise<string | null>>()
+const connectionByKey = new Map<string, Promise<ComposerAttachmentTarget | null>>()
 const pendingDeltas = new Map<string, { itemId: string; text: string }[]>()
 const deltaTimers = new Map<string, ReturnType<typeof setTimeout>>()
 let listening = false
@@ -246,9 +250,23 @@ async function request<M extends keyof ClientRequestMethods>(
 ): Promise<ClientRequestMethods[M]['result']> {
   const connection = await connectionByKey.get(key)
   if (!connection) throw new Error('The side chat connection is unavailable.')
-  return window.api.appServer.sendConnectionRequest(
-    connection, method, params, undefined, { attachmentOwner: `sidechat:${key}`, onResponse }
-  )
+  return connection.request(method, params, undefined, { onResponse })
+}
+
+function captureSideChatConnection(target: ComposerAttachmentTarget, key: string): Promise<ComposerAttachmentTarget | null> {
+  const capturedKey = target.source?.connectionKey
+    ? Promise.resolve(target.source.connectionKey)
+    : window.api.appServer.getConnectionKey()
+  return capturedKey.then((connectionKey) => connectionKey ? {
+    ...target,
+    request: (method, params, timeout, options) => window.api.appServer.sendConnectionRequest(
+      connectionKey, method, params, timeout, {
+        ...options,
+        attachmentOwner: `sidechat:${key}`,
+        ...(target.source ? { connectionId: target.source.connectionId } : {})
+      }
+    )
+  } : null)
 }
 
 async function forkSideChat(
@@ -268,9 +286,14 @@ async function forkSideChat(
     }, (result) => {
       const threadId = result.thread?.id
       if (!threadId) return
+      const source = useSideChatStore.getState().chats.get(key)?.source
+      if (source) registerThreadConnection(threadId, {
+        ...source, threadId, workspaceKey: normalizeWorkspaceProjectKey(source.connectionKey), capabilities: null
+      })
       update(key, (current) => ({
         ...current,
         threadId,
+        identityWorkspacePath: result.thread?.workspacePath ?? current.identityWorkspacePath,
         cwd: workspaceUpdate.cwd ?? cwd,
         status: current.status === 'starting' ? 'ready' : current.status,
         turns: current.turns.map((turn) => turn.threadId ? turn : { ...turn, threadId })
@@ -305,6 +328,7 @@ export const useSideChatStore = create<SideChatStore>((set, get) => ({
     const cwd = configuration?.cwd ?? parent?.worktree?.sourceWorkspacePath ?? identityWorkspacePath
     const executionWorkspaceOverride = configuration?.executionWorkspaceOverride ?? parent?.worktree?.path
     const key = crypto.randomUUID()
+    const target = captureComposerAttachmentTarget(parentThreadId)
     const ordinal = Math.max(0, ...sideChatsOf(get().chats, parentThreadId).map((chat) => chat.ordinal)) + 1
     const tabId = useDetailPanelStore.getState().openSideChat({ threadId: parentThreadId, sideChatKey: key, label: label(ordinal) })
     if (useDetailPanelStore.getState().currentThreadId === parentThreadId) {
@@ -318,6 +342,8 @@ export const useSideChatStore = create<SideChatStore>((set, get) => ({
         identityWorkspacePath,
         cwd,
         executionWorkspaceOverride,
+        source: target.source,
+        remoteWorkspace: target.remote,
         threadId: null,
         tabId,
         ordinal,
@@ -332,23 +358,33 @@ export const useSideChatStore = create<SideChatStore>((set, get) => ({
       return { chats }
     })
     if (contexts?.length) useComposerContextStore.getState().setContexts(key, contexts)
-    connectionByKey.set(key, window.api.appServer.getConnectionKey())
+    connectionByKey.set(key, captureSideChatConnection(target, key))
     const ready = forkSideChat(key, parentThreadId, identityWorkspacePath, cwd, executionWorkspaceOverride)
     readyByKey.set(key, ready)
     get().requestFocus(key)
-    if (prompt) await get().send(key, buildComposerInputParts({ ...prompt, threadId: parentThreadId }))
+    if (prompt) await get().send(key, prompt)
     await ready
     return key
   },
 
-  async send(key, { inputParts, visibleText }) {
+  async send(key, input) {
+    const opening = get().chats.get(key)
+    if (!opening || opening.status === 'expired') return
+    const threadId = await (readyByKey.get(key) ?? Promise.resolve(opening.threadId))
+    if (!threadId) throw new Error('The side chat is not ready.')
+    const target = await connectionByKey.get(key)
+    if (!target) throw new Error('The side chat connection is unavailable.')
+    const draft = await prepareComposerAttachments({
+      ...input, threadId, workspacePath: get().chats.get(key)?.identityWorkspacePath ?? '', target
+    })
+    const { inputParts, visibleText } = buildComposerInputParts({ ...input, ...draft, threadId })
     const chat = get().chats.get(key)
     if (!chat || chat.status === 'expired' || inputParts.length === 0) return
     const clientUserMessageId = crypto.randomUUID()
     const runningTurn = isSideChatRunning(chat) ? chat.turns.at(-1) : undefined
-    if (runningTurn && chat.threadId) {
+    if (runningTurn) {
       await request(key, 'turn/steer', {
-        threadId: chat.threadId,
+        threadId,
         clientUserMessageId,
         expectedTurnId: runningTurn.id,
         input: inputParts
@@ -367,8 +403,6 @@ export const useSideChatStore = create<SideChatStore>((set, get) => ({
       }]
     }))
     try {
-      const threadId = await (readyByKey.get(key) ?? Promise.resolve(chat.threadId))
-      if (!threadId) throw new Error('The side chat is not ready.')
       const currentChat = get().chats.get(key)
       if (!currentChat) return
       const workspaceUpdate = runtimeWorkspaceUpdateFor(
@@ -415,6 +449,7 @@ export const useSideChatStore = create<SideChatStore>((set, get) => ({
     clearTimeout(deltaTimers.get(key))
     deltaTimers.delete(key)
     pendingDeltas.delete(key)
+    if (chat.threadId) releaseThreadConnection(chat.threadId)
     useComposerContextStore.getState().clearContexts(key)
     useComposerDraftStore.getState().clearDraft(key)
     for (const approval of chat.pendingApprovals) {

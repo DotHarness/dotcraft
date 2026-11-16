@@ -84,7 +84,7 @@ public sealed class AppServerWireDtoSerializationTests
             }));
 
         Assert.Equal(
-            "{\"threadId\":\"thread-1\",\"evaluationId\":\"eval-1\",\"browserSession\":{\"protocolVersion\":1,\"sessionId\":\"session-1\",\"threadId\":\"thread-1\",\"evaluationId\":\"eval-1\"},\"code\":\"1 \\u002B 1\",\"timeoutMs\":30000}",
+            "{\"threadId\":\"thread-1\",\"evaluationId\":\"eval-1\",\"browserSession\":{\"protocolVersion\":1,\"sessionId\":\"session-1\",\"threadId\":\"thread-1\",\"evaluationId\":\"eval-1\"},\"code\":\"1 + 1\",\"timeoutMs\":30000}",
             Serialize(new Contract.NodeReplEvaluateParams
             {
                 ThreadId = "thread-1",

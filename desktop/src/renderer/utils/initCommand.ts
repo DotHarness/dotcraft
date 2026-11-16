@@ -1,10 +1,16 @@
+import type { TypedAppServerRequestApi } from '../../shared/appServerBoundary'
+import { captureComposerAttachmentTarget } from './prepareComposerAttachments'
+
 interface CommandExecuteResult {
   handled?: boolean
   expandedPrompt?: string | null
 }
 
-export async function expandInitCommand(threadId: string): Promise<string> {
-  const result = await window.api.appServer.sendRequest('command/execute', {
+export async function expandInitCommand(
+  threadId: string,
+  request: TypedAppServerRequestApi['sendRequest'] = captureComposerAttachmentTarget(threadId).request
+): Promise<string> {
+  const result = await request('command/execute', {
     threadId,
     command: '/init',
     arguments: []

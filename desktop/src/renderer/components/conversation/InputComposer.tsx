@@ -5,7 +5,6 @@ import { useComposerContextStore } from '../../stores/composerContextStore'
 import { useRef, useState, useCallback, useEffect, useMemo, type CSSProperties } from 'react'
 import type { DesktopPluginComposerSurfaceContext } from '@dotcraft/plugin'
 import { Bot, ChevronsDown, FileText, ListChecks, MessagesSquare, RefreshCw, Target } from 'lucide-react'
-import { describeAppServerError } from '../../utils/appServerErrorText'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import { sendComposerFollowUp } from '../../utils/composerFollowUp'
@@ -47,12 +46,8 @@ import { buildComposerInputParts } from '../../utils/composeInputParts'
 import { compactThreadContext } from '../../utils/manualCompaction'
 import { interruptTurn } from '../../utils/interruptTurn'
 import { buildGoalObjective, extractGoal, parseGoalSlashCommand, type GoalSlashCommand } from '../../utils/threadGoal'
-import {
-  classifyDroppedComposerFiles,
-  extForFile,
-  isImageFile,
-  mergeComposerFileAttachments
-} from '../../utils/composerAttachments'
+import { useComposerAttachments } from './useComposerAttachments'
+import { captureComposerAttachmentTarget, prepareComposerAttachments, describeComposerAttachmentError } from '../../utils/prepareComposerAttachments'
 import { droppedWebLink, insertDroppedLink } from './composerLinkDrop'
 import { PendingMessageIndicator } from './PendingMessageIndicator'
 import { RichInputArea, type ComposerSubmitOptions, type RichInputAreaHandle } from './RichInputArea'
@@ -109,14 +104,13 @@ import {
 } from './ComposerSurfaceSlots'
 
 const MAX_TEXT_LENGTH = 100_000
-const MAX_IMAGES = 5
-const MAX_IMAGE_BYTES = 10 * 1024 * 1024
 
 export interface InputComposerSubmitPayload {
   text: string
   segments: ComposerDraftSegment[]
   files: ComposerFileAttachment[]
   images: ImageAttachment[]
+  contexts: import('../../../shared/composerContext').ComposerContextRecord[]
   inputParts: InputPart[]
   visibleText: string
   bodyText: string
@@ -726,7 +720,6 @@ function InputComposerCore({
   useComposerFileReferenceRequest(
     richRef,
     effectiveFileWorkspacePath,
-    remoteWorkspace,
     isWaitingApproval || isWaitingInput,
     threadId,
     hydratedThreadId === threadId && !composerPrefill && (!prefillRequest?.text || appliedPrefillRequestId === prefillRequest.id)
@@ -782,9 +775,9 @@ function InputComposerCore({
     }
   }, [canUseCommandPicker, reloadCommands, turnStatus])
 
-  const ensureCurrentGoal = useCallback(async (): Promise<ThreadGoal | null> => {
+  const ensureCurrentGoal = useCallback(async (target = captureComposerAttachmentTarget(threadId)): Promise<ThreadGoal | null> => {
     if (currentGoal) return currentGoal
-    const raw = await window.api.appServer.sendRequest('thread/goal/get', { threadId })
+    const raw = await target.request('thread/goal/get', { threadId })
     const goal = extractGoal(raw)
     if (goal) {
       useThreadStore.getState().setThreadGoal(goal)
@@ -798,7 +791,7 @@ function InputComposerCore({
     addToast(t('goal.toast.unsupported'), 'warning')
   }, [t])
 
-  const setGoalObjective = useCallback(async (objective: string): Promise<boolean> => {
+  const setGoalObjective = useCallback(async (objective: string, target = captureComposerAttachmentTarget(threadId)): Promise<boolean> => {
     if (!canUseThreadGoals) {
       showGoalUnavailable()
       return false
@@ -811,7 +804,7 @@ function InputComposerCore({
 
     setGoalBusy(true)
     try {
-      const existing = await ensureCurrentGoal()
+      const existing = await ensureCurrentGoal(target)
       const replacing =
         existing != null &&
         existing.status !== 'complete' &&
@@ -829,7 +822,7 @@ function InputComposerCore({
         if (!accepted) return false
       }
 
-      const result = await window.api.appServer.sendRequest('thread/goal/set', {
+      const result = await target.request('thread/goal/set', {
         threadId,
         objective: trimmedObjective
       })
@@ -931,25 +924,27 @@ function InputComposerCore({
     window.setTimeout(() => richRef.current?.focus(), 0)
   }, [canUseThreadGoals, showGoalUnavailable])
 
-  const sendGoalFromComposer = useCallback(async (): Promise<void> => {
-    const text = richRef.current?.getText() ?? ''
-    const segments = richRef.current?.getSegments() ?? []
-    const objective = buildGoalObjective({ text, segments, files, images })
+  const sendGoalFromComposer = useCallback(async (draftOverride?: ThreadComposerDraftInput): Promise<void> => {
+    const text = draftOverride?.text ?? richRef.current?.getText() ?? ''
+    const segments = draftOverride?.segments ?? richRef.current?.getSegments() ?? []
+    const inputFiles = draftOverride?.files ?? files
+    const inputImages = draftOverride?.images ?? images
+    let objective = buildGoalObjective({ text, segments, files: inputFiles, images: inputImages })
     if (!objective.trim()) {
       addToast(t('goal.toast.emptyObjective'), 'warning')
       return
     }
-    if (remoteWorkspace && (images.length > 0 || files.length > 0)) {
-      addToast(t('input.remoteLocalFilesUnavailable'), 'warning')
-      return
-    }
     if (sendInFlightRef.current) return
     sendInFlightRef.current = true
-    const submission = captureComposerDraft()
+    let submission: ComposerDraftSnapshot = { ...captureComposerDraft(), ...draftOverride, text, segments, files: inputFiles, images: inputImages }
+    const target = captureComposerAttachmentTarget(threadId)
     try {
-      const modelSettings = await captureTurnSettings?.()
       clearComposerForSubmission()
-      const ok = await setGoalObjective(objective)
+      const prepared = await prepareComposerAttachments({ threadId, workspacePath, files: inputFiles, images: inputImages, target })
+      submission = { ...submission, files: prepared.files, images: prepared.images }
+      objective = buildGoalObjective({ text, segments, ...prepared })
+      const modelSettings = await captureTurnSettings?.()
+      const ok = await setGoalObjective(objective, target)
       if (!ok) {
         restoreComposerSubmission(submission)
         return
@@ -961,6 +956,7 @@ function InputComposerCore({
           clientUserMessageId: crypto.randomUUID(),
           threadId,
           input: inputParts,
+          request: target.request,
           sender: undefined,
           sentAsGoal: true
         })
@@ -970,6 +966,8 @@ function InputComposerCore({
           workspacePath: effectiveFileWorkspacePath,
           identityWorkspacePath: workspacePath,
           text: objective,
+          request: target.request,
+          attachmentTarget: target,
           modelSettings,
           segments: [],
           images: [],
@@ -986,77 +984,22 @@ function InputComposerCore({
       setMascotBounce((n) => n + 1)
     } catch (err) {
       restoreComposerSubmission(submission)
-      if (!(err instanceof DOMException && err.name === 'AbortError')) addToast(describeAppServerError(locale, err), 'error')
+      if (!(err instanceof DOMException && err.name === 'AbortError')) addToast(describeComposerAttachmentError(locale, err), 'error')
     } finally {
       sendInFlightRef.current = false
     }
   }, [captureTurnSettings, files, images, remoteWorkspace, setGoalObjective, clearComposerForSubmission, restoreComposerSubmission, isBusyForInput, threadId, effectiveFileWorkspacePath, workspacePath, locale, onOptimisticEcho, t])
 
-  const saveDataUrlAsTemp = useCallback(
-    async (dataUrl: string, fileName: string, mimeType: string): Promise<void> => {
-      if (remoteWorkspace) {
-        addToast(t('input.remoteLocalFilesUnavailable'), 'warning')
-        return
-      }
-      const baseLen = dataUrl.split(',')[1]?.length ?? 0
-      const approxBytes = Math.floor((baseLen * 3) / 4)
-      if (approxBytes > MAX_IMAGE_BYTES) {
-        addToast(
-          t('input.imageTooLarge', { mb: MAX_IMAGE_BYTES / 1024 / 1024 }),
-          'warning'
-        )
-        return
-      }
-      if (images.length >= MAX_IMAGES) {
-        addToast(t('input.maxImages', { max: MAX_IMAGES }), 'warning')
-        return
-      }
-      try {
-        const { path } = await window.api.workspace.saveImageToTemp({ dataUrl, fileName })
-        setImages((prev) => [
-          ...prev,
-          { tempPath: path, dataUrl, fileName, mimeType }
-        ])
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e)
-        addToast(t('input.saveImageFailed', { error: msg }), 'error')
-      }
-    },
-    [images.length, remoteWorkspace, t]
-  )
+  const { saveDataUrlAsTemp, onPasteImage, attachDroppedFiles } = useComposerAttachments({ remoteWorkspace, images, setImages, setFiles, t })
 
   useComposerImageAttachmentRequest((image) => {
     void saveDataUrlAsTemp(image.dataUrl, image.fileName, image.mimeType)
     setTimeout(() => richRef.current?.focus(), 0)
   }, !isSideChat)
 
-  const onPasteImage = useCallback(
-    (file: File): void => {
-      if (remoteWorkspace) {
-        addToast(t('input.remoteLocalFilesUnavailable'), 'warning')
-        return
-      }
-      if (!isImageFile(file)) {
-        addToast(
-          t('input.unsupportedImage', { ext: extForFile(file.name) || 'unknown' }),
-          'warning'
-        )
-        return
-      }
-      const reader = new FileReader()
-      reader.onload = () => {
-        const dataUrl = reader.result as string
-        void saveDataUrlAsTemp(dataUrl, file.name, file.type || 'image/png')
-      }
-      reader.readAsDataURL(file)
-    },
-    [remoteWorkspace, saveDataUrlAsTemp, t]
-  )
-
   const onDragOver = useCallback((e: React.DragEvent): void => {
     e.preventDefault()
     e.stopPropagation()
-    if (remoteWorkspace) return
     const threadDrag = threadReferences.isThreadDrag(e)
     if (threadDrag && !threadReferences.mentions) return
     setDragOverThread(threadDrag)
@@ -1068,16 +1011,6 @@ function InputComposerCore({
     e.stopPropagation()
     setDragOver(false)
   }, [])
-
-  const attachImages = useCallback((picked: File[]): void => {
-    if (remoteWorkspace) {
-      if (picked.length > 0) addToast(t('input.remoteLocalFilesUnavailable'), 'warning')
-      return
-    }
-    for (const file of picked) {
-      onPasteImage(file)
-    }
-  }, [onPasteImage, remoteWorkspace, t])
 
   const onDrop = useCallback(
     (e: React.DragEvent): void => {
@@ -1093,36 +1026,23 @@ function InputComposerCore({
         insertDroppedLink(e as React.DragEvent<HTMLElement>, droppedLink)
         return
       }
-      if (remoteWorkspace) {
-        addToast(t('input.remoteLocalFilesUnavailable'), 'warning')
-        return
-      }
-      const { imageFiles, fileAttachments, skippedCount } = classifyDroppedComposerFiles(
-        e.dataTransfer,
-        window.api.workspace.getPathForFile
-      )
-      attachImages(imageFiles)
-      if (fileAttachments.length > 0) {
-        setFiles((prev) => mergeComposerFileAttachments(prev, fileAttachments))
-      }
-      if (skippedCount > 0) {
-        addToast(t('input.dropItemsSkipped', { count: skippedCount }), 'warning')
-      }
+      attachDroppedFiles(e.dataTransfer)
     },
-    [attachImages, remoteWorkspace, t, threadReferences]
+    [attachDroppedFiles, remoteWorkspace, threadReferences]
   )
 
   const sendMessage = useCallback(async (draftOverride?: ThreadComposerDraftInput, options?: ComposerSubmitOptions) => {
     if (hasPendingPastedText(threadId)) return
     if (!isAgentBuilder && goalComposeMode && canUseThreadGoals) {
-      await sendGoalFromComposer()
+      await sendGoalFromComposer(draftOverride)
       return
     }
     const text = draftOverride?.text ?? richRef.current?.getText() ?? ''
     const segments = draftOverride?.segments ?? richRef.current?.getSegments() ?? []
-    const inputImages = draftOverride?.images ?? images
-    const inputFiles = draftOverride?.files ?? files
-    const inputContexts = draftOverride?.contexts ?? useComposerContextStore.getState().getContexts(threadId)
+    let inputImages = draftOverride?.images ?? images
+    let inputFiles = draftOverride?.files ?? files
+    let inputContexts = draftOverride?.contexts ?? useComposerContextStore.getState().getContexts(threadId)
+    const target = captureComposerAttachmentTarget(threadId)
     const trimmed = text.trim()
     if (!trimmed && inputImages.length === 0 && inputFiles.length === 0 && inputContexts.length === 0) return
     if (isWaitingApproval || isWaitingInput) return
@@ -1131,13 +1051,10 @@ function InputComposerCore({
       addToast(t('composer.threadReferences.unavailable'), 'error')
       return
     }
-    if (remoteWorkspace && (inputImages.length > 0 || inputFiles.length > 0)) {
-      addToast(t('input.remoteLocalFilesUnavailable'), 'warning')
-      return
-    }
     // Snapshots the submission itself, which a voice override may hold instead of the composer.
+    const submissionId = restoredSubmissionId.current
     const submissionSnapshot = (): ComposerDraftSnapshot => ({
-      clientUserMessageId: restoredSubmissionId.current,
+      clientUserMessageId: submissionId,
       text,
       segments: [...segments],
       contexts: [...inputContexts],
@@ -1165,7 +1082,7 @@ function InputComposerCore({
       conversation.setQueuedInputs([...conversation.queuedInputs, echo])
       if (mode === 'steer') onOptimisticEcho?.()
       try {
-        const result = await sendComposerFollowUp({ clientUserMessageId: messageId, mode, threadId, identityWorkspacePath: workspacePath, activeTurnId, input: parts })
+        const result = await sendComposerFollowUp({ clientUserMessageId: messageId, mode, threadId, identityWorkspacePath: workspacePath, activeTurnId, input: parts, request: target.request })
         if (placeEdited) await placeEditedSubmission(result)
       } catch (err) {
         const latest = useConversationStore.getState()
@@ -1179,14 +1096,18 @@ function InputComposerCore({
       sendInFlightRef.current = true
       const submission = submissionSnapshot()
       try {
-        const modelSettings = await captureTurnSettings?.()
         clearComposerForSubmission()
-        const expandedPrompt = await expandInitCommand(threadId)
+        const prepared = await prepareComposerAttachments({ threadId, workspacePath, files: inputFiles, images: inputImages, contexts: inputContexts, target })
+        const modelSettings = await captureTurnSettings?.()
+        const expandedPrompt = await expandInitCommand(threadId, target.request)
         await startTurnWithOptimisticUI({
           threadId,
           workspacePath: effectiveFileWorkspacePath,
           identityWorkspacePath: workspacePath,
           text: expandedPrompt,
+          ...prepared,
+          request: target.request,
+          attachmentTarget: target,
           modelSettings,
           fallbackThreadName: t('cmd.init'),
           throwOnStartError: true,
@@ -1194,7 +1115,7 @@ function InputComposerCore({
         })
       } catch (err) {
         restoreComposerSubmission(submission)
-        if (!(err instanceof DOMException && err.name === 'AbortError')) addToast(describeAppServerError(locale, err), 'error')
+        if (!(err instanceof DOMException && err.name === 'AbortError')) addToast(describeComposerAttachmentError(locale, err), 'error')
       } finally {
         sendInFlightRef.current = false
       }
@@ -1255,22 +1176,40 @@ function InputComposerCore({
 
     if (sendInFlightRef.current) return
     sendInFlightRef.current = true
+    const pendingSubmission = submissionSnapshot()
     let modelSettings: TurnModelSettings | undefined
     try {
+      if (!submitOverride && !isBusyForInput && queuePaused) {
+        const pausedCount = useConversationStore.getState().queuedInputs.filter((item) => !item.triggerKind).length
+        const choice = await choose({
+          title: t('composer.pausedQueueSubmit.title'),
+          message: t('composer.pausedQueueSubmit.description', { count: pausedCount }),
+          confirmLabel: t('composer.pausedQueueSubmit.send'),
+          alternateLabel: t('composer.pausedQueueSubmit.clear'),
+          cancelLabel: t('common.cancel')
+        })
+        if (choice === 'cancel') return
+        if (choice === 'alternate') await clearPausedQueue()
+      }
+      clearComposerForSubmission()
+      if (!isSideChat && target.remote) {
+        const prepared = await prepareComposerAttachments({ threadId, workspacePath, images: inputImages, files: inputFiles, contexts: inputContexts, target })
+        inputImages = prepared.images
+        inputFiles = prepared.files
+        inputContexts = prepared.contexts
+      }
       modelSettings = submitOverride ? undefined : await captureTurnSettings?.()
       await onBeforeSend?.()
+      if (pendingModeChangeRef.current) await pendingModeChangeRef.current
     } catch (err) {
-      if (!(err instanceof DOMException && err.name === 'AbortError')) addToast(describeAppServerError(locale, err), 'error')
+      restoreComposerSubmission(pendingSubmission)
+      if (!(err instanceof DOMException && err.name === 'AbortError')) addToast(describeComposerAttachmentError(locale, err), 'error')
       return
     } finally {
       sendInFlightRef.current = false
     }
 
     setMascotBounce((n) => n + 1)
-
-    if (pendingModeChangeRef.current) {
-      await pendingModeChangeRef.current
-    }
 
     if (submitOverride) {
       if (sendInFlightRef.current) return
@@ -1288,12 +1227,12 @@ function InputComposerCore({
       })
       const submission = submissionSnapshot()
       try {
-        clearComposerForSubmission()
         await submitOverride({
           text: trimmed,
           segments: capturedSegments,
           files: capturedFiles,
           images: capturedImages,
+          contexts: inputContexts,
           inputParts,
           visibleText,
           bodyText
@@ -1301,7 +1240,7 @@ function InputComposerCore({
       } catch (err) {
         console.error('composer submit override failed:', err)
         restoreComposerSubmission(submission)
-        addToast(describeAppServerError(locale, err), 'error')
+        addToast(describeComposerAttachmentError(locale, err), 'error')
       } finally {
         sendInFlightRef.current = false
       }
@@ -1324,12 +1263,11 @@ function InputComposerCore({
         images: inputImages
       })
       try {
-        clearComposerForSubmission()
         await sendFollowUpWithEcho(clientUserMessageId, inputParts, visibleText, mode, editingQueued)
       } catch (err) {
         console.error(`turn/${mode === 'steer' ? 'steer' : 'enqueue'} failed:`, err)
         restoreComposerSubmission(submission)
-        addToast(describeAppServerError(locale, err), 'error')
+        addToast(describeComposerAttachmentError(locale, err), 'error')
       } finally {
         sendInFlightRef.current = false
       }
@@ -1337,29 +1275,18 @@ function InputComposerCore({
     }
 
     if (sendInFlightRef.current) return
-    if (queuePaused) {
-      const pausedCount = useConversationStore.getState().queuedInputs.filter((item) => !item.triggerKind).length
-      const choice = await choose({
-        title: t('composer.pausedQueueSubmit.title'),
-        message: t('composer.pausedQueueSubmit.description', { count: pausedCount }),
-        confirmLabel: t('composer.pausedQueueSubmit.send'),
-        alternateLabel: t('composer.pausedQueueSubmit.clear'),
-        cancelLabel: t('common.cancel')
-      })
-      if (choice === 'cancel') return
-      if (choice === 'alternate') await clearPausedQueue()
-    }
     sendInFlightRef.current = true
     const capturedImages = [...inputImages]
     const capturedFiles = [...inputFiles]
     const capturedSegments = [...segments]
     const submission = submissionSnapshot()
     try {
-      clearComposerForSubmission()
       await startTurnWithOptimisticUI({
         clientUserMessageId: submission.clientUserMessageId,
         threadId,
         modelSettings,
+        request: target.request,
+        attachmentTarget: target,
         workspacePath: effectiveFileWorkspacePath,
         identityWorkspacePath: workspacePath,
         text: trimmed,
@@ -1377,7 +1304,7 @@ function InputComposerCore({
     } catch (err) {
       console.error('turn/start failed:', err)
       restoreComposerSubmission(submission)
-      addToast(describeAppServerError(locale, err), 'error')
+      addToast(describeComposerAttachmentError(locale, err), 'error')
     } finally {
       sendInFlightRef.current = false
     }

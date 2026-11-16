@@ -11,7 +11,7 @@ import { reopenSideChat } from '../../utils/sideChat'
 import { ApprovalDecisionComposer } from '../conversation/ApprovalDecisionComposer'
 import { InputComposer, type InputComposerSubmitPayload } from '../conversation/InputComposer'
 import type { ComposerRuntime } from '../conversation/useComposerRunState'
-import { collectConversationImages, ConversationImagesContext } from '../conversation/imagePreview/galleryImages'
+import { collectConversationImages, ConversationImagesContext, ImageReadScopeContext } from '../conversation/imagePreview/galleryImages'
 import { RequestUserInputComposer } from '../conversation/RequestUserInputComposer'
 import { ScrollToBottomButton } from '../conversation/ScrollToBottomButton'
 import { ConversationColumn } from '../conversation/ConversationColumn'
@@ -34,8 +34,9 @@ export function SideChatTab({ tabId }: { tabId: string }): JSX.Element | null {
 
 function SideChatView({ chat }: { chat: SideChat }): JSX.Element {
   const t = useT()
-  const workspacePath = useConversationStore((state) => state.workspacePath)
-  const remoteWorkspace = useConversationStore((state) => state.remoteWorkspaceActive)
+  const foregroundWorkspacePath = useConversationStore((state) => state.workspacePath)
+  const workspacePath = chat.identityWorkspacePath ?? foregroundWorkspacePath
+  const remoteWorkspace = chat.remoteWorkspace === true
   const fileWorkspacePath = useThreadStore((state) => state.activeThread?.id === chat.parentThreadId
     ? state.activeThread.effectiveWorkspacePath?.trim() || undefined
     : undefined)
@@ -54,7 +55,10 @@ function SideChatView({ chat }: { chat: SideChat }): JSX.Element {
   }, [approval, chat.key])
 
   const submit = useCallback((payload: InputComposerSubmitPayload) =>
-    useSideChatStore.getState().send(chat.key, { inputParts: payload.inputParts, visibleText: payload.visibleText }),
+    useSideChatStore.getState().send(chat.key, {
+      text: payload.text, segments: payload.segments, contexts: payload.contexts,
+      files: payload.files, images: payload.images
+    }),
   [chat.key])
 
   const stop = useCallback((): void => {
@@ -123,10 +127,13 @@ function SideChatTranscript({ chat, running }: { chat: SideChat; running: boolea
     + (lastTurn?.items.reduce((total, item) => total + (item.text?.length ?? 0), 0) ?? 0)
     + (live?.text.length ?? 0)
   const { scrollRef, showScrollButton, scrollToBottom } = useAutoScroll(contentLength)
-  const remoteWorkspace = useConversationStore((state) => state.remoteWorkspaceActive)
+  const imageScope = useMemo(() => ({
+    source: chat.source,
+    workspacePath: chat.identityWorkspacePath
+  }), [chat.source, chat.identityWorkspacePath])
   const getConversationImages = useCallback(
-    () => collectConversationImages(turns, { localFiles: !remoteWorkspace }),
-    [remoteWorkspace, turns]
+    () => collectConversationImages(turns, { localFiles: !chat.remoteWorkspace, scope: imageScope }),
+    [chat.remoteWorkspace, imageScope, turns]
   )
 
   return (
@@ -139,26 +146,28 @@ function SideChatTranscript({ chat, running }: { chat: SideChat; running: boolea
             <p className={styles.emptyBody}>{t('sideChat.emptyBody')}</p>
           </div>
         ) : (
-          <ConversationImagesContext.Provider value={getConversationImages}>
-            <TranscriptTurnsContext.Provider value={turns}>
-              <ConversationColumn className="dc-conversation-column-stack">
-                {turns.map((turn, index) => {
-                  const isLastTurn = index === turns.length - 1
-                  return (
-                    <TranscriptTurn
-                      key={turn.id}
-                      threadId={chat.threadId ?? chat.key}
-                      turn={turn}
-                      isLastTurn={isLastTurn}
-                      running={running && isLastTurn}
-                      live={isLastTurn ? live : null}
-                      renderTurnCompletion={NO_TURN_COMPLETION}
-                    />
-                  )
-                })}
-              </ConversationColumn>
-            </TranscriptTurnsContext.Provider>
-          </ConversationImagesContext.Provider>
+          <ImageReadScopeContext.Provider value={imageScope}>
+            <ConversationImagesContext.Provider value={getConversationImages}>
+              <TranscriptTurnsContext.Provider value={turns}>
+                <ConversationColumn className="dc-conversation-column-stack">
+                  {turns.map((turn, index) => {
+                    const isLastTurn = index === turns.length - 1
+                    return (
+                      <TranscriptTurn
+                        key={turn.id}
+                        threadId={chat.threadId ?? chat.key}
+                        turn={turn}
+                        isLastTurn={isLastTurn}
+                        running={running && isLastTurn}
+                        live={isLastTurn ? live : null}
+                        renderTurnCompletion={NO_TURN_COMPLETION}
+                      />
+                    )
+                  })}
+                </ConversationColumn>
+              </TranscriptTurnsContext.Provider>
+            </ConversationImagesContext.Provider>
+          </ImageReadScopeContext.Provider>
         )}
       </div>
       {showScrollButton && <ScrollToBottomButton onClick={scrollToBottom} working={running} />}

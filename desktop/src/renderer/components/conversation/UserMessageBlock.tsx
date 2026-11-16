@@ -1,13 +1,13 @@
 import { projectInputParts } from '../../utils/inputPresentation'
 import { SentContextAttachments } from './SentContextAttachments'
-import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
+import { useContext, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { Image as ImageIcon, Pencil } from 'lucide-react'
 import { Textarea } from '../ui/Input'
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { useUIStore } from '../../stores/uiStore'
-import { loadLocalImageDataUrl, userImageKeys, type GalleryImage } from './imagePreview/galleryImages'
+import { attachmentImageScope, ImageReadScopeContext, loadScopedImageDataUrl, userImageKeys, type GalleryImage } from './imagePreview/galleryImages'
 import { useImagePreview } from './imagePreview/useImagePreview'
 import { MessageCopyButton } from './MessageCopyButton'
 import {
@@ -93,6 +93,9 @@ export function UserMessageBlock({
   const workspacePath = useConversationStore((s) => s.workspacePath)
   const remoteWorkspaceActive = useConversationStore((s) => s.remoteWorkspaceActive)
   const activeThreadId = useThreadStore((s) => s.activeThreadId)
+  const suppliedImageScope = useContext(ImageReadScopeContext)
+  const imageScope = useMemo(() => suppliedImageScope ?? attachmentImageScope(activeThreadId ?? undefined, workspacePath),
+    [suppliedImageScope, activeThreadId, workspacePath, remoteWorkspaceActive])
   const hasImages = hydratedImages.length > 0
   const galleryImages = useMemo<GalleryImage[]>(() => {
     const keys = userImageKeys(messageId ?? '', hydratedImages.map((image) => image.absolutePath ?? image.url))
@@ -101,9 +104,10 @@ export function UserMessageBlock({
       src: image.url,
       localPath: image.absolutePath,
       title: image.fileName,
-      revealPath: image.absolutePath
+      revealPath: remoteWorkspaceActive ? undefined : image.absolutePath,
+      scope: imageScope
     }))
-  }, [hydratedImages, messageId])
+  }, [hydratedImages, messageId, remoteWorkspaceActive, imageScope])
   const sentText = useMemo(() => splitMessageComments(stripSystemReminderBlocks(text)), [text])
   const displayText = sentText.text
   const contexts = projected && nativeInputParts?.length ? projected.contexts : sentText.comments
@@ -142,17 +146,10 @@ export function UserMessageBlock({
         setFailedImages([])
         return
       }
-      if (remoteWorkspaceActive) {
-        if (cancelled) return
-        setHydratedImages(loaded)
-        setFailedImages(images)
-        return
-      }
-
       const failed: UserMessageImageRef[] = []
       for (const image of images) {
         try {
-          loaded.push({ url: await loadLocalImageDataUrl(image.path), absolutePath: image.path, fileName: image.fileName })
+          loaded.push({ url: await loadScopedImageDataUrl(image.path, imageScope), absolutePath: image.path, fileName: image.fileName })
         } catch {
           failed.push(image)
         }
@@ -166,7 +163,7 @@ export function UserMessageBlock({
     return () => {
       cancelled = true
     }
-  }, [imageDataUrls, images, remoteWorkspaceActive])
+  }, [imageDataUrls, images, imageScope])
 
   return (
     <>

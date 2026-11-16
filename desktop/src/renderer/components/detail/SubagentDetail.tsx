@@ -16,7 +16,7 @@ import type { ThreadConfigurationWire } from '../../types/thread'
 import type { TurnFileChange } from '../../types/turnDiff'
 import { formatSubAgentMeta } from '../../utils/subAgentPresentation'
 import { readReasoningObject } from '../conversation/modelReasoning'
-import { collectConversationImages, ConversationImagesContext } from '../conversation/imagePreview/galleryImages'
+import { attachmentImageScope, collectConversationImages, ConversationImagesContext, ImageReadScopeContext } from '../conversation/imagePreview/galleryImages'
 import { ScrollToBottomButton } from '../conversation/ScrollToBottomButton'
 import { TurnChangesCard } from '../conversation/TurnCompletionSummary'
 import { TranscriptTurn } from '../conversation/TranscriptTurn'
@@ -121,9 +121,11 @@ function SubagentTranscript({
     || (transcript.status === 'ready' && working))
   const unavailable = !waiting && turns.length === 0
   const remoteWorkspaceActive = useConversationStore((s) => s.remoteWorkspaceActive)
+  const connectionEpoch = useConnectionStore(state => state.connectionEpoch)
+  const imageScope = useMemo(() => attachmentImageScope(childThreadId), [childThreadId, remoteWorkspaceActive, connectionEpoch])
   const getConversationImages = useCallback(
-    () => collectConversationImages(transcript?.turns ?? [], { localFiles: !remoteWorkspaceActive }),
-    [remoteWorkspaceActive, transcript?.turns]
+    () => collectConversationImages(transcript?.turns ?? [], { localFiles: !remoteWorkspaceActive, scope: imageScope }),
+    [remoteWorkspaceActive, transcript?.turns, imageScope]
   )
 
   const turnDiffs = transcript?.turnDiffs
@@ -141,6 +143,7 @@ function SubagentTranscript({
           <p className={styles.notice}>{t('subagentsPanel.transcriptUnavailable')}</p>
         ) : (
           <div className={styles.transcriptContent}>
+            <ImageReadScopeContext.Provider value={imageScope}>
             <ConversationImagesContext.Provider value={getConversationImages}>
               <TranscriptTurnsContext.Provider value={turns}>
                 {turns.map((turn, index) => {
@@ -161,6 +164,7 @@ function SubagentTranscript({
                 })}
               </TranscriptTurnsContext.Provider>
             </ConversationImagesContext.Provider>
+            </ImageReadScopeContext.Provider>
           </div>
         )}
         <SubagentRunningTasks threadId={childThreadId} />

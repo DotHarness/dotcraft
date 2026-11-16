@@ -1,3 +1,4 @@
+import { captureComposerAttachmentTarget } from './prepareComposerAttachments'
 import type { PendingWelcomeTurnInput } from '../stores/uiStore'
 import { AppBindingWaitAbortedError } from '../stores/appBindingStore'
 import { useConversationStore } from '../stores/conversationStore'
@@ -23,6 +24,7 @@ export async function startPendingWelcomeTurn({
   translate: TranslateFn
   signal?: AbortSignal
 }): Promise<void> {
+  const target = captureComposerAttachmentTarget(threadId)
   const onScreen = useThreadStore.getState().activeThreadId === threadId
   const echo = echoOptimisticTurn({
     threadId,
@@ -54,6 +56,7 @@ export async function startPendingWelcomeTurn({
       threadId,
       workspacePath,
       sentAsGoal: pending.sentAsGoal,
+      request: target.request,
       throwOnStartError: true
     })
   } catch {

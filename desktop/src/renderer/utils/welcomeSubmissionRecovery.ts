@@ -6,7 +6,7 @@ import { mergeRestoredComposerDraft } from './composerSubmission'
 import type { ComposerDraftSegment } from '../types/composerDraft'
 
 export async function restoreRejectedWelcomeInput(threadId: string, input: InputPart[]): Promise<void> {
-  const submitted = await queuedInputToComposerDraft({ nativeInputParts: input } as QueuedTurnInput)
+  const submitted = await queuedInputToComposerDraft({ threadId, nativeInputParts: input } as QueuedTurnInput)
   const stored = useComposerDraftStore.getState().getDraft(threadId)
   const contextStore = useComposerContextStore.getState()
   const currentSegments: ComposerDraftSegment[] = stored?.segments.length

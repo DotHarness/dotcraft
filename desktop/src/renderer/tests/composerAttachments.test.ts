@@ -23,7 +23,7 @@ describe('composerAttachments', () => {
 
     expect(classifyDroppedComposerFiles(dropped(note, image), resolvePath)).toEqual({
       imageFiles: [image],
-      fileAttachments: [{ path: 'C:\\temp\\notes.txt', fileName: 'notes.txt' }],
+      fileAttachments: [{ path: 'C:\\temp\\notes.txt', fileName: 'notes.txt', source: 'client' }],
       skippedCount: 0
     })
     expect(resolvePath).toHaveBeenCalledExactlyOnceWith(note)
