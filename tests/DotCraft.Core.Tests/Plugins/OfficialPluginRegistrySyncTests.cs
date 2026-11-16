@@ -80,19 +80,28 @@ public sealed class OfficialPluginRegistrySyncTests : IDisposable
         Assert.EndsWith("/zipball/" + FirstRevision, http.Requests[1]);
     }
 
-    [Fact]
-    public async Task SyncAsync_HttpUnchangedKeepsSnapshotAndClearsBackoff()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SyncAsync_ReusesUnchangedHttpSnapshotWithOrWithoutGit(bool gitAvailable)
     {
         var cache = Seed(FirstRevision, "first");
         cache.RecordFailedAttempt(OfficialUrl, MarketplacePath);
         var sentinel = Path.Combine(cache.SnapshotRootFor(OfficialUrl, MarketplacePath), "kept.txt");
         File.WriteAllText(sentinel, "held");
         var http = new HttpFixture(FirstRevision);
+        var sync = CreateSync(http, gitAvailable
+            ? (_, args, _, _) =>
+            {
+                Assert.Contains("ls-remote", args);
+                return Task.FromResult(new GitProcessRunner.GitResult(0, FirstRevision + "\trefs/heads/main", ""));
+            }
+            : UnavailableGit);
 
-        var result = await RefreshAsync(CreateSync(http, UnavailableGit));
+        var result = await RefreshAsync(sync);
 
         Assert.Equal(PluginRegistrySyncResult.Unchanged, result.Result);
-        Assert.Single(http.Requests);
+        Assert.Equal(gitAvailable ? 0 : 1, http.Requests.Count);
         Assert.True(File.Exists(sentinel));
         Assert.False(File.Exists(Path.Combine(cache.CacheRootFor(OfficialUrl, MarketplacePath), "attempt.json")));
         Assert.False(cache.ShouldRefresh(OfficialUrl, MarketplacePath, TimeSpan.FromHours(6)));

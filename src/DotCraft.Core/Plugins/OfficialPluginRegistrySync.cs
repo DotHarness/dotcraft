@@ -57,15 +57,13 @@ internal sealed class OfficialPluginRegistrySync(
 
         var snapshot = cache.SnapshotRootFor(ArchiveUrl, marketplacePath);
         var hasGit = Directory.Exists(Path.Combine(snapshot, ".git"));
-        if (hasGit)
+        if (IsCurrent(cache, marketplacePath, revision)
+            && (!hasGit || string.Equals(
+                await RunGitAsync(snapshot, ["rev-parse", "HEAD"], ct).ConfigureAwait(false),
+                revision, StringComparison.Ordinal)))
         {
-            var localRevision = await RunGitAsync(snapshot, ["rev-parse", "HEAD"], ct).ConfigureAwait(false);
-            if (string.Equals(localRevision, revision, StringComparison.Ordinal)
-                && IsCurrent(cache, marketplacePath, revision))
-            {
-                cache.MarkChecked(ArchiveUrl, marketplacePath);
-                return new(PluginRegistrySyncResult.Unchanged);
-            }
+            cache.MarkChecked(ArchiveUrl, marketplacePath);
+            return new(PluginRegistrySyncResult.Unchanged);
         }
 
         var staged = Path.Combine(cache.CacheBaseRoot, $".official.{Guid.NewGuid():N}.tmp");
