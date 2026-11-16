@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState, type ComponentProps, type CSSProperties, type ReactNode } from 'react'
+import { Fragment, memo, useEffect, useRef, useState, type ComponentProps, type CSSProperties, type ReactNode } from 'react'
 import { Image as ImageIcon } from 'lucide-react'
 import type { ConversationItem, ConversationTurn } from '../../types/conversation'
 import { isToolLikeItemType } from '../../types/conversation'
@@ -53,6 +53,8 @@ import { CapacityRetryRow } from './CapacityRetryRow'
 import { TurnFailureNotice } from './TurnFailureNotice'
 import { parseWorkflowLaunch } from '../workflow/WorkflowToolCard'
 import { TurnWorkLoader, type TurnItemsExpansionLoader } from './TurnWorkLoader'
+import { ResponseLeadingTurn, ResponseLeadingTurns, TaskWakeLine } from './ResponseLeadingTurn'
+import { responseStartedAt } from './responseRuns'
 
 interface AgentResponseBlockProps {
   turn: ConversationTurn
@@ -68,7 +70,11 @@ interface AgentResponseBlockProps {
   readOnly?: boolean
   renderTurnCompletion?: (turnId: string) => ReactNode
   loadTurnItems?: TurnItemsExpansionLoader
+  leadingTurns?: readonly ConversationTurn[]
+  embedded?: { open: boolean; expanded: boolean; wakeLine: boolean; completion: boolean }
 }
+
+const NO_TURNS: readonly ConversationTurn[] = []
 
 type ConversationNodeKind = 'assistant' | 'tool' | 'user' | 'other'
 
@@ -99,7 +105,9 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
   shellRuntimeScope = 'conversation',
   readOnly = false,
   renderTurnCompletion,
-  loadTurnItems
+  loadTurnItems,
+  leadingTurns = NO_TURNS,
+  embedded
 }: AgentResponseBlockProps): JSX.Element | null {
   useDesktopPluginRegistry((state) => state.toolRenderers)
   const pendingUserInput = useConversationStore((s) => s.pendingUserInput)
@@ -301,18 +309,35 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
     waitingForAnswer: pendingUserInput != null
   })
   const lastFinalAgentMessageIndex = activity.finalIndex
-  const lastAgentMessageIndex =
-    !isRunning && turn.status === 'completed'
-      ? findLastVisibleAgentMessageIndex(renderableItems)
-      : -1
   const footerAgentMessageId =
-    lastAgentMessageIndex >= 0 ? renderableItems[lastAgentMessageIndex]?.id : null
-  const turnCompletionContent =
-    turn.status === 'completed'
-      ? renderTurnCompletion ? renderTurnCompletion(turn.id) : <TurnCompletionContent turnId={turn.id} />
-      : null
+    !isRunning && turn.status === 'completed' && !embedded && lastFinalAgentMessageIndex >= 0
+      ? renderableItems[lastFinalAgentMessageIndex]?.id : null
+  const completionOf = (turnId: string): ReactNode =>
+    renderTurnCompletion ? renderTurnCompletion(turnId) : <TurnCompletionContent turnId={turnId} />
+  const liftsCompletion = turn.status === 'completed'
+  const turnCompletionContent = !liftsCompletion || embedded?.completion === false ? null
+    : leadingTurns.length === 0 ? completionOf(turn.id)
+      : <>{[...leadingTurns, turn].map((member) => <Fragment key={member.id}>{completionOf(member.id)}</Fragment>)}</>
   const omitsWork = turn.summary != null && turn.summary.itemCount > turn.items.length
-  const collapsesIntermediate = activity.status === 'worked' && (lastFinalAgentMessageIndex > 0 || omitsWork)
+  const collapsesIntermediate = activity.status === 'worked'
+    && (lastFinalAgentMessageIndex > 0 || omitsWork || (leadingTurns.length > 0 && lastFinalAgentMessageIndex === 0))
+  const continuationWake = leadingTurns.length > 0 || embedded?.wakeLine ? getTaskWake(turn) : null
+  const wakeNotice = continuationWake && turn.items.find((item) => item.type === 'userMessage')
+  const wakeLine = continuationWake && wakeNotice
+    ? <TaskWakeLine threadId={turn.threadId} wake={continuationWake} notice={wakeNotice} />
+    : null
+  const leadingWork = (state: { open: boolean; expanded: boolean }): ReactNode => leadingTurns.map((leadingTurn, index) => (
+    <ResponseLeadingTurn key={leadingTurn.id} turnId={leadingTurn.id}>
+      <AgentResponseBlock
+        turn={leadingTurn}
+        embedded={{ ...state, wakeLine: index > 0, completion: !liftsCompletion }}
+        shellRuntimeScope={shellRuntimeScope}
+        readOnly={readOnly}
+        renderTurnCompletion={renderTurnCompletion}
+        loadTurnItems={loadTurnItems}
+      />
+    </ResponseLeadingTurn>
+  ))
   const renderNodes: ConversationRenderNode[] = []
   const activitySummary = (intermediateNodes: ConversationRenderNode[]): ConversationRenderNode => ({
     key: `turn-activity-${turn.id}`,
@@ -323,19 +348,25 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
         status={activity.status!}
         collapsible={collapsesIntermediate}
         threadId={turn.threadId} turnId={turn.id}
-        startedAt={turn.startedAt} completedAt={activity.completedAt}
-        taskWake={getTaskWake(turn)}
+        startedAt={responseStartedAt(leadingTurns, turn.startedAt)} completedAt={activity.completedAt}
+        taskWake={getTaskWake(leadingTurns[0] ?? turn)}
+        responseTurnIds={leadingTurns.length > 0 ? [...leadingTurns.map((leadingTurn) => leadingTurn.id), turn.id] : undefined}
       >
-        {({ open, expanded }) => <>
-          {intermediateNodes.length > 0 && <ConversationNodeFlow nodes={intermediateNodes} defaultGap="var(--conversation-tool-assistant-gap)" />}
-          {omitsWork && <TurnWorkLoader threadId={turn.threadId} turnId={turn.id}
-            enabled={open} complete={expanded} cursor={turn.summary?.nextCursor} loadItems={loadTurnItems} />}
-        </>}
+        {(state) => {
+          const own = <>
+            {intermediateNodes.length > 0 && <ConversationNodeFlow nodes={intermediateNodes} defaultGap="var(--conversation-tool-assistant-gap)" />}
+            {omitsWork && <TurnWorkLoader threadId={turn.threadId} turnId={turn.id}
+              enabled={state.open} complete={state.expanded} cursor={turn.summary?.nextCursor} loadItems={loadTurnItems} />}
+          </>
+          return leadingTurns.length > 0
+            ? <ResponseLeadingTurns>{leadingWork(state)}{wakeLine}{own}</ResponseLeadingTurns>
+            : own
+        }}
       </TurnActivitySummary>
     )
   })
 
-  if (activity.status) {
+  if (activity.status && !embedded) {
     const splitIndex = collapsesIntermediate ? Math.max(lastFinalAgentMessageIndex, 0)
       : activity.status === 'worked' ? 0 : renderableItems.length
     const pinnedIndices = collapsesIntermediate ? collectPinnedIntermediateIndices(renderableItems, splitIndex) : []
@@ -349,7 +380,24 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
     renderNodes.push(...pinnedIndices.flatMap((pinnedIndex) => renderItemSequence([renderableItems[pinnedIndex]])))
     renderNodes.push(...renderItemSequence(renderableItems.slice(splitIndex)))
   } else {
+    if (leadingTurns.length > 0) {
+      renderNodes.push({
+        key: `response-leading-${turn.id}`,
+        kind: 'other',
+        node: <ResponseLeadingTurns>{leadingWork({ open: true, expanded: true })}{wakeLine}</ResponseLeadingTurns>
+      })
+    } else if (wakeLine) {
+      renderNodes.push({ key: `task-wake-${turn.id}`, kind: 'tool', node: wakeLine })
+    }
     renderNodes.push(...renderItemSequence(renderableItems))
+    if (embedded && omitsWork) {
+      renderNodes.push({
+        key: `turn-work-${turn.id}`,
+        kind: 'other',
+        node: <TurnWorkLoader threadId={turn.threadId} turnId={turn.id}
+          enabled={embedded.open} complete={embedded.expanded} cursor={turn.summary?.nextCursor} loadItems={loadTurnItems} />
+      })
+    }
   }
 
   if (systemLabel) {
@@ -669,16 +717,6 @@ function resolveCoreFallbackPlan(item: ConversationItem) {
     : resolveCoreToolRenderPlan(item)
 }
 
-
-function findLastVisibleAgentMessageIndex(items: ConversationItem[]): number {
-  for (let i = items.length - 1; i >= 0; i--) {
-    const item = items[i]
-    if (item.type === 'agentMessage' && (item.text ?? '').trim().length > 0) {
-      return i
-    }
-  }
-  return -1
-}
 
 function findLastPinnedCoreRendererIndexBefore(items: ConversationItem[], beforeIndex: number): number {
   for (let i = beforeIndex - 1; i >= 0; i--) {

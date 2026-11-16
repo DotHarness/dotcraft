@@ -1,5 +1,5 @@
 import type { ConversationItem, ConversationTurn } from '../../types/conversation'
-import { isBackgroundTaskNotice } from '../../utils/visibleUserMessage'
+import { isBackgroundTaskNotice, isSubAgentMailbox } from '../../utils/visibleUserMessage'
 
 export type TurnActivityStatus = 'working' | 'worked' | 'stopped'
 
@@ -40,7 +40,7 @@ export interface TaskWake {
 
 export function getTaskWake(turn: ConversationTurn): TaskWake | null {
   const input = turn.items.find((item) => item.type === 'userMessage')
-  if (!input || input.deliveryMode === 'guidance' || !isBackgroundTaskNotice(input)) return null
+  if (!input || input.deliveryMode === 'guidance' || isSubAgentMailbox(input) || !isBackgroundTaskNotice(input)) return null
   return {
     kind: input.triggerKind as TaskWakeKind,
     label: input.triggerLabel?.trim() ?? '',

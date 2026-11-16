@@ -1,6 +1,7 @@
 import { isComplete, type ChatHistory, type HistoryItem, type HistoryTurn } from './history'
 import { createItemProjector } from './transcriptItems'
-import { layoutTurn, sameReferences, showsWork, stabilizeEntries } from './transcriptLayout'
+import { joinResponses, type TurnPiece } from './responseRuns'
+import { layoutTurn, replyIndex, sameReferences, showsWork, stabilizeEntries } from './transcriptLayout'
 import { inTurn, str } from './transcriptTools'
 import { capacityRetry, failureEntry, supersededTurns } from './timelineMarkers'
 import type { TaskWake, ToolVerb, TranscriptEntry, TranscriptOptions } from './transcriptTypes'
@@ -54,6 +55,7 @@ interface TurnProjection {
   retry: number | null | undefined
   changes: TurnChanges | null
   entries: TranscriptEntry[]
+  piece: TurnPiece
 }
 
 export interface TranscriptProjector {
@@ -103,7 +105,7 @@ export function createTranscriptProjector(sharedChanges?: ChangesProjector): Tra
       const capacity = capacityRetry(history)
       const turns = new Map(history.turns.map((turn) => [turn.id, turn]))
       const nextCache = new Map<string, TurnProjection>()
-      const output: TranscriptEntry[] = []
+      const pieces: TurnPiece[] = []
       const occurrences = new Map<string, number>()
       let threadOrigin = options.spawnedFrom ?? null
       for (const chunk of chunks) {
@@ -121,13 +123,15 @@ export function createTranscriptProjector(sharedChanges?: ChangesProjector): Tra
         if (old && old.turn === turn && old.fallbackOrigin === fallbackOrigin && old.stopped === wasStopped && old.retry === retry && old.changes === turnChanges && old.workingAgentPaths === options.workingAgentPaths && sameReferences(old.items, inputs)) {
           nextCache.set(key, old)
           if (old.consumesOrigin) threadOrigin = null
-          output.push(...old.entries)
+          pieces.push(old.piece)
           continue
         }
         const body: TranscriptEntry[] = []
         const actions: Extract<TranscriptEntry, { kind: 'threadAction' }>[] = []
         let live = false
         let wake: TaskWake | null = null
+        let wakeEntry: TranscriptEntry | null = null
+        let mailbox = false
         let heading: string | null = null
         let origin = fallbackOrigin
         for (const item of chunk.items) {
@@ -149,7 +153,11 @@ export function createTranscriptProjector(sharedChanges?: ChangesProjector): Tra
               threadOrigin = null
             }
           }
-          if (projection.wake && !wake && !body.some((entry) => entry.kind === 'user')) wake = projection.wake
+          mailbox ||= projection.mailbox === true
+          if (projection.wake && !wake && !body.some((entry) => entry.kind === 'user')) {
+            wake = projection.wake
+            wakeEntry = projection.wakeEntry ?? null
+          }
           if (projection.heading !== undefined) heading = projection.heading ?? heading
           const action = projection.action
           if (action && !actions.some((entry) => entry.action.kind === action.action.kind && entry.action.threadId === action.action.threadId)) actions.push(action)
@@ -162,10 +170,14 @@ export function createTranscriptProjector(sharedChanges?: ChangesProjector): Tra
         body.push(...actions)
         const summarized = !!turn?.summary && turn.summary.itemCount > chunk.items.length
         const entries = stabilizeEntries(layoutTurn(chunk.id, turn, body, turn ? !DONE.has(turn.status) : live, turnChanges, wake, heading, wasStopped, summarized), old?.entries ?? [])
-        const next: TurnProjection = { items: inputs, turn, fallbackOrigin, consumesOrigin: body.some((entry) => entry.kind === 'user'), workingAgentPaths: options.workingAgentPaths, stopped: wasStopped, retry, changes: turnChanges, entries }
+        const completed = turn?.status === 'completed'
+        const replied = turn?.status !== 'failed' && replyIndex(entries.filter((entry) => entry.kind !== 'thinking'), completed) >= 0
+        const piece: TurnPiece = { turnId: chunk.id, entries, wake, wakeEntry, mailbox, open: completed && !replied, replied, changes: turnChanges }
+        const next: TurnProjection = { items: inputs, turn, fallbackOrigin, consumesOrigin: body.some((entry) => entry.kind === 'user'), workingAgentPaths: options.workingAgentPaths, stopped: wasStopped, retry, changes: turnChanges, entries, piece }
         nextCache.set(key, next)
-        output.push(...entries)
+        pieces.push(piece)
       }
+      const output = [...stabilizeEntries(joinResponses(pieces), previous)]
       turnsCache = nextCache
       if (echoes !== history.echoes) {
         echoes = history.echoes

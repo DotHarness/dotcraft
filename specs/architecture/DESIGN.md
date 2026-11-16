@@ -1298,9 +1298,20 @@ and how it ended; the icon is a quiet action that reveals the originating tool c
 while the timing still toggles the disclosure. The boundary keeps its single row,
 so a woken turn reads as a peer of the turn above it.
 
+A woken turn that continues an unanswered response adds no boundary. A subagent
+ending takes the subagent ending row. A background command or workflow ending
+becomes a line inside the response's process: the same icon and the hover wording as
+visible text. The line is set as a tool row, with the same size, colour, icon size, and
+spacing.
+
 Special state goes into the message action row below the bubble, after the
 actions, as the same small icon plus label. State is information, so it stays
 visible at rest while the timestamp and copy controls stay hover-revealed.
+
+The assistant answer's action row appears below its final reply once the turn
+completes. Commentary in an unanswered response has no action row and reserves no
+footer space. Background tasks still running do not suppress the final reply's
+copy, fork, and timestamp controls.
 
 Tooltips on these markers carry only what the visible line does not already say,
 so the part that matters (the originating thread, the job name) is not pushed past

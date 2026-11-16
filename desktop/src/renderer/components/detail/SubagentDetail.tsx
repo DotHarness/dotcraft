@@ -20,6 +20,8 @@ import { collectConversationImages, ConversationImagesContext } from '../convers
 import { ScrollToBottomButton } from '../conversation/ScrollToBottomButton'
 import { TurnChangesCard } from '../conversation/TurnCompletionSummary'
 import { TranscriptTurn } from '../conversation/TranscriptTurn'
+import { placeResponses } from '../conversation/responseRuns'
+import { isEmptyCompletedTurn } from '../../utils/turnPresentation'
 import { TranscriptTurnsContext } from '../conversation/useWebCitationSources'
 import { RobotAvatar } from '../agents/RobotAvatar'
 import { IconButton } from '../ui/IconButton'
@@ -124,6 +126,12 @@ function SubagentTranscript({
     [remoteWorkspaceActive, transcript?.turns]
   )
 
+  const turnDiffs = transcript?.turnDiffs
+  const responses = useMemo(() => placeResponses(turns, {
+    shown: (turn) => !isEmptyCompletedTurn(turn, (turnDiffs?.get(turn.id)?.files.length ?? 0) > 0),
+    separated: () => false
+  }), [turns, turnDiffs])
+
   return (
     <div className={styles.viewport}>
       <div ref={scrollRef} onScroll={onScroll} className={`${styles.transcript} dc-scrollbar-stable`}>
@@ -137,11 +145,14 @@ function SubagentTranscript({
               <TranscriptTurnsContext.Provider value={turns}>
                 {turns.map((turn, index) => {
                   const isLastTurn = index === turns.length - 1
+                  const response = responses.get(turn.id)
                   return (
                     <SubagentTurn
                       key={turn.id}
                       childThreadId={childThreadId}
                       turn={turn}
+                      leadingTurns={response?.leading}
+                      absorbed={response?.absorbed === true}
                       isLastTurn={isLastTurn}
                       running={running && isLastTurn}
                       live={isLastTurn ? live : null}
@@ -162,12 +173,16 @@ function SubagentTranscript({
 const SubagentTurn = memo(function SubagentTurn({
   childThreadId,
   turn,
+  leadingTurns,
+  absorbed,
   isLastTurn,
   running,
   live
 }: {
   childThreadId: string
   turn: ConversationTurn
+  leadingTurns?: readonly ConversationTurn[]
+  absorbed: boolean
   isLastTurn: boolean
   running: boolean
   live: TranscriptLiveText | null
@@ -180,6 +195,8 @@ const SubagentTurn = memo(function SubagentTurn({
     <TranscriptTurn
       threadId={childThreadId}
       turn={turn}
+      leadingTurns={leadingTurns}
+      absorbed={absorbed}
       isLastTurn={isLastTurn}
       running={running}
       live={live}

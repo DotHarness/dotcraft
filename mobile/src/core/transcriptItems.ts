@@ -20,6 +20,8 @@ export interface ItemProjection {
   entry?: TranscriptEntry
   heading?: string | null
   wake?: TaskWake
+  wakeEntry?: TranscriptEntry
+  mailbox?: boolean
   action?: Extract<TranscriptEntry, { kind: 'threadAction' }>
 }
 
@@ -93,14 +95,17 @@ function projectItem(item: HistoryItem, context: ItemContext): ItemProjection {
     case 'userMessage': {
       const mode = str(payload.deliveryMode)
       const trigger = str(payload.triggerKind)
+      if (mode === 'subagentMailbox' || trigger === 'subagentMailbox') return { mailbox: mode !== 'guidance' }
       if (trigger === 'terminal' || trigger === 'subagent' || (trigger === 'workflow' && !!str(payload.triggerStatus))) {
         if (mode === 'guidance') {
           const ending = trigger === 'subagent' ? subagentEndingEntry(item, context.subagentWorking) : null
           return ending ? { entry: ending } : {}
         }
-        return { wake: { task: trigger as TaskWake['task'], label: str(payload.triggerLabel).trim(), status: context.subagentWorking ? null : str(payload.triggerStatus) || null } }
+        return {
+          wake: { task: trigger as TaskWake['task'], label: str(payload.triggerLabel).trim(), status: context.subagentWorking ? null : str(payload.triggerStatus) || null },
+          wakeEntry: (trigger === 'subagent' && str(payload.triggerStatus) && subagentEndingEntry(item, context.subagentWorking)) || undefined,
+        }
       }
-      if (mode === 'subagentMailbox') return {}
       const text = str(payload.text)
       const images = userImages(payload.nativeInputParts)
       if (!text && images.length === 0) return {}

@@ -12,6 +12,8 @@ import styles from './TranscriptTurn.module.css'
 export const TranscriptTurn = memo(function TranscriptTurn({
   threadId,
   turn,
+  leadingTurns,
+  absorbed = false,
   isLastTurn,
   running,
   live,
@@ -19,6 +21,8 @@ export const TranscriptTurn = memo(function TranscriptTurn({
 }: {
   threadId: string
   turn: ConversationTurn
+  leadingTurns?: readonly ConversationTurn[]
+  absorbed?: boolean
   isLastTurn: boolean
   running: boolean
   live: TranscriptLiveText | null
@@ -27,7 +31,8 @@ export const TranscriptTurn = memo(function TranscriptTurn({
   const loadTurnItems = useSubAgentTranscriptStore((s) => s.loadTurnItems)
   const hasFileChanges = useSubAgentTranscriptStore((s) =>
     (s.transcripts.get(threadId)?.turnDiffs.get(turn.id)?.files.length ?? 0) > 0)
-  if (isEmptyCompletedTurn(turn, hasFileChanges) && !turn.items.some(isVisibleUserMessage)) return null
+  const hasUserMessage = turn.items.some(isVisibleUserMessage)
+  if ((absorbed || isEmptyCompletedTurn(turn, hasFileChanges)) && !hasUserMessage) return null
 
   return (
     <div className={styles.turn}>
@@ -46,9 +51,10 @@ export const TranscriptTurn = memo(function TranscriptTurn({
           sentAsGoal={item.sentAsGoal === true}
         />
       ))}
-      <TranscriptThreadContext.Provider value={threadId}>
+      {!absorbed && <TranscriptThreadContext.Provider value={threadId}>
         <AgentResponseBlock
           turn={turn}
+          leadingTurns={leadingTurns}
           streamingMessage={live?.kind === 'agentMessage' ? live.text : ''}
           streamingReasoning={live?.kind === 'reasoningContent' ? live.text : ''}
           isRunning={running}
@@ -61,7 +67,7 @@ export const TranscriptTurn = memo(function TranscriptTurn({
           renderTurnCompletion={renderTurnCompletion}
           loadTurnItems={loadTurnItems}
         />
-      </TranscriptThreadContext.Provider>
+      </TranscriptThreadContext.Provider>}
     </div>
   )
 })

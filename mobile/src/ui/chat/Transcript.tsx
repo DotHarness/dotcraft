@@ -568,7 +568,7 @@ export const TranscriptLine = memo(function TranscriptLine({
 }) {
   const { t } = useI18n()
   const { colors } = useTheme()
-  const toolish = (value: TranscriptEntry | undefined) => value?.kind === 'tool' || value?.kind === 'toolGroup'
+  const toolish = (value: TranscriptEntry | undefined) => value?.kind === 'tool' || value?.kind === 'toolGroup' || value?.kind === 'wake'
   const tight = toolish(entry) && toolish(previous)
   switch (entry.kind) {
     case 'user':
@@ -628,6 +628,17 @@ export const TranscriptLine = memo(function TranscriptLine({
       )
     case 'activity':
       return <Activity entry={entry} workspacePath={workspacePath} />
+    case 'wake':
+      return (
+        <View style={[styles.tool, tight ? styles.tight : undefined]}>
+          <Icon name={WAKE_COPY[entry.origin.task].icon} size={16} color={colors.textSecondary} strokeWidth={1.6} />
+          <Text numberOfLines={1} style={[type.text, styles.line, styles.shrink, { color: colors.textSecondary }]}>
+            {wakeText(entry.origin, t)}
+          </Text>
+        </View>
+      )
+    case 'turnWork':
+      return <TurnWork turnId={entry.turnId} />
     case 'image':
       return <GeneratedImage entry={entry} />
     case 'plan':

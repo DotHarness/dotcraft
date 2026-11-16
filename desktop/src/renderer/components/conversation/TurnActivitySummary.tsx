@@ -1,9 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Bot, SquareTerminal, Workflow } from 'lucide-react'
-import { getActivityElapsedMs, type TaskWake, type TaskWakeKind, type TurnActivityStatus } from './turnActivityModel'
+import { getActivityElapsedMs, type TaskWake, type TurnActivityStatus } from './turnActivityModel'
 import { useLocale } from '../../contexts/LocaleContext'
 import { translate } from '../../../shared/locales'
-import type { AppLocale } from '../../../shared/locales/types'
 import { turnStopKey, useTurnStopStore } from '../../stores/turnStopStore'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useWorkspaceProjectsStore } from '../../stores/workspaceProjectsStore'
@@ -15,7 +13,7 @@ import { ActionTooltip } from '../ui/ActionTooltip'
 import { RobotAvatar } from '../agents/RobotAvatar'
 import { useSubAgentLookup } from '../../hooks/useSubAgentLookup'
 import { findSubAgentChild } from '../../utils/subAgentIdentity'
-import { subAgentEndingOutcome } from '../../utils/subAgentEndingDisplay'
+import { TASK_WAKE_COPY, TASK_WAKE_ICONS, settledSubAgentWake, taskWakeLabel } from './taskWakeDisplay'
 import styles from './TurnActivitySummary.module.css'
 
 const SCROLL_ANCHOR_MS = 350
@@ -29,6 +27,7 @@ interface TurnActivitySummaryProps {
   startedAt?: string
   completedAt?: string
   taskWake?: TaskWake | null
+  responseTurnIds?: readonly string[]
 }
 
 export function TurnActivitySummary(props: TurnActivitySummaryProps): JSX.Element {
@@ -40,25 +39,22 @@ export function TurnActivitySummary(props: TurnActivitySummaryProps): JSX.Elemen
 function SubAgentTurnActivitySummary(props: TurnActivitySummaryProps): JSX.Element {
   const { lookup } = useSubAgentLookup(props.threadId)
   const child = findSubAgentChild(lookup, null, props.taskWake?.taskId, 'children')
-  const taskWake = props.taskWake && subAgentEndingOutcome(props.taskWake.status, child) === null
-    ? { ...props.taskWake, status: undefined }
-    : props.taskWake
-  return <TurnActivitySummaryContent {...props} taskWake={taskWake} />
+  return <TurnActivitySummaryContent {...props} taskWake={props.taskWake && settledSubAgentWake(props.taskWake, child)} />
 }
 
-function TurnActivitySummaryContent({ threadId, turnId, startedAt, completedAt, status, collapsible = false, taskWake, children }: TurnActivitySummaryProps): JSX.Element {
+function TurnActivitySummaryContent({ threadId, turnId, startedAt, completedAt, status, collapsible = false, taskWake, responseTurnIds, children }: TurnActivitySummaryProps): JSX.Element {
   const locale = useLocale()
   const byUser = useTurnStopStore(state => state.requested.has(turnStopKey(threadId, turnId)))
   const projectKey = useWorkspaceProjectsStore((state) => state.foregroundProjectId)
   const workspacePath = useConversationStore((state) => state.workspacePath)
-  const identity = JSON.stringify([projectKey || workspacePath, threadId, turnId])
+  const identity = JSON.stringify([projectKey || workspacePath, threadId, responseTurnIds?.[0] ?? turnId])
   const expanded = useTurnActivityDisclosureStore((state) => state.expanded.get(identity) ?? false)
   const setExpanded = (value: boolean): void => useTurnActivityDisclosureStore.getState().setExpanded(identity, value)
   const [now, setNow] = useState(() => Date.now())
   const headerRef = useRef<HTMLButtonElement>(null)
   const open = !collapsible || expanded
   const revealNonce = useToolCallRevealTarget((target) =>
-    target.threadId === threadId && target.turnId === turnId ? target.nonce : null)
+    target.threadId === threadId && (target.turnId === turnId || responseTurnIds?.includes(target.turnId)) ? target.nonce : null)
   const mounted = useRef({ identity, body: open })
   if (mounted.current.identity !== identity) mounted.current = { identity, body: open }
   if (open) mounted.current.body = true
@@ -130,57 +126,6 @@ function TurnActivitySummaryContent({ threadId, turnId, startedAt, completedAt, 
       </div>
     ) : null}
   </div>
-}
-
-const TASK_WAKE_ICONS: Record<TaskWakeKind, typeof SquareTerminal> = {
-  terminal: SquareTerminal,
-  subagent: Bot,
-  workflow: Workflow
-}
-
-const TASK_WAKE_COPY: Record<TaskWakeKind, { param: string; show: string; started: string; generic: string; statuses: Record<string, string> }> = {
-  terminal: {
-    param: 'command',
-    show: 'conversation.showBackgroundCommand',
-    started: 'conversation.startedByBackgroundCommand',
-    generic: 'conversation.startedByBackgroundCommandGeneric',
-    statuses: {
-      completed: 'conversation.backgroundCommandFinished',
-      failed: 'conversation.backgroundCommandFailed',
-      killed: 'conversation.backgroundCommandStopped',
-      waitingForInput: 'conversation.backgroundCommandWaitingForInput'
-    }
-  },
-  subagent: {
-    param: 'name',
-    show: 'conversation.showSubagent',
-    started: 'conversation.startedBySubagent',
-    generic: 'conversation.startedBySubagentGeneric',
-    statuses: {
-      completed: 'conversation.subagentFinished',
-      failed: 'conversation.subagentFailed',
-      cancelled: 'conversation.subagentStopped'
-    }
-  },
-  workflow: {
-    param: 'name',
-    show: 'conversation.showWorkflow',
-    started: 'conversation.startedByWorkflow',
-    generic: 'conversation.startedByWorkflowGeneric',
-    statuses: {
-      succeeded: 'conversation.workflowFinished',
-      failed: 'conversation.workflowFailed',
-      cancelled: 'conversation.workflowFailed',
-      interrupted: 'conversation.workflowFailed',
-      stopped: 'conversation.workflowStopped'
-    }
-  }
-}
-
-function taskWakeLabel(locale: AppLocale, { kind, label, status }: TaskWake): string {
-  const copy = TASK_WAKE_COPY[kind]
-  if (!label) return translate(locale, copy.generic)
-  return translate(locale, (status && copy.statuses[status]) || copy.started, { [copy.param]: label })
 }
 
 function anchorScroll(element: HTMLElement): void {

@@ -14,6 +14,7 @@ import { useTranscriptViewport } from '../../hooks/useTranscriptViewport'
 import { useScrollToLatestOnSend, type ComposerSendScrollRequest } from '../../hooks/useComposerSendScroll'
 import { UserMessageBlock } from './UserMessageBlock'
 import { AgentResponseBlock } from './AgentResponseBlock'
+import { placeResponses, sameTurns } from './responseRuns'
 import { ScrollToBottomButton } from './ScrollToBottomButton'
 import { RunningTurnChangesPill } from './RunningTurnChangesPill'
 import { StreamRetryNotice } from './StreamRetryNotice'
@@ -88,6 +89,10 @@ function MessageStreamContent({ sendScrollRequest = null, viewportKey }: Message
     && (!isEmptyCompletedTurn(turn, (turnDiffs.get(turn.id)?.files.length ?? 0) > 0)
       || turn.items.some(isVisibleUserMessage))), [turns, turnDiffs, supersededRetryTurnIds])
   const visibleTurnIds = useMemo(() => new Set(visibleTurns.map((turn) => turn.id)), [visibleTurns])
+  const responses = useMemo(() => placeResponses(
+    turns.filter((turn) => !supersededRetryTurnIds.has(turn.id)),
+    { shown: (turn) => visibleTurnIds.has(turn.id), separated: (turn) => gapIdBeforeTurn.has(turn.id) }
+  ), [turns, supersededRetryTurnIds, visibleTurnIds, gapIdBeforeTurn])
   const threadList = useThreadStore((s) => s.threadList)
   const threadOrigin = useMemo(() => {
     const self = threadList.find((t) => t.id === activeThreadId)
@@ -149,18 +154,22 @@ function MessageStreamContent({ sendScrollRequest = null, viewportKey }: Message
           {turns.map((turn, idx) => {
             const isActiveTurn = turn.id === activeTurnId
             const gapId = gapIdBeforeTurn.get(turn.id)
+            const response = responses.get(turn.id)
+            const absorbed = response?.absorbed === true
             return (
               <Fragment key={turn.id}>
                 {gapId !== undefined && (
                   <div className="dc-conversation-history-gap" data-history-gap={gapId} aria-hidden="true" />
                 )}
-                {visibleTurnIds.has(turn.id) && <div
+                {visibleTurnIds.has(turn.id) && !(absorbed && !turn.items.some(isVisibleUserMessage)) && <div
                   data-turn-id={turn.id}
                   className="dc-conversation-turn-shell"
                   data-active={isActiveTurn ? 'true' : undefined}
                 >
                   <TurnBlock
                     turn={turn}
+                    leadingTurns={response?.leading ?? NO_LEADING_TURNS}
+                    absorbed={absorbed}
                     streamingMessage={isActiveTurn ? streamingMessage : ''}
                     streamingReasoning={isActiveTurn ? streamingReasoning : ''}
                     isRunning={
@@ -240,8 +249,12 @@ function MessageStreamContent({ sendScrollRequest = null, viewportKey }: Message
   )
 }
 
+const NO_LEADING_TURNS: readonly ConversationTurn[] = []
+
 interface TurnBlockProps {
   turn: ConversationTurn
+  leadingTurns: readonly ConversationTurn[]
+  absorbed: boolean
   streamingMessage: string
   streamingReasoning: string
   isRunning: boolean
@@ -262,6 +275,8 @@ interface TurnBlockProps {
 
 const TurnBlock = memo(function TurnBlock({
   turn,
+  leadingTurns,
+  absorbed,
   streamingMessage,
   streamingReasoning,
   isRunning,
@@ -319,8 +334,9 @@ const TurnBlock = memo(function TurnBlock({
         )
       })}
 
-      <AgentResponseBlock
+      {!absorbed && <AgentResponseBlock
         turn={turn}
+        leadingTurns={leadingTurns}
         streamingMessage={streamingMessage}
         streamingReasoning={streamingReasoning}
         isRunning={isRunning}
@@ -328,13 +344,15 @@ const TurnBlock = memo(function TurnBlock({
         isLastTurn={isLastTurn}
         isLastVisibleTurn={isLastVisibleTurn}
         systemLabel={systemLabel}
-      />
+      />}
     </div>
   )
 }, areTurnBlockPropsEqual)
 
 function areTurnBlockPropsEqual(previous: TurnBlockProps, next: TurnBlockProps): boolean {
   return previous.turn === next.turn &&
+    sameTurns(previous.leadingTurns, next.leadingTurns) &&
+    previous.absorbed === next.absorbed &&
     previous.streamingMessage === next.streamingMessage &&
     previous.streamingReasoning === next.streamingReasoning &&
     previous.isRunning === next.isRunning &&

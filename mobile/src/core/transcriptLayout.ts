@@ -41,7 +41,7 @@ function lastIndex(entries: TranscriptEntry[], test: (entry: TranscriptEntry) =>
   return -1
 }
 
-function replyIndex(body: TranscriptEntry[], completed: boolean): number {
+export function replyIndex(body: TranscriptEntry[], completed: boolean): number {
   for (let index = body.length - 1; index >= 0; index -= 1) {
     const entry = body[index]
     if (entry.kind === 'assistant' && (entry.phase === 'final' || (completed && entry.phase === null))) return index

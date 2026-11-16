@@ -10,12 +10,15 @@ export function isMidTurnTaskNotice(item: ConversationItem): boolean {
   return item.type === 'userMessage' && item.deliveryMode === 'guidance' && isBackgroundTaskNotice(item)
 }
 
+export function isSubAgentMailbox(input: Pick<ConversationItem, 'deliveryMode' | 'triggerKind'>): boolean {
+  return input.deliveryMode === 'subagentMailbox' || input.triggerKind === 'subagentMailbox'
+}
+
 export function isVisibleUserMessage(item: ConversationItem): boolean {
   return (
     item.type === 'userMessage' &&
     item.deliveryMode !== 'guidance' &&
-    item.deliveryMode !== 'subagentMailbox' &&
-    item.triggerKind !== 'subagentMailbox' &&
+    !isSubAgentMailbox(item) &&
     !isBackgroundTaskNotice(item)
   )
 }

@@ -158,6 +158,9 @@ export type TranscriptEntry =
       pendingTurnId?: string
     }
   | { kind: 'notice'; id: string; notice: NoticeKind; detail?: string }
+  | { kind: 'wake'; id: string; origin: TaskWake }
+  /** The folded work of an earlier summarized Turn of a response. */
+  | { kind: 'turnWork'; id: string; turnId: string }
   | { kind: 'questions'; id: string; questions: QuestionAnswer[] }
   | { kind: 'failure'; id: string; message: string; overloaded: boolean; retry: { delay: number | null } | null }
   | { kind: 'image'; id: string; status: 'inProgress' | 'completed' | 'failed'; uri: string | null; dropped: boolean; error?: string }
