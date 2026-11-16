@@ -23,7 +23,7 @@
 
 .trigger:hover,
 .trigger[aria-expanded='true'] {
-  background: var(--bg-tertiary);
+  background: var(--bg-hover);
 }
 
 .icon {

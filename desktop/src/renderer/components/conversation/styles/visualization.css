@@ -93,6 +93,10 @@
   color: var(--text-primary);
 }
 
+.dc-icon-button.visualization-viewer__nav:hover:not(:disabled) {
+  background: var(--bg-tertiary);
+}
+
 .visualization-viewer__stage {
   display: flex;
   flex: 1;

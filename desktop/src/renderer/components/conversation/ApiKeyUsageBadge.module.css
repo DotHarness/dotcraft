@@ -20,7 +20,7 @@
 }
 
 .badge:hover {
-  background: var(--bg-tertiary);
+  background: var(--bg-hover);
 }
 
 .suffix {

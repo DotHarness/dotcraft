@@ -80,7 +80,7 @@ export function ChangesFileList({
                     event.stopPropagation()
                     setContextMenu({ position: { x: event.clientX, y: event.clientY }, targetPath: resolveAbsolutePath(row.diff.filePath, workspacePath) })
                   }}
-                  style={{ ...rowStyle, background: selected ? 'var(--bg-tertiary)' : 'transparent' }}
+                  style={{ ...rowStyle, background: selected ? 'var(--bg-hover)' : 'transparent' }}
                   onMouseEnter={(e) => { if (!selected) (e.currentTarget as HTMLDivElement).style.background = 'var(--bg-tertiary)' }}
                   onMouseLeave={(e) => { if (!selected) (e.currentTarget as HTMLDivElement).style.background = 'transparent' }}
                 >

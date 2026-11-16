@@ -120,9 +120,9 @@ function interactiveStyle(
 
   const highlighted = options.active === true || state.hovered || state.focusVisible
   const background = state.pressed
-    ? 'var(--bg-active)'
+    ? 'var(--bg-hover-strong)'
     : highlighted
-      ? 'var(--bg-tertiary)'
+      ? 'var(--bg-hover)'
       : 'transparent'
 
   return {

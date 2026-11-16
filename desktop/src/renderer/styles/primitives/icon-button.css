@@ -23,7 +23,7 @@
 }
 
 .dc-icon-button:hover:not(:disabled) {
-  background: var(--bg-tertiary);
+  background: var(--bg-hover);
   color: var(--text-primary);
 }
 
@@ -45,7 +45,7 @@
 
 /* Menu/popover open state stays neutral; `active` remains reserved for selection. */
 .dc-icon-button[aria-expanded="true"] {
-  background: var(--bg-tertiary);
+  background: var(--bg-hover);
   color: var(--text-primary);
 }
 
@@ -72,13 +72,13 @@
 }
 
 .dc-icon-button[data-active][data-active-tone="neutral"] {
-  background: var(--bg-tertiary);
+  background: var(--bg-hover);
   border-color: transparent;
   color: var(--text-primary);
 }
 
 .dc-icon-button[data-active][data-active-tone="neutral"]:hover:not(:disabled) {
-  background: var(--bg-active);
+  background: var(--bg-hover-strong);
   color: var(--text-primary);
 }
 
@@ -135,7 +135,7 @@
 }
 
 .dc-attachment-file-link:hover:not(:disabled) {
-  background: var(--bg-tertiary);
+  background: var(--bg-hover);
   color: var(--text-primary);
 }
 

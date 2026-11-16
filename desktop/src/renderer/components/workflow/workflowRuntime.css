@@ -170,7 +170,7 @@
   cursor: pointer;
 }
 
-.dc-workflow-runtime-phase__header:hover { background: var(--bg-tertiary); }
+.dc-workflow-runtime-phase__header:hover { background: var(--bg-hover); }
 .dc-workflow-runtime-phase__header:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 .dc-workflow-runtime-phase__summary {

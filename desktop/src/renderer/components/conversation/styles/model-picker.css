@@ -60,7 +60,7 @@
 }
 
 .model-picker-model:hover {
-  background: var(--bg-tertiary);
+  background: var(--bg-hover);
   color: var(--text-primary);
 }
 
@@ -98,7 +98,7 @@
 
 .model-picker-back:hover,
 .model-picker-back[data-highlighted='true'] {
-  background: var(--bg-tertiary);
+  background: var(--bg-hover);
   color: var(--text-primary);
 }
 

@@ -302,7 +302,7 @@ function menuItemStyle(highlighted: boolean, disabled: boolean): CSSProperties {
     border: 'none',
     borderRadius: '8px',
     padding: '8px 10px',
-    background: highlighted && !disabled ? 'var(--bg-tertiary)' : 'transparent',
+    background: highlighted && !disabled ? 'var(--bg-hover)' : 'transparent',
     color: disabled ? 'var(--text-tertiary)' : 'var(--text-primary)',
     cursor: disabled ? 'default' : 'pointer',
     textAlign: 'left',

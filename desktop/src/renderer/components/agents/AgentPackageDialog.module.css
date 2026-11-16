@@ -23,7 +23,7 @@
 .drop:focus-visible,
 .drop[data-active] {
   border-color: var(--border-active);
-  background: var(--bg-tertiary);
+  background: var(--bg-hover);
 }
 
 .drop[data-busy] {

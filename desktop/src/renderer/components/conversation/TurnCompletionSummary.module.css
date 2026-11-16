@@ -71,7 +71,7 @@
 }
 
 .row[aria-expanded='true'] {
-  background: var(--bg-tertiary);
+  background: var(--bg-hover);
 }
 
 .path {

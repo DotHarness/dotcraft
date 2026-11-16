@@ -75,7 +75,7 @@ export function OptionRow({
         padding: '7px 9px',
         border: 'none',
         borderRadius: '7px',
-        background: highlighted ? 'var(--bg-tertiary)' : 'transparent',
+        background: highlighted ? 'var(--bg-hover)' : 'transparent',
         color: highlighted || selected ? 'var(--text-primary)' : 'var(--text-secondary)',
         cursor: 'pointer',
         textAlign: 'left'
@@ -138,7 +138,7 @@ function mainMenuRowStyle(highlighted: boolean): CSSProperties {
     padding: '0 4px 0 9px',
     border: 'none',
     borderRadius: '8px',
-    background: highlighted ? 'var(--bg-tertiary)' : 'transparent',
+    background: highlighted ? 'var(--bg-hover)' : 'transparent',
     color: 'var(--text-primary)',
     cursor: 'pointer',
     textAlign: 'left'

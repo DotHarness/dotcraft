@@ -63,7 +63,7 @@ The static poster is displayed while motion is disabled or the document is hidde
 
 ## Preview and application
 
-Selecting a theme applies it at once, with no separate confirmation. Themes can be chosen in two places. The Themes settings page manages the library, and selecting a theme there applies it everywhere. The **Theme** command opens a picker beside the Composer that lists themes for the current appearance and closes once one is selected. It applies to the current chat, and the picker also offers **Default**, which clears the chat's choice. Before the Composer is attached to a thread, the command applies everywhere instead. Both places offer **No theme**.
+Selecting a theme applies it at once, with no separate confirmation. Themes can be chosen in two places. The Themes settings page manages the library, and selecting a theme there applies it everywhere. Each theme's own actions (edit, export, image layout, and delete) open from a menu on its tile, so they are available without applying the theme. The **Theme** command opens a picker beside the Composer that lists themes for the current appearance and closes once one is selected. It applies to the current chat, and the picker also offers **Default**, which clears the chat's choice. Before the Composer is attached to a thread, the command applies everywhere instead. Both places offer **No theme**.
 
 An Agent preview is the only temporary look. It shows the saved theme in the foreground authoring chat and opens the picker with that theme marked. Selecting it applies it like any other theme. Closing the picker, switching thread, or turning Themes off ends the preview and restores the resolved choice.
 

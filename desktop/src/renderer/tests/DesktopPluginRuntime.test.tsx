@@ -598,12 +598,14 @@ describe('DesktopPluginRuntime', () => {
     await waitFor(() => expect(document.documentElement.dataset.desktopPluginBackdrop).toBe('true'))
     expect(document.documentElement.style.getPropertyValue('--desktop-plugin-backdrop-surface-opacity')).toBe('100%')
     expect(document.documentElement.style.getPropertyValue('--desktop-plugin-backdrop-blur')).toBe('64px')
+    expect(document.documentElement.dataset.desktopPluginBackdropBlur).toBe('true')
     expect(document.documentElement.style.getPropertyValue('--desktop-plugin-backdrop-tint')).toBe('')
 
     runtime.reconcile([plugin(revisionA, false)])
     await waitFor(() => expect(document.documentElement.dataset.desktopPluginBackdrop).toBeUndefined())
     expect(document.documentElement.style.getPropertyValue('--desktop-plugin-backdrop-surface-opacity')).toBe('')
     expect(document.documentElement.style.getPropertyValue('--desktop-plugin-backdrop-blur')).toBe('')
+    expect(document.documentElement.dataset.desktopPluginBackdropBlur).toBeUndefined()
   })
 
   it('keeps a tint that suits the applied appearance and drops one that does not', async () => {

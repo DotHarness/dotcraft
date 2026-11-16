@@ -96,6 +96,10 @@
   background: var(--bg-elevated);
 }
 
+.viewerClose:global(.dc-icon-button):hover:not(:disabled) {
+  background: var(--bg-tertiary);
+}
+
 .viewerContent {
   flex: 1;
   min-width: 0;

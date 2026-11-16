@@ -88,7 +88,7 @@
 }
 
 .dc-deck__thumb:hover {
-  background: var(--bg-secondary);
+  background: var(--bg-hover);
 }
 
 .dc-deck__thumb[aria-current='true'] {

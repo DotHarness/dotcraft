@@ -150,6 +150,7 @@ function applyBackdropPresentation(value: DesktopPluginBackdropPresentation | nu
     appearanceObserver = null
     delete root.dataset.desktopPluginBackdrop
     delete root.dataset.desktopPluginBackdropUnsuited
+    delete root.dataset.desktopPluginBackdropBlur
     for (const property of BACKDROP_PROPERTIES) root.style.removeProperty(property)
     return
   }
@@ -163,6 +164,8 @@ function applyBackdropPresentation(value: DesktopPluginBackdropPresentation | nu
   root.dataset.desktopPluginBackdrop = 'true'
   if (unsuited) root.dataset.desktopPluginBackdropUnsuited = 'true'
   else delete root.dataset.desktopPluginBackdropUnsuited
+  if (value.blur > 0) root.dataset.desktopPluginBackdropBlur = 'true'
+  else delete root.dataset.desktopPluginBackdropBlur
   root.style.setProperty(BACKDROP_PROPERTIES[0], `${Math.round(value.opacity * 10000) / 100}%`)
   root.style.setProperty(BACKDROP_PROPERTIES[1], `${value.blur}px`)
   if (value.tint === undefined || unsuited) root.style.removeProperty(BACKDROP_PROPERTIES[2])

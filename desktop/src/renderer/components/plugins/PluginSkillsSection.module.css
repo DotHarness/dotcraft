@@ -29,7 +29,7 @@
 
 .row:hover,
 .row:focus-within {
-  background: var(--bg-tertiary);
+  background: var(--bg-hover);
 }
 
 .preview {

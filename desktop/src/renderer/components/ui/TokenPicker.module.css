@@ -76,7 +76,7 @@
 
 .add:hover {
   color: var(--text-primary);
-  background: var(--bg-tertiary);
+  background: var(--bg-hover);
 }
 
 .add:focus-visible {

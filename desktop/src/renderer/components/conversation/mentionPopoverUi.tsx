@@ -168,7 +168,7 @@ export function mentionRowStyle(active: boolean): CSSProperties {
     gap: '9px',
     padding: '3px 8px',
     border: 'none',
-    background: active ? 'var(--bg-tertiary)' : 'transparent',
+    background: active ? 'var(--bg-hover)' : 'transparent',
     borderRadius: 'var(--sidebar-row-radius)',
     color: 'var(--text-primary)',
     cursor: 'pointer',

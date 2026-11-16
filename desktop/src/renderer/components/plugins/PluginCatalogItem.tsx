@@ -44,7 +44,7 @@ export function PluginCatalogItem({
       onBlur={() => setActive(false)}
       style={{
         ...catalogStyles.compactItem,
-        backgroundColor: active ? 'var(--bg-tertiary)' : 'transparent',
+        backgroundColor: active ? 'var(--bg-hover)' : 'transparent',
         color: active ? 'var(--text-primary)' : catalogStyles.compactItem.color,
         ...style
       }}

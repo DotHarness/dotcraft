@@ -3,7 +3,7 @@
 }
 
 .dc-dir-tree-row:hover {
-  background: var(--bg-tertiary);
+  background: var(--bg-hover);
 }
 
 .dc-dir-tree-row:focus {

@@ -68,7 +68,6 @@ html[data-desktop-plugin-backdrop="true"] {
 
 html[data-desktop-plugin-backdrop="true"][data-software-compositing] {
   --desktop-plugin-backdrop-floor: 70%;
-  --desktop-plugin-backdrop-blur: 0px !important;
 }
 
 html[data-desktop-plugin-backdrop="true"][data-desktop-plugin-backdrop-unsuited] {
@@ -88,8 +87,12 @@ html[data-desktop-plugin-backdrop="true"] .dotcraft-window-frame {
 html[data-desktop-plugin-backdrop="true"] .dotcraft-custom-menu-bar,
 html[data-desktop-plugin-backdrop="true"] .dotcraft-shell-panels {
   background: var(--desktop-plugin-backdrop-surface);
-  -webkit-backdrop-filter: blur(var(--desktop-plugin-backdrop-blur, 0px));
-  backdrop-filter: blur(var(--desktop-plugin-backdrop-blur, 0px));
+}
+
+html[data-desktop-plugin-backdrop-blur]:not([data-software-compositing]) .dotcraft-custom-menu-bar,
+html[data-desktop-plugin-backdrop-blur]:not([data-software-compositing]) .dotcraft-shell-panels {
+  -webkit-backdrop-filter: blur(var(--desktop-plugin-backdrop-blur));
+  backdrop-filter: blur(var(--desktop-plugin-backdrop-blur));
 }
 
 html[data-desktop-plugin-backdrop="true"] .dotcraft-shell-sidebar,

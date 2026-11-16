@@ -34,7 +34,7 @@
 }
 
 .row:has(> .rowButton:hover) {
-  background: var(--bg-tertiary);
+  background: var(--bg-hover);
 }
 
 .nested .rowButton {

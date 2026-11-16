@@ -35,7 +35,7 @@
 }
 
 .narrowMenu:hover {
-  background: var(--bg-tertiary);
+  background: var(--bg-hover);
   color: var(--text-primary);
 }
 

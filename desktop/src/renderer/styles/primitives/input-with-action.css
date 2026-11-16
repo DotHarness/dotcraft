@@ -53,7 +53,7 @@
 }
 
 .dc-input-with-action button:hover:not(:disabled) {
-  background: var(--bg-tertiary);
+  background: var(--bg-hover);
   color: var(--text-primary);
 }
 

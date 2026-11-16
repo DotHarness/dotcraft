@@ -17,7 +17,7 @@
 .dc-channel-catalog-item:hover,
 .dc-channel-catalog-item:focus-visible,
 .dc-channel-catalog-item[data-active] {
-  background: var(--bg-tertiary);
+  background: var(--bg-hover);
 }
 
 .dc-channel-catalog-item__copy {

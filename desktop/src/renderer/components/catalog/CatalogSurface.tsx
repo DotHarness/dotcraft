@@ -333,7 +333,7 @@ function catalogTabStyle(selected: boolean, active: boolean): CSSProperties {
   const highlighted = selected || active
   return {
     ...styles.tab,
-    background: highlighted ? 'var(--bg-tertiary)' : 'transparent',
+    background: highlighted ? 'var(--bg-hover)' : 'transparent',
     color: highlighted ? 'var(--text-primary)' : 'var(--text-secondary)'
   }
 }
@@ -476,7 +476,7 @@ export const styles = {
     border: 'none',
     borderRadius: '8px',
     padding: '6px 10px',
-    background: 'var(--bg-tertiary)',
+    background: 'var(--bg-hover)',
     color: 'var(--text-primary)',
     cursor: 'pointer',
     fontSize: '13px',
@@ -680,7 +680,7 @@ export const styles = {
     height: '28px',
     padding: '0 10px',
     borderRadius: '8px',
-    backgroundColor: 'var(--bg-tertiary)',
+    backgroundColor: 'var(--bg-hover)',
     color: 'var(--text-primary)',
     fontSize: '13px',
     whiteSpace: 'nowrap'

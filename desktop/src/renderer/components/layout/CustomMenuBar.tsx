@@ -314,7 +314,7 @@ function WindowControlButton({
         backgroundColor: hovered
           ? danger
             ? 'var(--error)'
-            : 'var(--bg-tertiary)'
+            : 'var(--bg-hover)'
           : 'transparent'
       }}
     >

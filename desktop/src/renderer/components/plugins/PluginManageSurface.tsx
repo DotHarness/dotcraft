@@ -334,7 +334,7 @@ function interactiveManageRow(active: boolean): CSSProperties {
     borderRadius: '8px',
     padding: '0 8px',
     boxSizing: 'border-box',
-    backgroundColor: active ? 'var(--bg-tertiary)' : 'transparent',
+    backgroundColor: active ? 'var(--bg-hover)' : 'transparent',
     transition: 'background-color 120ms ease, color 120ms ease'
   }
 }

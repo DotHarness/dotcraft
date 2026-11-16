@@ -1,4 +1,4 @@
-import { Button, IconButton, SegmentedControl, SettingsGroup, Skeleton, type DesktopPluginHost } from '@dotcraft/plugin'
+import { Button, SegmentedControl, SettingsGroup, Skeleton, type DesktopPluginHost } from '@dotcraft/plugin'
 import { useEffect, useRef, useState, type ChangeEvent, type JSX } from 'react'
 import {
   THEME_MAX_IMAGE_BYTES, THEME_MAX_POSTER_BYTES, THEME_MAX_SOURCE_BYTES,
@@ -6,10 +6,10 @@ import {
 } from '../../../shared/themes'
 import { setChoice } from './choices'
 import { themeDisplayName, type ThemeStrings } from './i18n'
-import { posterUrl } from './sceneDocument'
-import { applyTheme, cancelThemePreview, startThemeAuthoring, themeById, useThemeLibrary } from './themeLibrary'
-import { ThemeDetails } from './ThemeDetails'
+import { applyTheme, cancelThemePreview, startThemeAuthoring, useThemeLibrary } from './themeLibrary'
 import { backdropStyle } from './ThemeSurfaces'
+import { ThemeTileMenu } from './ThemeTileMenu'
+import { useThemeThumbnail } from './thumbnails'
 import { readImageDataUrl, themeImportInput } from './themeTransfer'
 
 // JSON escaping can expand each source byte to six characters, and an image is stored as base64.
@@ -23,28 +23,15 @@ interface ThemePickerProps {
   onAppearance(appearance: ThemeAppearance): void
 }
 
-function RemoveIcon(): JSX.Element {
-  return (
-    <svg
-      width="13"
-      height="13"
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      aria-hidden="true"
-    >
-      <path d="M3 4h10M6 2.5h4M5 4l.5 9h5L11 4" />
-    </svg>
-  )
-}
-
 export function ThemeThumbnail({ theme }: { theme: Theme }): JSX.Element {
   const { backdrop, colors } = theme
-  if (backdrop?.kind === 'scene') {
-    return <img className="dcw-theme-thumbnail" src={posterUrl(backdrop.poster)} alt="" loading="lazy" />
+  const bitmap = useThemeThumbnail(theme)
+  if (backdrop?.kind === 'scene' || backdrop?.kind === 'image') {
+    return bitmap
+      ? <img className="dcw-theme-thumbnail" src={bitmap} alt="" decoding="async" draggable={false} />
+      : <span className="dcw-theme-thumbnail" style={{ background: theme.tint }} />
   }
-  if (backdrop) return <span className="dcw-theme-thumbnail" style={{ ...backdropStyle(backdrop), backgroundSize: 'cover' }} />
+  if (backdrop) return <span className="dcw-theme-thumbnail" style={backdropStyle(backdrop)} />
   return (
     <span className="dcw-theme-thumbnail dcw-theme-swatch" style={{ background: colors?.surface, color: colors?.ink }}>
       Aa
@@ -143,7 +130,6 @@ export function ThemePicker({ host, appearance, active, strings, onAppearance }:
   }
 
   const themes = library.themes.filter((theme) => theme.colorScheme === appearance)
-  const selected = active.kind === 'theme' ? themeById(active.id) : undefined
   return (
     <SettingsGroup
       flush
@@ -229,20 +215,19 @@ export function ThemePicker({ host, appearance, active, strings, onAppearance }:
                   <ThemeThumbnail theme={theme} />
                   <span className="dcw-theme-name">{name}</span>
                 </button>
-                {!theme.builtin && (
-                  <IconButton
-                    className="dcw-tile-remove"
-                    icon={<RemoveIcon />}
-                    label={`${strings.removeTheme}: ${name}`}
-                    size={22}
-                    onClick={() => run(() => remove(theme))}
-                  />
-                )}
+                <ThemeTileMenu
+                  host={host}
+                  theme={theme}
+                  name={name}
+                  strings={strings}
+                  busy={busy}
+                  run={run}
+                  onRemove={remove}
+                />
               </div>
             )
           })}
         </div>
-        {selected && <ThemeDetails host={host} theme={selected} strings={strings} busy={busy} run={run} />}
       </div>
     </SettingsGroup>
   )

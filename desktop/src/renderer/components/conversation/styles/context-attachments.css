@@ -446,7 +446,7 @@ button.dc-context-attachment__title {
   cursor: pointer;
 }
 .dc-diff-feedback__gutter:hover {
-  background: var(--bg-tertiary);
+  background: var(--bg-hover);
 }
 
 .dc-sent-contexts {

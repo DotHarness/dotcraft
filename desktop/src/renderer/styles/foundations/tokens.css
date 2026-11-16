@@ -35,6 +35,7 @@
   --bg-tertiary: color-mix(in srgb, var(--seed-ink) calc(6.19% + var(--contrast-k) * 6.19%), var(--seed-surface));
   --bg-active: color-mix(in srgb, var(--seed-ink) calc(9.04% + var(--contrast-k) * 9.04%), var(--seed-surface));
   --bg-hover: color-mix(in srgb, var(--text-primary) calc(5.6% + var(--contrast-k) * 4%), transparent);
+  --bg-hover-strong: color-mix(in srgb, var(--text-primary) calc(8.4% + var(--contrast-k) * 6%), transparent);
 
   --text-primary: var(--seed-ink);
   --text-secondary: color-mix(in srgb, var(--text-primary) calc(60% + var(--contrast-k) * 10%), var(--bg-primary));

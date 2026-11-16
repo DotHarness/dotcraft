@@ -136,7 +136,7 @@ function AddTabPopupItem({
         height: '32px',
         padding: '0 11px',
         border: 'none',
-        background: hovered && enabled ? 'var(--bg-tertiary)' : 'transparent',
+        background: hovered && enabled ? 'var(--bg-hover)' : 'transparent',
         color: enabled ? 'var(--text-primary)' : 'var(--text-dimmed)',
         cursor: enabled ? 'pointer' : 'default',
         font: 'inherit',

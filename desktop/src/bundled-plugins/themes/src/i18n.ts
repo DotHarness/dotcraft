@@ -24,6 +24,7 @@ export interface ThemeStrings {
   readonly adaptPrompt: string
   readonly editPrompt: string
   readonly removeTheme: string
+  readonly themeActions: string
   readonly removeThemeTitle: string
   readonly removeThemeMessage: string
   readonly themeLoadError: string
@@ -71,6 +72,7 @@ const CATALOG: Record<ThemeLocale, ThemeStrings> = {
     adaptPrompt: 'Make my own DotCraft theme inspired by “{name}”. Ask me what to change before you start.',
     editPrompt: 'Edit my DotCraft theme “{name}”. Ask me what to change before you start.',
     removeTheme: 'Remove theme',
+    themeActions: 'Theme actions',
     removeThemeTitle: 'Remove this theme?',
     removeThemeMessage: 'The theme is deleted from this device and cannot be recovered.',
     themeLoadError: 'The theme library could not be loaded.',
@@ -116,6 +118,7 @@ const CATALOG: Record<ThemeLocale, ThemeStrings> = {
     adaptPrompt: '参考“{name}”为 DotCraft 做一个我自己的主题。开始前先问我想改哪些地方。',
     editPrompt: '修改我的 DotCraft 主题“{name}”。开始前先问我想改哪些地方。',
     removeTheme: '移除主题',
+    themeActions: '主题操作',
     removeThemeTitle: '移除这个主题？',
     removeThemeMessage: '主题会从这台设备删除，且无法恢复。',
     themeLoadError: '无法加载主题库。',
@@ -161,6 +164,7 @@ const CATALOG: Record<ThemeLocale, ThemeStrings> = {
     adaptPrompt: '「{name}」をもとに自分の DotCraft テーマを作ってください。始める前に、変えたい点を聞いてください。',
     editPrompt: '自分の DotCraft テーマ「{name}」を編集してください。始める前に、変えたい点を聞いてください。',
     removeTheme: 'テーマを削除',
+    themeActions: 'テーマの操作',
     removeThemeTitle: 'このテーマを削除しますか？',
     removeThemeMessage: 'テーマはこのデバイスから削除され、元に戻せません。',
     themeLoadError: 'テーマライブラリを読み込めませんでした。',
@@ -206,6 +210,7 @@ const CATALOG: Record<ThemeLocale, ThemeStrings> = {
     adaptPrompt: '“{name}”을(를) 바탕으로 나만의 DotCraft 테마를 만들어 주세요. 시작하기 전에 바꿀 점을 물어봐 주세요.',
     editPrompt: '내 DotCraft 테마 “{name}”을(를) 수정해 주세요. 시작하기 전에 바꿀 점을 물어봐 주세요.',
     removeTheme: '테마 제거',
+    themeActions: '테마 작업',
     removeThemeTitle: '이 테마를 제거할까요?',
     removeThemeMessage: '테마가 이 기기에서 삭제되며 복구할 수 없습니다.',
     themeLoadError: '테마 라이브러리를 불러오지 못했습니다.',
@@ -251,6 +256,7 @@ const CATALOG: Record<ThemeLocale, ThemeStrings> = {
     adaptPrompt: 'Crea mi propio tema de DotCraft inspirado en «{name}». Antes de empezar, pregúntame qué cambiar.',
     editPrompt: 'Edita mi tema de DotCraft «{name}». Antes de empezar, pregúntame qué cambiar.',
     removeTheme: 'Quitar tema',
+    themeActions: 'Acciones del tema',
     removeThemeTitle: '¿Quitar este tema?',
     removeThemeMessage: 'El tema se elimina de este dispositivo y no se puede recuperar.',
     themeLoadError: 'No se pudo cargar la biblioteca de temas.',
@@ -296,6 +302,7 @@ const CATALOG: Record<ThemeLocale, ThemeStrings> = {
     adaptPrompt: 'Crée mon propre thème DotCraft inspiré de « {name} ». Avant de commencer, demande-moi ce qu’il faut changer.',
     editPrompt: 'Modifie mon thème DotCraft « {name} ». Avant de commencer, demande-moi ce qu’il faut changer.',
     removeTheme: 'Supprimer le thème',
+    themeActions: 'Actions du thème',
     removeThemeTitle: 'Supprimer ce thème ?',
     removeThemeMessage: 'Le thème est supprimé de cet appareil et ne peut pas être récupéré.',
     themeLoadError: 'La bibliothèque de thèmes n’a pas pu être chargée.',
@@ -341,6 +348,7 @@ const CATALOG: Record<ThemeLocale, ThemeStrings> = {
     adaptPrompt: 'Erstelle mein eigenes DotCraft-Theme nach dem Vorbild von „{name}“. Frag mich vorher, was sich ändern soll.',
     editPrompt: 'Bearbeite mein DotCraft-Theme „{name}“. Frag mich vorher, was sich ändern soll.',
     removeTheme: 'Theme entfernen',
+    themeActions: 'Theme-Aktionen',
     removeThemeTitle: 'Dieses Theme entfernen?',
     removeThemeMessage: 'Das Theme wird von diesem Gerät gelöscht und kann nicht wiederhergestellt werden.',
     themeLoadError: 'Die Theme-Bibliothek konnte nicht geladen werden.',

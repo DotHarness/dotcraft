@@ -25,8 +25,16 @@ vi.mock('@dotcraft/plugin', () => ({
       {children}
     </button>
   ),
-  IconButton: ({ label, onClick }: { label: string; onClick(): void }) => (
-    <button aria-label={label} onClick={onClick} />
+  IconButton: ({ label }: { label: string }) => <button aria-label={label} />,
+  Menu: ({ items, children }: PropsWithChildren<{ items: { label?: string; onSelect?(): void }[] }>) => (
+    <>
+      {children}
+      {items.map((item) => item.onSelect && (
+        <button key={item.label} role="menuitem" onClick={item.onSelect}>
+          {item.label}
+        </button>
+      ))}
+    </>
   ),
   SegmentedControl: ({ options, onValueChange, ariaLabel }: { options: { value: string; label: string }[]; onValueChange(value: string): void; ariaLabel: string }) => (
     <div role="group" aria-label={ariaLabel}>
@@ -54,6 +62,7 @@ vi.mock('./themeLibrary', () => ({
   startThemeAuthoring: mocks.author
 }))
 vi.mock('./choices', () => ({ setChoice: mocks.setChoice }))
+vi.mock('./thumbnails', () => ({ useThemeThumbnail: () => null }))
 
 const svg = '<svg></svg>'
 const theme: Theme = {
@@ -87,12 +96,19 @@ describe('theme selection', () => {
     confirm.mockResolvedValue(true)
     remove.mockRejectedValueOnce(new Error('disk unavailable')).mockResolvedValueOnce(undefined)
     render(<ThemePicker {...props} />)
-    const removeButton = screen.getByRole('button', { name: `${strings.removeTheme}: ${theme.name}` })
+    const removeButton = screen.getByRole('menuitem', { name: strings.removeTheme })
     fireEvent.click(removeButton)
     await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument())
     fireEvent.click(removeButton)
     await waitFor(() => expect(remove).toHaveBeenCalledTimes(2))
     await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
+  })
+
+  it('edits a theme from its tile menu without applying it', async () => {
+    render(<ThemePicker {...props} />)
+    fireEvent.click(screen.getByRole('menuitem', { name: strings.edit }))
+    await waitFor(() => expect(mocks.author).toHaveBeenCalledWith(host, theme))
+    expect(mocks.apply).not.toHaveBeenCalled()
   })
 
   it('imports a copy without the exported revision and applies it after saving', async () => {

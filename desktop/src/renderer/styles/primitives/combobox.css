@@ -71,5 +71,5 @@
 }
 
 .dc-combobox-option[data-active="true"] {
-  background: var(--bg-tertiary);
+  background: var(--bg-hover);
 }

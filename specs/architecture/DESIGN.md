@@ -7,6 +7,8 @@ colors:
   bg-secondary: "var(--bg-secondary)"
   bg-tertiary: "var(--bg-tertiary)"
   bg-active: "var(--bg-active)"
+  bg-hover: "var(--bg-hover)"
+  bg-hover-strong: "var(--bg-hover-strong)"
   bg-elevated: "var(--bg-elevated)"
   text-primary: "var(--text-primary)"
   text-secondary: "var(--text-secondary)"
@@ -111,7 +113,7 @@ components:
     behavior: "one glyph part moves; starts and ends on the static drawing; the row never moves"
   selection-row:
     border: "none"
-    hoverBackground: "var(--bg-tertiary)"
+    hoverBackground: "var(--bg-hover)"
   hover-annotation:
     cardPlacement: "inline axis — right, mirroring to left"
     controlPlacement: "block axis — top, mirroring to bottom"
@@ -167,8 +169,13 @@ Neutral tokens carry most UI structure.
 - `--bg-primary`: app and main content background.
 - `--bg-secondary`: cards, panels, menus, secondary controls, and repeated
   items.
-- `--bg-tertiary` / `--bg-active`: hover, pressed, selected, nested, or active
-  neutral states.
+- `--bg-tertiary` / `--bg-active`: nested or active neutral surfaces, and the
+  hover step of a control that already rests on a surface.
+- `--bg-hover` / `--bg-hover-strong`: hover, open, pressed, and selected fills of
+  frameless controls such as ghost buttons, icon buttons, tabs, list rows, and
+  menu items. They are translucent ink, so a state reads the same over a card,
+  the chrome, or a theme backdrop. The strong step marks a pressed or selected
+  control under the pointer.
 - `--text-primary`: primary copy, headings, and inverted action backgrounds.
 - `--text-secondary`: secondary copy, labels, inactive icons, and metadata.
 - `--text-dimmed` / `--text-tertiary`: low-priority helper text and empty-state
@@ -382,7 +389,7 @@ Desktop surfaces favor dense but organized operational layouts.
   `34px`/`18px` gaps for items the user can add, one column at `4px` for records
   the user already owns. Every row is a borderless `8px` box with a `40px` leading
   mark, a `--type-ui` title and one truncating `--type-secondary` line, and fills
-  with `--bg-tertiary` on hover.
+  with `--bg-hover` on hover.
 - Owned records compared by several attributes use aligned columns under one
   quiet `--type-secondary` header line with no rules. The name column comes first
   and takes the remaining width; trailing row actions sit in a reserved slot and
@@ -405,7 +412,8 @@ Use depth instead of color variety.
 - Main content: `--bg-primary`.
 - Panels, cards, menus, secondary controls, and repeated items:
   `--bg-secondary`.
-- Nested, hovered, or active surfaces: `--bg-tertiary` / `--bg-active`.
+- Nested or active surfaces: `--bg-tertiary` / `--bg-active`.
+- State fills on frameless controls: `--bg-hover` / `--bg-hover-strong`.
 - Elevated overlays use a solid, opaque surface (`--glass-surface-strong`,
   resolving to `--bg-elevated`) plus shadow tokens. A translucent overlay tints
   differently depending on what sits behind it; an opaque one renders identically
@@ -728,13 +736,16 @@ Icon-only controls use the shared icon button, frameless by default:
 - the footprint and radius of the band it sits in (see Buttons), overridden only
   where the band table names another footprint;
 - transparent surface with a reserved `1px` transparent border;
-- `--text-secondary` icon, with a neutral hover fill (`--bg-tertiary` +
+- `--text-secondary` icon, with a neutral hover fill (`--bg-hover` +
   `--text-primary`);
 - a pressed toggle (code-block wrap, file-review wrap, the catalog filter, an
   explorer toggle) uses the neutral active tone; the accent tone is kept for live
   states such as a running screen view and never becomes an accent border;
 - an open menu or popover trigger shows a neutral fill; opening ordinary chrome is
   not a selected accent state;
+- the neutral hover, open, and pressed fills are translucent ink (`--bg-hover`,
+  and `--bg-hover-strong` for a pressed toggle under the pointer), never an opaque
+  surface step;
 - destructive icon-only actions use the danger tone rather than a painted red
   border.
 

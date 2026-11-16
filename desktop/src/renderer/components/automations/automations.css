@@ -95,7 +95,7 @@
 
 .dc-automation-suggestion:hover,
 .dc-automation-suggestion:focus-visible {
-  background: var(--bg-tertiary);
+  background: var(--bg-hover);
 }
 .dc-automation-suggestion:disabled { cursor: default; }
 .dc-automation-suggestion:disabled:not([data-creating]) { opacity: .55; }
@@ -176,7 +176,7 @@
 .dc-automation-list-rows article:hover,
 .dc-automation-list-rows article:focus-within,
 .dc-automation-list-rows article[data-selected] {
-  background: var(--bg-tertiary);
+  background: var(--bg-hover);
 }
 
 .dc-automation-list-rows article:active { cursor: grabbing; }

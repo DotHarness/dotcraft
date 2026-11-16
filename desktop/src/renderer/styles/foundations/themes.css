@@ -13,6 +13,7 @@ html[data-theme="light"] {
   --bg-tertiary: color-mix(in srgb, var(--seed-ink) calc(5.48% + var(--contrast-k) * 5.48%), var(--seed-surface));
   --bg-active: color-mix(in srgb, var(--seed-ink) calc(7% + var(--contrast-k) * 7%), var(--seed-surface));
   --bg-hover: color-mix(in srgb, var(--text-primary) calc(4.2% + var(--contrast-k) * 4%), transparent);
+  --bg-hover-strong: color-mix(in srgb, var(--text-primary) calc(6.3% + var(--contrast-k) * 6%), transparent);
 
   --text-secondary: color-mix(in srgb, var(--text-primary) calc(65.5% + var(--contrast-k) * 10%), var(--bg-primary));
   --text-dimmed: color-mix(in srgb, var(--text-primary) calc(45.5% + var(--contrast-k) * 10%), var(--bg-primary));

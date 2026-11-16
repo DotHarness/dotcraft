@@ -21,7 +21,7 @@
 
 .option:hover {
   border-color: var(--border-active);
-  background: var(--bg-tertiary);
+  background: var(--bg-hover);
 }
 
 .icon {

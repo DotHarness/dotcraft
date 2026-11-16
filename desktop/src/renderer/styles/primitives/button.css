@@ -103,7 +103,7 @@
   color: var(--text-secondary);
 }
 .dc-button[data-variant="ghost"]:hover:not(:disabled):not([data-disabled="true"]) {
-  background: var(--bg-tertiary);
+  background: var(--bg-hover);
   color: var(--text-primary);
 }
 
@@ -135,7 +135,7 @@
   color: var(--text-primary);
 }
 .dc-button[data-variant="outlineGhost"]:hover:not(:disabled):not([data-disabled="true"]) {
-  background: var(--bg-tertiary);
+  background: var(--bg-hover);
   border-color: var(--border-active);
 }
 

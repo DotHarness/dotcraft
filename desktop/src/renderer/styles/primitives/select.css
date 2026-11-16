@@ -203,7 +203,7 @@
 }
 
 .dc-settings-select-option[data-active="true"] {
-  background: var(--bg-tertiary);
+  background: var(--bg-hover);
 }
 
 .dc-settings-select-option[data-disabled="true"] {

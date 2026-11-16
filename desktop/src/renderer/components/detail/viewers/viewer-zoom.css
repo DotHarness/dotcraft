@@ -15,6 +15,6 @@
 
 .dc-viewer-zoom:hover,
 .dc-viewer-zoom[aria-expanded='true'] {
-  background: var(--bg-tertiary);
+  background: var(--bg-hover);
   color: var(--text-primary);
 }

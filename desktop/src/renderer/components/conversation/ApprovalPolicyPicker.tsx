@@ -388,7 +388,7 @@ function optionStyle(highlighted: boolean): CSSProperties {
     border: 'none',
     borderRadius: '10px',
     padding: '9px 10px',
-    background: highlighted ? 'var(--bg-tertiary)' : 'transparent',
+    background: highlighted ? 'var(--bg-hover)' : 'transparent',
     cursor: 'pointer',
     textAlign: 'left'
   }
