@@ -1300,18 +1300,18 @@ no origin line; its place in the turn already says so. When the origin has a
 destination the line is a quiet action that lifts to `--text-secondary` on hover;
 otherwise it stays inert.
 
-A turn with no bubble, started because a background task ended, carries its origin
+A turn with no bubble, started because a background task ended or a subagent sent a message, carries its origin
 on its activity boundary instead: a 13px icon of the task's kind (terminal for a
 command, the workflow glyph) 6px before the timing label, in its colour and
 neutral whatever the outcome. A subagent shows its own 14px avatar there, so the
 boundary names which agent woke the turn without adding words. On hover the icon and timing name the task
-and how it ended; the icon is a quiet action that reveals the originating tool call,
+and how it ended, or only the subagent when it sent a message; the icon is a quiet action that reveals the originating tool call,
 while the timing still toggles the disclosure. The boundary keeps its single row,
 so a woken turn reads as a peer of the turn above it.
 
 A woken turn that continues an unanswered response adds no boundary. A subagent
-ending takes the subagent ending row. A background command or workflow ending
-becomes a line inside the response's process: the same icon and the hover wording as
+ending takes the subagent ending row. A background command or workflow ending, or a
+subagent's message, becomes a line inside the response's process: the same icon and the hover wording as
 visible text. The line is set as a tool row, with the same size, colour, icon size, and
 spacing.
 

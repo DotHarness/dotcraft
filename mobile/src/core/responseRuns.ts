@@ -7,7 +7,6 @@ export interface TurnPiece {
   turnId: string
   entries: TranscriptEntry[]
   wake: TaskWake | null
-  mailbox: boolean
   /** The ending row that names a subagent wake in place of the generic line. */
   wakeEntry: TranscriptEntry | null
   /** Completed without a reply, so a notification may continue it. */
@@ -17,7 +16,7 @@ export interface TurnPiece {
 }
 
 function continues(previous: TurnPiece | undefined, piece: TurnPiece): boolean {
-  return !!previous?.open && (piece.wake !== null || piece.mailbox) && !piece.entries.some((entry) => entry.kind === 'user' && !entry.added)
+  return !!previous?.open && piece.wake !== null && !piece.entries.some((entry) => entry.kind === 'user' && !entry.added)
 }
 
 function elapsed(activity: ActivityEntry | undefined): number {

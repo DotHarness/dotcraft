@@ -40,7 +40,11 @@ export interface TaskWake {
 
 export function getTaskWake(turn: ConversationTurn): TaskWake | null {
   const input = turn.items.find((item) => item.type === 'userMessage')
-  if (!input || input.deliveryMode === 'guidance' || isSubAgentMailbox(input) || !isBackgroundTaskNotice(input)) return null
+  if (!input || input.deliveryMode === 'guidance') return null
+  if (isSubAgentMailbox(input)) {
+    return { kind: 'subagent', label: input.triggerLabel?.trim() ?? '', taskId: input.triggerRefId }
+  }
+  if (!isBackgroundTaskNotice(input)) return null
   return {
     kind: input.triggerKind as TaskWakeKind,
     label: input.triggerLabel?.trim() ?? '',

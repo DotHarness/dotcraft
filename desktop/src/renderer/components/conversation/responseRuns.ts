@@ -1,5 +1,5 @@
 import type { ConversationTurn } from '../../types/conversation'
-import { isSubAgentMailbox, isVisibleUserMessage } from '../../utils/visibleUserMessage'
+import { isVisibleUserMessage } from '../../utils/visibleUserMessage'
 import { getActivityElapsedMs, getTaskWake, getTurnActivityState } from './turnActivityModel'
 
 export interface ResponsePlacement {
@@ -10,10 +10,9 @@ export interface ResponsePlacement {
 const SINGLE: ResponsePlacement = { leading: [], absorbed: false }
 
 function continuesResponse(previous: ConversationTurn, turn: ConversationTurn): boolean {
-  const input = turn.items.find((item) => item.type === 'userMessage')
   return previous.status === 'completed'
     && getTurnActivityState(previous, previous.items, false).finalIndex < 0
-    && (getTaskWake(turn) != null || (input != null && input.deliveryMode !== 'guidance' && isSubAgentMailbox(input)))
+    && getTaskWake(turn) != null
     && !turn.items.some(isVisibleUserMessage)
 }
 

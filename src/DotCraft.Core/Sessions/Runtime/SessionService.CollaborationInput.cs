@@ -28,8 +28,7 @@ public sealed partial class SessionService
                     NativeInputParts = [new() { Type = "text", Text = displayText }],
                     MaterializedInputParts = [new() { Type = "text", Text = message.Text }],
                     ChannelName = turn.OriginChannel, ChannelContext = turn.Initiator?.ChannelContext,
-                    GroupId = turn.Initiator?.GroupId, TriggerKind = SubAgentMailboxDelivery.DeliveryMode,
-                    TriggerRefId = thread.Source.SubAgent?.AgentPath ?? AgentPath.Root
+                    GroupId = turn.Initiator?.GroupId, TriggerKind = SubAgentMailboxDelivery.DeliveryMode
                 }
             });
             recovered = true;
@@ -47,7 +46,8 @@ public sealed partial class SessionService
         {
             var pending = await ListPendingSubAgentMailboxAsync(inbox.RootThreadId, inbox.AgentPath, ct);
             if (pending.Count == 0) return null;
-            var message = StageCollaborationInput(pending, thread, turn, events, nextItem, finalizeMessage,
+            var sender = await ResolveMailboxSenderAsync(pending, ct);
+            var message = StageCollaborationInput(pending, sender, thread, turn, events, nextItem, finalizeMessage,
                 finalizeReasoning, history, inbox.Lease, () => MarkSubAgentMailboxDeliveredAsync(inbox.RootThreadId,
                     pending.Select(entry => entry.Id).ToArray(), DateTimeOffset.UtcNow, CancellationToken.None));
             staged = message != null;
@@ -56,17 +56,19 @@ public sealed partial class SessionService
         finally { if (!staged) inbox.Lease.Dispose(); }
     }
 
-    private ChatMessage? DrainBoardInput(BoardTurnInbox inbox, SessionThread thread, SessionTurn turn,
+    private async Task<ChatMessage?> DrainBoardInputAsync(BoardTurnInbox inbox, SessionThread thread, SessionTurn turn,
         SessionEventChannel events, Func<int> nextItem, Action finalizeMessage, Action finalizeReasoning,
-        TurnModelHistory history)
+        TurnModelHistory history, CancellationToken ct)
     {
         var pending = inbox.Drain();
-        return pending.Length == 0 ? null : StageCollaborationInput(pending, thread, turn, events, nextItem,
+        if (pending.Length == 0) return null;
+        var sender = await ResolveMailboxSenderAsync(pending, ct);
+        return StageCollaborationInput(pending, sender, thread, turn, events, nextItem,
             finalizeMessage, finalizeReasoning, history, null, () => Task.CompletedTask);
     }
 
     private ChatMessage? StageCollaborationInput(IReadOnlyList<SubAgentMailboxEntry> pending,
-        SessionThread thread, SessionTurn turn, SessionEventChannel events, Func<int> nextItem,
+        (string? Label, string? RefId) sender, SessionThread thread, SessionTurn turn, SessionEventChannel events, Func<int> nextItem,
         Action finalizeMessage, Action finalizeReasoning, TurnModelHistory history, IDisposable? lease, Func<Task> delivered)
     {
         var materializedText = BuildSubAgentMailboxModelText(pending);
@@ -83,8 +85,8 @@ public sealed partial class SessionService
                 MaterializedInputParts = [new SessionInputPart { Type = "text", Text = materializedText }],
                 ChannelName = turn.OriginChannel, ChannelContext = turn.Initiator?.ChannelContext, GroupId = turn.Initiator?.GroupId,
                 TriggerKind = SubAgentMailboxDelivery.DeliveryMode,
-                TriggerLabel = pending.Count == 1 ? pending[0].SenderAgentPath : $"{pending.Count} messages",
-                TriggerRefId = pending[0].TargetAgentPath
+                TriggerLabel = sender.Label,
+                TriggerRefId = sender.RefId
             }
         };
         finalizeMessage();
