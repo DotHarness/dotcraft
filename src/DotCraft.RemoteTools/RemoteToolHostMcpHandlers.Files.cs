@@ -3,7 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Security;
 using DotCraft.Tools;
-using ModelContextProtocol.Protocol;
+using ModelContextProtocol.Server;
 
 namespace DotCraft.RemoteTools;
 
@@ -11,7 +11,7 @@ internal sealed partial class RemoteToolHostMcpHandlers
 {
     private readonly ConcurrentDictionary<string, HostTransfer> _transfers = new(StringComparer.Ordinal);
 
-    private async ValueTask<JsonNode?> OpenFileTransferAsync(JsonRpcRequest request, string peerId, CancellationToken ct)
+    private async ValueTask<JsonNode?> OpenFileTransferAsync(RequestContext<JsonNode?> request, string peerId, CancellationToken ct)
     {
         var input = Deserialize<FileTransferOpen>(request);
         using var call = EnterCall(input.LeaseId, input.WorkspaceId);
@@ -52,7 +52,7 @@ internal sealed partial class RemoteToolHostMcpHandlers
         catch { await session.DisposeAsync().ConfigureAwait(false); throw; }
     }
 
-    private async ValueTask<JsonNode?> FileTransferPartAsync(JsonRpcRequest request, string peerId, string operation, CancellationToken ct)
+    private async ValueTask<JsonNode?> FileTransferPartAsync(RequestContext<JsonNode?> request, string peerId, string operation, CancellationToken ct)
     {
         var input = Deserialize<FileTransferPart>(request);
         if (!_transfers.TryGetValue(input.TransferId, out var transfer) || transfer.PeerId != peerId)

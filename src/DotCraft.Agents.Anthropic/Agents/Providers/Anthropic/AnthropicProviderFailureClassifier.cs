@@ -1,101 +1,88 @@
+using System.Net;
+using System.Text.Json;
+using Anthropic.Exceptions;
+using DotCraft.Context.Compaction;
+
 namespace DotCraft.Agents;
 
-/// <summary>
-/// The Anthropic SDK reports the provider's error type in the exception text rather than as
-/// structured data, so the wire code is read from there.
-/// </summary>
 internal sealed class AnthropicProviderFailureClassifier : IProviderFailureClassifier
 {
     internal static readonly AnthropicProviderFailureClassifier Instance = new();
 
     public ProviderFailure Classify(Exception exception)
     {
-        ArgumentNullException.ThrowIfNull(exception);
-
         if (exception is ProviderFailureException carried)
             return carried.Failure;
 
         var fallback = DefaultProviderFailureClassifier.Instance.Classify(exception);
-        var detail = Detail(exception);
-        var status = fallback.HttpStatus;
-
-        var kind = ResolveKind(detail, status);
-        if (kind is null)
+        var service = FindServiceException(exception);
+        if (service is null)
             return fallback;
+
+        var api = service as AnthropicApiException;
+        var message = service.ApiMessage;
+        var type = service.Type is { Json.ValueKind: JsonValueKind.String } errorType
+            ? errorType.Json.GetString() : null;
+        var code = service.ErrorCode;
+        var status = api is not null ? (int)api.StatusCode : fallback.HttpStatus;
+        var kind = ResolveKind(type, code, message) ?? status switch
+        {
+            529 => ProviderFailureKind.ServerOverloaded,
+            { } value => DefaultProviderFailureClassifier.FromStatusCode((HttpStatusCode)value),
+            _ => ProviderFailureKind.Other
+        };
 
         return fallback with
         {
-            Kind = kind.Value,
-            ProviderErrorCode = ProviderErrorCode(detail),
+            Kind = kind,
+            HttpStatus = status,
+            ProviderErrorCode = code ?? type,
+            RequestId = api?.RequestID ?? ReadRequestId(service.Body),
+            Message = message,
             ServerRetryAfter = kind is ProviderFailureKind.RateLimitExceeded
-                ? ProviderFailureParsing.ParseRetryAfterFromMessage(detail)
+                ? ProviderFailureParsing.ParseRetryAfterFromMessage(message)
                 : null
         };
     }
 
-    private static ProviderFailureKind? ResolveKind(string detail, int? status)
+    private static ProviderFailureKind? ResolveKind(string? type, string? code, string? message)
     {
-        // The provider's own capacity signals outrank the status, which is 200 for an in-band
-        // frame and 529 for a rejected request.
-        if (ProviderFailureParsing.Mentions(detail, "overloaded_error")
-            || ProviderFailureParsing.Mentions(detail, "insufficient_system_resource")
-            || status == 529)
-        {
-            return ProviderFailureKind.ServerOverloaded;
-        }
-
-        if (ProviderFailureParsing.Mentions(detail, "authentication_error")
-            || ProviderFailureParsing.Mentions(detail, "permission_error"))
-        {
-            return ProviderFailureKind.Unauthorized;
-        }
-
-        if (ProviderFailureParsing.Mentions(detail, "billing_error")
-            || ProviderFailureParsing.LooksLikeQuotaExhausted(detail))
-        {
+        if (code == "context_length_exceeded")
+            return ProviderFailureKind.ContextWindowExceeded;
+        if (ProviderFailureParsing.LooksLikeQuotaExhausted(code))
             return ProviderFailureKind.UsageLimitExceeded;
-        }
+        if (code == "insufficient_system_resource")
+            return ProviderFailureKind.ServerOverloaded;
 
-        if (ProviderFailureParsing.Mentions(detail, "rate_limit_error") || status == 429)
-            return ProviderFailureKind.RateLimitExceeded;
-
-        if (ProviderFailureParsing.Mentions(detail, "invalid_request_error")
-            || ProviderFailureParsing.Mentions(detail, "not_found_error")
-            || ProviderFailureParsing.Mentions(detail, "ValidationException"))
+        return type switch
         {
-            return ProviderFailureKind.BadRequest;
-        }
-
-        return null;
+            "overloaded_error" => ProviderFailureKind.ServerOverloaded,
+            "authentication_error" or "permission_error" => ProviderFailureKind.Unauthorized,
+            "billing_error" => ProviderFailureKind.UsageLimitExceeded,
+            "rate_limit_error" => ProviderFailureKind.RateLimitExceeded,
+            "invalid_request_error" when CompactionErrors.IsPromptTooLongMessage(message)
+                => ProviderFailureKind.ContextWindowExceeded,
+            "invalid_request_error" or "not_found_error" => ProviderFailureKind.BadRequest,
+            "api_error" when ProviderFailureParsing.Mentions(message, "ValidationException")
+                => ProviderFailureKind.BadRequest,
+            "api_error" => ProviderFailureKind.InternalServerError,
+            "timeout_error" => ProviderFailureKind.ResponseStreamDisconnected,
+            _ => null
+        };
     }
 
-    private static string? ProviderErrorCode(string detail)
+    private static AnthropicServiceException? FindServiceException(Exception exception)
     {
-        foreach (var code in (string[])
-                 [
-                     "overloaded_error",
-                     "rate_limit_error",
-                     "authentication_error",
-                     "permission_error",
-                     "billing_error",
-                     "invalid_request_error",
-                     "not_found_error",
-                     "insufficient_system_resource",
-                     "api_error"
-                 ])
-        {
-            if (ProviderFailureParsing.Mentions(detail, code))
-                return code;
-        }
-
-        return null;
-    }
-
-    private static string Detail(Exception exception)
-    {
-        var parts = new List<string>();
         for (var current = exception; current != null; current = current.InnerException)
-            parts.Add(current.Message);
-        return string.Join(' ', parts);
+        {
+            if (current is AnthropicServiceException service)
+                return service;
+        }
+        return null;
     }
+
+    private static string? ReadRequestId(JsonElement body) =>
+        body.ValueKind == JsonValueKind.Object
+        && body.TryGetProperty("request_id", out var requestId)
+        && requestId.ValueKind == JsonValueKind.String ? requestId.GetString() : null;
 }

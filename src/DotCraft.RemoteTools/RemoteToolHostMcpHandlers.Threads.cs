@@ -1,6 +1,6 @@
 using System.Text.Json.Nodes;
 using DotCraft.Tools;
-using ModelContextProtocol.Protocol;
+using ModelContextProtocol.Server;
 
 namespace DotCraft.RemoteTools;
 
@@ -12,7 +12,7 @@ internal sealed partial class RemoteToolHostMcpHandlers
             return _threads[threadId].TryEnter(ct) ?? throw Lost();
     }
 
-    private async ValueTask<JsonNode?> ReleaseExecutionThreadAsync(JsonRpcRequest request, string peerId, CancellationToken ct)
+    private async ValueTask<JsonNode?> ReleaseExecutionThreadAsync(RequestContext<JsonNode?> request, string peerId, CancellationToken ct)
     {
         var input = Deserialize<PluginThreadRelease>(request);
         ValidateLease(input.LeaseId, input.WorkspaceId);
@@ -37,7 +37,7 @@ internal sealed partial class RemoteToolHostMcpHandlers
         return new JsonObject();
     }
 
-    private ValueTask<JsonNode?> ReportTurn(JsonRpcRequest request, string peerId, CancellationToken ct)
+    private ValueTask<JsonNode?> ReportTurn(RequestContext<JsonNode?> request, string peerId, CancellationToken ct)
     {
         var input = Deserialize<ExecutionTurnReport>(request);
         ValidateLease(input.LeaseId, input.WorkspaceId);

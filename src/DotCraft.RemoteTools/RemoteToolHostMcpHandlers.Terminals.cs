@@ -3,7 +3,6 @@ using System.Text.Json.Nodes;
 using DotCraft.Tools;
 using DotCraft.Tools.BackgroundTerminals;
 using Microsoft.Extensions.Logging;
-using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
 namespace DotCraft.RemoteTools;
@@ -48,7 +47,7 @@ internal sealed partial class RemoteToolHostMcpHandlers
         }
     }
 
-    private async ValueTask<JsonNode?> StopTerminalAsync(JsonRpcRequest request, string peerId, CancellationToken ct)
+    private async ValueTask<JsonNode?> StopTerminalAsync(RequestContext<JsonNode?> request, string peerId, CancellationToken ct)
     {
         var input = Deserialize<RemoteTerminalStopRequest>(request);
         ValidateLease(input.LeaseId, input.WorkspaceId);

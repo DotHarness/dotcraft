@@ -21,6 +21,7 @@ internal sealed class McpOAuthSmokeServer : IAsyncDisposable
     private int _authorizations;
     private int _refreshes;
     private int _oldClientRequests;
+    private int _tokenRequests;
 
     public string BaseUrl { get; private set; } = string.Empty;
     public string McpUrl => BaseUrl + "/mcp";
@@ -29,6 +30,11 @@ internal sealed class McpOAuthSmokeServer : IAsyncDisposable
     public int RefreshRequests => _refreshes;
     public int OldClientRequests => _oldClientRequests;
     public bool AllowDynamicRegistration { get; init; }
+    public bool PublishOAuthMetadata { get; init; } = true;
+    public bool OmitRefreshTokenOnRefresh { get; init; }
+    public string ResourcePath { get; init; } = "/mcp";
+    public string ResourceUrl => BaseUrl + ResourcePath;
+    public int TokenRequests => _tokenRequests;
 
     public void RegisterClient(string id, string secret, string callback) =>
         _clients[id] = new(secret, callback);
@@ -45,25 +51,28 @@ internal sealed class McpOAuthSmokeServer : IAsyncDisposable
         builder.WebHost.UseUrls($"http://127.0.0.1:{port}");
         var app = builder.Build();
         _app = app;
-        app.MapGet("/.well-known/oauth-protected-resource/mcp", () => Results.Json(new
+        if (PublishOAuthMetadata)
         {
-            resource = McpUrl,
-            authorization_servers = new[] { BaseUrl },
-            scopes_supported = new[] { "tools:read" }
-        }));
-        app.MapGet("/.well-known/oauth-authorization-server", () => Results.Json(new
-        {
-            issuer = BaseUrl,
-            authorization_endpoint = BaseUrl + "/authorize",
-            token_endpoint = BaseUrl + "/token",
-            registration_endpoint = AllowDynamicRegistration ? BaseUrl + "/register" : null,
-            response_types_supported = new[] { "code" },
-            grant_types_supported = new[] { "authorization_code", "refresh_token" },
-            token_endpoint_auth_methods_supported = new[] { "client_secret_post" },
-            code_challenge_methods_supported = new[] { "S256" },
-            scopes_supported = new[] { "tools:read", "offline_access" },
-            authorization_response_iss_parameter_supported = true
-        }));
+            app.MapGet("/.well-known/oauth-protected-resource/mcp", () => Results.Json(new
+            {
+                resource = ResourceUrl,
+                authorization_servers = new[] { BaseUrl },
+                scopes_supported = new[] { "tools:read" }
+            }));
+            app.MapGet("/.well-known/oauth-authorization-server", () => Results.Json(new
+            {
+                issuer = BaseUrl,
+                authorization_endpoint = BaseUrl + "/authorize",
+                token_endpoint = BaseUrl + "/token",
+                registration_endpoint = AllowDynamicRegistration ? BaseUrl + "/register" : null,
+                response_types_supported = new[] { "code" },
+                grant_types_supported = new[] { "authorization_code", "refresh_token" },
+                token_endpoint_auth_methods_supported = new[] { "client_secret_post" },
+                code_challenge_methods_supported = new[] { "S256" },
+                scopes_supported = new[] { "tools:read", "offline_access" },
+                authorization_response_iss_parameter_supported = true
+            }));
+        }
         app.MapGet("/authorize", (HttpContext context) => Authorize(context));
         app.MapPost("/token", (Func<HttpContext, Task<IResult>>)TokenAsync);
         app.MapPost("/register", async (HttpContext context) =>
@@ -114,11 +123,12 @@ internal sealed class McpOAuthSmokeServer : IAsyncDisposable
 
     private async Task<IResult> TokenAsync(HttpContext context)
     {
+        Interlocked.Increment(ref _tokenRequests);
         var form = await context.Request.ReadFormAsync();
         var id = form["client_id"].ToString();
         if (!_clients.TryGetValue(id, out var client) || client.Secret != form["client_secret"].ToString())
             return Results.Json(new { error = "invalid_client" }, statusCode: 401);
-        if (form["resource"] != McpUrl) return Results.BadRequest(new { error = "invalid_target" });
+        if (form["resource"] != ResourceUrl) return Results.BadRequest(new { error = "invalid_target" });
         if (form["grant_type"] == "authorization_code")
         {
             if (!_codes.TryRemove(form["code"].ToString(), out var grant) || grant.ClientId != id
@@ -128,7 +138,11 @@ internal sealed class McpOAuthSmokeServer : IAsyncDisposable
         else if (form["grant_type"] == "refresh_token")
         {
             Interlocked.Increment(ref _refreshes);
-            if (!_refresh.TryRemove(form["refresh_token"].ToString(), out var owner) || owner != id)
+            var refreshToken = form["refresh_token"].ToString();
+            var found = OmitRefreshTokenOnRefresh
+                ? _refresh.TryGetValue(refreshToken, out var owner)
+                : _refresh.TryRemove(refreshToken, out owner);
+            if (!found || owner != id)
             {
                 Interlocked.Increment(ref _oldClientRequests);
                 return Results.BadRequest(new { error = "invalid_grant" });
@@ -136,8 +150,10 @@ internal sealed class McpOAuthSmokeServer : IAsyncDisposable
         }
         else return Results.BadRequest(new { error = "unsupported_grant_type" });
         var access = Guid.NewGuid().ToString("N");
-        var refresh = Guid.NewGuid().ToString("N");
         _access[access] = id;
+        if (OmitRefreshTokenOnRefresh && form["grant_type"] == "refresh_token")
+            return Results.Json(new { access_token = access, token_type = "Bearer", expires_in = 3600, scope = "tools:read" });
+        var refresh = Guid.NewGuid().ToString("N");
         _refresh[refresh] = id;
         return Results.Json(new { access_token = access, refresh_token = refresh, token_type = "Bearer", expires_in = 3600, scope = "tools:read" });
     }
@@ -148,7 +164,9 @@ internal sealed class McpOAuthSmokeServer : IAsyncDisposable
         var token = authorization.StartsWith("Bearer ", StringComparison.Ordinal) ? authorization[7..] : string.Empty;
         if (!_access.ContainsKey(token))
         {
-            context.Response.Headers.WWWAuthenticate = $"Bearer resource_metadata=\"{BaseUrl}/.well-known/oauth-protected-resource/mcp\", scope=\"tools:read\"";
+            context.Response.Headers.WWWAuthenticate = PublishOAuthMetadata
+                ? $"Bearer resource_metadata=\"{BaseUrl}/.well-known/oauth-protected-resource/mcp\", scope=\"tools:read\""
+                : "Bearer scope=\"tools:read\"";
             return Results.Unauthorized();
         }
         if (context.Request.Method != "POST") return Results.StatusCode(405);

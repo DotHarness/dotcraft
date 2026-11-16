@@ -2,13 +2,13 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Security;
 using DotCraft.Tools;
-using ModelContextProtocol.Protocol;
+using ModelContextProtocol.Server;
 
 namespace DotCraft.RemoteTools;
 
 internal sealed partial class RemoteToolHostMcpHandlers
 {
-    private async ValueTask<JsonNode?> WriteImageAsync(JsonRpcRequest request, string peerId, CancellationToken ct)
+    private async ValueTask<JsonNode?> WriteImageAsync(RequestContext<JsonNode?> request, string peerId, CancellationToken ct)
     {
         var input = Deserialize<RemoteImageWriteRequest>(request);
         using var call = EnterCall(input.LeaseId, input.WorkspaceId);
@@ -57,7 +57,7 @@ internal sealed partial class RemoteToolHostMcpHandlers
         return JsonSerializer.SerializeToNode(new RemoteImageWriteResponse(path), RemoteToolHostProtocol.JsonOptions);
     }
 
-    private async ValueTask<JsonNode?> ReadImageAsync(JsonRpcRequest request, string peerId, CancellationToken ct)
+    private async ValueTask<JsonNode?> ReadImageAsync(RequestContext<JsonNode?> request, string peerId, CancellationToken ct)
     {
         var input = Deserialize<RemoteImageReadRequest>(request);
         using var call = EnterCall(input.LeaseId, input.WorkspaceId);
