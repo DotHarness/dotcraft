@@ -3,6 +3,8 @@ import { resolveCoreToolRenderPlan } from './toolRendererRegistry'
 import { resolveDesktopPluginToolRenderer } from '../plugins/desktopPluginRegistry'
 import { resolveToolKind } from './toolKind'
 import { isMcpAppCandidate } from './mcpAppCandidate'
+import { isToolExecutionFailure } from './toolCallDisplay'
+import { isSideChatMainMessage } from '../components/conversation/SideChatMainMessageRow'
 
 export type ToolGroupCategory = 'explore' | 'write' | 'shell' | 'web' | 'subagent' | 'board'
 
@@ -28,7 +30,11 @@ function getToolRunRole(item: ConversationItem): ToolRunRole {
   if (presentationId && resolveDesktopPluginToolRenderer(presentationId)) return 'own'
   const plan = resolveCoreToolRenderPlan(item)
   if (plan?.family === 'subagent') {
-    return plan.options.operation === 'spawn' ? 'subagent' : 'own'
+    const operation = plan.options.operation
+    if (operation === 'spawn') return 'subagent'
+    return operation === 'sendMessage' && !isToolExecutionFailure(item) && !isSideChatMainMessage(operation, item.arguments)
+      ? 'grouped'
+      : 'own'
   }
   return plan && OWN_ROW_FAMILIES.has(plan.family) ? 'own' : 'grouped'
 }

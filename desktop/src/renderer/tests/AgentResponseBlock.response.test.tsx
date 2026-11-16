@@ -82,6 +82,23 @@ describe('AgentResponseBlock responses spanning turns', () => {
     expect(screen.getByTestId('subagent-ending-chips')).toHaveTextContent('reviewer')
   })
 
+  it('adds nothing for a subagent message that continues a response', () => {
+    const mailed: ConversationTurn = {
+      ...woken,
+      items: [
+        { id: 'mail', type: 'userMessage', status: 'completed', deliveryMode: 'queued', triggerKind: 'subagentMailbox', triggerLabel: 'helper', triggerRefId: '/root/helper' },
+        woken.items[1]
+      ]
+    }
+    render(
+      <LocaleProvider>
+        <AgentResponseBlock turn={mailed} leadingTurns={[asked]} />
+      </LocaleProvider>
+    )
+
+    expect(screen.queryByRole('button', { name: 'Show the subagent' })).toBeNull()
+  })
+
   it('opens a sender that is not a direct child from the turn its message started', () => {
     const helper = makeSubAgent({
       childThreadId: 'helper-thread', parentThreadId: 'worker-thread', agentPath: '/root/worker/helper', nickname: 'helper',

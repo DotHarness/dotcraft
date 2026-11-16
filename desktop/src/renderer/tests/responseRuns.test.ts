@@ -75,7 +75,7 @@ describe('response placement', () => {
     const asked = turn('asked', [prompt, tool], 0, 10)
     const mailed = turn('mailed', [input, tool], 20, 5)
 
-    expect(getTaskWake(mailed)).toEqual({ kind: 'subagent', label: 'helper', taskId: '/root/helper' })
+    expect(getTaskWake(mailed)).toEqual({ kind: 'subagent', label: 'helper', taskId: '/root/helper', message: true })
     expect(placeResponses([asked, mailed], all).get('mailed')).toEqual({ leading: [asked], absorbed: false })
   })
 })

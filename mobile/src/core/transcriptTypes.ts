@@ -52,6 +52,8 @@ export interface TaskWake {
   task: TaskWakeKind
   label: string
   status: string | null
+  /** A subagent message rather than an ending: it names its sender on a boundary but adds no line inside a response. */
+  message?: true
 }
 
 export interface ToolDetail {

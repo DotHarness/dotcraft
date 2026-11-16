@@ -78,6 +78,8 @@ export const MESSAGES_JA: Catalog = {
   'toolGroup.searchedWeb': 'ウェブを検索しました',
   'toolGroup.fetched.one': 'ウェブページを取得しました',
   'toolGroup.fetched.other': 'ウェブページを取得しました',
+  'toolGroup.sentMessage.one': 'メッセージを送信しました',
+  'toolGroup.sentMessage.other': 'メッセージを送信しました',
   'toolGroup.calledTool.one': 'ツールを呼び出しました',
   'toolGroup.calledTool.other': 'ツールを呼び出しました',
   'toolGroup.separator': '、',

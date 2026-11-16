@@ -36,13 +36,15 @@ export interface TaskWake {
   label: string
   status?: string
   taskId?: string
+  /** A subagent message rather than an ending: it names its sender on a boundary but adds no line inside a response. */
+  message?: true
 }
 
 export function getTaskWake(turn: ConversationTurn): TaskWake | null {
   const input = turn.items.find((item) => item.type === 'userMessage')
   if (!input || input.deliveryMode === 'guidance') return null
   if (isSubAgentMailbox(input)) {
-    return { kind: 'subagent', label: input.triggerLabel?.trim() ?? '', taskId: input.triggerRefId }
+    return { kind: 'subagent', label: input.triggerLabel?.trim() ?? '', taskId: input.triggerRefId, message: true }
   }
   if (!isBackgroundTaskNotice(input)) return null
   return {

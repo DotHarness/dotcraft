@@ -74,9 +74,9 @@ function getWriteCounts(items: ConversationItem[], itemDiffs: ReadonlyMap<string
   return { createdCount: createdPaths.size, modifiedCount: modifiedPaths.size }
 }
 
-type ActivityPart = 'browser' | 'chrome' | 'computer' | 'skill' | 'tool' | DesktopToolOperation | 'write' | 'memory' | 'recall' | 'explore' | 'board' | 'boardUpdate' | 'shell' | 'search' | 'fetch'
+type ActivityPart = 'browser' | 'chrome' | 'computer' | 'skill' | 'tool' | DesktopToolOperation | 'write' | 'memory' | 'recall' | 'explore' | 'board' | 'boardUpdate' | 'shell' | 'search' | 'fetch' | 'message'
 
-const PART_ORDER: readonly ActivityPart[] = ['browser', 'chrome', 'computer', 'skill', 'tool', ...DESKTOP_TOOL_OPERATIONS, 'write', 'memory', 'recall', 'explore', 'board', 'boardUpdate', 'shell', 'search', 'fetch']
+const PART_ORDER: readonly ActivityPart[] = ['browser', 'chrome', 'computer', 'skill', 'tool', ...DESKTOP_TOOL_OPERATIONS, 'write', 'memory', 'recall', 'explore', 'board', 'boardUpdate', 'shell', 'search', 'fetch', 'message']
 
 function getActivityPart(item: ConversationItem): ActivityPart | null {
   if (item.type === 'reasoningContent') return null
@@ -90,6 +90,7 @@ function getActivityPart(item: ConversationItem): ActivityPart | null {
   const plan = resolveCoreToolRenderPlan(item)
   if (plan?.family === 'skillView') return 'skill'
   if (plan?.family === 'nodeRepl') return getNodeReplSurface(item) ?? 'shell'
+  if (plan?.family === 'subagent' && plan.options.operation === 'sendMessage') return 'message'
   switch (plan?.groupCategory) {
     case 'write': return 'write'
     case 'explore': return 'explore'
@@ -142,6 +143,7 @@ function formatActivityPart(
     case 'shell': return translate(locale, plural(count, 'toolCall.activity.ran.one', 'toolCall.activity.ran.other'))
     case 'search': return translate(locale, 'toolCall.activity.searchedWeb')
     case 'fetch': return translate(locale, plural(count, 'toolCall.activity.fetched.one', 'toolCall.activity.fetched.other'))
+    case 'message': return translate(locale, plural(count, 'toolCall.activity.sentMessage.one', 'toolCall.activity.sentMessage.other'))
     default: return formatDesktopToolLabel(part, items.every(isToolExecutionFailure) ? 'failed' : 'completed', locale)
   }
 }

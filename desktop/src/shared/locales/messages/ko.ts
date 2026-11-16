@@ -3414,6 +3414,8 @@ export const MESSAGES_KO = {
   'toolCall.activity.searchedWeb': '웹 검색함',
   'toolCall.activity.fetched.one': '웹 페이지 가져옴',
   'toolCall.activity.fetched.other': '웹 페이지 가져옴',
+  'toolCall.activity.sentMessage.one': '메시지 보냄',
+  'toolCall.activity.sentMessage.other': '메시지 보냄',
   'toolCall.activity.loadedSkill.one': '스킬 불러옴',
   'toolCall.activity.loadedSkill.other': '스킬 불러옴',
   'toolCall.activity.calledTool.one': '도구 호출함',

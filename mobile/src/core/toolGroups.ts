@@ -1,12 +1,12 @@
 import { DESKTOP_TOOL_VERBS, type DesktopToolVerb, type ToolEntry, type ToolVerb, type TranscriptEntry } from './transcriptTypes'
 
-export type ToolGroupPart = 'calledTool' | 'created' | 'edited' | 'explored' | 'ran' | 'searchedWeb' | 'fetched' | DesktopToolVerb
+export type ToolGroupPart = 'calledTool' | 'created' | 'edited' | 'explored' | 'ran' | 'searchedWeb' | 'fetched' | 'sentMessage' | DesktopToolVerb
 
 export type ToolGroupLabel = { part: ToolGroupPart; many: boolean; failed?: boolean }[]
 
-type GroupKind = 'tool' | DesktopToolVerb | 'write' | 'explore' | 'shell' | 'search' | 'fetch'
+type GroupKind = 'tool' | DesktopToolVerb | 'write' | 'explore' | 'shell' | 'search' | 'fetch' | 'message'
 
-const GROUP_ORDER: readonly GroupKind[] = ['tool', ...DESKTOP_TOOL_VERBS, 'write', 'explore', 'shell', 'search', 'fetch']
+const GROUP_ORDER: readonly GroupKind[] = ['tool', ...DESKTOP_TOOL_VERBS, 'write', 'explore', 'shell', 'search', 'fetch', 'message']
 
 const OWN_ROW_VERBS = new Set<ToolVerb>([
   'spawned',
@@ -22,12 +22,17 @@ const OWN_ROW_VERBS = new Set<ToolVerb>([
   'agentInterrupted',
 ])
 
+function isGroupedSend(item: ToolEntry): boolean {
+  return item.verb === 'messaged' && !item.failed && item.subject?.trim().toLowerCase() !== 'main'
+}
+
 function isDesktopToolVerb(verb: ToolVerb): verb is DesktopToolVerb {
   return (DESKTOP_TOOL_VERBS as readonly ToolVerb[]).includes(verb)
 }
 
 function groupKind(item: ToolEntry): GroupKind {
   if (isDesktopToolVerb(item.verb)) return item.verb
+  if (item.verb === 'messaged') return 'message'
   if (item.category === 'web') return item.web === 'fetch' ? 'fetch' : 'search'
   return item.category ?? 'tool'
 }
@@ -66,6 +71,8 @@ function groupLabel(kinds: Map<GroupKind, ToolEntry[]>): ToolGroupLabel {
         return { part: 'searchedWeb', many }
       case 'fetch':
         return { part: 'fetched', many }
+      case 'message':
+        return { part: 'sentMessage', many }
       default:
         return { part: kind, many: false, failed: entries.every((entry) => entry.failed) }
     }
@@ -109,7 +116,7 @@ function aggregate(run: ToolEntry[], active: boolean): TranscriptEntry[] {
   const out: TranscriptEntry[] = []
   let segment: ToolEntry[] = []
   for (const item of run) {
-    if (!OWN_ROW_VERBS.has(item.verb) && item.images.length === 0) {
+    if ((isGroupedSend(item) || !OWN_ROW_VERBS.has(item.verb)) && item.images.length === 0) {
       segment.push(item)
       continue
     }

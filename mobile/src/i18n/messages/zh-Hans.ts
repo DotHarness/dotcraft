@@ -78,6 +78,8 @@ export const MESSAGES_ZH_HANS: Catalog = {
   'toolGroup.searchedWeb': '已搜索网页',
   'toolGroup.fetched.one': '已获取网页',
   'toolGroup.fetched.other': '已获取网页',
+  'toolGroup.sentMessage.one': '已发送留言',
+  'toolGroup.sentMessage.other': '已发送留言',
   'toolGroup.calledTool.one': '已调用工具',
   'toolGroup.calledTool.other': '已调用工具',
   'toolGroup.separator': '，',

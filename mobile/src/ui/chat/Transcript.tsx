@@ -161,6 +161,7 @@ const PART_TEXT: Record<ToolGroupPart, readonly [MessageId, MessageId]> = {
   ran: ['toolGroup.ran.one', 'toolGroup.ran.other'],
   searchedWeb: ['toolGroup.searchedWeb', 'toolGroup.searchedWeb'],
   fetched: ['toolGroup.fetched.one', 'toolGroup.fetched.other'],
+  sentMessage: ['toolGroup.sentMessage.one', 'toolGroup.sentMessage.other'],
   chatRead: ['tool.chatRead', 'tool.chatRead'],
   chatsListed: ['tool.chatsListed', 'tool.chatsListed'],
   chatsSearched: ['tool.chatsSearched', 'tool.chatsSearched'],

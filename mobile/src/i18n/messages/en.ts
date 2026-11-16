@@ -76,6 +76,8 @@ export const MESSAGES_EN = {
   'toolGroup.searchedWeb': 'Searched the web',
   'toolGroup.fetched.one': 'Fetched a page',
   'toolGroup.fetched.other': 'Fetched pages',
+  'toolGroup.sentMessage.one': 'Sent a message',
+  'toolGroup.sentMessage.other': 'Sent messages',
   'toolGroup.calledTool.one': 'Called a tool',
   'toolGroup.calledTool.other': 'Called tools',
   'toolGroup.separator': ', ',

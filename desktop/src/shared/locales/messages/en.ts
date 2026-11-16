@@ -2713,6 +2713,8 @@ export const MESSAGES_EN = {
   'toolCall.activity.searchedWeb': 'Searched the web',
   'toolCall.activity.fetched.one': 'Fetched a page',
   'toolCall.activity.fetched.other': 'Fetched pages',
+  'toolCall.activity.sentMessage.one': 'Sent a message',
+  'toolCall.activity.sentMessage.other': 'Sent messages',
   'toolCall.activity.loadedSkill.one': 'Loaded a skill',
   'toolCall.activity.loadedSkill.other': 'Loaded skills',
   'toolCall.activity.calledTool.one': 'Called a tool',

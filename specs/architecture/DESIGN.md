@@ -1310,9 +1310,10 @@ while the timing still toggles the disclosure. The boundary keeps its single row
 so a woken turn reads as a peer of the turn above it.
 
 A woken turn that continues an unanswered response adds no boundary. A subagent
-ending takes the subagent ending row. A background command or workflow ending, or a
-subagent's message, becomes a line inside the response's process: the same icon and the hover wording as
-visible text. The line is set as a tool row, with the same size, colour, icon size, and
+ending takes the subagent ending row. A background command or workflow ending
+becomes a line inside the response's process: the same icon and the hover wording as
+visible text. A subagent's message adds no line there: subagents report often while
+the response is still working, so its work reads as part of the same process. The line is set as a tool row, with the same size, colour, icon size, and
 spacing.
 
 Special state goes into the message action row below the bubble, after the
@@ -1387,6 +1388,11 @@ reduced motion.
 | Remote machine tools | satellite dish |
 | Question to the user | speech bubble with question mark |
 | Any other tool | wrench |
+
+A message a subagent sends is activity, not an event: a successful send joins the
+tool group around it, named last as `Sent a message` / `Sent messages`, so a subagent
+that reports as it works keeps one group. A failed send, and a side chat's message to
+its main thread, keep their own row.
 
 Tool output images never nest in a tool group. The calls that produced them keep their rows in the group, while one `Viewed an image` / `Viewed N images` disclosure sits below the run, collapsed to its summary.
 

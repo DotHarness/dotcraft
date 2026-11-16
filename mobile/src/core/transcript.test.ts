@@ -9,6 +9,7 @@ const CORE_PRESENTATIONS: Record<string, { presentationId: string; options?: { o
   CreatePlan: { presentationId: 'core.create-plan' },
   Exec: { presentationId: 'core.shell', options: { operation: 'exec' } },
   SpawnAgent: { presentationId: 'core.subagent', options: { operation: 'spawn' } },
+  SendMessage: { presentationId: 'core.subagent', options: { operation: 'sendMessage' } },
   TaskStop: { presentationId: 'core.task', options: { operation: 'stop' } },
   SendUserMessageAsync: { presentationId: 'core.send-user-message-async' },
 }
@@ -142,6 +143,27 @@ describe('turn layout', () => {
     expect(activity.kind === 'activity' && activity.children[0]).toMatchObject({
       kind: 'toolGroup',
       label: [{ part: 'edited', many: false }, { part: 'explored', many: false }],
+    })
+  })
+
+  it('groups a sent subagent message with the calls around it, keeping a side chat send apart', () => {
+    const send = (callId: string, target: string) => [
+      item('toolCall', { ...core('SendMessage'), callId, arguments: { target, message: 'found it' } }),
+      item('toolResult', { ...core('SendMessage'), callId, result: 'ok' }),
+    ]
+    const items = [
+      item('userMessage', { text: 'Audit the docs' }),
+      ...read('a.md', 'c1'),
+      ...send('s1', '/root'),
+      ...read('b.md', 'c2'),
+      ...send('s2', 'main'),
+      ...read('c.md', 'c3'),
+      item('agentMessage', { text: 'Done.', phase: 'final' }),
+    ]
+    const [, activity] = buildTranscript(history(items, 'completed'))
+    expect(activity.kind === 'activity' && activity.children.map((entry) => entry.kind)).toEqual(['toolGroup', 'tool', 'tool'])
+    expect(activity.kind === 'activity' && activity.children[0]).toMatchObject({
+      label: [{ part: 'explored', many: true }, { part: 'sentMessage', many: false }],
     })
   })
 

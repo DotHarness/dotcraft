@@ -192,6 +192,24 @@ describe('planToolRunRender', () => {
     ])
   })
 
+  it('groups a sent subagent message with the calls around it, keeping failed and side chat sends apart', () => {
+    expect(shape([
+      makeItem(EXPLORE, 'ReadFile', '1'),
+      makeItem(SUBAGENT_MESSAGE, 'SendMessage', '2', { success: true, arguments: { target: '/root', message: 'found it' } }),
+      makeItem(SHELL, 'Exec', '3'),
+      makeItem(SUBAGENT_MESSAGE, 'SendMessage', '4', { success: false, arguments: { target: '/root', message: 'found it' } }),
+      makeItem(EXPLORE, 'ReadFile', '5'),
+      makeItem(SUBAGENT_MESSAGE, 'SendMessage', '6', { success: true, arguments: { target: 'main', message: 'found it' } }),
+      makeItem(EXPLORE, 'ReadFile', '7')
+    ])).toEqual([
+      ['group', ['1', '2', '3']],
+      ['single', '4'],
+      ['single', '5'],
+      ['single', '6'],
+      ['single', '7']
+    ])
+  })
+
   it('keeps image-bearing tools in the activity group', () => {
     const image = { contentItems: [{ type: 'image' as const, dataBase64: 'AA==', mediaType: 'image/png' }] }
     expect(shape([

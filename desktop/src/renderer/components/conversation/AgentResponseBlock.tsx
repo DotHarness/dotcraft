@@ -320,7 +320,8 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
   const omitsWork = turn.summary != null && turn.summary.itemCount > turn.items.length
   const collapsesIntermediate = activity.status === 'worked'
     && (lastFinalAgentMessageIndex > 0 || omitsWork || (leadingTurns.length > 0 && lastFinalAgentMessageIndex === 0))
-  const continuationWake = leadingTurns.length > 0 || embedded?.wakeLine ? getTaskWake(turn) : null
+  const taskWake = leadingTurns.length > 0 || embedded?.wakeLine ? getTaskWake(turn) : null
+  const continuationWake = taskWake?.message ? null : taskWake
   const wakeNotice = continuationWake && turn.items.find((item) => item.type === 'userMessage')
   const wakeLine = continuationWake && wakeNotice
     ? <TaskWakeLine threadId={turn.threadId} wake={continuationWake} notice={wakeNotice} />

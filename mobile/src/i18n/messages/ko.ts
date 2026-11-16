@@ -78,6 +78,8 @@ export const MESSAGES_KO: Catalog = {
   'toolGroup.searchedWeb': '웹 검색함',
   'toolGroup.fetched.one': '웹 페이지 가져옴',
   'toolGroup.fetched.other': '웹 페이지 가져옴',
+  'toolGroup.sentMessage.one': '메시지 보냄',
+  'toolGroup.sentMessage.other': '메시지 보냄',
   'toolGroup.calledTool.one': '도구 호출함',
   'toolGroup.calledTool.other': '도구 호출함',
   'toolGroup.separator': ', ',

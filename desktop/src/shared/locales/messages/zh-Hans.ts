@@ -2666,6 +2666,8 @@ export const MESSAGES_ZH_HANS = {
   'toolCall.activity.searchedWeb': '已搜索网页',
   'toolCall.activity.fetched.one': '已获取网页',
   'toolCall.activity.fetched.other': '已获取网页',
+  'toolCall.activity.sentMessage.one': '已发送留言',
+  'toolCall.activity.sentMessage.other': '已发送留言',
   'toolCall.activity.loadedSkill.one': '已加载技能',
   'toolCall.activity.loadedSkill.other': '已加载技能',
   'toolCall.activity.calledTool.one': '已调用工具',

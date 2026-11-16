@@ -31,7 +31,7 @@ function split(piece: TurnPiece): { opening: TranscriptEntry[]; activity: Activi
 }
 
 function wakeLine(piece: TurnPiece): TranscriptEntry[] {
-  return piece.wakeEntry ? [piece.wakeEntry] : piece.wake ? [{ kind: 'wake', id: `wake-${piece.turnId}`, origin: piece.wake }] : []
+  return piece.wakeEntry ? [piece.wakeEntry] : piece.wake && !piece.wake.message ? [{ kind: 'wake', id: `wake-${piece.turnId}`, origin: piece.wake }] : []
 }
 
 function work(piece: TurnPiece, first: boolean, lifted: boolean): TranscriptEntry[] {

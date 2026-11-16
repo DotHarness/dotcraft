@@ -3414,6 +3414,8 @@ export const MESSAGES_FR = {
   'toolCall.activity.searchedWeb': 'Recherche web effectuée',
   'toolCall.activity.fetched.one': 'Page récupérée',
   'toolCall.activity.fetched.other': 'Pages récupérées',
+  'toolCall.activity.sentMessage.one': 'Message envoyé',
+  'toolCall.activity.sentMessage.other': 'Messages envoyés',
   'toolCall.activity.loadedSkill.one': 'Compétence chargée',
   'toolCall.activity.loadedSkill.other': 'Compétences chargées',
   'toolCall.activity.calledTool.one': 'Outil appelé',

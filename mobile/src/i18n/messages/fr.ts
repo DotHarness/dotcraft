@@ -78,6 +78,8 @@ export const MESSAGES_FR: Catalog = {
   'toolGroup.searchedWeb': 'Recherche web effectuée',
   'toolGroup.fetched.one': 'Page récupérée',
   'toolGroup.fetched.other': 'Pages récupérées',
+  'toolGroup.sentMessage.one': 'Message envoyé',
+  'toolGroup.sentMessage.other': 'Messages envoyés',
   'toolGroup.calledTool.one': 'Outil appelé',
   'toolGroup.calledTool.other': 'Outils appelés',
   'toolGroup.separator': ', ',

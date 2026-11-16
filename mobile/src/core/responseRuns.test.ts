@@ -46,7 +46,6 @@ describe('responses spanning turns', () => {
     expect(activity).toMatchObject({ status: 'worked', origin: null })
     expect(Date.parse(activity.endedAt!) - Date.parse(activity.startedAt!)).toBeGreaterThanOrEqual(15_000)
     expect(activity.children.filter((entry) => entry.kind === 'wake')).toMatchObject([
-      { origin: { task: 'subagent', label: 'helper', status: null } },
       { origin: { task: 'terminal', label: 'npm test', status: 'completed' } },
     ])
     expect(activity.children.filter((entry) => entry.kind === 'tool' || entry.kind === 'toolGroup')).toHaveLength(3)
@@ -91,7 +90,7 @@ describe('responses spanning turns', () => {
     ], [['t1', 0, 10]]))
 
     expect(transcript.some((entry) => entry.kind === 'user' || entry.kind === 'wake')).toBe(false)
-    expect(transcript.find((entry) => entry.kind === 'activity')).toMatchObject({ origin: { task: 'subagent', label: 'helper', status: null } })
+    expect(transcript.find((entry) => entry.kind === 'activity')).toMatchObject({ origin: { task: 'subagent', label: 'helper', status: null, message: true } })
   })
 
   it('names a subagent that woke a continuing turn with the row its ending shows mid-turn', () => {

@@ -263,7 +263,7 @@ control uses that surface at 70% with a hairline and no shadow, so it reads as t
   its **Worked for** row starts with the task kind's icon; its accessible name says how the task
   ended, in Desktop's wording. A subagent mailbox message adds no user message. When it starts a turn, the
   **Worked for** row starts with the subagent icon and its accessible name uses Desktop's wording
-  for the sender in `triggerLabel` with no ending status. When the turn continues a response, the origin is a line inside the
+  for the sender in `triggerLabel` with no ending status, and when it continues a response it adds nothing. When the turn continues a response, the origin is a line inside the
   response's process instead, and a subagent ending uses the subagent ending line described next. A subagent notification drained into a running turn adds its own line
   at its place naming the subagent and whether it finished or was interrupted, in Desktop's wording.
   Do not render a successful ending line while the child has an active Turn or its live task tree

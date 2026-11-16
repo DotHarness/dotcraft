@@ -3414,6 +3414,8 @@ export const MESSAGES_DE = {
   'toolCall.activity.searchedWeb': 'Web durchsucht',
   'toolCall.activity.fetched.one': 'Seite abgerufen',
   'toolCall.activity.fetched.other': 'Seiten abgerufen',
+  'toolCall.activity.sentMessage.one': 'Nachricht gesendet',
+  'toolCall.activity.sentMessage.other': 'Nachrichten gesendet',
   'toolCall.activity.loadedSkill.one': 'Skill geladen',
   'toolCall.activity.loadedSkill.other': 'Skills geladen',
   'toolCall.activity.calledTool.one': 'Tool aufgerufen',

@@ -3414,6 +3414,8 @@ export const MESSAGES_JA = {
   'toolCall.activity.searchedWeb': 'ウェブを検索しました',
   'toolCall.activity.fetched.one': 'ウェブページを取得しました',
   'toolCall.activity.fetched.other': 'ウェブページを取得しました',
+  'toolCall.activity.sentMessage.one': 'メッセージを送信しました',
+  'toolCall.activity.sentMessage.other': 'メッセージを送信しました',
   'toolCall.activity.loadedSkill.one': 'スキルを読み込みました',
   'toolCall.activity.loadedSkill.other': 'スキルを読み込みました',
   'toolCall.activity.calledTool.one': 'ツールを呼び出しました',
