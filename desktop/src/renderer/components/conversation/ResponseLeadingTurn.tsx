@@ -31,14 +31,14 @@ export function TaskWakeLine(props: TaskWakeLineProps): JSX.Element {
 
 function SubAgentWakeLine({ threadId, wake, notice }: TaskWakeLineProps): JSX.Element {
   const { lookup } = useSubAgentLookup(threadId)
-  const child = findSubAgentChild(lookup, null, wake.taskId, 'children')
+  const child = findSubAgentChild(lookup, null, wake.taskId, 'tree')
   const settled = settledSubAgentWake(wake, child)
   return wake.taskId && settled.status
     ? <SubAgentEndingChips items={[notice]} parentThreadId={threadId} />
-    : <WakeLine threadId={threadId} wake={settled} />
+    : <WakeLine threadId={threadId} wake={settled} subAgentThreadId={child?.childThreadId} />
 }
 
-function WakeLine({ threadId, wake }: { threadId: string; wake: TaskWake }): JSX.Element {
+function WakeLine({ threadId, wake, subAgentThreadId }: { threadId: string; wake: TaskWake; subAgentThreadId?: string }): JSX.Element {
   const locale = useLocale()
   const Icon = TASK_WAKE_ICONS[wake.kind]
   const taskId = wake.taskId
@@ -53,7 +53,7 @@ function WakeLine({ threadId, wake }: { threadId: string; wake: TaskWake }): JSX
       <button
         type="button"
         className={styles.wake}
-        onClick={() => openBackgroundTask(threadId, wake.kind, taskId, translate(locale, 'workflow.tab'))}
+        onClick={() => openBackgroundTask(threadId, wake.kind, taskId, translate(locale, 'workflow.tab'), subAgentThreadId)}
       >
         {content}
       </button>
