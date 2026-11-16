@@ -140,7 +140,7 @@ To reach a DotCraft running on a server, enter the remote AppServer address unde
 
 Remote chats accept pasted images and file attachments up to 10 MiB each. Images from chat history can be opened and saved as usual. A failed upload keeps the draft for retry.
 
-Remote tool calls let your agent work on another PC while the chat stays here. Pair the PC under **Settings → Connections → Satellites**, then select it in **Run on** below the composer. See [DotCraft Satellite](../guide/satellite) for setup and screen viewing.
+Remote tool calls let your agent work on another PC while the chat stays here. Pair the PC under **Settings → Satellites**, then select it in **Run on** below the composer. See [DotCraft Satellite](../guide/satellite) for setup and screen viewing.
 
 To work on another computer that already runs DotCraft, pair with it under **Settings → Connections → Control other devices**. See [Control another computer](#control-another-computer).
 

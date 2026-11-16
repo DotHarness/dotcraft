@@ -140,6 +140,7 @@ const CORE_SURFACES: ReadonlySet<string> = new Set<keyof DesktopPluginSurfaceCon
   'composer.toolbar.submit',
   'composer.status',
   'composer.status.workspace',
+  'composer.status.workspace.run-on',
   'composer.status.subscription',
   'composer.status.trailing',
   'thread.header.actions',

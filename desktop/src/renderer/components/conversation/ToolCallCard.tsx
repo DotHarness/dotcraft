@@ -42,10 +42,6 @@ import { McpAppView } from './McpAppView'
 import { isMcpAppCandidate } from '../../utils/mcpAppCandidate'
 import { ToolDisclosure } from './ToolDisclosure'
 import { useTranscriptItemDiff, useTranscriptWorkspacePath } from './transcriptDiffs'
-import { useRemoteToolHostRow } from './RemoteToolHostRow'
-import { RemoteToolHostListResult } from './RemoteToolHostListResult'
-import { RemoteFileTransferResult } from './RemoteFileTransferResult'
-import { parseRemoteToolHostCatalog } from '../../utils/remoteToolHostDisplay'
 import { AnsiPre } from './AnsiPre'
 import { stripAnsi } from '../../utils/ansi'
 import type { FileDiff } from '../../types/toolCall'
@@ -254,7 +250,6 @@ export const ToolCallCard = memo(function ToolCallCard({
     ? rendererPlan!.options.field as BuilderField
     : null
   const isTodoTool = rendererFamily === 'todo'
-  const isRemoteToolHostTool = rendererFamily === 'remoteToolHost'
   const isShellTool = rendererFamily === 'shell'
   const isStreamingFileTool = rendererFamily === 'fileWrite'
   const streamingDisplay = getStreamingToolDisplay(item, item.argumentsPreview ?? null, locale)
@@ -276,7 +271,7 @@ export const ToolCallCard = memo(function ToolCallCard({
   const shellOutput = liveShellRuntime?.output ?? item.aggregatedOutput ?? toolResult ?? ''
   const skillViewDisplay = isSkillViewTool ? getSkillViewDisplay(args, item.result) : null
   const toolRowIcon = getToolRowIcon(item)
-  const baseSuccess = (rendererPlan?.successOverride === true || item.success !== false)
+  const success = (rendererPlan?.successOverride === true || item.success !== false)
     && (!isSkillViewTool || skillViewDisplay?.loaded !== false)
 
   const fileDiff = useTranscriptItemDiff(item.id, isStreamingFileTool)
@@ -286,26 +281,16 @@ export const ToolCallCard = memo(function ToolCallCard({
   const { lookup: subAgentLookup } = useSubAgentLookup(threadId, rendererFamily === 'subagent')
   const renderableFileDiff = hasRenderableDiff(fileDiff) ? fileDiff : undefined
   const renderableStreamingFileDiff = hasRenderableDiff(streamingFileDiff) ? streamingFileDiff : undefined
-  const remoteToolHostRow = useRemoteToolHostRow({
-    item,
-    enabled: isRemoteToolHostTool,
-    threadId,
-    locale,
-    running: isRunning,
-    success: baseSuccess
-  })
-  const remoteTransfer = remoteToolHostRow?.transfer
-  const success = baseSuccess && remoteToolHostRow?.failed !== true
   const hasRunningExpandableContent = isShellTool
     ? hasVisibleText(shellOutput)
     : isStreamingFileTool
       ? !!renderableStreamingFileDiff
-      : !!remoteTransfer
+      : false
   const hasCompletedExpandableContent = isShellTool
     ? hasVisibleText(shellOutput)
     : isStreamingFileTool
       ? !!renderableFileDiff || hasVisibleText(toolResult)
-      : remoteTransfer ? true : hasVisibleText(toolResult)
+      : hasVisibleText(toolResult)
   const canExpandWhileRunning =
     !isWebFetchTool
     && !isSkillViewTool
@@ -315,7 +300,6 @@ export const ToolCallCard = memo(function ToolCallCard({
     !isWebFetchTool
     && !isSkillViewTool
     && !isTodoTool
-    && (remoteToolHostRow?.expandable ?? true)
     && hasCompletedExpandableContent
   const hasFinalArgs = args != null && Object.keys(args).length > 0
   const subAgentRunningLabel = hasFinalArgs && rendererFamily === 'subagent'
@@ -475,20 +459,17 @@ export const ToolCallCard = memo(function ToolCallCard({
         onHoverChange={setHovered}
         callId={item.toolCallId}
         icon={rowIcon}
-        title={remoteToolHostRow?.title ?? runningTitle}
+        title={runningTitle}
         accessory={runningAccessory}
       >
           <div
             className="dc-tool-panel-surface"
             data-padded={isStreamingFileTool && renderableStreamingFileDiff ? 'false' : 'true'}
           >
-            {remoteTransfer ? (
-              <RemoteFileTransferResult display={remoteTransfer} locale={locale} />
-            ) : isShellTool ? (
+            {isShellTool ? (
               <ExpandedContent
                 itemId={item.id}
                 rendererFamily={rendererFamily}
-                rendererOptions={rendererPlan?.options}
                 tool={item}
                 args={shellDisplayArgs}
                 result={shellOutput}
@@ -603,7 +584,7 @@ export const ToolCallCard = memo(function ToolCallCard({
       onHoverChange={setHovered}
       callId={item.toolCallId}
       icon={rowIcon}
-      title={remoteToolHostRow?.title ?? completedTitle}
+      title={completedTitle}
       accessory={completedAccessory}
     >
       <div
@@ -611,13 +592,9 @@ export const ToolCallCard = memo(function ToolCallCard({
         className="dc-tool-panel-surface"
         data-padded={hasInlineFileDiff || hasFlushReadFile ? 'false' : 'true'}
       >
-        {remoteTransfer ? (
-          <RemoteFileTransferResult display={remoteTransfer} locale={locale} />
-        ) : (
         <ExpandedContent
           itemId={item.id}
           rendererFamily={rendererFamily}
-          rendererOptions={rendererPlan?.options}
           tool={item}
           args={shellDisplayArgs}
           result={isShellTool ? shellOutput : toolResult}
@@ -628,7 +605,6 @@ export const ToolCallCard = memo(function ToolCallCard({
           shellCommand={shellCommand}
           shellInputs={item.terminalInputs}
         />
-        )}
       </div>
     </ToolDisclosure>
   )
@@ -637,7 +613,6 @@ export const ToolCallCard = memo(function ToolCallCard({
 interface ExpandedContentProps {
   itemId: string
   rendererFamily?: ToolRendererFamily
-  rendererOptions?: Readonly<Record<string, unknown>>
   tool: ToolKindSource
   args: Record<string, unknown> | undefined
   result: string | undefined
@@ -652,7 +627,6 @@ interface ExpandedContentProps {
 function ExpandedContent({
   itemId,
   rendererFamily,
-  rendererOptions,
   tool,
   args,
   result,
@@ -722,11 +696,6 @@ function ExpandedContent({
         )}
       </div>
     )
-  }
-
-  if (rendererFamily === 'remoteToolHost' && rendererOptions?.operation === 'list') {
-    const catalog = parseRemoteToolHostCatalog(result)
-    if (catalog) return <RemoteToolHostListResult catalog={catalog} locale={locale} />
   }
 
   if (rendererFamily === 'requestUserInput') {

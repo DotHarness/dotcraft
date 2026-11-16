@@ -166,6 +166,7 @@ export interface SettingsBreadcrumbProps {
 }
 
 export interface SettingsGroupProps {
+  readonly framed?: boolean;
   readonly title?: string;
   readonly description?: ReactNode;
   readonly headerAction?: ReactNode;
@@ -312,7 +313,32 @@ export interface DesktopSegmentedControlComponent {
   <T extends string = string>(props: SegmentedControlProps<T>): ReactNode;
 }
 
+export interface ToolDisclosureProps {
+  readonly expanded: boolean;
+  readonly onToggle: () => void;
+  readonly expandable?: boolean;
+  readonly title: ReactNode;
+  readonly icon?: ReactNode;
+  readonly callId?: string;
+  readonly children?: ReactNode;
+}
+
+export interface RunningShimmerProps {
+  readonly active?: boolean;
+  readonly className?: string;
+  readonly children: ReactNode;
+}
+
+export interface LayerBoundaryProps {
+  readonly active?: boolean;
+  readonly blocksNativeViews?: boolean;
+  readonly children: ReactNode;
+}
+
 export interface DesktopPluginUiComponents {
+  readonly LayerBoundary: ComponentType<LayerBoundaryProps>;
+  readonly ToolDisclosure: ComponentType<ToolDisclosureProps>;
+  readonly RunningShimmer: ComponentType<RunningShimmerProps>;
   readonly PluginSurface: PluginSurfaceComponent;
   readonly Button: ComponentType<ButtonProps>;
   readonly IconButton: ComponentType<IconButtonProps>;

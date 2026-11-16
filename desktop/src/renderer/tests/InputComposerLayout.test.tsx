@@ -9,7 +9,6 @@ import { useConnectionStore } from '../stores/connectionStore'
 import { useConversationStore } from '../stores/conversationStore'
 import { useModelCatalogStore } from '../stores/modelCatalogStore'
 import { useProvidersStore } from '../stores/providersStore'
-import { useSatellitesStore } from '../stores/satellitesStore'
 import { useSubAgentStore } from '../stores/subAgentStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useToastStore } from '../stores/toastStore'
@@ -63,7 +62,6 @@ describe('InputComposer interactions', () => {
     activateTestWorkspace()
     useSubAgentStore.getState().reset()
     useThreadStore.getState().reset()
-    useSatellitesStore.setState({ satellites: [], supported: false, loaded: false, bootstrapped: false })
     useGitStore.getState().reset()
     useGitStore.setState({
       branchesByPath: {

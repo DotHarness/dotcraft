@@ -5,6 +5,7 @@ import type {
   ServerNotificationMethods,
 } from "@dotcraft/sdk/contracts";
 import type { ComponentType, CSSProperties, ExoticComponent, ReactNode } from "react";
+import type { DesktopPluginSatellites, DesktopPluginRemoteToolHost, DesktopPluginScreenView, DesktopPluginRemoteTransferProgress } from "./satellite.js";
 
 export type DesktopPluginDispose = () => void;
 
@@ -92,6 +93,15 @@ export interface DesktopPluginComposerSurfaceContext {
   readonly provider: DesktopPluginComposerProvider | null;
 }
 
+export interface DesktopPluginRunOnContext {
+  readonly workspacePath: string;
+  readonly threadId: string | null;
+  readonly busy: boolean;
+  readonly eligible: boolean;
+  readonly menuOpen: boolean;
+  setMenuOpen(open: boolean): void;
+}
+
 export type DesktopPluginMascotActivity =
   | "idle"
   | "focused"
@@ -157,6 +167,7 @@ export interface DesktopPluginSurfaceContextMap {
   readonly "composer.toolbar.submit": DesktopPluginComposerSurfaceContext;
   readonly "composer.status": DesktopPluginComposerSurfaceContext;
   readonly "composer.status.workspace": DesktopPluginComposerSurfaceContext;
+  readonly "composer.status.workspace.run-on": DesktopPluginRunOnContext;
   readonly "composer.status.subscription": DesktopPluginComposerSurfaceContext;
   readonly "composer.status.trailing": DesktopPluginComposerSurfaceContext;
   readonly "thread.header.actions": DesktopPluginThreadSurfaceContext;
@@ -312,6 +323,8 @@ export interface DesktopPluginProjectActions {
 
 export interface DesktopPluginToastOptions {
   readonly message: string;
+  readonly description?: string;
+  readonly icon?: ReactNode;
   readonly tone?: "neutral" | "success" | "warning" | "error";
   readonly durationMs?: number;
   readonly action?: {
@@ -562,6 +575,9 @@ export interface DesktopPluginHost {
   readonly appSurfaces: DesktopPluginAppSurfaces;
   readonly workspaces: DesktopPluginWorkspaceReader;
   readonly oratorio: DesktopPluginOratorio;
+  readonly satellites: DesktopPluginSatellites;
+  readonly remoteToolHost: DesktopPluginRemoteToolHost;
+  readonly screenView: DesktopPluginScreenView;
 }
 
 export interface DesktopLocalizedText {
@@ -607,6 +623,7 @@ export interface DesktopPluginAssistantMessageModel {
 
 export interface DesktopPluginToolPresentationModel {
   readonly id: string;
+  readonly toolCallId?: string;
   readonly threadId: string | null;
   readonly turnId: string;
   readonly presentationId: string;
@@ -616,6 +633,9 @@ export interface DesktopPluginToolPresentationModel {
   readonly arguments?: Readonly<Record<string, unknown>>;
   readonly result?: string;
   readonly success?: boolean;
+  readonly errorCode?: string;
+  readonly errorMessage?: string;
+  readonly progress?: DesktopPluginRemoteTransferProgress;
   readonly createdAt: string;
   readonly completedAt?: string;
 }

@@ -4,12 +4,15 @@ import * as React from 'react'
 import * as JsxRuntime from 'react/jsx-runtime'
 import { createPortal } from 'react-dom'
 import { installDesktopPluginRuntime } from '@dotcraft/plugin/runtime'
+import { DesktopPluginToolDisclosure } from '../components/desktopPlugins/DesktopPluginToolDisclosure'
+import { RunningShimmer } from '../components/ui/RunningShimmer'
 import { Button } from '../components/ui/Button'
 import { ActionTooltip } from '../components/ui/ActionTooltip'
 import { Checkbox } from '../components/ui/Checkbox'
 import { Combobox } from '../components/ui/Combobox'
 import { IconButton } from '../components/ui/IconButton'
 import { Input, Textarea } from '../components/ui/Input'
+import { LayerBoundary } from '../contexts/LayerContext'
 import { ModalHeader } from '../components/ui/ModalHeader'
 import { PillSwitch } from '../components/ui/PillSwitch'
 import { Spinner } from '../components/ui/Spinner'
@@ -33,6 +36,8 @@ installDesktopPluginRuntime({
   jsxRuntime: JsxRuntime,
   reactDom: { createPortal },
   ui: {
+    ToolDisclosure: DesktopPluginToolDisclosure,
+    RunningShimmer,
     Button,
     Checkbox,
     IconButton,
@@ -44,6 +49,7 @@ installDesktopPluginRuntime({
     Skeleton,
     ActionTooltip,
     Combobox,
+    LayerBoundary,
     ModalHeader,
     PillSwitch,
     SettingsPanelShell,

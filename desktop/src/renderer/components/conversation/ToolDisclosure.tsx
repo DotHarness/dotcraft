@@ -8,6 +8,7 @@ interface ToolDisclosureProps {
   expandable?: boolean
   title: ReactNode
   icon?: ToolRowIcon
+  iconNode?: ReactNode
   accessory?: ReactNode
   onHoverChange?: (hovered: boolean) => void
   callId?: string
@@ -25,6 +26,7 @@ export function ToolDisclosure({
   expandable = true,
   title,
   icon,
+  iconNode,
   accessory,
   onHoverChange,
   callId,
@@ -44,9 +46,9 @@ export function ToolDisclosure({
     }
     : {}
 
-  const leadingIcon = icon
+  const leadingIcon = iconNode ?? (icon
     ? <icon.icon className="dc-tool-row-icon" data-tone={icon.tone} size={16} strokeWidth={1.6} aria-hidden />
-    : null
+    : null)
 
   if (!expandable) {
     return (

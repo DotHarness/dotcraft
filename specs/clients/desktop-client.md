@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.12.1 |
+| **Version** | 0.12.2 |
 | **Status** | Living |
 | **Date** | 2026-11-16 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
@@ -894,7 +894,7 @@ Every result opens by automation id and run id. Follow-ups locate the exact turn
 
 **Connections**
 
-- One Connections page separates connection kinds by direction: **Workspace** (how Desktop reaches the workspace runtime), **Control other devices** ([§6.16](#616-control-other-devices)), **Control this PC** (**Control this Mac** on macOS, who may use DotCraft on this computer, [§6.15](#615-control-this-pc)), **SSH** ([§6.10](#610-ssh-machines)), **Satellites** ([§6.11](#611-satellites)), and **Share this PC** (who may run tools on this PC, §6.11). Each segment owns its own model, list, and primary action and never shares state. Segments whose capability is absent show a setup state rather than disappearing, except Share this PC may be hidden when no Satellite runtime exists on the machine.
+- One Connections page separates connection kinds by direction: **Workspace** (how Desktop reaches the workspace runtime), **Control other devices** ([§6.16](#616-control-other-devices)), **Control this PC** (**Control this Mac** on macOS, who may use DotCraft on this computer, [§6.15](#615-control-this-pc)), and **SSH** ([§6.10](#610-ssh-machines)). Each segment owns its own model, list, and primary action. Segments whose capability is absent show a setup state. Satellite management belongs to the Satellite plugin's separate settings page ([§6.11](#611-satellites)).
 - Workspace: Local mode shows Hub-managed AppServer actions including Apply & Restart; Remote mode uses Apply & Connect with validate-before-persist and hides local-only binary and restart controls ([3.1.1](#311-local-and-remote-appserver-ownership)).
 
 **Source control** (when `capabilities.sourceControlManagement` is available)
@@ -1025,7 +1025,9 @@ The SSH segment of Connections ([§6.7](#67-settings-surface)) lists machines th
 
 ### 6.11 Satellites
 
-The Satellites segment of Connections lists machines lent to the user's agent through [Remote Tool Host](../architecture/remote-tool-host.md); the Share this PC segment shows the other direction. An SSH machine runs DotCraft for the user's remote projects; a satellite is someone else's PC that runs tools for the user's agent. The segments never share state.
+The bundled Satellite Desktop plugin owns a separate Satellites settings page, with machines lent to the user's agent through [Remote Tool Host](../architecture/remote-tool-host.md) and a read-only Share this PC view in the other direction. An SSH machine runs DotCraft for the user's remote projects; a satellite is someone else's PC that runs tools for the user's agent. The two directions keep separate state.
+
+The plugin owns the Run on control, dedicated tool cards, screen viewer, and arrival notifications. Core retains the tools and remote execution runtime, and Hub retains pairing and relay. Disabling the plugin withdraws these UI contributions and pending selections and closes its screen views, but does not revoke pairings, interrupt confirmed tool sessions, or stop the independent Satellite client. Without its renderer, tool records use the generic tool card.
 
 **Planes and trust**
 

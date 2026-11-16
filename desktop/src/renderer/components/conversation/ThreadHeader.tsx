@@ -16,7 +16,6 @@ import { usePerforceChangelistStore, type PerforceChangelistEntry } from '../../
 import { DetailPanelToggleButton } from './DetailPanelToggleButton'
 import { DesktopPluginSurface } from '../desktopPlugins/DesktopPluginSurface'
 import { ActionTooltip } from '../ui/ActionTooltip'
-import { ScreenViewHeaderSlot } from './screenView/ScreenViewHeaderSlot'
 import { ThreadChannelBindingChips, useThreadChannelBindings } from './ThreadChannelBindingChips'
 import { bindingChannelOf, useChannelBindingStore } from '../../stores/channelBindingStore'
 import { getChannelVisualMeta } from '../ui/channelMeta'
@@ -479,8 +478,6 @@ export function ThreadHeader({
             </ActionTooltip>
           </div>
         )}
-
-        <ScreenViewHeaderSlot threadId={threadId} />
 
         <MoreActionsButton
           size={28}

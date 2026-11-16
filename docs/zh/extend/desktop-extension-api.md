@@ -125,7 +125,7 @@ DotCraft 的正式 surface 覆盖 application、Composer 与当前会话。Compo
 | **Input** | `composer.input.attachments`、`composer.input.editor` |
 | **Leading toolbar** | `composer.toolbar.commands`、`composer.toolbar.permissions`、`composer.toolbar.mode`、`composer.toolbar.goal` |
 | **Trailing toolbar** | `composer.toolbar.context-usage`、`composer.toolbar.model`、`composer.toolbar.voice`、`composer.toolbar.submit` |
-| **Status** | `composer.status.workspace`、`composer.status.subscription`、`composer.status.trailing` |
+| **Status** | `composer.status.workspace`、`composer.status.workspace.run-on`、`composer.status.subscription`、`composer.status.trailing` |
 
 ![Composer 公共 surface 层级](/desktop-plugin-composer-surfaces.svg)
 
@@ -173,6 +173,8 @@ host.ui.add("composer.status.subscription", SubscriptionStatus);
 | `variant` | `default` 或 `agentBuilder` 等嵌入式 Composer 变体。 |
 | `minimalChrome` | Core 为嵌入式 Composer 隐藏了非必要控件。 |
 | `provider` | Composer 当前使用的 provider，形如 `{ id, backendId }`；尚未确定时为 `null`。内置 provider 的 `backendId` 为 `null`。 |
+
+`composer.status.workspace.run-on` 插槽使用 `DesktopPluginRunOnContext`，包含 `workspacePath`、`threadId`、`busy`、`eligible`、`menuOpen` 和 `setMenuOpen(open)`。按 `eligible` 决定是否显示，并通过菜单状态与工作区栏中的其他菜单协调。
 
 在新聊天 Welcome 页，`composer` 覆盖创建 thread 之前的完整撰写体验：app 选择、hero、输入框、workspace footer 与 quick starts。这些元素共享同一份 draft 与 voice lifecycle，替换 `composer` 会把它们作为一个整体换掉。
 
@@ -305,6 +307,8 @@ Surface 只在它所在的组件 mounted 时存在。Registration 仍由注册�
 
 返回的 activation 还可以提供 `dispose()`。Contribution id 在同一个 activation 内必须唯一。本地化标签放进 `label.translations`，按应用 locale 作键：Desktop 会对查找的两侧都做归一化，所以 `zh-CN` 这个键同样能被 `zh-Hans` 的读者命中，而七个 locale 之外的键会回退到 `label.default`。`order` 只在 convenience API 定义了排序位置时才需要设置。
 
+工具渲染器接收 `presentation`，包含精确的 `presentationId`、options、参数、结果、`running` 或 `completed` 状态、success、`errorCode`、`errorMessage` 和可选的 `progress`。进度是带判别字段的快照，文件传输使用 `kind: "remoteFileTransfer"`，并随调用进展更新。工具来自 Core 还是 .NET 扩展，不影响渲染器选择。
+
 ### 给 contribution 配图标
 
 `mainViews`、`settingsPages`、`conversationViews`、`commands` 与 `messageActions` 都接受可选的 `icon`。插件特有的图形请传组件，它会收到 `size`、`strokeWidth`、`aria-hidden` 与 `style`，并通过 `currentColor` 继承周围的文字颜色：
@@ -353,8 +357,19 @@ function ReviewIcon({ size = 16, ...rest }: DesktopPluginIconProps) {
 | `appBindings`、`appSurfaces` | Connected App binding 与 app 提供的 UI surface。 |
 | `workspaces` | 读取本地 workspace 信息。 |
 | `oratorio` | Team run、handoff 与 event。 |
+| `satellites` | 本地 Hub 的设备、邀请、事件、活动与只读本机共享状态。 |
+| `remoteToolHost` | Thread 执行路由、欢迎页与空闲时应用的选择，以及路由快照。 |
+| `screenView` | Generation 持有的屏幕会话与查看器布局偏好。 |
 
 Host API 是兼容性契约，不是 access-control boundary。主进程的 URL、route、bearer、size 与 timeout checks 是 service invariants，而不是插件权限。
+
+### 使用卫星与屏幕会话
+
+设备管理使用 `satellites.list()`、`createInvite()`、`revoke(peerId)`、`activity(peerId?)` 和 `shareStatus()`。`wasInvitedHere(inviteId)` 判断邀请是否由当前 Desktop 创建，`onEvent(listener)` 订阅设备变化。这些操作连接本地 Hub，而不是前台 AppServer。
+
+通过 `remoteToolHost.getSnapshot()` 和 `onChange(listener)` 读取路由状态，包括能力和远程连接标志。`list(threadId?)`、`connect(threadId, hostId, workspaceId)` 和 `disconnect(threadId)` 使用 Host 路由控制器。`setPendingRoute(route)` 暂存欢迎页选择，`deferRoute`、`clearDeferredRoute` 和 `applyDeferredRoute` 管理空闲时应用的选择，`maybeReapply(threadId, options?)` 请求有界的恢复尝试。Generation 释放时清理它的待应用选择与恢复工作，不断开已确认的工具路由。
+
+`screenView.open({ peerId, maxWidth })` 返回带有 `viewId`、`onState`、`onFrame`、`tune`、`ack` 和 `close` 的句柄。解码帧后调用确认。关闭句柄或释放 generation 会清理对应传输与订阅。查看器的小型偏好通过 `getLayout()` 和 `setLayout({ width?, position? })` 保存。
 
 ### 读取与修改插件设置
 
@@ -648,6 +663,12 @@ if (!result.isError) showItems(result.structuredContent);
 | **展示** | `Spinner`、`Skeleton`、`ActionTooltip`、`ModalHeader`、`InlineDiff`、`Markdown`、`AgentAvatar`、`UserAvatar` |
 | **Settings 布局** | `SettingsPanelShell`、`SettingsBreadcrumb`、`SettingsGroup`、`SettingsRow` |
 | **目录页布局** | `CatalogPage`、`CatalogSection`、`CatalogToolbarButton` |
+| **模态层** | `LayerBoundary` |
+| **工具记录** | `ToolDisclosure`、`RunningShimmer` |
+
+`ToolDisclosure` 接收 `expanded`、`onToggle`、`expandable?`、`title`、React `icon`、`callId?` 与展开面板的 children。运行中的标题使用 `RunningShimmer active`，复用 Host 的动效，不复制工具记录样式。
+
+`LayerBoundary` 接收 `active?`、`blocksNativeViews?` 和 `children`。用它包裹插件自己的模态框或影院画面，可抑制下层悬浮内容，并按需隐藏原生视图。内容自行绘制空状态时，使用 `SettingsGroup framed={false}` 避免嵌套边框。`host.ui.showToast` 除消息与操作外，还接受 `description` 和 React `icon`。
 
 `CatalogPage` 让主视图使用与 Desktop 的插件页、智能体页相同的页面框架：传入 `title`，可选传入顶栏 `actions`（刷新这类仅图标的命令用 `CatalogToolbarButton`，主要操作用 `Button` 或 `SplitButton`），可选传入 `search` 与 `filters`，再用 `CatalogSection` 把各组内容作为 children 渲染。每个筛选组都把不筛选的选项放在第一位。
 

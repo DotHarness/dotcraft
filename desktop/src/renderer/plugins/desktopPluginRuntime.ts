@@ -17,11 +17,14 @@ import { SettingsBreadcrumb } from '../components/settings/SettingsBreadcrumb'
 import { SettingsGroup, SettingsRow } from '../components/settings/SettingsGroup'
 import { SettingsPanelShell } from '../components/settings/SettingsPanelShell'
 import { ActionTooltip } from '../components/ui/ActionTooltip'
+import { DesktopPluginToolDisclosure } from '../components/desktopPlugins/DesktopPluginToolDisclosure'
+import { RunningShimmer } from '../components/ui/RunningShimmer'
 import { Button } from '../components/ui/Button'
 import { Checkbox } from '../components/ui/Checkbox'
 import { Combobox } from '../components/ui/Combobox'
 import { IconButton } from '../components/ui/IconButton'
 import { Input, Textarea } from '../components/ui/Input'
+import { LayerBoundary } from '../contexts/LayerContext'
 import { ModalHeader } from '../components/ui/ModalHeader'
 import { PillSwitch } from '../components/ui/PillSwitch'
 import { Select } from '../components/ui/Select'
@@ -44,6 +47,8 @@ export function startDesktopPluginRuntime(): () => void {
     jsxRuntime: JsxRuntime,
     reactDom: { createPortal },
     ui: {
+      ToolDisclosure: DesktopPluginToolDisclosure,
+      RunningShimmer,
       Button,
       IconButton,
       Input,
@@ -56,6 +61,7 @@ export function startDesktopPluginRuntime(): () => void {
       Slider,
       ActionTooltip,
       Combobox,
+      LayerBoundary,
       ModalHeader,
       PillSwitch,
       SettingsPanelShell,

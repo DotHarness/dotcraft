@@ -129,7 +129,7 @@ Target these Core controls when a region is too broad:
 | **Input** | `composer.input.attachments`, `composer.input.editor` |
 | **Leading toolbar** | `composer.toolbar.commands`, `composer.toolbar.permissions`, `composer.toolbar.mode`, `composer.toolbar.goal` |
 | **Trailing toolbar** | `composer.toolbar.context-usage`, `composer.toolbar.model`, `composer.toolbar.voice`, `composer.toolbar.submit` |
-| **Status** | `composer.status.workspace`, `composer.status.subscription`, `composer.status.trailing` |
+| **Status** | `composer.status.workspace`, `composer.status.workspace.run-on`, `composer.status.subscription`, `composer.status.trailing` |
 
 ![Composer public surface hierarchy](/desktop-plugin-composer-surfaces.svg)
 
@@ -177,6 +177,8 @@ Composer surface contexts have `threadId: null` whenever the Composer has not cr
 | `variant` | `default` or an embedded Composer variant such as `agentBuilder`. |
 | `minimalChrome` | Core has hidden nonessential controls for an embedded Composer. |
 | `provider` | `{ id, backendId }` of the provider the Composer samples with, or `null` while unknown. `backendId` is `null` for built-in providers. |
+
+The `composer.status.workspace.run-on` seat uses `DesktopPluginRunOnContext`: `workspacePath`, `threadId`, `busy`, `eligible`, `menuOpen`, and `setMenuOpen(open)`. Respect `eligible` and use the menu state to coordinate with the other workspace-row menus.
 
 On the new-chat Welcome screen, `composer` covers the complete pre-thread composition experience: app selection, hero, input, workspace footer, and quick starts. Those elements share one draft and voice lifecycle, so replacing `composer` swaps them as a single unit.
 
@@ -309,6 +311,8 @@ These six fields are convenience APIs, not an allowlist or a capability ceiling.
 
 The returned activation may also provide `dispose()`. Contribution ids must be unique within one activation. Put localized labels in `label.translations`, keyed by app locale. Desktop normalizes both sides of that lookup, so a `zh-CN` key still reaches a `zh-Hans` reader, while a key outside the seven locales falls back to `label.default`. Set `order` only where the convenience API defines ordered placement.
 
+A tool renderer receives `presentation` with the exact `presentationId`, options, arguments, result, `running` or `completed` status, success, `errorCode`, `errorMessage`, and optional `progress`. Progress is a discriminated snapshot, including `kind: "remoteFileTransfer"` for file transfers, and updates as the call progresses. Rendering does not depend on whether the tool comes from Core or a .NET extension.
+
 ### Give a contribution an icon
 
 `mainViews`, `settingsPages`, `conversationViews`, `commands`, and `messageActions` take an optional `icon`. Pass a component for anything specific to the plugin. It receives `size`, `strokeWidth`, `aria-hidden`, and `style`, and inherits the surrounding text color through `currentColor`:
@@ -357,8 +361,19 @@ Beyond the four primitives, `DesktopPluginHost` groups stable product operations
 | `appBindings`, `appSurfaces` | Connected-app binding and app-provided UI surfaces. |
 | `workspaces` | Reading local workspace information. |
 | `oratorio` | Team runs, handoffs, and events. |
+| `satellites` | The local Hub's devices, invitations, events, activity, and read-only local sharing status. |
+| `remoteToolHost` | Thread execution routes, welcome and next-idle choices, and route snapshots. |
+| `screenView` | Generation-owned screen sessions and viewer layout preferences. |
 
 The Host API is a compatibility contract, not an access-control boundary. Main-process URL, route, bearer, size, and timeout checks remain service invariants rather than plugin permissions.
+
+### Work with satellites and screen sessions
+
+Use `satellites.list()`, `createInvite()`, `revoke(peerId)`, `activity(peerId?)`, and `shareStatus()` for fleet operations. `wasInvitedHere(inviteId)` identifies invitations created by this Desktop, and `onEvent(listener)` follows peer changes. These operations use the local Hub, not the foreground AppServer.
+
+Use `remoteToolHost.getSnapshot()` and `onChange(listener)` for route state, including capability and remote-connection flags. `list(threadId?)`, `connect(threadId, hostId, workspaceId)`, and `disconnect(threadId)` use the Host route controller. `setPendingRoute(route)` stages a welcome choice. `deferRoute`, `clearDeferredRoute`, and `applyDeferredRoute` manage next-idle choices. `maybeReapply(threadId, options?)` requests the bounded restoration attempt. Disposing the generation clears its pending choices and restoration work without disconnecting confirmed tool routes.
+
+`screenView.open({ peerId, maxWidth })` returns a handle with `viewId`, `onState`, `onFrame`, `tune`, `ack`, and `close`. Acknowledge a frame after decoding it. Closing the handle or disposing the generation releases its transport and subscriptions. Use `getLayout()` and `setLayout({ width?, position? })` for small viewer preferences.
 
 ### Read and mutate plugin settings
 
@@ -652,6 +667,12 @@ Import shared UI components from `@dotcraft/plugin` so a plugin page looks like 
 | **Presentation** | `Spinner`, `Skeleton`, `ActionTooltip`, `ModalHeader`, `InlineDiff`, `Markdown`, `AgentAvatar`, `UserAvatar` |
 | **Settings layout** | `SettingsPanelShell`, `SettingsBreadcrumb`, `SettingsGroup`, `SettingsRow` |
 | **Catalog layout** | `CatalogPage`, `CatalogSection`, `CatalogToolbarButton` |
+| **Modal layering** | `LayerBoundary` |
+| **Tool transcript** | `ToolDisclosure`, `RunningShimmer` |
+
+`ToolDisclosure` takes `expanded`, `onToggle`, `expandable?`, `title`, a React `icon`, `callId?`, and panel children. Use `RunningShimmer` with `active` for the Host's running-label motion rather than copying transcript styles.
+
+`LayerBoundary` takes `active?`, `blocksNativeViews?`, and `children`. Wrap a plugin-owned modal or theater to suppress lower hover overlays and hide native views when needed. `SettingsGroup framed={false}` avoids a nested frame when the content supplies its own empty-state surface. `host.ui.showToast` accepts `description` and a React `icon` alongside its message and action.
 
 `CatalogPage` gives a main view the same frame as Desktop's Plugins and Agents pages: pass a `title`, optional `actions` for the top bar (`CatalogToolbarButton` for icon-only commands such as Refresh, `Button` or `SplitButton` for the principal one), an optional `search` and `filters`, and render your groups as children with `CatalogSection`. In each filter group, put the unfiltered choice first.
 

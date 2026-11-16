@@ -16,7 +16,7 @@ export type ToolKind =
   | 'lsp' | 'requestUserInput' | 'commitSuggest' | 'createPlan'
   | 'todoWrite' | 'todo'
   | 'skillView'
-  | 'board' | 'automation' | 'agentBuilder' | 'remoteToolHost'
+  | 'board' | 'automation' | 'agentBuilder'
   | 'workflow'
   | 'nodeRepl'
 
@@ -64,7 +64,6 @@ export function resolveToolKind(item: ToolKindSource): ToolKind | null {
     case 'board':
     case 'automation':
     case 'agentBuilder':
-    case 'remoteToolHost':
     case 'nodeRepl':
       return plan.family
   }

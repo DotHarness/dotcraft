@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.9.1 |
+| Version | 0.12.2 |
 | Status | Draft |
-| Date | 2026-10-19 |
+| Date | 2026-11-16 |
 | Parent | [Remote Tool Host](../architecture/remote-tool-host.md) |
 | Related Specs | [Hub Architecture](../architecture/hub-architecture.md), [Runtime Module Boundaries](../architecture/runtime-module-boundaries.md) |
 
@@ -208,8 +208,9 @@ Nothing about a view is persisted on either machine, and no frame is written to 
 
 ## 8. Desktop viewer
 
-Desktop shows a view for the thread's routed machine, independent of AppServer conversations and
-tools:
+The bundled Satellite Desktop plugin shows a view for the thread's routed machine through the Host screen-session API, independent of AppServer conversations and tools. The plugin owns the launcher, dock, theater, and frame decoding. The Host owns transport and window binding. Disabling the plugin closes its screen views and subscriptions without ending tool sessions.
+
+Transport rules:
 
 - the main process dials the Hub bridge with the Hub bearer from `hub.lock`; the bearer never enters
   the renderer, and the AppServer is not involved;

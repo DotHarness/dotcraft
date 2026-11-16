@@ -14,7 +14,8 @@ import type { WorkspaceProjectSummary } from '../../../shared/workspaceProjects'
 import { WorktreeHandoffDialog } from './WorktreeHandoffDialog'
 import { useAddProjectFlow } from '../projects/AddProject'
 import { ActionTooltip } from '../ui/ActionTooltip'
-import { RunOnPicker, useRunOnVisible } from './RunOnPicker'
+import { DesktopPluginSurface } from '../desktopPlugins/DesktopPluginSurface'
+import { useDesktopPluginRegistry } from '../../plugins/desktopPluginRegistry'
 import { WorktreeEnvironmentPicker } from './WorktreeEnvironmentPicker'
 import {
   FooterMenuButton,
@@ -65,7 +66,6 @@ type OpenMenu = 'project' | 'workspace' | 'branch' | 'changelist' | 'runOn' | 'e
 const GIT_BRANCH_REFRESH_INTERVAL_MS = 5_000
 
 const footerStyle: CSSProperties = {
-  display: 'flex',
   alignItems: 'center',
   gap: '8px',
   minHeight: '28px',
@@ -96,7 +96,8 @@ export function ComposerWorkspaceFooter({
   turnRunning = false
 }: ComposerWorkspaceFooterProps): JSX.Element | null {
   const t = useT()
-  const runOnVisible = useRunOnVisible()
+  const runOnRegistered = useDesktopPluginRegistry(state =>
+    state.surfaces.some(surface => surface.surface === 'composer.status.workspace.run-on'))
   const capabilities = useConnectionStore((s) => s.capabilities)
   const projectChoices = useWorkspaceProjectChoices(workspacePath, variant === 'welcome')
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null)
@@ -450,7 +451,7 @@ export function ComposerWorkspaceFooter({
   const showGitFooterControls = !foregroundIsChat && !remoteWorkspace && Boolean(branchActionPath) && gitAvailability !== 'unavailable'
   const showPerforceFooterControls = (isPerforceWorkspace && Boolean(thread?.id)) || isPerforceWelcome
   // A remote AppServer's Hub is not this Desktop's, so its satellites are not reachable.
-  const showRunOn = runOnVisible && !remoteWorkspace && !foregroundIsChat
+  const showRunOn = runOnRegistered && !remoteWorkspace && !foregroundIsChat
   const workLocationBranch = mode === 'local' ? currentBranchLabel(branches) : null
   // Empty until the branch is known, so the pill is not remounted when it arrives.
   const workLocationTooltip = workLocationBranch
@@ -460,7 +461,7 @@ export function ComposerWorkspaceFooter({
   return (
     <>
     {(showRunOn || showProjectSelector || showGitFooterControls || showPerforceFooterControls) && (
-      <div ref={footerRef} style={footerStyle}>
+      <div ref={footerRef} className={css.controlRow} style={footerStyle}>
       {showProjectSelector && (
         <div style={{ position: 'relative' }}>
           <WorkspaceFooterPill
@@ -489,11 +490,16 @@ export function ComposerWorkspaceFooter({
         </div>
       )}
       {showRunOn && (
-        <RunOnPicker
-          threadId={thread?.id}
-          workspacePath={workspacePath}
-          turnRunning={turnRunning}
-          onOpenChange={(open) => setOpenMenu(open ? 'runOn' : null)}
+        <DesktopPluginSurface
+          name="composer.status.workspace.run-on"
+          context={{
+            threadId: thread?.id ?? null,
+            workspacePath,
+            busy: turnRunning,
+            eligible: !remoteWorkspace && !foregroundIsChat,
+            menuOpen: openMenu === 'runOn',
+            setMenuOpen: (open) => setOpenMenu(open ? 'runOn' : null)
+          }}
         />
       )}
       {showGitFooterControls && (

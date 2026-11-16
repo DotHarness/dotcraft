@@ -33,6 +33,6 @@ Use `npm run dev:debug` only when attaching Playwright to Desktop through CDP.
 | `npm test` | Run the Vitest unit tests |
 | `npm run build` | Build the production Electron bundles |
 | `npm run pack` | Create an unpacked application |
-| `npm run dist` | Create platform installers and verify the package |
+| `npm run dist` | Create platform installers |
 
 Installer artifacts are written to `desktop/dist/`.

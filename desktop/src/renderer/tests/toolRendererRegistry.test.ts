@@ -46,13 +46,6 @@ describe('ToolRendererRegistry', () => {
     expect(resolve(CORE_TOOL_PRESENTATION_IDS.deferredSearch)).toMatchObject({ family: 'deferredSearch' })
     expect(resolve(CORE_TOOL_PRESENTATION_IDS.lsp)).toMatchObject({ family: 'lsp', groupCategory: 'explore' })
     expect(resolve(CORE_TOOL_PRESENTATION_IDS.commitSuggest)).toMatchObject({ family: 'commitSuggest' })
-    for (const operation of ['list', 'connect', 'disconnect', 'transfer']) {
-      expect(resolve(CORE_TOOL_PRESENTATION_IDS.remoteToolHost, 'CoreNative', { operation })).toEqual({
-        family: 'remoteToolHost',
-        mode: 'collapsible',
-        options: { operation }
-      })
-    }
   })
 
   it.each(['Mcp', 'PluginNative', 'RuntimeDynamic', 'LegacyAppBinding'])(
@@ -81,7 +74,6 @@ describe('ToolRendererRegistry', () => {
     expect(resolve(CORE_TOOL_PRESENTATION_IDS.channel, 'CoreNative', { operation: 'send' })).toBeNull()
     expect(resolve(CORE_TOOL_PRESENTATION_IDS.agentBuilder, 'CoreNative', { field: 'avatar' })).toBeNull()
     expect(resolve(CORE_TOOL_PRESENTATION_IDS.agentBuilder, 'CoreNative')).toBeNull()
-    expect(resolve(CORE_TOOL_PRESENTATION_IDS.remoteToolHost, 'CoreNative', { operation: 'reroute' })).toBeNull()
   })
 
   it('rejects duplicate presentation ids at construction', () => {

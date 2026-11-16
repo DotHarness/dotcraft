@@ -1,5 +1,5 @@
 ---
-version: "0.12.0"
+version: "0.12.2"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 colors:
@@ -1881,6 +1881,8 @@ heading keeps the full count. The disclosure row carries no hover fill, lighteni
 its text instead.
 
 ### Plugin surfaces
+
+Bundled plugin artwork keeps a distinct identifying palette rather than copying another plugin's colors. Satellite catalog branding uses a rounded teal tile, a white satellite-dish silhouette, and one yellow signal accent. Its logo and compact composer asset share that palette and silhouette, while in-app actions retain the neutral satellite-dish glyph.
 
 A plugin settings page uses the built-in settings grammar: a group heading over a
 card of rows, with wide visual choices in a block row rather than a card inside a

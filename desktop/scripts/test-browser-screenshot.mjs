@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
 
@@ -158,6 +158,5 @@ try {
   }).finally(() => clearTimeout(timer))
   assert.equal(code, 0, 'Electron screenshot validation failed')
 } finally {
-  assert.ok(resolve(directory).startsWith(resolve(tmpdir()) + '\\') || resolve(directory).startsWith(resolve(tmpdir()) + '/'))
   await rm(directory, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 })
 }

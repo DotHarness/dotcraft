@@ -8,12 +8,9 @@ import type { MessageKey } from '../../../../../shared/locales'
 import { OtherDevicesSegment } from '../otherDevices/OtherDevicesSegment'
 import { PhonesSegment } from '../phones/PhonesSegment'
 import { SshMachinesSegment } from '../ssh/SshMachinesSegment'
-import { SatellitesSegment } from './SatellitesSegment'
-import { SharePcSegment } from './SharePcSegment'
-import { useSharePcStatus } from './useSharePcStatus'
 import { WorkspaceSegment, type WorkspaceSegmentProps } from './WorkspaceSegment'
 
-type ConnectionsSegment = 'workspace' | 'otherDevices' | 'phones' | 'ssh' | 'satellites' | 'share'
+type ConnectionsSegment = 'workspace' | 'otherDevices' | 'phones' | 'ssh'
 
 function segmentsFor(platform: string): { value: ConnectionsSegment; labelKey: MessageKey }[] {
   return [
@@ -23,9 +20,7 @@ function segmentsFor(platform: string): { value: ConnectionsSegment; labelKey: M
       value: 'phones',
       labelKey: platform === 'darwin' ? 'settings.connections.segments.phones.mac' : 'settings.connections.segments.phones'
     },
-    { value: 'ssh', labelKey: 'settings.connections.segments.ssh' },
-    { value: 'satellites', labelKey: 'settings.connections.segments.satellites' },
-    { value: 'share', labelKey: 'settings.connections.segments.share' }
+    { value: 'ssh', labelKey: 'settings.connections.segments.ssh' }
   ]
 }
 
@@ -38,23 +33,15 @@ export function ConnectionsPanel({ workspace }: ConnectionsPanelProps): JSX.Elem
   const pendingLink = usePairedComputersStore((state) => state.pendingLink)
   const [segment, setSegment] = useState<ConnectionsSegment>(pendingLink ? 'otherDevices' : 'workspace')
   const [subPageOpen, setSubPageOpen] = useState(false)
-  const share = useSharePcStatus()
-
-  // With no runtime and no pairing there is nothing to read, so the segment is dropped.
-  const showShare = share.status != null && (share.status.installed || share.status.peers.length > 0)
-  const segments = segmentsFor(window.api.platform).filter(({ value }) => value !== 'share' || showShare)
+  const segments = segmentsFor(window.api.platform)
 
   useEffect(() => {
     if (pendingLink) setSegment('otherDevices')
   }, [pendingLink])
 
-  useEffect(() => {
-    if (segment === 'share' && share.loaded && !showShare) setSegment('workspace')
-  }, [segment, share.loaded, showShare])
-
   // A second-level page takes the whole surface, so the segmented control yields to it.
   const active = segments.some(({ value }) => value === segment) ? segment : 'workspace'
-  const fullPage = subPageOpen && (active === 'satellites' || active === 'otherDevices')
+  const fullPage = subPageOpen && active === 'otherDevices'
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -79,8 +66,6 @@ export function ConnectionsPanel({ workspace }: ConnectionsPanelProps): JSX.Elem
       {active === 'otherDevices' && <OtherDevicesSegment onSubPageChange={setSubPageOpen} />}
       {active === 'phones' && <PhonesSegment />}
       {active === 'ssh' && <SshMachinesSegment />}
-      {active === 'satellites' && <SatellitesSegment onSubPageChange={setSubPageOpen} />}
-      {active === 'share' && <SharePcSegment status={share.status} onRefresh={share.reload} />}
     </div>
   )
 }

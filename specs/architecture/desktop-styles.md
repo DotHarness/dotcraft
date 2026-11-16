@@ -2,9 +2,9 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 0.9.3 |
+| Version | 0.12.2 |
 | Status | Living |
-| Date | 2026-10-24 |
+| Date | 2026-11-16 |
 | Parent Spec | [Desktop Design System](DESIGN.md) |
 
 ## Overview
@@ -29,6 +29,8 @@ Global styles are divided by ownership:
 - Feature styles live beside the feature that owns their selectors, animations,
   and responsive behavior. The global manifest may still include them when stable
   cascade order is required.
+
+Connection rows, field labels, and error-banner rules shared by phone and paired-computer pages remain in the Host's shared style graph. They must render identically with the Satellite plugin disabled. Plugin feature styles load only with their generation.
 
 Existing class names stay global during organizational refactors. New isolated
 leaf components may use CSS Modules when their selectors do not target portals,
