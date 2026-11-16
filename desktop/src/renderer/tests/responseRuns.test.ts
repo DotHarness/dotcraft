@@ -7,7 +7,7 @@ const at = (seconds: number): string => new Date(Date.UTC(2026, 0, 1, 12, 0, sec
 const prompt: ConversationItem = { id: 'prompt', type: 'userMessage', status: 'completed', text: 'Clean up', createdAt: at(0) }
 const tool: ConversationItem = { id: 'tool', type: 'toolCall', status: 'completed', toolName: 'Exec', createdAt: at(1) }
 const reply: ConversationItem = { id: 'reply', type: 'agentMessage', status: 'completed', phase: 'final', text: 'Done', createdAt: at(2) }
-const mailbox: ConversationItem = { id: 'mail', type: 'userMessage', status: 'completed', deliveryMode: 'queued', triggerKind: 'subagentMailbox', triggerRefId: '/root', text: 'SubAgent message' }
+const mailbox: ConversationItem = { id: 'mail', type: 'userMessage', status: 'completed', deliveryMode: 'queued', triggerKind: 'subagentMailbox', triggerLabel: 'helper', triggerRefId: '/root/helper', text: 'SubAgent message from /root/helper' }
 const commandEnded: ConversationItem = { id: 'ended', type: 'userMessage', status: 'completed', deliveryMode: 'queued', triggerKind: 'terminal', triggerLabel: 'npm test', triggerStatus: 'completed', triggerRefId: 'call-1' }
 
 function turn(id: string, items: ConversationItem[], startSeconds: number, seconds: number, status: ConversationTurn['status'] = 'completed'): ConversationTurn {
@@ -71,11 +71,11 @@ describe('response placement', () => {
   it.each([
     mailbox,
     { ...mailbox, deliveryMode: 'subagentMailbox', triggerKind: undefined }
-  ])('keeps a mailbox continuation internal without losing response placement', (input) => {
+  ])('names the sender of a mailbox message that continues a response', (input) => {
     const asked = turn('asked', [prompt, tool], 0, 10)
     const mailed = turn('mailed', [input, tool], 20, 5)
 
-    expect(getTaskWake(mailed)).toBeNull()
+    expect(getTaskWake(mailed)).toEqual({ kind: 'subagent', label: 'helper', taskId: '/root/helper' })
     expect(placeResponses([asked, mailed], all).get('mailed')).toEqual({ leading: [asked], absorbed: false })
   })
 })

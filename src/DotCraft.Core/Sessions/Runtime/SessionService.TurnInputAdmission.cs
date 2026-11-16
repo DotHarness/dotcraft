@@ -249,6 +249,29 @@ public sealed partial class SessionService
         return string.Join(Environment.NewLine + Environment.NewLine, messages);
     }
 
+    private async Task<(string? Label, string? RefId)> ResolveMailboxSenderAsync(
+        IReadOnlyList<SubAgentMailboxEntry> entries,
+        CancellationToken ct)
+    {
+        var senders = entries.Select(static entry => entry.SenderAgentPath).Distinct(StringComparer.Ordinal).ToArray();
+        if (senders.Length != 1 || !AgentPath.TryParse(senders[0], out var sender))
+            return (null, null);
+
+        var parents = new Queue<string>([entries[0].RootThreadId]);
+        while (parents.TryDequeue(out var parentThreadId))
+        {
+            foreach (var edge in await ListSubAgentChildrenAsync(parentThreadId, includeClosed: true, ct).ConfigureAwait(false))
+            {
+                if (!AgentPath.TryParse(edge.AgentPath, out var edgePath) || !sender.IsSameOrDescendantOf(edgePath))
+                    continue;
+                if (edgePath == sender)
+                    return (edge.AgentNickname ?? sender.TaskName, sender.Value);
+                parents.Enqueue(edge.ChildThreadId);
+            }
+        }
+        return (sender.TaskName, sender.Value);
+    }
+
     private static string BuildSubAgentMailboxDisplayText(IReadOnlyList<SubAgentMailboxEntry> entries)
     {
         if (entries.Count == 1)

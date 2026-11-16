@@ -283,8 +283,8 @@ public sealed partial class SessionService
                     if (startInbox is { } heldStartInbox
                         && await TryDrainSubAgentMailboxMessageAsync(heldStartInbox, drainCt) is { } initialMailbox)
                         initial.Add(initialMailbox);
-                    if (DrainBoardInput(boardInbox, thread, turn, eventChannel, NextItemSeq,
-                        FinalizeStreamingAgentMessage, FinalizeStreamingReasoning, turnModelHistory!) is { } initialBoard)
+                    if (await DrainBoardInputAsync(boardInbox, thread, turn, eventChannel, NextItemSeq,
+                        FinalizeStreamingAgentMessage, FinalizeStreamingReasoning, turnModelHistory!, drainCt) is { } initialBoard)
                         initial.Add(initialBoard);
                     return initial;
                 }
@@ -316,8 +316,8 @@ public sealed partial class SessionService
                 messages.AddRange(guidance);
                 if (inbox is { } heldInbox && await TryDrainSubAgentMailboxMessageAsync(heldInbox, drainCt) is { } mailbox)
                     messages.Add(mailbox);
-                if (DrainBoardInput(boardInbox, thread, turn, eventChannel, NextItemSeq,
-                    FinalizeStreamingAgentMessage, FinalizeStreamingReasoning, turnModelHistory!) is { } boardMessage)
+                if (await DrainBoardInputAsync(boardInbox, thread, turn, eventChannel, NextItemSeq,
+                    FinalizeStreamingAgentMessage, FinalizeStreamingReasoning, turnModelHistory!, drainCt) is { } boardMessage)
                     messages.Add(boardMessage);
                 messages.AddRange(await drainWorldStateAsync(drainCt));
                 return messages;

@@ -40,6 +40,7 @@ public sealed partial class SessionService
             return false;
 
         var displayText = BuildSubAgentMailboxDisplayText(pending);
+        var (senderLabel, senderPath) = await ResolveMailboxSenderAsync(pending, ct).ConfigureAwait(false);
         var queued = new QueuedTurnInput
         {
             Id = SessionIdGenerator.NewQueuedInputId(),
@@ -50,7 +51,8 @@ public sealed partial class SessionService
             Status = "queued",
             CreatedAt = DateTimeOffset.UtcNow,
             TriggerKind = SubAgentMailboxDelivery.DeliveryMode,
-            TriggerRefId = agentPath
+            TriggerLabel = senderLabel,
+            TriggerRefId = senderPath
         };
         IReadOnlyList<QueuedTurnInput> queueSnapshot;
         using (await AcquireThreadQueueLockAsync(threadId, ct).ConfigureAwait(false))

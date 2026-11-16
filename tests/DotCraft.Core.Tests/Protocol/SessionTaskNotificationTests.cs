@@ -136,13 +136,15 @@ public sealed partial class SessionTaskNotificationTests : IAsyncLifetime
     public async Task AgentMessage_WakesAnIdleRootWithTheMessage()
     {
         await using var harness = await CreateHarnessAsync();
-        var worker = await ChildContextAsync(harness, "worker");
+        var worker = await ChildContextAsync(harness, "worker", nickname: "Ada");
 
         await SubAgentSessionControl.SendAgentMessageAsync(worker, "/root", "found the cause", coordinator: null, CancellationToken.None);
 
         var thread = await WaitForThreadAsync(harness, t => t.TurnCount == 1 && t.Turns[0].Status == TurnStatus.Completed);
         var input = thread.Turns[0].Input!.AsUserMessage!;
         Assert.Equal(SubAgentMailboxDelivery.DeliveryMode, input.TriggerKind);
+        Assert.Equal("/root/worker", input.TriggerRefId);
+        Assert.Equal("Ada", input.TriggerLabel);
         Assert.Contains("found the cause", string.Concat(input.MaterializedInputParts!.Select(part => part.Text)));
         Assert.Empty(await harness.Service.ListPendingSubAgentMailboxAsync(harness.ThreadId, AgentPath.Root));
     }
@@ -262,7 +264,7 @@ public sealed partial class SessionTaskNotificationTests : IAsyncLifetime
         return new Harness(service, client, agentFactory, thread.Id, _tempDir);
     }
 
-    private static async Task<SubAgentSessionContext> ChildContextAsync(Harness harness, string name)
+    private static async Task<SubAgentSessionContext> ChildContextAsync(Harness harness, string name, string? nickname = null)
     {
         var path = "/root/" + name;
         var child = await harness.Service.CreateThreadAsync(
@@ -275,7 +277,7 @@ public sealed partial class SessionTaskNotificationTests : IAsyncLifetime
         await harness.Service.UpsertThreadSpawnEdgeAsync(new ThreadSpawnEdge
         {
             ParentThreadId = harness.ThreadId, ChildThreadId = child.Id, AgentPath = path,
-            TaskName = name, RuntimeType = "native", Status = ThreadSpawnEdgeStatus.Open, Depth = 1
+            TaskName = name, AgentNickname = nickname, RuntimeType = "native", Status = ThreadSpawnEdgeStatus.Open, Depth = 1
         });
         return new SubAgentSessionContext
         {

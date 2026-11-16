@@ -27,6 +27,7 @@ interface TurnActivitySummaryProps {
   startedAt?: string
   completedAt?: string
   taskWake?: TaskWake | null
+  subAgentThreadId?: string
   responseTurnIds?: readonly string[]
 }
 
@@ -38,11 +39,12 @@ export function TurnActivitySummary(props: TurnActivitySummaryProps): JSX.Elemen
 
 function SubAgentTurnActivitySummary(props: TurnActivitySummaryProps): JSX.Element {
   const { lookup } = useSubAgentLookup(props.threadId)
-  const child = findSubAgentChild(lookup, null, props.taskWake?.taskId, 'children')
-  return <TurnActivitySummaryContent {...props} taskWake={props.taskWake && settledSubAgentWake(props.taskWake, child)} />
+  const child = findSubAgentChild(lookup, null, props.taskWake?.taskId, 'tree')
+  return <TurnActivitySummaryContent {...props} taskWake={props.taskWake && settledSubAgentWake(props.taskWake, child)}
+    subAgentThreadId={child?.childThreadId} />
 }
 
-function TurnActivitySummaryContent({ threadId, turnId, startedAt, completedAt, status, collapsible = false, taskWake, responseTurnIds, children }: TurnActivitySummaryProps): JSX.Element {
+function TurnActivitySummaryContent({ threadId, turnId, startedAt, completedAt, status, collapsible = false, taskWake, subAgentThreadId, responseTurnIds, children }: TurnActivitySummaryProps): JSX.Element {
   const locale = useLocale()
   const byUser = useTurnStopStore(state => state.requested.has(turnStopKey(threadId, turnId)))
   const projectKey = useWorkspaceProjectsStore((state) => state.foregroundProjectId)
@@ -89,7 +91,7 @@ function TurnActivitySummaryContent({ threadId, turnId, startedAt, completedAt, 
         className={styles.originButton}
         aria-label={translate(locale, TASK_WAKE_COPY[taskWake.kind].show)}
         disabled={!taskId}
-        onClick={() => { if (taskId) openBackgroundTask(threadId, taskWake.kind, taskId, translate(locale, 'workflow.tab')) }}
+        onClick={() => { if (taskId) openBackgroundTask(threadId, taskWake.kind, taskId, translate(locale, 'workflow.tab'), subAgentThreadId) }}
       >
         {taskWake.kind === 'subagent' && taskWake.label
           ? <RobotAvatar name={taskWake.label} size={14} />

@@ -68,6 +68,7 @@ public sealed partial class SessionService
                     if (turn.Items.Any(item => item.Id == batch.Key)) continue;
                     var entries = batch.ToArray();
                     var text = BuildSubAgentMailboxDisplayText(entries);
+                    var (senderLabel, senderPath) = await ResolveMailboxSenderAsync(entries, ct);
                     recovered.Add(turn, new SessionItem
                     {
                         Id = batch.Key, TurnId = turn.Id, Type = ItemType.UserMessage, Status = ItemStatus.Completed,
@@ -79,8 +80,7 @@ public sealed partial class SessionService
                             MaterializedInputParts = [new() { Type = "text", Text = BuildSubAgentMailboxModelText(entries) }],
                             ChannelName = turn.OriginChannel, ChannelContext = turn.Initiator?.ChannelContext,
                             GroupId = turn.Initiator?.GroupId, TriggerKind = SubAgentMailboxDelivery.DeliveryMode,
-                            TriggerLabel = entries.Length == 1 ? entries[0].SenderAgentPath : $"{entries.Length} messages",
-                            TriggerRefId = path
+                            TriggerLabel = senderLabel, TriggerRefId = senderPath
                         }
                     });
                 }

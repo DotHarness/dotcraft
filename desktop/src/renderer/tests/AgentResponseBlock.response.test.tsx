@@ -3,9 +3,12 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { AgentResponseBlock } from '../components/conversation/AgentResponseBlock'
 import { useConversationStore } from '../stores/conversationStore'
+import { useSubAgentStore } from '../stores/subAgentStore'
+import { useThreadStore } from '../stores/threadStore'
 import { useTurnActivityDisclosureStore } from '../stores/turnActivityDisclosureStore'
 import type { ConversationTurn } from '../types/conversation'
 import { installDesktopApiMock } from './desktopApiMock'
+import { makeSubAgent, makeSubAgentThread } from './subAgentFixtures'
 
 const asked: ConversationTurn = {
   id: 'turn-asked',
@@ -77,5 +80,30 @@ describe('AgentResponseBlock responses spanning turns', () => {
     fireEvent.click(container.querySelector('button[aria-expanded]')!)
 
     expect(screen.getByTestId('subagent-ending-chips')).toHaveTextContent('reviewer')
+  })
+
+  it('opens a sender that is not a direct child from the turn its message started', () => {
+    const helper = makeSubAgent({
+      childThreadId: 'helper-thread', parentThreadId: 'worker-thread', agentPath: '/root/worker/helper', nickname: 'helper',
+      threadSummary: makeSubAgentThread('helper-thread', { kind: 'subagent', subAgent: { rootThreadId: 'thread-1', parentThreadId: 'worker-thread' } })
+    })
+    useThreadStore.setState({ activeThreadId: 'thread-1', activeThread: makeSubAgentThread('thread-1') })
+    useSubAgentStore.setState({ childrenByParent: new Map([['worker-thread', [helper]]]), selectedChildByParent: new Map() })
+    const mailed: ConversationTurn = {
+      ...woken,
+      items: [
+        { id: 'mail', type: 'userMessage', status: 'completed', deliveryMode: 'queued', triggerKind: 'subagentMailbox', triggerLabel: 'helper', triggerRefId: '/root/worker/helper' },
+        woken.items[1]
+      ]
+    }
+    render(
+      <LocaleProvider>
+        <AgentResponseBlock turn={mailed} />
+      </LocaleProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show the subagent' }))
+
+    expect(useSubAgentStore.getState().selectedChildByParent.get('thread-1')).toBe('helper-thread')
   })
 })

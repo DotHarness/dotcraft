@@ -21,7 +21,6 @@ export interface ItemProjection {
   heading?: string | null
   wake?: TaskWake
   wakeEntry?: TranscriptEntry
-  mailbox?: boolean
   action?: Extract<TranscriptEntry, { kind: 'threadAction' }>
 }
 
@@ -95,7 +94,9 @@ function projectItem(item: HistoryItem, context: ItemContext): ItemProjection {
     case 'userMessage': {
       const mode = str(payload.deliveryMode)
       const trigger = str(payload.triggerKind)
-      if (mode === 'subagentMailbox' || trigger === 'subagentMailbox') return { mailbox: mode !== 'guidance' }
+      if (mode === 'subagentMailbox' || trigger === 'subagentMailbox') {
+        return mode === 'guidance' ? {} : { wake: { task: 'subagent', label: str(payload.triggerLabel).trim(), status: null } }
+      }
       if (trigger === 'terminal' || trigger === 'subagent' || (trigger === 'workflow' && !!str(payload.triggerStatus))) {
         if (mode === 'guidance') {
           const ending = trigger === 'subagent' ? subagentEndingEntry(item, context.subagentWorking) : null

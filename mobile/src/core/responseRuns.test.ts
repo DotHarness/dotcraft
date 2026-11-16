@@ -32,7 +32,7 @@ describe('responses spanning turns', () => {
     const items = [
       item('t1', 'userMessage', { text: 'Clean up' }),
       ...read('t1', 'r1'),
-      item('t2', 'userMessage', { text: 'SubAgent message from /root/helper', deliveryMode: 'queued', triggerKind: 'subagentMailbox', triggerRefId: '/root' }),
+      item('t2', 'userMessage', { text: 'SubAgent message from /root/helper', deliveryMode: 'queued', triggerKind: 'subagentMailbox', triggerLabel: 'helper', triggerRefId: '/root/helper' }),
       ...read('t2', 'r2'),
       commandEnded('t3'),
       ...read('t3', 'r3'),
@@ -46,6 +46,7 @@ describe('responses spanning turns', () => {
     expect(activity).toMatchObject({ status: 'worked', origin: null })
     expect(Date.parse(activity.endedAt!) - Date.parse(activity.startedAt!)).toBeGreaterThanOrEqual(15_000)
     expect(activity.children.filter((entry) => entry.kind === 'wake')).toMatchObject([
+      { origin: { task: 'subagent', label: 'helper', status: null } },
       { origin: { task: 'terminal', label: 'npm test', status: 'completed' } },
     ])
     expect(activity.children.filter((entry) => entry.kind === 'tool' || entry.kind === 'toolGroup')).toHaveLength(3)
@@ -82,15 +83,15 @@ describe('responses spanning turns', () => {
   it.each([
     { deliveryMode: 'queued', triggerKind: 'subagentMailbox' },
     { deliveryMode: 'subagentMailbox' },
-  ])('keeps mailbox notifications internal when they open a response: %j', (delivery) => {
+  ])('names the sender of a mailbox message that opens a response without a user message: %j', (delivery) => {
     const transcript = buildTranscript(history([
-      item('t1', 'userMessage', { text: 'Internal subagent message', ...delivery }),
+      item('t1', 'userMessage', { text: 'SubAgent message from /root/helper', triggerLabel: 'helper', triggerRefId: '/root/helper', ...delivery }),
       ...read('t1', 'r1'),
       item('t1', 'agentMessage', { text: 'Done.', phase: 'final' }),
     ], [['t1', 0, 10]]))
 
     expect(transcript.some((entry) => entry.kind === 'user' || entry.kind === 'wake')).toBe(false)
-    expect(transcript.find((entry) => entry.kind === 'activity')).toMatchObject({ origin: null })
+    expect(transcript.find((entry) => entry.kind === 'activity')).toMatchObject({ origin: { task: 'subagent', label: 'helper', status: null } })
   })
 
   it('names a subagent that woke a continuing turn with the row its ending shows mid-turn', () => {
