@@ -3,9 +3,6 @@ using Microsoft.Extensions.Logging;
 
 namespace DotCraft.Plugins.Marketplaces;
 
-/// <summary>
-/// A configured marketplace and the state of its materialized root.
-/// </summary>
 public sealed record MarketplaceEntry(
     string Name,
     string? DisplayName,
@@ -35,10 +32,6 @@ public sealed record MarketplaceRefreshOutcome(
     IReadOnlyList<MarketplaceEntry> Marketplaces,
     IReadOnlyList<MarketplaceFailure> Errors);
 
-/// <summary>
-/// Adds, refreshes, and removes the user's plugin marketplace sources.
-/// Sources are recorded once for the user; installing a plugin from a marketplace stays per workspace.
-/// </summary>
 public sealed class MarketplaceManager
 {
     private readonly string _craftHome;
@@ -64,7 +57,6 @@ public sealed class MarketplaceManager
         _archiveSync = archiveSync ?? new PluginRegistrySyncService(_craftHome);
     }
 
-    /// <summary>Lists configured marketplaces, newest configuration order preserved.</summary>
     public IReadOnlyList<MarketplaceEntry> List() =>
         PluginsConfigPersistence.ReadPluginRegistries(_configPath)
             .Select(ToEntry)
@@ -72,10 +64,6 @@ public sealed class MarketplaceManager
             .Select(entry => entry!)
             .ToList();
 
-    /// <summary>
-    /// Adds a marketplace from a repository source or a local directory. The marketplace name comes
-    /// from the fetched marketplace document, never from the request.
-    /// </summary>
     public async Task<MarketplaceAddOutcome> AddAsync(MarketplaceAddRequest request, CancellationToken ct)
     {
         var source = MarketplaceSourceParser.Parse(request.Source, request.Ref, request.SparsePaths);
@@ -121,7 +109,6 @@ public sealed class MarketplaceManager
         }
     }
 
-    /// <summary>Removes a configured marketplace and, for materialized kinds, its installed root.</summary>
     public MarketplaceRemoveOutcome Remove(string? name)
     {
         var marketplaceName = name?.Trim();
@@ -211,12 +198,14 @@ public sealed class MarketplaceManager
                 continue;
 
             var result = await _archiveSync.SyncAsync(
-                source.Url, source.MarketplacePath, entry.Name, force: true, ct).ConfigureAwait(false);
-            if (result != PluginRegistrySyncResult.Activated)
-                errors.Add(new MarketplaceFailure(entry.Name, MarketplaceErrorCodes.FetchFailed,
-                    $"Marketplace '{entry.Name}' could not be downloaded."));
-            else
+                source.Url, source.MarketplacePath, entry.Name, force: true, ct, isDefault: source.IsDefault)
+                .ConfigureAwait(false);
+            if (result.Result is PluginRegistrySyncResult.Activated or PluginRegistrySyncResult.Unchanged)
                 refreshed.Add(HostMarketplaceEntry(source));
+            else
+                errors.Add(new MarketplaceFailure(entry.Name,
+                    result.Code ?? MarketplaceErrorCodes.FetchFailed,
+                    result.Message ?? $"Marketplace '{entry.Name}' could not be downloaded."));
         }
 
         if (!string.IsNullOrEmpty(marketplaceName) && refreshed.Count == 0 && errors.Count == 0)
@@ -260,11 +249,11 @@ public sealed class MarketplaceManager
             var synced = await _archiveSync
                 .SyncAsync(source.Value, marketplacePath, entryName, force: true, ct)
                 .ConfigureAwait(false);
-            if (synced == PluginRegistrySyncResult.Failed)
+            if (synced.Result is not (PluginRegistrySyncResult.Activated or PluginRegistrySyncResult.Unchanged))
             {
                 throw new MarketplaceException(
-                    MarketplaceErrorCodes.FetchFailed,
-                    $"Marketplace '{entryName}' could not be downloaded.");
+                    synced.Code ?? MarketplaceErrorCodes.FetchFailed,
+                    synced.Message ?? $"Marketplace '{entryName}' could not be downloaded.");
             }
 
             return Record(configured, index, entryName, null, source with { Kind = MarketplaceSourceKind.Archive }, marketplacePath, revision: null);
@@ -314,7 +303,7 @@ public sealed class MarketplaceManager
             LastRevision = revision
         };
 
-        if (index >= 0 && index < configured.Count)
+        if (index >= 0)
             configured[index] = entry;
         else
             configured.Add(entry);
@@ -434,9 +423,6 @@ public sealed class MarketplaceManager
         }
     }
 
-    // Re-adding the same repository or directory at another reference or sparse path set
-    // re-points the existing marketplace, so switching a branch does not require a removal.
-    // A genuinely different source claiming the same name is the conflict worth rejecting.
     private static void EnsureNoNameConflict(
         List<AppConfig.PluginRegistryConfig> configured,
         string name,
