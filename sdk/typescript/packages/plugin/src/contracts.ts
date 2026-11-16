@@ -480,7 +480,7 @@ export interface DesktopPluginLocalProject {
 
 export interface DesktopPluginWorkspaceReader {
   listLocalProjects(): Promise<readonly DesktopPluginLocalProject[]>;
-  /** Returns an image attached in a local workspace's conversation as a data URL; rejects any other path. */
+  /** Reads an image attachment from its owning local or remote workspace as a data URL. Other paths are rejected. */
   readImageAttachment(path: string): Promise<string>;
 }
 

@@ -36,7 +36,8 @@ describe('composer context recovery', () => {
     vi.stubGlobal('window', { api: { workspace: { readImageAsDataUrl: vi.fn(async () => ({ dataUrl: 'data:image/png;base64,AA' })) } } })
     const { inputParts } = buildComposerInputParts({ text: 'request', contexts, images: [{ tempPath: 'C:/normal.png', dataUrl: 'data:image/png;base64,BB', fileName: 'normal.png', mimeType: 'image/png' }] })
     const draft = await queuedInputToComposerDraft({ nativeInputParts: inputParts } as QueuedTurnInput)
-    expect(draft.contexts).toEqual(contexts)
+    expect(draft.contexts).toMatchObject(contexts)
+    expect(draft.contexts?.find((context) => context.kind === 'pageReference')).toMatchObject({ image: { source: 'host' } })
     expect(draft.images.map((image) => image.tempPath)).toEqual(['C:/normal.png'])
     const rebuilt = buildComposerInputParts(draft).inputParts
     expect(projectInputParts(rebuilt).contexts).toEqual(projectInputParts(inputParts).contexts)

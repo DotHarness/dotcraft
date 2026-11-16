@@ -518,7 +518,7 @@ useEffect(() => {
 
 ### Show attached images
 
-`host.workspaces.readImageAttachment(path)` returns an image the user attached in a local workspace's conversation as a data URL, ready for an `<img>`. Pass the path from the user message's image input. It rejects any path outside Desktop's image attachment folders, a file that is not an image, an oversized image, and any path in a remote workspace, so keep a fallback icon:
+`host.workspaces.readImageAttachment(path)` returns an attached image as a data URL, ready for an `<img>`, from the owning local or remote workspace. Pass the path from the user message's image input. It rejects paths outside that workspace's image attachment folders, non-image files, and images over 10 MiB. Keep a fallback icon for an unavailable image:
 
 ```tsx
 host.workspaces.readImageAttachment(path).then(setSrc, () => setSrc(null));

@@ -4,7 +4,7 @@
 |-------|-------|
 | **Version** | 0.12.1 |
 | **Status** | Living |
-| **Date** | 2026-11-15 |
+| **Date** | 2026-11-16 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
 | **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Hub Architecture](../architecture/hub-architecture.md), [Device Gateway](../protocols/device-gateway.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Goal Design](../features/goal.md), [Session Import](../features/session-import.md), [Desktop DESIGN.md](../architecture/DESIGN.md) |
 
@@ -326,7 +326,7 @@ The conversation never blanks while it restores. A thread present in the thread 
 
 Leaving a thread keeps it **warm**: its observation stays attached and its conversation state keeps applying that thread's events, so reopening it renders the current conversation at once with no history read. At most 10 non-selected threads are warm per window, across workspace connections. Leaving an eleventh releases the least recently viewed one, and a warm thread not viewed for 3 hours is released; releasing unsubscribes and drops its conversation state. Opening a thread that is not warm restores it through 5.3.1.
 
-Activating a new conversation, a cached thread, or the new-chat surface synchronizes its workspace path and local/remote status with the current window context. Inherited or cached conversation state does not override that context. Returning to a local workspace restores local image attachment previews without reopening the window; remote attachment paths remain unavailable to local file reads.
+Activating a new conversation, a cached thread, or the new-chat surface synchronizes its workspace path and local/remote status with the current window context. Inherited or cached conversation state does not override that context. Attachment images are read through their owning connection. A remote host path is never interpreted as a client-local path, and switching workspaces does not change the owner of an in-flight read.
 
 Header, transcript, runtime and interaction composer use the selected thread identity. Main and child transcripts restore their workspace/thread-scoped reading position before display, or follow the latest content when left at the bottom.
 
@@ -387,6 +387,8 @@ When a native product surface opens a Thread, it supplies the Thread id and cano
 ### 5.5 Input Rules
 
 - The input area accepts plain text and supported structured attachments or references. Native `contextRef` input parts preserve references across start, queue, steer, and history restore; reference-only drafts count as nonempty input.
+- Local and remote composers accept image and file attachments up to 10 MiB. Before submitting a new client-local attachment to a remote host, Desktop uploads the complete file with `fs/writeFile` beneath the thread's canonical workspace `.craft/attachments/` and submits a `localImage` or `fileRef` host path. Page-reference screenshots follow the same preparation. Existing host references are retained without uploading again, and same-host ordinary file references need not be copied. Preparation precedes start, enqueue, steer, side-chat and initial-thread submission. A failure preserves the draft and does not submit an incomplete message.
+- Remote attachment images support the existing gallery actions and read their bytes with `fs/readFile` through their owning connection. Goal objectives retain their existing path-reference semantics. Remote long-text pastes remain inline.
 - On send, line and file comments become one trailing text part, a `# Diff comments:` section with one `## User Comment N` block per comment: `File`, `Side` (`L`/`R`), and `Lines` for a line comment, plus for a comment made on a diff a `Diff hunk:` fenced `diff` block with the commented lines and up to three lines of context each way from their hunks, capped at 60 lines; `Artifact path`, `Artifact type`, `Annotation target`, and `Artifact annotation` for a spreadsheet or presentation target; then `Comment:` and the body, where a body line starting with `## User Comment` gains a leading backslash. The model receives exactly that text. Every surface that shows a sent message (bubble, copy, edit and history restore, queued input, turn navigation) parses the last such section back into comments, shows the message text without it, and restores the comments as pills; a message with comments is not edited inline.
 - The latest eligible user message in the last history Turn can be edited inline while the thread is idle, including messages with images and file references. Editing changes only the text; existing attachments and structured references remain visible and are resubmitted unchanged, without attachment add/remove controls. An attachment-only message may be submitted with empty text; input with neither text nor retained content cannot be submitted.
 - Entering or cancelling inline editing leaves history unchanged. Desktop retains the original input, rolls back the latest Turn, and resubmits it with the edited text through `turn/start`. A failed resubmission keeps the draft and attachments; retry does not roll back again. Requests remain scoped to the originating workspace connection and thread.

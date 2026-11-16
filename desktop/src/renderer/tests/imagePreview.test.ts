@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { ConversationTurn } from '../types/conversation'
-import { collectConversationImages, galleryForImage, userImageKeys } from '../components/conversation/imagePreview/galleryImages'
+import { collectConversationImages, galleryForImage, loadScopedImageDataUrl, resolveGalleryImageSrc, userImageKeys } from '../components/conversation/imagePreview/galleryImages'
 import {
   movedBeyondClickSlop,
   pinchImageZoom,
@@ -83,6 +83,27 @@ describe('conversation image gallery', () => {
     const conversation = collectConversationImages(repeated, { localFiles: true })
     const [, second] = userImageKeys('user-2', [url, url])
     expect(galleryForImage({ key: second, src: url }, [], () => conversation).index).toBe(1)
+  })
+
+  it('reads remote image references through their captured host and isolates equal paths between connections', async () => {
+    const readImageAsDataUrl = vi.fn()
+      .mockResolvedValueOnce({ dataUrl: 'data:image/png;base64,QQ==' })
+      .mockResolvedValueOnce({ dataUrl: 'data:image/png;base64,Qg==' })
+    vi.stubGlobal('window', { api: { workspace: { readImageAsDataUrl } } })
+    try {
+      const path = '/project/.craft/attachments/images/scoped.png'
+      const first = { source: { connectionKey: 'host-a', connectionId: 'a' }, workspacePath: '/project' }
+      const second = { source: { connectionKey: 'host-b', connectionId: 'b' }, workspacePath: '/project' }
+      const history: ConversationTurn[] = [{ ...turns[0], items: [{ id: 'remote-user', type: 'userMessage',
+        nativeInputParts: [{ type: 'localImage', path, fileName: 'scoped.png' }], createdAt: turns[0].startedAt }] }]
+      const gallery = collectConversationImages(history, { localFiles: false, scope: first })
+      expect(gallery).toHaveLength(1)
+      expect(gallery[0].revealPath).toBeUndefined()
+      expect(await resolveGalleryImageSrc(gallery[0])).toBe('data:image/png;base64,QQ==')
+      expect(await loadScopedImageDataUrl(path, second)).toBe('data:image/png;base64,Qg==')
+      expect(await loadScopedImageDataUrl(path, first)).toBe('data:image/png;base64,QQ==')
+      expect(readImageAsDataUrl.mock.calls).toEqual([[{ path, ...first }], [{ path, ...second }]])
+    } finally { vi.unstubAllGlobals() }
   })
 
   it('opens the clicked image inside the conversation gallery, else its local group', () => {

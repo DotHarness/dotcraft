@@ -88,6 +88,11 @@ export function installDesktopApiMock(overrides: ApiOverrides<Api>): Api {
     workspace: {
       ...WORKSPACE_DEFAULT,
       ...overrides.workspace,
+      attachments: {
+        statLocalFile: () => Promise.reject(new Error('No local attachment fixture.')),
+        readLocalFile: () => Promise.reject(new Error('No local attachment fixture.')),
+        ...overrides.workspace?.attachments
+      },
       viewer: {
         ...overrides.workspace?.viewer,
         panelState: {

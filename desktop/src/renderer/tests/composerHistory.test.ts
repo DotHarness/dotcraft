@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest'
-import type { ConversationTurn } from '../types/conversation'
-import { buildComposerHistory } from '../utils/composerHistory'
+import { describe, expect, it, vi } from 'vitest'
+import type { ConversationTurn, QueuedTurnInput } from '../types/conversation'
+import { buildComposerHistory, queuedInputToComposerDraft } from '../utils/composerHistory'
 
 describe('composer history', () => {
   it('recalls only prompts the person wrote, not a turn started by a background task', () => {
@@ -37,4 +37,17 @@ describe('composer history', () => {
 
     expect(buildComposerHistory(turns, 'thread').map((entry) => entry.text)).toEqual(['Run the build'])
   })
+  it('keeps actual host paths when queued previews are unavailable rather than replacing them with display labels', async () => {
+    vi.stubGlobal('window', { api: { workspace: { readImageAsDataUrl: async () => { throw new Error('offline') } } } })
+    try {
+      const item = { threadId: 'history-owner', nativeInputParts: [
+        { type: 'fileRef', path: '/host/actual/report.txt', displayPath: 'report.txt' },
+        { type: 'localImage', path: '/host/actual/image.png', fileName: 'image.png', mimeType: 'image/png' }
+      ] } as QueuedTurnInput
+      const draft = await queuedInputToComposerDraft(item)
+      expect(draft.segments).toEqual([{ type: 'file', relativePath: '/host/actual/report.txt' }])
+      expect(draft.images).toEqual([{ tempPath: '/host/actual/image.png', fileName: 'image.png', mimeType: 'image/png', dataUrl: '', source: 'host' }])
+    } finally { vi.unstubAllGlobals() }
+  })
+
 })

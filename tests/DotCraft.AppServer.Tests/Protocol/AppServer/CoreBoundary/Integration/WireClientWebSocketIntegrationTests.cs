@@ -89,6 +89,27 @@ public sealed class WireClientWebSocketIntegrationTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task FileSystem_TenMiBFile_RoundTripsOverWebSocket()
+    {
+        using var initialize = await _connection.Wire.InitializeAsync();
+        const int limit = 10 * 1024 * 1024;
+        var path = Path.Combine(_tempDir, "attachment.bin");
+        var bytes = new byte[limit];
+        bytes[0] = 1;
+        bytes[^1] = 255;
+        var dataBase64 = Convert.ToBase64String(bytes);
+        using var write = await _connection.Wire.SendRequestAsync(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.FsWriteFile, new { path, dataBase64 });
+        AppServerTestHarness.AssertIsSuccessResponse(write);
+        using var read = await _connection.Wire.SendRequestAsync(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.FsReadFile, new { path });
+        AppServerTestHarness.AssertIsSuccessResponse(read);
+
+        Assert.Equal(dataBase64, read.RootElement.GetProperty("result").GetProperty("dataBase64").GetString());
+        Assert.Equal(bytes, await File.ReadAllBytesAsync(path));
+    }
+
+    [Fact]
     public async Task TurnStart_WithApproval_ClientReceivesApprovalRequest()
     {
         await _connection.Wire.InitializeAsync(approvalSupport: true);

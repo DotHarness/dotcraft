@@ -1,4 +1,5 @@
 export type ContextImage = {
+  source?: 'client' | 'host'
   tempPath: string
   dataUrl?: string
   fileName: string

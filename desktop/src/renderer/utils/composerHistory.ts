@@ -5,6 +5,7 @@ import { stringifyComposerDraftSegments } from '../components/conversation/richI
 import { splitMessageComments } from '../../shared/messageComments'
 import { projectInputParts } from './inputPresentation'
 import { splitThreadMentions } from './threadReferences'
+import { loadLocalImageDataUrl } from '../components/conversation/imagePreview/galleryImages'
 import { isVisibleUserMessage } from './visibleUserMessage'
 export interface ComposerHistoryEntry {
   clientUserMessageId?: string
@@ -42,7 +43,7 @@ function userItemToComposerHistoryEntry(item: ConversationItem): ComposerHistory
     return {
       text: serialized,
       contexts: projected.contexts,
-      images: projected.images.map((image) => ({ tempPath: image.path, dataUrl: '', mimeType: image.mimeType ?? 'image/png', fileName: image.fileName ?? fileNameFromPath(image.path) })),
+      images: projected.images.map((image) => ({ source: 'host', tempPath: image.path, dataUrl: '', mimeType: image.mimeType ?? 'image/png', fileName: image.fileName ?? fileNameFromPath(image.path) })),
       segments
     }
   }
@@ -63,7 +64,7 @@ function inputPartsToComposerSegments(parts: InputPart[]): ComposerDraftSegment[
         }
         break
       case 'fileRef':
-        segments.push({ type: 'file', relativePath: part.displayPath ?? part.path })
+        segments.push({ type: 'file', relativePath: part.path })
         break
       case 'skillRef':
         if (part.name.trim().length > 0) {
@@ -104,14 +105,13 @@ export async function queuedInputToComposerDraft(item: QueuedTurnInput): Promise
   const images: ImageAttachment[] = []
   for (const context of projected.contexts) {
     if (context.kind !== 'pageReference' || !context.image) continue
-    const { dataUrl } = await window.api.workspace.readImageAsDataUrl({ path: context.image.tempPath }).catch(() => ({ dataUrl: '' }))
-    context.image = { ...context.image, dataUrl }
+    const dataUrl = await loadLocalImageDataUrl(context.image.tempPath, item.threadId).catch(() => '')
+    context.image = { ...context.image, dataUrl, source: 'host' }
   }
   for (const part of parts) {
     if (part.type !== 'localImage') continue
-    const { dataUrl } = await window.api.workspace.readImageAsDataUrl({ path: part.path })
-    if (!dataUrl) throw new Error(`Unable to read queued image: ${part.fileName || part.path}`)
-    images.push({ tempPath: part.path, dataUrl, fileName: part.fileName || fileNameFromPath(part.path), mimeType: part.mimeType || mimeTypeFromDataUrl(dataUrl) || 'image/png' })
+    const dataUrl = await loadLocalImageDataUrl(part.path, item.threadId).catch(() => '')
+    images.push({ source: 'host', tempPath: part.path, dataUrl, fileName: part.fileName || fileNameFromPath(part.path), mimeType: part.mimeType || mimeTypeFromDataUrl(dataUrl) || 'image/png' })
   }
 
   return {

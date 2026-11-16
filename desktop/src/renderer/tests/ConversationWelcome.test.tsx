@@ -30,6 +30,8 @@ const appServerSendRequest = vi.fn()
 const readConfig = vi.fn()
 let serverConfig: Record<string, unknown> = {}
 const saveImageToTemp = vi.fn()
+const readLocalFile = vi.fn()
+const statLocalFile = vi.fn()
 const getPathForFile = vi.fn((file: File) => file.name === 'notes.txt' ? 'C:\\temp\\notes.txt' : '')
 const settingsGet = vi.fn()
 const shellOpenExternal = vi.fn()
@@ -172,6 +174,8 @@ describe('ConversationWelcome composer', () => {
       }
     })
 
+    readLocalFile.mockReset().mockResolvedValue({ dataBase64: 'bm90ZXM=' })
+    statLocalFile.mockReset().mockResolvedValue({ sizeBytes: 5 })
     fileReadFile.mockResolvedValue('{}')
     settingsGet.mockResolvedValue({ locale: 'en' })
     shellOpenExternal.mockResolvedValue(undefined)
@@ -250,6 +254,7 @@ describe('ConversationWelcome composer', () => {
         },
         workspace: {
           saveImageToTemp,
+          attachments: { readLocalFile, statLocalFile },
           getPathForFile
         },
         shell: {
@@ -352,7 +357,7 @@ describe('ConversationWelcome composer', () => {
       identity: expect.objectContaining({ workspacePath: 'X:\\fixtures\\workspace' }),
       config: expect.objectContaining({ cwd: 'X:\\fixtures\\lib' }),
       runtimeWorkspaceRoots: ['X:\\fixtures\\lib', 'X:\\fixtures\\workspace', 'X:\\fixtures\\shared']
-    }), undefined, { attachmentOwner: 'warm' }))
+    })))
   })
 
   it('uses the new primary for worktree inputs without resetting the project text draft', async () => {
@@ -482,4 +487,42 @@ describe('ConversationWelcome composer', () => {
       .toBe('Keep this after creation fails')
     expect(appServerSendRequest).not.toHaveBeenCalledWith('thread/delete', expect.anything())
   })
+  it('resolves the remote thread before upload and keeps canonical attachment paths for the pending first turn', async () => {
+    useConversationStore.setState({ remoteWorkspaceActive: true })
+    const request = appServerSendRequest.getMockImplementation()!
+    appServerSendRequest.mockImplementation(async (method: string, ...args: unknown[]) => method === 'thread/start'
+      ? { thread: { id: 'remote-welcome', workspacePath: '/canonical', configuration: { cwd: '/worktree' } } }
+      : request(method, ...args))
+    renderWelcome({ remoteWorkspace: true })
+    const textbox = await screen.findByRole('textbox')
+    fireEvent.drop(textbox, { dataTransfer: { types: ['Files'], files: [new File(['notes'], 'notes.txt')], items: [] } })
+    textbox.textContent = 'Review the remote file'
+    fireEvent.input(textbox)
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+    await waitFor(() => expect(getRendererTestState().pendingWelcomeTurn?.threadId).toBe('remote-welcome'))
+    const methods = appServerSendRequest.mock.calls.map(([method]) => method)
+    expect(methods.indexOf('thread/start')).toBeLessThan(methods.indexOf('fs/writeFile'))
+    expect(getRendererTestState().pendingWelcomeTurn?.inputParts).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: 'fileRef', path: expect.stringMatching(/^\/canonical\/\.craft\/attachments\//u) })
+    ]))
+    expect(readLocalFile).toHaveBeenCalledTimes(1)
+    expect(appServerSendRequest).not.toHaveBeenCalledWith('turn/start', expect.anything())
+  })
+
+  it('restores the remote Welcome draft without queuing partial input when upload fails', async () => {
+    useConversationStore.setState({ remoteWorkspaceActive: true })
+    readLocalFile.mockRejectedValueOnce(new Error('local file disappeared'))
+    renderWelcome({ remoteWorkspace: true })
+    const textbox = await screen.findByRole('textbox')
+    fireEvent.drop(textbox, { dataTransfer: { types: ['Files'], files: [new File(['notes'], 'notes.txt')], items: [] } })
+    textbox.textContent = 'Keep the complete request'
+    fireEvent.input(textbox)
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+    await waitFor(() => expect(useToastStore.getState().toasts.length).toBe(1))
+    expect(getRendererTestState().pendingWelcomeTurn).toBeNull()
+    const restored = getRendererTestState().getWelcomeDraftForWorkspace('X:\\fixtures\\workspace')
+    expect(restored?.text).toBe('Keep the complete request')
+    expect(restored?.files).toMatchObject([{ fileName: 'notes.txt', source: 'client' }])
+  })
+
 })

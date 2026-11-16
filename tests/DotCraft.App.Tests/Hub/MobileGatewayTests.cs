@@ -74,6 +74,32 @@ public sealed class MobileGatewayTests : IDisposable
     }
 
     [Fact]
+    public async Task Relay_PassesTenMiBAttachmentMessagesThroughUnchanged()
+    {
+        await using var appServer = await StubAppServer.StartAsync();
+        using var workspace = MobileHubFixture.RunWorkspace(_userProfile, "alpha", appServer.Endpoint);
+        await using var hub = await MobileHubFixture.StartAsync(_userProfile, SatelliteHubFixture.GetAvailablePort());
+        await hub.JsonAsync(HttpMethod.Post, "/v1/mobile/enable");
+        using var phone = await hub.PairPhoneAsync();
+        using var relay = await phone.ConnectAsync($"/m/projects/{await ProjectIdAsync(phone, "alpha")}/appserver");
+        var bytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new
+        {
+            jsonrpc = "2.0",
+            id = 1,
+            method = "fs/writeFile",
+            @params = new { path = "/workspace/attachment.bin", dataBase64 = Convert.ToBase64String(new byte[10 * 1024 * 1024]) }
+        }));
+        var echoed = MobilePhone.ReceiveAsync(relay);
+        var received = ReadStubMessageAsync(appServer);
+
+        await relay.SendAsync(bytes, WebSocketMessageType.Text, true, CancellationToken.None);
+
+        Assert.Equal(bytes, (await received).Payload);
+        Assert.Equal(bytes, (await echoed).Payload);
+        await relay.CloseAsync(WebSocketCloseStatus.NormalClosure, "done", CancellationToken.None);
+    }
+
+    [Fact]
     public async Task Revoke_RequiresTheHubToken_ClosesThePhonesConnectionsWithinOneSecond_AndItsCredentialStopsWorking()
     {
         await using var appServer = await StubAppServer.StartAsync();

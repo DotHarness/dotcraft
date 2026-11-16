@@ -165,10 +165,7 @@ export const desktopSummaryServices: SummaryServices = {
   },
   workspaces: {
     async readImageAttachment(path) {
-      if (useConversationStore.getState().remoteWorkspaceActive) {
-        throw new Error('Image attachments are unavailable in a remote workspace.')
-      }
-      return loadLocalImageDataUrl(path)
+      return loadLocalImageDataUrl(path, useThreadStore.getState().activeThreadId ?? undefined)
     },
     roots(workspacePath, threadId) {
       const { activeThread, threadList } = useThreadStore.getState()

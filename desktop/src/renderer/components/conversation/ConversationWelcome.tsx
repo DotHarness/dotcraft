@@ -1,3 +1,5 @@
+import { normalizeWorkspaceProjectKey } from '../../../shared/workspaceProjectKey'
+import { registerThreadConnection, releaseThreadConnection } from '../../stores/threadConnectionStore'
 import { DEFAULT_REASONING_CONFIG } from './modelReasoning'
 import { useWelcomeModelControls } from './useWelcomeModelControls'
 import { useWelcomeApprovalPolicy } from './useWelcomeApprovalPolicy'
@@ -20,7 +22,6 @@ import {
 import type { DesktopPluginSurfaceContext } from '@dotcraft/plugin'
 import { Bot, FileText, ListChecks, Target } from 'lucide-react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
-import { describeAppServerError } from '../../utils/appServerErrorText'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useProviderSummary } from '../../stores/providersStore'
 import { useThreadStore } from '../../stores/threadStore'
@@ -36,11 +37,8 @@ import { useDelayedFlag, WORKSPACE_OPENING_PLACEHOLDER_DELAY_MS } from '../../ho
 import type { ComposerFileAttachment, ImageAttachment, ThreadMode } from '../../types/conversation'
 import type { ComposerDraftSegment } from '../../types/composerDraft'
 import type { ThreadConfigurationWire, ThreadSummary } from '../../types/thread'
-import {
-  classifyDroppedComposerFiles,
-  isImageFile,
-  mergeComposerFileAttachments
-} from '../../utils/composerAttachments'
+import { useComposerAttachments } from './useComposerAttachments'
+import { captureComposerAttachmentTarget, prepareComposerAttachments, describeComposerAttachmentError } from '../../utils/prepareComposerAttachments'
 import { droppedWebLink, insertDroppedLink } from './composerLinkDrop'
 import { buildComposerInputParts } from '../../utils/composeInputParts'
 import { runtimeWorkspaceRootsFor } from '../../utils/workspaceRuntimeRoots'
@@ -121,8 +119,6 @@ interface ConversationWelcomeCoreProps extends ConversationWelcomeProps {
 
 
 const MAX_TEXT_LENGTH = 100_000
-const MAX_IMAGES = 5
-const MAX_IMAGE_BYTES = 10 * 1024 * 1024
 const WELCOME_DRAFT_DEBOUNCE_MS = 250
 
 export function ConversationWelcome({
@@ -556,35 +552,7 @@ function ConversationWelcomeCore({
     useUIStore.getState().setWelcomeDraftWorkspace(nextWorkspacePath)
   }, [flushWelcomeDraft, workspacePath])
 
-  const saveDataUrlAsTemp = useCallback(
-    async (dataUrl: string, fileName: string, mimeType: string): Promise<void> => {
-      if (remoteWorkspace) {
-        addToast(t('input.remoteLocalFilesUnavailable'), 'warning')
-        return
-      }
-      const baseLen = dataUrl.split(',')[1]?.length ?? 0
-      const approxBytes = Math.floor((baseLen * 3) / 4)
-      if (approxBytes > MAX_IMAGE_BYTES) {
-        addToast(
-          t('welcomeComposer.imageTooLarge', { mb: MAX_IMAGE_BYTES / 1024 / 1024 }),
-          'warning'
-        )
-        return
-      }
-      if (images.length >= MAX_IMAGES) {
-        addToast(t('welcomeComposer.maxImages', { max: MAX_IMAGES }), 'warning')
-        return
-      }
-      try {
-        const { path } = await window.api.workspace.saveImageToTemp({ dataUrl, fileName })
-        setImages((prev) => [...prev, { tempPath: path, dataUrl, fileName, mimeType }])
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e)
-        addToast(t('welcomeComposer.saveImageFailed', { error: msg }), 'error')
-      }
-    },
-    [images.length, remoteWorkspace, t]
-  )
+  const { saveDataUrlAsTemp, onPasteImage, attachDroppedFiles } = useComposerAttachments({ remoteWorkspace, images, setImages, setFiles, t })
 
   const showGoalUnavailable = useCallback((): void => {
     addToast(t('goal.toast.unsupported'), 'warning')
@@ -601,7 +569,7 @@ function ConversationWelcomeCore({
     agentProfileId: selectedProfileId
   }), [modelName, providerId, reasoningConfig, selectedProfileId, speedValue, welcomeApprovalPolicy, welcomeApprovalPolicyDirty, welcomeMode])
 
-  const startWelcomeThread = useCallback(async (firstMessage: string, displayName?: string): Promise<ThreadSummary> => {
+  const startWelcomeThread = useCallback(async (firstMessage: string, displayName?: string, target = captureComposerAttachmentTarget()): Promise<ThreadSummary> => {
     const identity = {
       channelName: 'dotcraft-desktop',
       userId: 'local',
@@ -634,7 +602,7 @@ function ConversationWelcomeCore({
           },
           localParams: { identity, historyMode: 'server', config, ...rootsField, ...nameField }
         })
-      : (await window.api.appServer.sendRequest('thread/start', {
+      : (await target.request('thread/start', {
           identity,
           historyMode: 'server',
           config,
@@ -648,6 +616,7 @@ function ConversationWelcomeCore({
       } catch {
       }
     }
+    if (target.source) registerThreadConnection(thread.id, { ...target.source, threadId: thread.id, workspaceKey: normalizeWorkspaceProjectKey(target.source.connectionKey), capabilities: null })
     return thread
   }, [
     identityPath,
@@ -683,12 +652,12 @@ function ConversationWelcomeCore({
     })
   ), [t])
 
-  const createGoalBackedThread = useCallback(async (objective: string): Promise<boolean> => {
+  const createGoalBackedThread = useCallback(async (objective: string, draft?: Parameters<typeof buildGoalObjective>[0]): Promise<boolean> => {
     if (!canUseThreadGoals) {
       showGoalUnavailable()
       return false
     }
-    const trimmedObjective = objective.trim()
+    let trimmedObjective = objective.trim()
     if (!trimmedObjective) {
       addToast(t('goal.toast.emptyObjective'), 'warning')
       return false
@@ -701,6 +670,7 @@ function ConversationWelcomeCore({
     const submittedDraft = buildWelcomeDraftSnapshot()
     const submittedContexts = useComposerContextStore.getState().getContexts(contextKey)
     const requestId = crypto.randomUUID()
+    const target = captureComposerAttachmentTarget()
 
     const preview = buildComposerInputParts({ text: trimmedObjective })
     const title = threadTitleRequest({ bodyText: preview.bodyText })
@@ -721,16 +691,20 @@ function ConversationWelcomeCore({
       })
       useUIStore.getState().setActiveMainView('conversation')
       clearWelcomeComposer()
-      const thread = await startWelcomeThread(trimmedObjective, title?.provisionalTitle)
+      const thread = await startWelcomeThread(trimmedObjective, title?.provisionalTitle, target)
       createdThreadId = thread.id
       useUIStore.getState().resolvePendingThreadCreation(requestId, thread.id)
 
-      const goalResult = await window.api.appServer.sendRequest('thread/goal/set', {
+      if (draft) {
+        const prepared = await prepareComposerAttachments({ ...draft, threadId: thread.id, workspacePath: thread.workspacePath || identityPath, target })
+        trimmedObjective = buildGoalObjective({ ...draft, ...prepared })
+      }
+      const goalResult = await target.request('thread/goal/set', {
         threadId: thread.id,
         objective: trimmedObjective
       })
       const goal = extractGoal(goalResult)
-      const { inputParts } = preview
+      const { inputParts } = buildComposerInputParts({ text: trimmedObjective })
 
       addThread({ ...thread, displayName: thread.displayName || threadName, ...(goal ? { goal } : {}) })
       if (goal) {
@@ -748,10 +722,10 @@ function ConversationWelcomeCore({
       openOrDetachCreatedThread(thread.id)
       return true
     } catch (err) {
-      if (createdThreadId) await deleteUnusedWelcomeThread(createdThreadId)
+      if (createdThreadId) await deleteUnusedWelcomeThread(createdThreadId, target)
       useUIStore.getState().setPendingThreadCreation(null)
       restoreWelcomeComposer(submittedDraft, submittedContexts)
-      if (!isWorktreeCreationCancelled(err)) addToast(t('goal.toast.updateFailed', { error: describeAppServerError(locale, err) }), 'error')
+      if (!isWorktreeCreationCancelled(err)) addToast(t('goal.toast.updateFailed', { error: describeComposerAttachmentError(locale, err) }), 'error')
       return false
     } finally {
       sendInFlightRef.current = false
@@ -804,10 +778,6 @@ function ConversationWelcomeCore({
     ) {
       return
     }
-    if (remoteWorkspace && (inputImages.length > 0 || inputFiles.length > 0)) {
-      addToast(t('input.remoteLocalFilesUnavailable'), 'warning')
-      return
-    }
 
     if (goalComposeMode) {
       const objective = buildGoalObjective({ text, segments, files: inputFiles, images: inputImages })
@@ -815,7 +785,7 @@ function ConversationWelcomeCore({
         addToast(t('goal.toast.emptyObjective'), 'warning')
         return
       }
-      const created = await createGoalBackedThread(objective)
+      const created = await createGoalBackedThread(objective, { text, segments, files: inputFiles, images: inputImages })
       if (created) setGoalComposeMode(false)
       return
     }
@@ -846,6 +816,7 @@ function ConversationWelcomeCore({
     const capturedSegments = [...segments]
     const submittedDraft = buildWelcomeDraftSnapshot()
     const requestId = crypto.randomUUID()
+    const target = captureComposerAttachmentTarget()
 
     const preview = buildComposerInputParts({
       text: trimmed,
@@ -877,20 +848,19 @@ function ConversationWelcomeCore({
       })
       useUIStore.getState().setActiveMainView('conversation')
       clearWelcomeComposer()
-      const thread = await startWelcomeThread(preview.visibleText, title?.provisionalTitle)
+      const thread = await startWelcomeThread(preview.visibleText, title?.provisionalTitle, target)
       createdThreadId = thread.id
       useUIStore.getState().resolvePendingThreadCreation(requestId, thread.id)
-      const turnText = isInitCommand ? await expandInitCommand(thread.id) : trimmed
-      const { inputParts } = isInitCommand
-        ? buildComposerInputParts({ text: turnText, contexts: inputContexts, files: capturedFiles, images: capturedImages })
-        : preview
+      const turnText = isInitCommand ? await expandInitCommand(thread.id, target.request) : trimmed
+      const prepared = await prepareComposerAttachments({ threadId: thread.id, workspacePath: thread.workspacePath || identityPath, files: capturedFiles, images: capturedImages, contexts: inputContexts, target })
+      const { inputParts } = buildComposerInputParts({ text: turnText, segments: isInitCommand ? undefined : capturedSegments, ...prepared })
       useUIStore.getState().setPendingWelcomeTurn({
         threadId: thread.id,
         text: turnText,
         modelSettings: modelSettingsFromConfiguration(welcomeThreadConfiguration as ThreadConfigurationWire),
         inputParts,
-        images: capturedImages.length > 0 ? capturedImages : undefined,
-        files: capturedFiles.length > 0 ? capturedFiles : undefined,
+        images: prepared.images.length > 0 ? prepared.images : undefined,
+        files: prepared.files.length > 0 ? prepared.files : undefined,
         ...(welcomeAppIds.length > 0 ? { appIds: [...welcomeAppIds] } : {}),
         ...(title ? { title } : {})
       })
@@ -898,10 +868,10 @@ function ConversationWelcomeCore({
       openOrDetachCreatedThread(thread.id)
     } catch (err) {
       console.error('Failed to start thread from welcome composer:', err)
-      if (createdThreadId) await deleteUnusedWelcomeThread(createdThreadId)
+      if (createdThreadId) await deleteUnusedWelcomeThread(createdThreadId, target)
       useUIStore.getState().setPendingThreadCreation(null)
       restoreWelcomeComposer(submittedDraft, inputContexts)
-      if (!isWorktreeCreationCancelled(err)) addToast(describeAppServerError(locale, err), 'error')
+      if (!isWorktreeCreationCancelled(err)) addToast(describeComposerAttachmentError(locale, err), 'error')
     } finally {
       sendInFlightRef.current = false
     }
@@ -977,27 +947,9 @@ function ConversationWelcomeCore({
     enterGoalComposeMode()
   }, [enterGoalComposeMode, sendFromWelcome, toggleWelcomeMode])
 
-  const onPasteImage = useCallback(
-    (file: File): void => {
-      if (remoteWorkspace) {
-        addToast(t('input.remoteLocalFilesUnavailable'), 'warning')
-        return
-      }
-      if (!isImageFile(file)) return
-      const reader = new FileReader()
-      reader.onload = () => {
-        const dataUrl = reader.result as string
-        void saveDataUrlAsTemp(dataUrl, file.name, file.type || 'image/png')
-      }
-      reader.readAsDataURL(file)
-    },
-    [remoteWorkspace, saveDataUrlAsTemp, t]
-  )
-
   const onDragOver = useCallback((e: React.DragEvent): void => {
     e.preventDefault()
     e.stopPropagation()
-    if (remoteWorkspace) return
     setDragOverThread(threadReferences.isThreadDrag(e))
     setDragOver(true)
   }, [remoteWorkspace, threadReferences])
@@ -1008,17 +960,7 @@ function ConversationWelcomeCore({
     setDragOver(false)
   }, [])
 
-  const attachImages = useCallback((picked: File[]): void => {
-    if (remoteWorkspace) {
-      if (picked.length > 0) addToast(t('input.remoteLocalFilesUnavailable'), 'warning')
-      return
-    }
-    for (const file of picked) {
-      onPasteImage(file)
-    }
-  }, [onPasteImage, remoteWorkspace, t])
-
-  useComposerFileReferenceRequest(richRef, workspacePath, remoteWorkspace, busy, welcomeScopeKey(draftProjectKey), draftHydrated)
+  useComposerFileReferenceRequest(richRef, workspacePath, busy, welcomeScopeKey(draftProjectKey), draftHydrated)
   useComposerPrefillRequest(richRef, draftHydrated)
 
   useComposerImageAttachmentRequest((image) => {
@@ -1040,23 +982,9 @@ function ConversationWelcomeCore({
         insertDroppedLink(e as React.DragEvent<HTMLElement>, droppedLink)
         return
       }
-      if (remoteWorkspace) {
-        addToast(t('input.remoteLocalFilesUnavailable'), 'warning')
-        return
-      }
-      const { imageFiles, fileAttachments, skippedCount } = classifyDroppedComposerFiles(
-        e.dataTransfer,
-        window.api.workspace.getPathForFile
-      )
-      attachImages(imageFiles)
-      if (fileAttachments.length > 0) {
-        setFiles((prev) => mergeComposerFileAttachments(prev, fileAttachments))
-      }
-      if (skippedCount > 0) {
-        addToast(t('input.dropItemsSkipped', { count: skippedCount }), 'warning')
-      }
+      attachDroppedFiles(e.dataTransfer)
     },
-    [attachImages, remoteWorkspace, t, threadReferences]
+    [attachDroppedFiles, remoteWorkspace, threadReferences]
   )
 
   const canSend = useMemo(() => {
@@ -1412,9 +1340,10 @@ function parseWelcomeSystemSlashCommand(text: string): { kind: 'agent' | 'plan' 
   return null
 }
 
-async function deleteUnusedWelcomeThread(threadId: string): Promise<void> {
+async function deleteUnusedWelcomeThread(threadId: string, target = captureComposerAttachmentTarget(threadId)): Promise<void> {
   try {
-    await window.api.appServer.sendRequest('thread/delete', { threadId })
+    await target.request('thread/delete', { threadId })
+    releaseThreadConnection(threadId)
   } catch {
   }
 }

@@ -16,7 +16,6 @@ import { requestColorPickerDialog } from '../components/ui/ColorPickerDialog'
 import { loadLocalImageDataUrl } from '../components/conversation/imagePreview/galleryImages'
 import { stageChatDraft, stageSkillRequestInChat } from '../components/conversation/skillRequestDraft'
 import { requestConfirmDialog } from '../components/ui/ConfirmDialog'
-import { useConversationStore } from '../stores/conversationStore'
 import type { PluginEntry } from '../stores/pluginStore'
 import { useThreadStore } from '../stores/threadStore'
 import { removeToast, showToast } from '../stores/toastStore'
@@ -392,10 +391,7 @@ export function createDesktopPluginHost(
           }))
       },
       async readImageAttachment(path) {
-        if (useConversationStore.getState().remoteWorkspaceActive) {
-          throw new Error('Image attachments are unavailable in a remote workspace.')
-        }
-        return loadLocalImageDataUrl(path)
+        return loadLocalImageDataUrl(path, useThreadStore.getState().activeThreadId ?? undefined)
       }
     },
     oratorio: {

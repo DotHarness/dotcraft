@@ -2,9 +2,9 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 0.12.0 |
+| Version | 0.12.1 |
 | Status | Living |
-| Date | 2026-11-15 |
+| Date | 2026-11-16 |
 | Parent Specs | [Plugin Architecture](plugin-architecture.md), [Tool Architecture](tools-architecture.md) |
 
 ## Overview
@@ -328,9 +328,10 @@ surface's `context.workspacePath` may differ. `busy` means a turn is running or 
 input. Approval state, Composer variant, and minimal chrome remain on the Composer surface context;
 `workspaces` owns workspace lists and switching.
 
-`workspaces.readImageAttachment(path)` returns an image the user attached to a local workspace's
-conversation as a data URL. It reads only Desktop's image attachment folders and rejects any other
-path, a non-image file, an oversized image, or a remote workspace.
+`workspaces.readImageAttachment(path)` returns an image attached to the owning workspace's
+conversation as a data URL, reading through that workspace's local or remote connection. It reads
+only its image attachment folders and rejects any other path, a non-image file, or an image over
+10 MiB.
 
 ### SubAgent state
 

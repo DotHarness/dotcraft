@@ -18,12 +18,15 @@ import { useVoiceStore } from '../voice/voiceStore'
 import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
 import { installDesktopApiMock } from './desktopApiMock'
 import { activateTestWorkspace } from './workspaceResourceFixtures'
+import { captureComposerVoiceSubmitter } from '../voice/composerDraftBridge'
 import { generatePromptSuggestion } from '../utils/promptSuggestion'
 
 vi.mock('../utils/promptSuggestion', () => ({ generatePromptSuggestion: vi.fn(), logPromptSuggestion: vi.fn() }))
 
 const sendRequest = vi.fn()
 const onOptimisticEcho = vi.fn()
+const readLocalFile = vi.fn()
+const statLocalFile = vi.fn()
 const workspaceRoots = ['X:\\fixtures\\workspace', 'X:\\fixtures\\shared']
 
 function setLocalProject(): void {
@@ -64,11 +67,13 @@ describe('InputComposer follow-up routing', () => {
     usePendingPasteStore.setState({ pastes: [] })
     sendRequest.mockReset().mockResolvedValue({})
     onOptimisticEcho.mockReset()
+    readLocalFile.mockReset().mockResolvedValue({ dataBase64: 'bm90ZXM=' })
+    statLocalFile.mockReset().mockResolvedValue({ sizeBytes: 5 })
     installDesktopApiMock({
       settings: { get: async () => ({ locale: 'en' }), set: async () => undefined },
       appServer: { sendRequest, onNotification: () => () => {} },
       git: { listBranches: async () => ({ current: 'main', detachedHead: null, branches: [{ name: 'main', current: true }] }) },
-      workspace: { getPathForFile: () => 'X:\\fixtures\\workspace\\notes.md' },
+      workspace: { getPathForFile: () => 'X:\\fixtures\\workspace\\notes.md', attachments: { readLocalFile, statLocalFile } },
       voice: undefined
     })
     useConversationStore.getState().reset()
@@ -332,4 +337,78 @@ describe('InputComposer follow-up routing', () => {
     expect(restored.indexOf('second request')).toBeGreaterThan(restored.indexOf('first request'))
     expect(onOptimisticEcho).toHaveBeenCalledTimes(1)
   })
+  it.each(['idle', 'queue', 'steer'] as const)('prepares remote attachments before %s wire input and echo, then reuses uploads after rejected submission', async (flow) => {
+    useConversationStore.setState({ remoteWorkspaceActive: true, turnStatus: flow === 'idle' ? 'idle' : 'running' })
+    useComposerPreferencesStore.getState().hydrate({ followUpQueueMode: flow === 'idle' ? 'queue' : flow })
+    const method = flow === 'idle' ? 'turn/start' : flow === 'queue' ? 'turn/enqueue' : 'turn/steer'
+    let finishUpload!: (result: unknown) => void
+    let rejectSubmission = true
+    sendRequest.mockImplementation((name: string) => {
+      if (name === 'fs/writeFile') return new Promise((resolve) => { finishUpload = resolve })
+      if (name === method && rejectSubmission) return Promise.reject(new Error('retry this submission'))
+      return Promise.resolve({})
+    })
+    renderComposer()
+    fireEvent.drop(screen.getByRole('textbox'), { dataTransfer: { types: ['Files'], files: [new File(['notes'], 'notes.md')], items: [] } })
+    const textbox = draft('send with file')
+    fireEvent.keyDown(textbox, { key: 'Enter' })
+    await waitFor(() => expect(finishUpload).toBeDefined())
+    expect(sendRequest.mock.calls.some(([name]) => name === method)).toBe(false)
+    expect(onOptimisticEcho).not.toHaveBeenCalled()
+    expect(useConversationStore.getState().queuedInputs).toEqual([])
+    expect(textbox.textContent).toBe('send with file')
+    await act(async () => finishUpload({}))
+    await waitFor(() => expect(sendRequest.mock.calls.some(([name]) => name === method)).toBe(true))
+    await waitFor(() => expect(textbox.textContent).toBe('send with file'))
+    const input = sendRequest.mock.calls.find(([name]) => name === method)?.[1].input
+    expect(input).toEqual(expect.arrayContaining([expect.objectContaining({ type: 'fileRef', path: expect.stringContaining('.craft') })]))
+    expect(JSON.stringify(input)).not.toContain('bm90ZXM=')
+    rejectSubmission = false
+    fireEvent.keyDown(textbox, { key: 'Enter' })
+    await waitFor(() => expect(sendRequest.mock.calls.filter(([name]) => name === method)).toHaveLength(2))
+    expect(readLocalFile).toHaveBeenCalledTimes(1)
+    expect(sendRequest.mock.calls.filter(([name]) => name === 'fs/writeFile')).toHaveLength(1)
+  })
+
+  it('keeps the complete remote draft and sends no input when preparation fails', async () => {
+    useConversationStore.setState({ remoteWorkspaceActive: true })
+    readLocalFile.mockRejectedValueOnce(new Error('file unavailable'))
+    renderComposer()
+    fireEvent.drop(screen.getByRole('textbox'), { dataTransfer: { types: ['Files'], files: [new File(['notes'], 'notes.md')], items: [] } })
+    const textbox = draft('keep all attachments')
+    fireEvent.keyDown(textbox, { key: 'Enter' })
+    await waitFor(() => expect(readLocalFile).toHaveBeenCalled())
+    expect(textbox.textContent).toBe('keep all attachments')
+    expect(sendRequest.mock.calls.some(([name]) => name.startsWith('turn/'))).toBe(false)
+    expect(useConversationStore.getState().queuedInputs).toEqual([])
+  })
+
+  it('prepares voice override images and goal path references instead of reading the visible composer', async () => {
+    useConversationStore.setState({ remoteWorkspaceActive: true, turnStatus: 'idle', activeTurnId: null })
+    useConnectionStore.setState({ capabilities: { threadGoals: true } })
+    renderComposer()
+    const textbox = screen.getByRole('textbox')
+    fireEvent.focus(textbox)
+    textbox.textContent = '/'
+    const range = document.createRange()
+    range.selectNodeContents(textbox)
+    range.collapse(false)
+    window.getSelection()?.removeAllRanges()
+    window.getSelection()?.addRange(range)
+    fireEvent.input(textbox)
+    fireEvent.click(await screen.findByRole('option', { name: /Goal/ }))
+    const submit = captureComposerVoiceSubmitter('thread-1')!
+    await act(async () => submit({
+      text: 'Voice goal', segments: [{ type: 'text', value: 'Voice goal' }], files: [],
+      images: [{ tempPath: 'C:/temp/voice.png', dataUrl: 'data:image/png;base64,bm90ZXM=', fileName: 'voice.png', mimeType: 'image/png', source: 'client' }]
+    }))
+    const goal = sendRequest.mock.calls.find(([method]) => method === 'thread/goal/set')?.[1].objective
+    expect(goal).toContain('Voice goal')
+    expect(goal).toContain('.craft')
+    expect(goal).not.toContain('C:/temp/voice.png')
+    const input = sendRequest.mock.calls.find(([method]) => method === 'turn/start')?.[1].input
+    expect(input).toEqual([{ type: 'text', text: goal }])
+    expect(readLocalFile).toHaveBeenCalledWith({ path: 'C:/temp/voice.png' })
+  })
+
 })

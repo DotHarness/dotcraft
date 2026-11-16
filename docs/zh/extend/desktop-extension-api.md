@@ -514,7 +514,7 @@ useEffect(() => {
 
 ### 显示附加的图片
 
-`host.workspaces.readImageAttachment(path)` 以 data URL 返回用户在本地 workspace 会话中附加的图片，可以直接用于 `<img>`。传入用户消息里图片输入的路径。Desktop 图片附件目录以外的路径、非图片文件、过大的图片以及远程 workspace 中的路径都会被拒绝，所以请保留一个后备图标：
+`host.workspaces.readImageAttachment(path)` 从所属的本地或远程 workspace 读取图片附件，以 data URL 返回，可以直接用于 `<img>`。传入用户消息里图片输入的路径。该 workspace 的图片附件目录以外的路径、非图片文件以及超过 10 MiB 的图片会被拒绝。图片不可用时显示后备图标：
 
 ```tsx
 host.workspaces.readImageAttachment(path).then(setSrc, () => setSrc(null));

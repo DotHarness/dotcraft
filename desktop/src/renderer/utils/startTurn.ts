@@ -1,3 +1,4 @@
+import { captureComposerAttachmentTarget, prepareComposerAttachments, type ComposerAttachmentTarget } from './prepareComposerAttachments'
 import { createOptimisticUserMessage } from './inputPresentation'
 import type { ComposerContextRecord } from '../../shared/composerContext'
 import type { TypedAppServerRequestApi } from '../../shared/appServerBoundary'
@@ -16,6 +17,7 @@ import { modelSettingsForThread, type TurnModelSettings } from './turnModelSetti
 interface StartTurnParams {
   clientUserMessageId?: string
   request?: TypedAppServerRequestApi['sendRequest']
+  attachmentTarget?: ComposerAttachmentTarget
   threadId: string
   workspacePath: string
   identityWorkspacePath?: string
@@ -178,6 +180,9 @@ export async function reissueFailedTurn({
 }
 
 export async function startTurnWithOptimisticUI(params: StartTurnParams): Promise<void> {
-  const echo = echoOptimisticTurn(params)
-  if (echo) await submitOptimisticTurn(echo, params)
+  const target = params.attachmentTarget ?? captureComposerAttachmentTarget(params.threadId)
+  const prepared = params.inputParts || !target.remote ? {} : await prepareComposerAttachments({ ...params, target })
+  const submission = { ...params, ...prepared, request: params.request ?? target.request }
+  const echo = echoOptimisticTurn(submission)
+  if (echo) await submitOptimisticTurn(echo, submission)
 }

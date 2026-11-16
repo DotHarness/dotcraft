@@ -1,12 +1,15 @@
 import type { ClientRequestMethods } from '@dotcraft/sdk/contracts'
 import { threadWorkspaceUpdateFor } from './workspaceRuntimeRoots'
+import { captureComposerAttachmentTarget } from './prepareComposerAttachments'
+import type { TypedAppServerRequestApi } from '../../shared/appServerBoundary'
 
-type EnqueueTurnParams = ClientRequestMethods['turn/enqueue']['params'] & { identityWorkspacePath: string }
+type EnqueueTurnParams = ClientRequestMethods['turn/enqueue']['params'] & { identityWorkspacePath: string; request?: TypedAppServerRequestApi['sendRequest'] }
 
-export async function enqueueTurn({ identityWorkspacePath, ...params }: EnqueueTurnParams): Promise<ClientRequestMethods['turn/enqueue']['result']> {
+export async function enqueueTurn({ identityWorkspacePath, request: providedRequest, ...params }: EnqueueTurnParams): Promise<ClientRequestMethods['turn/enqueue']['result']> {
+  const request = providedRequest ?? captureComposerAttachmentTarget(params.threadId).request
   const workspaceUpdate = threadWorkspaceUpdateFor(params.threadId, identityWorkspacePath)
   if (workspaceUpdate.runtimeWorkspaceRoots) {
-    await window.api.appServer.sendRequest('thread/resume', { threadId: params.threadId, ...workspaceUpdate })
+    await request('thread/resume', { threadId: params.threadId, ...workspaceUpdate })
   }
-  return window.api.appServer.sendRequest('turn/enqueue', params)
+  return request('turn/enqueue', params)
 }

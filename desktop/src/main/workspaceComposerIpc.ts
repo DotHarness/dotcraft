@@ -2,9 +2,7 @@ import { randomUUID } from 'crypto'
 import { promises as fs } from 'fs'
 import * as path from 'path'
 import { translate, DEFAULT_LOCALE, type AppLocale } from '../shared/locales'
-import { workspaceTempPath } from './workspaceTempPath'
-
-const MAX_IMAGE_BYTES = 20 * 1024 * 1024
+import { MAX_ATTACHMENT_BYTES } from '../shared/attachments'
 
 const MIME_TO_EXT: Record<string, string> = {
   'image/png': '.png',
@@ -36,7 +34,6 @@ function inferMimeTypeFromPath(absPath: string): string {
   )
 }
 
-/** Writes to `.craft/attachments/images/<uuid>.<ext>` under the workspace, not an OS temp dir. */
 export async function saveImageDataUrlToTemp(
   workspaceRoot: string,
   dataUrl: string,
@@ -51,9 +48,9 @@ export async function saveImageDataUrlToTemp(
   const mime = match[1].trim().toLowerCase()
   const b64 = match[2].replace(/\s/g, '')
   const buf = Buffer.from(b64, 'base64')
-  if (buf.length > MAX_IMAGE_BYTES) {
+  if (buf.length > MAX_ATTACHMENT_BYTES) {
     throw new Error(
-      translate(locale, 'ipc.imageTooLarge', { bytes: buf.length, max: MAX_IMAGE_BYTES })
+      translate(locale, 'ipc.imageTooLarge', { bytes: buf.length, max: MAX_ATTACHMENT_BYTES })
     )
   }
   if (!mime.startsWith('image/')) {
@@ -68,7 +65,6 @@ export async function saveImageDataUrlToTemp(
   return absPath
 }
 
-/** Also accepts the legacy `.craft/tmp/images` location, not just `.craft/attachments/images`. */
 export async function readImageAsDataUrl(
   workspaceRoot: string,
   absPath: string,
@@ -77,24 +73,17 @@ export async function readImageAsDataUrl(
   const resolvedRoot = path.resolve(workspaceRoot)
   const resolvedPath = path.resolve(absPath)
   const attachmentsDir = path.join(resolvedRoot, '.craft', 'attachments', 'images')
-  const legacyTmpDir = path.join(workspaceTempPath(resolvedRoot), 'images')
-  const allowed =
-    isPathWithin(attachmentsDir, resolvedPath) ||
-    isPathWithin(legacyTmpDir, resolvedPath)
-  if (!allowed) {
+  if (!isPathWithin(attachmentsDir, resolvedPath)) {
     throw new Error(
       translate(locale, 'ipc.pathOutsideWorkspace', { path: absPath })
     )
   }
   const buf = await fs.readFile(resolvedPath)
-  if (buf.length > MAX_IMAGE_BYTES) {
+  if (buf.length > MAX_ATTACHMENT_BYTES) {
     throw new Error(
-      translate(locale, 'ipc.imageTooLarge', { bytes: buf.length, max: MAX_IMAGE_BYTES })
+      translate(locale, 'ipc.imageTooLarge', { bytes: buf.length, max: MAX_ATTACHMENT_BYTES })
     )
   }
   const mimeType = inferMimeTypeFromPath(resolvedPath)
-  if (!mimeType.startsWith('image/')) {
-    throw new Error(translate(locale, 'ipc.clipboardNotImage'))
-  }
   return `data:${mimeType};base64,${buf.toString('base64')}`
 }

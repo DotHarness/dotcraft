@@ -42,14 +42,18 @@ export function mergeComposerFileAttachments(
   const merged: ComposerFileAttachment[] = []
 
   for (const file of existing) {
-    const normalized = normalizeComposerFileAttachment(file.path, file.fileName)
+    const value = normalizeComposerFileAttachment(file.path, file.fileName)
+    const normalized = value
+      ? value.path === file.path && value.fileName === file.fileName ? file : { ...file, ...value }
+      : null
     if (!normalized || seen.has(normalized.path)) continue
     seen.add(normalized.path)
     merged.push(normalized)
   }
 
   for (const file of incoming) {
-    const normalized = normalizeComposerFileAttachment(file.path, file.fileName)
+    const value = normalizeComposerFileAttachment(file.path, file.fileName)
+    const normalized = value ? { ...file, ...value } : null
     if (!normalized || seen.has(normalized.path)) continue
     seen.add(normalized.path)
     merged.push(normalized)
@@ -72,7 +76,7 @@ function classifyDroppedFile(
   if (seenFilePaths.has(normalized.path)) return { kind: 'skip' }
 
   seenFilePaths.add(normalized.path)
-  return { kind: 'file', file: normalized }
+  return { kind: 'file', file: { ...normalized, source: 'client' } }
 }
 
 export function classifyDroppedComposerFiles(

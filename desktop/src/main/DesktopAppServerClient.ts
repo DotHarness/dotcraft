@@ -205,6 +205,8 @@ export class DesktopAppServerClient extends EventEmitter {
 
   get connectionId(): string | null { return this.connectionLifetimeId }
 
+  get isRemoteHost(): boolean { return this.remoteHost }
+
   get isDisposed(): boolean { return this.disposed }
 
   async sendNotification(method: string, params?: unknown): Promise<void> {

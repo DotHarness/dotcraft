@@ -36,6 +36,38 @@ public sealed class AppServerFileSystemTests : IDisposable
         Assert.Equal(bytes, Convert.FromBase64String(read.GetProperty("dataBase64").GetString()!));
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(8 * 1024 * 1024 + 1)]
+    public async Task ReadWrite_RoundTripsEmptyAndLargeFiles(int length)
+    {
+        await _harness.InitializeAsync();
+        var path = Path.Combine(_root, "data.bin");
+        var bytes = new byte[length];
+        if (length > 0) bytes[^1] = 255;
+        var base64 = Convert.ToBase64String(bytes);
+
+        await SendAsync(Rpc.FsWriteFile.Name, new { path, dataBase64 = base64 });
+        var read = await SendAsync(Rpc.FsReadFile.Name, new { path });
+
+        Assert.Equal(base64, read.GetProperty("dataBase64").GetString());
+        Assert.Equal(bytes, await File.ReadAllBytesAsync(path));
+    }
+
+    [Fact]
+    public async Task Write_OverTenMiB_DoesNotReplaceExistingFile()
+    {
+        await _harness.InitializeAsync();
+        var path = Path.Combine(_root, "existing.txt");
+        await File.WriteAllTextAsync(path, "keep me");
+        var dataBase64 = Convert.ToBase64String(new byte[10 * 1024 * 1024 + 1]);
+
+        var error = await SendForErrorAsync(Rpc.FsWriteFile.Name, new { path, dataBase64 });
+
+        Assert.Equal("FileTooLarge", DataCode(error));
+        Assert.Equal("keep me", await File.ReadAllTextAsync(path));
+    }
+
     [Fact]
     public async Task RelativePathAndMalformedBase64_AreInvalidParams()
     {
@@ -107,7 +139,7 @@ public sealed class AppServerFileSystemTests : IDisposable
     {
         var large = Path.Combine(_root, "large.bin");
         using (var stream = File.Create(large))
-            stream.SetLength(8L * 1024 * 1024 + 1);
+            stream.SetLength(10L * 1024 * 1024 + 1);
         var file = Path.Combine(_root, "existing.txt");
         File.WriteAllText(file, "x");
         await _harness.InitializeAsync();

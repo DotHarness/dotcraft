@@ -1,10 +1,11 @@
 import { useAutomationRunReveal } from '../../hooks/useAutomationRunReveal'
 import { useToolCallReveal } from '../../hooks/useToolCallReveal'
-import { collectConversationImages, ConversationImagesContext, type GalleryImage } from './imagePreview/galleryImages'
+import { attachmentImageScope, collectConversationImages, ConversationImagesContext, ImageReadScopeContext, type GalleryImage } from './imagePreview/galleryImages'
 import { collectConversationVisualizations, ConversationVisualizationsContext, type VisualizationEntry } from './visualizationGallery'
 import { useHistoryGapLoading } from '../../hooks/useHistoryGapLoading'
 import { Fragment, memo, useMemo, useRef } from 'react'
 import { useConversationStore } from '../../stores/conversationStore'
+import { useConnectionStore } from '../../stores/connectionStore'
 import { runningTurnFiles } from '../../stores/turnDiffs'
 import { useThreadStore } from '../../stores/threadStore'
 import { useThreadHistoryStore, type HistoryGap } from '../../stores/threadHistoryStore'
@@ -42,7 +43,8 @@ const NO_HISTORY_GAPS: HistoryGap[] = []
 
 function getStoreConversationImages(): GalleryImage[] {
   const state = useConversationStore.getState()
-  return collectConversationImages(state.turns, { localFiles: !state.remoteWorkspaceActive })
+  return collectConversationImages(state.turns, { localFiles: !state.remoteWorkspaceActive,
+    scope: attachmentImageScope(useThreadStore.getState().activeThreadId ?? undefined, state.workspacePath) })
 }
 
 function getStoreConversationVisualizations(): VisualizationEntry[] {
@@ -55,12 +57,18 @@ interface MessageStreamProps {
 }
 
 export function MessageStream({ sendScrollRequest = null, viewportKey }: MessageStreamProps): JSX.Element {
+  const threadId = useThreadStore(s => s.activeThreadId)
+  const workspacePath = useConversationStore(s => s.workspacePath)
+  const connectionEpoch = useConnectionStore(s => s.connectionEpoch)
+  const scope = useMemo(() => attachmentImageScope(threadId ?? undefined, workspacePath), [threadId, workspacePath, connectionEpoch])
   return (
+    <ImageReadScopeContext.Provider value={scope}>
     <ConversationImagesContext.Provider value={getStoreConversationImages}>
       <ConversationVisualizationsContext.Provider value={getStoreConversationVisualizations}>
         <MessageStreamContent viewportKey={viewportKey} sendScrollRequest={sendScrollRequest} />
       </ConversationVisualizationsContext.Provider>
     </ConversationImagesContext.Provider>
+    </ImageReadScopeContext.Provider>
   )
 }
 

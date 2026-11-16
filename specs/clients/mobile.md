@@ -4,7 +4,7 @@
 |---|---|
 | Version | 0.12.1 |
 | Status | Draft |
-| Date | 2026-11-15 |
+| Date | 2026-11-16 |
 | Parent spec | [Hub Architecture](../architecture/hub-architecture.md) |
 | Related Specs | [Device Gateway](../protocols/device-gateway.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Desktop Client](desktop-client.md), [TypeScript SDK](../sdk/typescript.md) |
 
@@ -171,7 +171,7 @@ control uses that surface at 70% with a hairline and no shadow, so it reads as t
   JPEG. Before sending, the phone writes each photo to
   `<project>/.craft/attachments/images/<id>.jpg` with `fs/createDirectory` and `fs/writeFile` and
   sends it as a `localImage` part, so the agent can reach it by path later. **File** picks any
-  document up to 2 MiB, writes it under `<project>/.craft/attachments/<id>/`, and sends a `fileRef`.
+  document up to 10 MiB, writes it under `<project>/.craft/attachments/<id>/`, and sends a `fileRef`.
   Attachments wait in the composer until sent. A failed send or upload returns the draft to the
   composer with a notice (naming the file for a failed upload) and **Retry**. A file over the limit
   is refused when picked. **Photo** and **File** are hidden without `capabilities.fileSystem`.

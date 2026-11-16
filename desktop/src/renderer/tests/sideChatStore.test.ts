@@ -148,7 +148,7 @@ describe('side chats', () => {
       }]
     })
     await useSideChatStore.getState().send(key, {
-      inputParts: [{ type: 'text', text: 'Check again.' }], visibleText: 'Check again.'
+      text: 'Check again.'
     })
     expect(sendConnectionRequest).toHaveBeenLastCalledWith('workspace-a', 'turn/start', expect.objectContaining({
       threadId: 'side-1', runtimeWorkspaceRoots: ['X:/lib', 'X:/app', 'X:/private']
@@ -160,7 +160,7 @@ describe('side chats', () => {
       ...project, primaryFolder: 'X:/lib', secondaryFolders: ['X:/new-shared']
     }] })
     await useSideChatStore.getState().send(key, {
-      inputParts: [{ type: 'text', text: 'Use the new folders.' }], visibleText: 'Use the new folders.'
+      text: 'Use the new folders.'
     })
     expect(sendRequest).toHaveBeenLastCalledWith('turn/start', expect.objectContaining({
       runtimeWorkspaceRoots: ['X:/lib', 'X:/new-shared'], cwd: 'X:/lib'
@@ -171,7 +171,7 @@ describe('side chats', () => {
       ...project, primaryFolder: 'X:/new-shared', secondaryFolders: ['X:/lib']
     }] })
     await useSideChatStore.getState().send(key, {
-      inputParts: [{ type: 'text', text: 'Keep working here.' }], visibleText: 'Keep working here.'
+      text: 'Keep working here.'
     })
     expect(sendRequest).toHaveBeenLastCalledWith('turn/start', expect.objectContaining({
       runtimeWorkspaceRoots: ['X:/new-shared', 'X:/lib']
@@ -197,7 +197,7 @@ describe('side chats', () => {
     useWorkspaceProjectsStore.setState({ projects: [{ ...project, primaryFolder: 'X:/repo' }] })
 
     await useSideChatStore.getState().send(key, {
-      inputParts: [{ type: 'text', text: 'Continue in the worktree.' }], visibleText: 'Continue in the worktree.'
+      text: 'Continue in the worktree.'
     })
 
     expect(sendRequest).toHaveBeenLastCalledWith('turn/start', expect.objectContaining({
@@ -211,8 +211,7 @@ describe('side chats', () => {
     emit('turn/started', { turn: { id: 'turn-1', threadId: 'side-1', status: 'running' } })
 
     await useSideChatStore.getState().send(key, {
-      inputParts: [{ type: 'text', text: 'Only check the uploader.' }],
-      visibleText: 'Only check the uploader.'
+      text: 'Only check the uploader.'
     })
 
     expect(sendRequest).toHaveBeenCalledWith('turn/steer', expect.objectContaining({

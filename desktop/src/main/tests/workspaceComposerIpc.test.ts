@@ -26,7 +26,6 @@ import {
   invalidateFileIndex,
   releaseFileIndex,
   listWorkspaceFiles,
-  readImageAsDataUrl,
   shouldInvalidateFileIndexForWatchEvent
 } from '../workspaceComposerIpc'
 
@@ -61,22 +60,6 @@ describe('chat folder file index', () => {
     const cacheDir = join(fakeHome.path, '.craft', 'workspaces', 'chats', '.craft', 'cache')
     expect((await readdir(cacheDir)).some((name) => name.startsWith('desktop-file-index-v1-'))).toBe(true)
   }, 20_000)
-})
-
-describe('workspace image compatibility', () => {
-  it('reads an existing image from the workspace tmp directory', async () => {
-    const workspace = await mkdtemp(join(tmpdir(), 'dotcraft-workspace-image-'))
-    try {
-      const imageDir = join(workspace, '.craft', 'tmp', 'images')
-      await mkdir(imageDir, { recursive: true })
-      const imagePath = join(imageDir, 'legacy.png')
-      await writeFile(imagePath, Buffer.from([0x89, 0x50, 0x4e, 0x47]))
-
-      expect(await readImageAsDataUrl(workspace, imagePath)).toBe('data:image/png;base64,iVBORw==')
-    } finally {
-      await rm(workspace, { recursive: true, force: true })
-    }
-  })
 })
 
 describe('workspace file index watch events', () => {

@@ -6,6 +6,8 @@ import { ANNOTATION_BUBBLE_PATH } from '../../../../shared/viewer/browserSelecti
 import { useLayerPresence } from '../../../contexts/LayerContext'
 import { useT } from '../../../contexts/LocaleContext'
 import { useComposerContextStore } from '../../../stores/composerContextStore'
+import { useConversationStore } from '../../../stores/conversationStore'
+import { attachmentImageScope } from '../../conversation/imagePreview/galleryImages'
 import { ContextCommentEditor } from '../../conversation/ContextCommentEditor'
 import { ActionTooltip } from '../../ui/ActionTooltip'
 import { Button } from '../../ui/Button'
@@ -30,6 +32,7 @@ export function BrowserPageFeedback({
   run: (operation: () => Promise<unknown>) => void
 }): JSX.Element {
   const t = useT()
+  const remoteWorkspace = useConversationStore(state => state.remoteWorkspaceActive)
   const [selecting, setSelecting] = useState(false)
   const [reference, setReference] = useState<BrowserPageReference | null>(null)
   const api = window.api.workspace.viewer.browser
@@ -85,11 +88,13 @@ export function BrowserPageFeedback({
   function save(comment: string) {
     if (!reference || !threadId) return
     const selected = reference
+    const source = attachmentImageScope(threadId).source
     run(async () => {
       const image = selected.imageDataUrl
         ? await window.api.workspace.saveImageToTemp({
             dataUrl: selected.imageDataUrl,
             fileName: 'page-selection.png',
+            ...(source ? { source } : {}),
           })
         : null
       useComposerContextStore.getState().addContext(threadId, {
@@ -103,6 +108,7 @@ export function BrowserPageFeedback({
         ...(reference.imageDataUrl
           ? {
               image: {
+                source: remoteWorkspace ? 'client' : 'host',
                 tempPath: image!.path,
                 dataUrl: reference.imageDataUrl,
                 fileName: 'page-selection.png',

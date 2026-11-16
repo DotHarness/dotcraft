@@ -1,6 +1,6 @@
 import type { FileAttachment, MessageDraft, PhotoAttachment } from './draft'
 
-export const MAX_FILE_BYTES = 2 * 1024 * 1024
+export const MAX_FILE_BYTES = 10 * 1024 * 1024
 export const MAX_PHOTO_SIDE = 2048
 
 export interface AttachmentFileSystem {

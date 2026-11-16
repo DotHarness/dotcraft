@@ -64,7 +64,7 @@ describe('conversation workspace synchronization', () => {
 
     act(() => openThreadState(LOCAL_THREAD))
     await waitFor(() => expect(view.container.querySelector('img')).toHaveAttribute('src', dataUrl))
-    expect(readImageAsDataUrl).toHaveBeenCalledExactlyOnceWith({ path: imagePath })
+    expect(readImageAsDataUrl).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ path: imagePath, workspacePath: LOCAL_PATH }))
     expect(useConversationStore.getState()).toMatchObject({ workspacePath: LOCAL_PATH, remoteWorkspaceActive: false })
   })
 })

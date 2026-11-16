@@ -39,6 +39,8 @@ The app's home screen lists your projects and recent chats across all running pr
 
 The phone and the computer show the same chats, so a chat started on one continues on the other. Answer an approval on one, and it clears on the other. Models, settings, and plugins stay on the computer, and the phone doesn't change them.
 
+The composer accepts photos and file attachments. Each document can be up to 10 MiB.
+
 ## Keep going in the background
 
 When you leave the app while a chat is running or waiting on you, DotCraft keeps a live session and shows one ongoing notification, such as "2 running · 1 needs you". A new approval arrives as a notification with **Allow once** and **Reject**, so you can answer without opening the app. New questions and finished chats notify you too.
