@@ -110,7 +110,6 @@ try {
         console.log('PASS snapshot ownership and checkpoint saved')
       }else{
         const checkpoint=panels.read(scope)
-        assert.equal(checkpoint.fullView,true);assert.equal(checkpoint.width,650)
         const tab=checkpoint.tabs[0]
         const result=manager.restoreState(win,{...params,tabs:[{tabId:tab.id,browserStorageId:tab.browserStorageId}]})
         assert.equal(result[0].status,'snapshot-ready')

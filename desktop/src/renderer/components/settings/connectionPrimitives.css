@@ -1,0 +1,75 @@
+.dc-satellite-row {
+  font-family: inherit;
+}
+
+.dc-satellite-row:hover {
+  background: var(--sidebar-control-hover);
+}
+
+.dc-satellite-row__text {
+  flex: 1;
+  min-width: 0;
+}
+
+.dc-satellite-row__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.dc-satellite-row__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dc-satellite-row__title > span:last-child {
+  flex-shrink: 0;
+}
+
+.dc-satellite-row__meta {
+  display: block;
+  margin-top: 3px;
+  overflow: hidden;
+  color: var(--text-dimmed);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dc-satellite-row__chevron {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--text-dimmed);
+}
+
+.dc-satellite-field__label {
+  color: var(--text-primary);
+  font-size: var(--type-ui-size);
+  font-weight: 600;
+  line-height: var(--type-ui-line-height);
+}
+
+.dc-satellite-invite-banner__glyph {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--error);
+}
+
+.dc-satellite-invite-banner__text {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.dc-satellite-invite-banner__reason {
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+  color: var(--text-secondary);
+  font-size: 12px;
+}

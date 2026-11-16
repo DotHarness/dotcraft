@@ -1,12 +1,12 @@
 # DotCraft Satellite
 
-Satellite enables remote tool calls so your agent can work on another Windows PC. You continue the chat in Desktop, while the person sharing the PC controls access, sees running tools, and can pause sharing.
+Satellite enables remote tool calls so your agent can work on another Windows PC. You continue the chat in Desktop, while the person sharing the PC controls access, sees running tools, and can pause sharing. Enable the bundled Satellite plugin in Desktop to manage PCs, choose where tools run, and view their screens.
 
 ![The inviting PC runs Desktop and the Hub, and Satellite on the shared PC connects to it](/satellite-overview.svg)
 
 ## Person inviting: create an invitation
 
-Open **Settings → Connections → Satellites** and choose **Invite**. The link is ready as soon as the dialog opens: copy it and send it to the other person.
+Open **Settings → Satellites** and choose **Invite**. The link is ready as soon as the dialog opens: copy it and send it to the other person.
 
 If Windows asks whether to allow DotCraft through the firewall on your first invitation, allow it on a private network you trust. The shared PC must be able to reach the address in the invitation link.
 
@@ -38,7 +38,7 @@ The agent can read and change files in that folder. Other file access and local 
 
 ## Person inviting: choose where to run
 
-After the other person allows the connection, find the PC in **Settings → Connections → Satellites**. Open **Run on** below the chat composer, select the remote PC and its workspace, and submit your task.
+After the other person allows the connection, find the PC in **Settings → Satellites**. Open **Run on** below the chat composer, select the remote PC and its workspace, and submit your task.
 
 File, Shell, language tools, and .NET extension tools that support remote calls run on the selected PC. A failed remote call does not automatically run on your own PC. Select **This PC** to switch back.
 
@@ -66,10 +66,10 @@ If you decline, the agent receives that result. The person inviting your PC cann
 
 ## Person sharing: review, pause, or revoke access
 
-If Desktop is also installed on this PC, open **Settings → Connections → Share this PC** to see who has access, their access mode, and their task folder. Change permissions in Satellite.
+If Desktop is also installed on this PC, open **Settings → Satellites → Share this PC** to see who has access, their access mode, and their task folder. Change permissions in Satellite.
 
 ![Share this PC showing two paired computers with their access modes and task folders](https://github.com/DotHarness/resources/raw/master/dotcraft/satellite/manage-access.png)
 
 Right-click the Satellite tray icon and choose a machine to open its actions: **Manage access** changes its access mode, **Open folder** opens its task folder, **Disconnect** ends its current session, and **Revoke access** removes its access. **Pause sharing** stops every machine at once and can be resumed later.
 
-The person inviting can also remove the PC from **Settings → Connections → Satellites**. Sharing again requires a new invitation.
+The person inviting can also remove the PC from **Settings → Satellites**. Sharing again requires a new invitation.

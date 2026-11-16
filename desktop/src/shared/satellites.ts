@@ -11,8 +11,6 @@ export type SatelliteEventKind = 'joined' | 'online' | 'offline' | 'revoked'
 
 const EVENT_KINDS: readonly SatelliteEventKind[] = ['joined', 'online', 'offline', 'revoked']
 
-export type SatelliteState = 'offline' | 'ready' | 'inUse'
-
 export interface SatelliteWorkspace {
   workspaceId: string
   path: string
@@ -185,11 +183,6 @@ export function normalizeSatellites(value: unknown): Satellite[] {
   return result
 }
 
-export function satelliteState(satellite: Pick<Satellite, 'connected' | 'activeLease'>): SatelliteState {
-  if (!satellite.connected) return 'offline'
-  return satellite.activeLease ? 'inUse' : 'ready'
-}
-
 /**
  * Presence follows the event kind. A record carried by an event was listed earlier,
  * so it names the machine but cannot be trusted for whether it is connected now.
@@ -208,14 +201,6 @@ export function normalizeSatelliteInvite(value: unknown): SatelliteInvite | null
   const expiresAt = timestamp(raw.expiresAt)
   if (!inviteId || !url || !expiresAt) return null
   return { inviteId, url, expiresAt }
-}
-
-export function isInviteExpired(
-  invite: Pick<SatelliteInvite, 'expiresAt'>,
-  now: number = Date.now()
-): boolean {
-  const expiresAt = Date.parse(invite.expiresAt)
-  return !Number.isFinite(expiresAt) || expiresAt <= now
 }
 
 export function parseSatelliteEvent(value: unknown): SatelliteEvent | null {

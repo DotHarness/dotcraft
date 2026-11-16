@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 0.12.1 |
+| Version | 0.12.2 |
 | Status | Living |
 | Date | 2026-11-16 |
 | Parent Specs | [Plugin Architecture](plugin-architecture.md), [Tool Architecture](tools-architecture.md) |
@@ -94,6 +94,12 @@ and do not ship another React implementation. The Host UI kit and published them
 supported authoring contracts; private renderer components and properties are not.
 
 ### UI kit
+
+Settings groups accept `framed` to retain their empty-state presentation. Toasts accept a description and subject icon in addition to their message and action.
+
+`ToolDisclosure` provides the Host's transcript disclosure, including static non-expandable rows, keyboard interaction, and panel transitions. `RunningShimmer` provides the Host's running-label motion and reduced-motion handling. Plugin tool cards compose these primitives rather than reproducing transcript chrome.
+
+`LayerBoundary` registers a modal layer for its mounted lifetime. It accepts `active` and `blocksNativeViews`, so plugin-owned theater and modal content suppress lower hover overlays and hide Electron native views while preserving tooltip nesting.
 
 Value controls use `onValueChange` and `ariaLabel`; boolean controls use `onChange`. These SDK
 names are stable independently of internal component props.
@@ -193,7 +199,8 @@ The Core surfaces are:
 | `composer.toolbar.voice` | The voice input control. |
 | `composer.toolbar.submit` | The current submit, queue, stop, approval, or reply action. |
 | `composer.status` | The status row below the Composer card. |
-| `composer.status.workspace` | The context row: project, Run on, work location, branch, worktree, or changelist controls. Its individual chips are not surfaces. |
+| `composer.status.workspace` | The context row: project, work location, branch, worktree, changelist, and contributed execution-location controls. |
+| `composer.status.workspace.run-on` | An empty execution-location seat in the workspace row. Its dedicated context carries thread and workspace identity, busy state, visibility eligibility, and coordinated menu state. |
 | `composer.status.subscription` | The provider usage indicator (subscription windows or account balance) when applicable. |
 | `composer.status.trailing` | The trailing end of the status row, reserved for compact persistent readouts. Empty by default. |
 | `thread.header.actions` | The action group in the active thread header, between the overflow menu and the Detail Panel toggle. Empty by default. |
@@ -297,7 +304,7 @@ Verified cache entries survive disconnects; superseded revisions and removed plu
 
 ## Host and compatibility contract
 
-Every Desktop extension receives the same Host contract: the four primitives plus stable product operations for metadata, locale and theme, session state, SubAgent state, navigation, open targets, project actions, notifications, AppServer, MCP tool calls, App Binding, App Surfaces, workspaces, and Oratorio. It is a supported authoring API, not a security membrane. Main-process validation remains a service invariant rather than a plugin permission.
+Every Desktop extension receives the same Host contract: the four primitives plus stable product operations for metadata, locale and theme, session state, SubAgent state, navigation, open targets, project actions, notifications, AppServer, MCP tool calls, App Binding, App Surfaces, workspaces, Oratorio, satellites, thread routes, and screen sessions. It is a supported authoring API, not a security membrane. Main-process validation remains a service invariant rather than a plugin permission.
 
 Every `onChange` subscription below is generation-owned, carries a complete snapshot, and fires only when a value actually changes.
 
@@ -408,6 +415,24 @@ user's approval passes the thread the user is looking at.
 `appServer.onNotification` is generation-owned and delivers each notification once per
 subscription, including methods outside the generated typed catalog. Plugin subscriptions do not
 change delivery to built-in surfaces. Bridged server requests have one responder and one response.
+
+### Satellites and thread routing
+
+`satellites` exposes the local machine's Hub fleet: list, invite, revoke, activity, read-only local sharing status, invitation ownership, and generation-owned events. Hub credentials stay in the main process. Fleet identity is independent of the foreground AppServer and invitation URLs remain in memory.
+
+`remoteToolHost` projects the Host's thread-route controller with snapshots and subscriptions, listing, connect/disconnect, welcome selections, next-idle selections, and bounded restoration attempts. Its snapshot includes whether the AppServer is remote and supports routing. It uses the current connection and ignores results from earlier connections. The controller never imports plugin-owned fleet state. The Host applies a welcome selection before submitting the first turn, retaining the normal failure reporting and submission behavior.
+
+The `composer.status.workspace.run-on` context carries its own thread and workspace identity, eligibility, and menu coordination. A plugin uses that context rather than assuming the foreground thread is its Composer. The seat remains available when no built-in workspace control applies.
+
+Disposal withdraws the generation's subscriptions, uncommitted selections, and restoration attempts. It does not disconnect confirmed tool routes, revoke pairings, or terminate remote tasks. Route-change system notices remain Host-owned session facts.
+
+### Screen sessions
+
+`screenView` opens a generation-owned screen handle, tunes demand, receives state and frame events, acknowledges decoded frames, and closes the handle. The Host binds a view to its window and keeps Hub credentials and transport in the main process. Disposing a generation closes its screen handles and subscriptions without affecting tool sessions. The Host exposes only small layout preferences for the viewer, not a general settings or filesystem API.
+
+### Tool presentation data
+
+A tool renderer receives its exact `presentationId`, options, arguments, result, live/completed status, success, structured error fields, and an optional discriminated progress snapshot. Progress updates replace the snapshot delivered to the component. Renderers do not subscribe to a second progress stream or acquire execution authority. A missing or failed renderer falls back to the Host's ordinary tool presentation.
 
 ## .NET and AppServer boundary
 

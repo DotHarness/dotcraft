@@ -1,4 +1,6 @@
 import { useDetailPanelStore } from '../stores/detailPanelStore'
+import { createDesktopPluginSatellites, createDesktopPluginRemoteToolHost } from './desktopPluginSatellites'
+import { createDesktopPluginScreenView } from './desktopPluginScreenView'
 import type {
   DesktopPluginHost,
   DesktopPluginSettingsMutation,
@@ -229,6 +231,8 @@ export function createDesktopPluginHost(
       showToast(options) {
         const toastId = showToast({
           message: options.message,
+          description: options.description,
+          icon: options.icon,
           type: options.tone === 'neutral' || options.tone == null ? 'info' : options.tone,
           durationMs: options.durationMs,
           action: options.action
@@ -394,6 +398,9 @@ export function createDesktopPluginHost(
         return loadLocalImageDataUrl(path, useThreadStore.getState().activeThreadId ?? undefined)
       }
     },
+    satellites: createDesktopPluginSatellites(scope),
+    remoteToolHost: createDesktopPluginRemoteToolHost(scope),
+    screenView: createDesktopPluginScreenView(scope),
     oratorio: {
       getContext: () => window.api.oratorio.getContext(),
       request: (request) => window.api.oratorio.request(request),

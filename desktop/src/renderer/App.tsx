@@ -28,7 +28,7 @@ import { useUserInputAutoResolutionBridge } from './hooks/useUserInputAutoResolu
 import { useActiveThreadModeSync } from './hooks/useActiveThreadModeSync'
 import { useActiveThreadReadReceipt } from './hooks/useActiveThreadReadReceipt'
 import { usePairedComputerNotices } from './hooks/usePairedComputerNotices'
-import { useSatelliteNotices } from './hooks/useSatelliteNotices'
+import { useSatelliteJoinNotice } from './hooks/useSatelliteJoinNotice'
 import { useDelayedFlag, WORKSPACE_OPENING_PLACEHOLDER_DELAY_MS } from './hooks/useDelayedFlag'
 import { QuickOpenDialog } from './components/detail/QuickOpenDialog'
 import { useAddProjectFlow } from './components/projects/AddProject'
@@ -43,7 +43,6 @@ import { useHooksStore } from './stores/hooksStore'
 import { usePendingRestartStore } from './stores/pendingRestartStore'
 import { useAppBindingStore } from './stores/appBindingStore'
 import { useThreadRouteStore } from './stores/threadRouteStore'
-import { bootstrapSatellites } from './stores/satellitesStore'
 import { useGitStore } from './stores/gitStore'
 import { useWorkspaceReadinessTiming } from './hooks/useWorkspaceReadinessTiming'
 import { useWorkspaceProjectsStore } from './stores/workspaceProjectsStore'
@@ -407,9 +406,8 @@ function WindowFrame({
 
 export function App(): JSX.Element {
   useUserInputAutoResolutionBridge()
-  useSatelliteNotices()
+  useSatelliteJoinNotice()
   usePairedComputerNotices()
-  useEffect(() => bootstrapSatellites(), [])
   const locale = useLocale()
   const localeRef = useRef(locale)
   localeRef.current = locale

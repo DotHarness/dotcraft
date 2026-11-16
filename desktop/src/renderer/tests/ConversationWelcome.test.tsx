@@ -9,7 +9,6 @@ import { useConfigStore } from '../stores/configStore'
 import { normalizeGitPathKey, useGitStore } from '../stores/gitStore'
 import { useModelCatalogStore } from '../stores/modelCatalogStore'
 import { useProvidersStore } from '../stores/providersStore'
-import { useSatellitesStore } from '../stores/satellitesStore'
 import { useThreadRouteStore } from '../stores/threadRouteStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useSkillsStore } from '../stores/skillsStore'
@@ -118,7 +117,6 @@ describe('ConversationWelcome composer', () => {
     })
     useThreadStore.getState().reset()
     useWorkspaceProjectsStore.getState().reset()
-    useSatellitesStore.setState({ satellites: [], supported: false, loaded: false, bootstrapped: false })
     useThreadRouteStore.setState({
       supported: false,
       hosts: [],

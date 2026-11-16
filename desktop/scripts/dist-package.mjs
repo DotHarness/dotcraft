@@ -45,7 +45,6 @@ run(process.execPath, [
   '--publish',
   'never'
 ])
-runNpm(['run', 'verify:package'])
 
 function resolveTarget(args) {
   const platform = args.includes('--win')

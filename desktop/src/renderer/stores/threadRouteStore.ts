@@ -7,7 +7,6 @@ import type {
 import { readAppServerErrorFields } from '../../shared/appServerError'
 import type { SatelliteThreadRoute } from '../../shared/satellites'
 import { useConnectionStore } from './connectionStore'
-import { useSatellitesStore } from './satellitesStore'
 import { useThreadStore } from './threadStore'
 import { showToast } from './toastStore'
 
@@ -55,14 +54,21 @@ export interface ThreadRouteActions {
   applyDeferredRoute(threadId: string): Promise<void>
   handleRouteChanged(params: unknown): void
   resetForConnection(): void
-  maybeReapply(threadId: string, options?: { turnRunning?: boolean }): void
+  maybeReapply(threadId: string, options?: { turnRunning?: boolean; isActive?: () => boolean }): void
 }
 
 export type ThreadRouteStore = ThreadRouteState & ThreadRouteActions
 
 export const REAPPLY_DEBOUNCE_MS = 400
 
-const reapplyTimers = new Map<string, ReturnType<typeof setTimeout>>()
+const reapplyTimers = new Map<string, { timer: ReturnType<typeof setTimeout>; isActive: () => boolean }>()
+
+export function cancelThreadRouteReapply(threadId: string, owner: () => boolean): void {
+  const pending = reapplyTimers.get(threadId)
+  if (!pending || pending.isActive !== owner) return
+  clearTimeout(pending.timer)
+  reapplyTimers.delete(threadId)
+}
 
 function isCapable(): boolean {
   return useConnectionStore.getState().capabilities?.remoteToolHost === true
@@ -186,8 +192,6 @@ export const useThreadRouteStore = create<ThreadRouteStore>((set, get) => ({
     if (get().generation !== generation) return
     const route = threadId ? routeOf(result.route) : null
     const hosts = Array.isArray(result.hosts) ? result.hosts : []
-    // The same listing carries the lease state the Satellites page overlays on Hub presence.
-    useSatellitesStore.getState().applyBusy(hosts)
     set((state) => ({
       supported: true,
       hosts,
@@ -215,9 +219,11 @@ export const useThreadRouteStore = create<ThreadRouteStore>((set, get) => ({
           attempted: new Set(state.attempted).add(`${generation}:${threadId}`)
         }))
       }
-      await rememberRoute(threadId, { hostId, workspaceId, at: new Date().toISOString() })
+      if (get().generation === generation) {
+        await rememberRoute(threadId, { hostId, workspaceId, at: new Date().toISOString() })
+      }
     } finally {
-      set((state) => (state.connecting === threadId ? { connecting: null } : state))
+      set((state) => (state.generation === generation && state.connecting === threadId ? { connecting: null } : state))
     }
   },
 
@@ -232,9 +238,9 @@ export const useThreadRouteStore = create<ThreadRouteStore>((set, get) => ({
           attempted: new Set(state.attempted).add(`${generation}:${threadId}`)
         }))
       }
-      await rememberRoute(threadId, null)
+      if (get().generation === generation) await rememberRoute(threadId, null)
     } finally {
-      set((state) => (state.connecting === threadId ? { connecting: null } : state))
+      set((state) => (state.generation === generation && state.connecting === threadId ? { connecting: null } : state))
     }
   },
 
@@ -301,7 +307,7 @@ export const useThreadRouteStore = create<ThreadRouteStore>((set, get) => ({
   },
 
   resetForConnection() {
-    for (const timer of reapplyTimers.values()) clearTimeout(timer)
+    for (const pending of reapplyTimers.values()) clearTimeout(pending.timer)
     reapplyTimers.clear()
     set((state) => ({
       supported: false,
@@ -322,14 +328,13 @@ export const useThreadRouteStore = create<ThreadRouteStore>((set, get) => ({
     if (state.attempted.has(`${state.generation}:${threadId}`)) return
 
     const existing = reapplyTimers.get(threadId)
-    if (existing) clearTimeout(existing)
-    reapplyTimers.set(
-      threadId,
-      setTimeout(() => {
-        reapplyTimers.delete(threadId)
-        void reapply(threadId, get, set)
-      }, REAPPLY_DEBOUNCE_MS)
-    )
+    if (existing) clearTimeout(existing.timer)
+    const isActive = options?.isActive ?? (() => true)
+    const timer = setTimeout(() => {
+      reapplyTimers.delete(threadId)
+      void reapply(threadId, get, set, isActive)
+    }, REAPPLY_DEBOUNCE_MS)
+    reapplyTimers.set(threadId, { timer, isActive })
   }
 }))
 
@@ -337,12 +342,13 @@ export const useThreadRouteStore = create<ThreadRouteStore>((set, get) => ({
 async function reapply(
   threadId: string,
   get: () => ThreadRouteStore,
-  set: (partial: Partial<ThreadRouteState>) => void
+  set: (partial: Partial<ThreadRouteState>) => void,
+  isActive: () => boolean
 ): Promise<void> {
   const before = get()
   const generation = before.generation
   const marker = `${generation}:${threadId}`
-  if (!isCapable() || before.routes[threadId] || before.attempted.has(marker)) return
+  if (!isActive() || !isCapable() || before.routes[threadId] || before.attempted.has(marker)) return
 
   let remembered: SatelliteThreadRoute | null = null
   try {
@@ -353,7 +359,7 @@ async function reapply(
   if (!remembered) return
 
   const current = get()
-  if (current.generation !== generation || current.routes[threadId]) return
+  if (!isActive() || current.generation !== generation || current.routes[threadId]) return
 
   try {
     await current.list(threadId)
@@ -362,7 +368,7 @@ async function reapply(
   }
 
   const listed = get()
-  if (listed.generation !== generation || listed.routes[threadId]) return
+  if (!isActive() || listed.generation !== generation || listed.routes[threadId]) return
   const host = listed.hosts.find((candidate) => candidate.hostId === remembered.hostId)
   const workspace = host?.workspaces.find((candidate) => candidate.workspaceId === remembered.workspaceId)
   if (!host?.online || !workspace?.available) return

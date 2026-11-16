@@ -31,7 +31,7 @@
 @import "../components/setup/styles/launch-transition.css";
 @import "../components/channels/styles/channel-catalog-item.css";
 @import "../components/settings/profile/TokenActivityHeatmap.css";
-@import "../components/settings/panels/satellites/satellites.css";
+@import "../components/settings/connectionPrimitives.css";
 @import "../components/settings/panels/phones/phones.css";
 @import "../components/settings/panels/otherDevices/otherDevices.css";
 @import "../components/settings/panels/ssh/ssh.css";

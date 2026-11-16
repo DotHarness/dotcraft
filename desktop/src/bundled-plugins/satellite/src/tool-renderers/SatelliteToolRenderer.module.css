@@ -1,0 +1,28 @@
+.icon {
+  flex-shrink: 0;
+}
+
+.label {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.result {
+  min-width: 0;
+  overflow: hidden;
+  padding: 8px;
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  user-select: text;
+}
+
+.result pre {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 200px;
+  overflow: auto;
+}

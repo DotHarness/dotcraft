@@ -1,0 +1,24 @@
+.satellite-header-actions { display: flex; align-items: center; gap: 6px; }
+.dc-satellite-row, .satellite-share-row { display: flex; align-items: center; gap: 12px; padding: 13px 14px; background: transparent; border: none; width: 100%; text-align: left; color: var(--text-primary); }
+.dc-satellite-row { cursor: pointer; }
+.dc-satellite-row:not([data-first='true']), .satellite-share-row:not([data-first='true']) { border-top: 1px solid var(--border-default); }
+.satellite-row-icon { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 8px; background: var(--bg-tertiary); color: var(--text-secondary); flex-shrink: 0; }
+.satellite-share-note-row { display: flex; padding: 11px 14px; border-top: 1px solid var(--border-default); }
+.satellite-banner { display: flex; gap: 12px; padding: 14px; border: 1px solid color-mix(in srgb, var(--error) 38%, var(--border-default)); border-radius: 10px; background: color-mix(in srgb, var(--error) 8%, transparent); }
+.satellite-banner > svg { color: var(--error); flex-shrink: 0; }
+.satellite-banner p { margin: 4px 0 0; color: var(--text-secondary); font-size: 12px; }
+.satellite-setup { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; padding: 46px 24px; border: 1px dashed var(--border-active); border-radius: 12px; background: var(--bg-secondary); }
+.satellite-setup-glyph { display: inline-flex; width: 44px; height: 44px; align-items: center; justify-content: center; border-radius: 12px; background: var(--bg-tertiary); color: var(--text-secondary); margin-bottom: 6px; }
+.satellite-setup-title { font-size: 14px; font-weight: 600; }
+.satellite-setup-description { max-width: 44ch; color: var(--text-secondary); font-size: 12.5px; }
+.satellite-setup-action { margin-top: 8px; }
+.satellite-status { display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary); font-size: var(--type-secondary-size); white-space: nowrap; }
+.satellite-status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-dimmed); }
+.satellite-status[data-active='true'] .satellite-status-dot { background: var(--success); }
+.satellite-dialog-backdrop { position: fixed; inset: 0; z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 24px; background: var(--overlay-scrim); }
+.satellite-dialog { width: min(460px, calc(100vw - 32px)); max-height: 100%; display: flex; flex-direction: column; overflow: hidden; padding: 24px 0; border-radius: 12px; background: var(--bg-secondary); box-shadow: var(--shadow-level-3); }
+.satellite-dialog-header { padding-inline: 24px; }
+.satellite-dialog-body { min-height: 0; overflow-y: auto; padding: 2px 24px; }
+.satellite-dialog-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; padding-inline: 24px; }
+.satellite-invite-field { display: flex; gap: 4px; align-items: center; }
+.satellite-invite-field input { min-width: 0; flex: 1; }

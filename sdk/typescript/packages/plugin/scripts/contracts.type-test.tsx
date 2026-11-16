@@ -29,6 +29,23 @@ declare module "../src/index.js" {
 
 declare const host: DesktopPluginHost;
 
+host.satellites.onEvent(event => {
+  const peerId: string = event.peerId;
+  void peerId;
+});
+host.remoteToolHost.onChange(snapshot => {
+  const remote: boolean = snapshot.remote;
+  void remote;
+});
+const screenSession = host.screenView.open({ peerId: "fixture", maxWidth: 640 });
+screenSession.onFrame(frame => screenSession.ack(frame.sequence));
+screenSession.close();
+host.ui.add("composer.status.workspace.run-on", ({ context }) => (
+  <button disabled={!context.eligible} onClick={() => context.setMenuOpen(!context.menuOpen)}>
+    {context.workspacePath}
+  </button>
+));
+
 host.appearance.setThemeSeedOverride({
   light: { surface: '#ffffff', ink: '#1a1c1f', accent: '#4f6cce', contrast: 45 },
   dark: { surface: '#141515', accent: '#4566cc' }

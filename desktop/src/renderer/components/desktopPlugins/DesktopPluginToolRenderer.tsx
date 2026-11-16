@@ -24,6 +24,7 @@ export function DesktopPluginToolRendererOutlet({
   const Component = contribution.component
   const presentation: DesktopPluginToolPresentationModel = {
     id: item.id,
+    toolCallId: item.toolCallId,
     threadId,
     turnId,
     presentationId: item.presentation!.presentationId,
@@ -33,6 +34,9 @@ export function DesktopPluginToolRendererOutlet({
     arguments: item.arguments,
     result: item.result ?? item.errorMessage ?? item.resultPreview,
     success: item.success,
+    errorCode: item.errorCode,
+    errorMessage: item.errorMessage,
+    progress: item.transferProgress,
     createdAt: item.createdAt,
     completedAt: item.completedAt
   }

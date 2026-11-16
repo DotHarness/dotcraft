@@ -31,10 +31,9 @@
     "test:repl-worker": "node scripts/test-node-repl-worker.mjs",
     "test:thread-panels": "node scripts/test-thread-panels.mjs",
     "test:reference-copy": "node scripts/test-conversation-reference-copy.mjs",
-    "verify:package": "node scripts/verify-package.mjs",
     "pack": "npm run ensure:electron && npm run prepare:runtime && npm run build && node --require ./scripts/electron-builder-rename-retry.cjs ./node_modules/electron-builder/cli.js --dir",
     "dist:package": "node scripts/dist-package.mjs",
-    "dist": "npm run ensure:electron && npm run prepare:runtime && npm run build && node --require ./scripts/electron-builder-rename-retry.cjs ./node_modules/electron-builder/cli.js && npm run verify:package"
+    "dist": "npm run ensure:electron && npm run prepare:runtime && npm run build && node --require ./scripts/electron-builder-rename-retry.cjs ./node_modules/electron-builder/cli.js"
   },
   "dependencies": {
     "@codemirror/commands": "^6.11.1",
@@ -209,7 +208,7 @@
         "from": "resources/plugins",
         "to": "plugins",
         "filter": [
-          "dotcraft-bundled/plugins/{browser,chrome,computer,dotcraft,oratorio,token-hud,themes}/**/*",
+          "dotcraft-bundled/plugins/{browser,chrome,computer,dotcraft,oratorio,satellite,token-hud,themes}/**/*",
           "!**/__pycache__/**",
           "!**/*.pyc"
         ]

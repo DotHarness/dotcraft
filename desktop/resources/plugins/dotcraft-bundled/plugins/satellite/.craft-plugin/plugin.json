@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "satellite",
+  "version": "0.12.1",
+  "displayName": "Satellites",
+  "description": "Lend a computer to DotCraft and run tools on paired devices.",
+  "capabilities": ["desktop"],
+  "desktop": {
+    "entry": "./desktop/dist/index.mjs",
+    "styles": ["./desktop/dist/index.css"]
+  },
+  "interface": {
+    "displayName": "Satellites",
+    "shortDescription": "Run DotCraft tools on another computer",
+    "longDescription": "Manage paired computers, choose where DotCraft runs tools, and view the shared computer’s screen.",
+    "developerName": "DotHarness",
+    "category": "Productivity",
+    "capabilities": ["Read", "Write"],
+    "defaultPrompt": "Help me run tools on a paired satellite computer.",
+    "composerIcon": "./assets/satellite-small.svg",
+    "logo": "./assets/satellite.svg",
+    "websiteUrl": "https://github.com/DotHarness/dotcraft",
+    "privacyPolicyUrl": "https://github.com/DotHarness/dotcraft",
+    "termsOfServiceUrl": "https://github.com/DotHarness/dotcraft"
+  }
+}

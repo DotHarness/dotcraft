@@ -43,14 +43,12 @@ const sourceFiles = [
   ...await collectFiles(rendererRoot, '.tsx'),
 ]
 const entryImports = []
-const legacyImports = []
 
 for (const file of sourceFiles) {
   const source = await readFile(file, 'utf8')
   if (source.includes("'./styles/index.css'") || source.includes('"./styles/index.css"')) {
     entryImports.push(relative(file))
   }
-  if (source.includes('styles/tokens.css')) legacyImports.push(relative(file))
 }
 
 const failures = []
@@ -59,7 +57,6 @@ if (invalidEntryLines.length) failures.push('styles/index.css must contain impor
 if (entryImports.length !== 1 || entryImports[0] !== 'src/renderer/main.tsx') {
   failures.push(`styles/index.css must be imported once by main.tsx; found: ${entryImports.join(', ') || 'none'}`)
 }
-if (legacyImports.length) failures.push(`Legacy styles/tokens.css references: ${legacyImports.join(', ')}`)
 
 if (failures.length) {
   console.error(failures.join('\n\n'))

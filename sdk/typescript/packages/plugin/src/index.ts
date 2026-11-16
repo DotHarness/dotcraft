@@ -1,4 +1,6 @@
+export type * from "./satellite.js";
 export type {
+  DesktopPluginRunOnContext,
   DesktopLocalizedText,
   DesktopPluginActivate,
   DesktopPluginActivation,
@@ -91,6 +93,9 @@ export type {
   DesktopPluginWorkspaceReader,
 } from "./contracts.js";
 export type {
+  ToolDisclosureProps,
+  RunningShimmerProps,
+  LayerBoundaryProps,
   ActionTooltipProps,
   AgentAvatarProps,
   ButtonProps,
@@ -144,6 +149,9 @@ import { readDesktopPluginRuntime } from "./runtime.js";
 
 const ui = readDesktopPluginRuntime().ui;
 
+export const ToolDisclosure = ui.ToolDisclosure;
+export const RunningShimmer = ui.RunningShimmer;
+export const LayerBoundary = ui.LayerBoundary;
 export const PluginSurface = ui.PluginSurface;
 export const Button = ui.Button;
 export const IconButton = ui.IconButton;

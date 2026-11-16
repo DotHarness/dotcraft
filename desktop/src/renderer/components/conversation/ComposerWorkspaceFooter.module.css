@@ -1,3 +1,11 @@
+.controlRow {
+  display: flex;
+}
+
+.controlRow:has(> [data-dotcraft-plugin-surface]:only-child:empty) {
+  display: none;
+}
+
 @container composer-footer (max-width: 475px) {
   .compactLabel {
     display: none;

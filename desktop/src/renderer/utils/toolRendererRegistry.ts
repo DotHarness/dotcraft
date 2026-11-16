@@ -21,7 +21,6 @@ export type ToolRendererFamily =
   | 'todo'
   | 'deferredSearch'
   | 'agentBuilder'
-  | 'remoteToolHost'
   | 'nodeRepl'
 
 export interface ToolRendererPlan {
@@ -195,7 +194,6 @@ export const CORE_TOOL_PRESENTATION_IDS = {
   todo: 'core.todo',
   deferredSearch: 'core.deferred-search',
   agentBuilder: 'core.agent-builder',
-  remoteToolHost: 'core.remote-tool-host',
   nodeRepl: 'core.node-repl'
 } as const
 
@@ -241,10 +239,7 @@ export const coreToolRendererRegistry = new ToolRendererRegistry([
   registration(CORE_TOOL_PRESENTATION_IDS.agentBuilder, 'agentBuilder', {
     mode: 'standalone'
   }, hasBuilderField),
-  registration(CORE_TOOL_PRESENTATION_IDS.nodeRepl, 'nodeRepl', { mode: 'collapsible' }, hasSurface),
-  registration(CORE_TOOL_PRESENTATION_IDS.remoteToolHost, 'remoteToolHost', {
-    mode: 'collapsible'
-  }, hasOperation('list', 'connect', 'disconnect', 'transfer'))
+  registration(CORE_TOOL_PRESENTATION_IDS.nodeRepl, 'nodeRepl', { mode: 'collapsible' }, hasSurface)
 ])
 
 export function resolveCoreToolRenderPlan(item: ConversationItem): ToolRendererPlan | null {

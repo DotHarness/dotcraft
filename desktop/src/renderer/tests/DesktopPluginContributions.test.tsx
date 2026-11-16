@@ -4,6 +4,9 @@ import { act, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ToolCallCard } from '../components/conversation/ToolCallCard'
+import { DesktopPluginToolDisclosure } from '../components/desktopPlugins/DesktopPluginToolDisclosure'
+import { useToolCallRevealStore } from '../stores/toolCallRevealStore'
+import { useState } from 'react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import {
   clearDesktopPluginRegistry,
@@ -200,6 +203,55 @@ describe('Desktop extension contribution registry', () => {
 })
 
 describe('Desktop extension contribution outlets', () => {
+  it('projects changing progress snapshots and structured errors to an exact renderer', () => {
+    const seen = vi.fn()
+    const renderer = {
+      ...activeToolRenderer('fixture.plugin', 'transfer', 'fixture.transfer', 10),
+      component: ({ presentation }: import('@dotcraft/plugin').DesktopPluginToolRendererProps) => {
+        seen(presentation)
+        return null
+      }
+    }
+    publishDesktopPluginGeneration(generation('fixture.plugin', { toolRenderers: [renderer] }))
+    const item: ConversationItem = {
+      id: 'transfer', type: 'toolCall', status: 'started', toolName: 'fixture.transfer',
+      presentation: { presentationId: 'fixture.transfer' }, createdAt: '2026-11-16T00:00:00Z',
+      transferProgress: {
+        kind: 'remoteFileTransfer', stage: 'transferring', direction: 'upload',
+        localPath: 'local', remotePath: 'remote', hostId: 'machine', hostDisplayName: 'Machine',
+        transferredBytes: 10, completedBytes: 0, completedFiles: 0, totalBytes: 100
+      }
+    }
+    const view = render(<LocaleProvider><ToolCallCard item={item} threadId="thread" turnId="turn" turnRunning /></LocaleProvider>)
+    expect(seen.mock.lastCall?.[0].progress).toMatchObject({ transferredBytes: 10 })
+    view.rerender(<LocaleProvider><ToolCallCard item={{
+      ...item, status: 'completed', success: false, errorCode: 'transfer_failed',
+      errorMessage: 'Transfer failed', transferProgress: { ...item.transferProgress!, transferredBytes: 25 }
+    }} threadId="thread" turnId="turn" /></LocaleProvider>)
+    expect(seen.mock.lastCall?.[0]).toMatchObject({
+      status: 'completed', success: false, errorCode: 'transfer_failed', errorMessage: 'Transfer failed',
+      progress: { transferredBytes: 25 }
+    })
+  })
+
+  it('expands a plugin disclosure when its tool call is revealed', () => {
+    function Disclosure(): JSX.Element {
+      const [expanded, setExpanded] = useState(false)
+      return <DesktopPluginToolDisclosure callId="fixture-call" expanded={expanded} onToggle={() => setExpanded(value => !value)} title="Fixture">
+        <div data-testid="revealed-output">Output</div>
+      </DesktopPluginToolDisclosure>
+    }
+    useToolCallRevealStore.setState({ request: null, target: null })
+    render(<Disclosure />)
+    expect(screen.queryByTestId('revealed-output')).toBeNull()
+    act(() => useToolCallRevealStore.setState({
+      target: { threadId: 'thread', turnId: 'turn', callId: 'fixture-call', nonce: 1 }
+    }))
+    expect(screen.getByRole('button', { name: 'Fixture' }).getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByTestId('revealed-output')).toBeInTheDocument()
+    act(() => useToolCallRevealStore.setState({ request: null, target: null }))
+  })
+
   it('isolates a failed plugin renderer and renders the Core fallback', () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => {})
     const renderer = {

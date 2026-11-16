@@ -1,11 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
-  isInviteExpired,
   lastSeenLabel,
   normalizeSatelliteInvite,
   normalizeSatellites,
-  parseSatelliteEvent,
-  satelliteState
+  parseSatelliteEvent
 } from '../satellites'
 
 const NOW = Date.parse('2026-09-05T12:00:00.000Z')
@@ -74,15 +72,6 @@ describe('normalizeSatellites', () => {
   })
 })
 
-describe('satelliteState', () => {
-  it('reports offline, ready and in use, with offline winning over a recorded lease', () => {
-    expect(satelliteState({ connected: false })).toBe('offline')
-    expect(satelliteState({ connected: true })).toBe('ready')
-    expect(satelliteState({ connected: true, activeLease: { workspaceId: 'ws-1' } })).toBe('inUse')
-    expect(satelliteState({ connected: false, activeLease: { workspaceId: 'ws-1' } })).toBe('offline')
-  })
-})
-
 describe('invitations', () => {
   it('keeps only the id, url and expiry and rejects an invitation missing any required field', () => {
     const invite = normalizeSatelliteInvite({
@@ -101,12 +90,6 @@ describe('invitations', () => {
     expect(normalizeSatelliteInvite({ url: 'http://h/i', expiresAt: '2026-09-06T12:00:00.000Z' })).toBeNull()
     expect(normalizeSatelliteInvite({ inviteId: 'inv_1', url: 'http://h/i', expiresAt: 'soon' })).toBeNull()
     expect(normalizeSatelliteInvite(null)).toBeNull()
-  })
-
-  it('treats an unparsable or past expiry as expired', () => {
-    expect(isInviteExpired({ expiresAt: '2026-09-06T12:00:00.000Z' }, NOW)).toBe(false)
-    expect(isInviteExpired({ expiresAt: '2026-09-05T12:00:00.000Z' }, NOW)).toBe(true)
-    expect(isInviteExpired({ expiresAt: 'never' }, NOW)).toBe(true)
   })
 })
 
