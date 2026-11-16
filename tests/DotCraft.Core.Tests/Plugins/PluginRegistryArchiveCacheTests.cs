@@ -70,24 +70,6 @@ public sealed class PluginRegistryArchiveCacheTests
     }
 
     [Fact]
-    public void RegisterAndPrune_MigratesLegacySnapshotAndPrunesDuplicateGeneration()
-    {
-        var cache = new PluginRegistryArchiveCache(NewTempDir());
-        const string oldSource = "https://example.test/old.zip";
-        const string currentSource = "https://example.test/current.zip";
-        var oldRoot = cache.CacheRootFor(oldSource, MarketplacePath);
-        var currentRoot = cache.CacheRootFor(currentSource, MarketplacePath);
-        WriteLegacySnapshot(oldRoot, "example-marketplace", "old");
-        WriteLegacySnapshot(currentRoot, "example-marketplace", "current");
-
-        cache.RegisterAndPrune(currentSource, MarketplacePath, "example-marketplace");
-
-        Assert.False(Directory.Exists(oldRoot));
-        Assert.True(Directory.Exists(currentRoot));
-        Assert.True(File.Exists(Path.Combine(currentRoot, PluginRegistryArchiveCache.MetadataFileName)));
-    }
-
-    [Fact]
     public void CleanStaleTemporaryDirectories_OnlyRemovesOldManagedDirectories()
     {
         var cache = new PluginRegistryArchiveCache(NewTempDir());
@@ -199,23 +181,6 @@ public sealed class PluginRegistryArchiveCacheTests
         }
 
         return stream.ToArray();
-    }
-
-    private static void WriteLegacySnapshot(string cacheRoot, string marketplaceName, string version)
-    {
-        var snapshot = Path.Combine(cacheRoot, PluginRegistryArchiveCache.SnapshotDirectoryName);
-        var documentDirectory = Path.Combine(snapshot, ".craft", "plugins");
-        Directory.CreateDirectory(documentDirectory);
-        File.WriteAllText(
-            Path.Combine(documentDirectory, "marketplace.json"),
-            $$"""
-{
-  "name": "{{marketplaceName}}",
-  "plugins": []
-}
-""");
-        File.WriteAllText(Path.Combine(snapshot, "version.txt"), version);
-        File.WriteAllText(Path.Combine(cacheRoot, PluginRegistryArchiveCache.UpdatedAtFileName), DateTimeOffset.UtcNow.ToString("O"));
     }
 
     private static string NewTempDir()

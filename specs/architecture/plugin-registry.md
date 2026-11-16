@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.10.3 |
+| **Version** | 0.12.1 |
 | **Status** | Draft |
-| **Date** | 2026-11-07 |
+| **Date** | 2026-11-16 |
 
 Purpose: define the product and process contract for DotCraft plugin marketplaces. A marketplace lets DotCraft discover installable external integration plugins without bundling every integration in the DotCraft Desktop release package, and lets users and organizations add their own plugin sources.
 
@@ -141,7 +141,7 @@ Adding a marketplace never installs a plugin.
 
 ### 7.2 Fetch requirements
 
-- A git fetch requires a version control executable available on the host. When it is unavailable, add and refresh fail with a stable error rather than silently degrading to another transport.
+- A configured git marketplace requires a version control executable available on the host. When it is unavailable, add and refresh fail with a stable error rather than silently degrading to another transport. The built-in official marketplace has the explicit Git-to-HTTP transport policy in §7.7.1.
 - Fetches run non-interactively. A source that would require an interactive credential or host verification prompt fails instead of blocking the server.
 - Fetches are bounded by a timeout and are cancellable.
 - When sparse paths are declared, the fetch avoids downloading file contents outside the requested paths.
@@ -152,7 +152,7 @@ Refresh re-fetches one marketplace or every configured marketplace. Git marketpl
 
 Refresh also covers host-provided archive registries, including the default registry supplied by the environment rather than configuration. A refresh that names no marketplace includes them; a refresh may also name one using its cached marketplace document name (or its source label before the first successful download). Sources already covered by a configured marketplace are not downloaded a second time. Host-provided failures use the same per-marketplace errors as configured sources.
 
-Desktop's Plugins toolbar refresh runs this operation before re-reading the catalog. Per-marketplace refresh uses the same result feedback, and a failed source leaves its cached catalog available. Catalog reads and entering the page remain offline. After refresh, an open plugin Skill preview is re-read; closed previews are not fetched.
+Desktop's Plugins toolbar refresh runs this operation before re-reading the catalog. Per-marketplace refresh uses the same result feedback, and a failed source leaves its cached catalog available. Failures retain their stable code and concrete fetch or validation reason. The refresh RPC does not use Desktop's default request deadline: the host bounds each network stage and connection loss terminates the client wait. Catalog reads and entering the page remain offline. After refresh, an open plugin Skill preview is re-read. Closed previews are not fetched.
 
 ### 7.4 Remove
 
@@ -170,17 +170,25 @@ Archive marketplaces use the user-global cache under `<craft-home>/cache/plugin-
 
 An archive refresh must extract into a temporary directory, validate the marketplace document, and atomically activate the new snapshot before deleting an older snapshot. A failed download, extraction, validation, or activation leaves the previous snapshot available. After successful activation, DotCraft immediately removes other cache generations for the same marketplace identity on a best-effort basis; cleanup failure must not make the new snapshot unavailable. Removing an archive marketplace also removes its managed cache snapshots.
 
-Each activated snapshot stores cache metadata: schema version, marketplace identity, source key, marketplace path, and update time. Cache operations also remove interrupted staging directories older than ten minutes, leaving newer staging directories and unrelated files untouched.
+Each activated snapshot stores cache metadata: schema version, marketplace identity, source key, marketplace path, update time, and the successful revision when available. Identity-based pruning uses valid snapshot metadata. Cache operations also remove interrupted staging directories older than ten minutes, leaving newer staging directories and unrelated files untouched.
 
 The cache root derives from the effective Craft home, so alternate Craft homes never write into the default user's cache.
 
 ### 7.7 Archive download and retry
 
-An archive download is bounded by a timeout sized for a repository archive rather than for a small document, and by a maximum download size enforced while the response is read. A download that exceeds either bound fails that marketplace and leaves the previous snapshot available.
+An archive HTTP request, including reading its body, is bounded by a 30-second timeout and by a maximum download size enforced while the response is read. A download that exceeds either bound fails that marketplace and leaves the previous snapshot available.
 
 Each archive source records both its last successful activation and its last attempt. A successful activation is reused until the refresh interval elapses. A failed attempt is not retried until a backoff interval has elapsed, and the backoff grows with consecutive failures up to the refresh interval, so a source that has never activated does not re-download on every pass.
 
 The host supplies the default registry through the environment, so it has no configuration entry to refresh from. DotCraft syncs it once per process shortly after startup, off any request path, and again when a refresh operation targets it. Concurrent syncs of one source coalesce into a single download. When a startup sync activates a new snapshot, DotCraft advances the plugin snapshot revision so connected clients reload the catalog.
+
+### 7.7.1 Built-in official marketplace
+
+The built-in official marketplace first synchronizes its published branch through Git, using shallow transfers and reusing existing objects. Each Git command is non-interactive, cancellable, and bounded by 30 seconds. If Git is unavailable or synchronization fails, the source falls back to GitHub HTTP. Both paths compare the remote revision before transferring content and fetch the exact revision they checked. Cancellation ends the operation without attempting another transport. A sync does not repeat an attempt through the same transport.
+
+The fetched revision and marketplace document must validate before activation. The successful revision is recorded with the activated snapshot. A check with unchanged content refreshes its freshness and clears failed-attempt backoff without replacing the snapshot or publishing a new startup snapshot notification. If both transports fail, the previous content and revision remain available, and the error identifies the failing stages.
+
+This policy applies only to the built-in official source. User-supplied archive URLs and configured Git marketplaces retain their declared transport.
 
 ### 7.8 Unavailable sources
 

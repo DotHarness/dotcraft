@@ -181,6 +181,46 @@ describe('pluginStore snapshot revisions', () => {
   })
 })
 
+describe('pluginStore marketplace refresh', () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+    resetStore()
+    vi.stubGlobal('window', {})
+    installDesktopApiMock({ appServer: { sendRequest } })
+  })
+
+  it.each([undefined, 'official-marketplace'])('uses host-bounded waiting when refreshing %s', async (name) => {
+    sendRequest
+      .mockResolvedValueOnce({ errors: [] })
+      .mockResolvedValueOnce({ plugins: [plugin()], diagnostics: [], snapshotRevision: 1 })
+
+    const errors = await usePluginStore.getState().refreshMarketplace(name)
+
+    expect(sendRequest).toHaveBeenNthCalledWith(1, 'marketplace/refresh', name ? { name } : {}, null)
+    expect(sendRequest).toHaveBeenNthCalledWith(2, 'plugin/list', { includeDisabled: true })
+    expect(errors).toEqual([])
+    expect(usePluginStore.getState().plugins[0]?.id).toBe('acme.review-core')
+  })
+
+  it('returns per-marketplace failure details while retaining the available catalog', async () => {
+    const failure = {
+      name: 'official-marketplace',
+      code: 'MarketplaceFetchFailed',
+      message: 'Git fetch failed. HTTP 503.'
+    }
+    resetStore({ plugins: [plugin()], snapshotRevision: 1, completeSnapshotRevision: 1 })
+    sendRequest
+      .mockResolvedValueOnce({ errors: [failure] })
+      .mockResolvedValueOnce({ plugins: [plugin()], diagnostics: [], snapshotRevision: 2 })
+
+    const errors = await usePluginStore.getState().refreshMarketplace('official-marketplace')
+
+    expect(errors).toEqual([failure])
+    expect(usePluginStore.getState().plugins[0]?.id).toBe('acme.review-core')
+    expect(usePluginStore.getState().error).toBeNull()
+  })
+})
+
 describe('pluginStore operation outcomes', () => {
   beforeEach(() => {
     vi.clearAllMocks()

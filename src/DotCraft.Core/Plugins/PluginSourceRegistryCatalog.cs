@@ -11,11 +11,6 @@ internal sealed record PluginRegistrySource(
     string MarketplacePath,
     bool IsDefault);
 
-/// <summary>
-/// Discovers installable plugins from configured marketplaces.
-/// Reads materialized roots and cached snapshots only; every network fetch happens through
-/// <see cref="PluginRegistrySyncService"/> or the explicit marketplace add and refresh operations.
-/// </summary>
 internal static class PluginSourceRegistryCatalog
 {
     public const string DefaultRegistryUrlEnvironmentVariableName = "DOTCRAFT_DEFAULT_PLUGIN_REGISTRY_URL";
@@ -76,7 +71,7 @@ internal static class PluginSourceRegistryCatalog
             }
 
             if (archiveCache != null && IsArchiveBackedSource(source) && !string.IsNullOrWhiteSpace(document.Name))
-                archiveCache.RegisterAndPrune(source.Url, source.MarketplacePath, document.Name.Trim());
+                archiveCache.Prune(source.Url, source.MarketplacePath, document.Name.Trim());
 
             if (document.Plugins.Count == 0)
                 continue;
@@ -93,9 +88,6 @@ internal static class PluginSourceRegistryCatalog
         return plugins;
     }
 
-    /// <summary>
-    /// Drops the freshness and attempt markers for an archive source so the next sync re-downloads it.
-    /// </summary>
     public static void InvalidateArchiveCache(string url, string marketplacePath, string craftHome)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(craftHome);
@@ -103,7 +95,6 @@ internal static class PluginSourceRegistryCatalog
         new PluginRegistryArchiveCache(resolvedCraftHome).Invalidate(url, marketplacePath);
     }
 
-    /// <summary>Lists the HTTPS archive sources a sync may download, including the host default.</summary>
     public static IReadOnlyList<PluginRegistrySource> ArchiveSourcesFor(AppConfig.PluginsConfig? pluginsConfig) =>
         ResolveSources(pluginsConfig, [])
             .Where(static source => source.Kind == MarketplaceSourceKind.Archive
@@ -341,8 +332,6 @@ internal static class PluginSourceRegistryCatalog
         return null;
     }
 
-    // Repository marketplaces are materialized by the explicit add and refresh operations.
-    // Discovery reads whatever is already on disk and never starts a fetch of its own.
     private static string? ResolveMaterializedRoot(
         PluginRegistrySource source,
         List<PluginDiagnostic> diagnostics,

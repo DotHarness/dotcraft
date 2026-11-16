@@ -352,7 +352,7 @@ export const usePluginStore = create<PluginState>((set, get) => ({
   },
 
   // Every mutation returns the Host's final projection, even when rejected, so records are
-  // replaced with server truth. A missing plugin record means it is gone; only a full list settles that.
+  // replaced with server truth. Only a complete list can prove a missing plugin record is gone.
   async installPlugin(id: string) {
     try {
       const result = (await window.api.appServer.sendRequest('plugin/install', { id })) as PluginOperationResult
@@ -410,7 +410,6 @@ export const usePluginStore = create<PluginState>((set, get) => ({
     }
   },
 
-  // The Host binds a granted trust intent to the bundle bytes it accepted.
   async setPluginTrusted(id: string, trusted: boolean) {
     try {
       const result = (await window.api.appServer.sendRequest('plugin/setTrusted', {
@@ -426,9 +425,6 @@ export const usePluginStore = create<PluginState>((set, get) => ({
     }
   },
 
-
-  // Marketplace mutations change which plugins are installable, so each one re-reads the
-  // catalog to keep the browse surface and its marketplace grouping in step.
   async addMarketplace(input: MarketplaceAddInput) {
     const result = (await window.api.appServer.sendRequest('marketplace/add', {
       source: input.source,
@@ -450,7 +446,8 @@ export const usePluginStore = create<PluginState>((set, get) => ({
   async refreshMarketplace(name?: string) {
     const result = (await window.api.appServer.sendRequest(
       'marketplace/refresh',
-      name ? { name } : {}
+      name ? { name } : {},
+      null
     )) as { errors?: MarketplaceFailure[] }
     await get().fetchPlugins()
     return result.errors ?? []

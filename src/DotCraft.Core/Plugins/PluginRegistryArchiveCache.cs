@@ -6,10 +6,6 @@ using DotCraft.Plugins.Marketplaces;
 
 namespace DotCraft.Plugins;
 
-/// <summary>
-/// Owns archive marketplace snapshots under one Craft home.
-/// A marketplace identity retains only its most recently activated snapshot.
-/// </summary>
 internal sealed class PluginRegistryArchiveCache
 {
     internal const string CacheDirectory = "plugin-registries";
@@ -56,16 +52,12 @@ internal sealed class PluginRegistryArchiveCache
         return DateTimeOffset.UtcNow - updatedAt > refreshInterval;
     }
 
-    /// <summary>Gets whether the activated snapshot predates <paramref name="sourceWriteTimeUtc"/>.</summary>
     public bool IsOlderThan(string sourceUrl, string marketplacePath, DateTime sourceWriteTimeUtc)
     {
         var updatedAt = ReadUpdatedAt(CacheRootFor(sourceUrl, marketplacePath));
         return updatedAt == null || updatedAt < new DateTimeOffset(sourceWriteTimeUtc, TimeSpan.Zero);
     }
 
-    /// <summary>
-    /// Gets whether a download may be attempted, given how long ago the last attempt failed.
-    /// </summary>
     public bool ShouldAttempt(
         string sourceUrl,
         string marketplacePath,
@@ -76,7 +68,7 @@ internal sealed class PluginRegistryArchiveCache
         if (attempt == null)
             return true;
 
-        // A record from the future means the clock moved; trusting it could defer retries forever.
+        // Clock rollback must not defer retries indefinitely.
         var age = (now ?? DateTimeOffset.UtcNow) - attempt.AttemptedAt;
         return age < TimeSpan.Zero || age >= BackoffFor(attempt.ConsecutiveFailures, maximumBackoff);
     }
@@ -114,7 +106,42 @@ internal sealed class PluginRegistryArchiveCache
         string sourceUrl,
         string marketplacePath,
         byte[] archiveBytes,
-        DateTimeOffset? now = null)
+        DateTimeOffset? now = null,
+        string? revision = null) =>
+        ActivateSnapshot(sourceUrl, marketplacePath, snapshot =>
+        {
+            Directory.CreateDirectory(snapshot);
+            ExtractArchive(archiveBytes, snapshot);
+        }, now, revision);
+
+    public string ActivateDirectory(
+        string sourceUrl,
+        string marketplacePath,
+        string stagedSnapshot,
+        string revision) =>
+        ActivateSnapshot(sourceUrl, marketplacePath,
+            snapshot => Directory.Move(stagedSnapshot, snapshot), now: null, revision);
+
+    public string? RevisionFor(string sourceUrl, string marketplacePath) =>
+        TryReadMetadata(CacheRootFor(sourceUrl, marketplacePath))?.Revision;
+
+    public void MarkChecked(string sourceUrl, string marketplacePath)
+    {
+        var cacheRoot = CacheRootFor(sourceUrl, marketplacePath);
+        var now = DateTimeOffset.UtcNow;
+        var metadata = TryReadMetadata(cacheRoot)
+            ?? throw new IOException("The plugin registry cache metadata is missing.");
+        WriteMetadata(cacheRoot, metadata with { UpdatedAt = now });
+        File.WriteAllText(Path.Combine(cacheRoot, UpdatedAtFileName), now.ToString("O"));
+        TryDeleteFile(Path.Combine(cacheRoot, AttemptFileName));
+    }
+
+    private string ActivateSnapshot(
+        string sourceUrl,
+        string marketplacePath,
+        Action<string> populateSnapshot,
+        DateTimeOffset? now,
+        string? revision)
     {
         CleanStaleTemporaryDirectories(now);
         Directory.CreateDirectory(_cacheBaseRoot);
@@ -127,21 +154,22 @@ internal sealed class PluginRegistryArchiveCache
 
         try
         {
-            Directory.CreateDirectory(tempSnapshot);
-            ExtractArchive(archiveBytes, tempSnapshot);
+            Directory.CreateDirectory(tempRoot);
+            populateSnapshot(tempSnapshot);
             var (marketplaceName, _) = MarketplaceDocumentLoader.ValidateRoot(tempSnapshot, marketplacePath);
             WriteMetadata(tempRoot, new ArchiveCacheMetadata(
                 MetadataSchemaVersion,
                 marketplaceName,
                 sourceKey,
                 marketplacePath,
-                activatedAt));
+                activatedAt,
+                revision));
             File.WriteAllText(
                 Path.Combine(tempRoot, UpdatedAtFileName),
                 activatedAt.ToString("O"));
 
             ReplaceAtomically(tempRoot, cacheRoot);
-            PruneOtherVersions(marketplaceName, cacheRoot, marketplacePath);
+            PruneOtherVersions(marketplaceName, cacheRoot);
             return Path.Combine(cacheRoot, SnapshotDirectoryName);
         }
         finally
@@ -150,24 +178,10 @@ internal sealed class PluginRegistryArchiveCache
         }
     }
 
-    public void RegisterAndPrune(
-        string sourceUrl,
-        string marketplacePath,
-        string marketplaceName,
-        DateTimeOffset? now = null)
+    public void Prune(string sourceUrl, string marketplacePath, string marketplaceName)
     {
-        CleanStaleTemporaryDirectories(now);
-        var cacheRoot = CacheRootFor(sourceUrl, marketplacePath);
-        if (!Directory.Exists(Path.Combine(cacheRoot, SnapshotDirectoryName)))
-            return;
-
-        TryWriteMetadata(cacheRoot, new ArchiveCacheMetadata(
-            MetadataSchemaVersion,
-            marketplaceName,
-            SourceKeyFor(sourceUrl, marketplacePath),
-            marketplacePath,
-            now ?? ReadUpdatedAt(cacheRoot) ?? DateTimeOffset.UtcNow));
-        PruneOtherVersions(marketplaceName, cacheRoot, marketplacePath);
+        CleanStaleTemporaryDirectories();
+        PruneOtherVersions(marketplaceName, CacheRootFor(sourceUrl, marketplacePath));
     }
 
     public string? Remove(string sourceUrl, string marketplacePath, string? marketplaceName)
@@ -178,7 +192,7 @@ internal sealed class PluginRegistryArchiveCache
         TryDeleteDirectory(cacheRoot);
 
         if (!string.IsNullOrWhiteSpace(marketplaceName))
-            PruneOtherVersions(marketplaceName.Trim(), currentCacheRoot: null, marketplacePath);
+            PruneOtherVersions(marketplaceName.Trim(), currentCacheRoot: null);
 
         return existed ? cacheRoot : null;
     }
@@ -220,10 +234,7 @@ internal sealed class PluginRegistryArchiveCache
         }
     }
 
-    private void PruneOtherVersions(
-        string marketplaceName,
-        string? currentCacheRoot,
-        string marketplacePath)
+    private void PruneOtherVersions(string marketplaceName, string? currentCacheRoot)
     {
         if (!Directory.Exists(_cacheBaseRoot))
             return;
@@ -249,40 +260,12 @@ internal sealed class PluginRegistryArchiveCache
                 continue;
             }
 
-            var metadata = TryReadMetadata(candidate)
-                           ?? TryMigrateLegacyMetadata(candidate, marketplacePath)
-                           ?? (string.Equals(marketplacePath, MarketplaceDocumentLoader.DefaultMarketplacePath, StringComparison.Ordinal)
-                               ? null
-                               : TryMigrateLegacyMetadata(candidate, MarketplaceDocumentLoader.DefaultMarketplacePath));
+            var metadata = TryReadMetadata(candidate);
             if (metadata != null
                 && string.Equals(metadata.MarketplaceName, marketplaceName, StringComparison.OrdinalIgnoreCase))
             {
                 TryDeleteDirectory(candidate);
             }
-        }
-    }
-
-    private ArchiveCacheMetadata? TryMigrateLegacyMetadata(string cacheRoot, string marketplacePath)
-    {
-        var snapshotRoot = Path.Combine(cacheRoot, SnapshotDirectoryName);
-        if (!Directory.Exists(snapshotRoot))
-            return null;
-
-        try
-        {
-            var (marketplaceName, _) = MarketplaceDocumentLoader.ValidateRoot(snapshotRoot, marketplacePath);
-            var metadata = new ArchiveCacheMetadata(
-                MetadataSchemaVersion,
-                marketplaceName,
-                Path.GetFileName(cacheRoot),
-                marketplacePath,
-                ReadUpdatedAt(cacheRoot) ?? DateTimeOffset.UtcNow);
-            TryWriteMetadata(cacheRoot, metadata);
-            return metadata;
-        }
-        catch (MarketplaceException)
-        {
-            return null;
         }
     }
 
@@ -359,20 +342,6 @@ internal sealed class PluginRegistryArchiveCache
         File.WriteAllText(
             Path.Combine(cacheRoot, MetadataFileName),
             JsonSerializer.Serialize(metadata, JsonOptions));
-    }
-
-    private void TryWriteMetadata(string cacheRoot, ArchiveCacheMetadata metadata)
-    {
-        try
-        {
-            WriteMetadata(cacheRoot, metadata);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            _cleanupDiagnostic?.Invoke(
-                cacheRoot,
-                $"Failed to update plugin registry cache metadata: {ex.Message}");
-        }
     }
 
     private static DateTimeOffset? ReadUpdatedAt(string cacheRoot)
@@ -453,12 +422,21 @@ internal sealed class PluginRegistryArchiveCache
         }
     }
 
-    private void TryDeleteDirectory(string path)
+    internal void TryDeleteDirectory(string path)
     {
         try
         {
-            if (Directory.Exists(path))
-                Directory.Delete(path, recursive: true);
+            if (!Directory.Exists(path))
+                return;
+
+            foreach (var file in Directory.EnumerateFiles(path, "*", new EnumerationOptions
+                     { RecurseSubdirectories = true, AttributesToSkip = FileAttributes.ReparsePoint }))
+            {
+                var attributes = File.GetAttributes(file);
+                if ((attributes & FileAttributes.ReadOnly) != 0)
+                    File.SetAttributes(file, attributes & ~FileAttributes.ReadOnly);
+            }
+            Directory.Delete(path, recursive: true);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -473,9 +451,9 @@ internal sealed class PluginRegistryArchiveCache
         string MarketplaceName,
         string SourceKey,
         string MarketplacePath,
-        DateTimeOffset UpdatedAt);
+        DateTimeOffset UpdatedAt,
+        string? Revision = null);
 
-    /// <summary>A failed download, kept outside the snapshot so a successful activation clears it.</summary>
     private sealed record ArchiveAttemptRecord(
         int SchemaVersion,
         DateTimeOffset AttemptedAt,

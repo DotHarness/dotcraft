@@ -11,39 +11,68 @@ namespace DotCraft.Core.Tests.Plugins;
 public sealed class PluginRegistryEnvironmentCollection;
 
 [Collection("Plugin registry environment")]
-public sealed class PluginRegistrySyncServiceTests
+public sealed class PluginRegistrySyncServiceTests : IDisposable
 {
     private const string MarketplacePath = ".craft/plugins/marketplace.json";
     private const string RegistryUrl = "https://registry.test/registry.zip";
+    private readonly string _craftHome = Directory.CreateDirectory(
+        Path.Combine(Path.GetTempPath(), "registry-sync-" + Guid.NewGuid().ToString("N"))).FullName;
+    private readonly string? _previousDefault = Environment.GetEnvironmentVariable(
+        PluginSourceRegistryCatalog.DefaultRegistryUrlEnvironmentVariableName);
+    private readonly string? _previousAdditional = Environment.GetEnvironmentVariable(
+        PluginSourceRegistryCatalog.AdditionalRegistriesEnvironmentVariableName);
+
+    public PluginRegistrySyncServiceTests()
+    {
+        Environment.SetEnvironmentVariable(PluginSourceRegistryCatalog.DefaultRegistryUrlEnvironmentVariableName, RegistryUrl);
+        Environment.SetEnvironmentVariable(PluginSourceRegistryCatalog.AdditionalRegistriesEnvironmentVariableName, null);
+    }
 
     [Fact]
     public async Task SyncAsync_ActivatesTheDownloadedSnapshotAndSkipsWhileItIsFresh()
     {
-        var handler = StubHandler.Serving(CreateArchive("synced-marketplace"));
-        var craftHome = NewTempDir();
-        var sync = new PluginRegistrySyncService(craftHome, handler: handler);
+        var handler = new StubHandler(HttpStatusCode.OK, CreateArchive("synced-marketplace"));
+        var sync = new PluginRegistrySyncService(_craftHome, handler: handler);
 
         var first = await sync.SyncAsync(RegistryUrl, MarketplacePath, "Synced", force: false, CancellationToken.None);
         var second = await sync.SyncAsync(RegistryUrl, MarketplacePath, "Synced", force: false, CancellationToken.None);
 
-        Assert.Equal(PluginRegistrySyncResult.Activated, first);
-        Assert.Equal(PluginRegistrySyncResult.Skipped, second);
+        Assert.Equal(PluginRegistrySyncResult.Activated, first.Result);
+        Assert.Equal(PluginRegistrySyncResult.Skipped, second.Result);
         Assert.Equal(1, handler.RequestCount);
-        Assert.True(Directory.Exists(
-            new PluginRegistryArchiveCache(craftHome).SnapshotRootFor(RegistryUrl, MarketplacePath)));
+        Assert.True(File.Exists(Path.Combine(
+            new PluginRegistryArchiveCache(_craftHome).SnapshotRootFor(RegistryUrl, MarketplacePath), MarketplacePath)));
+    }
+
+    [Fact]
+    public async Task SyncAsync_CoalescesConcurrentDownloads()
+    {
+        var handler = new ControlledHandler(CreateArchive("coalesced-marketplace"));
+        var sync = new PluginRegistrySyncService(_craftHome, handler: handler);
+        var first = sync.SyncAsync(RegistryUrl, MarketplacePath, "Synced", true, CancellationToken.None);
+        await handler.Started.Task;
+        var second = sync.SyncAsync(RegistryUrl, MarketplacePath, "Synced", true, CancellationToken.None);
+
+        handler.Release.TrySetResult();
+        var results = await Task.WhenAll(first, second);
+
+        Assert.All(results, result => Assert.Equal(PluginRegistrySyncResult.Activated, result.Result));
+        Assert.Equal(1, handler.RequestCount);
     }
 
     [Fact]
     public async Task SyncAsync_BacksOffAfterAFailedDownloadUnlessForced()
     {
-        var handler = StubHandler.Failing(HttpStatusCode.InternalServerError);
-        var sync = new PluginRegistrySyncService(NewTempDir(), handler: handler);
+        var handler = new StubHandler(HttpStatusCode.InternalServerError);
+        var sync = new PluginRegistrySyncService(_craftHome, handler: handler);
 
         var first = await sync.SyncAsync(RegistryUrl, MarketplacePath, "Synced", force: false, CancellationToken.None);
         var second = await sync.SyncAsync(RegistryUrl, MarketplacePath, "Synced", force: false, CancellationToken.None);
 
-        Assert.Equal(PluginRegistrySyncResult.Failed, first);
-        Assert.Equal(PluginRegistrySyncResult.Skipped, second);
+        Assert.Equal(PluginRegistrySyncResult.Failed, first.Result);
+        Assert.Equal(MarketplaceErrorCodes.FetchFailed, first.Code);
+        Assert.Contains("HTTP 500", first.Message);
+        Assert.Equal(PluginRegistrySyncResult.Skipped, second.Result);
         Assert.Equal(1, handler.RequestCount);
 
         await sync.SyncAsync(RegistryUrl, MarketplacePath, "Synced", force: true, CancellationToken.None);
@@ -54,8 +83,8 @@ public sealed class PluginRegistrySyncServiceTests
     [Fact]
     public async Task SyncAsync_RejectsANonHttpsSource()
     {
-        var handler = StubHandler.Serving(CreateArchive("synced-marketplace"));
-        var sync = new PluginRegistrySyncService(NewTempDir(), handler: handler);
+        var handler = new StubHandler(HttpStatusCode.OK, CreateArchive("synced-marketplace"));
+        var sync = new PluginRegistrySyncService(_craftHome, handler: handler);
 
         var result = await sync.SyncAsync(
             "http://registry.test/registry.zip",
@@ -64,37 +93,22 @@ public sealed class PluginRegistrySyncServiceTests
             force: true,
             CancellationToken.None);
 
-        Assert.Equal(PluginRegistrySyncResult.Skipped, result);
+        Assert.Equal(PluginRegistrySyncResult.Skipped, result.Result);
         Assert.Equal(0, handler.RequestCount);
     }
 
     [Fact]
     public async Task SyncDueAsync_CoversTheHostProvidedDefaultRegistry()
     {
-        var handler = StubHandler.Serving(CreateArchive("default-marketplace"));
-        var previous = Environment.GetEnvironmentVariable(
-            PluginSourceRegistryCatalog.DefaultRegistryUrlEnvironmentVariableName);
-        try
-        {
-            Environment.SetEnvironmentVariable(
-                PluginSourceRegistryCatalog.DefaultRegistryUrlEnvironmentVariableName,
-                RegistryUrl);
-            var craftHome = NewTempDir();
+        var handler = new StubHandler(HttpStatusCode.OK, CreateArchive("default-marketplace"));
 
-            var activated = await new PluginRegistrySyncService(craftHome, handler: handler)
-                .SyncDueAsync(new AppConfig.PluginsConfig(), force: false, CancellationToken.None);
+        var activated = await new PluginRegistrySyncService(_craftHome, handler: handler)
+            .SyncDueAsync(new AppConfig.PluginsConfig(), force: false, CancellationToken.None);
 
-            Assert.True(activated);
-            Assert.Equal(1, handler.RequestCount);
-            Assert.True(Directory.Exists(
-                new PluginRegistryArchiveCache(craftHome).SnapshotRootFor(RegistryUrl, MarketplacePath)));
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable(
-                PluginSourceRegistryCatalog.DefaultRegistryUrlEnvironmentVariableName,
-                previous);
-        }
+        Assert.True(activated);
+        Assert.Equal(1, handler.RequestCount);
+        Assert.True(File.Exists(Path.Combine(
+            new PluginRegistryArchiveCache(_craftHome).SnapshotRootFor(RegistryUrl, MarketplacePath), MarketplacePath)));
     }
 
     [Theory]
@@ -102,60 +116,39 @@ public sealed class PluginRegistrySyncServiceTests
     [InlineData(null, true)]
     public async Task MarketplaceRefresh_RefreshesHostDefaultOnce(string? name, bool configured)
     {
-        var previous = Environment.GetEnvironmentVariable(PluginSourceRegistryCatalog.DefaultRegistryUrlEnvironmentVariableName);
-        var previousAdditional = Environment.GetEnvironmentVariable(PluginSourceRegistryCatalog.AdditionalRegistriesEnvironmentVariableName);
-        try
-        {
-            Environment.SetEnvironmentVariable(PluginSourceRegistryCatalog.DefaultRegistryUrlEnvironmentVariableName, RegistryUrl);
-            Environment.SetEnvironmentVariable(PluginSourceRegistryCatalog.AdditionalRegistriesEnvironmentVariableName, RegistryUrl);
-            var craftHome = NewTempDir();
-            new PluginRegistryArchiveCache(craftHome).Activate(RegistryUrl, MarketplacePath, CreateArchive("default-marketplace"));
-            if (configured)
-                PluginsConfigPersistence.WritePluginRegistries(Path.Combine(craftHome, "config.json"),
-                    [new AppConfig.PluginRegistryConfig { Name = "default-marketplace", SourceType = "archive", Url = RegistryUrl }]);
-            var handler = StubHandler.Serving(CreateArchive("default-marketplace"));
-            var manager = new MarketplaceManager(craftHome,
-                archiveSync: new PluginRegistrySyncService(craftHome, handler: handler));
+        Environment.SetEnvironmentVariable(PluginSourceRegistryCatalog.AdditionalRegistriesEnvironmentVariableName, RegistryUrl);
+        new PluginRegistryArchiveCache(_craftHome).Activate(RegistryUrl, MarketplacePath, CreateArchive("default-marketplace"));
+        if (configured)
+            PluginsConfigPersistence.WritePluginRegistries(Path.Combine(_craftHome, "config.json"),
+                [new AppConfig.PluginRegistryConfig { Name = "default-marketplace", SourceType = "archive", Url = RegistryUrl }]);
+        var handler = new StubHandler(HttpStatusCode.OK, CreateArchive("default-marketplace"));
+        var manager = new MarketplaceManager(_craftHome,
+            archiveSync: new PluginRegistrySyncService(_craftHome, handler: handler));
 
-            var result = await manager.RefreshAsync(name, CancellationToken.None);
+        var result = await manager.RefreshAsync(name, CancellationToken.None);
 
-            Assert.Empty(result.Errors);
-            var marketplace = Assert.Single(result.Marketplaces);
-            Assert.Equal("default-marketplace", marketplace.Name);
-            Assert.Equal(1, handler.RequestCount);
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable(PluginSourceRegistryCatalog.DefaultRegistryUrlEnvironmentVariableName, previous);
-            Environment.SetEnvironmentVariable(PluginSourceRegistryCatalog.AdditionalRegistriesEnvironmentVariableName, previousAdditional);
-        }
+        Assert.Empty(result.Errors);
+        var marketplace = Assert.Single(result.Marketplaces);
+        Assert.Equal("default-marketplace", marketplace.Name);
+        Assert.Equal(1, handler.RequestCount);
     }
 
     [Fact]
     public async Task MarketplaceRefresh_ReportsHostDefaultFailureAndKeepsCachedSnapshot()
     {
-        var previous = Environment.GetEnvironmentVariable(PluginSourceRegistryCatalog.DefaultRegistryUrlEnvironmentVariableName);
-        try
-        {
-            Environment.SetEnvironmentVariable(PluginSourceRegistryCatalog.DefaultRegistryUrlEnvironmentVariableName, RegistryUrl);
-            var craftHome = NewTempDir();
-            var snapshot = new PluginRegistryArchiveCache(craftHome)
-                .Activate(RegistryUrl, MarketplacePath, CreateArchive("default-marketplace"));
-            var manager = new MarketplaceManager(craftHome, archiveSync: new PluginRegistrySyncService(
-                craftHome, handler: StubHandler.Failing(HttpStatusCode.InternalServerError)));
+        var snapshot = new PluginRegistryArchiveCache(_craftHome)
+            .Activate(RegistryUrl, MarketplacePath, CreateArchive("default-marketplace"));
+        var manager = new MarketplaceManager(_craftHome, archiveSync: new PluginRegistrySyncService(
+            _craftHome, handler: new StubHandler(HttpStatusCode.InternalServerError)));
 
-            var result = await manager.RefreshAsync("default-marketplace", CancellationToken.None);
+        var result = await manager.RefreshAsync("default-marketplace", CancellationToken.None);
 
-            Assert.Empty(result.Marketplaces);
-            var failure = Assert.Single(result.Errors);
-            Assert.Equal("default-marketplace", failure.Name);
-            Assert.Equal(MarketplaceErrorCodes.FetchFailed, failure.Code);
-            Assert.True(File.Exists(Path.Combine(snapshot, MarketplacePath)));
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable(PluginSourceRegistryCatalog.DefaultRegistryUrlEnvironmentVariableName, previous);
-        }
+        Assert.Empty(result.Marketplaces);
+        var failure = Assert.Single(result.Errors);
+        Assert.Equal("default-marketplace", failure.Name);
+        Assert.Equal(MarketplaceErrorCodes.FetchFailed, failure.Code);
+        Assert.Contains("HTTP 500", failure.Message);
+        Assert.True(File.Exists(Path.Combine(snapshot, MarketplacePath)));
     }
 
     private static byte[] CreateArchive(string marketplaceName)
@@ -163,52 +156,44 @@ public sealed class PluginRegistrySyncServiceTests
         using var stream = new MemoryStream();
         using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
         {
-            var entry = archive.CreateEntry(MarketplacePath);
-            using var writer = new StreamWriter(entry.Open());
-            writer.Write($$"""
-{
-  "name": "{{marketplaceName}}",
-  "plugins": []
-}
-""");
+            using var writer = new StreamWriter(archive.CreateEntry(MarketplacePath).Open());
+            writer.Write($$"""{"name":"{{marketplaceName}}","plugins":[]}""");
         }
-
         return stream.ToArray();
     }
 
-    private static string NewTempDir()
+    public void Dispose()
     {
-        var path = Path.Combine(Path.GetTempPath(), "dotcraft-registry-sync-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(path);
-        return path;
+        Environment.SetEnvironmentVariable(PluginSourceRegistryCatalog.DefaultRegistryUrlEnvironmentVariableName, _previousDefault);
+        Environment.SetEnvironmentVariable(PluginSourceRegistryCatalog.AdditionalRegistriesEnvironmentVariableName, _previousAdditional);
+        Directory.Delete(_craftHome, recursive: true);
     }
 
-    private sealed class StubHandler : HttpMessageHandler
+    private sealed class ControlledHandler(byte[] bytes) : HttpMessageHandler
     {
-        private readonly HttpStatusCode _status;
-        private readonly byte[] _body;
-        private int _requestCount;
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public int RequestCount { get; private set; }
 
-        private StubHandler(HttpStatusCode status, byte[] body)
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            _status = status;
-            _body = body;
+            RequestCount++;
+            Started.TrySetResult();
+            await Release.Task.WaitAsync(cancellationToken);
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(bytes) };
         }
+    }
 
-        public static StubHandler Serving(byte[] body) => new(HttpStatusCode.OK, body);
+    private sealed class StubHandler(HttpStatusCode status, byte[]? bytes = null) : HttpMessageHandler
+    {
+        public int RequestCount { get; private set; }
 
-        public static StubHandler Failing(HttpStatusCode status) => new(status, []);
-
-        public int RequestCount => Volatile.Read(ref _requestCount);
-
-        protected override Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request,
-            CancellationToken cancellationToken)
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            Interlocked.Increment(ref _requestCount);
-            return Task.FromResult(new HttpResponseMessage(_status)
+            RequestCount++;
+            return Task.FromResult(new HttpResponseMessage(status)
             {
-                Content = new ByteArrayContent(_body)
+                Content = new ByteArrayContent(bytes ?? [])
             });
         }
     }
