@@ -88,15 +88,16 @@ public sealed class WireClientWebSocketIntegrationTests : IAsyncDisposable
         Assert.Equal(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnCompleted, notifications[^1]);
     }
 
-    [Fact]
-    public async Task FileSystem_TenMiBFile_RoundTripsOverWebSocket()
+    [Theory]
+    [InlineData((byte)0x00)]
+    [InlineData((byte)0xFB)]
+    public async Task FileSystem_TenMiBFile_RoundTripsOverWebSocket(byte fill)
     {
         using var initialize = await _connection.Wire.InitializeAsync();
         const int limit = 10 * 1024 * 1024;
         var path = Path.Combine(_tempDir, "attachment.bin");
         var bytes = new byte[limit];
-        bytes[0] = 1;
-        bytes[^1] = 255;
+        Array.Fill(bytes, fill);
         var dataBase64 = Convert.ToBase64String(bytes);
         using var write = await _connection.Wire.SendRequestAsync(
             DotCraft.Protocol.AppServer.AppServerMethodNames.FsWriteFile, new { path, dataBase64 });

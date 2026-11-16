@@ -939,11 +939,11 @@ function InputComposerCore({
     let submission: ComposerDraftSnapshot = { ...captureComposerDraft(), ...draftOverride, text, segments, files: inputFiles, images: inputImages }
     const target = captureComposerAttachmentTarget(threadId)
     try {
+      clearComposerForSubmission()
       const prepared = await prepareComposerAttachments({ threadId, workspacePath, files: inputFiles, images: inputImages, target })
       submission = { ...submission, files: prepared.files, images: prepared.images }
       objective = buildGoalObjective({ text, segments, ...prepared })
       const modelSettings = await captureTurnSettings?.()
-      clearComposerForSubmission()
       const ok = await setGoalObjective(objective, target)
       if (!ok) {
         restoreComposerSubmission(submission)
@@ -1052,8 +1052,9 @@ function InputComposerCore({
       return
     }
     // Snapshots the submission itself, which a voice override may hold instead of the composer.
+    const submissionId = restoredSubmissionId.current
     const submissionSnapshot = (): ComposerDraftSnapshot => ({
-      clientUserMessageId: restoredSubmissionId.current,
+      clientUserMessageId: submissionId,
       text,
       segments: [...segments],
       contexts: [...inputContexts],
@@ -1095,9 +1096,9 @@ function InputComposerCore({
       sendInFlightRef.current = true
       const submission = submissionSnapshot()
       try {
+        clearComposerForSubmission()
         const prepared = await prepareComposerAttachments({ threadId, workspacePath, files: inputFiles, images: inputImages, contexts: inputContexts, target })
         const modelSettings = await captureTurnSettings?.()
-        clearComposerForSubmission()
         const expandedPrompt = await expandInitCommand(threadId, target.request)
         await startTurnWithOptimisticUI({
           threadId,
@@ -1175,8 +1176,22 @@ function InputComposerCore({
 
     if (sendInFlightRef.current) return
     sendInFlightRef.current = true
+    const pendingSubmission = submissionSnapshot()
     let modelSettings: TurnModelSettings | undefined
     try {
+      if (!submitOverride && !isBusyForInput && queuePaused) {
+        const pausedCount = useConversationStore.getState().queuedInputs.filter((item) => !item.triggerKind).length
+        const choice = await choose({
+          title: t('composer.pausedQueueSubmit.title'),
+          message: t('composer.pausedQueueSubmit.description', { count: pausedCount }),
+          confirmLabel: t('composer.pausedQueueSubmit.send'),
+          alternateLabel: t('composer.pausedQueueSubmit.clear'),
+          cancelLabel: t('common.cancel')
+        })
+        if (choice === 'cancel') return
+        if (choice === 'alternate') await clearPausedQueue()
+      }
+      clearComposerForSubmission()
       if (!isSideChat && target.remote) {
         const prepared = await prepareComposerAttachments({ threadId, workspacePath, images: inputImages, files: inputFiles, contexts: inputContexts, target })
         inputImages = prepared.images
@@ -1185,7 +1200,9 @@ function InputComposerCore({
       }
       modelSettings = submitOverride ? undefined : await captureTurnSettings?.()
       await onBeforeSend?.()
+      if (pendingModeChangeRef.current) await pendingModeChangeRef.current
     } catch (err) {
+      restoreComposerSubmission(pendingSubmission)
       if (!(err instanceof DOMException && err.name === 'AbortError')) addToast(describeComposerAttachmentError(locale, err), 'error')
       return
     } finally {
@@ -1193,10 +1210,6 @@ function InputComposerCore({
     }
 
     setMascotBounce((n) => n + 1)
-
-    if (pendingModeChangeRef.current) {
-      await pendingModeChangeRef.current
-    }
 
     if (submitOverride) {
       if (sendInFlightRef.current) return
@@ -1214,7 +1227,6 @@ function InputComposerCore({
       })
       const submission = submissionSnapshot()
       try {
-        clearComposerForSubmission()
         await submitOverride({
           text: trimmed,
           segments: capturedSegments,
@@ -1251,7 +1263,6 @@ function InputComposerCore({
         images: inputImages
       })
       try {
-        clearComposerForSubmission()
         await sendFollowUpWithEcho(clientUserMessageId, inputParts, visibleText, mode, editingQueued)
       } catch (err) {
         console.error(`turn/${mode === 'steer' ? 'steer' : 'enqueue'} failed:`, err)
@@ -1264,25 +1275,12 @@ function InputComposerCore({
     }
 
     if (sendInFlightRef.current) return
-    if (queuePaused) {
-      const pausedCount = useConversationStore.getState().queuedInputs.filter((item) => !item.triggerKind).length
-      const choice = await choose({
-        title: t('composer.pausedQueueSubmit.title'),
-        message: t('composer.pausedQueueSubmit.description', { count: pausedCount }),
-        confirmLabel: t('composer.pausedQueueSubmit.send'),
-        alternateLabel: t('composer.pausedQueueSubmit.clear'),
-        cancelLabel: t('common.cancel')
-      })
-      if (choice === 'cancel') return
-      if (choice === 'alternate') await clearPausedQueue()
-    }
     sendInFlightRef.current = true
     const capturedImages = [...inputImages]
     const capturedFiles = [...inputFiles]
     const capturedSegments = [...segments]
     const submission = submissionSnapshot()
     try {
-      clearComposerForSubmission()
       await startTurnWithOptimisticUI({
         clientUserMessageId: submission.clientUserMessageId,
         threadId,

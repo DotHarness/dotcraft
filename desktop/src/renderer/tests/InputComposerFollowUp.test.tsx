@@ -59,6 +59,19 @@ function draft(text: string): HTMLElement {
   return textbox
 }
 
+async function enterGoalMode(): Promise<void> {
+  const textbox = screen.getByRole('textbox')
+  fireEvent.focus(textbox)
+  textbox.textContent = '/'
+  const range = document.createRange()
+  range.selectNodeContents(textbox)
+  range.collapse(false)
+  window.getSelection()?.removeAllRanges()
+  window.getSelection()?.addRange(range)
+  fireEvent.input(textbox)
+  fireEvent.click(await screen.findByRole('option', { name: /Goal/ }))
+}
+
 describe('InputComposer follow-up routing', () => {
   beforeEach(() => {
     vi.mocked(generatePromptSuggestion).mockReset().mockResolvedValue(null)
@@ -73,7 +86,7 @@ describe('InputComposer follow-up routing', () => {
       settings: { get: async () => ({ locale: 'en' }), set: async () => undefined },
       appServer: { sendRequest, onNotification: () => () => {} },
       git: { listBranches: async () => ({ current: 'main', detachedHead: null, branches: [{ name: 'main', current: true }] }) },
-      workspace: { getPathForFile: () => 'X:\\fixtures\\workspace\\notes.md', attachments: { readLocalFile, statLocalFile } },
+      workspace: { getPathForFile: (file) => `X:\\fixtures\\workspace\\${file.name}`, attachments: { readLocalFile, statLocalFile } },
       voice: undefined
     })
     useConversationStore.getState().reset()
@@ -206,16 +219,7 @@ describe('InputComposer follow-up routing', () => {
       return Promise.resolve({})
     })
     renderComposer()
-    const textbox = screen.getByRole('textbox')
-    fireEvent.focus(textbox)
-    textbox.textContent = '/'
-    const range = document.createRange()
-    range.selectNodeContents(textbox)
-    range.collapse(false)
-    window.getSelection()?.removeAllRanges()
-    window.getSelection()?.addRange(range)
-    fireEvent.input(textbox)
-    fireEvent.click(await screen.findByRole('option', { name: /Goal/ }))
+    await enterGoalMode()
     fireEvent.keyDown(draft('Finish this objective'), { key: 'Enter', code: 'Enter' })
 
     await waitFor(() => expect(setGoal).toBeDefined())
@@ -356,7 +360,7 @@ describe('InputComposer follow-up routing', () => {
     expect(sendRequest.mock.calls.some(([name]) => name === method)).toBe(false)
     expect(onOptimisticEcho).not.toHaveBeenCalled()
     expect(useConversationStore.getState().queuedInputs).toEqual([])
-    expect(textbox.textContent).toBe('send with file')
+    expect(textbox.textContent).toBe('')
     await act(async () => finishUpload({}))
     await waitFor(() => expect(sendRequest.mock.calls.some(([name]) => name === method)).toBe(true))
     await waitFor(() => expect(textbox.textContent).toBe('send with file'))
@@ -370,15 +374,61 @@ describe('InputComposer follow-up routing', () => {
     expect(sendRequest.mock.calls.filter(([name]) => name === 'fs/writeFile')).toHaveLength(1)
   })
 
-  it('keeps the complete remote draft and sends no input when preparation fails', async () => {
-    useConversationStore.setState({ remoteWorkspaceActive: true })
-    readLocalFile.mockRejectedValueOnce(new Error('file unavailable'))
+  it.each(['idle', 'queue', 'steer', 'init', 'goal'] as const)('preserves the next draft while %s attachments upload', async (flow) => {
+    useConversationStore.setState({ remoteWorkspaceActive: true, turnStatus: flow === 'queue' || flow === 'steer' ? 'running' : 'idle' })
+    useConnectionStore.setState({ capabilities: { threadGoals: true } })
+    useComposerPreferencesStore.getState().hydrate({ followUpQueueMode: flow === 'steer' ? 'steer' : 'queue' })
+    const method = flow === 'queue' ? 'turn/enqueue' : flow === 'steer' ? 'turn/steer' : 'turn/start'
+    let finishUpload!: (result: unknown) => void
+    sendRequest.mockImplementation((name: string) => {
+      if (name === 'fs/writeFile') return new Promise((resolve) => { finishUpload = resolve })
+      if (name === 'command/execute') return Promise.resolve({ handled: true, expandedPrompt: 'Initialize this workspace' })
+      return Promise.resolve({})
+    })
     renderComposer()
-    fireEvent.drop(screen.getByRole('textbox'), { dataTransfer: { types: ['Files'], files: [new File(['notes'], 'notes.md')], items: [] } })
-    const textbox = draft('keep all attachments')
-    fireEvent.keyDown(textbox, { key: 'Enter' })
-    await waitFor(() => expect(readLocalFile).toHaveBeenCalled())
-    expect(textbox.textContent).toBe('keep all attachments')
+    if (flow === 'goal') await enterGoalMode()
+    const textbox = screen.getByRole('textbox')
+    fireEvent.drop(textbox, { dataTransfer: { types: ['Files'], files: [new File(['notes'], 'notes.md')], items: [] } })
+    fireEvent.keyDown(draft(flow === 'init' ? '/init' : 'send with file'), { key: 'Enter' })
+    await waitFor(() => expect(finishUpload).toBeDefined())
+    expect(textbox.textContent).toBe('')
+    expect(sendRequest.mock.calls.some(([name]) => name === method)).toBe(false)
+
+    draft('next request')
+    fireEvent.drop(textbox, { dataTransfer: { types: ['Files'], files: [new File(['next'], 'next.md')], items: [] } })
+    const nextContext = { id: 'next-comment', kind: 'diffAnnotation' as const, path: '/next.ts', side: 'right' as const, startLine: 1, endLine: 1, comment: 'next comment' }
+    act(() => useComposerContextStore.getState().addContext('thread-1', nextContext))
+    await act(async () => finishUpload({}))
+
+    await waitFor(() => expect(sendRequest.mock.calls.some(([name]) => name === method)).toBe(true))
+    const input = JSON.stringify(sendRequest.mock.calls.find(([name]) => name === method)?.[1].input)
+    expect(input).toContain('notes.md')
+    expect(input).not.toContain('next request')
+    expect(input).not.toContain('next.md')
+    expect(input).not.toContain('next comment')
+    expect(textbox.textContent).toBe('next request')
+    expect(screen.getByText('next.md')).toBeInTheDocument()
+    expect(useComposerContextStore.getState().getContexts('thread-1')).toEqual([nextContext])
+  })
+
+  it('restores a failed upload above the next draft without losing either set of attachments', async () => {
+    useConversationStore.setState({ remoteWorkspaceActive: true })
+    let failUpload!: (reason: unknown) => void
+    sendRequest.mockImplementation((name: string) => name === 'fs/writeFile'
+      ? new Promise((_resolve, reject) => { failUpload = reject })
+      : Promise.resolve({}))
+    renderComposer()
+    const textbox = screen.getByRole('textbox')
+    fireEvent.drop(textbox, { dataTransfer: { types: ['Files'], files: [new File(['notes'], 'notes.md')], items: [] } })
+    fireEvent.keyDown(draft('keep all attachments'), { key: 'Enter' })
+    await waitFor(() => expect(failUpload).toBeDefined())
+    draft('next request')
+    fireEvent.drop(textbox, { dataTransfer: { types: ['Files'], files: [new File(['next'], 'next.md')], items: [] } })
+    await act(async () => failUpload(new Error('upload failed')))
+
+    expect(textbox.textContent).toBe('keep all attachments\n\nnext request')
+    expect(screen.getByText('notes.md')).toBeInTheDocument()
+    expect(screen.getByText('next.md')).toBeInTheDocument()
     expect(sendRequest.mock.calls.some(([name]) => name.startsWith('turn/'))).toBe(false)
     expect(useConversationStore.getState().queuedInputs).toEqual([])
   })
@@ -387,16 +437,7 @@ describe('InputComposer follow-up routing', () => {
     useConversationStore.setState({ remoteWorkspaceActive: true, turnStatus: 'idle', activeTurnId: null })
     useConnectionStore.setState({ capabilities: { threadGoals: true } })
     renderComposer()
-    const textbox = screen.getByRole('textbox')
-    fireEvent.focus(textbox)
-    textbox.textContent = '/'
-    const range = document.createRange()
-    range.selectNodeContents(textbox)
-    range.collapse(false)
-    window.getSelection()?.removeAllRanges()
-    window.getSelection()?.addRange(range)
-    fireEvent.input(textbox)
-    fireEvent.click(await screen.findByRole('option', { name: /Goal/ }))
+    await enterGoalMode()
     const submit = captureComposerVoiceSubmitter('thread-1')!
     await act(async () => submit({
       text: 'Voice goal', segments: [{ type: 'text', value: 'Voice goal' }], files: [],
