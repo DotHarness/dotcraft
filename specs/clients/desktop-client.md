@@ -1088,7 +1088,7 @@ The Control this PC segment of Connections lists devices that may control this c
 - The access switch states that a paired device can do anything the user can do in DotCraft on this computer.
 - The device list stays visible while access is off, so devices can be removed (with confirmation). Adding a device requires access on.
 - Adding a device shows the pairing URL as a QR code and as a link to copy, with its expiry; refreshing invalidates the previous code. When `mobile.pairingRequested` matches its code, the dialog asks whether the named device may control this computer, restating that it can do anything the user can do in DotCraft here. Allow waits for the device and completes only on `mobile.devicePaired` whose `pairingId` matches; Decline, or `mobile.pairingCancelled` for its code, shows a fresh code. Turning access off ends a shown code.
-- Off-network relay settings are managed through `PUT` and `DELETE /v1/mobile/relay` and reflect `relay` state; changing the relay leaves pairings unchanged.
+- Off-network relay settings are managed through `PUT` and `DELETE /v1/mobile/relay` and reflect `relay` state; changing the relay leaves pairings unchanged. A configured relay exposes Edit and Remove in its row's overflow menu, with confirmation before removal. Relay setup, editing, and removal require access on.
 - In Remote mode, the segment still manages this Desktop's own Hub; devices reach that Hub's local projects, never the remote AppServer Desktop is attached to.
 
 ### 6.16 Control Other Devices

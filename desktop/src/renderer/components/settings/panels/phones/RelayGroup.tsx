@@ -4,6 +4,8 @@ import { Globe } from 'lucide-react'
 import { SettingsGroup } from '../../SettingsGroup'
 import { ActionTooltip } from '../../../ui/ActionTooltip'
 import { Button } from '../../../ui/Button'
+import { ContextMenu, type ContextMenuPosition } from '../../../ui/ContextMenu'
+import { MoreActionsButton } from '../../../ui/MoreActionsButton'
 import { useConfirmDialog } from '../../../ui/ConfirmDialog'
 import { useT } from '../../../../contexts/LocaleContext'
 import { useMobileStore } from '../../../../stores/mobileStore'
@@ -28,6 +30,7 @@ export function RelayGroup({ relay, on }: { relay: MobileGateway['relay']; on: b
   const t = useT()
   const confirm = useConfirmDialog()
   const [editing, setEditing] = useState(false)
+  const [menu, setMenu] = useState<ContextMenuPosition | null>(null)
   const disabledReason = on
     ? undefined
     : t(relay ? 'settings.phones.relay.requiresAccess' : 'settings.phones.relay.setUp.requiresAccess')
@@ -45,23 +48,19 @@ export function RelayGroup({ relay, on }: { relay: MobileGateway['relay']; on: b
     if (failure) addToast(t('settings.phones.relay.remove.failed'), 'error')
   }
 
-  function action(label: string, onClick: () => void, variant: 'secondary' | 'danger' = 'secondary'): JSX.Element {
-    return (
-      <ActionTooltip label="" disabledReason={disabledReason}>
-        <Button variant={variant} disabled={!on} onClick={onClick}>
-          {label}
-        </Button>
-      </ActionTooltip>
-    )
-  }
-
   const status = on && relay ? RELAY_STATUS[relay.state] : PAUSED
 
   return (
     <SettingsGroup
       title={t('settings.phones.relay.title')}
       description={t('settings.phones.relay.description')}
-      headerAction={relay ? undefined : action(t('settings.phones.relay.setUp'), () => setEditing(true))}
+      headerAction={relay ? undefined : (
+        <ActionTooltip label="" disabledReason={disabledReason}>
+          <Button variant="secondary" disabled={!on} onClick={() => setEditing(true)}>
+            {t('settings.phones.relay.setUp')}
+          </Button>
+        </ActionTooltip>
+      )}
       framed={Boolean(relay)}
     >
       {relay && (
@@ -80,11 +79,28 @@ export function RelayGroup({ relay, on }: { relay: MobileGateway['relay']; on: b
               </span>
             </span>
           </span>
-          <span className="dc-phones-relay__actions">
-            {action(t('settings.phones.relay.change'), () => setEditing(true))}
-            {action(t('settings.phones.remove'), () => void remove(), 'danger')}
-          </span>
+          <ActionTooltip label="" disabledReason={disabledReason}>
+            <MoreActionsButton
+              label={t('settings.phones.row.moreActions', { name: relay.url })}
+              open={menu !== null && on}
+              disabled={!on}
+              onClick={(event) => {
+                const rect = event.currentTarget.getBoundingClientRect()
+                setMenu({ x: rect.right - 200, y: rect.bottom + 4 })
+              }}
+            />
+          </ActionTooltip>
         </div>
+      )}
+      {menu && relay && on && (
+        <ContextMenu
+          position={menu}
+          onClose={() => setMenu(null)}
+          items={[
+            { label: t('settings.phones.relay.edit'), onClick: () => setEditing(true) },
+            { label: t('settings.phones.remove'), danger: true, onClick: () => void remove() }
+          ]}
+        />
       )}
       {editing && <RelayDialog initialUrl={relay?.url ?? ''} onClose={() => setEditing(false)} />}
     </SettingsGroup>

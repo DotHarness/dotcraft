@@ -63,12 +63,6 @@
   margin-top: 8px;
 }
 
-.dc-phones-relay__actions {
-  display: flex;
-  flex-shrink: 0;
-  gap: 8px;
-}
-
 .dc-phones-relay-form {
   display: flex;
   flex-direction: column;

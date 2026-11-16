@@ -68,11 +68,9 @@ export function CodexAppGroup(): JSX.Element | null {
 
   const addDisabledReason = !status?.signedIn
     ? t('settings.codexApp.access.requiresSignIn')
-    : running && !on
+    : !on
       ? t('settings.codexApp.add.connecting')
-      : !on
-        ? t('settings.codexApp.add.requiresAccess')
-        : undefined
+      : undefined
 
   return (
     <>
@@ -91,7 +89,7 @@ export function CodexAppGroup(): JSX.Element | null {
       )}
       <SettingsGroup
         title={t('settings.codexApp.title')}
-        headerAction={
+        headerAction={running && (
           <ActionTooltip label="" disabledReason={addDisabledReason}>
             <Button
               variant="primary"
@@ -103,7 +101,7 @@ export function CodexAppGroup(): JSX.Element | null {
               {t('settings.phones.add')}
             </Button>
           </ActionTooltip>
-        }
+        )}
       >
         <SettingsRow
           label={t('settings.codexApp.access.label')}

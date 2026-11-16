@@ -1835,6 +1835,9 @@ instead. Every settings page uses the same row, so switching pages or adding the
 first item never changes the card's height. Skeletons that mirror the loaded
 rows and charts that keep their plot height are exempt.
 
+On Control this PC, configured relay rows use the same trailing overflow control
+as paired-device rows. An unconfigured relay keeps Set up in the group header.
+
 A setting that works only while another is on keeps its row when the prerequisite
 is off: the control is disabled with its stored value unchanged, and a tooltip
 names the prerequisite. The hint keeps defining the setting, and turning the
