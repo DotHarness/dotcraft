@@ -12,7 +12,10 @@
     <Version>0.12.1</Version>
     <AssemblyName>dotcraft</AssemblyName>
     <AssemblyTitle>DotCraft</AssemblyTitle>
+    <Product>DotCraft</Product>
     <ProductName>DotCraft</ProductName>
+    <Company>DotHarness</Company>
+    <Copyright>Copyright © $([System.DateTime]::Now.Year) DotHarness</Copyright>
     <ApplicationIcon>Resources\favicon.ico</ApplicationIcon>
 
     <!-- Keep the exact framework compilation references inside the self-contained bundle. -->

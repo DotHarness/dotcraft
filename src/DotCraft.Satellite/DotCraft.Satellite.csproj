@@ -17,6 +17,10 @@
     <SelfContained>true</SelfContained>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\satellite.ico</ApplicationIcon>
+    <AssemblyTitle>DotCraft Satellite</AssemblyTitle>
+    <Product>DotCraft Satellite</Product>
+    <Company>DotHarness</Company>
+    <Copyright>Copyright © $([System.DateTime]::Now.Year) DotHarness</Copyright>
     <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-x64</RuntimeIdentifier>
     <Platforms>x64;arm64</Platforms>
     <!-- Velopack ships the published directory, so the launcher must stay a plain executable. -->

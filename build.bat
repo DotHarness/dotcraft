@@ -267,7 +267,7 @@ if %ERRORLEVEL% neq 0 (
     echo Satellite publish failed with exit code %ERRORLEVEL%.
     goto :failure
 )
-call dotnet vpk pack --packId DotCraft.Satellite --packVersion %VERSION% --packDir "%SATELLITE_PUBLISH%" --mainExe dotcraft-satellite.exe --packTitle "DotCraft Satellite" --icon "src\DotCraft.Satellite\Assets\satellite.ico" --noPortable --delta none --outputDir "%SATELLITE_RELEASE%"
+call dotnet vpk pack --packId DotCraft.Satellite --packVersion %VERSION% --packDir "%SATELLITE_PUBLISH%" --mainExe dotcraft-satellite.exe --packTitle "DotCraft Satellite" --packAuthors DotHarness --icon "src\DotCraft.Satellite\Assets\satellite.ico" --noPortable --delta none --outputDir "%SATELLITE_RELEASE%"
 if %ERRORLEVEL% neq 0 (
     echo Satellite packaging failed with exit code %ERRORLEVEL%.
     goto :failure

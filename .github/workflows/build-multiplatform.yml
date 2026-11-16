@@ -329,6 +329,7 @@ jobs:
           '--packDir', "./publish/satellite-${{ matrix.runtime_id }}",
           '--mainExe', 'dotcraft-satellite.exe',
           '--packTitle', 'DotCraft Satellite',
+          '--packAuthors', 'DotHarness',
           '--icon', 'src/DotCraft.Satellite/Assets/satellite.ico',
           '--noPortable', '--delta', 'none',
           '--outputDir', "./satellite-installer/${{ matrix.runtime_id }}"
