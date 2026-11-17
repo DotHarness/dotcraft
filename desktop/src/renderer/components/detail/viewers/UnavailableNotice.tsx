@@ -15,6 +15,7 @@ interface UnavailableNoticeProps {
 export function UnavailableNotice({ absolutePath, relativePath, reason }: UnavailableNoticeProps): JSX.Element {
   const t = useT()
   const projectRoot = useConversationStore((s) => s.workspacePath)
+  const remote = useConversationStore((s) => s.remoteWorkspaceActive)
   const type = fileTypeLabel(relativePath)
   const [title, detail] = reason.kind === 'size'
     ? [t('viewer.unavailable.sizeTitle'), t('viewer.unavailable.sizeReason', {
@@ -37,15 +38,17 @@ export function UnavailableNotice({ absolutePath, relativePath, reason }: Unavai
           {reason.kind === 'load' && (
             <Button size="sm" variant="outline" onClick={reason.onRetry}>{t('viewer.unavailable.retry')}</Button>
           )}
-          <OpenTargetButton
-            targetPath={absolutePath}
-            projectRoot={projectRoot}
-            rememberChoice
-            tooltipLabel={t('detailPanel.openFileTitle', { path: relativePath })}
-            menuAriaLabel={t('detailPanel.openFileMenuAria')}
-            showPrimaryLabel
-            variant="outline"
-          />
+          {!remote && (
+            <OpenTargetButton
+              targetPath={absolutePath}
+              projectRoot={projectRoot}
+              rememberChoice
+              tooltipLabel={t('detailPanel.openFileTitle', { path: relativePath })}
+              menuAriaLabel={t('detailPanel.openFileMenuAria')}
+              showPrimaryLabel
+              variant="outline"
+            />
+          )}
         </div>
       </div>
     </div>

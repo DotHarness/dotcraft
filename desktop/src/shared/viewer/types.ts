@@ -150,13 +150,22 @@ export interface SaveCopyAsParams {
   absolutePath: string
 }
 
+export type ViewerFileOwner = { kind: 'local' } | { kind: 'remote'; connectionKey: string }
+
 export interface ReadTextParams {
   absolutePath: string
   limitBytes?: number
+  owner?: ViewerFileOwner
+}
+
+export interface WatchTextParams {
+  absolutePath: string
+  owner?: ViewerFileOwner
 }
 
 export interface WriteTextParams {
   absolutePath: string
+  owner?: ViewerFileOwner
   text: string
   expectedMtimeMs: number
   hasUtf8Bom: boolean
@@ -184,6 +193,7 @@ export interface DirEntryWire {
 export interface ListDirParams {
   /** Absolute directory to list. Defaults to the workspace root when omitted. */
   dirPath?: string
+  rootPath?: string
 }
 
 export interface ListDirResult {

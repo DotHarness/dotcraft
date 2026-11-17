@@ -4,7 +4,7 @@
 |-------|-------|
 | **Version** | 0.12.2 |
 | **Status** | Living |
-| **Date** | 2026-11-16 |
+| **Date** | 2026-11-17 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
 | **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Hub Architecture](../architecture/hub-architecture.md), [Device Gateway](../protocols/device-gateway.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Goal Design](../features/goal.md), [Session Import](../features/session-import.md), [Desktop DESIGN.md](../architecture/DESIGN.md) |
 
@@ -1243,6 +1243,7 @@ Surfaces beyond the conversation follow the same rules: protocol-driven behavior
 
 - The Files tree offers one root per folder of the active local Project, following the active file's containing folder until another root is chosen. Files are labeled relative to the longest containing Project folder, or absolutely otherwise.
 - Existing local text files up to 10 MiB open as editable documents with autosave after inactivity and immediate save on the platform shortcut. Files over 10 MiB and up to 20 MiB open read-only; larger files fail without loading. Tab sessions keep drafts, baseline, mode, history, selection, and scroll while unmounted.
+- Text editor sessions retain local or remote connection ownership for reads, saves, and watches. Local operations use disk without requiring a live AppServer. Remote operations use only the owning connection and fail if it is unavailable. Unwatch targets the original subscription. One-time reads without an owner follow the foreground connection.
 - Spreadsheets (`xlsx`, `xlsm`, `csv`, `tsv`) and presentations (`pptx`) up to 40 MiB, and video (`mp4`, `webm`, `mov`, `m4v`) up to 256 MiB, open read-only in their own viewers; `csv` and `tsv` are spreadsheets, not text. A file over its limit, a type no viewer shows, or a preview that failed to load gets one notice naming the reason (type, size, or load failure with Try again) and offering Open.
 - Binary previews stream through the viewer file boundary, which answers a single byte range request with partial content so video can seek; range requests follow the same access rules as whole-file reads. Video never autoplays and preloads only metadata; Save video as copies the displayed file to a location the user chooses.
 - Spreadsheets are parsed by the trusted host process through the viewer file boundary, which hands the viewer one visible sheet at a time; hidden sheets are left out. A sheet is bounded to its first 2,000 rows and 100 columns, and the viewer says which rows and columns it shows when the file has more. Cells carry the file's stored values in their number formats (formulas show their saved results and are never recalculated), links, merges, hidden rows and columns, frozen panes, and basic font and fill styling. Copy, Find (the active sheet), and Filter & sort act on the loaded cells only and never write the file.
@@ -1256,6 +1257,12 @@ Surfaces beyond the conversation follow the same rules: protocol-driven behavior
 - Closing waits for the draft to save. Failed saves or unresolved reviews offer to keep viewing or discard local changes (closing without writing).
 - Asynchronous highlighting never replaces newer content or resets selection; focused editors own Find.
 - The viewer's Open action launches the displayed local file in the selected application ([5.17](#517-open-in-another-app)).
+
+**Remote files**
+
+- In a remote workspace, file references, the Files tree, and newly opened file tabs read the host's files through the foreground connection's `fs/*` methods (`capabilities.fileSystem`), never the local disk. A host path is never interpreted as a client-local path. Opening a host file needs no exact-file authorization, because the connection already acts with the host user's authority.
+- Text, images, and PDFs up to the 10 MiB read limit open in their viewers. Text is editable: a save writes only when `fs/getMetadata` still reports the modification time the editor last read, and otherwise reports a conflict that follows the review above. An open file follows host changes through `fs/watch`.
+- Spreadsheets, presentations, video, and unknown binary types show the unavailable notice, and larger files fail without loading. Opening in another application, saving a copy, and Quick open are unavailable, while Copy path and copying contents remain. Without `capabilities.fileSystem`, a file reference offers only Copy path.
 
 **Embedded browser**
 

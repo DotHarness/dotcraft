@@ -21,6 +21,7 @@ import { registerThemeIpc } from '../themes/themeIpc'
 import { installThemeNavigationGuard } from '../themes/themeNavigation'
 import { hasRemoteEndpointArg, NO_WORKSPACE_ARG, resolveStartupWorkspacePath } from '../workspaceArgs'
 import { createWindowRuntime, type DesktopWindowRuntime } from './windowRuntime'
+import { remoteViewerFilesFor } from '../remoteViewerFiles'
 
 export function startDesktopWindow(
   application: DesktopApplicationServices,
@@ -61,7 +62,8 @@ export function startDesktopWindow(
         return [details?.primaryFolder ?? root, ...(details?.secondaryFolders ?? [])]
       },
       getChatFolderRoots: (root) =>
-        isDefaultChatWorkspace(root ?? ctx.currentWorkspacePath) ? knownChatsFolderRootsFromSettings(ctx.settings) : []
+        isDefaultChatWorkspace(root ?? ctx.currentWorkspacePath) ? knownChatsFolderRootsFromSettings(ctx.settings) : [],
+      getRemoteFiles: () => remoteViewerFilesFor(ctx.getForegroundWireClient())
     })
   )
   const features = createWindowIpcMain(win)

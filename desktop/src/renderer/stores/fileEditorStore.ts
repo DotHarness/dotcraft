@@ -1,8 +1,10 @@
 import { create } from 'zustand'
 import type { EditorState } from '@codemirror/state'
-import type { ReadTextResult } from '../../shared/viewer/types'
+import type { ReadTextResult, ViewerFileOwner } from '../../shared/viewer/types'
 import { normalizeLocale, translate } from '../../shared/locales'
 import { showToast } from './toastStore'
+import { useConnectionStore } from './connectionStore'
+import { useConversationStore } from './conversationStore'
 
 export type FileEditorMode = 'preview' | 'source'
 export type FileEditorSaveState = 'idle' | 'saving' | 'failed' | 'conflict'
@@ -59,6 +61,7 @@ interface Runtime {
   timer?: ReturnType<typeof setTimeout>
   stop?: () => void
   disposed: boolean
+  owner: ViewerFileOwner
 }
 const runtimes = new Map<string, Runtime>()
 const normalize = (text: string) => text.replace(/\r\n?/g, '\n')
@@ -148,7 +151,12 @@ export const useFileEditorStore = create<FileEditorStore>((set, get) => ({
   async load(tabId, absolutePath, markdown) {
     if (get().sessions.get(tabId)?.absolutePath === absolutePath) return
     get().discard(tabId)
-    const runtime: Runtime = { tail: Promise.resolve(), disposed: false }
+    const { connectionKey } = useConnectionStore.getState()
+    const { remoteWorkspaceActive } = useConversationStore.getState()
+    const owner: ViewerFileOwner = remoteWorkspaceActive && connectionKey
+      ? { kind: 'remote', connectionKey }
+      : { kind: 'local' }
+    const runtime: Runtime = { tail: Promise.resolve(), disposed: false, owner }
     runtimes.set(tabId, runtime)
     set((state) => ({
       sessions: new Map(state.sessions).set(tabId, {
@@ -170,7 +178,8 @@ export const useFileEditorStore = create<FileEditorStore>((set, get) => ({
       })
     }))
     try {
-      const disk = await window.api.workspace.viewer.readText({ absolutePath })
+      if (remoteWorkspaceActive && !connectionKey) throw new Error('The AppServer connection is no longer active.')
+      const disk = await window.api.workspace.viewer.readText({ absolutePath, owner })
       if (runtime.disposed) return
       patch(tabId, (session) => ({
         ...session,
@@ -180,7 +189,7 @@ export const useFileEditorStore = create<FileEditorStore>((set, get) => ({
         baseText: normalize(disk.text)
       }))
       void window.api.workspace.viewer
-        .watchText({ absolutePath }, () => {
+        .watchText({ absolutePath, owner }, () => {
           if (!runtime.disposed) void get().refreshFromDisk(tabId)
         })
         .then((stop) => {
@@ -247,6 +256,7 @@ export const useFileEditorStore = create<FileEditorStore>((set, get) => ({
           try {
             const result = await window.api.workspace.viewer.writeText({
               absolutePath: session.absolutePath,
+              owner: runtime.owner,
               text: session.text,
               expectedMtimeMs: session.mtimeMs,
               hasUtf8Bom: session.hasUtf8Bom,
@@ -306,7 +316,8 @@ export const useFileEditorStore = create<FileEditorStore>((set, get) => ({
         if (!session || runtime.disposed || session.status !== 'ready') return
         try {
           const disk = await window.api.workspace.viewer.readText({
-            absolutePath: session.absolutePath
+            absolutePath: session.absolutePath,
+            owner: runtime.owner
           })
           if (!runtime.disposed) applyDisk(tabId, disk)
         } catch (error) {

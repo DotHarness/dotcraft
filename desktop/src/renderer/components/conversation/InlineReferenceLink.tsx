@@ -11,6 +11,7 @@ import { isPreviewableUrl } from '../../../shared/linkPreviews'
 import { resolveConversationLink, type LinkNavigationHint } from '../../../shared/viewer/linkResolver'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
+import { useHostFilesUnavailable } from '../../hooks/useHostFilesUnavailable'
 import { useLinkContextMenu } from './LinkContextMenu'
 import { LinkFavicon } from './LinkFavicon'
 import { ReferencePathContextMenu } from './ReferencePathContextMenu'
@@ -46,6 +47,7 @@ export function InlineReferenceLink({
 }): JSX.Element {
   const [contextMenu, setContextMenu] = useState<{ position: ContextMenuPosition; targetPath: string; location: OpenTargetLocation | null; copyOnly: boolean } | null>(null)
   const linkMenu = useLinkContextMenu()
+  const hostFilesUnavailable = useHostFilesUnavailable()
   const presentation = useMemo(
     () => getInlineReferencePresentation(href, workspacePath, extractText(children), labelMode, t),
     [children, href, labelMode, t, workspacePath]
@@ -72,7 +74,7 @@ export function InlineReferenceLink({
       if (isWebUrl(target)) await openWebLink({ url: target, destination: 'systemBrowser', threadId: null, t })
       return
     }
-    if (remoteWorkspaceActive && presentation.kind === 'file') return
+    if (hostFilesUnavailable && presentation.kind === 'file') return
     await openConversationLink({
       target,
       workspacePath,

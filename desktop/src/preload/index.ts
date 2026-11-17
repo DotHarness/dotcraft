@@ -109,6 +109,9 @@ import type {
   ClassifyResult,
   ReadTextResult,
   WriteTextParams,
+  ListDirParams,
+  ReadTextParams,
+  WatchTextParams,
   WriteTextResult,
   TextFileChangedPayload
 } from '../shared/viewer/types'
@@ -1147,7 +1150,7 @@ const api = {
         return ipcRenderer.invoke('workspace:viewer:list-files', params)
       },
 
-      listDir(params: { dirPath?: string }): Promise<{
+      listDir(params: ListDirParams): Promise<{
         dirPath: string
         entries: Array<{
           name: string
@@ -1166,10 +1169,7 @@ const api = {
       },
 
       /** Reads a text file with an optional size limit (default 20 MiB). */
-      readText(params: {
-        absolutePath: string
-        limitBytes?: number
-      }): Promise<ReadTextResult> {
+      readText(params: ReadTextParams): Promise<ReadTextResult> {
         return ipcRenderer.invoke('workspace:viewer:read-text', params)
       },
 
@@ -1186,7 +1186,7 @@ const api = {
       },
 
       async watchText(
-        params: { absolutePath: string },
+        params: WatchTextParams,
         callback: (payload: TextFileChangedPayload) => void
       ): Promise<() => void> {
         const { subscriptionId } = await ipcRenderer.invoke('workspace:viewer:watch-text', params)

@@ -2,6 +2,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { installDesktopApiMock } from './desktopApiMock'
 import { useFileEditorStore } from '../stores/fileEditorStore'
+import { useConnectionStore } from '../stores/connectionStore'
+import { useConversationStore } from '../stores/conversationStore'
 import type { ReadTextResult, WriteTextParams } from '../../shared/viewer/types'
 
 const opened: ReadTextResult = {
@@ -48,6 +50,8 @@ describe('file editor sessions', () => {
   }
   beforeEach(() => {
     vi.useFakeTimers()
+    useConnectionStore.getState().reset()
+    useConversationStore.setState({ remoteWorkspaceActive: false })
     disk = { ...opened }
     readText.mockReset().mockImplementation(async () => ({ ...disk }))
     writeText.mockReset().mockImplementation(write)
@@ -68,6 +72,30 @@ describe('file editor sessions', () => {
   afterEach(() => {
     for (const id of store().sessions.keys()) store().discard(id)
     vi.useRealTimers()
+  })
+
+  it.each(['local', 'remote'] as const)('retains %s ownership for autosave and watch refresh after switching projects', async (kind) => {
+    useConnectionStore.setState({ connectionKey: 'opened', status: 'connected' })
+    useConversationStore.setState({ remoteWorkspaceActive: kind === 'remote' })
+    const owner = kind === 'local' ? { kind } : { kind, connectionKey: 'opened' }
+    await open()
+    expect(readText).toHaveBeenCalledWith({ absolutePath: 'C:/repo/file.cs', owner })
+    expect(window.api.workspace.viewer.watchText).toHaveBeenCalledWith(
+      { absolutePath: 'C:/repo/file.cs', owner }, expect.any(Function)
+    )
+
+    store().updateText('tab', 'draft')
+    useConnectionStore.setState({ connectionKey: 'other-host', status: 'connected' })
+    useConversationStore.setState({ remoteWorkspaceActive: true })
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(writeText).toHaveBeenCalledWith(expect.objectContaining({ owner, text: 'draft' }))
+    expect(session().baseText).toBe('draft')
+
+    disk = { ...disk, text: 'external', mtimeMs: disk.mtimeMs + 1 }
+    changed()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(readText).toHaveBeenLastCalledWith({ absolutePath: 'C:/repo/file.cs', owner })
+    expect(session().review?.newText).toBe('external')
   })
 
   it('debounces for three seconds without a mounted component', async () => {

@@ -119,37 +119,38 @@ export async function classifyFile(
 
   const ext = path.extname(absolutePath).toLowerCase()
   const facts = { mime: mimeForExtension(ext), sizeBytes: stat.size, mtimeMs: stat.mtimeMs }
-
-  if (ext === PDF_EXTENSION) return { contentClass: 'pdf', ...facts }
-  if (IMAGE_EXTENSIONS.has(ext)) return { contentClass: 'image', ...facts }
-  if (SPREADSHEET_EXTENSIONS.has(ext)) return { contentClass: 'spreadsheet', ...facts }
-  if (PRESENTATION_EXTENSIONS.has(ext)) return { contentClass: 'presentation', ...facts }
-  if (VIDEO_EXTENSIONS.has(ext)) return { contentClass: 'video', ...facts }
-  if (TEXT_EXTENSIONS.has(ext)) return { contentClass: 'text', ...facts }
+  const byExtension = contentClassForExtension(ext)
+  if (byExtension) return { contentClass: byExtension, ...facts }
 
   try {
     const fh = await fs.open(absolutePath, 'r')
     const header = Buffer.alloc(16)
     const { bytesRead } = await fh.read(header, 0, 16, 0)
     await fh.close()
-    const buf = header.subarray(0, bytesRead)
-    const sniffed = sniffMagicClass(buf)
-    if (sniffed) return { contentClass: sniffed, ...facts }
-
-    let likelyText = true
-    for (let i = 0; i < buf.length; i++) {
-      const b = buf[i]!
-      if (b < 9 || (b > 13 && b < 32 && b !== 27)) {
-        likelyText = false
-        break
-      }
-    }
-    if (likelyText) return { contentClass: 'text', ...facts, mime: 'text/plain' }
+    const sniffed = sniffContentClass(header.subarray(0, bytesRead))
+    return sniffed === 'text' ? { contentClass: sniffed, ...facts, mime: 'text/plain' } : { contentClass: sniffed, ...facts }
   } catch {
-    // If we can't read the header, fall through to unsupported
+    return { contentClass: 'unsupported', ...facts }
   }
+}
 
-  return { contentClass: 'unsupported', ...facts }
+export function contentClassForExtension(ext: string): ViewerContentClass | null {
+  if (ext === PDF_EXTENSION) return 'pdf'
+  if (IMAGE_EXTENSIONS.has(ext)) return 'image'
+  if (SPREADSHEET_EXTENSIONS.has(ext)) return 'spreadsheet'
+  if (PRESENTATION_EXTENSIONS.has(ext)) return 'presentation'
+  if (VIDEO_EXTENSIONS.has(ext)) return 'video'
+  if (TEXT_EXTENSIONS.has(ext)) return 'text'
+  return null
+}
+
+export function sniffContentClass(header: Buffer): ViewerContentClass {
+  const sniffed = sniffMagicClass(header)
+  if (sniffed) return sniffed
+  for (const byte of header) {
+    if (byte < 9 || (byte > 13 && byte < 32 && byte !== 27)) return 'unsupported'
+  }
+  return 'text'
 }
 
 
@@ -178,18 +179,7 @@ export async function readTextFile(
       }
       const latest = await handle.stat()
       if (latest.size !== stat.size || latest.mtimeMs !== stat.mtimeMs) continue
-      const hasUtf8Bom = buffer.length >= 3 && buffer[0] === 0xef && buffer[1] === 0xbb && buffer[2] === 0xbf
-      const text = new TextDecoder('utf-8', { fatal: false }).decode(buffer.subarray(0, offset))
-      return {
-        text,
-        truncated: stat.size > limitBytes,
-        encoding: 'utf-8',
-        sizeBytes: stat.size,
-        mtimeMs: stat.mtimeMs,
-        hasUtf8Bom,
-        lineEnding: detectLineEnding(text),
-        ...(stat.size > EDITABLE_TEXT_LIMIT_BYTES ? { readOnlyReason: 'large-file' as const } : {})
-      }
+      return decodeTextFile(buffer.subarray(0, offset), stat.size, stat.mtimeMs, limitBytes)
     }
     throw new Error('File changed while reading')
   } finally { await handle.close() }
@@ -220,9 +210,7 @@ export async function writeTextFile(
       if (stat.mtimeMs !== params.expectedMtimeMs) {
         return { outcome: 'conflict', current: await readTextFile(resolved, workspaceRoot) }
       }
-      const normalized = params.text.replace(/\r\n?/g, '\n')
-      const separator = params.lineEnding === 'crlf' ? '\r\n' : params.lineEnding === 'cr' ? '\r' : '\n'
-      const content = Buffer.from(`${params.hasUtf8Bom ? '\uFEFF' : ''}${normalized.replace(/\n/g, separator)}`, 'utf8')
+      const content = encodeTextFile(params)
       if (content.byteLength > MAX_TEXT_OPEN_BYTES) throw new Error('File is larger than the 20 MiB viewer limit')
       if (await validate(params.absolutePath) !== resolved) throw new Error('Viewer file target changed')
       const latest = await fs.stat(resolved)
@@ -237,6 +225,27 @@ export async function writeTextFile(
   })
   textWrites.set(resolved, task)
   try { return await task } finally { if (textWrites.get(resolved) === task) textWrites.delete(resolved) }
+}
+
+export function decodeTextFile(bytes: Buffer, sizeBytes: number, mtimeMs: number, limitBytes: number): ReadTextResult {
+  const hasUtf8Bom = bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf
+  const text = new TextDecoder('utf-8', { fatal: false }).decode(bytes)
+  return {
+    text,
+    truncated: sizeBytes > limitBytes,
+    encoding: 'utf-8',
+    sizeBytes,
+    mtimeMs,
+    hasUtf8Bom,
+    lineEnding: detectLineEnding(text),
+    ...(sizeBytes > EDITABLE_TEXT_LIMIT_BYTES ? { readOnlyReason: 'large-file' as const } : {})
+  }
+}
+
+export function encodeTextFile(params: Pick<WriteTextParams, 'text' | 'hasUtf8Bom' | 'lineEnding'>): Buffer {
+  const normalized = params.text.replace(/\r\n?/g, '\n')
+  const separator = params.lineEnding === 'crlf' ? '\r\n' : params.lineEnding === 'cr' ? '\r' : '\n'
+  return Buffer.from(`${params.hasUtf8Bom ? '﻿' : ''}${normalized.replace(/\n/g, separator)}`, 'utf8')
 }
 
 function detectLineEnding(text: string): 'lf' | 'crlf' | 'cr' {

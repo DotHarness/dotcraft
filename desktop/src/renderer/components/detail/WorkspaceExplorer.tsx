@@ -59,7 +59,7 @@ export function WorkspaceExplorer(): JSX.Element {
 
   useEffect(() => { setSelectedRoot(null) }, [workspacePath])
 
-  const { childrenCache, expanded, errored, loadDir, toggleDir, expandDirs, reset } = useDirTree()
+  const { childrenCache, expanded, errored, loadDir, toggleDir, expandDirs, reset } = useDirTree(root || undefined)
   const openFileEntry = useOpenDirEntry()
   const [filter, setFilter] = useState('')
   const [contextMenu, setContextMenu] = useState<{
