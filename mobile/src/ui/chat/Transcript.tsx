@@ -29,7 +29,7 @@ import { ImageThumb, SentImage } from './Images'
 import { Markdown } from './Markdown'
 import { PlanCard } from './PlanCard'
 import type { DesktopToolVerb } from '../../core/transcriptTypes'
-import { FailureLine, NextStepCard, OriginLine, SentAsGoal, SystemDivider, ThreadActionCard, ThreadLinksContext } from './TimelineMarkers'
+import { FailureLine, OriginLine, SentAsGoal, SystemDivider, ThreadActionCard, ThreadLinksContext } from './TimelineMarkers'
 import { TurnWork } from './TurnWork'
 import { QuestionToolRow } from './QuestionToolRow'
 
@@ -650,8 +650,6 @@ export const TranscriptLine = memo(function TranscriptLine({
       return <SystemDivider entry={entry} />
     case 'threadAction':
       return <ThreadActionCard action={entry.action} />
-    case 'nextStep':
-      return <NextStepCard entry={entry} />
     case 'failure':
       return <FailureLine entry={entry} />
     case 'questions':

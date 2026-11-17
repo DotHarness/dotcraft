@@ -743,11 +743,12 @@ Desktop exposes a client-owned thread-management profile as Runtime Dynamic Tool
 - Arguments: `recap` (required, about 300 characters: what is now true, then what is not done or not verified), `ask` (about 100 characters: one decision), `actions` (1–2 reply buttons, each `{ label }` of about 24 characters, the agent's recommendation first), and `blocked` (`true` when the agent's work stops until the user answers). A box needs both `ask` and at least one button.
 - Only a missing `recap` fails the call, with `InvalidArguments`. The other sizes are guidance: a call past them is still shown, with at most its first two buttons, and its result tells the agent what to change in its next call. Refusing would cost the agent another call for a box the user can already read.
 - The call returns at once and never waits for the user. The agent calls it once, when the turn's work is done and before its closing message. A later successful call in the same Turn replaces the earlier one.
-- The arguments live only in the persisted `WrapUp` tool item. Desktop keeps no state of its own for it, so the box is rebuilt from history after a reload, on another window, and on another client.
+- The box is rebuilt from the persisted `WrapUp` tool item, so it survives a reload and shows in every Desktop window.
+- The phone has no box. When the phone sent the Turn (`originChannel` is `dotcraft-mobile`), the result tells the agent its question was not shown, so it asks in its closing message, and Desktop shows no box for that call either.
 - The `WrapUp` tool row is not rendered. When its Turn completes, a call with `ask` shows the next-step box after the Turn's final reply: the recap, the question, and the buttons, the first one primary. A call without `ask` shows no box. An interrupted or failed Turn shows no box.
 - Only the box of the thread's latest Turn has buttons, and only until the user sends another message. Older boxes keep their recap and question.
 - A button sends its label as the user's message through the normal composer path, leaving any draft in the composer untouched.
-- While a `blocked` box is the thread's latest and unanswered, its chat shows the user-input waiting indicator in the sidebar and notifies like a waiting offer.
+- A `blocked` box is recorded per thread in Desktop's per-user state, beside the thread's proposals, so the sidebar knows about it for chats that are not loaded and after a restart. While recorded, the chat shows the user-input waiting indicator and notifies like a waiting offer. The record clears when the thread's next Turn starts, or when the box's own Turn fails or is cancelled.
 
 **Who can see the card**
 

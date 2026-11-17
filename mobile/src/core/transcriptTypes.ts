@@ -170,7 +170,6 @@ export type TranscriptEntry =
   | { kind: 'changes'; id: string; changes: TurnChanges }
   | { kind: 'divider'; id: string; divider: DividerKind; host?: string; channel?: string; target?: string }
   | { kind: 'threadAction'; id: string; action: ThreadAction }
-  | { kind: 'nextStep'; id: string; recap: string; ask: string; actions: string[] }
 
 export interface QuestionAnswer {
   id: string

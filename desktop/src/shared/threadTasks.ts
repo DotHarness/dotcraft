@@ -52,9 +52,15 @@ export interface ThreadTaskStartOptions {
   reasoningEffort?: ThreadTaskReasoningEffort | 'off'
 }
 
+export interface ThreadWaitingQuestion {
+  turnId?: string
+  callId: string
+}
+
 export interface ThreadTasksSnapshot {
   threadId: string
   tasks: ThreadTask[]
+  question?: ThreadWaitingQuestion
 }
 
 export type ThreadOfferAnswer =

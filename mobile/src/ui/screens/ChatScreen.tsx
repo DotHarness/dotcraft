@@ -141,10 +141,6 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
     () => (live && ready && !working && !chat?.runtime?.maintenanceKind ? () => session.retry(key) : null),
     [live, ready, working, chat?.runtime?.maintenanceKind, session, key],
   )
-  const reply = useMemo(
-    () => (live && ready ? (text: string) => session.send(key, plainMessage(text)) : null),
-    [live, ready, session, key],
-  )
   const threadLinks = useMemo<ThreadLinks>(
     () => ({
       open: (id) => router.push(chatHref(computer.id, chatKey(projectId, id))),
@@ -202,7 +198,6 @@ export function ChatScreen({ projectId, threadId }: { projectId: string; threadI
               changesProjector={changesProjector}
               threadLinks={threadLinks}
               retry={retry}
-              reply={reply}
             />
           )}
           <ChatBar

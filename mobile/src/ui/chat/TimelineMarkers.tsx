@@ -6,7 +6,7 @@ import type { ChatSignals } from '../../core/state'
 import { useI18n } from '../../i18n'
 import type { MessageId } from '../../i18n/messages/en'
 import { Icon, type IconName } from '../icons'
-import { PhoneButton, Txt } from '../parts'
+import { Txt } from '../parts'
 import { RunningShimmer } from '../RunningShimmer'
 import { type, useTheme } from '../theme'
 import { CopyButton } from './CopyButton'
@@ -17,49 +17,6 @@ export interface ThreadLinks {
 }
 
 export const ThreadLinksContext = createContext<ThreadLinks | null>(null)
-
-export interface NextStepReplies {
-  latestId: string | null
-  reply: ((text: string) => Promise<void>) | null
-}
-
-export const NextStepContext = createContext<NextStepReplies>({ latestId: null, reply: null })
-
-export function NextStepCard({ entry }: { entry: Extract<TranscriptEntry, { kind: 'nextStep' }> }) {
-  const { colors } = useTheme()
-  const { latestId, reply } = useContext(NextStepContext)
-  const [busy, setBusy] = useState(false)
-  const send = (label: string) => {
-    if (!reply) return
-    setBusy(true)
-    void reply(label)
-      .catch(() => undefined)
-      .finally(() => setBusy(false))
-  }
-  const [primary, ...others] = entry.actions
-  return (
-    <View accessibilityLabel={entry.ask} style={[styles.nextStep, { borderColor: colors.borderDefault, backgroundColor: colors.bgSecondary }]}>
-      {entry.recap ? (
-        <Txt variant="meta" tone="secondary">
-          {entry.recap}
-        </Txt>
-      ) : null}
-      <Txt style={styles.name}>{entry.ask}</Txt>
-      {latestId === entry.id && reply ? (
-        <View style={styles.nextStepButtons}>
-          {others.map((label) => (
-            <PhoneButton key={label} variant="outline" compact disabled={busy} onPress={() => send(label)}>
-              {label}
-            </PhoneButton>
-          ))}
-          <PhoneButton compact disabled={busy} onPress={() => send(primary)}>
-            {primary}
-          </PhoneButton>
-        </View>
-      ) : null}
-    </View>
-  )
-}
 
 export const RetryContext = createContext<(() => Promise<void>) | null>(null)
 
@@ -289,8 +246,6 @@ const styles = StyleSheet.create({
   shrink: { flexShrink: 1 },
   origin: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   card: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingHorizontal: 12, borderWidth: 1, borderRadius: 8 },
-  nextStep: { gap: 6, paddingVertical: 12, paddingHorizontal: 12, borderWidth: 1, borderRadius: 8 },
-  nextStepButtons: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 8, marginTop: 6 },
   iconTile: { width: 40, height: 40, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   cardText: { flex: 1, minWidth: 0, gap: 2 },
   name: { fontWeight: '500' },

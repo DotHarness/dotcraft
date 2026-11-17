@@ -79,6 +79,7 @@ export class DesktopThreadTasks {
   handleNotification(method: string, params: unknown): void {
     this.audience.observe(method, params)
     const turn = readBrowserTurnNotification(method, params)
+    if (turn) this.settleQuestion(method, turn.threadId, turn.turnId)
     if (turn?.terminal) this.abandonTurn(turn.threadId, turn.turnId)
   }
 
@@ -111,8 +112,21 @@ export class DesktopThreadTasks {
     return this.audience.fromComposer(connection, threadId, turnId)
   }
 
-  notifyWrapUpQuestion(connection: ThreadTaskConnection, threadId: string, turnId: string | undefined, callId: string): void {
+  fromPhone(connection: ThreadTaskConnection, threadId: string, turnId: string | undefined): Promise<boolean> {
+    return this.audience.fromPhone(connection, threadId, turnId)
+  }
+
+  waitForQuestion(connection: ThreadTaskConnection, threadId: string, turnId: string | undefined, callId: string): void {
+    this.host.store.setQuestion(threadId, { ...(turnId ? { turnId } : {}), callId })
     this.host.notifyWrapUpQuestion?.(threadId, turnId, callId, connection.ownerId)
+  }
+
+  private settleQuestion(method: string, threadId: string, turnId: string): void {
+    const question = this.host.store.snapshot(threadId).question
+    if (!question) return
+    const otherTurn = method === 'turn/started' && question.turnId !== turnId
+    const noBox = (method === 'turn/failed' || method === 'turn/cancelled') && question.turnId === turnId
+    if (otherTurn || noBox) this.host.store.setQuestion(threadId, undefined)
   }
 
   async offerDecision(connection: ThreadTaskConnection, threadId: string, turnId: string | undefined): Promise<OfferDecision> {

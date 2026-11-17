@@ -128,30 +128,17 @@ describe('thread actions', () => {
   })
 })
 
-describe('next-step box', () => {
-  const wrapUp = (args: Record<string, unknown>, shown = true) =>
-    item('dynamicToolCall', { toolName: 'WrapUp', namespace: 'desktop_conversation', success: true, arguments: args, structuredResult: { shown } })
-
-  it('ends a completed turn with the shown question after the reply and never as a tool row', () => {
+describe('WrapUp', () => {
+  it('shows neither a row nor a box on the phone and keeps the reply on top', () => {
     const entries = buildTranscript(
       history([
         item('userMessage', { text: 'fix it' }),
-        wrapUp({ recap: 'Fixed.', ask: 'Commit?', actions: [{ label: 'Commit' }, { label: 'Not yet' }] }),
+        item('dynamicToolCall', { toolName: 'WrapUp', namespace: 'desktop_conversation', success: true, arguments: { recap: 'Fixed.', ask: 'Commit?', actions: [{ label: 'Commit' }] }, structuredResult: { shown: true } }),
         item('agentMessage', { text: 'done', phase: 'final' }),
       ]),
     )
-    expect(entries.at(-1)).toEqual(expect.objectContaining({ kind: 'nextStep', recap: 'Fixed.', ask: 'Commit?', actions: ['Commit', 'Not yet'] }))
     expect(flat(entries).filter((entry) => entry.kind === 'tool' || entry.kind === 'toolGroup')).toHaveLength(0)
-  })
-
-  it('shows nothing for a recap alone, a call nobody saw, or a turn that did not complete', () => {
-    const ask = { recap: 'Fixed.', ask: 'Commit?', actions: [{ label: 'Commit' }] }
-    const cases = [
-      history([item('userMessage', { text: 'a' }), wrapUp({ recap: 'Done.' }), item('agentMessage', { text: 'done', phase: 'final' })]),
-      history([item('userMessage', { text: 'a' }), wrapUp(ask, false), item('agentMessage', { text: 'done', phase: 'final' })]),
-      history([item('userMessage', { text: 'a' }), wrapUp(ask), item('agentMessage', { text: 'done', phase: 'final' })], [turn('t1', 'failed')]),
-    ]
-    for (const value of cases) expect(flat(buildTranscript(value)).some((entry) => entry.kind === 'nextStep')).toBe(false)
+    expect(entries.at(-1)).toEqual(expect.objectContaining({ kind: 'assistant', text: 'done' }))
   })
 })
 

@@ -249,10 +249,9 @@ resting frame while focused or typing, and the caret is the focus cue. No field 
   recovered from overflow; `micro` shows nothing). Successful Desktop `CreateThread` and
   `SendMessageToThread` calls show as **Chat created** or **Message sent** cards that open the
   chat.
-- A Desktop `WrapUp` call is not shown as a tool row. Its next-step box follows Desktop's rules
-  ([Desktop Client §5.14](desktop-client.md#514-desktop-runtime-thread-tools)): it shows after a
-  completed Turn's final reply when the call has a question, only the latest Turn's box has buttons
-  until the next message, and tapping a button sends its label as the user's message.
+- A Desktop `WrapUp` call shows neither a tool row nor a next-step box. The phone has no box, so a
+  Turn sent from the phone tells the agent its question was not shown
+  ([Desktop Client §5.14](desktop-client.md#514-desktop-runtime-thread-tools)).
 - Live states follow Desktop: `system/event` `compacting` shows a compacting divider after the last
   turn (manual without a `turnId`, automatic with one) until a terminal compaction event or turn
   change; a repeated `streamError` shows the reconnect attempt until the turn ends; a turn the phone

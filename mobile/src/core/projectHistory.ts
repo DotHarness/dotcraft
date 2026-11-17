@@ -14,7 +14,6 @@ export const OPENING_TURNS_PAGE = {
     { name: 'Automation' },
     { name: 'CreateThread', namespace: 'desktop_conversation' },
     { name: 'SendMessageToThread', namespace: 'desktop' },
-    { name: 'WrapUp', namespace: 'desktop_conversation' },
   ],
 }
 

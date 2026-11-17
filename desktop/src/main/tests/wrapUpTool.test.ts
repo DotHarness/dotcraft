@@ -1,11 +1,16 @@
-import { describe, expect, it } from 'vitest'
-import { createHarness, structured } from './threadTaskTestHelpers'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, describe, expect, it } from 'vitest'
+import { ThreadTaskStore } from '../threadTasks/threadTaskStore'
+import { createHarness, PARENT, structured } from './threadTaskTestHelpers'
 
 const ASK = { recap: 'Fixed the parser.', ask: 'Commit the fix?', actions: [{ label: 'Commit' }, { label: 'Not yet' }] }
 
 describe('WrapUp', () => {
   it('shows the box and returns at once without any request', async () => {
     const harness = createHarness()
+    harness.composerTurn('turn-1')
 
     const result = await harness.call(ASK, 'turn-1', 'WrapUp')
 
@@ -36,5 +41,37 @@ describe('WrapUp', () => {
     const result = await harness.call({ ask: 'Ship it?', actions: [{ label: 'Yes' }] }, 'turn-1', 'WrapUp')
 
     expect(result).toEqual(expect.objectContaining({ success: false, errorCode: 'InvalidArguments' }))
+  })
+
+  it('tells the agent a phone turn shows no box', async () => {
+    const harness = createHarness()
+    harness.composerTurn('turn-1', { originChannel: 'dotcraft-mobile' })
+
+    const result = await harness.call({ ...ASK, blocked: true }, 'turn-1', 'WrapUp')
+
+    expect(structured(result)).toEqual({ shown: false })
+    expect(harness.store.snapshot(PARENT).question).toBeUndefined()
+  })
+
+  describe('blocked question', () => {
+    let tempDir: string | null = null
+    afterEach(() => {
+      if (tempDir) rmSync(tempDir, { recursive: true, force: true })
+      tempDir = null
+    })
+
+    it('keeps the chat waiting across a restart until the next turn starts', async () => {
+      tempDir = mkdtempSync(join(tmpdir(), 'wrap-up-'))
+      const filePath = join(tempDir, 'thread-tasks.json')
+      const harness = createHarness({ filePath })
+      harness.composerTurn('turn-1')
+
+      await harness.call({ ...ASK, blocked: true }, 'turn-1', 'WrapUp')
+
+      expect(new ThreadTaskStore(filePath).snapshot(PARENT).question).toEqual({ turnId: 'turn-1', callId: 'call-turn-1' })
+      harness.composerTurn('turn-2')
+      expect(harness.store.snapshot(PARENT).question).toBeUndefined()
+      expect(new ThreadTaskStore(filePath).snapshot(PARENT).question).toBeUndefined()
+    })
   })
 })

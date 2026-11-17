@@ -48,7 +48,7 @@ function taskKindOf(value: unknown, taskId: string): TaskKind {
   return taskId.startsWith('run_') ? 'workflow' : 'agent'
 }
 
-export function args(payload: Record<string, unknown>): Record<string, unknown> {
+function args(payload: Record<string, unknown>): Record<string, unknown> {
   const raw = payload.arguments
   if (typeof raw !== 'string') return (raw ?? {}) as Record<string, unknown>
   try {

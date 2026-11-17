@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
-import type { ThreadTask, ThreadTaskDefaults, ThreadTaskKind, ThreadTasksSnapshot } from '../../shared/threadTasks'
+import type { ThreadTask, ThreadTaskDefaults, ThreadTaskKind, ThreadTasksSnapshot, ThreadWaitingQuestion } from '../../shared/threadTasks'
 
 export const MAX_THREAD_TASKS = 20
 export const PROPOSAL_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000
@@ -31,6 +31,7 @@ export interface AddedThreadTask {
 
 interface ThreadEntry {
   tasks: ThreadTask[]
+  question?: ThreadWaitingQuestion
 }
 
 type ChangeListener = (snapshot: ThreadTasksSnapshot) => void
@@ -53,7 +54,18 @@ export class ThreadTaskStore {
 
   snapshot(threadId: string): ThreadTasksSnapshot {
     const entry = this.entry(threadId)
-    return { threadId, tasks: entry ? entry.tasks.map((task) => ({ ...task })) : [] }
+    return {
+      threadId,
+      tasks: entry ? entry.tasks.map((task) => ({ ...task })) : [],
+      ...(entry?.question ? { question: { ...entry.question } } : {})
+    }
+  }
+
+  setQuestion(threadId: string, question: ThreadWaitingQuestion | undefined): void {
+    const entry = this.threads.get(threadId)
+    if (!question && !entry?.question) return
+    this.threads.set(threadId, { tasks: entry?.tasks ?? [], ...(question ? { question } : {}) })
+    this.changed(threadId)
   }
 
   get(threadId: string, taskId: string): ThreadTask | undefined {
@@ -138,7 +150,7 @@ export class ThreadTaskStore {
     try {
       const stored = JSON.parse(readFileSync(this.filePath, 'utf8')) as { threads: Record<string, ThreadEntry> }
       for (const [threadId, entry] of Object.entries(stored.threads)) {
-        this.threads.set(threadId, { tasks: entry.tasks.map(recoverAfterRestart) })
+        this.threads.set(threadId, { tasks: entry.tasks.map(recoverAfterRestart), ...(entry.question ? { question: entry.question } : {}) })
       }
     } catch {
       this.threads = new Map()
@@ -149,7 +161,7 @@ export class ThreadTaskStore {
     if (!this.filePath) return
     const threads: Record<string, ThreadEntry> = {}
     for (const [threadId, entry] of this.threads) {
-      if (entry.tasks.length > 0) threads[threadId] = entry
+      if (entry.tasks.length > 0 || entry.question) threads[threadId] = entry
     }
     try {
       mkdirSync(dirname(this.filePath), { recursive: true })

@@ -68,12 +68,12 @@ function readWrapUp(args: Record<string, unknown>): WrapUpCall | null {
   return { recap, ask, labels, blocked: args.blocked === true, advice }
 }
 
-export function wrapUpTool(
+export async function wrapUpTool(
   connection: ThreadTaskConnection,
   tasks: DesktopThreadTasks | undefined,
   args: Record<string, unknown>,
   call: ThreadTaskToolCall
-): ThreadTaskToolResult {
+): Promise<ThreadTaskToolResult> {
   const wrapUp = readWrapUp(args)
   if (!wrapUp) {
     return { success: false, errorCode: 'InvalidArguments', errorMessage: 'recap is required: what is now true or changed and where it stands, said to the user in two or three sentences.' }
@@ -82,7 +82,10 @@ export function wrapUpTool(
     return result('Nothing is pending, so no box is shown. Write your closing message now, in full, as the last thing you say this turn.', false, wrapUp.advice)
   }
   const threadId = call.threadId?.trim()
-  if (wrapUp.blocked && threadId && call.callId) tasks?.notifyWrapUpQuestion(connection, threadId, call.turnId, call.callId)
+  if (tasks && threadId && (await tasks.fromPhone(connection, threadId, call.turnId))) {
+    return result('Not shown: the user is on the phone, which has no next-step box. Ask your question in your closing message.', false, [])
+  }
+  if (wrapUp.blocked && tasks && threadId && call.callId) tasks.waitForQuestion(connection, threadId, call.turnId, call.callId)
   return result('Shown in the next-step box. Write your closing message now, in full, as the last thing you say this turn. The box asks your question, so do not ask it again.', true, wrapUp.advice)
 }
 

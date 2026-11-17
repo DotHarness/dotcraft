@@ -1,6 +1,5 @@
 import type { ChatHistory, HistoryItem, HistoryTurn } from './history'
 import type { OriginMark, ThreadAction, TranscriptEntry } from './transcript'
-import { args } from './transcriptTools'
 
 const CHANNEL_LABELS: Record<string, string> = {
   qq: 'QQ',
@@ -129,17 +128,4 @@ export function threadActionOf(item: HistoryItem, result: HistoryItem | undefine
 export function isWrapUp(item: HistoryItem): boolean {
   const namespace = str(item.payload.namespace)
   return str(item.payload.toolName) === 'WrapUp' && (!namespace || namespace === 'desktop_conversation')
-}
-
-export function nextStepOf(item: HistoryItem, result: HistoryItem | undefined): { recap: string; ask: string; actions: string[] } | null {
-  if (!result || result.payload.success !== true || structuredOf(result)?.shown !== true) return null
-  const input = args(item.payload)
-  const ask = str(input.ask).trim()
-  const actions = Array.isArray(input.actions)
-    ? input.actions.flatMap((action) => {
-        const label = str((action as { label?: unknown } | null)?.label).trim()
-        return label ? [label] : []
-      })
-    : []
-  return ask && actions.length > 0 ? { recap: str(input.recap).trim(), ask, actions: actions.slice(0, 2) } : null
 }
