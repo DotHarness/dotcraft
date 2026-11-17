@@ -5,7 +5,6 @@ import css from './MacSidebarTitleBar.module.css'
 
 const noDrag: CSSProperties = { WebkitAppRegion: 'no-drag' }
 
-/** macOS has no custom menu bar, so a collapsed sidebar keeps its toggle in this strip. */
 export function MacSidebarTitleBar(): JSX.Element | null {
   const collapsed = useUIStore((s) => s.sidebarCollapsed)
   if (!collapsed) return null

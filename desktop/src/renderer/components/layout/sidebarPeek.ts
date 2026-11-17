@@ -3,7 +3,6 @@ import { create } from 'zustand'
 
 const OPEN_DELAY_MS = 100
 const CLOSE_DELAY_MS = 180
-/** Lets the pointer rest on the panel's shadow without leaving the sidebar's width. */
 const ZONE_SLACK_PX = 12
 
 export const useSidebarPeekStore = create<{ open: boolean }>(() => ({ open: false }))
@@ -44,7 +43,6 @@ export function useSidebarPeekDismiss(open: boolean, panelRef: RefObject<HTMLEle
     const closeSoon = (): void => {
       closeTimer ??= setTimeout(closeSidebarPeek, CLOSE_DELAY_MS)
     }
-    // Layout offsets ignore the slide-in transform, so the zone is the panel's final footprint.
     const zoneRight = (): number => {
       const panel = panelRef.current
       if (!panel) return 0

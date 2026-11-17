@@ -3,7 +3,6 @@
   flex-shrink: 0;
   align-items: center;
   height: 36px;
-  /* Clears the inset traffic lights. */
   padding-left: 76px;
   user-select: none;
   -webkit-app-region: drag;

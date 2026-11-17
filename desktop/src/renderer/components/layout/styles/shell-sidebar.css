@@ -1,0 +1,64 @@
+.dotcraft-shell-sidebar {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.dotcraft-shell-sidebar-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+.dotcraft-shell-sidebar-panel[data-collapsed] {
+  transform: translateX(calc(-100% - 12px));
+  visibility: hidden;
+  transition:
+    transform 0s linear 200ms,
+    visibility 0s linear 200ms;
+}
+
+.dotcraft-shell-sidebar-panel[data-floating] {
+  top: 6px;
+  right: auto;
+  bottom: 6px;
+  left: 6px;
+  z-index: 200;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--chrome-glass);
+  box-shadow: var(--glass-shadow-soft);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  transition:
+    transform var(--duration-base) var(--ease-expand),
+    visibility 0s linear var(--duration-base);
+}
+
+.dotcraft-shell-sidebar-panel[data-peek] {
+  transform: none;
+  visibility: visible;
+  transition: transform var(--duration-base) var(--ease-expand);
+}
+
+html[data-desktop-plugin-backdrop="true"] .dotcraft-shell-sidebar-panel[data-floating] {
+  background: var(--desktop-plugin-backdrop-surface);
+}
+
+html[data-desktop-plugin-backdrop-blur]:not([data-software-compositing]) .dotcraft-shell-sidebar-panel[data-floating] {
+  background: transparent;
+  -webkit-backdrop-filter: blur(var(--desktop-plugin-backdrop-blur));
+  backdrop-filter: blur(var(--desktop-plugin-backdrop-blur));
+}
+
+.dotcraft-shell-sidebar-peek-edge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 199;
+  width: 6px;
+}

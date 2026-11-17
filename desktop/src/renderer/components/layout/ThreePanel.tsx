@@ -20,7 +20,6 @@ import {
   useSidebarPeekDismiss,
   useSidebarPeekStore
 } from './sidebarPeek'
-import css from './ThreePanel.module.css'
 
 interface ThreePanelProps {
   sidebar: ReactNode
@@ -33,6 +32,7 @@ const RESIZE_HANDLE_HIT_WIDTH = 8
 const DETAIL_PANEL_TRANSITION_MS = 200
 const MAC_SIDEBAR_TRAFFIC_LIGHT_SAFE_AREA_PX = 24
 const DRAG_REGION: CSSProperties = { WebkitAppRegion: 'drag' }
+const SIDEBAR_SHELL_TRANSITION = 'width 200ms ease-out, min-width 200ms ease-out'
 type ResizeEdge = 'sidebar' | 'detail' | null
 
 function isDetailPanelEffectivelyVisible(
@@ -90,12 +90,18 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
   const sidebarPanelRef = useRef<HTMLDivElement>(null)
   const peekOpen = useSidebarPeekStore((s) => s.open)
   const peeking = sidebarCollapsed && peekOpen
-  // Docking a visible peek leaves the panel in place instead of sliding the shell open.
   const dockingFromPeek = !sidebarCollapsed && peekOpen
   useSidebarPeekDismiss(peeking, sidebarPanelRef)
   useEffect(() => {
     if (dockingFromPeek) closeSidebarPeek()
   }, [dockingFromPeek])
+  const [peekedWhileCollapsed, setPeekedWhileCollapsed] = useState(false)
+  useEffect(() => {
+    if (peeking) setPeekedWhileCollapsed(true)
+    else if (!sidebarCollapsed) setPeekedWhileCollapsed(false)
+  }, [peeking, sidebarCollapsed])
+  const floating = sidebarCollapsed && (peeking || peekedWhileCollapsed)
+  const sidebarTransition = resizingEdge === 'sidebar' || dockingFromPeek ? 'none' : SIDEBAR_SHELL_TRANSITION
 
   const effectiveSidebarWidth = sidebarCollapsed ? 0 : sidebarWidth
 
@@ -214,39 +220,38 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
         style={{
           width: `${effectiveSidebarWidth}px`,
           minWidth: `${effectiveSidebarWidth}px`,
-          flexShrink: 0,
-          transition: resizingEdge === 'sidebar' || dockingFromPeek
-            ? 'none'
-            : 'width 200ms ease-out, min-width 200ms ease-out'
+          transition: sidebarTransition
         }}
-      />
-      <div
-        ref={sidebarPanelRef}
-        className={css.sidebarPanel}
-        data-collapsed={sidebarCollapsed || undefined}
-        data-peek={peeking || undefined}
-        inert={sidebarCollapsed && !peeking}
-        style={{ width: `${sidebarWidth}px` }}
       >
-        {isMac && !sidebarCollapsed && (
-          <div
-            data-testid="mac-sidebar-safe-area"
-            onDoubleClick={() => {
-              void window.api.window.toggleMaximize()
-            }}
-            style={{
-              ...DRAG_REGION,
-              height: `${MAC_SIDEBAR_TRAFFIC_LIGHT_SAFE_AREA_PX}px`,
-              flexShrink: 0,
-              userSelect: 'none'
-            }}
-          />
-        )}
-        {sidebar}
+        <div
+          ref={sidebarPanelRef}
+          className="dotcraft-shell-sidebar-panel"
+          data-collapsed={sidebarCollapsed || undefined}
+          data-floating={floating || undefined}
+          data-peek={peeking || undefined}
+          inert={sidebarCollapsed && !peeking}
+          style={{ width: `${sidebarWidth}px` }}
+        >
+          {isMac && !sidebarCollapsed && (
+            <div
+              data-testid="mac-sidebar-safe-area"
+              onDoubleClick={() => {
+                void window.api.window.toggleMaximize()
+              }}
+              style={{
+                ...DRAG_REGION,
+                height: `${MAC_SIDEBAR_TRAFFIC_LIGHT_SAFE_AREA_PX}px`,
+                flexShrink: 0,
+                userSelect: 'none'
+              }}
+            />
+          )}
+          {sidebar}
+        </div>
       </div>
       {sidebarCollapsed && (
         <div
-          className={css.peekEdge}
+          className="dotcraft-shell-sidebar-peek-edge"
           aria-hidden="true"
           onPointerEnter={openSidebarPeekSoon}
           onPointerLeave={cancelSidebarPeekOpen}
@@ -279,6 +284,7 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
           display: 'flex',
           flexDirection: 'row',
           borderRadius: sidebarCollapsed ? 0 : '14px 0 0 14px',
+          transition: sidebarTransition === 'none' ? 'none' : 'border-radius 200ms ease-out',
           boxShadow: 'var(--main-surface-frame-shadow)'
         }}
       >

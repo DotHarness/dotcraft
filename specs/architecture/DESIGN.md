@@ -366,15 +366,20 @@ Desktop surfaces favor dense but organized operational layouts.
 ### Collapsed sidebar
 
 Collapsing hides the sidebar entirely instead of leaving an icon rail, so the
-conversation takes the full window width and its surface meets the window edge
-without the leading corner radius. A window below the narrow breakpoint collapses
-the same way.
+conversation takes the full window width and its surface meets the window edge,
+its leading corner radius easing to square as the sidebar closes. Collapsing and
+docking follow Panel reveal: the docked sidebar slides with its shell and never
+turns into a floating panel on the way. A window below the narrow breakpoint
+collapses the same way.
 
 While collapsed, the sidebar peeks. Resting the pointer on the sidebar toggle or
 on the window's leading edge for 100ms slides the full sidebar in over the
-conversation as an elevated panel: the opaque elevated surface with its shadow, a
-10px radius, and 6px from the window edges. It carries the same content and
-interactions as the docked sidebar.
+conversation as a floating panel with the overlay shadow, a 10px radius, and 6px
+from the window edges. It carries the same content and interactions as the docked
+sidebar, and the same window material: the chrome surface, or the theme
+backdrop's surface and blur. It is the sidebar itself rather than a menu, so it
+does not take the opaque overlay surface. It keeps its floating form while it
+slides back out.
 
 - The panel stays while the pointer is within the sidebar's width, measured at its
   final position so a pointer that outruns the slide-in does not dismiss it, and
