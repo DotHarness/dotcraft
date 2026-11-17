@@ -12,6 +12,7 @@ interface SettingsGroupProps {
   title?: string
   description?: ReactNode
   headerAction?: ReactNode
+  reserveHeaderAction?: boolean
   children: ReactNode
   flush?: boolean
   /** Off when the body paints its own box, such as an empty state, so frames do not nest. */
@@ -23,6 +24,7 @@ export function SettingsGroup({
   title,
   description,
   headerAction,
+  reserveHeaderAction = false,
   children,
   flush = false,
   framed = true,
@@ -31,7 +33,7 @@ export function SettingsGroup({
   return (
     <section style={{ ...groupStyle(), ...style }}>
       {(title || description || headerAction) && (
-        <header style={headerStyle(Boolean(headerAction), Boolean(description))}>
+        <header style={headerStyle(Boolean(headerAction) || reserveHeaderAction, Boolean(description))}>
           <div style={{ flex: 1, minWidth: 0 }}>
             {title && <h2 data-settings-label style={{ margin: 0, ...settingsHeadingStyle() }}>{title}</h2>}
             {description && <div style={settingsDescriptionStyle()}>{description}</div>}

@@ -89,6 +89,7 @@ export function CodexAppGroup(): JSX.Element | null {
       )}
       <SettingsGroup
         title={t('settings.codexApp.title')}
+        reserveHeaderAction
         headerAction={running && (
           <ActionTooltip label="" disabledReason={addDisabledReason}>
             <Button

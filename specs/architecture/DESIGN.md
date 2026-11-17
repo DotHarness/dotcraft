@@ -1837,9 +1837,11 @@ A settings group is a heading over a card, not a card with a heading in it. The
 title, optional description, and group actions sit above the card as a frameless
 header: the title in `--type-heading`, the description one `--text-secondary` line
 4px beneath, actions right-aligned on the title line. A header with an action is
-never shorter than the settings control band (`28px`); a title-only header keeps
-its text height. The card follows 8px below and holds rows only: `--bg-secondary`,
-`1px` `--border-default`, radius 12, hairline dividers between rows inset by the
+never shorter than the settings control band (`28px`). A header whose action is
+conditionally visible keeps that control-band height and title alignment while
+the action is hidden, so toggling it does not move the title or card. Other
+title-only headers keep their text height. The card follows 8px below and holds
+rows only: `--bg-secondary`, `1px` `--border-default`, radius 12, hairline dividers between rows inset by the
 row's own 16px padding at both ends, never edge to edge, and none above the first.
 A divider is a `1px` border, never a filled `1px` box, so it rounds to the same
 device-pixel width at every interface zoom.
