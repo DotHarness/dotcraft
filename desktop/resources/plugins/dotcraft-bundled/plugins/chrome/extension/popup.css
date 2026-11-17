@@ -84,6 +84,11 @@ h1 {
   color: #4ade80;
 }
 
+.status-pill.is-reconnecting {
+  background: rgba(234, 179, 8, 0.18);
+  color: #facc15;
+}
+
 .status-pill.is-disconnected {
   background: rgba(239, 68, 68, 0.18);
   color: #f87171;

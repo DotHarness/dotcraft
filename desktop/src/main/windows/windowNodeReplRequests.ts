@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { BrowserWindow } from 'electron'
 import { computerUseManager } from '../computerUse/runtime'
-import { browserUseManager } from '../browserUseManager'
+import { browserUseManagers } from '../browserUseManagers'
 import { nodeReplManager, type NodeReplApprovalRequest } from '../nodeReplManager'
 import type { DesktopWindowRuntime } from './windowRuntime'
 import type { WorkspaceConnectionEntry } from './windowTypes'
@@ -68,7 +68,7 @@ function bindThread(entry: WorkspaceConnectionEntry, owner: BrowserWindow, threa
       const binding = bindings.get(threadId)
       if (binding?.entry !== entry || binding.turnId !== turnId) return
       computerUseManager.handleTurnEnded(threadId, turnId)
-      browserUseManager.handleTurnNotification('turn/completed', { threadId, turnId }, entry.localWorkspacePath ?? entry.workspacePath)
+      browserUseManagers.handleTurnNotification('turn/completed', { threadId, turnId }, entry.localWorkspacePath ?? entry.workspacePath)
     })
     entry.client.on('close', () => releaseWorkspaceNodeReplBindings(entry))
     entry.client.once('disposed', () => releaseWorkspaceNodeReplBindings(entry))

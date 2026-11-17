@@ -1,29 +1,9 @@
-function getManifestVersion() {
-  try {
-    return typeof chrome !== 'undefined' ? chrome.runtime?.getManifest?.()?.version ?? '-' : '-';
-  } catch {
-    return '-';
-  }
-}
-
 function sendRuntimeMessage(message) {
   return new Promise((resolve) => {
-    try {
-      if (typeof chrome === 'undefined' || !chrome.runtime?.sendMessage) {
-        resolve({ ok: false, error: 'Chrome extension APIs are unavailable.' });
-        return;
-      }
-      chrome.runtime.sendMessage(message, (response) => {
-        const error = chrome.runtime.lastError;
-        if (error) {
-          resolve({ ok: false, error: error.message });
-          return;
-        }
-        resolve(response ?? { ok: false, error: 'No response from DotCraft extension worker.' });
-      });
-    } catch (error) {
-      resolve({ ok: false, error: error instanceof Error ? error.message : String(error) });
-    }
+    chrome.runtime.sendMessage(message, (response) => {
+      const error = chrome.runtime.lastError;
+      resolve(error ? { ok: false, error: error.message } : response);
+    });
   });
 }
 
@@ -36,23 +16,35 @@ function safePopupError(error) {
 }
 
 export function statusViewModel(status, fallbackError = null) {
-  const connected = status?.connected === true && status?.bridgeReady === true;
+  const state = fallbackError ? 'disconnected' : status?.state ?? 'disconnected';
   const error = safePopupError(fallbackError || status?.error || null);
-  return connected
-    ? {
-        label: 'Connected',
-        className: 'is-connected',
-        message: 'Chrome backend ready. Control Chrome with DotCraft.',
-        version: status?.version || getManifestVersion()
-      }
-    : {
-        label: 'Disconnected',
-        className: 'is-disconnected',
-        message: error
-          ? `Chrome backend disconnected. ${error}`
-          : 'Click the extension icon to start the DotCraft Chrome backend, then refresh status in DotCraft settings.',
-        version: status?.version || getManifestVersion()
-      };
+  const version = status?.version ?? chrome.runtime.getManifest().version;
+  if (state === 'connected') {
+    return {
+      label: 'Connected',
+      className: 'is-connected',
+      message: 'Chrome backend ready. Control Chrome with DotCraft.',
+      version
+    };
+  }
+  if (state === 'reconnecting') {
+    return {
+      label: 'Reconnecting',
+      className: 'is-reconnecting',
+      message: error
+        ? `Reconnecting to DotCraft automatically. ${error}`
+        : 'Reconnecting to DotCraft automatically.',
+      version
+    };
+  }
+  return {
+    label: 'Disconnected',
+    className: 'is-disconnected',
+    message: error
+      ? `Chrome backend disconnected. ${error}`
+      : 'Chrome backend disconnected. Open DotCraft, then refresh status in DotCraft settings.',
+    version
+  };
 }
 
 export function renderStatus(root, status, fallbackError = null) {
@@ -62,7 +54,7 @@ export function renderStatus(root, status, fallbackError = null) {
   const message = root.querySelector('[data-status-message]');
   const version = root.querySelector('[data-version]');
 
-  pill?.classList.remove('is-loading', 'is-connected', 'is-disconnected');
+  pill?.classList.remove('is-loading', 'is-connected', 'is-reconnecting', 'is-disconnected');
   pill?.classList.add(view.className);
   if (label) label.textContent = view.label;
   if (message) message.textContent = view.message;
@@ -97,7 +89,7 @@ if (typeof document !== 'undefined') {
     });
 
     void refreshStatus(root).then((status) => {
-      if (!status?.connected) {
+      if (status?.state !== 'connected') {
         setTimeout(() => {
           void refreshStatus(root);
         }, 400);

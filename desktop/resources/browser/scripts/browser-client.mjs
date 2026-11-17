@@ -418,7 +418,9 @@ async function connectCandidate(globals, candidate, getTurnMetadata) {
   }
 }
 
-async function discoverIabBackends(globals, getTurnMetadata) {
+const BACKEND_TYPES = new Set(['iab', 'extension'])
+
+async function discoverBackends(globals, getTurnMetadata) {
   const sessionId = getTurnMetadata()?.session_id
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const paths = await candidatePipePaths(globals)
@@ -428,7 +430,7 @@ async function discoverIabBackends(globals, getTurnMetadata) {
         const backend = await connectCandidate(globals, candidate, getTurnMetadata)
         const info = asObject(backend.info)
         const metadata = asObject(info.metadata)
-        if ((info.type ?? info.id) !== 'iab') {
+        if (!BACKEND_TYPES.has(info.type ?? info.id)) {
           await backend.api.close().catch(() => {})
           continue
         }
@@ -449,10 +451,11 @@ async function discoverIabBackends(globals, getTurnMetadata) {
 
 function normalizeInfo(info) {
   const raw = asObject(info)
+  const type = BACKEND_TYPES.has(raw.type ?? raw.id) ? String(raw.type ?? raw.id) : 'iab'
   return {
     ...raw,
-    id: 'iab',
-    type: 'iab',
+    id: type,
+    type,
     name: String(raw.name ?? 'DotCraft Browser'),
     metadata: asObject(raw.metadata),
     capabilities: {
@@ -624,8 +627,8 @@ class BrowserHandle {
     this.api = api
     this.info = normalizeInfo(info)
     this.globals = globals
-    this.browserId = 'iab'
-    this.id = 'iab'
+    this.browserId = this.info.type
+    this.id = this.info.type
     this.name = this.info.name
     this.tabs = this.createTabsApi()
     this.user = this.createUserApi()
@@ -983,7 +986,7 @@ class Locator {
     if (!(other instanceof Locator)) throw new Error('InvalidArgument: locator.and/or requires another Locator.')
     if (other.tab !== this.tab) throw new Error('InvalidArgument: locator.and/or requires locators from the same tab.')
     if (JSON.stringify(other.descriptor.frameSelectors || []) !== JSON.stringify(this.descriptor.frameSelectors || [])) {
-      throw new Error('UnsupportedApi: locator.and/or across different frame scopes is not supported by DotCraft Desktop IAB.')
+      throw new Error('UnsupportedApi: locator.and/or across different frame scopes is not supported by DotCraft browser use.')
     }
   }
 
@@ -1391,11 +1394,12 @@ export async function setupBrowserRuntime(options = {}) {
     throw new Error('privileged native pipe bridge is not available; DotCraft browser client is not trusted')
   }
   const getTurnMetadata = () => turnMetadata(globals)
-  const discovered = await discoverIabBackends(globals, getTurnMetadata)
+  const discovered = await discoverBackends(globals, getTurnMetadata)
   if (discovered.length === 0) {
-    throw new Error('IabBackendUnavailable: failed to discover DotCraft Desktop IAB backend.')
+    throw new Error('IabBackendUnavailable: failed to discover DotCraft Desktop browser backends.')
   }
   const browsers = discovered.map(({ api, info }) => new BrowserHandle(api, info, globals))
+    .sort((left, right) => Number(right.id === 'iab') - Number(left.id === 'iab'))
   const requested = options.backend ? String(options.backend) : null
   const available = requested ? browsers.filter((browser) => browser.id === requested || browser.info.type === requested) : browsers
   if (available.length === 0) throw new Error(`Browser backend not found: ${requested}`)
@@ -1410,11 +1414,15 @@ export async function setupBrowserRuntime(options = {}) {
     })),
     get: async (id) => {
       const key = String(id ?? '')
-      const found = available.find((browser) => browser.id === key || browser.info.type === key || (key === 'browser' && browser.id === 'iab'))
-      if (!found) throw new Error(`Browser not found: ${id}. Available browser id: iab.`)
+      const found = available.find((browser) => browser.id === key || (key === 'browser' && browser.id === 'iab'))
+      if (!found) {
+        const ids = available.map((browser) => browser.id).join(', ')
+        if (key === 'extension') throw new Error(`BridgeDisconnected: Chrome backend is not available. Available browser ids: ${ids}.`)
+        throw new Error(`Browser not found: ${id}. Available browser ids: ${ids}.`)
+      }
       return found
     },
-    describeApi: () => ['list()', 'get("iab")']
+    describeApi: () => ['list()', ...available.map((browser) => `get("${browser.id}")`)]
   }
   agent.documentation = { get: async (name) => browserTopic(available[0].info, String(name)) }
   agent.browser = available[0]

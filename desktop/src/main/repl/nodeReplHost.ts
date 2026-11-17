@@ -20,25 +20,10 @@ function resolveBrowserClientPath(): string {
   return pathToFileURL(dev).href
 }
 
-function resolveChromeBrowserClientPath(): string {
-  const dev = join(app.getAppPath(), 'resources', 'chrome', 'browser-client.mjs')
-  if (existsSync(dev)) return pathToFileURL(dev).href
-  const cwdDev = join(nodeProcess.cwd(), 'resources', 'chrome', 'browser-client.mjs')
-  if (existsSync(cwdDev)) return pathToFileURL(cwdDev).href
-
-  const resourcesPath = nodeProcess.resourcesPath
-  if (resourcesPath) {
-    const packaged = join(resourcesPath, 'chrome', 'browser-client.mjs')
-    if (existsSync(packaged)) return pathToFileURL(packaged).href
-  }
-
-  return pathToFileURL(dev).href
-}
-
 export function createReplHostContext(workspacePath: string, browserSession: Record<string, unknown>): Record<string, unknown> {
   const chromePluginRoot = resolveChromePluginRoot(workspacePath)
   return {
-    browserClientPath: resolveBrowserClientPath(), chromeBrowserClientPath: resolveChromeBrowserClientPath(),
+    browserClientPath: resolveBrowserClientPath(),
     workspacePath, browserSession, chromePluginRoot, chromeScriptsPath: join(chromePluginRoot, 'scripts')
   }
 }

@@ -9,6 +9,7 @@ import type { WorkspaceConnectionEntry } from '../windows/windowTypes'
 const runtime = vi.hoisted(() => ({ evaluate: vi.fn(), cancel: vi.fn(), reset: vi.fn(), handleTool: vi.fn(), hasTools: vi.fn(), createBridge: vi.fn(), broadcast: vi.fn() }))
 vi.mock('../nodeReplManager', () => ({ nodeReplManager: runtime }))
 vi.mock('../browserUseManager', () => ({ browserUseManager: { handleTurnNotification: vi.fn() } }))
+vi.mock('../browserUseManagers', () => ({ browserUseManagers: { handleTurnNotification: vi.fn() } }))
 vi.mock('electron', () => ({ BrowserWindow: vi.fn() }))
 vi.mock('../chatFoldersIpc', () => ({ createChatFolderFromSettings: vi.fn() }))
 vi.mock('../computerUse/runtime', () => ({ computerUseManager: { handleTurnEnded: vi.fn() }, rememberAlwaysAllowedApp: vi.fn() }))

@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import net from 'node:net';
@@ -6,17 +5,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-const DEFAULT_COMMAND_TIMEOUT_MS = 30000;
-const MAX_COMMAND_TIMEOUT_MS = 120000;
-const HOST_PROTOCOL_VERSION = 3;
+export const RELAY_PROTOCOL_VERSION = 4;
 const PIPE_PREFIX = 'dotcraft-chrome-';
 const DOTCRAFT_CHROME_SETTINGS_URL = 'dotcraft://settings/computer-control/chrome';
-
-let stdinBuffer = Buffer.alloc(0);
-let nextExtensionRequestId = 1;
-const extensionPending = new Map();
-const extensionPendingByCommandId = new Map();
-const pipeClients = new Set();
 
 export function encodeFrame(message) {
   const body = Buffer.from(JSON.stringify(message), 'utf8');
@@ -55,114 +46,18 @@ export function nativePipePath(pid = process.pid, random = nonce()) {
   return path.join(os.tmpdir(), `${PIPE_PREFIX}${pid}-${random}.sock`);
 }
 
-function sendNativeMessage(message) {
-  process.stdout.write(encodeFrame(message));
-}
-
-function sendPipe(socket, message) {
-  socket.write(encodeFrame(message));
-}
-
-export function commandTimeoutMs(envelopeOrParams) {
-  const params = envelopeOrParams?.params ?? envelopeOrParams;
-  const candidate = Number(envelopeOrParams?.timeoutMs ?? params?.timeoutMs ?? params?.options?.timeoutMs);
-  if (!Number.isFinite(candidate) || candidate <= 0) return DEFAULT_COMMAND_TIMEOUT_MS;
-  return Math.max(1, Math.min(Math.floor(candidate), MAX_COMMAND_TIMEOUT_MS));
-}
-
-function classifiedError(category, message) {
-  return new Error(`${category}: ${message}`);
-}
-
-function buildExtensionParams(envelope) {
-  return {
-    ...(envelope.params ?? {}),
-    browserSession: envelope.browserSession,
-    commandId: envelope.commandId,
-    timeoutMs: envelope.timeoutMs
-  };
-}
-
-export function buildExtensionCommandMessage(envelope, extensionId) {
-  return {
-    type: 'dotcraft-request',
-    id: extensionId,
-    commandId: envelope.commandId,
-    method: envelope.method,
-    params: buildExtensionParams(envelope),
-    timeoutMs: commandTimeoutMs(envelope)
-  };
-}
-
-function forwardToExtension(envelope) {
-  const extensionId = nextExtensionRequestId++;
-  const timeoutMs = commandTimeoutMs(envelope);
-  const message = buildExtensionCommandMessage(envelope, extensionId);
-  sendNativeMessage(message);
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      extensionPending.delete(extensionId);
-      if (envelope.commandId) extensionPendingByCommandId.delete(envelope.commandId);
-      sendNativeMessage({
-        type: 'dotcraft-cancel',
-        commandId: envelope.commandId,
-        browserSession: envelope.browserSession,
-        reason: 'timeout'
-      });
-      reject(classifiedError('CommandTimeout', `Chrome extension command '${envelope.method}' timed out after ${timeoutMs}ms.`));
-    }, timeoutMs);
-    const pending = {
-      extensionId,
-      commandId: envelope.commandId,
-      resolve,
-      reject,
-      timer,
-      browserSession: envelope.browserSession
-    };
-    extensionPending.set(extensionId, pending);
-    if (envelope.commandId) extensionPendingByCommandId.set(envelope.commandId, pending);
-  });
-}
-
-function cancelExtensionCommand(envelope) {
-  const pending = envelope.commandId ? extensionPendingByCommandId.get(envelope.commandId) : null;
-  if (pending) {
-    clearTimeout(pending.timer);
-    extensionPending.delete(pending.extensionId);
-    extensionPendingByCommandId.delete(envelope.commandId);
-    pending.reject(classifiedError('CommandCancelled', `Chrome command ${envelope.commandId} was cancelled: ${envelope.reason || 'cancelled'}.`));
-  }
-  sendNativeMessage({
-    type: 'dotcraft-cancel',
-    commandId: envelope.commandId,
-    browserSession: envelope.browserSession,
-    reason: envelope.reason || 'cancelled'
-  });
-  return { ok: true, cancelled: Boolean(pending) };
+function errorMessage(error) {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function openDotCraftChromeSettings() {
-  const platform = process.platform;
-  let command;
-  let args;
-
-  if (platform === 'win32') {
-    command = 'cmd.exe';
-    args = ['/c', 'start', '', DOTCRAFT_CHROME_SETTINGS_URL];
-  } else if (platform === 'darwin') {
-    command = 'open';
-    args = [DOTCRAFT_CHROME_SETTINGS_URL];
-  } else {
-    command = 'xdg-open';
-    args = [DOTCRAFT_CHROME_SETTINGS_URL];
-  }
-
+  const [command, args] = process.platform === 'win32'
+    ? ['cmd.exe', ['/c', 'start', '', DOTCRAFT_CHROME_SETTINGS_URL]]
+    : process.platform === 'darwin'
+      ? ['open', [DOTCRAFT_CHROME_SETTINGS_URL]]
+      : ['xdg-open', [DOTCRAFT_CHROME_SETTINGS_URL]];
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
-      detached: true,
-      stdio: 'ignore',
-      windowsHide: true
-    });
+    const child = spawn(command, args, { detached: true, stdio: 'ignore', windowsHide: true });
     child.once('error', reject);
     child.once('spawn', () => {
       child.unref();
@@ -171,148 +66,101 @@ function openDotCraftChromeSettings() {
   });
 }
 
-function handleExtensionMessage(message) {
-  if (message?.type === 'dotcraft-open-settings') {
-    openDotCraftChromeSettings()
-      .then(() => {
-        sendNativeMessage({ type: 'dotcraft-settings-opened', ok: true });
-      })
-      .catch((error) => {
-        sendNativeMessage({
-          type: 'dotcraft-host-error',
-          error: error instanceof Error ? error.message : String(error)
-        });
-      });
-    return;
+export function createNativeRelay({ sendNative, openSettings = openDotCraftChromeSettings }) {
+  const clients = new Set();
+  const pending = new Map();
+  let nextHostId = 1;
+
+  function sendClient(client, message) {
+    if (!client.socket.destroyed) client.socket.write(encodeFrame(message));
   }
 
-  if (message?.type === 'dotcraft-response') {
-    const pending = extensionPending.get(message.id);
-    if (!pending) return;
-    clearTimeout(pending.timer);
-    extensionPending.delete(message.id);
-    if (pending.commandId) extensionPendingByCommandId.delete(pending.commandId);
-    if (message.ok === false) pending.reject(new Error(message.error || 'Chrome extension command failed.'));
-    else pending.resolve(message.result);
-    return;
+  function forward(client, message) {
+    const hostId = nextHostId++;
+    pending.set(hostId, { client, id: message.id });
+    sendNative({ type: 'relay-request', id: hostId, method: message.method, params: message.params ?? {} });
   }
 
-  for (const socket of pipeClients) {
-    sendPipe(socket, { kind: 'event', event: message?.type || 'chrome.message', data: message });
-  }
-}
-
-function handleNativeData(chunk) {
-  stdinBuffer = Buffer.concat([stdinBuffer, chunk]);
-  while (stdinBuffer.length >= 4) {
-    const length = stdinBuffer.readUInt32LE(0);
-    if (stdinBuffer.length < length + 4) return;
-    const body = stdinBuffer.subarray(4, 4 + length);
-    stdinBuffer = stdinBuffer.subarray(4 + length);
-    try {
-      handleExtensionMessage(JSON.parse(body.toString('utf8')));
-    } catch (error) {
-      sendNativeMessage({
-        type: 'dotcraft-host-error',
-        error: error instanceof Error ? error.message : String(error)
-      });
-    }
-  }
-}
-
-function handlePipeMessage(socket, message) {
-  if (message?.kind === 'command' && message.method === 'getInfo') {
-    sendPipe(socket, {
-      id: message.id,
-      ok: true,
-      result: {
-        backendId: 'chrome-extension',
-        protocolVersion: HOST_PROTOCOL_VERSION,
-        supportsCommandCancel: true
-      }
-    });
-    return;
-  }
-
-  if (message?.kind === 'command') {
-    forwardToExtension(message)
-      .then((result) => sendPipe(socket, { id: message.id, ok: true, result }))
-      .catch((error) => sendPipe(socket, {
-        id: message.id,
-        ok: false,
-        error: error instanceof Error ? error.message : String(error)
-      }));
-    return;
-  }
-
-  if (message?.kind === 'cancel') {
-    const result = cancelExtensionCommand(message);
-    sendPipe(socket, { id: message.id, ok: true, result });
-    return;
-  }
-
-  sendPipe(socket, { id: message?.id, ok: false, error: 'UnsupportedApi: Unsupported Chrome host envelope.' });
-}
-
-function createPipeServer(pipePath) {
-  if (process.platform !== 'win32') {
-    try {
-      fs.unlinkSync(pipePath);
-    } catch {
-      // The socket path may not exist.
-    }
-  }
-
-  const server = net.createServer((socket) => {
-    const decoder = new FrameDecoder();
-    pipeClients.add(socket);
+  function attachClient(socket) {
+    const client = { socket, decoder: new FrameDecoder() };
+    clients.add(client);
     socket.on('data', (chunk) => {
       try {
-        for (const message of decoder.push(chunk)) {
-          handlePipeMessage(socket, message);
-        }
-      } catch (error) {
-        sendPipe(socket, {
-          ok: false,
-          error: error instanceof Error ? error.message : String(error)
-        });
+        for (const message of client.decoder.push(chunk)) forward(client, message);
+      } catch {
+        socket.destroy();
       }
     });
-    socket.on('close', () => pipeClients.delete(socket));
-    socket.on('error', () => pipeClients.delete(socket));
-  });
-
-  server.on('close', () => {
-    if (process.platform !== 'win32') {
-      try {
-        fs.unlinkSync(pipePath);
-      } catch {
-        // Ignore cleanup failures.
+    const detach = () => {
+      if (!clients.delete(client)) return;
+      for (const [hostId, entry] of pending) {
+        if (entry.client === client) pending.delete(hostId);
       }
+      if (clients.size === 0) sendNative({ type: 'clients-released' });
+    };
+    socket.on('close', detach);
+    socket.on('error', detach);
+    return client;
+  }
+
+  function handleExtensionMessage(message) {
+    if (message.type === 'relay-response') {
+      const entry = pending.get(message.id);
+      if (!entry) return;
+      pending.delete(message.id);
+      sendClient(entry.client, message.error
+        ? { id: entry.id, error: message.error }
+        : { id: entry.id, result: message.result });
+      return;
     }
-  });
+    if (message.type === 'relay-event') {
+      for (const client of clients) sendClient(client, { event: message.event, params: message.params ?? {} });
+      return;
+    }
+    if (message.type === 'dotcraft-open-settings') {
+      openSettings()
+        .then(() => sendNative({ type: 'dotcraft-settings-opened', ok: true }))
+        .catch((error) => sendNative({ type: 'dotcraft-host-error', error: errorMessage(error) }));
+    }
+  }
+
+  function extensionEnded() {
+    for (const [hostId, entry] of pending) {
+      pending.delete(hostId);
+      sendClient(entry.client, { id: entry.id, error: { message: 'BridgeDisconnected: the DotCraft Chrome extension disconnected.' } });
+    }
+  }
+
+  return { attachClient, handleExtensionMessage, extensionEnded };
+}
+
+export function createRelayServer(relay, pipePath) {
+  const removeSocketFile = () => {
+    if (process.platform !== 'win32') fs.rmSync(pipePath, { force: true });
+  };
+  removeSocketFile();
+  const server = net.createServer((socket) => relay.attachClient(socket));
+  server.on('close', removeSocketFile);
   return server;
 }
 
 export function startNativeHost() {
+  const sendNative = (message) => process.stdout.write(encodeFrame(message));
+  const relay = createNativeRelay({ sendNative });
   const pipePath = nativePipePath();
-  const server = createPipeServer(pipePath);
-  server.listen(pipePath, () => {
-    sendNativeMessage({
-      type: 'dotcraft-host-ready',
-      pipePath,
-      protocolVersion: HOST_PROTOCOL_VERSION
-    });
-  });
-  server.on('error', (error) => {
-    sendNativeMessage({
-      type: 'dotcraft-host-error',
-      error: error instanceof Error ? error.message : String(error)
-    });
-  });
+  const server = createRelayServer(relay, pipePath);
+  server.listen(pipePath, () => sendNative({ type: 'dotcraft-host-ready', protocolVersion: RELAY_PROTOCOL_VERSION }));
+  server.on('error', (error) => sendNative({ type: 'dotcraft-host-error', error: errorMessage(error) }));
 
-  process.stdin.on('data', handleNativeData);
-  process.stdin.on('end', () => process.exit(0));
+  const decoder = new FrameDecoder();
+  process.stdin.on('data', (chunk) => {
+    for (const message of decoder.push(chunk)) relay.handleExtensionMessage(message);
+  });
+  process.stdin.on('end', () => {
+    relay.extensionEnded();
+    server.close();
+    setImmediate(() => process.exit(0));
+  });
   process.stdin.resume();
   return server;
 }

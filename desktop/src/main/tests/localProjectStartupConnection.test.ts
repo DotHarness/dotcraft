@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { DesktopWindowRuntime } from '../windows/windowRuntime'
 
 vi.mock('../browserUseManager', () => ({ browserUseManager: {} }))
+vi.mock('../browserUseManagers', () => ({ browserUseManagers: {} }))
 vi.mock('../computerUse/runtime', () => ({ computerUseManager: {} }))
 vi.mock('../defaultChatWorkspace', () => ({ isDefaultChatWorkspace: () => false }))
 vi.mock('../DesktopAppServerClient', () => ({ DesktopAppServerClient: {} }))

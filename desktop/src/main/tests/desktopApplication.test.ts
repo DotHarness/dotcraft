@@ -18,6 +18,7 @@ vi.mock('electron', () => ({
 vi.mock('../AppServerManager', () => ({}))
 vi.mock('../appUpdate', () => ({}))
 vi.mock('../browserUseManager', () => ({ browserUseManager: { setPolicyHost: vi.fn() } }))
+vi.mock('../browserUseManagers', () => ({ browserUseManagers: {} }))
 vi.mock('../computerUse/runtime', () => ({
   setComputerUseRuntimeHost: vi.fn(), disposeComputerUse: vi.fn()
 }))

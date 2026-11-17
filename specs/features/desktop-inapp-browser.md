@@ -2,12 +2,12 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.1 |
+| **Version** | 0.10.0 |
 | **Status** | Living |
-| **Date** | 2026-10-19 |
-| **Parent Specs** | [Chrome Browser Runtime](chrome-browser-runtime.md) |
+| **Date** | 2026-11-17 |
+| **Parent Specs** | [Node REPL](node-repl.md) |
 
-Purpose: define the behavior contract for DotCraft Desktop's embedded in-app browser automation runtime. The runtime is exposed to AppServer as `desktop-iab` and presents a browser-use compatible `iab` backend inside the thread-bound Node REPL.
+Purpose: define the behavior contract for DotCraft Desktop's browser automation runtime and its embedded in-app browser backend. The runtime is exposed to AppServer as `desktop-iab` and presents a browser-use compatible `iab` backend inside the thread-bound Node REPL. The [Chrome backend](chrome-browser-runtime.md) reuses the same client, primitives, page operations, and lifecycle; this spec owns them for both backends.
 
 ## 1. Scope
 
@@ -21,7 +21,7 @@ This spec covers:
 This spec does not define:
 
 - General user browsing UX unrelated to agent automation.
-- Chrome extension or native host setup; see [Chrome Browser Runtime](chrome-browser-runtime.md).
+- Chrome-specific profile differences, relay transport, extension, and native host setup; see [Chrome Browser Runtime](chrome-browser-runtime.md).
 - Automation against hidden profile data such as cookies, passwords, local storage, browser history, or cache databases.
 - A model-visible browser API beyond the documented browser-use compatibility subset.
 
@@ -43,7 +43,7 @@ The runtime has five layers:
 
 1. **AppServer binding**: binds browser automation to a client connection that declared both `capabilities.nodeRepl` and `capabilities.browserUse`, advertises the backend as `desktop-iab`, and forwards `threadId`, `turnId`, `evaluationId`, and `browserSession` through `ext/nodeRepl/evaluate`.
 2. **Desktop Node REPL manager**: routes each bound thread to a lazy persistent utility process while the Desktop connection is active, exposes `nodeRepl` and `dotcraft` (including `dotcraft.browserClientPath` and the active `dotcraft.browserSession`), and preserves REPL state across recoverable browser errors. It never pre-installs `agent`, `agent.browser`, `agent.browsers`, or `browser` globals; the browser client owns those APIs.
-3. **DotCraft browser client**: provides `setupBrowserRuntime()`, discovers backends through `nodeRepl.nativePipe`, and returns an agent exposing `agent.browsers`, browser and tab handles, capabilities, and browser-use helpers. The Desktop backend appears as `iab`.
+3. **DotCraft browser client**: provides `setupBrowserRuntime()`, discovers backends through `nodeRepl.nativePipe`, and returns an agent exposing `agent.browsers`, browser and tab handles, capabilities, and browser-use helpers. The in-app backend appears as `iab` and the Chrome backend as `extension`.
 4. **Desktop IAB backend server**: runs in the Desktop main process, listens on a local native pipe, speaks length-prefixed JSON-RPC, and maps backend commands to viewer tabs, page CDP sessions, Desktop browser policy, virtual cursor state, and diagnostics.
 5. **Viewer browser surface**: hosts in-app browser tabs as persistent page guests. Tab creation waits for guest readiness, including hidden automation tabs. Switching tasks or hiding the panel changes presentation without closing protected pages. [Thread Panels](desktop-thread-panels.md) defines browser snapshot restoration, detached-page suspension budgets, source-connection routing and file-authority isolation; ordinary inactive pages may suspend after checkpointing, while active automation remains protected. Explicit tab closure removes its durable entry; window closure disposes live pages after preserving snapshots. Ordinary menus never hide the page, and page viewport dimensions remain available while automation runs in the background. The viewer shows automation state, session name, last action hints, and the virtual cursor (§12), and keeps user focus stable after the initial agent-created tab open.
 
@@ -57,7 +57,7 @@ Desktop identifies the embedded backend to AppServer as `desktop-iab`:
     "nodeRepl": { "backend": "desktop-node" },
     "browserUse": {
       "backend": "desktop-iab",
-      "backends": ["desktop-iab"],
+      "backends": ["desktop-iab", "chrome-extension"],
       "protocolVersion": 2,
       "browserSessionProtocolVersion": 1,
       "supportsCancel": true,
@@ -98,13 +98,13 @@ Desktop serializes Node REPL evaluations per thread: an overlapping browser cell
 
 Default browser-client environment:
 
-- `BROWSER_USE_AVAILABLE_BACKENDS=iab`
+- `BROWSER_USE_AVAILABLE_BACKENDS=iab,extension`
 - `BROWSER_USE_DISABLE_AMBIENT_NETWORK=1`
 - `BROWSER_USE_SECURITY_MODE=disabled-for-local-testing`
 
 ## 6. Native Pipe Transport
 
-The backend listens on one local pipe per Desktop process:
+Each backend listens on its own local pipe in the Desktop process:
 
 | Platform | Address Shape |
 |----------|---------------|

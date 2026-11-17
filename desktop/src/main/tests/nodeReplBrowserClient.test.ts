@@ -66,19 +66,17 @@ ${body}`)
     browserManagers.length = 0
   })
 
-  it('loads the IAB and Chrome clients as separate agents without installing user globals', async () => {
+  it('loads the browser client without installing user globals and reports a missing Chrome backend', async () => {
     const result = await evaluate(createFakeBrowserManager(), `
-      const { setupBrowserRuntime: setupIab } = await import(dotcraft.browserClientPath)
-      const { setupBrowserRuntime: setupChrome } = await import(dotcraft.chromeBrowserClientPath)
-      const iab = await setupIab({ backend: "iab" })
-      const chrome = await setupChrome()
-      const delegated = await setupChrome({ backend: "iab" })
-      const browser = await iab.browsers.get("iab")
+      const { setupBrowserRuntime } = await import(dotcraft.browserClientPath)
+      const agent = await setupBrowserRuntime()
+      const browser = await agent.browsers.get("iab")
       await nodeRepl.emitImage({ mediaType: "image/png", dataBase64: "BAUG" })
+      let chromeError = ''
+      try { await agent.browsers.get("extension") } catch (error) { chromeError = error.message }
       JSON.stringify({
-        iab: await iab.browsers.list(),
-        chrome: (await chrome.browsers.list())[0].id,
-        delegated: typeof delegated.browsers.get,
+        browsers: await agent.browsers.list(),
+        chromeError,
         nameSession: typeof browser.nameSession,
         tabsContent: typeof browser.tabs.content,
         globalAgent: typeof globalThis.agent
@@ -88,10 +86,9 @@ ${body}`)
     expect(result.error).toBeUndefined()
     expect(result.images).toEqual([{ mediaType: 'image/png', dataBase64: 'BAUG' }])
     const payload = JSON.parse(result.resultText!)
-    expect(payload.iab[0]).toMatchObject({ id: 'iab', name: 'DotCraft Browser', type: 'iab' })
+    expect(payload.browsers[0]).toMatchObject({ id: 'iab', name: 'DotCraft Browser', type: 'iab' })
+    expect(payload.chromeError).toMatch(/^BridgeDisconnected:/)
     expect(payload).toMatchObject({
-      chrome: 'extension',
-      delegated: 'function',
       nameSession: 'function',
       tabsContent: 'function',
       globalAgent: 'undefined'

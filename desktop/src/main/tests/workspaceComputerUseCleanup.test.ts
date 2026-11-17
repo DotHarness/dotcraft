@@ -9,6 +9,7 @@ const host = vi.hoisted(() => ({ manager: null as unknown, client: null as unkno
 vi.mock('../nodeReplManager', () => ({ nodeReplManager: { evaluate: async () => ({ images: [], logs: [] }), reset: () => {} } }))
 vi.mock('../computerUse/runtime', () => ({ get computerUseManager() { return host.manager } }))
 vi.mock('../browserUseManager', () => ({ browserUseManager: { handleTurnNotification: vi.fn() } }))
+vi.mock('../browserUseManagers', () => ({ browserUseManagers: { handleTurnNotification: vi.fn() } }))
 vi.mock('../DesktopAppServerClient', () => ({ DesktopAppServerClient: { fromWebSocket: () => host.client } }))
 vi.mock('../ipcBridge', () => ({ broadcastNotification: vi.fn() }))
 vi.mock('../localProjectRecovery', () => ({ bindLocalProjectRecovery: vi.fn() }))

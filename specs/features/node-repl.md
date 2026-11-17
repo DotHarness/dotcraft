@@ -31,7 +31,7 @@ The manager owns task routing, a serial queue per task, and browser coordination
 
 Evaluation and host messages include task identity, evaluation identity and process generation. Host capabilities and output are scoped to the active evaluation; old callbacks, replies and process results cannot contribute to a later call. Worker startup and cancellation acknowledgments belong to their process channel.
 
-Outer timeout, cancellation, explicit reset, task deletion and Desktop connection teardown terminate the task process. Before termination the manager cancels IAB operations and requests cancellation of pending Chrome commands. Worker acknowledgment has a bounded grace period so a synchronous loop cannot prevent termination. Subsequent calls start a new lexical environment and module cache. Other tasks remain unaffected. Pending calls invalidated by reset or teardown do not execute in the replacement process.
+Outer timeout, cancellation, explicit reset, task deletion and Desktop connection teardown terminate the task process. Before termination the manager cancels pending browser backend operations for the evaluation, in-app and Chrome alike. Subsequent calls start a new lexical environment and module cache. Other tasks remain unaffected. Pending calls invalidated by reset or teardown do not execute in the replacement process.
 
 Reset does not close delivered user pages. Capability owners receive cancellation before process termination and retain responsibility for resources whose lifetime extends beyond an evaluation.
 

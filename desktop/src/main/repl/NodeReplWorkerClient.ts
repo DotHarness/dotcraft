@@ -20,7 +20,6 @@ export class NodeReplWorkerClient {
   private readonly generation = randomUUID()
   private readonly child: ReplProcess
   private active?: { context: ReplContext; host: HostCall; resolve(result: ReplResult): void; reject(error: Error): void }
-  private cancelAck?: () => void
   private stopping?: Promise<void>
   readonly logs: string[] = []
   private ready!: Promise<void>
@@ -38,7 +37,6 @@ export class NodeReplWorkerClient {
       this.started()
       this.active?.reject(new Error(`Node REPL process exited (${code}).`))
       this.active = undefined
-      this.cancelAck?.()
     })
   }
 
@@ -53,36 +51,20 @@ export class NodeReplWorkerClient {
     })
   }
 
-  stop(evaluationId?: string): Promise<void> {
+  stop(): Promise<void> {
     if (this.stopping) return this.stopping
     if (this.exited) return Promise.resolve()
     this.closed = true
     this.started()
-    this.stopping = (async () => {
-      if (evaluationId) {
-        await new Promise<void>(resolve => {
-          // A busy evaluator cannot acknowledge cancellation; the parent must still be able to kill it.
-          const timer = setTimeout(resolve, 100)
-          this.cancelAck = () => { clearTimeout(timer); resolve() }
-          this.child.postMessage({ type: 'cancel', evaluationId, generation: this.generation })
-        })
-      }
-      this.child.kill()
-      this.active?.reject(new Error('Node REPL process stopped.'))
-      this.active = undefined
-    })()
+    this.child.kill()
+    this.active?.reject(new Error('Node REPL process stopped.'))
+    this.active = undefined
+    this.stopping = Promise.resolve()
     return this.stopping
   }
 
   private async receive(message: ReplResponse): Promise<void> {
     if (message.type === 'ready') { this.started(); return }
-    if (message.type === 'cancelled') {
-      if (message.generation === this.generation) {
-        if (message.error) this.logs.push(`Chrome cancellation failed: ${message.error}`)
-        this.cancelAck?.()
-      }
-      return
-    }
     const active = this.active
     if (this.closed || !active || message.context.generation !== this.generation ||
       message.context.threadId !== active.context.threadId || message.context.evaluationId !== active.context.evaluationId) return

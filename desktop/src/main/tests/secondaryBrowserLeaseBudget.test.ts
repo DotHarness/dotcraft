@@ -4,6 +4,7 @@ import type { DesktopWindowRuntime } from '../windows/windowRuntime'
 import type { WorkspaceConnectionEntry } from '../windows/windowTypes'
 
 vi.mock('../browserUseManager', () => ({ browserUseManager: {} }))
+vi.mock('../browserUseManagers', () => ({ browserUseManagers: {} }))
 vi.mock('../computerUse/runtime', () => ({ computerUseManager: {} }))
 vi.mock('../defaultChatWorkspace', () => ({ isDefaultChatWorkspace: () => false }))
 vi.mock('../DesktopAppServerClient', () => ({ DesktopAppServerClient: {} }))
