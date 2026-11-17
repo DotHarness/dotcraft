@@ -14,7 +14,7 @@ import { getLocalProjectDetails } from '../settings'
 import { themeHostFor } from '../themes/themeIpc'
 import type { DesktopThreadTasks } from '../threadTasks/threadTaskService'
 import { viewerTerminalManager } from '../viewerTerminal'
-import { NEW_TASK_OFFER_ATTENTION } from '../windowAttentionNotifier'
+import { NEW_TASK_OFFER_ATTENTION, WRAP_UP_QUESTION_ATTENTION } from '../windowAttentionNotifier'
 import { isRendererInteractiveServerRequest } from '../workspaceConnectionRouting'
 import type { DesktopWindowRuntime } from './windowRuntime'
 import type { WorkspaceConnectionEntry } from './windowTypes'
@@ -63,15 +63,23 @@ export function getThreadTasks(ctx: DesktopWindowRuntime): DesktopThreadTasks {
 }
 
 export function notifyNewTaskOffer(ctx: DesktopWindowRuntime, task: ThreadTask): void {
+  notifyThreadAttention(ctx, NEW_TASK_OFFER_ATTENTION, task.threadId, task.turnId, task.id)
+}
+
+export function notifyWrapUpQuestion(ctx: DesktopWindowRuntime, threadId: string, turnId: string | undefined, callId: string): void {
+  notifyThreadAttention(ctx, WRAP_UP_QUESTION_ATTENTION, threadId, turnId, callId)
+}
+
+function notifyThreadAttention(ctx: DesktopWindowRuntime, kind: string, threadId: string, turnId: string | undefined, requestId: string): void {
   const win = ctx.mainWindow
   if (!win || win.isDestroyed()) return
   const entry = [...ctx.workspaceConnections.values()].find(candidate => candidate.connected
-    && candidate.threads.some(value => value && typeof value === 'object' && (value as { id?: string }).id === task.threadId))
+    && candidate.threads.some(value => value && typeof value === 'object' && (value as { id?: string }).id === threadId))
   if (!entry) return
   void ctx.app
     .notifyWindowAttention(
-      NEW_TASK_OFFER_ATTENTION,
-      { threadId: task.threadId, turnId: task.turnId, requestId: task.id },
+      kind,
+      { threadId, turnId, requestId },
       {
         connectionKind: entry.kind,
         settings: ctx.settings,

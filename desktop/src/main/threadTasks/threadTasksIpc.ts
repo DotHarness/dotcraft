@@ -20,6 +20,7 @@ export interface DesktopThreadTasksRuntimeOptions {
   filePath: string
   getNewTaskPrompt(): NewTaskPromptMode
   notifyOffer(task: ThreadTask, ownerId?: number): void
+  notifyWrapUpQuestion(threadId: string, turnId: string | undefined, callId: string, ownerId?: number): void
 }
 
 export function createDesktopThreadTasks(options: DesktopThreadTasksRuntimeOptions): DesktopThreadTasks {
@@ -32,7 +33,8 @@ export function createDesktopThreadTasks(options: DesktopThreadTasksRuntimeOptio
   return new DesktopThreadTasks({
     store,
     getNewTaskPrompt: options.getNewTaskPrompt,
-    notifyOffer: options.notifyOffer
+    notifyOffer: options.notifyOffer,
+    notifyWrapUpQuestion: options.notifyWrapUpQuestion
   })
 }
 

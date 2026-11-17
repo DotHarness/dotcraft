@@ -39,6 +39,7 @@ internal static class ThreadConfigurationContractMapper
         UseToolProfileOnly = value.UseToolProfileOnly,
         AgentInstructions = OmitIfNull(value.AgentInstructions),
         ToolAllowList = OmitIfNull<IReadOnlyList<string>>(value.ToolAllowList),
+        CodeModeExcludedNamespaces = OmitIfNull<IReadOnlyList<string>>(value.CodeModeExcludedNamespaces),
         ToolDenyList = OmitIfNull<IReadOnlyList<string>>(value.ToolDenyList),
         ToolPolicy = value.ToolPolicy is null
             ? default
@@ -106,6 +107,7 @@ internal static class ThreadConfigurationContractMapper
         UseToolProfileOnly = ValueOrDefault(value.UseToolProfileOnly),
         AgentInstructions = ValueOrDefault(value.AgentInstructions),
         ToolAllowList = ValueOrDefault(value.ToolAllowList)?.ToArray(),
+        CodeModeExcludedNamespaces = ValueOrDefault(value.CodeModeExcludedNamespaces)?.ToArray(),
         ToolDenyList = ValueOrDefault(value.ToolDenyList)?.ToArray(),
         ToolPolicy = ValueOrDefault(value.ToolPolicy) is { } toolPolicy ? FromContract(toolPolicy) : null,
         McpPolicy = ValueOrDefault(value.McpPolicy) is { } mcpPolicy ? FromContract(mcpPolicy) : null,

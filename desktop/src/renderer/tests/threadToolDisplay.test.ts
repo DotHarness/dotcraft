@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ConversationItem } from '../types/conversation'
-import { parseThreadToolAction, isThreadActionToolItem } from '../utils/threadToolDisplay'
+import { parseThreadToolAction, isThreadActionToolItem, turnNextStep } from '../utils/threadToolDisplay'
 import { getSpawnedFromThreadId } from '../utils/subAgentThreads'
 import type { ThreadSummary } from '../types/thread'
 
@@ -54,5 +54,29 @@ describe('getSpawnedFromThreadId', () => {
     expect(getSpawnedFromThreadId({ metadata: { spawnedFromThreadId: 'thread-parent' } } as unknown as ThreadSummary)).toBe('thread-parent')
     expect(getSpawnedFromThreadId({ metadata: { spawnedFromThreadId: '  ' } } as unknown as ThreadSummary)).toBeNull()
     expect(getSpawnedFromThreadId({} as unknown as ThreadSummary)).toBeNull()
+  })
+})
+
+describe('turnNextStep', () => {
+  const wrapUp = (args: Record<string, unknown>, shown = true): ConversationItem => item({
+    toolName: 'WrapUp',
+    pluginNamespace: 'desktop_conversation',
+    success: true,
+    arguments: args,
+    structuredResult: { shown }
+  })
+
+  it('reads the latest shown question with its buttons in order', () => {
+    const items = [
+      wrapUp({ recap: 'First.', ask: 'Old?', actions: [{ label: 'Yes' }] }),
+      wrapUp({ recap: 'Fixed it.', ask: 'Commit?', actions: [{ label: 'Commit' }, { label: 'Not yet' }], blocked: true })
+    ]
+    expect(turnNextStep(items)).toEqual({ recap: 'Fixed it.', ask: 'Commit?', actions: ['Commit', 'Not yet'], blocked: true })
+  })
+
+  it('has no box for a recap alone, a call nobody saw, or another namespace', () => {
+    expect(turnNextStep([wrapUp({ recap: 'Done.' })])).toBeNull()
+    expect(turnNextStep([wrapUp({ recap: 'Done.', ask: 'Ship?', actions: [{ label: 'Ship' }] }, false)])).toBeNull()
+    expect(turnNextStep([{ ...wrapUp({ recap: 'Done.', ask: 'Ship?', actions: [{ label: 'Ship' }] }), pluginNamespace: 'other' }])).toBeNull()
   })
 })

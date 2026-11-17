@@ -104,6 +104,31 @@ public sealed class CodeModeNestedDispatchTests
         Assert.Equal(2, result.StructuredContent?.GetProperty("nestedCalls").GetInt32());
     }
 
+    [Fact]
+    public async Task ExcludedNamespacesStayDirectInOnlyMode()
+    {
+        _ = typeof(CommandLineArgs).Assembly;
+        var workspace = Directory.CreateTempSubdirectory("codemode-").FullName;
+        var snapshot = new EffectiveToolSnapshotBuilder().Build(
+            [Registration("Ask", requiresApproval: false, ns: "client_user"), Registration("Read", requiresApproval: false, ns: "client")],
+            revision: 1);
+        await using var host = new CodeModeWorkerHost(new ManagedChildProcessFactory(), workspace, new CodeModeLimits());
+        var config = new AppConfig();
+        config.Tools.CodeMode.Mode = AppConfig.CodeModeSetting.Only;
+        var finalizer = new CodeModeToolFinalizer(() => config, host, new CodeModeStore(), new ToolDispatcher());
+        var planning = new ToolPlanningContext(
+            "thread_1", null, workspace, Path.Combine(workspace, ".craft"), "agent", null, null, 1,
+            codeModeExcludedNamespaces: ["client_user"]);
+
+        var finalization = await finalizer.FinalizeAsync(snapshot, planning);
+
+        Assert.Contains(new ToolName("client", "Read"), finalization.ModelHidden);
+        Assert.DoesNotContain(new ToolName("client_user", "Ask"), finalization.ModelHidden);
+        var exec = finalization.Registrations.Single(static registration => registration.Definition.Name.Name == "CodeMode");
+        Assert.Contains("client__Read", exec.Definition.Description);
+        Assert.DoesNotContain("client_user__Ask", exec.Definition.Description);
+    }
+
     [Theory]
     [InlineData(64)]
     [InlineData(2048)]
@@ -136,12 +161,12 @@ public sealed class CodeModeNestedDispatchTests
         }
     }
 
-    private static ToolRegistration Registration(string name, bool requiresApproval, IToolRuntime? runtime = null, bool returnsContent = false)
+    private static ToolRegistration Registration(string name, bool requiresApproval, IToolRuntime? runtime = null, bool returnsContent = false, string? ns = null)
     {
-        var id = new ToolDefinitionId(ToolSourceKind.CoreNative, "test", new SourceToolId(name));
+        var id = new ToolDefinitionId(ToolSourceKind.CoreNative, "test", new SourceToolId(ns is null ? name : $"{ns}.{name}"));
         var definition = new ToolDefinition(
             id,
-            new ToolName(null, name),
+            new ToolName(ns, name),
             $"{name} test tool",
             JsonSerializer.SerializeToElement(new
             {

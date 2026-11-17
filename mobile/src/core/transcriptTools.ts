@@ -48,7 +48,7 @@ function taskKindOf(value: unknown, taskId: string): TaskKind {
   return taskId.startsWith('run_') ? 'workflow' : 'agent'
 }
 
-function args(payload: Record<string, unknown>): Record<string, unknown> {
+export function args(payload: Record<string, unknown>): Record<string, unknown> {
   const raw = payload.arguments
   if (typeof raw !== 'string') return (raw ?? {}) as Record<string, unknown>
   try {
@@ -191,7 +191,7 @@ const DESKTOP_TOOLS: Record<string, { verb: DesktopToolVerb; icon: ToolIcon; ope
 
 function desktopToolOf(item: HistoryItem, input: Record<string, unknown>) {
   const namespace = str(item.payload.namespace)
-  if (item.type === 'mcpToolCall' || (namespace && namespace !== 'desktop')) return null
+  if (item.type === 'mcpToolCall' || (namespace && namespace !== 'desktop' && namespace !== 'desktop_conversation')) return null
   const tool = Object.hasOwn(DESKTOP_TOOLS, str(item.payload.toolName)) ? DESKTOP_TOOLS[str(item.payload.toolName)] : null
   if (!tool) return null
   if (tool.verb === 'chatArchived' && input.archived === false) return { ...tool, verb: 'chatRestored' as const }

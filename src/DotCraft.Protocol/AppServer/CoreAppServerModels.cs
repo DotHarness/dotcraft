@@ -5195,6 +5195,10 @@ public sealed class ThreadConfiguration : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyList<string>?> ToolAllowList { get; init; }
 
+    [JsonPropertyName("codeModeExcludedNamespaces")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>?> CodeModeExcludedNamespaces { get; init; }
+
     [JsonPropertyName("toolDenyList")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyList<string>?> ToolDenyList { get; init; }

@@ -133,6 +133,7 @@ export function createTranscriptProjector(sharedChanges?: ChangesProjector): Tra
         let wakeEntry: TranscriptEntry | null = null
         let heading: string | null = null
         let origin = fallbackOrigin
+        let nextStep: Extract<TranscriptEntry, { kind: 'nextStep' }> | null = null
         for (const item of chunk.items) {
           if (!isComplete(item)) live = true
           const projection = itemProjector.project(item, {
@@ -157,6 +158,7 @@ export function createTranscriptProjector(sharedChanges?: ChangesProjector): Tra
             wakeEntry = projection.wakeEntry ?? null
           }
           if (projection.heading !== undefined) heading = projection.heading ?? heading
+          if (projection.nextStep) nextStep = projection.nextStep
           const action = projection.action
           if (action && !actions.some((entry) => entry.action.kind === action.action.kind && entry.action.threadId === action.action.threadId)) actions.push(action)
         }
@@ -166,6 +168,7 @@ export function createTranscriptProjector(sharedChanges?: ChangesProjector): Tra
           if (last >= 0) body[last] = { ...(body[last] as Extract<TranscriptEntry, { kind: 'failure' }>), retry: { delay: retry } }
         }
         body.push(...actions)
+        if (nextStep && turn?.status === 'completed') body.push(nextStep)
         const summarized = !!turn?.summary && turn.summary.itemCount > chunk.items.length
         const entries = stabilizeEntries(layoutTurn(chunk.id, turn, body, turn ? !DONE.has(turn.status) : live, turnChanges, wake, heading, wasStopped, summarized), old?.entries ?? [])
         const completed = turn?.status === 'completed'

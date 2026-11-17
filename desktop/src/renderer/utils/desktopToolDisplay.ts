@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 import { translate, type AppLocale } from '../../shared/locales'
 import type { ConversationItem } from '../types/conversation'
-import { DESKTOP_THREAD_TOOL_NAMESPACE } from './threadToolDisplay'
+import { isDesktopToolNamespace } from './threadToolDisplay'
 
 export const DESKTOP_TOOL_OPERATIONS = [
   'readChat',
@@ -77,7 +77,7 @@ export function resolveDesktopToolOperation(
   args: Record<string, unknown> | undefined
 ): DesktopToolOperation | null {
   if (item.type === 'mcpToolCall') return null
-  if (item.pluginNamespace && item.pluginNamespace !== DESKTOP_THREAD_TOOL_NAMESPACE) return null
+  if (!isDesktopToolNamespace(item.pluginNamespace)) return null
   const operation = item.toolName ? OPERATIONS_BY_TOOL[item.toolName] : undefined
   if (!operation) return null
   if (operation === 'archiveChat' && args?.archived === false) return 'restoreChat'

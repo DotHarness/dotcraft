@@ -4409,6 +4409,7 @@ export interface ThreadConfiguration {
   allowedAgentControlTools?: string[] | null;
   approvalPolicy?: string;
   automationTaskDirectory?: string | null;
+  codeModeExcludedNamespaces?: string[] | null;
   customTools?: string[] | null;
   cwd?: string | null;
   developerInstructions?: string | null;

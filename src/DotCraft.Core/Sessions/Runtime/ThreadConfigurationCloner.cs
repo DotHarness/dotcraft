@@ -34,6 +34,7 @@ internal static class ThreadConfigurationCloner
         UseToolProfileOnly = source.UseToolProfileOnly,
         AgentInstructions = source.AgentInstructions,
         ToolAllowList = source.ToolAllowList == null ? null : [.. source.ToolAllowList],
+        CodeModeExcludedNamespaces = source.CodeModeExcludedNamespaces == null ? null : [.. source.CodeModeExcludedNamespaces],
         ToolDenyList = source.ToolDenyList == null ? null : [.. source.ToolDenyList],
         ToolPolicy = CloneToolPolicy(source.ToolPolicy),
         McpPolicy = CloneMcpPolicy(source.McpPolicy),

@@ -172,6 +172,10 @@ public sealed class ThreadConfiguration
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string[]? ToolAllowList { get; set; }
 
+    /// <summary>Tool namespaces kept off the code mode nested surface, so their tools stay direct model tools.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string[]? CodeModeExcludedNamespaces { get; set; }
+
     /// <summary>
     /// Optional exact tool deny-list resolved from a SubAgent role.
     /// </summary>

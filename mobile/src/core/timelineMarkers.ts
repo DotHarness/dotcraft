@@ -1,5 +1,6 @@
 import type { ChatHistory, HistoryItem, HistoryTurn } from './history'
 import type { OriginMark, ThreadAction, TranscriptEntry } from './transcript'
+import { args } from './transcriptTools'
 
 const CHANNEL_LABELS: Record<string, string> = {
   qq: 'QQ',
@@ -112,7 +113,7 @@ function structuredOf(result: HistoryItem): Record<string, unknown> | null {
 export function threadActionOf(item: HistoryItem, result: HistoryItem | undefined): ThreadAction | null {
   const toolName = str(item.payload.toolName)
   const namespace = str(item.payload.namespace)
-  if ((toolName !== 'CreateThread' && toolName !== 'SendMessageToThread') || (namespace && namespace !== 'desktop')) return null
+  if ((toolName !== 'CreateThread' && toolName !== 'SendMessageToThread') || (namespace && namespace !== 'desktop' && namespace !== 'desktop_conversation')) return null
   if (!result || result.payload.success !== true) return null
   const data = structuredOf(result)
   if (!data) return null
@@ -123,4 +124,22 @@ export function threadActionOf(item: HistoryItem, result: HistoryItem | undefine
   }
   const threadId = str(data.threadId)
   return threadId ? { kind: 'messaged', threadId, name: null, queued: data.queued === true } : null
+}
+
+export function isWrapUp(item: HistoryItem): boolean {
+  const namespace = str(item.payload.namespace)
+  return str(item.payload.toolName) === 'WrapUp' && (!namespace || namespace === 'desktop_conversation')
+}
+
+export function nextStepOf(item: HistoryItem, result: HistoryItem | undefined): { recap: string; ask: string; actions: string[] } | null {
+  if (!result || result.payload.success !== true || structuredOf(result)?.shown !== true) return null
+  const input = args(item.payload)
+  const ask = str(input.ask).trim()
+  const actions = Array.isArray(input.actions)
+    ? input.actions.flatMap((action) => {
+        const label = str((action as { label?: unknown } | null)?.label).trim()
+        return label ? [label] : []
+      })
+    : []
+  return ask && actions.length > 0 ? { recap: str(input.recap).trim(), ask, actions } : null
 }

@@ -17463,6 +17463,19 @@
             }
           ]
         },
+        "codeModeExcludedNamespaces": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "customTools": {
           "anyOf": [
             {

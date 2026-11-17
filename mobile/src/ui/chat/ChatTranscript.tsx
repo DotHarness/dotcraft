@@ -23,7 +23,7 @@ import type { DecisionActions } from './DecisionBodies'
 import { DecisionCard } from './DecisionCard'
 import { ImageReaderContext, type ImageReader } from './Images'
 import { ScrollToBottom } from './ScrollToBottom'
-import { LiveSignals, RetryContext, ThreadLinksContext, type ThreadLinks } from './TimelineMarkers'
+import { LiveSignals, NextStepContext, RetryContext, ThreadLinksContext, type ThreadLinks } from './TimelineMarkers'
 import { TranscriptLine, useKeptWorkingLine } from './Transcript'
 import { TurnWorkContext } from './TurnWork'
 
@@ -48,6 +48,7 @@ export const ChatTranscript = memo(function ChatTranscript({
   changesProjector,
   threadLinks,
   retry,
+  reply,
 }: {
   chatKey: string
   projectId: string
@@ -67,6 +68,7 @@ export const ChatTranscript = memo(function ChatTranscript({
   changesProjector: ChangesProjector
   threadLinks: ThreadLinks
   retry: (() => Promise<void>) | null
+  reply: ((text: string) => Promise<void>) | null
 }) {
   const session = useComputerLink()
   const { t } = useI18n()
@@ -114,6 +116,10 @@ export const ChatTranscript = memo(function ChatTranscript({
     () => (decision ? lines.map((entry) => (entry.kind === 'thinking' ? { ...entry, working: false } : entry)) : lines),
     [lines, decision],
   )
+  const nextStep = useMemo(() => {
+    const index = shownLines.findLastIndex((entry) => entry.kind === 'nextStep' || entry.kind === 'user')
+    return { latestId: index >= 0 && shownLines[index].kind === 'nextStep' ? shownLines[index].id : null, reply }
+  }, [shownLines, reply])
   const scroller = useRef<ScrollView>(null)
   const viewport = useRef(0)
   const pinned = useRef(true)
@@ -223,11 +229,13 @@ export const ChatTranscript = memo(function ChatTranscript({
             <ChangesOpenerContext.Provider value={openChanges}>
               <ThreadLinksContext.Provider value={threadLinks}>
                 <RetryContext.Provider value={retry}>
-                  <TurnWorkContext.Provider value={turnWork}>
-                    {shownLines.map((entry, index) => (
-                      <TranscriptLine key={entry.id} entry={entry} previous={shownLines[index - 1]} workspacePath={slice.workspacePath} />
-                    ))}
-                  </TurnWorkContext.Provider>
+                  <NextStepContext.Provider value={nextStep}>
+                    <TurnWorkContext.Provider value={turnWork}>
+                      {shownLines.map((entry, index) => (
+                        <TranscriptLine key={entry.id} entry={entry} previous={shownLines[index - 1]} workspacePath={slice.workspacePath} />
+                      ))}
+                    </TurnWorkContext.Provider>
+                  </NextStepContext.Provider>
                 </RetryContext.Provider>
               </ThreadLinksContext.Provider>
             </ChangesOpenerContext.Provider>

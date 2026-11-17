@@ -52,6 +52,7 @@ export interface ThreadTaskServiceHost {
   store: ThreadTaskStore
   getNewTaskPrompt(): NewTaskPromptMode
   notifyOffer?(task: ThreadTask, ownerId?: number): void
+  notifyWrapUpQuestion?(threadId: string, turnId: string | undefined, callId: string, ownerId?: number): void
 }
 
 interface OfferWaiter {
@@ -108,6 +109,10 @@ export class DesktopThreadTasks {
 
   canSeeCard(connection: ThreadTaskConnection, threadId: string, turnId: string | undefined): Promise<boolean> {
     return this.audience.fromComposer(connection, threadId, turnId)
+  }
+
+  notifyWrapUpQuestion(connection: ThreadTaskConnection, threadId: string, turnId: string | undefined, callId: string): void {
+    this.host.notifyWrapUpQuestion?.(threadId, turnId, callId, connection.ownerId)
   }
 
   async offerDecision(connection: ThreadTaskConnection, threadId: string, turnId: string | undefined): Promise<OfferDecision> {

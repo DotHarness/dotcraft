@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.12.1 |
+| **Version** | 0.12.2 |
 | **Status** | Living |
-| **Date** | 2026-11-16 |
+| **Date** | 2026-11-17 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
 | **Related Specs** | [Plugin Architecture](../architecture/plugin-architecture.md), [.NET Extension Runtime](../architecture/dotnet-extensions.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md) |
 
@@ -262,7 +262,7 @@ Create a thread. The server generates the id and persists initial state unless t
 - `spawnedFromThreadId`: thread that started this one on the user's behalf. Recorded as a non-subagent origin (`ThreadSource.kind` stays `"user"`) and mirrored into metadata, so the new thread is an ordinary sibling whose first message can link back. Self-references are ignored.
 - `cwd`, `runtimeWorkspaceRoots`: sticky workspace roots; semantics in [Session Core thread configuration](../architecture/session-core.md#122-thread-configuration). Also accepted on `thread/resume`, `thread/fork`, and `turn/start`.
 
-**Agent Profile resolution**: when `config.agentProfileId` is set, the server resolves the profile for the normalized workspace and compiles it into a `ThreadConfiguration` template. `agentProfileSource` and `agentProfileFingerprint` are server-resolved outputs and must not be sent. Only the runtime overlays `providerId`, `model`, `reasoning`, `speed`, and `developerInstructions` are applied on top; the resulting model configuration is normalized as one unit and persisted as a complete provider/model/reasoning/speed snapshot. A provider or model overlay reseeds omitted model options from that provider's effective preference (or capability-safe defaults). Capability or instruction overlays (tools, MCP, plugins, skills, approval policy, `agentInstructions`, `overrideBasePrompt`, workspace overrides, provenance fields) fail with `AgentProfileValidationFailed`; `data.detail` and `data.params.diagnostics` name the rejected overlays.
+**Agent Profile resolution**: when `config.agentProfileId` is set, the server resolves the profile for the normalized workspace and compiles it into a `ThreadConfiguration` template. `agentProfileSource` and `agentProfileFingerprint` are server-resolved outputs and must not be sent. Only the runtime overlays `providerId`, `model`, `reasoning`, `speed`, `developerInstructions`, and `codeModeExcludedNamespaces` are applied on top; the resulting model configuration is normalized as one unit and persisted as a complete provider/model/reasoning/speed snapshot. A provider or model overlay reseeds omitted model options from that provider's effective preference (or capability-safe defaults). Capability or instruction overlays (tools, MCP, plugins, skills, approval policy, `agentInstructions`, `overrideBasePrompt`, workspace overrides, provenance fields) fail with `AgentProfileValidationFailed`; `data.detail` and `data.params.diagnostics` name the rejected overlays.
 
 The server emits `thread/started` after the response. When any channel in a shared Session Core process creates a thread, the server broadcasts `thread/started` to connected clients; the initiating client may receive it from both the request handler and the broadcast and dedupes by thread id. Session-backed SubAgent child threads are always broadcast to the current connection, since they have no `thread/start` response.
 
@@ -311,6 +311,7 @@ A request carrying `chat` from a connection without `capabilities.channelAdapter
 | `workspaceOverride` / `executionWorkspaceOverride` | Alternate workspace root / runtime execution root used for worktree-bound execution without moving thread state. |
 | `cwd`, `runtimeWorkspaceRoots` | Sticky working directory and ordered roots. Omitted roots default to cwd; `[]` supplies no roots; a supplied array replaces the list. |
 | `toolProfile`, `useToolProfileOnly` | Named tool profile; when `useToolProfileOnly`, only its tools. |
+| `codeModeExcludedNamespaces` | Tool namespaces kept off Code Mode's nested surface, so their tools stay direct model tools ([Code Mode §4.3](../features/code-mode.md#43-nested-surface-and-declarations)). Matched exactly. Omitted or `[]` excludes none. Set by the starting application for its own tools that wait on the user. |
 | `developerInstructions` | Instructions from the starting application (at most 32768 characters), delivered after role instructions as a thread context item before the first user message. A full-history native SubAgent inherits them; fresh and bounded children do not. Accepted with `agentProfileId`. |
 | `toolAllowList` / `toolDenyList` | Exact-name lists; deny wins. |
 | `toolPolicy` | `allow`, `deny`, `agentControl`, `allowedAgentControlTools`. Omitted keeps runtime defaults. |

@@ -4,6 +4,7 @@ import type { WorkspaceProjectKind } from '../shared/workspaceProjects'
 import type { AppSettings } from './settings'
 
 export const NEW_TASK_OFFER_ATTENTION = 'desktop/newTaskOffer'
+export const WRAP_UP_QUESTION_ATTENTION = 'desktop/wrapUpQuestion'
 
 const ATTENTION_REQUESTS: Record<string, { setting: 'approvalRequests' | 'questions'; bodyKey: string; hubDelivers: boolean }> = {
   'item/approval/request': {
@@ -19,6 +20,11 @@ const ATTENTION_REQUESTS: Record<string, { setting: 'approvalRequests' | 'questi
   [NEW_TASK_OFFER_ATTENTION]: {
     setting: 'questions',
     bodyKey: 'hub.notification.new_task_offer.body',
+    hubDelivers: false
+  },
+  [WRAP_UP_QUESTION_ATTENTION]: {
+    setting: 'questions',
+    bodyKey: 'hub.notification.input_requested.body',
     hubDelivers: false
   }
 }

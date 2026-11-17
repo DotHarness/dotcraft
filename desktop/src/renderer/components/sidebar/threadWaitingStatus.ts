@@ -2,6 +2,7 @@ import { getThreadConversation, selectLatestCreatePlanTurnId } from '../../store
 import { useThreadAwaitsOfferAnswer } from '../../stores/threadTasksStore'
 import { useUIStore } from '../../stores/uiStore'
 import type { ThreadRuntimeSnapshot } from '../../types/thread'
+import { turnNextStep } from '../../utils/threadToolDisplay'
 
 export type ThreadWaitingStatus = 'approval' | 'input' | 'plan' | null
 
@@ -22,10 +23,16 @@ export function useThreadWaitingStatus(
 ): ThreadWaitingStatus {
   const dismissed = useUIStore(state => state.planApprovalDismissed)
   const awaitsOfferAnswer = useThreadAwaitsOfferAnswer(threadId)
-  const status = threadWaitingStatus(awaitsOfferAnswer ? { ...runtime, waitingOnInput: true } : runtime)
+  const awaitsAnswer = awaitsOfferAnswer || awaitsNextStepAnswer(threadId)
+  const status = threadWaitingStatus(awaitsAnswer ? { ...runtime, waitingOnInput: true } : runtime)
   if (status !== 'plan') return status
   if (hidePlan) return null
   const conversation = getThreadConversation(threadId)?.getState()
   const planTurnId = conversation ? selectLatestCreatePlanTurnId(conversation) : null
   return planTurnId && dismissed[planTurnId] ? null : status
+}
+
+function awaitsNextStepAnswer(threadId: string): boolean {
+  const latest = getThreadConversation(threadId)?.getState().turns.at(-1)
+  return latest?.status === 'completed' && turnNextStep(latest.items)?.blocked === true
 }

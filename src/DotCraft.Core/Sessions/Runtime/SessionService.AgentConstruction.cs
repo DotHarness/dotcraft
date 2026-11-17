@@ -233,6 +233,8 @@ public sealed partial class SessionService
             return true;
         if (config.ToolAllowList is { Length: > 0 })
             return true;
+        if (config.CodeModeExcludedNamespaces is { Length: > 0 })
+            return true;
         if (config.ToolDenyList is { Length: > 0 })
             return true;
         if (HasPolicy(config.ToolPolicy))
@@ -455,7 +457,8 @@ public sealed partial class SessionService
             config.SubAgentModelCatalogSnapshot,
             config.RequireApprovalOutsideWorkspace,
             toolContext.MemoryStores,
-            toolContext.ToolLocation);
+            toolContext.ToolLocation,
+            config.CodeModeExcludedNamespaces);
         var toolSnapshot = await agentFactory.BuildToolSnapshotAsync(
             snapshotSources,
             planningContext,

@@ -1,7 +1,7 @@
 import { vi } from 'vitest'
 import type { NewTaskPromptMode } from '../../shared/threadTasks'
 import {
-  DESKTOP_THREAD_TOOL_NAMESPACE,
+  DESKTOP_CONVERSATION_TOOL_NAMESPACE,
   handleDesktopRuntimeThreadToolCall,
   type AppServerRequestClient,
   type DynamicToolCallResult
@@ -50,7 +50,7 @@ export function createHarness(options: { handler?: Handler; filePath?: string | 
     notifyOffer,
     setMode: (next) => { mode = next },
     call: (args, turnId = 'turn-1', tool = 'CreateThread') => handleDesktopRuntimeThreadToolCall(client, {
-      namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
+      namespace: DESKTOP_CONVERSATION_TOOL_NAMESPACE,
       tool,
       threadId: PARENT,
       turnId,
