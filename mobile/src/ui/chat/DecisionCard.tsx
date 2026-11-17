@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { StyleSheet, View } from 'react-native'
 import type { Decision } from '../../core/decisions'
 import { useI18n } from '../../i18n'
@@ -9,15 +8,9 @@ import { ApprovalBody, PlanBody, QuestionBody, type DecisionActions } from './De
 export function DecisionCard({ decision, count, disabled, actions }: { decision: Decision; count: number; disabled: boolean; actions: DecisionActions }) {
   const { t } = useI18n()
   const { colors } = useTheme()
-  const [editing, setEditing] = useState(false)
 
   return (
-    <View
-      style={[
-        styles.card,
-        { backgroundColor: colors.composerInputBackground, borderColor: editing ? colors.composerFocusBorder : colors.composerInputBorder },
-      ]}
-    >
+    <View style={[styles.card, { backgroundColor: colors.composerInputBackground, borderColor: colors.composerInputBorder }]}>
       {count > 1 ? (
         <Txt variant="meta" tone="dimmed" style={styles.count}>
           {t('decision.count', { index: 1, count })}
@@ -26,9 +19,9 @@ export function DecisionCard({ decision, count, disabled, actions }: { decision:
       {decision.kind === 'approval' ? (
         <ApprovalBody request={decision} disabled={disabled} actions={actions} />
       ) : decision.kind === 'question' ? (
-        <QuestionBody request={decision} disabled={disabled} actions={actions} onEditing={setEditing} />
+        <QuestionBody request={decision} disabled={disabled} actions={actions} />
       ) : (
-        <PlanBody disabled={disabled} actions={actions} onEditing={setEditing} />
+        <PlanBody disabled={disabled} actions={actions} />
       )}
     </View>
   )

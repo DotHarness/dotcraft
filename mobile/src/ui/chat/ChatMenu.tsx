@@ -29,7 +29,7 @@ function RenameForm({ title, onSave }: { title: string; onSave: (title: string) 
         accessibilityLabel={t('chat.rename')}
         placeholder={t('chat.untitled')}
         placeholderTextColor={colors.composerPlaceholder}
-        style={[type.text, styles.input, { color: colors.textPrimary, borderColor: colors.accent, backgroundColor: colors.bgSecondary }]}
+        style={[type.text, styles.input, { color: colors.textPrimary, borderColor: colors.borderDefault, backgroundColor: colors.bgSecondary }]}
       />
       <PhoneButton disabled={!name || name === title} onPress={save}>
         {t('common.save')}

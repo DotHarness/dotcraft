@@ -89,7 +89,6 @@ export function Composer({
   const [draft, setDraft] = useState<MessageDraft>(initialDraft)
   const [cursor, setCursor] = useState<number | null>(null)
   const [selection, setSelection] = useState<{ start: number; end: number } | undefined>(undefined)
-  const [focused, setFocused] = useState(false)
   const [sending, setSending] = useState(pendingSend !== undefined)
   const [notice, setNotice] = useState<{ text: string; retry: boolean } | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -269,7 +268,7 @@ export function Composer({
         style={[
           styles.card,
           {
-            borderColor: focused ? colors.composerFocusBorder : colors.composerInputBorder,
+            borderColor: colors.composerInputBorder,
             backgroundColor: colors.composerInputBackground,
             boxShadow: colors.shadow1,
           },
@@ -297,8 +296,6 @@ export function Composer({
             setCursor(nativeEvent.selection.end)
             setSelection(undefined)
           }}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
           placeholder={t(planMode && canPlan ? 'composer.placeholderPlan' : 'composer.placeholder')}
           placeholderTextColor={colors.composerPlaceholder}
           accessibilityLabel={t('composer.message')}

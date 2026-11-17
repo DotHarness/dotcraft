@@ -82,7 +82,6 @@ function InputRow({
   secret,
   disabled,
   onFocus,
-  onBlur,
   onChange,
 }: {
   index: number
@@ -92,7 +91,6 @@ function InputRow({
   secret: boolean
   disabled: boolean
   onFocus: () => void
-  onBlur?: () => void
   onChange: (value: string) => void
 }) {
   const { colors } = useTheme()
@@ -113,7 +111,6 @@ function InputRow({
           multiline={!secret}
           secureTextEntry={secret}
           onFocus={onFocus}
-          onBlur={onBlur}
           onChangeText={onChange}
           placeholder={placeholder}
           placeholderTextColor={colors.composerPlaceholder}
@@ -242,12 +239,10 @@ export function QuestionBody({
   request,
   disabled,
   actions,
-  onEditing,
 }: {
   request: Question
   disabled: boolean
   actions: DecisionActions
-  onEditing: (editing: boolean) => void
 }) {
   const { t } = useI18n()
   const [page, setPage] = useState(0)
@@ -320,11 +315,7 @@ export function QuestionBody({
             selected={choice.option === otherIndex}
             secret={question.isSecret === true}
             disabled={disabled}
-            onFocus={() => {
-              choose({ option: otherIndex })
-              onEditing(true)
-            }}
-            onBlur={() => onEditing(false)}
+            onFocus={() => choose({ option: otherIndex })}
             onChange={(other) => choose({ option: otherIndex, other })}
           />
         ) : null}
@@ -342,7 +333,7 @@ export function QuestionBody({
   )
 }
 
-export function PlanBody({ disabled, actions, onEditing }: { disabled: boolean; actions: DecisionActions; onEditing: (editing: boolean) => void }) {
+export function PlanBody({ disabled, actions }: { disabled: boolean; actions: DecisionActions }) {
   const { t } = useI18n()
   const [text, setText] = useState('')
   const [selected, setSelected] = useState(0)
@@ -377,11 +368,7 @@ export function PlanBody({ disabled, actions, onEditing }: { disabled: boolean; 
           selected={selected === 1}
           secret={false}
           disabled={disabled || busy}
-          onFocus={() => {
-            setSelected(1)
-            onEditing(true)
-          }}
-          onBlur={() => onEditing(false)}
+          onFocus={() => setSelected(1)}
           onChange={setText}
         />
       </Choices>

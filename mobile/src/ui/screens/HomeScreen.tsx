@@ -188,7 +188,7 @@ function ComputerHome() {
       >
         {searching ? (
           <View style={styles.searchRow}>
-            <View style={[styles.search, { borderColor: colors.accent, backgroundColor: colors.bgSecondary }]}>
+            <View style={[styles.search, { borderColor: colors.borderDefault, backgroundColor: colors.bgSecondary }]}>
               <Icon name="search" size={18} color={colors.textSecondary} />
               <TextInput
                 value={query}

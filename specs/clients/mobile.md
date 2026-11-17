@@ -132,6 +132,9 @@ lifted by 0.5% of the ink to the background darkened by 20% black; in light, its
 the composer dock, and the system bars take the surface colour at their edge, and the jump-to-latest
 control uses that surface at 70% with a hairline and no shadow, so it reads as the background.
 
+Fields follow Desktop's quiet focus: the composer, the decision card, search, and Rename keep their
+resting frame while focused or typing, and the caret is the focus cue. No field turns accent.
+
 ### 6.3 Working with a chat
 
 - The phone lists and starts chats under the Desktop channel identity, so a chat started on either
