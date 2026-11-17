@@ -1,7 +1,6 @@
 import { type CSSProperties, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import {
   useUIStore,
-  SIDEBAR_COLLAPSED_WIDTH,
   SIDEBAR_MIN_WIDTH,
   DETAIL_MIN_WIDTH,
   DETAIL_DEFAULT_WIDTH_RATIO,
@@ -14,6 +13,14 @@ import { ConversationTargetWidthContext } from '../../contexts/ConversationLayou
 import { prefersReducedMotion } from '../../utils/appearance'
 import { DragHandle } from './DragHandle'
 import { ResizeEdgeGlow } from './ResizeEdgeGlow'
+import {
+  cancelSidebarPeekOpen,
+  closeSidebarPeek,
+  openSidebarPeekSoon,
+  useSidebarPeekDismiss,
+  useSidebarPeekStore
+} from './sidebarPeek'
+import css from './ThreePanel.module.css'
 
 interface ThreePanelProps {
   sidebar: ReactNode
@@ -80,7 +87,17 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
 
   const effectiveDetailPanelVisible = isDetailPanelEffectivelyVisible(activeMainView, detailPanelVisible)
 
-  const effectiveSidebarWidth = sidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH : sidebarWidth
+  const sidebarPanelRef = useRef<HTMLDivElement>(null)
+  const peekOpen = useSidebarPeekStore((s) => s.open)
+  const peeking = sidebarCollapsed && peekOpen
+  // Docking a visible peek leaves the panel in place instead of sliding the shell open.
+  const dockingFromPeek = !sidebarCollapsed && peekOpen
+  useSidebarPeekDismiss(peeking, sidebarPanelRef)
+  useEffect(() => {
+    if (dockingFromPeek) closeSidebarPeek()
+  }, [dockingFromPeek])
+
+  const effectiveSidebarWidth = sidebarCollapsed ? 0 : sidebarWidth
 
   const fallbackMainSurfaceWidth = window.innerWidth - effectiveSidebarWidth
   const mainSurfaceWidth = observedMainSurfaceWidth ?? fallbackMainSurfaceWidth
@@ -163,7 +180,7 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
 
   const handleDetailDrag = useCallback((delta: number) => {
     const state = useUIStore.getState()
-    const sidebar = state.sidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH : state.sidebarWidth
+    const sidebar = state.sidebarCollapsed ? 0 : state.sidebarWidth
     const currentMainSurfaceWidth = mainSurfaceWidthRef.current ?? window.innerWidth - sidebar
     const maxDetailWidth = resolveMaxDetailPanelWidth(currentMainSurfaceWidth)
     const currentDetailWidth = resolveDetailPanelWidth(
@@ -198,16 +215,20 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
           width: `${effectiveSidebarWidth}px`,
           minWidth: `${effectiveSidebarWidth}px`,
           flexShrink: 0,
-          overflow: 'visible',
-          position: 'relative',
-          transition:
-            resizingEdge === 'sidebar' ? 'none' : 'width 200ms ease-out, min-width 200ms ease-out',
-          display: 'flex',
-          flexDirection: 'column',
-          boxSizing: 'border-box'
+          transition: resizingEdge === 'sidebar' || dockingFromPeek
+            ? 'none'
+            : 'width 200ms ease-out, min-width 200ms ease-out'
         }}
+      />
+      <div
+        ref={sidebarPanelRef}
+        className={css.sidebarPanel}
+        data-collapsed={sidebarCollapsed || undefined}
+        data-peek={peeking || undefined}
+        inert={sidebarCollapsed && !peeking}
+        style={{ width: `${sidebarWidth}px` }}
       >
-        {isMac && (
+        {isMac && !sidebarCollapsed && (
           <div
             data-testid="mac-sidebar-safe-area"
             onDoubleClick={() => {
@@ -223,6 +244,14 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
         )}
         {sidebar}
       </div>
+      {sidebarCollapsed && (
+        <div
+          className={css.peekEdge}
+          aria-hidden="true"
+          onPointerEnter={openSidebarPeekSoon}
+          onPointerLeave={cancelSidebarPeekOpen}
+        />
+      )}
 
       {!sidebarCollapsed && (
         <DragHandle
@@ -249,7 +278,7 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'row',
-          borderRadius: '14px 0 0 14px',
+          borderRadius: sidebarCollapsed ? 0 : '14px 0 0 14px',
           boxShadow: 'var(--main-surface-frame-shadow)'
         }}
       >

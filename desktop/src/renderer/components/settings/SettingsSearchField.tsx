@@ -6,21 +6,15 @@ import { Input } from '../ui/Input'
 
 export function SettingsSearchField({
   value,
-  autoFocus = false,
   onChange,
   onKeyDown
 }: {
   value: string
-  autoFocus?: boolean
   onChange: (value: string) => void
   onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void
 }): JSX.Element {
   const t = useT()
   const inputRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    if (autoFocus) inputRef.current?.focus()
-  }, [autoFocus])
 
   useEffect(() => {
     const focusSearch = (event: globalThis.KeyboardEvent): void => {

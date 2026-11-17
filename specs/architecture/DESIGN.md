@@ -1,5 +1,5 @@
 ---
-version: "0.12.2"
+version: "0.13.0"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 colors:
@@ -158,7 +158,8 @@ overlay. Navigation and menus may use the remaining title-bar area but must
 reserve the overlay's safe area. The overlay is transparent and its symbols follow
 the active theme. When the top-level menus no longer fit, they collapse to one
 entry that opens the same application menu. Linux uses custom caption controls;
-macOS keeps its native traffic lights.
+macOS keeps its native traffic lights. While the sidebar is collapsed, macOS shows
+a 36px title strip with the sidebar toggle after the traffic lights.
 
 ## Color
 
@@ -362,6 +363,30 @@ Desktop surfaces favor dense but organized operational layouts.
   same width and centering as the rows, cards, or grid it sits above, never the
   full content box. Elements that share a column read its width from one place.
 
+### Collapsed sidebar
+
+Collapsing hides the sidebar entirely instead of leaving an icon rail, so the
+conversation takes the full window width and its surface meets the window edge
+without the leading corner radius. A window below the narrow breakpoint collapses
+the same way.
+
+While collapsed, the sidebar peeks. Resting the pointer on the sidebar toggle or
+on the window's leading edge for 100ms slides the full sidebar in over the
+conversation as an elevated panel: the opaque elevated surface with its shadow, a
+10px radius, and 6px from the window edges. It carries the same content and
+interactions as the docked sidebar.
+
+- The panel stays while the pointer is within the sidebar's width, measured at its
+  final position so a pointer that outruns the slide-in does not dismiss it, and
+  while a menu opened from the panel is showing.
+- Moving past that width or leaving the window closes it after 180ms. Escape or a
+  press outside the panel closes it at once.
+- Activating the toggle while the panel shows docks the sidebar in place without
+  replaying the slide. The keyboard shortcut docks or collapses directly and never
+  peeks.
+- While collapsed, the toggle's tooltip opens beside it rather than below, so it
+  never covers the panel.
+
 ### View color assignment
 
 | Surface | Main visual color | Emphasis |
@@ -545,9 +570,9 @@ reduced motion snaps.
 
 ### Sidebar selection
 
-The current sidebar destination looks the same in the expanded rows and the
-collapsed rail: `--sidebar-control-active` behind it and `--text-primary` on its
-icon and label. Accent never marks the current destination.
+The current sidebar destination takes `--sidebar-control-active` behind it and
+`--text-primary` on its icon and label. Accent never marks the current
+destination.
 
 A thread row takes `--sidebar-control-active` on click, without a transition, so
 opening a thread in another project never dims and relights the row. A project
@@ -555,16 +580,15 @@ title uses `--text-primary` while its workspace is started and `--text-secondary
 only while it is stopped. Local and remote project icons use `--text-primary`
 while started, matching the project title, and `--text-tertiary` while stopped.
 Connecting and healthy projects show no status badge. Foreground and background
-project folders share the same presentation in expanded rows and the collapsed
-rail, without a selected background, brighter icon, or accent ring. Loading details
-remain available in the expanded sidebar's hover card. Error and stopped indicators
+project folders share one presentation, without a selected background, brighter
+icon, or accent ring. Loading details remain available in the sidebar's hover
+card. Error and stopped indicators
 remain visible; thread activity and selection keep their own feedback.
 
 ### Navigation icon motion
 
-Sidebar destinations answer hover and keyboard focus with one short glyph motion,
-in the expanded rows and the collapsed rail alike. The row and its hit target
-never move; one part of the glyph does, for 340–720ms:
+Sidebar destinations answer hover and keyboard focus with one short glyph motion.
+The row and its hit target never move; one part of the glyph does, for 340–720ms:
 
 | Destination | Motion |
 | --- | --- |
@@ -584,7 +608,7 @@ never move; one part of the glyph does, for 340–720ms:
 - Disabled rows stay still; the current destination still answers. Content rows
   (projects, threads, chats) keep static icons.
 - A plugin destination may join under the same contract. The Host marks every
-  destination row and rail button with `data-nav-icon-host`, and the plugin's
+  destination row with `data-nav-icon-host`, and the plugin's
   stylesheet keys its motion off that ancestor's hover and focus-visible states.
 - Motion moves parts; it does not reshape them. Judge it at 16px: a part that
   appears arrives on opacity rather than hopping pixel rows and is at least 2.5

@@ -3,7 +3,7 @@ import { useUIStore } from '../stores/uiStore'
 
 const BREAKPOINT_FULL = 1250       // >= 1250px: all three panels visible
 const BREAKPOINT_NO_DETAIL = 900   // 900-1249px: detail panel auto-collapses
-// < 900px: sidebar collapses to icon-only
+// < 900px: sidebar collapses
 
 /** Applies the breakpoint rules from spec §8.2 on resize. */
 export function useResponsiveLayout(): void {

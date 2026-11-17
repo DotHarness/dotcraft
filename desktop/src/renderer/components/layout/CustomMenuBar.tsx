@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react'
-import { Download, Menu, Minus, PanelLeftClose, PanelLeftOpen, Square, X } from 'lucide-react'
+import { Download, Menu, Minus, Square, X } from 'lucide-react'
 import { Spinner } from '../ui/Spinner'
 
 import { TITLE_BAR_OVERLAY_HEIGHT } from '../../../shared/titleBarOverlay'
@@ -7,12 +7,10 @@ import { TOP_LEVEL_MENU_IDS, type TopLevelMenuId } from '../../../shared/locales
 import type { AppUpdateState } from '../../../shared/appUpdate'
 import { useT } from '../../contexts/LocaleContext'
 import { useWindowMaximized } from '../../hooks/useWindowMaximized'
-import { useUIStore } from '../../stores/uiStore'
 import { IconButton } from '../ui/IconButton'
-import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
-import { DotCraftLogo } from '../ui/DotCraftLogo'
 import { AppUpdateDialog } from '../update/AppUpdateDialog'
 import { AppNavigationControls } from './AppNavigationControls'
+import { SidebarToggleButton } from './SidebarToggleButton'
 import css from './CustomMenuBar.module.css'
 
 const dragRegion: CSSProperties = { WebkitAppRegion: 'drag' }
@@ -30,9 +28,6 @@ const MENU_LABEL_KEY: Record<TopLevelMenuId, 'menu.file' | 'menu.edit' | 'menu.v
 export function CustomMenuBar(): JSX.Element {
   const t = useT()
   const isWindows = window.api.platform === 'win32'
-  const sidebarCollapsed = useUIStore((s) => s.sidebarCollapsed)
-  const toggleSidebar = useUIStore((s) => s.toggleSidebar)
-  const [sidebarButtonHovered, setSidebarButtonHovered] = useState(false)
   const [collapsedMenus, setCollapsedMenus] = useState(false)
   const barRef = useRef<HTMLDivElement>(null)
   const prefixRef = useRef<HTMLDivElement>(null)
@@ -50,7 +45,6 @@ export function CustomMenuBar(): JSX.Element {
     void window.api.window.toggleMaximize()
   }, [])
 
-  const sidebarLabel = sidebarCollapsed ? t('sidebar.expandAria') : t('sidebar.collapseAria')
   const updateButtonVisible = Boolean(updateState.update) && (
     updateState.status === 'available' ||
     updateState.status === 'downloading' ||
@@ -113,22 +107,7 @@ export function CustomMenuBar(): JSX.Element {
       onDoubleClick={handleTitleBarDoubleClick}
     >
       <div ref={prefixRef} className={css.prefix}>
-        <IconButton
-        size={28}
-        label={sidebarLabel}
-        tooltipLabel={sidebarLabel}
-        shortcut={ACTION_SHORTCUTS.toggleSidebar}
-        tooltipPlacement="bottom"
-        onClick={toggleSidebar}
-        onMouseEnter={() => setSidebarButtonHovered(true)}
-        onMouseLeave={() => setSidebarButtonHovered(false)}
-        style={{ ...noDrag, margin: '0 4px' }}
-        icon={sidebarButtonHovered
-          ? sidebarCollapsed
-            ? <PanelLeftOpen size={16} aria-hidden="true" />
-            : <PanelLeftClose size={16} aria-hidden="true" />
-          : <DotCraftLogo size={20} />}
-        />
+        <SidebarToggleButton showBrand style={{ ...noDrag, margin: '0 4px' }} />
 
         <AppNavigationControls />
 

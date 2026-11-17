@@ -27,12 +27,7 @@ const MENU_ITEM_HEIGHT = 30
 const HOVER_OPEN_DELAY_MS = 120
 const HOVER_CLOSE_DELAY_MS = 220
 
-interface SidebarMoreMenuProps {
-  destinations: SidebarDestination[]
-  variant: 'row' | 'icon'
-}
-
-export function SidebarMoreMenu({ destinations, variant }: SidebarMoreMenuProps): JSX.Element | null {
+export function SidebarMoreMenu({ destinations }: { destinations: SidebarDestination[] }): JSX.Element | null {
   const t = useT()
   const setPinned = useSidebarDestinationsStore((s) => s.setPinned)
   const layerDepth = useContext(LayerContext)
@@ -153,49 +148,30 @@ export function SidebarMoreMenu({ destinations, variant }: SidebarMoreMenuProps)
 
   if (destinations.length === 0) return null
 
-  const triggerProps = {
-    ref: triggerRef,
-    'aria-haspopup': 'menu' as const,
-    'aria-expanded': open != null,
-    onClick: () => {
-      clearTimers()
-      setOpen((current) => (current === 'click' ? null : 'click'))
-    },
-    onKeyDown: handleTriggerKeyDown,
-    onPointerEnter: handlePointerEnter,
-    onPointerLeave: handlePointerLeave
-  }
-
-  const trigger = variant === 'icon'
-    ? (
-      <IconButton
-        {...triggerProps}
-        data-testid="nav-more"
-        icon={<MoreHorizontal size={16} strokeWidth={2} aria-hidden />}
-        label={label}
-        tooltipLabel={label}
-        tooltipPlacement="right"
-        size={32}
-        radius={8}
-        className="dc-sidebar-icon-button"
-        active={active || open != null}
-      />
-    )
-    : (
-      <button
-        {...triggerProps}
-        type="button"
-        data-testid="nav-more"
-        className="dotcraft-sidebar-nav-button dotcraft-sidebar-row-radius"
-        data-active={active || open != null ? 'true' : undefined}
-        style={{ ...SIDEBAR_NAV_ROW_OUTER, ...SIDEBAR_NAV_BORDER_INACTIVE }}
-      >
-        <span style={SIDEBAR_NAV_ICON_SLOT}>
-          <MoreHorizontal size={16} strokeWidth={2} aria-hidden />
-        </span>
-        <span style={{ ...SIDEBAR_NAV_LABEL, overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
-      </button>
-    )
+  const trigger = (
+    <button
+      ref={triggerRef}
+      type="button"
+      data-testid="nav-more"
+      aria-haspopup="menu"
+      aria-expanded={open != null}
+      className="dotcraft-sidebar-nav-button dotcraft-sidebar-row-radius"
+      data-active={active || open != null ? 'true' : undefined}
+      style={{ ...SIDEBAR_NAV_ROW_OUTER, ...SIDEBAR_NAV_BORDER_INACTIVE }}
+      onClick={() => {
+        clearTimers()
+        setOpen((current) => (current === 'click' ? null : 'click'))
+      }}
+      onKeyDown={handleTriggerKeyDown}
+      onPointerEnter={handlePointerEnter}
+      onPointerLeave={handlePointerLeave}
+    >
+      <span style={SIDEBAR_NAV_ICON_SLOT}>
+        <MoreHorizontal size={16} strokeWidth={2} aria-hidden />
+      </span>
+      <span style={{ ...SIDEBAR_NAV_LABEL, overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+    </button>
+  )
 
   const menu = open && createPortal(
     <div

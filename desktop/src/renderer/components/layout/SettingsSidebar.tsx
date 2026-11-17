@@ -1,5 +1,5 @@
-import { Fragment, useState, type CSSProperties, type JSX, type KeyboardEvent } from 'react'
-import { ArrowLeft, Search } from 'lucide-react'
+import { useState, type CSSProperties, type JSX, type KeyboardEvent } from 'react'
+import { ArrowLeft } from 'lucide-react'
 
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { useConnectionStore } from '../../stores/connectionStore'
@@ -11,7 +11,6 @@ import {
   useDesktopPluginRegistry
 } from '../../plugins/desktopPluginRegistry'
 import { resolveDesktopPluginIcon } from '../desktopPlugins/DesktopPluginIcon'
-import { IconButton } from '../ui/IconButton'
 import { projectLabel, useWorkspaceProjectChoices } from '../conversation/workspaceProjectMenu'
 import { SettingsSearchField } from '../settings/SettingsSearchField'
 import {
@@ -33,8 +32,6 @@ export function SettingsSidebar(): JSX.Element {
   const t = useT()
   const locale = useLocale()
   const capabilities = useConnectionStore((s) => s.capabilities)
-  const sidebarCollapsed = useUIStore((s) => s.sidebarCollapsed)
-  const setSidebarCollapsed = useUIStore((s) => s.setSidebarCollapsed)
   const activeSettingsTab = useUIStore((s) => s.activeSettingsTab)
   const activeSidebarTab = activeSettingsTab === 'dreams' || activeSettingsTab === 'subAgents'
     ? 'personalization'
@@ -43,7 +40,6 @@ export function SettingsSidebar(): JSX.Element {
   const requestCloseSettings = useUIStore((s) => s.requestCloseSettings)
   const [query, setQuery] = useState('')
   const [highlight, setHighlight] = useState(-1)
-  const [focusSearch, setFocusSearch] = useState(false)
 
   const tabs = buildSettingsTabs(t, {
     sourceControlEnabled: capabilities?.sourceControlManagement === true,
@@ -89,60 +85,6 @@ export function SettingsSidebar(): JSX.Element {
     }
   }
 
-  if (sidebarCollapsed) {
-    return (
-      <div style={collapsedContainerStyle}>
-        <IconButton
-          size={32}
-          radius={8}
-          className="dc-sidebar-icon-button"
-          label={t('common.backToApp')}
-          tooltipLabel={t('common.backToApp')}
-          tooltipPlacement="right"
-          onClick={requestCloseSettings}
-          icon={<ArrowLeft size={16} aria-hidden="true" />}
-        />
-        <IconButton
-          size={32}
-          radius={8}
-          className="dc-sidebar-icon-button"
-          label={t('settings.search.label')}
-          tooltipLabel={t('settings.search.label')}
-          tooltipPlacement="right"
-          onClick={() => {
-            setFocusSearch(true)
-            setSidebarCollapsed(false)
-          }}
-          icon={<Search size={16} aria-hidden="true" />}
-        />
-
-        {tabs.map((tab, index) => {
-          const active = activeSidebarTab === tab.id
-          const TabIcon = tab.icon
-          const firstWorkspaceTab = tab.group === 'workspace' && tabs[index - 1]?.group !== 'workspace'
-          return (
-            <Fragment key={tab.id}>
-              {firstWorkspaceTab && <SettingsWorkspacePicker collapsed />}
-              <IconButton
-                size={32}
-                radius={8}
-                className="dc-sidebar-icon-button"
-                label={tab.label}
-                tooltipLabel={tab.label}
-                tooltipPlacement="right"
-                active={active}
-                onClick={() => setActiveSettingsTab(tab.id)}
-                onPointerEnter={active ? undefined : () => prefetchSettingsPanel(tab.id)}
-                onFocus={active ? undefined : () => prefetchSettingsPanel(tab.id)}
-                icon={<TabIcon size={16} aria-hidden="true" />}
-              />
-            </Fragment>
-          )
-        })}
-      </div>
-    )
-  }
-
   return (
     <div style={expandedContainerStyle}>
       <button
@@ -160,7 +102,6 @@ export function SettingsSidebar(): JSX.Element {
 
       <SettingsSearchField
         value={query}
-        autoFocus={focusSearch}
         onChange={(next) => {
           setQuery(next)
           setHighlight(-1)
@@ -259,16 +200,6 @@ const expandedContainerStyle: CSSProperties = {
   minHeight: 0,
   padding: '4px 0 10px',
   gap: '4px',
-  overflow: 'hidden'
-}
-
-const collapsedContainerStyle: CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  height: '100%',
-  padding: '8px 0',
-  gap: '6px',
   overflow: 'hidden'
 }
 

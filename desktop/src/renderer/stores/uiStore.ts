@@ -25,7 +25,6 @@ export type { PendingProjectThreadOpen, PendingProjectThreadOpenInput } from './
 
 const SIDEBAR_DEFAULT_WIDTH = 240
 const SIDEBAR_MIN_WIDTH = 200
-const SIDEBAR_COLLAPSED_WIDTH = 48
 
 const DETAIL_DEFAULT_WIDTH = 600
 const DETAIL_MIN_WIDTH = 300
@@ -625,7 +624,6 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
 export {
   SIDEBAR_DEFAULT_WIDTH,
   SIDEBAR_MIN_WIDTH,
-  SIDEBAR_COLLAPSED_WIDTH,
   DETAIL_DEFAULT_WIDTH,
   DETAIL_MIN_WIDTH,
   DETAIL_DEFAULT_MAIN_SURFACE_WIDTH,

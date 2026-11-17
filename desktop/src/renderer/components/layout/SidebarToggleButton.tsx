@@ -1,0 +1,44 @@
+import { useState, type CSSProperties } from 'react'
+import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { useT } from '../../contexts/LocaleContext'
+import { useUIStore } from '../../stores/uiStore'
+import { DotCraftLogo } from '../ui/DotCraftLogo'
+import { IconButton } from '../ui/IconButton'
+import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
+import { cancelSidebarPeekOpen, openSidebarPeekSoon } from './sidebarPeek'
+
+export function SidebarToggleButton({ showBrand = false, style }: {
+  showBrand?: boolean
+  style?: CSSProperties
+}): JSX.Element {
+  const t = useT()
+  const collapsed = useUIStore((s) => s.sidebarCollapsed)
+  const toggleSidebar = useUIStore((s) => s.toggleSidebar)
+  const [hovered, setHovered] = useState(false)
+  const label = collapsed ? t('sidebar.expandAria') : t('sidebar.collapseAria')
+  const icon = collapsed
+    ? <PanelLeftOpen size={16} aria-hidden="true" />
+    : <PanelLeftClose size={16} aria-hidden="true" />
+
+  return (
+    <IconButton
+      data-sidebar-toggle=""
+      size={28}
+      label={label}
+      tooltipLabel={label}
+      shortcut={ACTION_SHORTCUTS.toggleSidebar}
+      tooltipPlacement={collapsed ? 'right' : 'bottom'}
+      onClick={toggleSidebar}
+      onPointerEnter={() => {
+        setHovered(true)
+        if (collapsed) openSidebarPeekSoon()
+      }}
+      onPointerLeave={() => {
+        setHovered(false)
+        cancelSidebarPeekOpen()
+      }}
+      style={style}
+      icon={showBrand && !hovered ? <DotCraftLogo size={20} /> : icon}
+    />
+  )
+}

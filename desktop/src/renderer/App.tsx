@@ -56,6 +56,7 @@ import { isDefaultChatWorkspacePathCandidate } from '../shared/defaultChatWorksp
 import { useSideChatStore } from './stores/sideChatStore'
 import { openActiveSideChat, toggleSideChatFocus } from './utils/sideChat'
 import { CustomMenuBar } from './components/layout/CustomMenuBar'
+import { MacSidebarTitleBar } from './components/layout/MacSidebarTitleBar'
 import { Sidebar } from './components/layout/Sidebar'
 import { SettingsSidebar } from './components/layout/SettingsSidebar'
 import { ConversationPanel } from './components/layout/ConversationPanel'
@@ -355,7 +356,7 @@ function AppChrome({ children }: { children: ReactNode }): JSX.Element {
         overflow: 'hidden'
       }}
     >
-      {showCustomMenu && <CustomMenuBar />}
+      {showCustomMenu ? <CustomMenuBar /> : <MacSidebarTitleBar />}
       <div
         style={{
           flex: 1,

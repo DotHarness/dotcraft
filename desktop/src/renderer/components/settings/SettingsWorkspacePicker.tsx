@@ -20,13 +20,12 @@ import {
   SIDEBAR_NAV_ICON_SLOT,
   SIDEBAR_NAV_ROW_OUTER
 } from '../sidebar/sidebarNavRowStyles'
-import { IconButton } from '../ui/IconButton'
 import { Spinner } from '../ui/Spinner'
 
 const MENU_GAP = 6
 const MENU_HEIGHT_ESTIMATE = 300
 
-export function SettingsWorkspacePicker({ collapsed = false }: { collapsed?: boolean }): JSX.Element | null {
+export function SettingsWorkspacePicker(): JSX.Element | null {
   const t = useT()
   const workspacePath = useWorkspaceProjectsStore((s) => s.foregroundWorkspacePath)
   const choices = useWorkspaceProjectChoices(workspacePath)
@@ -64,39 +63,24 @@ export function SettingsWorkspacePicker({ collapsed = false }: { collapsed?: boo
 
   return (
     <div ref={anchorRef}>
-      {collapsed ? (
-        <IconButton
-          size={32}
-          radius={8}
-          className="dc-sidebar-icon-button"
-          label={switchLabel}
-          tooltipLabel={name}
-          tooltipPlacement="right"
-          active={open}
-          disabled={switchingTo !== null}
-          onClick={() => setOpen((current) => !current)}
-          icon={icon}
-        />
-      ) : (
-        <button
-          type="button"
-          className="dotcraft-sidebar-nav-button dotcraft-sidebar-row-radius"
-          aria-label={switchLabel}
-          aria-haspopup="menu"
-          aria-expanded={open}
-          aria-busy={switchingTo !== null}
-          disabled={switchingTo !== null}
-          title={name}
-          onClick={() => setOpen((current) => !current)}
-          style={rowStyle}
-        >
-          <span style={SIDEBAR_NAV_ICON_SLOT}>{icon}</span>
-          <span style={nameStyle}>{name}</span>
-          <ChevronsUpDown size={14} strokeWidth={1.8} aria-hidden style={chevronStyle} />
-        </button>
-      )}
+      <button
+        type="button"
+        className="dotcraft-sidebar-nav-button dotcraft-sidebar-row-radius"
+        aria-label={switchLabel}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-busy={switchingTo !== null}
+        disabled={switchingTo !== null}
+        title={name}
+        onClick={() => setOpen((current) => !current)}
+        style={rowStyle}
+      >
+        <span style={SIDEBAR_NAV_ICON_SLOT}>{icon}</span>
+        <span style={nameStyle}>{name}</span>
+        <ChevronsUpDown size={14} strokeWidth={1.8} aria-hidden style={chevronStyle} />
+      </button>
       {open && (
-        <WorkspaceMenu anchorRef={anchorRef} side={collapsed ? 'right' : 'below'} onClose={() => setOpen(false)}>
+        <WorkspaceMenu anchorRef={anchorRef} onClose={() => setOpen(false)}>
           <WorkspaceProjectMenuItems
             choices={choices}
             addBusy={addProject.busy}
@@ -115,12 +99,10 @@ export function SettingsWorkspacePicker({ collapsed = false }: { collapsed?: boo
 
 function WorkspaceMenu({
   anchorRef,
-  side,
   onClose,
   children
 }: {
   anchorRef: { current: HTMLElement | null }
-  side: 'below' | 'right'
   onClose: () => void
   children: JSX.Element
 }): JSX.Element | null {
@@ -130,14 +112,12 @@ function WorkspaceMenu({
   useLayoutEffect(() => {
     const anchor = anchorRef.current?.getBoundingClientRect()
     if (!anchor) return
-    if (side === 'right') {
-      setPosition({ left: anchor.right + MENU_GAP, top: anchor.top, bottom: 'auto' })
-    } else if (window.innerHeight - anchor.bottom < MENU_HEIGHT_ESTIMATE) {
+    if (window.innerHeight - anchor.bottom < MENU_HEIGHT_ESTIMATE) {
       setPosition({ left: anchor.left + 4, bottom: window.innerHeight - anchor.top + MENU_GAP })
     } else {
       setPosition({ left: anchor.left + 4, top: anchor.bottom + MENU_GAP, bottom: 'auto' })
     }
-  }, [anchorRef, side])
+  }, [anchorRef])
 
   useEffect(() => {
     const onPointerDown = (event: MouseEvent): void => {
