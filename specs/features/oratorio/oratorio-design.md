@@ -111,6 +111,9 @@ is `http://127.0.0.1:5087`. Explicit database and configuration paths apply when
 a state root is unspecified. Service credentials come from environment or
 configuration. The service publishes readiness after database initialization
 and listener startup, and releases owned resources on startup failure or shutdown.
+Console diagnostics use a bounded queue whose default full-queue policy drops new
+messages instead of blocking application work. Standard
+`Logging:Console:QueueFullMode` configuration may explicitly override this default.
 
 ## 3. Lifecycle Contract
 

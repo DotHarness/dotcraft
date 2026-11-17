@@ -1,6 +1,8 @@
 using DotCraft.Oratorio.Data;
 using DotCraft.Oratorio.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Console;
+using Microsoft.Extensions.Options;
 
 namespace DotCraft.Oratorio.Hosting;
 
@@ -20,6 +22,9 @@ public static partial class OratorioApplication
             EnvironmentName = options.EnvironmentName,
             Args = []
         });
+        // Apply the default before the console provider binds explicit configuration.
+        builder.Services.Insert(0, ServiceDescriptor.Singleton<IConfigureOptions<ConsoleLoggerOptions>>(
+            new ConfigureOptions<ConsoleLoggerOptions>(console => console.QueueFullMode = ConsoleLoggerQueueFullMode.DropWrite)));
         var inputs = new Dictionary<string, string?>();
         if (!string.IsNullOrWhiteSpace(options.StateRoot))
             inputs[StateRootKey] = Path.GetFullPath(options.StateRoot);
