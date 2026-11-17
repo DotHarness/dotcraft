@@ -109,7 +109,9 @@ public sealed partial class SessionService
             await new SessionProviderHistorySink(persistence).ReplaceAsync(
                 inherited.Identity,
                 inherited.CoveredThroughTurnId,
-                ProviderHistoryReasons.ForkNativeCompaction,
+                inherited.IsNativeCompacted
+                    ? ProviderHistoryReasons.ForkNativeCompaction
+                    : ProviderHistoryReasons.Fork,
                 inherited.Items,
                 ct);
         }
