@@ -29,6 +29,7 @@ function windowFiles(ownerId: number, getRoot: () => string) {
   const bind = () => registerWorkspaceFileHandlers({
     owner: { webContents: { id: ownerId } },
     workspacePath: getRoot(),
+    getWireClient: () => null,
     callbacks: { getSettings: () => ({ locale: 'en' }) },
     handleSafe: (channel, listener) => { handlers.set(channel, listener) }
   } as WindowIpcContext)

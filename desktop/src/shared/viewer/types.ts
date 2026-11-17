@@ -150,25 +150,22 @@ export interface SaveCopyAsParams {
   absolutePath: string
 }
 
-export interface ReadTextParams {
-  absolutePath: string
-  limitBytes?: number
-}
+export type ViewerFileOwner = { kind: 'local' } | { kind: 'remote'; connectionKey: string }
 
 export interface ReadTextParams {
   absolutePath: string
   limitBytes?: number
-  connectionKey?: string
+  owner?: ViewerFileOwner
 }
 
 export interface WatchTextParams {
   absolutePath: string
-  connectionKey?: string
+  owner?: ViewerFileOwner
 }
 
 export interface WriteTextParams {
   absolutePath: string
-  connectionKey?: string
+  owner?: ViewerFileOwner
   text: string
   expectedMtimeMs: number
   hasUtf8Bom: boolean

@@ -2,7 +2,7 @@ import { translate } from '../shared/locales'
 import { sameWorkspaceProjectKey } from '../shared/workspaceProjectKey'
 import type { ReadPresentationParams } from '../shared/viewer/presentation'
 import type { ReadSpreadsheetParams } from '../shared/viewer/spreadsheet'
-import type { ListDirParams, ReadTextParams, SaveCopyAsParams, WatchTextParams, WriteTextParams } from '../shared/viewer/types'
+import type { ListDirParams, ReadTextParams, SaveCopyAsParams, ViewerFileOwner, WatchTextParams, WriteTextParams } from '../shared/viewer/types'
 import { saveFileCopyAs } from './fileSaveAs'
 import { mainLocale, type WindowIpcContext } from './ipcBridgeContracts'
 import { assertPathWithinViewerRoots, assertWorkspaceOrChatFolder } from './ipcBridgePaths'
@@ -24,10 +24,11 @@ import { remoteViewerFilesFor, unwatchRemoteViewerFile } from './remoteViewerFil
 
 export function registerWorkspaceFileHandlers(context: WindowIpcContext): void {
   const { handleSafe, workspacePath, callbacks, owner } = context
-  const remoteFiles = (connectionKey?: string) => {
-    if (!connectionKey) return remoteViewerFilesFor(context.getWireClient())
-    const client = callbacks.getConnectionClient?.(connectionKey)
-    if (!client) throw new Error('The AppServer connection is no longer active.')
+  const remoteFiles = (owner?: ViewerFileOwner) => {
+    if (!owner) return remoteViewerFilesFor(context.getWireClient())
+    if (owner.kind === 'local') return null
+    const client = callbacks.getConnectionClient?.(owner.connectionKey)
+    if (!client?.isRemoteHost) throw new Error('The AppServer connection is no longer active.')
     return remoteViewerFilesFor(client)
   }
   handleSafe('workspace:create-pasted-text', async (_event, params: { text: string; workspacePath?: string }) => {
@@ -105,7 +106,7 @@ export function registerWorkspaceFileHandlers(context: WindowIpcContext): void {
   })
 
   handleSafe('workspace:viewer:read-text', async (_event, params: ReadTextParams) => {
-    const remote = remoteFiles(params.connectionKey)
+    const remote = remoteFiles(params.owner)
     if (remote) return remote.readText(params.absolutePath, params.limitBytes)
     if (!workspacePath) {
       throw new Error(translate(mainLocale(callbacks), 'ipc.noWorkspaceOpen'))
@@ -131,7 +132,7 @@ export function registerWorkspaceFileHandlers(context: WindowIpcContext): void {
   })
 
   handleSafe('workspace:viewer:write-text', async (_event, params: WriteTextParams) => {
-    const remote = remoteFiles(params.connectionKey)
+    const remote = remoteFiles(params.owner)
     if (remote) return remote.writeText(params)
     if (!workspacePath) {
       throw new Error(translate(mainLocale(callbacks), 'ipc.noWorkspaceOpen'))
@@ -145,7 +146,7 @@ export function registerWorkspaceFileHandlers(context: WindowIpcContext): void {
   handleSafe(
     'workspace:viewer:watch-text',
     async (event, params: WatchTextParams): Promise<{ subscriptionId: string }> => {
-      const remote = remoteFiles(params.connectionKey)
+      const remote = remoteFiles(params.owner)
       if (remote) return { subscriptionId: await remote.watch(event.sender, params.absolutePath) }
       if (!workspacePath) {
         throw new Error(translate(mainLocale(callbacks), 'ipc.noWorkspaceOpen'))

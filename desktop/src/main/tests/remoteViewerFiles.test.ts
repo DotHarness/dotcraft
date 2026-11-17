@@ -1,4 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import type { ReadTextResult } from '../../shared/viewer/types'
 import type { WindowIpcContext } from '../ipcBridgeContracts'
 import type { DesktopAppServerClient, NotificationCallback } from '../DesktopAppServerClient'
 
@@ -56,10 +60,10 @@ let ownerSeed = 9100
 const releases: Array<() => void> = []
 afterEach(() => { while (releases.length) releases.pop()!() })
 
-function handlersFor(client: DesktopAppServerClient, connections: Record<string, DesktopAppServerClient> = {}) {
+function handlersFor(client: DesktopAppServerClient, connections: Record<string, DesktopAppServerClient> = {}, workspacePath = 'C:\\local\\project') {
   const handlers = new Map<string, (event: unknown, params: unknown) => Promise<unknown>>()
   const context = {
-    workspacePath: 'C:\\local\\project',
+    workspacePath,
     owner: { webContents: { id: ++ownerSeed } },
     getWireClient: () => client,
     callbacks: {
@@ -69,6 +73,7 @@ function handlersFor(client: DesktopAppServerClient, connections: Record<string,
     },
     handleSafe: (channel: string, fn: never) => handlers.set(channel, fn)
   } as unknown as WindowIpcContext
+  releases.push(registerWindowFileAccess(context.owner.webContents.id, { getWorkspaceRoot: () => workspacePath }))
   registerWorkspaceFileHandlers(context)
   return (channel: string, params: unknown, event: unknown = {}) => handlers.get(channel)!(event, params)
 }
@@ -158,12 +163,34 @@ describe('remote viewer files', () => {
     const invoke = handlersFor(foreground.client, { 'host-a': opened.client })
     const write = { absolutePath: '/srv/app/notes.md', text: 'new', hasUtf8Bom: false, lineEnding: 'lf', expectedMtimeMs: 1000 }
 
-    expect(await invoke('workspace:viewer:write-text', { ...write, connectionKey: 'host-a' })).toMatchObject({ outcome: 'saved' })
+    expect(await invoke('workspace:viewer:write-text', { ...write, owner: { kind: 'remote', connectionKey: 'host-a' } })).toMatchObject({ outcome: 'saved' })
     expect(opened.disk.get('/srv/app/notes.md')!.bytes.toString()).toBe('new')
     expect(foreground.disk.get('/srv/app/notes.md')!.bytes.toString()).toBe('old')
 
-    await expect(invoke('workspace:viewer:write-text', { ...write, connectionKey: 'host-gone' })).rejects.toThrow()
+    await expect(invoke('workspace:viewer:write-text', { ...write, owner: { kind: 'remote', connectionKey: 'host-gone' } })).rejects.toThrow()
     expect(foreground.disk.get('/srv/app/notes.md')!.bytes.toString()).toBe('old')
+  })
+
+  it('keeps local reads, saves and watches on disk with an unavailable AppServer and a remote foreground', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'dotcraft-local-editor-'))
+    releases.push(() => rmSync(directory, { recursive: true, force: true }))
+    const absolutePath = join(directory, 'notes.md')
+    writeFileSync(absolutePath, 'old')
+    const host = remoteHost({ [absolutePath]: 'remote' })
+    const invoke = handlersFor(host.client, {}, directory)
+    const owner = { kind: 'local' }
+    const opened = await invoke('workspace:viewer:read-text', { absolutePath, owner }) as ReadTextResult
+    expect(opened.text).toBe('old')
+
+    const sender = { id: ++ownerSeed, send: vi.fn(), once: vi.fn(), removeListener: vi.fn(), isDestroyed: () => false }
+    const { subscriptionId } = await invoke('workspace:viewer:watch-text', { absolutePath, owner }, { sender }) as { subscriptionId: string }
+    releases.push(() => { void invoke('workspace:viewer:unwatch-text', { subscriptionId }, { sender }) })
+
+    expect(await invoke('workspace:viewer:write-text', {
+      absolutePath, owner, text: 'saved offline', expectedMtimeMs: opened.mtimeMs, hasUtf8Bom: false, lineEnding: 'lf'
+    })).toMatchObject({ outcome: 'saved' })
+    expect(readFileSync(absolutePath, 'utf8')).toBe('saved offline')
+    expect(host.sendRequest).not.toHaveBeenCalled()
   })
 
   it('serves host bytes for viewer URLs, including byte ranges', async () => {
