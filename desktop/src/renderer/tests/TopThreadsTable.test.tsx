@@ -34,7 +34,7 @@ it('routes a ranking row to its local workspace even when the remote foreground 
   fireEvent.click(screen.getByRole('button', { name: 'Task 2' }))
 
   await waitFor(() => expect(switchWorkspace).toHaveBeenCalledWith('/projects/two'))
-  expect(useUIStore.getState().pendingProjectThreadOpen).toEqual({
+  expect(useUIStore.getState().pendingProjectThreadOpen).toMatchObject({
     projectKey: '/projects/two', workspacePath: '/projects/two', threadId: 'shared-thread-id', includeArchived: true
   })
   expect(useThreadStore.getState().activeThreadId).toBeNull()

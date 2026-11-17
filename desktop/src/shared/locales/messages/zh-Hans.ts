@@ -4316,6 +4316,7 @@ export const MESSAGES_ZH_HANS = {
 
 
   'settings.subAgents.validation.integerRequired': '数字字段必须是整数。',
+  'turnChanges.undo': '撤销',
   'turnChanges.reapply': '重新应用',
   'turnChanges.review': '查看',
   'turnChanges.editedFile': '已编辑 {{file}}',

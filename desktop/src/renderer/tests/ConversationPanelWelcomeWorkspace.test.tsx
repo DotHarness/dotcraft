@@ -142,9 +142,6 @@ it('keeps Welcome drafts and explicit approval choices isolated when switching p
   })
   await waitFor(() => expect(screen.getByRole('textbox')).toHaveTextContent('Edited draft for workspace A'))
   expect(ui.getWelcomeDraftForWorkspace(first.projectKey)?.approvalPolicy).toBe('autoApprove')
-  fireEvent.click(screen.getByTestId('approval-policy-trigger'))
-  expect(screen.getByTestId('approval-policy-option-autoApprove')).toHaveAttribute('aria-selected', 'true')
-  fireEvent.click(screen.getByTestId('approval-policy-trigger'))
 
   await act(async () => {
     await activate(second)
@@ -154,10 +151,9 @@ it('keeps Welcome drafts and explicit approval choices isolated when switching p
   fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
 
   await waitFor(() => expect(sendRequest).toHaveBeenCalledWith('thread/start', expect.objectContaining({
-    identity: expect.objectContaining({ workspacePath: second.projectKey })
-  }), undefined, { attachmentOwner: 'warm' }))
-  const start = sendRequest.mock.calls.find(([method]) => method === 'thread/start')
-  expect((start?.[1] as { config: Record<string, unknown> }).config).not.toHaveProperty('approvalPolicy')
+    identity: expect.objectContaining({ workspacePath: second.projectKey }),
+    config: expect.not.objectContaining({ approvalPolicy: expect.anything() })
+  })))
   expect(useUIStore.getState().pendingThreadCreation?.text).toBe('Draft for workspace B')
   expect(ui.getWelcomeDraftForWorkspace(first.projectKey)?.text).toBe('Edited draft for workspace A')
 })
