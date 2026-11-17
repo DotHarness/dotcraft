@@ -83,6 +83,9 @@ async function handleViewerFileRequestWithContext(request: Request, context?: Wi
       return new Response(null, { status: 400 })
     }
 
+    const remote = context?.getRemoteFiles?.()
+    if (remote) return serveRemoteFile(request, absPath, await remote.readBytes(absPath))
+
     const root = context?.getWorkspaceRoot()
     if (!context || !root) {
       return new Response(null, { status: 403 })
@@ -121,6 +124,26 @@ async function handleViewerFileRequestWithContext(request: Request, context?: Wi
   } catch {
     return new Response(null, { status: 500 })
   }
+}
+
+function serveRemoteFile(request: Request, absPath: string, bytes: Buffer): Response {
+  const contentType = mimeForExtension(path.extname(absPath))
+  const range = parseByteRange(request.headers.get('range'), bytes.length)
+  if (range === 'unsatisfiable') {
+    return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${bytes.length}` } })
+  }
+  if (range) {
+    return new Response(new Uint8Array(bytes.subarray(range.start, range.end + 1)), {
+      status: 206,
+      headers: {
+        'Accept-Ranges': 'bytes',
+        'Content-Type': contentType,
+        'Content-Length': String(range.end - range.start + 1),
+        'Content-Range': `bytes ${range.start}-${range.end}/${bytes.length}`
+      }
+    })
+  }
+  return new Response(new Uint8Array(bytes), { headers: { 'Content-Type': contentType, 'Content-Length': String(bytes.length) } })
 }
 
 /** Multi-range and malformed headers yield null so the whole file is served. */

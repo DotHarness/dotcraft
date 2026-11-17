@@ -8,6 +8,7 @@ import { DirTreePlaceholder, DirTreeRow, DirTreeSkeleton, dirKey, useDirTree, us
 interface PathCrumbMenuProps {
   anchor: HTMLElement
   directoryPath: string
+  rootPath: string
   activePath: string
   expandActive: boolean
   onClose: () => void
@@ -16,10 +17,10 @@ interface PathCrumbMenuProps {
 const MENU_WIDTH = 340
 const MENU_HEIGHT = 320
 
-export function PathCrumbMenu({ anchor, directoryPath, activePath, expandActive, onClose }: PathCrumbMenuProps): JSX.Element {
+export function PathCrumbMenu({ anchor, directoryPath, rootPath, activePath, expandActive, onClose }: PathCrumbMenuProps): JSX.Element {
   const t = useT()
   const layerDepth = useContext(LayerContext)
-  const { childrenCache, expanded, errored, loadDir, toggleDir, expandDirs } = useDirTree()
+  const { childrenCache, expanded, errored, loadDir, toggleDir, expandDirs } = useDirTree(rootPath || undefined)
   const openEntry = useOpenDirEntry()
   const menuRef = useRef<HTMLDivElement>(null)
   const rootKey = dirKey(directoryPath)

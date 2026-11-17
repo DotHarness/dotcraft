@@ -4,7 +4,7 @@
 |-------|-------|
 | **Version** | 0.12.2 |
 | **Status** | Living |
-| **Date** | 2026-11-16 |
+| **Date** | 2026-11-17 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
 | **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Hub Architecture](../architecture/hub-architecture.md), [Device Gateway](../protocols/device-gateway.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Goal Design](../features/goal.md), [Session Import](../features/session-import.md), [Desktop DESIGN.md](../architecture/DESIGN.md) |
 
@@ -1256,6 +1256,12 @@ Surfaces beyond the conversation follow the same rules: protocol-driven behavior
 - Closing waits for the draft to save. Failed saves or unresolved reviews offer to keep viewing or discard local changes (closing without writing).
 - Asynchronous highlighting never replaces newer content or resets selection; focused editors own Find.
 - The viewer's Open action launches the displayed local file in the selected application ([5.17](#517-open-in-another-app)).
+
+**Remote files**
+
+- In a remote workspace, file references, the Files tree, and file tabs read the host's files through the foreground connection's `fs/*` methods (`capabilities.fileSystem`), never the local disk. A host path is never interpreted as a client-local path. Opening a host file needs no exact-file authorization, because the connection already acts with the host user's authority.
+- Text, images, and PDFs up to the 10 MiB read limit open in their viewers. Text is editable: a save writes only when `fs/getMetadata` still reports the modification time the editor last read, and otherwise reports a conflict that follows the review above. An open file follows host changes through `fs/watch`.
+- Spreadsheets, presentations, video, and unknown binary types show the unavailable notice, and larger files fail without loading. Opening in another application, saving a copy, and Quick open are unavailable, while Copy path and copying contents remain. Without `capabilities.fileSystem`, a file reference offers only Copy path.
 
 **Embedded browser**
 

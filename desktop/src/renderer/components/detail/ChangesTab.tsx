@@ -22,6 +22,7 @@ const NO_ROWS: TurnFileChange[] = []
 export function ChangesTab({ workspacePath }: ChangesTabProps): JSX.Element {
   const t = useT()
   const rows = useConversationStore((s) => latestTurnDiff(s.turnDiffs, s.turns)?.files ?? NO_ROWS)
+  const remoteWorkspace = useConversationStore((s) => s.remoteWorkspaceActive)
   const totals = useMemo(() => turnPatchTotals(rows), [rows])
   const selectedKey = useUIStore((s) => s.selectedChangeKey)
   const activeThreadId = useThreadStore((s) => s.activeThreadId)
@@ -143,7 +144,7 @@ export function ChangesTab({ workspacePath }: ChangesTabProps): JSX.Element {
             onExpandAll={expandAll}
             onCollapseAll={collapseAll}
           />
-          <JumpToFileButton />
+          {!remoteWorkspace && <JumpToFileButton />}
           <DiffModeToggle
             mode={mode}
             onChange={(next) => setMode(activeThreadId, next)}

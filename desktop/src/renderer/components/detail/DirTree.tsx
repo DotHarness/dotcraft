@@ -19,7 +19,7 @@ export interface DirTree {
   reset: () => void
 }
 
-export function useDirTree(): DirTree {
+export function useDirTree(rootPath?: string): DirTree {
   const [childrenCache, setChildrenCache] = useState<Map<string, DirEntryWire[]>>(new Map())
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [errored, setErrored] = useState<Set<string>>(new Set())
@@ -30,7 +30,7 @@ export function useDirTree(): DirTree {
     if (loadingRef.current.has(key)) return
     loadingRef.current.add(key)
     try {
-      const res = await window.api.workspace.viewer.listDir({ dirPath: absDir })
+      const res = await window.api.workspace.viewer.listDir({ dirPath: absDir, rootPath })
       setChildrenCache((prev) => new Map(prev).set(key, res.entries))
       setErrored((prev) => {
         if (!prev.has(key)) return prev
@@ -43,7 +43,7 @@ export function useDirTree(): DirTree {
     } finally {
       loadingRef.current.delete(key)
     }
-  }, [])
+  }, [rootPath])
 
   const toggleDir = useCallback((absDir: string): void => {
     const key = dirKey(absDir)

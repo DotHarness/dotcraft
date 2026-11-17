@@ -184,6 +184,7 @@ export interface DirEntryWire {
 export interface ListDirParams {
   /** Absolute directory to list. Defaults to the workspace root when omitted. */
   dirPath?: string
+  rootPath?: string
 }
 
 export interface ListDirResult {

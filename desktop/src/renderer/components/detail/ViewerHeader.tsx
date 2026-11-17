@@ -54,6 +54,7 @@ export function ViewerHeader({
   const explorerVisible = useUIStore((s) => s.explorerVisible)
   const toggleExplorer = useUIStore((s) => s.toggleExplorer)
   const projectRoot = useConversationStore((s) => s.workspacePath)
+  const remote = useConversationStore((s) => s.remoteWorkspaceActive)
   const crumbsRef = useRef<HTMLElement>(null)
   const [openCrumb, setOpenCrumb] = useState<{ index: number; anchor: HTMLButtonElement } | null>(null)
 
@@ -110,6 +111,7 @@ export function ViewerHeader({
           key={openCrumb.index}
           anchor={openCrumb.anchor}
           directoryPath={segmentPath(openCrumb.index).replace(/\/$/, '') || rootFwd}
+          rootPath={rootFwd.replace(/\/$/, '')}
           activePath={segmentPath(openCrumb.index + 1)}
           expandActive={openCrumb.index < segments.length - 1}
           onClose={closeCrumb}
@@ -150,15 +152,17 @@ export function ViewerHeader({
           />
         )}
 
-        <OpenTargetButton
-          targetPath={absolutePath}
-          projectRoot={projectRoot}
-          rememberChoice
-          tooltipLabel={t('detailPanel.openFileTitle', { path: relativePath })}
-          menuAriaLabel={t('detailPanel.openFileMenuAria')}
-          showPrimaryLabel
-          variant="outline"
-        />
+        {!remote && (
+          <OpenTargetButton
+            targetPath={absolutePath}
+            projectRoot={projectRoot}
+            rememberChoice
+            tooltipLabel={t('detailPanel.openFileTitle', { path: relativePath })}
+            menuAriaLabel={t('detailPanel.openFileMenuAria')}
+            showPrimaryLabel
+            variant="outline"
+          />
+        )}
 
         <IconButton
           size={28}

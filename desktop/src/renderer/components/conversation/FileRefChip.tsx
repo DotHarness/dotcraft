@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useT } from '../../contexts/LocaleContext'
+import { useHostFilesUnavailable } from '../../hooks/useHostFilesUnavailable'
 import { addToast } from '../../stores/toastStore'
 import { openConversationLink } from '../../utils/conversationDeepLink'
 import { resolveLocalReference, type LocalReference } from '../../utils/referencePaths'
@@ -29,6 +30,7 @@ export function FileRefChip({
   onOpen?: (threadId: string) => void
 }): JSX.Element {
   const t = useT()
+  const hostFilesUnavailable = useHostFilesUnavailable()
   const [contextMenu, setContextMenu] = useState<{ position: ContextMenuPosition; reference: LocalReference } | null>(null)
   const fileName = referenceBaseName(displayPath)
   const reference = resolveLocalReference(targetPath, workspacePath)
@@ -36,7 +38,7 @@ export function FileRefChip({
   const folder = isFolderReference(displayPath)
   const canOpen = folder
     ? !remoteWorkspaceActive && !!reference
-    : !remoteWorkspaceActive && workspacePath.length > 0 && !!activeThreadId
+    : !hostFilesUnavailable && workspacePath.length > 0 && !!activeThreadId
 
   return (
     <>

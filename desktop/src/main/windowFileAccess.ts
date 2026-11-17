@@ -1,9 +1,11 @@
 import { normalizeWorkspaceProjectKey } from '../shared/workspaceProjectKey'
+import type { RemoteViewerFiles } from './remoteViewerFiles'
 
 export interface WindowFileAccessOptions {
   getWorkspaceRoot(): string
   getWorkspaceRoots?(workspaceIdentity: string): readonly string[]
   getChatFolderRoots?(workspaceRoot?: string): readonly string[]
+  getRemoteFiles?(): RemoteViewerFiles | null
 }
 
 export interface WindowFileAccess extends WindowFileAccessOptions {
@@ -55,6 +57,7 @@ function createContext(registration: WindowRegistration, root: string, scoped: b
     getWorkspaceRoot: () => root,
     getWorkspaceRoots: () => registration.options.getWorkspaceRoots?.(root) ?? [root],
     getChatFolderRoots: scoped ? () => chatRoots : () => registration.options.getChatFolderRoots?.(root) ?? [],
+    getRemoteFiles: scoped ? () => null : () => registration.options.getRemoteFiles?.() ?? null,
     authorizedExternalFiles: grants,
     authorizationEpoch: 0
   }

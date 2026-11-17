@@ -37,6 +37,7 @@ import {
   type DetailTabRef
 } from './useDetailPanelTabClose'
 import { useTabStripOverflow } from './useTabStripOverflow'
+import { useHostFilesUnavailable } from '../../hooks/useHostFilesUnavailable'
 
 interface DetailPanelProps {
   workspacePath?: string
@@ -64,6 +65,7 @@ export function DetailPanel({
 }: DetailPanelProps): JSX.Element {
   const t = useT()
   const locale = useLocale()
+  const hostFilesUnavailable = useHostFilesUnavailable()
   const {
     activeDetailTab,
     openSystemTabs,
@@ -122,7 +124,7 @@ export function DetailPanel({
 
   const handleAddTabAction = (action: AddTabMenuAction | null): void => {
     if (!action) return
-    if (remoteWorkspace && (action === 'openFile' || action === 'newTerminal')) {
+    if ((action === 'openFile' && hostFilesUnavailable) || (action === 'newTerminal' && remoteWorkspace)) {
       return
     }
     performAddTabAction(action, { workspacePath, t })
@@ -152,7 +154,7 @@ export function DetailPanel({
         {
           action: 'openFile',
           label: t('detailPanel.addTabOpenFile'),
-          enabled: canOpenWorkspaceTab && !remoteWorkspace
+          enabled: canOpenWorkspaceTab && !hostFilesUnavailable
         },
         {
           action: 'newBrowser',

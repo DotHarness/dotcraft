@@ -6,6 +6,7 @@
 import type { CSSProperties } from 'react'
 import { Bot, FilePlus2, FolderOpen, Globe, ListChecks, MessagesSquare, SquareTerminal } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
+import { useHostFilesUnavailable } from '../../hooks/useHostFilesUnavailable'
 import { ACTION_SHORTCUTS, formatShortcutParts } from '../ui/shortcutKeys'
 import type { AddTabMenuAction } from '../../../shared/addTabMenu'
 
@@ -38,6 +39,7 @@ export function DetailPanelLauncher({
   remoteWorkspace = false
 }: DetailPanelLauncherProps): JSX.Element {
   const t = useT()
+  const hostFilesUnavailable = useHostFilesUnavailable()
   const iconStyle: CSSProperties = { display: 'block' }
   const fmt = (spec: typeof ACTION_SHORTCUTS[keyof typeof ACTION_SHORTCUTS]): string =>
     formatShortcutParts(spec).join('+')
@@ -48,7 +50,7 @@ export function DetailPanelLauncher({
       title: t('detailPanel.launcherFilesTitle'),
       description: t('detailPanel.launcherFilesDesc'),
       icon: <FolderOpen size={22} strokeWidth={1.75} aria-hidden style={iconStyle} />,
-      enabled: canOpenWorkspaceTab && !remoteWorkspace
+      enabled: canOpenWorkspaceTab && !hostFilesUnavailable
     },
     {
       action: 'newBrowser',

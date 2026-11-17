@@ -109,6 +109,7 @@ import type {
   ClassifyResult,
   ReadTextResult,
   WriteTextParams,
+  ListDirParams,
   WriteTextResult,
   TextFileChangedPayload
 } from '../shared/viewer/types'
@@ -1147,7 +1148,7 @@ const api = {
         return ipcRenderer.invoke('workspace:viewer:list-files', params)
       },
 
-      listDir(params: { dirPath?: string }): Promise<{
+      listDir(params: ListDirParams): Promise<{
         dirPath: string
         entries: Array<{
           name: string

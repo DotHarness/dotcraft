@@ -2,7 +2,7 @@ import { translate } from '../shared/locales'
 import { sameWorkspaceProjectKey } from '../shared/workspaceProjectKey'
 import type { ReadPresentationParams } from '../shared/viewer/presentation'
 import type { ReadSpreadsheetParams } from '../shared/viewer/spreadsheet'
-import type { SaveCopyAsParams, WriteTextParams } from '../shared/viewer/types'
+import type { ListDirParams, SaveCopyAsParams, WriteTextParams } from '../shared/viewer/types'
 import { saveFileCopyAs } from './fileSaveAs'
 import { mainLocale, type WindowIpcContext } from './ipcBridgeContracts'
 import { assertPathWithinViewerRoots, assertWorkspaceOrChatFolder } from './ipcBridgePaths'
@@ -20,9 +20,11 @@ import { listWorkspaceFiles } from './workspaceComposerIpc'
 import { WorkspaceAttachmentAccess } from './workspaceAttachments'
 import type { AttachmentReadParams } from '../shared/attachments'
 import type { AppServerConnectionSource } from '../shared/appServerBoundary'
+import { remoteViewerFilesFor } from './remoteViewerFiles'
 
 export function registerWorkspaceFileHandlers(context: WindowIpcContext): void {
   const { handleSafe, workspacePath, callbacks, owner } = context
+  const remoteFiles = () => remoteViewerFilesFor(context.getWireClient())
   handleSafe('workspace:create-pasted-text', async (_event, params: { text: string; workspacePath?: string }) => {
     const root = params.workspacePath || workspacePath
     if (!root) throw new Error(translate(mainLocale(callbacks), 'ipc.noWorkspaceOpen'))
@@ -72,7 +74,9 @@ export function registerWorkspaceFileHandlers(context: WindowIpcContext): void {
     }
   )
 
-  handleSafe('workspace:viewer:list-dir', async (_event, params: { dirPath?: string }) => {
+  handleSafe('workspace:viewer:list-dir', async (_event, params: ListDirParams) => {
+    const remote = remoteFiles()
+    if (remote) return remote.listDir(params.dirPath ?? '', params.rootPath)
     if (!workspacePath) {
       throw new Error(translate(mainLocale(callbacks), 'ipc.noWorkspaceOpen'))
     }
@@ -87,6 +91,8 @@ export function registerWorkspaceFileHandlers(context: WindowIpcContext): void {
   })
 
   handleSafe('workspace:viewer:classify', async (_event, params: { absolutePath: string }) => {
+    const remote = remoteFiles()
+    if (remote) return remote.classify(params.absolutePath)
     if (!workspacePath) {
       throw new Error(translate(mainLocale(callbacks), 'ipc.noWorkspaceOpen'))
     }
@@ -94,6 +100,8 @@ export function registerWorkspaceFileHandlers(context: WindowIpcContext): void {
   })
 
   handleSafe('workspace:viewer:read-text', async (_event, params: { absolutePath: string; limitBytes?: number }) => {
+    const remote = remoteFiles()
+    if (remote) return remote.readText(params.absolutePath, params.limitBytes)
     if (!workspacePath) {
       throw new Error(translate(mainLocale(callbacks), 'ipc.noWorkspaceOpen'))
     }
@@ -118,6 +126,8 @@ export function registerWorkspaceFileHandlers(context: WindowIpcContext): void {
   })
 
   handleSafe('workspace:viewer:write-text', async (_event, params: WriteTextParams) => {
+    const remote = remoteFiles()
+    if (remote) return remote.writeText(params)
     if (!workspacePath) {
       throw new Error(translate(mainLocale(callbacks), 'ipc.noWorkspaceOpen'))
     }
@@ -130,6 +140,8 @@ export function registerWorkspaceFileHandlers(context: WindowIpcContext): void {
   handleSafe(
     'workspace:viewer:watch-text',
     async (event, params: { absolutePath: string }): Promise<{ subscriptionId: string }> => {
+      const remote = remoteFiles()
+      if (remote) return { subscriptionId: await remote.watch(event.sender, params.absolutePath) }
       if (!workspacePath) {
         throw new Error(translate(mainLocale(callbacks), 'ipc.noWorkspaceOpen'))
       }
@@ -139,12 +151,16 @@ export function registerWorkspaceFileHandlers(context: WindowIpcContext): void {
   )
 
   handleSafe('workspace:viewer:unwatch-text', async (event, params: { subscriptionId: string }): Promise<void> => {
-    viewerTextWatchManager.unsubscribe(params.subscriptionId, event.sender.id)
+    const remote = remoteFiles()
+    if (remote?.ownsWatch(params.subscriptionId)) remote.unwatch(params.subscriptionId, event.sender.id)
+    else viewerTextWatchManager.unsubscribe(params.subscriptionId, event.sender.id)
   })
 
   handleSafe(
     'workspace:viewer:authorize-file',
     async (_event, params: { absolutePath: string; workspacePath: string }): Promise<{ absolutePath: string }> => {
+      const remote = remoteFiles()
+      if (remote) return { absolutePath: await remote.requireFile(params.absolutePath) }
       if (!workspacePath) {
         throw new Error(translate(mainLocale(callbacks), 'ipc.noWorkspaceOpen'))
       }
@@ -160,6 +176,8 @@ export function registerWorkspaceFileHandlers(context: WindowIpcContext): void {
   handleSafe(
     'workspace:viewer:to-viewer-url',
     async (_event, params: { absolutePath: string }): Promise<{ url: string }> => {
+      const remote = remoteFiles()
+      if (remote) return { url: buildViewerUrl(params.absolutePath) }
       if (!workspacePath) {
         throw new Error(translate(mainLocale(callbacks), 'ipc.noWorkspaceOpen'))
       }
