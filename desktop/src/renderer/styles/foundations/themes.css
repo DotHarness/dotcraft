@@ -147,13 +147,6 @@ html[data-theme="light"] {
   --shadow-level-2: 0 4px 12px rgba(0, 0, 0, 0.08);
   --shadow-level-3: 0 8px 16px -4px rgba(0, 0, 0, 0.12);
 
-  --bg-inverse: #2a2a2a;
-  --text-on-inverse: #eeeeec;
-  --text-on-inverse-muted: color-mix(in srgb, var(--text-on-inverse) 66%, var(--bg-inverse));
-  --border-on-inverse: color-mix(in srgb, var(--text-on-inverse) 16%, transparent);
-  /* 8%, not more: a heavier fill lifts the chip toward its own muted text and drops that pair below 4.5:1. */
-  --fill-on-inverse: color-mix(in srgb, var(--text-on-inverse) 8%, transparent);
-
   --code-block-bg: #f6f8fa;
   --overlay-scrim: rgba(0, 0, 0, 0.35);
 

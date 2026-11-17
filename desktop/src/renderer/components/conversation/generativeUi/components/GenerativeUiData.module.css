@@ -160,9 +160,9 @@
   gap: 4px;
   padding: 8px 10px;
   border-radius: 8px;
-  background: var(--bg-inverse);
-  box-shadow: var(--shadow-md);
-  color: var(--text-on-inverse);
+  background: var(--tooltip-bg);
+  box-shadow: var(--tooltip-shadow);
+  color: var(--tooltip-text);
   font-size: var(--type-secondary-size);
   line-height: var(--type-secondary-line-height);
 }

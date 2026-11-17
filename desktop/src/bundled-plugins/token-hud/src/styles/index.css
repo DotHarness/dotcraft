@@ -42,9 +42,9 @@
   width: 280px;
   padding: 10px 12px;
   border-radius: 10px;
-  background: var(--bg-inverse);
-  color: var(--text-on-inverse);
-  box-shadow: var(--shadow-md);
+  background: var(--tooltip-bg);
+  color: var(--tooltip-text);
+  box-shadow: var(--tooltip-shadow);
   font-size: 12px;
   line-height: 1.5;
   font-variant-numeric: tabular-nums;
@@ -58,7 +58,7 @@
 
 .token-hud-popover-empty,
 .token-hud-popover-footer {
-  color: var(--text-on-inverse-muted);
+  color: var(--text-secondary);
 }
 
 .token-hud-popover-bar {
@@ -68,7 +68,7 @@
   margin-bottom: 8px;
   border-radius: 4px;
   overflow: hidden;
-  background: var(--fill-on-inverse);
+  background: var(--bg-tertiary);
 }
 
 .token-hud-popover-bar > span {
@@ -106,7 +106,7 @@
 }
 
 .token-hud-popover-value {
-  color: var(--text-on-inverse-muted);
+  color: var(--text-secondary);
   white-space: nowrap;
 }
 

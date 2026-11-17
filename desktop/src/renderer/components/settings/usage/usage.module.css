@@ -107,9 +107,9 @@
   min-width: 160px;
   padding: 8px 10px;
   border-radius: 8px;
-  background: var(--bg-inverse);
-  color: var(--text-on-inverse);
-  box-shadow: var(--shadow-md);
+  background: var(--tooltip-bg);
+  color: var(--tooltip-text);
+  box-shadow: var(--tooltip-shadow);
   font-size: var(--type-secondary-size);
   line-height: var(--type-secondary-line-height);
 }
@@ -131,13 +131,13 @@
   align-items: center;
   gap: 6px;
   min-width: 0;
-  color: var(--text-on-inverse-muted);
+  color: var(--text-secondary);
 }
 
 .tooltipRowTotal {
   margin-top: 4px;
   padding-top: 4px;
-  border-top: 1px solid var(--border-on-inverse);
+  border-top: 1px solid var(--border-default);
 }
 
 .tooltipValue {

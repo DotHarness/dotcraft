@@ -229,15 +229,6 @@ and its siblings are reading colours for anything readable on a tint: a status
 colour chosen for a 16px glyph does not clear AA as 13px text on a tint of itself.
 Use the `-text` token wherever a status colour becomes prose.
 
-### Inverse surface
-
-`--bg-inverse` is the opposite theme's tertiary tone, with `--text-on-inverse`,
-`--text-on-inverse-muted`, `--border-on-inverse`, and `--fill-on-inverse` on top.
-It is reserved for tooltips, the one transient, non-interactive label. Menus,
-popovers, dialogs, and hover cards are places the pointer goes and keep the
-ordinary elevated surface. Do not use the inverse pair to make a control stand
-out.
-
 ### Identity and data colors
 
 Feature, channel, and provider colors are allowed only as small identity accents
@@ -979,7 +970,7 @@ handoff from the Welcome logo never pops and reduced motion leaves the mark stil
 ## Overlays
 
 Every overlay sits on the opaque elevated surface and follows the border rules in
-Surfaces and elevation. Tooltips are the one exception: they take the inverse pair.
+Surfaces and elevation, tooltips included.
 
 ### Menus, popovers, and pickers
 
@@ -1019,10 +1010,9 @@ of a settings row keeps its right edge on the trigger's.
 A tooltip is the one overlay that is pure annotation: it takes no pointer events,
 disappears on the next pointer move, and is never a place the user travels to.
 
-- The surface is the inverse pair (`--bg-inverse` / `--text-on-inverse`). A label
-  does not belong to the plane it labels; a same-tone tooltip in the light theme
-  separates from the app at about 1.05:1.
-- No border; the inversion is the boundary and the shadow carries the lift.
+- The surface is the current theme's elevated overlay (`--tooltip-bg` /
+  `--tooltip-text`), the same as menus.
+- No border; the shadow carries the lift.
 - Type is `--type-secondary` (12/16); the keycap chip is sized to its 16px line.
 - Copy stays short. The single-line form clamps at 320px with an ellipsis; only a
   genuine explanation takes the multiline form, which wraps to 32rem.
@@ -1067,7 +1057,7 @@ A tooltip is placed against the control's drawn box. An out-of-flow rail action
 must still anchor to what is drawn (or reserve its footprint), not to a collapsed
 wrapper that would place the label at the row's centre.
 
-The card is an ordinary elevated surface, not the inverse pair, because the
+The card shares the tooltip's elevated surface but, unlike a tooltip, the
 pointer can travel to it. It tucks under the row's trailing edge with the single
 hairline on that overlapping edge, opens on a delay, and closes after a short
 grace period.
@@ -1572,7 +1562,7 @@ colour picker beside them, not platform popups. Scrollbars follow
 the gutter on both edges. Feature colors remain available for charts and diagrams,
 not ordinary controls: the named hues follow the chart series order, so a series
 color never disagrees with its named hue. A visualization popover is an annotation
-and uses the inverse tooltip surface.
+and uses the tooltip surface.
 
 - Tooltips follow [Tooltips](#tooltips), sit 6px from the trigger, prefer the
   author's side, flip when there is no room, and stay 4px inside the view.
@@ -1639,7 +1629,7 @@ The answer sits 8px from the surrounding Markdown and spans the column width.
 - **Charts.** Series follow the chart palette in order. Grid lines are horizontal
   `--border-subtle`; axes have no lines and use 11px `--text-dimmed` ticks thinned
   to avoid collisions. Strokes are 2px, bars have a 4px top radius, donut slices
-  have a 1° gap, the tooltip is the inverse surface, and a legend appears below
+  have a 1° gap, the tooltip follows [Tooltips](#tooltips), and a legend appears below
   when there is more than one series.
 - **Icons.** 16px with a 1.75 stroke in the current text color or a `-text` tone;
   the box is reserved while an icon loads.

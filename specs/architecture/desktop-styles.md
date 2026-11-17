@@ -89,8 +89,7 @@ Three rules keep the layers honest:
 Some families stay literal on purpose. The sixteen `--ansi-*` are a protocol
 palette, `--code-block-bg` matches the bundled syntax theme's background, and the
 status hues, `--brand-blue-*`, and `--find-match` are identities rather than
-derivations. `--bg-inverse` and `--text-on-inverse` are the opposite variant's
-tones, which one variant's seed cannot state.
+derivations.
 
 The native caption bar and pre-paint window background use the same chrome mix as
 the renderer.

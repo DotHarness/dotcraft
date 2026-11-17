@@ -303,16 +303,9 @@
   --shadow-level-2: 0 8px 22px rgba(0, 0, 0, 0.26);
   --shadow-level-3: 0 18px 48px rgba(0, 0, 0, 0.32);
 
-  /* The opposite theme's tertiary tone, mirrored in themes.css. See DESIGN.md § Tooltips. */
-  --bg-inverse: #ededed;
-  --text-on-inverse: #1a1c1f;
-  --text-on-inverse-muted: color-mix(in srgb, var(--text-on-inverse) 70%, var(--bg-inverse));
-  --border-on-inverse: color-mix(in srgb, var(--text-on-inverse) 14%, transparent);
-  --fill-on-inverse: color-mix(in srgb, var(--text-on-inverse) 8%, transparent);
-
-  --tooltip-bg: var(--bg-inverse);
+  --tooltip-bg: var(--glass-surface-strong);
   --tooltip-border: transparent;
-  --tooltip-text: var(--text-on-inverse);
+  --tooltip-text: var(--text-primary);
   --tooltip-shadow: var(--shadow-lg);
   --tooltip-radius: 8px;
   --shortcut-bg: var(--bg-tertiary);
