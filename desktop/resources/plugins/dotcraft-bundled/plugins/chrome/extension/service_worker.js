@@ -19,6 +19,7 @@ const overlays = new Map();
 const overlaySuppressions = new Map();
 const screencastTabs = new Set();
 const tabGroups = new Map();
+const groupQueues = new Map();
 
 function relayError(category, message) {
   return new Error(`${category}: ${message}`);
@@ -188,7 +189,17 @@ async function listTabs() {
   return tabs.filter(isListedTab).map(tabSnapshot);
 }
 
-async function groupTab(tab, key, title) {
+function queueGroupChange(key, change) {
+  const next = (groupQueues.get(key) ?? Promise.resolve()).then(change);
+  groupQueues.set(key, next.catch(() => {}));
+  return next;
+}
+
+function groupTab(tab, key, title) {
+  return queueGroupChange(key, () => addToGroup(tab, key, title));
+}
+
+async function addToGroup(tab, key, title) {
   const windows = tabGroups.get(key) ?? new Map();
   tabGroups.set(key, windows);
   const existing = windows.get(tab.windowId);
@@ -205,7 +216,11 @@ async function groupTab(tab, key, title) {
   await chrome.tabGroups.update(groupId, { title, color: 'blue' });
 }
 
-async function setGroupTitle(params) {
+function setGroupTitle(params) {
+  return queueGroupChange(params.groupKey, () => retitleGroups(params));
+}
+
+async function retitleGroups(params) {
   const windows = tabGroups.get(params.groupKey);
   if (!windows) return { updated: 0 };
   let updated = 0;

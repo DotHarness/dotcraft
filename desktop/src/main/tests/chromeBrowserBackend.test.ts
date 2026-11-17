@@ -243,12 +243,15 @@ describe('Chrome browser backend', () => {
     expect(relay.count('debugger.attach', chromeTabId)).toBe(2)
   })
 
-  it('lists a released agent tab as a user tab', async () => {
-    const { call } = await openChromeSession(new FakeChromeRelay())
+  it('detaches a released agent tab and lists it as a user tab', async () => {
+    const relay = new FakeChromeRelay()
+    const { call } = await openChromeSession(relay)
     const tab = await call('createTab', { url: 'https://example.com/' }) as { id: number }
+    const chromeTabId = relay.calls.find((item) => item.method === 'debugger.attach')?.params.tabId as number
 
     await call('finalizeTabs', { keep: [{ tabId: tab.id, status: 'deliverable' }] })
 
+    expect(relay.count('debugger.detach', chromeTabId)).toBe(1)
     expect(await call('getUserTabs')).toEqual([expect.objectContaining({ url: 'https://example.com/' })])
   })
 
@@ -279,9 +282,11 @@ describe('Chrome browser backend', () => {
 
     await expect(second.call('claimUserTab', { tabId: listed.id }))
       .rejects.toThrow(/^InvalidArgument: Browser tab is controlled by another DotCraft session/)
+    first.manager.abortEvaluation('thread-b')
     await second.call('finalizeTabs', { keep: [] })
     await first.evaluate(claimed)
 
+    expect(relay.calls.filter((item) => item.method === 'debugger.send' && item.params.method === 'Page.stopLoading')).toEqual([])
     expect(relay.count('debugger.detach', 50)).toBe(0)
     expect(relay.count('debugger.attach', 50)).toBe(1)
     expect(relay.calls).not.toContainEqual({ method: 'overlay.set', params: { tabId: 50, active: false } })

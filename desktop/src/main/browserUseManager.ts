@@ -411,6 +411,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       }
     }
     for (const tab of runtime.tabs.values()) {
+      if (this.isListedOnly(tab)) continue
       try {
         this.webContentsFor(tab.owner, tab.id).stop()
       } catch {}
@@ -845,8 +846,11 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
   }
 
   private modelFacingTabs(runtime: BrowserUseThreadRuntime): BrowserUseTabRuntime[] {
-    return [...runtime.tabs.values()].filter((tab) =>
-      tab.exposedToRenderer !== false && !(this.profile.separatesUserTabs && tab.userOwned && !tab.adopted))
+    return [...runtime.tabs.values()].filter((tab) => tab.exposedToRenderer !== false && !this.isListedOnly(tab))
+  }
+
+  private isListedOnly(tab: BrowserUseTabRuntime): boolean {
+    return this.profile.separatesUserTabs && tab.userOwned === true && !tab.adopted
   }
 
   private async backendUserTabList(runtime: BrowserUseThreadRuntime): Promise<Record<string, unknown>[]> {
@@ -1757,7 +1761,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
   }
 
   private detachDebugger(tab: BrowserUseTabRuntime): void {
-    if (!tab.debuggerMessageHandler) return
+    if (this.isListedOnly(tab)) return
     try {
       const wc = this.webContentsFor(tab.owner, tab.id)
       this.screenshots.reset(wc)

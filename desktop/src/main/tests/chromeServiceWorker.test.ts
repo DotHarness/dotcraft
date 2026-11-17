@@ -251,8 +251,10 @@ describe('chrome extension relay', () => {
   it('creates agent tabs in the focused window with one group per session', async () => {
     const worker = loadWorker([webTab(1)])
 
-    const first = (await worker.request('tabs.create', { groupKey: 'thread-a', groupTitle: 'DotCraft' })).result
-    await worker.request('tabs.create', { url: 'https://example.test/next', groupKey: 'thread-a', groupTitle: 'DotCraft' })
+    const [first] = await Promise.all([
+      worker.request('tabs.create', { groupKey: 'thread-a', groupTitle: 'DotCraft' }).then((response) => response.result),
+      worker.request('tabs.create', { url: 'https://example.test/next', groupKey: 'thread-a', groupTitle: 'DotCraft' })
+    ])
     await worker.request('tabs.create', { groupKey: 'thread-b', groupTitle: 'DotCraft' })
     await worker.request('tabs.setGroupTitle', { groupKey: 'thread-a', title: 'Research' })
 

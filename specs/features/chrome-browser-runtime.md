@@ -51,7 +51,7 @@ Differences from the in-app browser:
 | Area | Chrome behavior |
 |------|-----------------|
 | Tabs | Backend tabs are Chrome tabs in the user's profile. Agent-created tabs open in the last focused normal window, in one tab group per session titled with the session name (`DotCraft` until the session is named); naming the session retitles its groups. The first created tab of a session is activated; later tabs open in the background. |
-| User tabs | `getUserTabs` lists normal `http`, `https`, and `file` tabs with title, URL, and active state only. Listed tabs are not controlled until claimed. A tab is controlled by at most one session: claiming a tab another session controls fails with `InvalidArgument`, and listing or releasing a tab never affects another session's control. Released agent-created tabs are listed as user tabs. |
+| User tabs | `getUserTabs` lists normal `http`, `https`, and `file` tabs with title, URL, and active state only. Listed tabs are not controlled until claimed. A tab is controlled by at most one session: claiming a tab another session controls fails with `InvalidArgument`, and a session that only listed a tab never stops, detaches, or releases it. Released agent-created tabs are listed as user tabs. |
 | Presentation | No Desktop viewer tabs, panel focus changes, or browser `visibility` capability. |
 | Navigation policy | Desktop in-app browser domain approval does not apply; the user's own profile is the trust boundary. Internal `chrome:`, `devtools:`, extension, and Chrome Web Store pages cannot be controlled. |
 | Viewport | The natural size is the tab's content size. The `viewport` capability applies and resets explicit overrides as in the in-app browser. |
