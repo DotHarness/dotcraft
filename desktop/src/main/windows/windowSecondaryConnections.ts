@@ -16,6 +16,7 @@ import { cancelConnectionServerRequests } from '../ipcServerRequests'
 import { resetDesktopThreadToolBindings } from '../desktopRuntimeThreadTools'
 import { handleWorkspaceNodeReplNotification, ownsWorkspaceNodeReplThread } from './windowNodeReplRequests'
 import { handleWorkspaceThreadPanelDeletion } from './windowThreadPanelDeletion'
+import { recoverThreadQuestions } from './windowThreadQuestionRecovery'
 import { resolveDotCraftRuntimeTools } from '../ripgrepRuntime'
 import { refreshVoiceChatGptAvailability } from '../voice/voiceIpc'
 import { hasRemoteEndpointArg } from '../workspaceArgs'
@@ -304,6 +305,7 @@ export function createSecondaryWorkspaceConnection(
     entry.connecting = false
     entry.errorMessage = undefined
     entry.initializeResult = result
+    recoverThreadQuestions(ctx, entry)
     ctx.emitWorkspaceProjects()
     if (entry.role === 'foreground' && ctx.mainWindow && !ctx.mainWindow.isDestroyed()) {
       ctx.emitConnectionStatus(ctx.mainWindow, {

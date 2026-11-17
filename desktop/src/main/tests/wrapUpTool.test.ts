@@ -60,6 +60,53 @@ describe('WrapUp', () => {
       tempDir = null
     })
 
+    it.each([
+      { name: 'a recap alone', args: { recap: 'Finished.' }, shown: false },
+      { name: 'a question without buttons', args: { recap: 'Finished.', ask: 'Commit?', blocked: true }, shown: false },
+      { name: 'an explicitly non-blocking question', args: { ...ASK, blocked: false }, shown: true },
+      { name: 'a question with blocked omitted', args: ASK, shown: true }
+    ])('clears persisted waiting when replaced by $name', async ({ args, shown }) => {
+      tempDir = mkdtempSync(join(tmpdir(), 'wrap-up-'))
+      const filePath = join(tempDir, 'thread-tasks.json')
+      const harness = createHarness({ filePath })
+      harness.composerTurn('turn-1')
+      await harness.call({ ...ASK, blocked: true }, 'turn-1', 'WrapUp')
+      expect(harness.store.snapshot(PARENT).question).toBeDefined()
+
+      const result = await harness.call(args, 'turn-1', 'WrapUp')
+
+      expect(result?.success).toBe(true)
+      expect(structured(result)).toEqual({ shown })
+      expect(harness.store.snapshot(PARENT).question).toBeUndefined()
+      expect(new ThreadTaskStore(filePath).snapshot(PARENT).question).toBeUndefined()
+    })
+
+    it('preserves the persisted question when a replacement fails', async () => {
+      tempDir = mkdtempSync(join(tmpdir(), 'wrap-up-'))
+      const filePath = join(tempDir, 'thread-tasks.json')
+      const harness = createHarness({ filePath })
+      harness.composerTurn('turn-1')
+      await harness.call({ ...ASK, blocked: true }, 'turn-1', 'WrapUp')
+
+      const result = await harness.call({ ask: 'Commit?', actions: [{ label: 'Commit' }] }, 'turn-1', 'WrapUp')
+
+      expect(result?.success).toBe(false)
+      const question = { turnId: 'turn-1', callId: 'call-turn-1' }
+      expect(harness.store.snapshot(PARENT).question).toEqual(question)
+      expect(new ThreadTaskStore(filePath).snapshot(PARENT).question).toEqual(question)
+    })
+
+    it('clears a recovered question when the successful call is suppressed on the phone', async () => {
+      const harness = createHarness()
+      harness.composerTurn('turn-1', { originChannel: 'dotcraft-mobile' })
+      harness.store.setQuestion(PARENT, { turnId: 'turn-0', callId: 'earlier-call' })
+
+      const result = await harness.call({ ...ASK, blocked: true }, 'turn-1', 'WrapUp')
+
+      expect(structured(result)).toEqual({ shown: false })
+      expect(harness.store.snapshot(PARENT).question).toBeUndefined()
+    })
+
     it('keeps the chat waiting across a restart until the next turn starts', async () => {
       tempDir = mkdtempSync(join(tmpdir(), 'wrap-up-'))
       const filePath = join(tempDir, 'thread-tasks.json')

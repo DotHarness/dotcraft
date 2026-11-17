@@ -76,6 +76,31 @@ export class DesktopThreadTasks {
     return this.host.store.snapshot(threadId)
   }
 
+  async reconcileQuestion(connection: ThreadTaskConnection, threadId: string): Promise<void> {
+    const question = this.snapshot(threadId).question
+    if (!question?.turnId) return
+    try {
+      const result = await connection.request<{ data: Array<{ id: string; status: string }> }>('thread/turns/list', {
+        threadId,
+        limit: 1,
+        sortDirection: 'descending',
+        itemsView: 'none'
+      })
+      const latest = result.data[0]
+      const current = this.snapshot(threadId).question
+      if (!latest || current?.turnId !== question.turnId || current.callId !== question.callId) return
+      if (latest.id !== question.turnId || latest.status === 'failed' || latest.status === 'cancelled') {
+        this.clearQuestion(threadId)
+      }
+    } catch {
+      // Keep waiting when the server cannot confirm whether the question was answered.
+    }
+  }
+
+  clearQuestion(threadId: string): void {
+    this.host.store.setQuestion(threadId, undefined)
+  }
+
   handleNotification(method: string, params: unknown): void {
     this.audience.observe(method, params)
     const turn = readBrowserTurnNotification(method, params)

@@ -73,6 +73,7 @@ function fixture() {
     resolveConnectionMode: (settings: AppSettings) => settings.connectionMode,
     resolveActiveRemoteStack: () => null, resolveActiveSshProject: () => null,
     getWorkspaceConnection: () => undefined,
+    getThreadTasks: () => ({ snapshot: () => ({ tasks: [] }) }),
     emitConnectionStatus: vi.fn(), emitCurrentWorkspaceStatus: vi.fn(),
     emitWorkspaceProjects: vi.fn(), resetThreadToolState: () => {},
     deviceRemoteProjectId: (computerId: string, projectId: string) => `remote:device:${computerId}:${projectId}`,

@@ -78,14 +78,19 @@ export async function wrapUpTool(
   if (!wrapUp) {
     return { success: false, errorCode: 'InvalidArguments', errorMessage: 'recap is required: what is now true or changed and where it stands, said to the user in two or three sentences.' }
   }
+  const threadId = call.threadId?.trim()
   if (!wrapUp.ask || wrapUp.labels.length === 0) {
+    if (threadId) tasks?.clearQuestion(threadId)
     return result('Nothing is pending, so no box is shown. Write your closing message now, in full, as the last thing you say this turn.', false, wrapUp.advice)
   }
-  const threadId = call.threadId?.trim()
   if (tasks && threadId && (await tasks.fromPhone(connection, threadId, call.turnId))) {
+    tasks.clearQuestion(threadId)
     return result('Not shown: the user is on the phone, which has no next-step box. Ask your question in your closing message.', false, [])
   }
-  if (wrapUp.blocked && tasks && threadId && call.callId) tasks.waitForQuestion(connection, threadId, call.turnId, call.callId)
+  if (tasks && threadId) {
+    if (wrapUp.blocked && call.callId) tasks.waitForQuestion(connection, threadId, call.turnId, call.callId)
+    else tasks.clearQuestion(threadId)
+  }
   return result('Shown in the next-step box. Write your closing message now, in full, as the last thing you say this turn. The box asks your question, so do not ask it again.', true, wrapUp.advice)
 }
 

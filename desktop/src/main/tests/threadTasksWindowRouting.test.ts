@@ -39,13 +39,25 @@ function sharedTasks() {
 const proposal = (threadId: string, workspacePath: string) => ({ threadId, workspacePath, title: threadId, prompt: `Do ${threadId}`, defaults: {} })
 
 describe('window-owned thread task requests', () => {
+  it('reconciles waiting state before returning the IPC snapshot', async () => {
+    const tasks = sharedTasks()
+    const window = owner(5, '/workspace', tasks)
+    tasks.waitForQuestion(window.connection, 'thread', 'turn-1', 'call-1')
+    window.request.mockResolvedValueOnce({ data: [{ id: 'turn-2', status: 'completed' }] } as never)
+
+    await expect(window.invoke('threadTasks:list', 'thread')).resolves.toEqual({ threadId: 'thread', tasks: [] })
+
+    expect(tasks.snapshot('thread').question).toBeUndefined()
+    expect(window.request).toHaveBeenCalledWith('thread/turns/list', expect.objectContaining({ threadId: 'thread', limit: 1 }))
+  })
+
   it('uses each sender connection for concurrent proposal starts and closing one window leaves the other registered', async () => {
     const tasks = sharedTasks()
     const a = owner(1, '/workspace/a', tasks)
     const b = owner(2, '/workspace/b', tasks)
     const first = tasks.propose(proposal('thread-a', a.connection.workspacePath)).task
     const second = tasks.propose(proposal('thread-b', b.connection.workspacePath)).task
-    expect(a.invoke('threadTasks:list', 'thread-b')).toMatchObject({ tasks: [] })
+    await expect(a.invoke('threadTasks:list', 'thread-b')).resolves.toMatchObject({ tasks: [] })
     await expect(a.invoke('threadTasks:start', { threadId: 'thread-b', taskIds: [second.id] })).resolves.toMatchObject([{ ok: false }])
     expect(a.request).not.toHaveBeenCalled()
 
@@ -56,7 +68,7 @@ describe('window-owned thread task requests', () => {
     expect(results).toMatchObject([[{ ok: true, childThreadId: 'child-1' }], [{ ok: true, childThreadId: 'child-2' }]])
     a.scope.dispose()
     expect(() => a.invoke('threadTasks:list', 'thread-a')).toThrow()
-    expect(b.invoke('threadTasks:list', 'thread-b')).toMatchObject({ tasks: [{ childThreadId: 'child-2' }] })
+    await expect(b.invoke('threadTasks:list', 'thread-b')).resolves.toMatchObject({ tasks: [{ childThreadId: 'child-2' }] })
   })
 
   it('abandons only the closing owner offers and lets another owner answer', async () => {
