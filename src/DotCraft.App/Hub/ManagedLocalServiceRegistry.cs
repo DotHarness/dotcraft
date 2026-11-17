@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Security.Cryptography;
-using System.Text.Json;
 using DotCraft.Processes;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
@@ -371,75 +370,4 @@ internal interface IManagedLocalServiceProcess : IAsyncDisposable
     bool IsRunning { get; }
     string? RecentStderr { get; }
     Task<ManagedServiceReady> WaitForReadyAsync(CancellationToken cancellationToken);
-}
-
-internal sealed class ManagedLocalServiceProcess : IManagedLocalServiceProcess
-{
-    private const string ReadyType = "dotcraft.managed-service.ready";
-    private readonly ManagedChildProcess _child;
-    private readonly Task _stderrTask;
-    private readonly Queue<string> _stderr = new();
-
-    public ManagedLocalServiceProcess(ManagedChildProcess child)
-    {
-        _child = child;
-        _stderrTask = CaptureStderrAsync();
-    }
-
-    public int ProcessId => _child.Process.Id;
-    public bool IsRunning => !_child.Process.HasExited;
-    public string? RecentStderr
-    {
-        get
-        {
-            lock (_stderr)
-                return _stderr.Count == 0 ? null : string.Join(Environment.NewLine, _stderr);
-        }
-    }
-
-    public async Task<ManagedServiceReady> WaitForReadyAsync(CancellationToken cancellationToken)
-    {
-        while (await _child.Process.StandardOutput.ReadLineAsync(cancellationToken) is { } line)
-        {
-            if (string.IsNullOrWhiteSpace(line))
-                continue;
-            try
-            {
-                using var document = JsonDocument.Parse(line);
-                var root = document.RootElement;
-                if (root.TryGetProperty("type", out var type) && type.GetString() == ReadyType)
-                {
-                    return new ManagedServiceReady(
-                        root.GetProperty("serviceId").GetString() ?? string.Empty,
-                        root.GetProperty("endpoint").GetString() ?? string.Empty,
-                        root.TryGetProperty("version", out var version) ? version.GetString() : null);
-                }
-            }
-            catch (JsonException)
-            {
-                // Non-protocol startup output is ignored.
-            }
-        }
-
-        throw new InvalidOperationException("Managed service exited before reporting readiness.");
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        await _child.DisposeAsync();
-        try { await _stderrTask; } catch { }
-    }
-
-    private async Task CaptureStderrAsync()
-    {
-        while (await _child.Process.StandardError.ReadLineAsync() is { } line)
-        {
-            lock (_stderr)
-            {
-                _stderr.Enqueue(line);
-                while (_stderr.Count > 20)
-                    _stderr.Dequeue();
-            }
-        }
-    }
 }

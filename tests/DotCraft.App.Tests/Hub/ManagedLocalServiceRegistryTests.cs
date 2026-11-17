@@ -85,7 +85,34 @@ public sealed class ManagedLocalServiceRegistryTests : IDisposable
         Assert.Null(state.AccessToken);
     }
 
-    private ManagedLocalServiceRegistry CreateRegistry(out List<FakeProcess> starts)
+    [Fact]
+    public async Task EnsureAsync_CancellationDisposesStartingProcessAndPropagatesCancellation()
+    {
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var registry = CreateRegistry(out var starts, process =>
+        {
+            process.WaitForReady = async token =>
+            {
+                entered.TrySetResult();
+                await Task.Delay(Timeout.InfiniteTimeSpan, token);
+                return process.Ready;
+            };
+        });
+        using var cancellation = new CancellationTokenSource();
+        var ensure = registry.EnsureAsync(
+            new EnsureManagedServiceRequest { ServiceId = "oratorio", Executable = CreateExecutablePlaceholder() },
+            cancellation.Token);
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => ensure.WaitAsync(TimeSpan.FromSeconds(10)));
+        Assert.True(starts.Single().Disposed);
+        Assert.Null(registry.Get("oratorio").Pid);
+        Assert.Null(registry.Get("oratorio").AccessToken);
+    }
+
+    private ManagedLocalServiceRegistry CreateRegistry(out List<FakeProcess> starts, Action<FakeProcess>? configure = null)
     {
         var captured = new List<FakeProcess>();
         starts = captured;
@@ -97,6 +124,7 @@ public sealed class ManagedLocalServiceRegistryTests : IDisposable
             var process = new FakeProcess(
                 1000 + captured.Count,
                 new ManagedServiceReady(launch.ServiceId, launch.Endpoint, "test"));
+            configure?.Invoke(process);
             captured.Add(process);
             return Task.FromResult<IManagedLocalServiceProcess>(process);
         };
@@ -124,7 +152,10 @@ public sealed class ManagedLocalServiceRegistryTests : IDisposable
         public bool IsRunning => !Disposed;
         public string? RecentStderr => null;
         public bool Disposed { get; private set; }
-        public Task<ManagedServiceReady> WaitForReadyAsync(CancellationToken cancellationToken) => Task.FromResult(ready);
+        public ManagedServiceReady Ready { get; } = ready;
+        public Func<CancellationToken, Task<ManagedServiceReady>>? WaitForReady { get; set; }
+        public Task<ManagedServiceReady> WaitForReadyAsync(CancellationToken cancellationToken) =>
+            WaitForReady?.Invoke(cancellationToken) ?? Task.FromResult(Ready);
         public ValueTask DisposeAsync()
         {
             Disposed = true;

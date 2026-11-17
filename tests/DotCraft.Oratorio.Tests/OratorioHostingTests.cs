@@ -13,6 +13,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging.Console;
 using Microsoft.Extensions.Options;
 
 namespace DotCraft.Oratorio.Tests;
@@ -115,6 +116,27 @@ public sealed class OratorioHostingTests : IDisposable
         Assert.Equal(overlay, app.Services.GetRequiredService<IOptionsMonitor<SettingsWriteOptions>>().CurrentValue.ConfigPath);
         app.Services.GetRequiredService<IConfigurationSecretProtector>().Protect("custom path secret");
         Assert.True(File.Exists(secretKey));
+    }
+
+    [Theory]
+    [InlineData(null, ConsoleLoggerQueueFullMode.DropWrite)]
+    [InlineData("Wait", ConsoleLoggerQueueFullMode.Wait)]
+    public async Task ConsoleQueueUsesDefaultUnlessOverlayOverridesIt(string? configuredMode, ConsoleLoggerQueueFullMode expectedMode)
+    {
+        var state = CreateRoot("oratorio-host-console-");
+        var builder = CreateBuilder(new OratorioHostOptions { StateRoot = state });
+        if (configuredMode is not null)
+        {
+            await File.WriteAllTextAsync(Path.Combine(state, "config.json"), JsonSerializer.Serialize(new
+            {
+                Logging = new { Console = new { QueueFullMode = configuredMode } }
+            }));
+        }
+
+        await using var app = await OratorioApplication.BuildAsync(builder, RemoveBackgroundServices);
+
+        var options = app.Services.GetRequiredService<IOptionsMonitor<ConsoleLoggerOptions>>().CurrentValue;
+        Assert.Equal(expectedMode, options.QueueFullMode);
     }
 
     [Fact]
