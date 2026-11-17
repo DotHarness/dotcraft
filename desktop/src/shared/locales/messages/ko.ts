@@ -4765,7 +4765,7 @@ export const MESSAGES_KO = {
   'settings.browserUse.links.local': "로컬 링크",
   'settings.browserUse.links.localHint': "localhost 및 루프백 주소가 열리는 위치입니다.",
   'settings.browserUse.links.inAppBrowser': "DotCraft",
-  'settings.browserUse.links.systemBrowser': "기본 브라우저",
+  'settings.browserUse.links.systemBrowser': "기본",
   'settings.browserUse.links.favicons': "사이트 아이콘",
   'settings.browserUse.links.faviconsHint': "링크 옆에 웹사이트 아이콘을 표시합니다.",
   'settings.browserUse.links.saveFailed': "링크 설정을 저장하지 못했습니다: {{error}}",

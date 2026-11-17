@@ -4799,7 +4799,7 @@ export const MESSAGES_ZH_HANS = {
   'settings.browserUse.links.local': "本地链接",
   'settings.browserUse.links.localHint': "localhost 等本机地址的打开位置。",
   'settings.browserUse.links.inAppBrowser': "DotCraft",
-  'settings.browserUse.links.systemBrowser': "默认浏览器",
+  'settings.browserUse.links.systemBrowser': "默认",
   'settings.browserUse.links.favicons': "网站图标",
   'settings.browserUse.links.faviconsHint': "在链接旁显示网站图标。",
   'settings.browserUse.links.saveFailed': "无法保存链接偏好：{{error}}",

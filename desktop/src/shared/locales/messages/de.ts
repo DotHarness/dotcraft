@@ -4765,7 +4765,7 @@ export const MESSAGES_DE = {
   'settings.browserUse.links.local': "Lokale Links",
   'settings.browserUse.links.localHint': "Wo localhost und Loopback-Adressen geöffnet werden.",
   'settings.browserUse.links.inAppBrowser': "DotCraft",
-  'settings.browserUse.links.systemBrowser': "Standardbrowser",
+  'settings.browserUse.links.systemBrowser': "Standard",
   'settings.browserUse.links.favicons': "Website-Symbole",
   'settings.browserUse.links.faviconsHint': "Zeigt das Symbol jeder Website neben ihren Links an.",
   'settings.browserUse.links.saveFailed': "Link-Einstellung konnte nicht gespeichert werden: {{error}}",

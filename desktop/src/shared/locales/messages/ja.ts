@@ -4765,7 +4765,7 @@ export const MESSAGES_JA = {
   'settings.browserUse.links.local': "ローカルリンク",
   'settings.browserUse.links.localHint': "localhost やループバックアドレスを開く場所。",
   'settings.browserUse.links.inAppBrowser': "DotCraft",
-  'settings.browserUse.links.systemBrowser': "既定のブラウザ",
+  'settings.browserUse.links.systemBrowser': "既定",
   'settings.browserUse.links.favicons': "サイトのアイコン",
   'settings.browserUse.links.faviconsHint': "リンクの横に Web サイトのアイコンを表示します。",
   'settings.browserUse.links.saveFailed': "リンクの設定を保存できませんでした: {{error}}",

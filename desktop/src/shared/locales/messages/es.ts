@@ -4766,7 +4766,7 @@ export const MESSAGES_ES = {
   'settings.browserUse.links.local': "Enlaces locales",
   'settings.browserUse.links.localHint': "Dónde se abren localhost y las direcciones de bucle invertido.",
   'settings.browserUse.links.inAppBrowser': "DotCraft",
-  'settings.browserUse.links.systemBrowser': "Navegador predeterminado",
+  'settings.browserUse.links.systemBrowser': "Predeterminado",
   'settings.browserUse.links.favicons': "Iconos de sitios",
   'settings.browserUse.links.faviconsHint': "Muestra el icono de cada sitio web junto a sus enlaces.",
   'settings.browserUse.links.saveFailed': "No se pudo guardar la preferencia de enlaces: {{error}}",
