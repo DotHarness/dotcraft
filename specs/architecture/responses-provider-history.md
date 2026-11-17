@@ -7,8 +7,6 @@
 | **Date** | 2026-10-19 |
 | **Parent Specs** | [Session Core](session-core.md), [Model Runtime](model-runtime.md) |
 
-## Overview
-
 Microsoft.Extensions.AI (MEAI) `ChatMessage` history is DotCraft's provider-neutral agent
 history. OpenAI Responses additionally requires the exact ordered response-item sequence that was
 sent to and returned by the provider. Reconstructing that sequence from turn-aggregated MEAI
@@ -151,8 +149,12 @@ machine.
 - **Protocol change:** leaving Responses leaves the generation untouched. Returning after
   non-Responses turns creates a replacement from current MEAI history and advances the context
   window before the next Responses request.
-- **Fork:** a whole-turn fork copies an exact canonical prefix when available. Partial forks, and
-  forks without an exact prefix, create a new snapshot from the fork materialization. Fork state is copied, never linked.
+- **Fork:** a whole-turn fork copies an exact compatible canonical prefix when available, whether or
+  not the source history is natively compacted. A full-history native SubAgent copies the spawning
+  request's canonical input, including its pending local tail, before appending child context.
+  The copy retains provider/model ownership and native-compaction state under the child's own
+  generation and context-window identity. Partial forks, and forks without an exact prefix, create a
+  new snapshot from the fork materialization. Fork state is copied, never linked.
 - **Thread context items:** canonical input carries the SubAgent role item materialized at the fork
   boundary and any client context item appended for the turn. Both are ordinary input items: later
   requests append after them, and adapters do not move them at request time. A role-instruction

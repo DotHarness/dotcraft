@@ -9,11 +9,14 @@ namespace DotCraft.Tests.Sessions.Protocol;
 
 public sealed partial class SessionServiceNativeCompactionTests
 {
-    [Fact]
-    public async Task FullHistorySubAgent_AfterCompactionAndProviderUsage_KeepsNativePrefixAcrossColdResume()
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task FullHistorySubAgent_KeepsNativePrefixAndCompactionState(bool compactParent, bool ephemeralChild)
     {
         string childId;
-        string firstChildRequest;
         string[] forkPrefix = [];
         await using (var factory = CreateFactory())
         {
@@ -26,10 +29,10 @@ public sealed partial class SessionServiceNativeCompactionTests
             _provider.ReasoningNextResponse = true;
             _provider.ToolNextResponse = true;
             await DrainAsync(service.SubmitInputAsync(parent.Id, [new TextContent("parent task")]));
-            await CompactAsync(service, parent.Id);
+            if (compactParent)
+                await CompactAsync(service, parent.Id);
             _provider.InputTokensNextResponse = 1_000;
-            await DrainAsync(service.SubmitInputAsync(parent.Id, [new TextContent("after compaction")]));
-            Assert.Equal(1_000, parent.Turns[^1].TokenUsage?.InputTokens);
+            await DrainAsync(service.SubmitInputAsync(parent.Id, [new TextContent("before delegation")]));
 
             SessionThread? child = null;
             _provider.BeforeNextResponse = async ct =>
@@ -50,7 +53,7 @@ public sealed partial class SessionServiceNativeCompactionTests
                         TaskName = "inspect",
                         RuntimeType = NativeSubAgentRuntime.RuntimeTypeName,
                         ForkTurns = "all"
-                    }));
+                    }), ephemeral: ephemeralChild);
                 child.Turns.Add(new SessionTurn
                 {
                     Id = parent.Turns[^1].Id,
@@ -68,24 +71,43 @@ public sealed partial class SessionServiceNativeCompactionTests
             childId = child.Id;
 
             await DrainAsync(service.SubmitInputAsync(childId, [new TextContent("inspect-child")]));
-            firstChildRequest = _provider.Requests[^1];
-        }
+            AssertForkPrefix(_provider.Requests[^1], forkPrefix, compactParent);
+            var childSnapshot = Assert.IsType<PromptRequestSnapshot>(service.TryGetLastPromptRequestSnapshot(childId));
+            Assert.Equal(compactParent, Assert.IsType<OpaqueProviderHistorySnapshot>(childSnapshot.ProviderHistory).IsNativeCompacted);
 
-        await using var coldFactory = CreateFactory();
-        var coldService = CreateService(coldFactory);
-        await coldService.ResumeThreadAsync(childId);
-        await DrainAsync(coldService.SubmitInputAsync(childId, [new TextContent("continue-child")]));
-
-        foreach (var request in new[] { firstChildRequest, _provider.Requests[^1] })
-        {
-            using var document = JsonDocument.Parse(request);
-            Assert.Equal(forkPrefix, document.RootElement.GetProperty("input").EnumerateArray()
+            await DrainAsync(service.SubmitInputAsync(parent.Id, [new TextContent("parent-only-after-fork")]));
+            Assert.DoesNotContain("inspect-child", _provider.Requests[^1]);
+            using var parentRequest = JsonDocument.Parse(_provider.Requests[^1]);
+            Assert.Equal(forkPrefix, parentRequest.RootElement.GetProperty("input").EnumerateArray()
                 .Skip(1).Take(forkPrefix.Length).Select(item => item.GetRawText()));
-            Assert.Contains("encrypted-test", request);
-            Assert.DoesNotContain("old-reasoning-cache", request);
-            Assert.DoesNotContain("call_test", request);
-            AssertContainsOnce(request, "inspect-child");
+
+            if (ephemeralChild)
+            {
+                await DrainAsync(service.SubmitInputAsync(childId, [new TextContent("continue-child")]));
+                AssertForkPrefix(_provider.Requests[^1], forkPrefix, compactParent);
+            }
         }
-        Assert.Single(_provider.Compactions);
+
+        if (!ephemeralChild)
+        {
+            await using var coldFactory = CreateFactory();
+            var coldService = CreateService(coldFactory);
+            await coldService.ResumeThreadAsync(childId);
+            await DrainAsync(coldService.SubmitInputAsync(childId, [new TextContent("continue-child")]));
+            AssertForkPrefix(_provider.Requests[^1], forkPrefix, compactParent);
+            var snapshot = Assert.IsType<PromptRequestSnapshot>(coldService.TryGetLastPromptRequestSnapshot(childId));
+            Assert.Equal(compactParent, Assert.IsType<OpaqueProviderHistorySnapshot>(snapshot.ProviderHistory).IsNativeCompacted);
+        }
+    }
+
+    private static void AssertForkPrefix(string request, string[] prefix, bool compactParent)
+    {
+        using var document = JsonDocument.Parse(request);
+        Assert.Equal(prefix, document.RootElement.GetProperty("input").EnumerateArray()
+            .Skip(1).Take(prefix.Length).Select(item => item.GetRawText()));
+        Assert.Contains(compactParent ? "encrypted-test" : "old-reasoning-cache", request);
+        AssertContainsOnce(request, "delegate inspection");
+        AssertContainsOnce(request, "inspect-child");
+        Assert.DoesNotContain("parent-only-after-fork", request);
     }
 }

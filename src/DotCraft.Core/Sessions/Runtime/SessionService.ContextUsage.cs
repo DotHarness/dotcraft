@@ -160,7 +160,7 @@ public sealed partial class SessionService
         PromptRequestSnapshot snapshot,
         CancellationToken ct)
     {
-        if (ProviderRequestContextScope.Current is not { History.IsNativeCompacted: true, Compaction: { } bridge } context)
+        if (ProviderRequestContextScope.Current is not { History: { }, Compaction: { } bridge } context)
         {
             return snapshot;
         }

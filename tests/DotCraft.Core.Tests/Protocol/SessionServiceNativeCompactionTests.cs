@@ -458,7 +458,8 @@ public sealed partial class SessionServiceNativeCompactionTests : IDisposable
                 yield return ModelReaderWriter.Read<StreamingResponseUpdate>(BinaryData.FromString("""
                     {"type":"response.output_item.done","sequence_number":1,"output_index":0,
                      "item":{"type":"message","id":"msg_test","role":"assistant","status":"completed",
-                     "content":[{"type":"output_text","text":"ok","annotations":[]}]}}
+                      "phase":"final_answer","internal_chat_message_metadata_passthrough":{"turn_id":"provider-turn"},
+                      "content":[{"type":"output_text","text":"ok","annotations":[]}]}}
                     """))!;
             }
             var inputTokens = ReportHighUsageNextResponse ? 900_000 : InputTokensNextResponse;
