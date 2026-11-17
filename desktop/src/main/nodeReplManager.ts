@@ -1,5 +1,6 @@
 import { type BrowserWindow } from 'electron'
-import { browserUseManager, type BrowserUseImageResult, type BrowserUseManager } from './browserUseManager'
+import type { BrowserUseImageResult, BrowserUseManager } from './browserUseManager'
+import { browserUseManagers } from './browserUseManagers'
 import { NodeReplWorkerClient, defaultForkReplWorker, type ForkReplWorker } from './repl/NodeReplWorkerClient'
 import { createReplHostContext, handleChromeHostCall } from './repl/nodeReplHost'
 import { computerUseManager } from './computerUse/runtime'
@@ -24,6 +25,8 @@ export interface NodeReplEvaluateParams {
   projectKey?: string
   requestApproval?: (request: NodeReplApprovalRequest) => Promise<boolean>
 }
+
+type NodeReplBrowserManager = Pick<BrowserUseManager, 'prepareNodeRepl' | 'abortEvaluation' | 'reset' | 'handleBrowserUseElicitation'>
 
 export interface BrowserSessionMetadata {
   protocolVersion: number
@@ -155,7 +158,7 @@ export class NodeReplManager {
   private readonly cancelledEvaluations = new Map<string, Set<string>>()
 
   constructor(
-    private readonly browserManager: BrowserUseManager = browserUseManager,
+    private readonly browserManager: NodeReplBrowserManager = browserUseManagers,
     private readonly forkWorker: ForkReplWorker = defaultForkReplWorker,
     private readonly computerUse: Pick<ComputerUseManager, 'handleHostCall'> = computerUseManager
   ) {}
@@ -193,7 +196,7 @@ export class NodeReplManager {
     runtime.activeEvaluationId = evaluationId
     runtime.activeAbortController = abortController
     runtime.phase = 'prepare'
-    let browserRuntime: Awaited<ReturnType<BrowserUseManager['prepareNodeRepl']>> | undefined
+    let browserRuntime: Awaited<ReturnType<NodeReplBrowserManager['prepareNodeRepl']>> | undefined
     const timeoutMs = Math.max(1_000, Math.min(params.timeoutMs ?? 30_000, 120_000))
     const timer = new EvaluationTimer(timeoutMs)
     let surface: NodeReplEvaluateResult['surface']
@@ -241,7 +244,7 @@ export class NodeReplManager {
       if (outer) {
         abortController.abort()
         this.browserManager.abortEvaluation(params.threadId, evaluationId)
-        await runtime.worker.stop(evaluationId)
+        await runtime.worker.stop()
         this.disposeReplRuntime(params.threadId, runtime)
       } else if (runtime.worker.closed) {
         this.disposeReplRuntime(params.threadId, runtime)
@@ -361,7 +364,7 @@ export class NodeReplManager {
       runtime.activeAbortController?.abort(new Error('NodeReplJs connection closed.'))
       if (runtime.activeEvaluationId) this.browserManager.abortEvaluation(threadId, runtime.activeEvaluationId)
       this.disposeReplRuntime(threadId, runtime)
-      await runtime.worker.stop(runtime.activeEvaluationId)
+      await runtime.worker.stop()
     }
   }
 
@@ -370,7 +373,7 @@ export class NodeReplManager {
     for (const [threadId, runtime] of [...this.runtimes]) {
       runtime.activeAbortController?.abort(new Error('NodeReplJs disposed.'))
       if (runtime.activeEvaluationId) this.browserManager.abortEvaluation(threadId, runtime.activeEvaluationId)
-      await runtime.worker.stop(runtime.activeEvaluationId)
+      await runtime.worker.stop()
       this.disposeReplRuntime(threadId, runtime)
     }
     await Promise.all([...this.evaluationQueues.values()].map(state => state.tail))
@@ -389,7 +392,7 @@ export class NodeReplManager {
 
   private disposeReplRuntime(threadId: string, runtime: NodeReplThreadRuntime): void {
     if (this.runtimes.get(threadId) !== runtime) return
-    void runtime.worker.stop(runtime.activeEvaluationId)
+    void runtime.worker.stop()
     this.runtimes.delete(threadId)
   }
 

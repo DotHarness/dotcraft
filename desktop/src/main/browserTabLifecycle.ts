@@ -69,9 +69,9 @@ export class BrowserTabLifecycle {
         if (status === 'deliverable' || tab.adopted || tab.userOwned) effects.release(tab, status)
         else effects.retain(tab, status)
       } else if (tab.adopted || tab.userOwned) {
+        effects.release(tab)
         tab.userOwned = true
         tab.adopted = false
-        effects.release(tab)
         result.released.push(tab.id)
       } else {
         effects.close(tab)

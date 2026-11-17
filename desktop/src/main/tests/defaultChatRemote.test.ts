@@ -12,6 +12,7 @@ vi.mock('../defaultChatWorkspace', () => ({
 }))
 vi.mock('../DesktopAppServerClient', () => ({ DesktopAppServerClient: { fromWebSocket: host.createClient } }))
 vi.mock('../browserUseManager', () => ({ browserUseManager: {} }))
+vi.mock('../browserUseManagers', () => ({ browserUseManagers: {} }))
 vi.mock('../computerUse/runtime', () => ({ computerUseManager: {} }))
 vi.mock('../ipcBridge', () => ({ broadcastNotification: vi.fn() }))
 vi.mock('../ripgrepRuntime', () => ({ resolveDotCraftRuntimeTools: () => ({}) }))

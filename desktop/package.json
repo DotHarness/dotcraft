@@ -221,13 +221,6 @@
         ]
       },
       {
-        "from": "resources/chrome",
-        "to": "chrome",
-        "filter": [
-          "**/*"
-        ]
-      },
-      {
         "from": "resources/whats-new",
         "to": "whats-new",
         "filter": [

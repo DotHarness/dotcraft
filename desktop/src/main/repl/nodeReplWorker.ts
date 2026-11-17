@@ -17,7 +17,6 @@ export function startReplWorker(transport: ReplTransport): void {
   const scope = new AsyncLocalStorage<ReplContext>()
   let active: ReplContext | undefined
   let logs: string[] = []
-  let cancelHook: ((id: string, reason: string) => Promise<void> | void) | undefined
   const pending = new Map<string, { resolve(value: unknown): void; reject(error: Error): void }>()
   const globals = globalThis as unknown as Record<string, unknown>
   const current = (): ReplContext => {
@@ -60,7 +59,7 @@ export function startReplWorker(transport: ReplTransport): void {
       })
     }
   })
-  const env = Object.freeze({ BROWSER_USE_AVAILABLE_BACKENDS: 'iab', BROWSER_USE_DISABLE_AMBIENT_NETWORK: '1', BROWSER_USE_SECURITY_MODE: 'disabled-for-local-testing' })
+  const env = Object.freeze({ BROWSER_USE_AVAILABLE_BACKENDS: 'iab,extension', BROWSER_USE_DISABLE_AMBIENT_NETWORK: '1', BROWSER_USE_SECURITY_MODE: 'disabled-for-local-testing' })
   globals.nodeRepl = Object.freeze({
     write, emitImage: (value: unknown) => host('emitImage', value),
     createElicitation: (value: unknown) => host('createElicitation', value),
@@ -81,7 +80,6 @@ export function startReplWorker(transport: ReplTransport): void {
   })
   globals.console = Object.freeze({ log: write, warn: write, error: write, info: write, debug: write })
   globals.display = (value: unknown) => host('emitImage', value)
-  globals.__dotcraftSetChromeCancelHook = (hook: typeof cancelHook) => { cancelHook = hook }
 
   const evaluator = new NativeReplEvaluator()
 
@@ -92,19 +90,6 @@ export function startReplWorker(transport: ReplTransport): void {
       pending.delete(message.id)
       if (message.error) request?.reject(new Error(message.error))
       else request?.resolve(message.value)
-      return
-    }
-    if (message.type === 'cancel') {
-      void (async () => {
-        let error: string | undefined
-        try {
-          const cancel = () => cancelHook?.(message.evaluationId, 'cancelled')
-          await (active ? scope.run(active, cancel) : cancel())
-        } catch (cause) {
-          error = String(cause)
-        }
-        transport.send({ type: 'cancelled', evaluationId: message.evaluationId, generation: message.generation, error })
-      })()
       return
     }
     const context = message.context

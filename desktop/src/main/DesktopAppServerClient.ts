@@ -297,7 +297,7 @@ function buildInitializeCapabilities(): Record<string, unknown> {
     nodeRepl: { backend: 'desktop-node' },
     browserUse: {
       backend: 'desktop-iab',
-      backends: ['desktop-iab'],
+      backends: ['desktop-iab', 'chrome-extension'],
       protocolVersion: 2,
       supportsCancel: true,
       browserSessionProtocolVersion: 1,

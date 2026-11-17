@@ -2,7 +2,7 @@ import { normalizeLocale, translate } from '../../shared/locales'
 import type { WorkspaceProjectKind } from '../../shared/workspaceProjects'
 import { retryAppServerConnection, type RetryConnectionRequest } from '../appServerRetry'
 import { readBrowserTurnNotification } from '../browserTabLifecycle'
-import { browserUseManager } from '../browserUseManager'
+import { browserUseManagers } from '../browserUseManagers'
 import { computerUseManager } from '../computerUse/runtime'
 import {
   ensureDefaultChatWorkspace,
@@ -255,7 +255,7 @@ export function createSecondaryWorkspaceConnection(
       ctx.getThreadTasks().handleNotification(method, params)
       if (ownsThread) {
         if (turn.terminal) computerUseManager.handleTurnEnded(turn.threadId, turn.turnId)
-        browserUseManager.handleTurnNotification(method, params, entry.localWorkspacePath ?? entry.workspacePath)
+        browserUseManagers.handleTurnNotification(method, params, entry.localWorkspacePath ?? entry.workspacePath)
       }
       if (turn?.terminal) {
         void client.releaseBrowserTurn(turn.threadId, turn.turnId).catch(console.warn).finally(() => {

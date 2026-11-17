@@ -1,5 +1,5 @@
 import { afterAll, afterEach, expect, it, vi } from 'vitest'
-import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { pathToFileURL } from 'node:url'
@@ -86,16 +86,14 @@ it('kills synchronous loops while other tasks continue and starts a clean enviro
   expect((await evaluate('other', 'two')).resultText).toBe('7')
 })
 
-it('notifies the worker cancellation hook before killing pending promises', async () => {
-  const evidence = join(directory, 'cancel.json')
-  await evaluate(`const cancellationFs = await import('node:fs');
-    __dotcraftSetChromeCancelHook((id, reason) => cancellationFs.writeFileSync(${JSON.stringify(evidence)}, JSON.stringify({ id, reason })));`)
+it('aborts browser operations before killing pending promises', async () => {
+  await evaluate('const kept = true')
   const pending = evaluate('await new Promise(() => {})', 'one', { evaluationId: 'cancel-me' })
   await vi.waitFor(() => expect(browserManager.prepareNodeRepl).toHaveBeenCalledWith(owner, expect.objectContaining({ evaluationId: 'cancel-me' })))
   expect(manager.cancel('one', 'cancel-me')).toEqual({ ok: true })
   expect((await pending).error).toContain('cancelled')
-  expect(JSON.parse(readFileSync(evidence, 'utf8'))).toEqual({ id: 'cancel-me', reason: 'cancelled' })
-  expect((await evaluate('typeof cancellationFs')).resultText).toBe('undefined')
+  expect(browserManager.abortEvaluation).toHaveBeenCalledWith('one', 'cancel-me')
+  expect((await evaluate('typeof kept')).resultText).toBe('undefined')
 })
 
 it('ignores old asynchronous output and host calls after their evaluation ends', async () => {

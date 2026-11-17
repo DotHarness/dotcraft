@@ -24,6 +24,7 @@ import { browserObservationSource } from './browserUseObservation'
 import { withAutomationInput } from './browserAutomationInput'
 import { BrowserUseViewports, normalizeViewportSize, type ViewportSize } from './browserUseViewport'
 import type { AppSettings } from './settings'
+import { IAB_BACKEND_PROFILE, type BrowserUseBackendProfile } from './browserUseBackendProfile'
 import {
   isBrowserUseUrlAllowed as isBrowserUseUrlAllowedByPolicy,
   normalizeBrowserUseDomainList,
@@ -64,25 +65,6 @@ const FOCUSED_OPAQUE_FRAME_SOURCE = `(() => {
   }
   return walk(document)
 })()`
-const BROWSER_USE_BROWSER_CAPABILITIES = [
-  {
-    id: 'viewport',
-    description: 'Set or reset the embedded browser viewport size.',
-    docs: 'docs/capabilities/browser/viewport.md'
-  },
-  {
-    id: 'visibility',
-    description: 'Show or hide the embedded browser surface.',
-    docs: 'docs/capabilities/browser/visibility.md'
-  }
-]
-const BROWSER_USE_TAB_CAPABILITIES = [
-  {
-    id: 'pageAssets',
-    description: 'Inventory and bundle file assets observed in the current rendered page state.',
-    docs: 'docs/capabilities/tab/pageAssets.md'
-  }
-]
 
 type BrowserUseLoadState = 'commit' | 'domcontentloaded' | 'load' | 'networkidle'
 
@@ -91,7 +73,7 @@ export interface BrowserUseImageResult {
   dataBase64: string
 }
 
-interface BrowserUseViewerHost {
+export interface BrowserUseViewerHost {
   setCaptureSurface(win: BrowserWindow, tabId: string, size: { width: number; height: number } | null): void
   createAutomationTab(win: BrowserWindow, params: {
     tabId: string
@@ -101,6 +83,8 @@ interface BrowserUseViewerHost {
     initialUrl?: string
     sessionUrl?: string
     allowFileScheme?: boolean
+    temporary?: boolean
+    sessionName?: string
   }): unknown
   getTabWebContents(win: BrowserWindow, tabId: string): Electron.WebContents | null
   ensureTabWebContents(win: BrowserWindow, tabId: string): Promise<Electron.WebContents>
@@ -117,6 +101,7 @@ interface BrowserUseViewerHost {
   } | null
   setAutomationState(win: BrowserWindow, params: {
     tabId: string
+    threadId?: string
     active: boolean
     release?: boolean
     sessionName?: string
@@ -127,6 +112,8 @@ interface BrowserUseViewerHost {
   isVisible(win: BrowserWindow, tabId: string): boolean
   setVisible?(win: BrowserWindow, params: { tabId: string; visible: boolean }): void
   moveMouse(win: BrowserWindow, params: { tabId: string; x: number; y: number; waitForArrival?: boolean }): Promise<void>
+  refreshAutomationTargetTabs?(win: BrowserWindow, threadId: string): Promise<void>
+  prepareNavigation?(page: Electron.WebContents, url: string): string
 }
 
 interface BrowserUsePolicyHost {
@@ -337,7 +324,8 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
 
   constructor(
     private readonly viewerHost: BrowserUseViewerHost = viewerBrowserManager,
-    private readonly timeouts: BrowserUseOperationTimeouts = {}
+    private readonly timeouts: BrowserUseOperationTimeouts = {},
+    private readonly profile: BrowserUseBackendProfile = IAB_BACKEND_PROFILE
   ) {}
 
   private operationTimeoutMs(): number {
@@ -392,7 +380,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       sessionId: params.browserSession?.sessionId ?? params.threadId,
       turnId: params.browserSession?.turnId ?? params.evaluationId,
       evaluationId: params.browserSession?.evaluationId ?? params.evaluationId,
-      backendId: 'iab'
+      backendId: this.profile.id
     }
     const sessionId = runtime.browserSession.sessionId
     if (sessionId) this.runtimesBySessionId.set(sessionId, runtime)
@@ -423,6 +411,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       }
     }
     for (const tab of runtime.tabs.values()) {
+      if (this.isListedOnly(tab)) continue
       try {
         this.webContentsFor(tab.owner, tab.id).stop()
       } catch {}
@@ -546,7 +535,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
         case 'getTabs':
           return this.backendTabList(runtime)
         case 'getUserTabs':
-          return this.backendUserTabList(runtime)
+          return await this.backendUserTabList(runtime)
         case 'getUserHistory':
           throw BrowserUseBackendError.unsupportedApi('browser.user.history is not supported by Desktop IAB')
         case 'claimUserTab':
@@ -813,23 +802,23 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     }
     const runtime = this.runtimesBySessionId.get(sessionId)
     if (!runtime) {
-      throw new BrowserUseBackendError('SessionMetadataMissing: no active Desktop IAB runtime for session.', -32002)
+      throw new BrowserUseBackendError(`SessionMetadataMissing: no active ${this.profile.name} runtime for session.`, -32002)
     }
     return runtime
   }
 
   private backendInfo(runtime: BrowserUseThreadRuntime): Record<string, unknown> {
     return {
-      id: 'iab',
-      name: 'DotCraft In-App Browser',
-      type: 'iab',
+      id: this.profile.id,
+      name: this.profile.name,
+      type: this.profile.id,
       protocolVersion: 2,
       supportsCommandCancel: true,
       supportsTypedFinalize: true,
       maxBrowserResultBytes: BROWSER_USE_MAX_RESULT_BYTES,
       capabilities: {
-        browser: BROWSER_USE_BROWSER_CAPABILITIES.map((capability) => ({ ...capability })),
-        tab: BROWSER_USE_TAB_CAPABILITIES.map((capability) => ({ ...capability })),
+        browser: this.profile.browserCapabilities.map((capability) => ({ ...capability })),
+        tab: this.profile.tabCapabilities.map((capability) => ({ ...capability })),
         docs: {
           supported: [
             'tabs',
@@ -841,17 +830,8 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
             'pageAssets',
             'webmcp'
           ],
-          unsupported: [
-            'browser.user.history',
-            'ordinaryDownloads',
-            'fileUpload',
-            'fileChooser',
-            'tab_content_export'
-          ],
-          notes: [
-            'pageAssets.bundle is supported through Desktop file-transfer approval and temp output.',
-            'Text and JSON browser results are capped at 1MB; screenshots are exempt.'
-          ]
+          unsupported: [...this.profile.unsupportedDocs],
+          notes: [...this.profile.notes]
         }
       },
       metadata: {
@@ -866,15 +846,25 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
   }
 
   private modelFacingTabs(runtime: BrowserUseThreadRuntime): BrowserUseTabRuntime[] {
-    return [...runtime.tabs.values()].filter((tab) => tab.exposedToRenderer !== false)
+    return [...runtime.tabs.values()].filter((tab) => tab.exposedToRenderer !== false && !this.isListedOnly(tab))
   }
 
-  private backendUserTabList(runtime: BrowserUseThreadRuntime): Record<string, unknown>[] {
+  private isListedOnly(tab: BrowserUseTabRuntime): boolean {
+    return this.profile.separatesUserTabs && tab.userOwned === true && !tab.adopted
+  }
+
+  private async backendUserTabList(runtime: BrowserUseThreadRuntime): Promise<Record<string, unknown>[]> {
+    await this.viewerHost.refreshAutomationTargetTabs?.(runtime.owner, runtime.threadId)
     const candidates = this.viewerHost.listAutomationTargetTabs(runtime.owner, runtime.threadId, runtime.projectKey)
     for (const page of candidates) {
       if (!runtime.tabs.has(page.tabId)) this.registerTab(runtime.owner, runtime, page.tabId, true)
     }
-    const tabs = this.backendTabList(runtime)
+    const tabs = this.profile.separatesUserTabs
+      ? candidates.flatMap((page) => {
+          const tab = runtime.tabs.get(page.tabId)
+          return tab ? [this.backendTabSnapshot(runtime, tab)] : []
+        })
+      : this.backendTabList(runtime)
     runtime.recentUserBackendTabIds = new Set(tabs.map((tab) => Number(tab.id)).filter((id) => Number.isInteger(id)))
     return tabs
   }
@@ -1174,10 +1164,10 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
         return {}
       }
       case 'navigate_tab_back':
-        await this.goBack(this.backendTabForCommand(runtime, params))
+        await this.goHistory(this.backendTabForCommand(runtime, params), -1)
         return {}
       case 'navigate_tab_forward':
-        await this.goForward(this.backendTabForCommand(runtime, params))
+        await this.goHistory(this.backendTabForCommand(runtime, params), 1)
         return {}
       case 'navigate_tab_reload':
         await this.reload(this.backendTabForCommand(runtime, params))
@@ -1636,7 +1626,9 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       ...(runtime.projectKey ? { projectKey: runtime.projectKey } : {}),
       initialUrl: 'about:blank',
       sessionUrl: normalizedInitial ?? 'about:blank',
-      allowFileScheme: true
+      allowFileScheme: true,
+      ...(options.purpose === 'temporary-content' ? { temporary: true } : {}),
+      ...(runtime.sessionName ? { sessionName: runtime.sessionName } : {})
     })
 
     const tab = this.registerTab(owner, runtime, id, false)
@@ -1675,7 +1667,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
   }
 
   private emitOpen(owner: BrowserWindow, payload: BrowserUseOpenPayload): void {
-    if (owner.isDestroyed() || owner.webContents.isDestroyed()) return
+    if (!this.profile.presentsInViewer || owner.isDestroyed() || owner.webContents.isDestroyed()) return
     const snapshot = this.viewerHost.snapshotState(owner, payload.tabId)
     owner.webContents.send(BROWSER_USE_OPEN_CHANNEL, {
       ...payload,
@@ -1685,7 +1677,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
   }
 
   private emitClose(owner: BrowserWindow, payload: BrowserUseClosePayload): void {
-    if (owner.isDestroyed() || owner.webContents.isDestroyed()) return
+    if (!this.profile.presentsInViewer || owner.isDestroyed() || owner.webContents.isDestroyed()) return
     owner.webContents.send(BROWSER_USE_CLOSE_CHANNEL, payload)
   }
 
@@ -1769,6 +1761,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
   }
 
   private detachDebugger(tab: BrowserUseTabRuntime): void {
+    if (this.isListedOnly(tab)) return
     try {
       const wc = this.webContentsFor(tab.owner, tab.id)
       this.screenshots.reset(wc)
@@ -1834,7 +1827,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     const wc = this.webContentsFor(tab.owner, tab.id)
     if (method === 'Page.navigate') {
       const url = typeof params?.url === 'string' ? params.url : ''
-      params = { ...params, url: assertBrowserPageNavigation(wc, url) }
+      params = { ...params, url: this.viewerHost.prepareNavigation?.(wc, url) ?? assertBrowserPageNavigation(wc, url) }
     }
     const send = async () => await (sessionId
       ? wc.debugger.sendCommand(method, params, sessionId)
@@ -2373,6 +2366,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
   ): void {
     this.viewerHost.setAutomationState(tab.owner, {
       tabId: tab.id,
+      threadId: runtime.threadId,
       active,
       release,
       sessionName: runtime.sessionName,
@@ -2385,22 +2379,17 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     this.setAutomationState(runtime, tab, true, action)
   }
 
-  private async goBack(tab: BrowserUseTabRuntime): Promise<void> {
-    this.markAutomation(tab, 'back')
+  private async goHistory(tab: BrowserUseTabRuntime, offset: -1 | 1): Promise<void> {
+    const back = offset < 0
+    this.markAutomation(tab, back ? 'back' : 'forward')
     this.clearNavigationFailure(tab)
-    const wc = this.webContentsFor(tab.owner, tab.id)
-    if (wc.navigationHistory.canGoBack()) wc.navigationHistory.goBack()
-    await this.waitForLoad(tab, 'load', 30_000).catch((error) => {
-      if (error instanceof BrowserUseBackendError && error.message.startsWith('NavigationFailed:')) throw error
-    })
-    this.throwIfNavigationFailed(tab)
-  }
-
-  private async goForward(tab: BrowserUseTabRuntime): Promise<void> {
-    this.markAutomation(tab, 'forward')
-    this.clearNavigationFailure(tab)
-    const wc = this.webContentsFor(tab.owner, tab.id)
-    if (wc.navigationHistory.canGoForward()) wc.navigationHistory.goForward()
+    const history = await this.cdpCommand<{ currentIndex?: number; entries?: unknown[] }>(tab, 'Page.getNavigationHistory')
+    if (!history?.entries?.[(history.currentIndex ?? -1) + offset]) {
+      throw BrowserUseBackendError.navigationFailed(`Cannot navigate ${back ? 'back' : 'forward'}: no ${back ? 'previous' : 'next'} page in history.`)
+    }
+    const navigation = this.webContentsFor(tab.owner, tab.id).navigationHistory
+    if (back) navigation.goBack()
+    else navigation.goForward()
     await this.waitForLoad(tab, 'load', 30_000).catch((error) => {
       if (error instanceof BrowserUseBackendError && error.message.startsWith('NavigationFailed:')) throw error
     })
@@ -2465,6 +2454,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     tabId: string,
     url: string
   ): Promise<void> {
+    if (!this.profile.enforcesNavigationPolicy) return
     const settings = this.policyHost?.getSettings().browserUse
     const decision = resolveBrowserUseNavigationDecision(url, settings)
     if (decision.kind === 'allow') return

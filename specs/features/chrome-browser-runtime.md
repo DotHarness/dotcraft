@@ -2,259 +2,127 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.1 |
+| **Version** | 0.11.0 |
 | **Status** | Living |
-| **Date** | 2026-10-19 |
-| **Parent Specs** | [Plugin Architecture](../architecture/plugin-architecture.md) |
+| **Date** | 2026-11-17 |
+| **Parent Specs** | [Plugin Architecture](../architecture/plugin-architecture.md), [Desktop In-App Browser Runtime](desktop-inapp-browser.md) |
 
-Purpose: define the behavior contract for DotCraft's Chrome-backed browser automation runtime. Browser work is thread-bound, session-scoped, cancellable, recoverable, and safe to diagnose without exposing Chrome profile data.
+Purpose: define how DotCraft automates the user's existing Chrome profile. Chrome is a second backend of the Desktop browser-use runtime: it shares the browser client, backend primitives, page operations, tab lifecycle, and error contract with the in-app browser, and differs only where a user-owned Chrome profile requires it.
 
 ## 1. Scope
 
 This spec covers:
 
-- Thread-bound Chrome browser automation exposed through `NodeReplJs`.
-- Browser session identity, command lifecycle, tab ownership, timeout, cancellation, diagnostics, and cleanup semantics.
-- Chrome extension and native host backend connectivity.
-- The browser session and tab ownership model shared with other browser backends.
-- Agent-facing recovery expectations for Chrome setup and runtime failures.
+- The Chrome backend profile of the Desktop browser-use runtime and how it differs from the in-app browser.
+- The CDP relay between Desktop, the Chrome native messaging host, and the DotCraft Chrome extension.
+- Debugger attachment, connection recovery, automation overlay, setup diagnostics, and Chrome-specific recovery guidance.
 
 This spec does not define:
 
-- General web browsing UX unrelated to agent automation.
-- Chrome Web Store publication, enterprise deployment policy, or extension branding.
-- Browser automation against cookies, passwords, local storage, Chrome history, profile databases, or other profile storage files.
-- A full browser trace viewer or new browser API surface beyond the documented compatibility subset.
+- The browser client API, backend JSON-RPC primitives, page operations, tab ownership, timeouts, cancellation, or result limits; [Desktop In-App Browser Runtime](desktop-inapp-browser.md) owns them for every backend.
+- Chrome Web Store publication, enterprise policy, or extension branding.
+- Access to cookies, passwords, local storage, history, or other profile storage.
 
 ## 2. Goals
 
-1. **Durable browser sessions**: Browser automation is a thread-bound session with explicit turn and evaluation metadata, stable JavaScript bindings, and deterministic cleanup semantics.
-2. **Stable agent state**: Recoverable browser command errors do not destroy unrelated Node REPL state such as `browser` or `tab`.
-3. **Predictable tab ownership**: User, claimed, created, kept, released, and closed tabs have explicit lifecycle rules.
-4. **Bounded data transfer**: Page data and `tab.evaluate` results are capped before large payloads can destabilize the REPL or transport.
-5. **Actionable recovery**: Setup, backend, command, timeout, cancellation, debugger, and result-size failures have stable categories and user-safe recovery guidance.
-6. **Privacy preservation**: Diagnostics never include page bodies, cookies, localStorage, full URLs, profile paths, pipe paths, extension ids, or native host manifest paths.
+1. **One runtime**: Chrome and the in-app browser run the same client and page-operation code, so behavior and fixes stay aligned.
+2. **Stable control**: a tab keeps one debugger attachment for as long as the session controls it; commands never attach and detach per call.
+3. **Self-healing transport**: the extension and Desktop reconnect without user action after Chrome, the native host, or Desktop restarts.
+4. **Observable automation**: a controlled tab shows an automation overlay and the agent cursor, like the in-app browser.
+5. **Privacy preservation**: diagnostics never include page bodies, cookies, storage, full URLs, profile paths, pipe paths, extension ids, or native host manifest paths.
 
 ## 3. Architecture
 
-The [Node REPL contract](node-repl.md) owns evaluation, lexical state, imports, task-process isolation and outer cancellation. Browser command failures reject only the command promise and preserve that environment.
+| Layer | Owner | Responsibility |
+|-------|-------|----------------|
+| Browser client | `dotcraft.browserClientPath` | Discovers browser-use backends and exposes `agent.browsers.get("extension")` for Chrome. |
+| Chrome backend | Desktop main process | A browser-use backend instance with the Chrome profile (§4). Serves the shared JSON-RPC primitives on its own browser-use pipe and drives Chrome tabs through the relay. |
+| Native host | `scripts/native-host.mjs` | Started by Chrome. Bridges Desktop pipe clients and the extension's native messaging port without interpreting commands. |
+| Extension | DotCraft Chrome extension | Executes relay methods with `chrome.tabs`, `chrome.debugger`, and `chrome.scripting`, and forwards CDP and tab events. |
 
-The runtime has four layers:
+Page semantics (navigation readiness, locators, DOM snapshots, DOM-CUA, coordinate input, clipboard, frames, screenshots, waits) run in the Desktop backend over CDP. The extension never implements page semantics.
 
-1. **AppServer binding**
-   - Binds a thread to the AppServer client connection that declared `capabilities.nodeRepl` and `capabilities.browserUse`.
-   - Routes `ext/nodeRepl/evaluate` and `ext/nodeRepl/cancel` to that client.
-   - Treats browser runtime failures as plugin function results, not provider failures.
+## 4. Chrome Backend Profile
 
-2. **Desktop Node REPL manager**
-   - Owns one persistent JavaScript context per thread while the Desktop connection remains bound.
-   - Exposes `nodeRepl` and `dotcraft`; the browser client returns its agent for explicit lexical binding.
-   - Tracks active `evaluationId`, outer timeout, cancellation, and late-result suppression.
-   - Keeps REPL state across command-level Chrome errors.
+`getInfo` returns `id` and `type` `extension`, name `Chrome`, and `metadata.dotcraftSessionId`. The browser client selects it with `get("extension")`.
 
-3. **Browser session runtime**
-   - Exposes `agent.browsers.list()` to enumerate available browser backends and `agent.browsers.get(id)` to acquire a backend-specific browser handle.
-   - Carries `sessionId`, `turnId`, `evaluationId`, `backendId`, and tab ownership metadata on browser commands.
-   - Provides command-level timeout, cancellation, result-size limiting, and diagnostics.
+Differences from the in-app browser:
 
-4. **Chrome backend**
-   - Controls the user's existing Chrome profile through the DotCraft Chrome extension and native host.
-   - Uses native pipe backend discovery and a framed session command protocol.
-   - Implements the shared browser/tab API subset advertised by the Chrome skill.
+| Area | Chrome behavior |
+|------|-----------------|
+| Tabs | Backend tabs are Chrome tabs in the user's profile. Agent-created tabs open in the last focused normal window, in one tab group per session titled with the session name (`DotCraft` until the session is named); naming the session retitles its groups. The first created tab of a session is activated; later tabs open in the background. |
+| User tabs | `getUserTabs` lists normal `http`, `https`, and `file` tabs with title, URL, and active state only. Listed tabs are not controlled until claimed. A tab is controlled by at most one session: claiming a tab another session controls fails with `InvalidArgument`, and a session that only listed a tab never stops, detaches, or releases it. Released agent-created tabs are listed as user tabs. |
+| Presentation | No Desktop viewer tabs, panel focus changes, or browser `visibility` capability. |
+| Navigation policy | Desktop in-app browser domain approval does not apply; the user's own profile is the trust boundary. Internal `chrome:`, `devtools:`, extension, and Chrome Web Store pages cannot be controlled. |
+| Viewport | The natural size is the tab's content size. The `viewport` capability applies and resets explicit overrides as in the in-app browser. |
+| Screenshots | Captured through CDP. A background tab is activated in its window before capture. |
+| Downloads, uploads, file choosers, history | Unsupported, as in the in-app browser. |
 
-The host exposes `dotcraft.chromeBrowserClientPath`. Importing that module and calling `setupBrowserRuntime()` returns the agent; `agent.browsers.get("extension")` selects Chrome. Backend reconnect does not reset the task process; process replacement requires fresh bootstrap.
+## 5. Relay Transport
 
-## 4. AppServer and Session Metadata
-
-`ext/nodeRepl/evaluate` accepts optional browser metadata alongside the JavaScript evaluation fields:
-
-```json
-{
-  "threadId": "thread_abc",
-  "turnId": "turn_123",
-  "evaluationId": "node-repl-...",
-  "browserSession": {
-    "protocolVersion": 1,
-    "sessionId": "thread_abc",
-    "threadId": "thread_abc",
-    "turnId": "turn_123",
-    "evaluationId": "node-repl-..."
-  },
-  "code": "await browser.user.openTabs()",
-  "timeoutMs": 30000
-}
-```
-
-Rules:
-
-- `browserSession.sessionId` is the isolation key and normally equals the thread id.
-- `turnId` is preserved when available.
-- `evaluationId` changes for each Node REPL call.
-- Desktop exposes the active value as `globalThis.dotcraft.browserSession`.
-- Browser backends read the active value at command time so persistent JavaScript state can survive across evaluations while each command still carries the latest `evaluationId`.
-- Chrome commands without `sessionId`, `turnId`, or `evaluationId` fail with `SessionMetadataMissing`.
-
-The AppServer `capabilities.browserUse` object may advertise optional browser metadata such as browser session protocol version, command cancellation support, result-size limits, timeout limits, typed finalize support, and Chrome diagnostics support. Unknown capability fields are optional and forward-compatible.
-
-## 5. Evaluation and Error Isolation
-
-Browser command timeout or cancellation rejects only the current promise and preserves the REPL process. Outer evaluation cancellation follows the [Node REPL contract](node-repl.md): it first cancels pending Chrome commands for the active `evaluationId` (§7), then terminates the process.
-
-## 6. Chrome Host Transport
-
-The Chrome backend does not use a fixed TCP port. After Chrome starts the native messaging host, the host creates one local pipe per process:
+The native host listens on one local pipe per process:
 
 | Platform | Address Shape |
 |----------|---------------|
 | Windows | `\\.\pipe\dotcraft-chrome-<pid>-<nonce>` |
 | macOS/Linux | `<tempdir>/dotcraft-chrome-<pid>-<nonce>.sock` |
 
-Desktop discovers candidates by scanning the platform pipe prefix, connecting, sending `getInfo`, and selecting a protocol-compatible backend. There is no TCP fallback.
+Frames are 4-byte little-endian length-prefixed JSON. There is no TCP fallback.
 
-The browser client and native host use 4-byte little-endian length-prefixed JSON frames. The extension's Open Settings action activates the Desktop through its OS URL protocol, which the application window manager routes to a window; it does not probe a separate Desktop TCP control listener.
+- Request: `{ "id": 1, "method": "debugger.send", "params": { ... } }`
+- Response: `{ "id": 1, "result": { ... } }` or `{ "id": 1, "error": { "message": "DebuggerUnavailable: ..." } }`
+- Event: `{ "event": "debugger.event", "params": { ... } }`
 
-### Command Envelope
+The native host rewrites request ids per pipe client, routes responses back to the requesting client, and broadcasts events to all clients. When its last pipe client disconnects it tells the extension to release all tabs. Relay protocol version is `4`.
 
-```json
-{
-  "id": 1,
-  "kind": "command",
-  "commandId": "chrome-command-...",
-  "method": "tab.evaluate",
-  "params": {},
-  "browserSession": {
-    "protocolVersion": 1,
-    "sessionId": "thread_...",
-    "turnId": "turn_...",
-    "evaluationId": "node-repl-..."
-  },
-  "timeoutMs": 15000
-}
-```
+| Method | Result |
+|--------|--------|
+| `hello` | `{ protocolVersion, extensionVersion }`. |
+| `tabs.list` | Normal tabs: `{ tabId, windowId, url, title, loading, active, width, height }`. |
+| `tabs.create` | `{ url?, active?, groupKey, groupTitle }` → tab, added to the window's group for `groupKey`. |
+| `tabs.setGroupTitle` | `{ groupKey, title }` retitles every group for `groupKey`. |
+| `tabs.update` | `{ tabId, url?, active? }` → tab. |
+| `tabs.close` | Closes a tab. |
+| `debugger.attach` | Attaches CDP to a tab; succeeds when this extension already holds it. |
+| `debugger.detach` | Releases the attachment. |
+| `debugger.send` | `{ tabId, sessionId?, method, params }` → CDP result. |
+| `overlay.set` | `{ tabId, active, sessionName? }` shows or hides the automation overlay. |
+| `overlay.moveCursor` | `{ tabId, x, y, sequence, animate }`. |
 
-### Cancel Envelope
+| Event | Params |
+|-------|--------|
+| `debugger.event` | `{ tabId, sessionId?, method, params }` |
+| `debugger.detached` | `{ tabId, reason }` |
+| `tabs.updated` | Tab snapshot as in `tabs.list`, sent when a tab's URL, title, or loading state changes and for every tab in a window whose active tab changes. |
+| `tabs.removed` | `{ tabId }` |
+| `overlay.cursorArrived` | `{ tabId, sequence }` |
 
-```json
-{
-  "id": 2,
-  "kind": "cancel",
-  "commandId": "chrome-command-...",
-  "browserSession": {
-    "sessionId": "thread_...",
-    "turnId": "turn_...",
-    "evaluationId": "node-repl-..."
-  },
-  "reason": "outer-timeout"
-}
-```
+Relay failures carry the stable error categories in §9 as message prefixes; CDP command errors pass through unchanged.
 
-### Response Envelope
+## 6. Debugger Attachment
 
-```json
-{
-  "id": 1,
-  "ok": true,
-  "result": {}
-}
-```
+- The backend attaches a tab on its first CDP-backed command and keeps the attachment, so Chrome's debugging banner appears once and stays while the session controls the tab.
+- Commands on one tab are serialized by the backend; the extension does not attach or detach around individual commands.
+- Release, close, finalization, turn cleanup, and backend reset detach the tab. The extension detaches every tab and hides every overlay when its native port closes or the native host releases all tabs.
+- A detach with reason `canceled_by_user` means the user stopped automation from Chrome's banner. Commands in flight on that tab fail with `CommandCancelled`; the next command re-attaches, so the agent asks the user before resuming.
+- Another debugger on the tab, or an uncontrollable page, fails with `DebuggerUnavailable`.
 
-On failure:
+## 7. Connection Recovery
 
-```json
-{
-  "id": 1,
-  "ok": false,
-  "error": "CommandTimeout: Chrome extension command timed out."
-}
-```
+- The extension connects to the native host when its service worker starts. After a disconnect it retries after 5 seconds and through a 30-second alarm until connected. The popup reports `connected`, `reconnecting`, or `disconnected`.
+- Desktop connects to the relay lazily on the first Chrome command and keeps one connection. When it closes, pending relay calls fail with `BridgeDisconnected`, controlled tabs lose their attachments, and the next command rediscovers the relay.
+- The browser client discovers the Chrome backend through the browser-use pipe namespace. Chrome backend availability does not depend on the relay being connected; relay failures surface on commands.
 
-Event envelopes use:
+## 8. Automation Overlay
 
-```json
-{
-  "kind": "event",
-  "event": "backend.closed",
-  "browserSession": {},
-  "data": {}
-}
-```
+- A tab shows the overlay while it is automation-active, with the same activation rules as the in-app virtual cursor ([Desktop In-App Browser Runtime §12](desktop-inapp-browser.md#12-coordinate-input-virtual-cursor-and-dom-cua)).
+- The overlay renders an edge glow and the agent cursor in a closed shadow root on the top document, above page content, with no pointer events. Snapshots, locators, DOM-CUA, and screenshots exclude it.
+- `overlay.moveCursor` animates when the tab is visible and the window focused, and the extension emits `overlay.cursorArrived` for that sequence; otherwise the cursor snaps and arrival is immediate. The backend's arrival wait follows the in-app bound.
+- Navigation removes the overlay with the document; the extension restores it on the new document while the tab is still active. Overlay failures never fail a command.
 
-## 7. Command Lifecycle and Cancellation
+## 9. Setup Status, Diagnostics, and Errors
 
-Each command follows this lifecycle:
-
-1. Browser client generates `commandId`, records pending state, and sends a framed command envelope.
-2. Native host forwards the command to the Chrome extension and starts a matching timeout.
-3. Extension records `commandId -> pending command` and runs the requested operation.
-4. Completion resolves the pending command only if it has not been cancelled.
-5. Timeout or cancellation removes pending state, sends cancel downstream, and rejects the caller with a classified error.
-6. Late results for cancelled commands are discarded.
-
-Command timeouts are clamped to `1..120000` ms.
-
-Cancellation is cooperative:
-
-- Browser client sends cancel envelopes for pending commands matching the cancelled `evaluationId`.
-- Native host forwards cancel to the extension and clears its pending maps.
-- Extension wait/poll commands observe the cancel signal and stop early.
-- Already issued single CDP calls are not aggressively killed; their late results are ignored.
-
-Cancelable wait/poll commands include navigation wait, URL wait, load state wait, locator waits/actions, file chooser wait, and temporary tab content wait.
-
-## 8. Tab Ownership and Finalize
-
-Each backend tracks ownership per `sessionId`:
-
-| State | Meaning |
-|-------|---------|
-| `user` | Browser tab exists outside the agent session. |
-| `claimed` | The session adopted a user tab returned by the latest `openTabs()` call. |
-| `created` | The session opened the tab through agent browser APIs. |
-| `kept` | The session explicitly kept the tab at finalization. |
-| `released` | The session released a claimed/adopted tab at finalization. |
-| `closed` | The session closed an agent-created tab at finalization. |
-
-Rules:
-
-- `browser.user.openTabs()` is read-only and may expose title, URL, recency, and grouping metadata only.
-- `browser.user.claimTab(tab)` accepts a tab object returned by the current session's latest `openTabs()` call, or an id from that exact result.
-- Guessed ids and stale-session ids are rejected.
-- Agent-created tabs are closed by default at finalize.
-- Claimed user tabs are released by default at finalize.
-
-Finalization requires typed keep entries:
-
-```js
-await browser.tabs.finalize({
-  keep: [{ tab, status: "deliverable" }]
-});
-```
-
-`status` must be `"handoff"` or `"deliverable"`.
-
-Finalize returns a summary:
-
-```json
-{
-  "ok": true,
-  "kept": ["tab-id"],
-  "closed": ["tab-id"],
-  "released": ["tab-id"]
-}
-```
-
-## 9. Data Limits
-
-Browser command results must be bounded:
-
-- `tab.evaluate(fnOrSource, arg, { timeoutMs, maxBytes })` has a default maximum serialized result size of 1 MB.
-- Callers may request a smaller `maxBytes` but cannot raise the default cap through the public JS API.
-- Oversized results fail with `ResultTooLarge`, which includes the configured limit and a coarse actual or estimated size when known, never the oversized content.
-- Content reads use `maxLength` where available.
-
-## 10. Setup Status and Diagnostics
-
-`chrome.checkSetup()` returns normalized setup checks:
+`dotcraft.chrome.checkSetup()` returns normalized setup checks:
 
 ```json
 {
@@ -262,73 +130,19 @@ Browser command results must be bounded:
   "nativeHost": { "ok": true, "code": "nativeHostReady", "message": "Chrome Native Host is installed." },
   "chromeRunning": { "ok": true, "code": "chromeRunning", "message": "Chrome is running." },
   "installedBrowsers": { "ok": true, "code": "chromeInstalled", "message": "Google Chrome is installed." },
-  "backend": { "ok": true, "code": "backendConnected", "message": "Chrome backend is connected." },
-  "bridge": { "ok": true, "code": "backendConnected", "message": "Chrome backend is connected." }
+  "backend": { "ok": true, "code": "backendConnected", "message": "Chrome backend is connected." }
 }
 ```
 
-`bridge` mirrors `backend`; consumers read `backend`.
+Each check has `ok`, a stable `code`, a short user-safe `message`, and optional `action` and `safeDetails`. The `backend` check succeeds when a relay pipe answers `hello`. Overall status priority: Chrome missing, extension not ready, native host missing, Chrome not running, backend disconnected, connected.
 
-Each setup check uses:
+Allowed diagnostics: session, turn, evaluation, and command ids; backend id, method, status, elapsed time, timeout, cancellation flag; error category; relay candidate count and protocol version. Forbidden diagnostics are listed in §2.
 
-- `ok`: boolean result.
-- `code`: stable diagnostic code.
-- `message`: short user-safe message.
-- `action`: optional recovery action id.
-- `safeDetails`: optional safe summary fields.
-
-Allowed diagnostics:
-
-- session id, turn id, evaluation id, command id;
-- backend id, method, status, elapsed time, timeout, cancellation flag;
-- error category;
-- pipe candidate count, compatible backend count, reconnect count;
-- backend protocol version and coarse setup counts.
-
-Forbidden diagnostics:
-
-- page text, DOM, request/response bodies, cookies, localStorage;
-- full URLs;
-- full native pipe paths;
-- Chrome profile paths;
-- extension ids;
-- native host manifest paths;
-- oversized result content.
-
-Overall setup status priority:
-
-1. Chrome missing
-2. Extension not ready
-3. Native host missing
-4. Chrome not running
-5. Backend disconnected
-6. Connected
-
-When the backend is disconnected, recovery directs the user to open Chrome, click the DotCraft Chrome extension icon, and refresh status. The extension popup shows only whether the backend is ready or needs reconnecting and never renders the pipe path.
-
-## 11. Error Categories and Recovery
-
-Stable categories:
-
-- `ChromeNotInstalled`
-- `ChromeNotRunning`
-- `ExtensionMissing`
-- `ExtensionDisabled`
-- `NativeHostInvalid`
-- `BridgeDisconnected`
-- `SessionMetadataMissing`
-- `CommandTimeout`
-- `CommandCancelled`
-- `ResultTooLarge`
-- `DebuggerUnavailable`
-- `UnsupportedApi`
+Chrome adds these categories to the shared in-app browser categories: `ChromeNotInstalled`, `ChromeNotRunning`, `ExtensionMissing`, `ExtensionDisabled`, `NativeHostInvalid`, `BridgeDisconnected`.
 
 Agent recovery:
 
-- `BridgeDisconnected`: explain as Chrome backend disconnected; run `dotcraft.chrome.checkSetup()` and ask the user to click the DotCraft Chrome extension icon if setup is otherwise healthy.
-- `CommandTimeout`: fail only the current JavaScript promise; retry only after narrowing the command or increasing command timeout for a specific wait.
-- `CommandCancelled`: do not blindly retry; confirm whether the user cancelled, the turn timed out, or the workflow should resume.
-- `SessionMetadataMissing`: report the missing host metadata; bootstrap cannot repair an invalid host session.
-- `DebuggerUnavailable`: ask the user to close DevTools or another extension UI controlling the tab, then retry the specific command.
-- `ResultTooLarge`: narrow the query, use `maxLength`, or read smaller chunks; do not retry the same large result with a longer timeout.
-- `UnsupportedApi`: use the documented Chrome compatibility subset or ask before switching browser-control paths.
+- `BridgeDisconnected`: run `dotcraft.chrome.checkSetup()`; if setup is otherwise healthy, ask the user to confirm Chrome is open and the DotCraft extension is enabled, then retry once.
+- `CommandCancelled` after the user stopped Chrome's debugging banner: tell the user browser control was stopped in Chrome and ask before resuming.
+- `DebuggerUnavailable`: ask the user to close DevTools or another tool debugging the tab, or choose a normal web page.
+- Other categories follow [Desktop In-App Browser Runtime §15](desktop-inapp-browser.md#15-error-categories-and-diagnostics).

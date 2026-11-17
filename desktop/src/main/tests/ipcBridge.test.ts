@@ -43,6 +43,11 @@ vi.mock('child_process', () => ({
   execFile: execFileMock
 }))
 
+vi.mock('../chrome/chromeRelayClient', () => ({
+  chromeRelayPipeCandidates: vi.fn().mockResolvedValue([]),
+  ChromeRelayClient: vi.fn()
+}))
+
 vi.mock('electron', () => {
   const NotificationMock = vi.fn(function (this: { show: () => void }, _options: unknown) {
     this.show = notificationShowMock
@@ -832,13 +837,6 @@ describe('registerIpcHandlers', () => {
       chromeRunning: { ok: true, code: 'chromeRunning', message: 'Chrome is running.', safeDetails: { processCount: 1 } },
       installedBrowsers: { ok: true, code: 'chromeInstalled', message: 'Google Chrome is installed.', safeDetails: { browserCount: 0 } },
       backend: {
-        ok: false,
-        code: 'backendDisconnected',
-        message: 'Chrome backend is disconnected.',
-        action: 'clickExtensionRefresh',
-        safeDetails: { candidateCount: 0 }
-      },
-      bridge: {
         ok: false,
         code: 'backendDisconnected',
         message: 'Chrome backend is disconnected.',

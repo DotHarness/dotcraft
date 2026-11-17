@@ -180,7 +180,7 @@ describe('NodeReplManager', () => {
       hasCheckSetup: 'function',
       requireType: 'function',
       processType: 'object',
-      availableBackends: 'iab',
+      availableBackends: 'iab,extension',
       ambientNetworkDisabled: '1',
       securityMode: 'disabled-for-local-testing',
       createConnection: 'function',
@@ -254,7 +254,7 @@ describe('NodeReplManager', () => {
     expect((await evaluate('await globalThis.missing.url()')).error).toContain('TypeError')
   })
 
-  it('calls the Chrome cancel hook and resets the runtime after an outer timeout', async () => {
+  it('aborts browser operations and resets the runtime after an outer timeout', async () => {
     const { manager, browserManager } = createManager()
 
     await manager.evaluate(owner, { threadId: 'thread-1', code: 'globalThis.count = 1' })
@@ -262,9 +262,6 @@ describe('NodeReplManager', () => {
       threadId: 'thread-1',
       evaluationId: 'eval-timeout',
       code: `
-        __dotcraftSetChromeCancelHook(async (evaluationId, reason) => {
-          console.warn("chrome-cancel", evaluationId, reason.includes("timed out"))
-        })
         ${browserSetup}
         await new Promise(() => {})
       `,

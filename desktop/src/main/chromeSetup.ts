@@ -1,9 +1,9 @@
 import { app } from 'electron'
 import { execFile } from 'child_process'
-import { existsSync, promises as fsPromises, readFileSync } from 'fs'
-import { homedir, tmpdir } from 'os'
+import { existsSync, readFileSync } from 'fs'
+import { homedir } from 'os'
 import { join } from 'path'
-import net from 'net'
+import { ChromeRelayClient, chromeRelayPipeCandidates } from './chrome/chromeRelayClient'
 import type { ChromeSetupCheckStatus, ChromeSetupStatus } from '../shared/chromeSetup'
 export type { ChromeSetupCheckStatus, ChromeSetupStatus } from '../shared/chromeSetup'
 
@@ -115,122 +115,34 @@ export async function checkChromeSetup(workspacePath?: string): Promise<ChromeSe
     runChromeSetupScript(workspacePath, 'installed-browsers.js', ['--check', '--json']),
     checkChromeBridge()
   ])
-  const backend = normalizeSetupCheck('backend', backendRaw)
   return {
     extension: normalizeSetupCheck('extension', extensionRaw),
     nativeHost: normalizeSetupCheck('nativeHost', nativeHostRaw),
     chromeRunning: normalizeSetupCheck('chromeRunning', chromeRunningRaw),
     installedBrowsers: normalizeSetupCheck('installedBrowsers', installedBrowsersRaw),
-    backend,
-    bridge: backend
+    backend: normalizeSetupCheck('backend', backendRaw)
   }
 }
 
-export function checkChromeBridge(): Promise<unknown> {
-  return checkChromeBackendDiscovery()
-}
-
-async function chromePipeCandidates(): Promise<string[]> {
-  if (process.platform === 'win32') {
-    try {
-      const names = await fsPromises.readdir('\\\\.\\pipe\\')
-      return names.filter((name) => name.startsWith('dotcraft-chrome-')).map((name) => `\\\\.\\pipe\\${name}`)
-    } catch {
-      return []
-    }
-  }
-  try {
-    const names = await fsPromises.readdir(tmpdir())
-    return names
-      .filter((name) => name.startsWith('dotcraft-chrome-') && name.endsWith('.sock'))
-      .map((name) => join(tmpdir(), name))
-  } catch {
-    return []
-  }
-}
-
-function encodeFrame(message: unknown): Buffer {
-  const body = Buffer.from(JSON.stringify(message), 'utf8')
-  const header = Buffer.alloc(4)
-  header.writeUInt32LE(body.length, 0)
-  return Buffer.concat([header, body])
-}
-
-function decodeFirstFrame(buffer: Buffer): unknown | undefined {
-  if (buffer.length < 4) return undefined
-  const length = buffer.readUInt32LE(0)
-  if (buffer.length < length + 4) return undefined
-  return JSON.parse(buffer.subarray(4, 4 + length).toString('utf8'))
-}
-
-async function checkChromeBackendDiscovery(): Promise<unknown> {
-  const candidates = await chromePipeCandidates()
-  if (candidates.length === 0) {
-    return {
-      ok: false,
-      code: 'backendDisconnected',
-      candidateCount: 0,
-      error: 'Chrome backend native pipe was not discovered.',
-      action: 'clickExtensionRefresh'
-    }
-  }
-
-  const failures: string[] = []
-  for (const pipePath of candidates) {
-    const result = await probeChromePipe(pipePath)
-    if ((result as { ok?: boolean }).ok === true) {
-      return { ...(result as Record<string, unknown>), candidateCount: candidates.length, code: 'backendConnected' }
-    }
-    failures.push(normalizeBridgeError((result as { error?: unknown }).error))
-  }
-  return {
+async function checkChromeBridge(): Promise<unknown> {
+  const candidates = await chromeRelayPipeCandidates()
+  const disconnected = (error: string) => ({
     ok: false,
     code: 'backendDisconnected',
     candidateCount: candidates.length,
-    error: failures[0] ?? 'Chrome backend is not connected.',
+    error,
     action: 'clickExtensionRefresh'
-  }
-}
-
-function probeChromePipe(pipePath: string): Promise<unknown> {
-  return new Promise((resolve) => {
-    const socket = net.createConnection({ path: pipePath })
-    let buffer = Buffer.alloc(0)
-    let settled = false
-    let timer: ReturnType<typeof setTimeout>
-    const finish = (payload: unknown): void => {
-      if (settled) return
-      settled = true
-      clearTimeout(timer)
-      socket.destroy()
-      resolve(payload)
-    }
-    timer = setTimeout(() => {
-      finish({ ok: false, error: 'Chrome backend did not respond.' })
-    }, 1_000)
-
-    socket.on('connect', () => {
-      socket.write(encodeFrame({ id: 1, kind: 'command', method: 'getInfo', params: {}, timeoutMs: 1000 }))
-    })
-    socket.on('data', (chunk) => {
-      buffer = Buffer.concat([buffer, Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)])
-      try {
-        const parsed = decodeFirstFrame(buffer) as { ok?: boolean; result?: { protocolVersion?: number; backendId?: string }; error?: unknown } | undefined
-        if (!parsed) return
-        finish(parsed.ok === true && parsed.result?.protocolVersion === 3
-          ? { ok: true, backendId: parsed.result.backendId, protocolVersion: parsed.result.protocolVersion }
-          : { ok: false, error: normalizeBridgeError(parsed.error) })
-      } catch (error) {
-        finish({ ok: false, error: normalizeBridgeError(error) })
-      }
-    })
-    socket.on('error', (error) => {
-      finish({ ok: false, error: normalizeBridgeError(error) })
-    })
-    socket.on('close', () => {
-      finish({ ok: false, error: 'Chrome backend closed before responding.' })
-    })
   })
+  if (candidates.length === 0) return disconnected('Chrome backend native pipe was not discovered.')
+  const client = new ChromeRelayClient({ listPipes: async () => candidates })
+  try {
+    const info = await client.request<{ protocolVersion?: number }>('hello', {}, 2_000)
+    return { ok: true, code: 'backendConnected', candidateCount: candidates.length, protocolVersion: info?.protocolVersion }
+  } catch (error) {
+    return disconnected(normalizeBridgeError(error))
+  } finally {
+    client.close()
+  }
 }
 
 function normalizeBridgeError(error: unknown): string {

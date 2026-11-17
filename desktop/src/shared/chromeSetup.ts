@@ -12,5 +12,4 @@ export interface ChromeSetupStatus {
   chromeRunning: ChromeSetupCheckStatus
   installedBrowsers: ChromeSetupCheckStatus
   backend: ChromeSetupCheckStatus
-  bridge: ChromeSetupCheckStatus
 }
