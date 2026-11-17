@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.10.0 |
+| **Version** | 0.11.0 |
 | **Status** | Living |
 | **Date** | 2026-11-17 |
 | **Parent Specs** | [Plugin Architecture](../architecture/plugin-architecture.md), [Desktop In-App Browser Runtime](desktop-inapp-browser.md) |
@@ -50,8 +50,8 @@ Differences from the in-app browser:
 
 | Area | Chrome behavior |
 |------|-----------------|
-| Tabs | Backend tabs are Chrome tabs in the user's profile. Agent-created tabs open in the last focused normal window, in a tab group named after the session. The first created tab of a session is activated; later tabs open in the background. |
-| User tabs | `getUserTabs` lists normal `http`, `https`, and `file` tabs with title, URL, and active state only. Listed tabs are not controlled until claimed. |
+| Tabs | Backend tabs are Chrome tabs in the user's profile. Agent-created tabs open in the last focused normal window, in one tab group per session titled with the session name (`DotCraft` until the session is named); naming the session retitles its groups. The first created tab of a session is activated; later tabs open in the background. |
+| User tabs | `getUserTabs` lists normal `http`, `https`, and `file` tabs with title, URL, and active state only. Listed tabs are not controlled until claimed. A tab is controlled by at most one session: claiming a tab another session controls fails with `InvalidArgument`, and listing or releasing a tab never affects another session's control. Released agent-created tabs are listed as user tabs. |
 | Presentation | No Desktop viewer tabs, panel focus changes, or browser `visibility` capability. |
 | Navigation policy | Desktop in-app browser domain approval does not apply; the user's own profile is the trust boundary. Internal `chrome:`, `devtools:`, extension, and Chrome Web Store pages cannot be controlled. |
 | Viewport | The natural size is the tab's content size. The `viewport` capability applies and resets explicit overrides as in the in-app browser. |
@@ -79,7 +79,8 @@ The native host rewrites request ids per pipe client, routes responses back to t
 |--------|--------|
 | `hello` | `{ protocolVersion, extensionVersion }`. |
 | `tabs.list` | Normal tabs: `{ tabId, windowId, url, title, loading, active, width, height }`. |
-| `tabs.create` | `{ url?, active?, groupTitle? }` → tab. |
+| `tabs.create` | `{ url?, active?, groupKey, groupTitle }` → tab, added to the window's group for `groupKey`. |
+| `tabs.setGroupTitle` | `{ groupKey, title }` retitles every group for `groupKey`. |
 | `tabs.update` | `{ tabId, url?, active? }` → tab. |
 | `tabs.close` | Closes a tab. |
 | `debugger.attach` | Attaches CDP to a tab; succeeds when this extension already holds it. |
@@ -103,7 +104,7 @@ Relay failures carry the stable error categories in §9 as message prefixes; CDP
 - The backend attaches a tab on its first CDP-backed command and keeps the attachment, so Chrome's debugging banner appears once and stays while the session controls the tab.
 - Commands on one tab are serialized by the backend; the extension does not attach or detach around individual commands.
 - Release, close, finalization, turn cleanup, and backend reset detach the tab. The extension detaches every tab and hides every overlay when its native port closes or the native host releases all tabs.
-- A detach with reason `canceled_by_user` means the user stopped automation from Chrome's banner. Later commands on that tab fail with `CommandCancelled` until the session claims or creates a tab again; the backend never silently re-attaches.
+- A detach with reason `canceled_by_user` means the user stopped automation from Chrome's banner. Commands in flight on that tab fail with `CommandCancelled`; the next command re-attaches, so the agent asks the user before resuming.
 - Another debugger on the tab, or an uncontrollable page, fails with `DebuggerUnavailable`.
 
 ## 7. Connection Recovery

@@ -19,6 +19,7 @@ export class ChromeBrowserHost implements BrowserUseViewerHost {
   private readonly hostIds = new Map<number, string>()
   private readonly agentTabs = new Set<string>()
   private readonly tabThreads = new Map<string, string>()
+  private readonly controllers = new Map<string, string>()
   private readonly threadSessionNames = new Map<string, string>()
   private readonly threadsWithTabs = new Set<string>()
   private readonly overlays = new Map<string, OverlayState>()
@@ -34,12 +35,14 @@ export class ChromeBrowserHost implements BrowserUseViewerHost {
     })
   }
 
-  async createAutomationTab(_win: BrowserWindow, params: { tabId: string; threadId?: string; temporary?: boolean }): Promise<void> {
+  async createAutomationTab(_win: BrowserWindow, params: { tabId: string; threadId?: string; temporary?: boolean; sessionName?: string }): Promise<void> {
     const threadId = params.threadId ?? ''
+    if (params.sessionName) this.threadSessionNames.set(threadId, params.sessionName)
     const activate = params.temporary !== true && !this.threadsWithTabs.has(threadId)
     const snapshot = await this.relay.request<ChromeTabSnapshot>('tabs.create', {
       url: 'about:blank',
       active: activate,
+      groupKey: threadId,
       groupTitle: this.threadSessionNames.get(threadId) || DEFAULT_GROUP_TITLE
     })
     if (params.temporary !== true) this.threadsWithTabs.add(threadId)
@@ -106,11 +109,32 @@ export class ChromeBrowserHost implements BrowserUseViewerHost {
     return { tabId, currentUrl: page.getURL(), title: page.getTitle(), loading: page.isLoading() }
   }
 
-  setAutomationState(_win: BrowserWindow, params: { tabId: string; active: boolean; release?: boolean; sessionName?: string }): void {
+  setAutomationState(_win: BrowserWindow, params: {
+    tabId: string
+    threadId?: string
+    active: boolean
+    release?: boolean
+    sessionName?: string
+    action?: string
+  }): void {
     const page = this.pages.get(params.tabId)
     if (!page) return
-    const threadId = this.tabThreads.get(params.tabId)
-    if (threadId !== undefined && params.sessionName) this.threadSessionNames.set(threadId, params.sessionName)
+    const threadId = params.threadId ?? ''
+    this.renameSession(threadId, params.sessionName)
+    const controller = this.tabThreads.get(params.tabId) ?? this.controllers.get(params.tabId)
+    if (params.action === 'claim') {
+      if (controller !== undefined && controller !== threadId) {
+        throw new Error('InvalidArgument: Browser tab is controlled by another DotCraft session.')
+      }
+      if (controller === undefined) this.controllers.set(params.tabId, threadId)
+    } else if (controller !== threadId) {
+      return
+    }
+    if (params.release) {
+      this.agentTabs.delete(params.tabId)
+      this.tabThreads.delete(params.tabId)
+      this.controllers.delete(params.tabId)
+    }
     const next: OverlayState = { active: params.active, sessionName: params.sessionName }
     const current = this.overlays.get(params.tabId)
     if (current?.active === next.active && current.sessionName === next.sessionName) return
@@ -168,6 +192,13 @@ export class ChromeBrowserHost implements BrowserUseViewerHost {
     return url
   }
 
+  private renameSession(threadId: string, sessionName: string | undefined): void {
+    if (!sessionName || this.threadSessionNames.get(threadId) === sessionName) return
+    this.threadSessionNames.set(threadId, sessionName)
+    if (!this.threadsWithTabs.has(threadId)) return
+    void this.relay.request('tabs.setGroupTitle', { groupKey: threadId, title: sessionName }).catch(() => {})
+  }
+
   private waitForCursor(tabId: string, sequence: number): Promise<void> {
     return new Promise((resolve) => {
       const timer = setTimeout(() => finish(), CURSOR_ARRIVAL_TIMEOUT_MS)
@@ -196,6 +227,7 @@ export class ChromeBrowserHost implements BrowserUseViewerHost {
     if (page && this.hostIds.get(page.tabId) === hostId) this.hostIds.delete(page.tabId)
     this.agentTabs.delete(hostId)
     this.tabThreads.delete(hostId)
+    this.controllers.delete(hostId)
     this.overlays.delete(hostId)
     this.cursorWaiters.get(hostId)?.finish()
   }

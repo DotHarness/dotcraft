@@ -248,22 +248,30 @@ describe('chrome extension relay', () => {
     expect(result[0]).toEqual({ tabId: 1, windowId: 1, url: 'https://example.test/1', title: 'Tab 1', loading: false, active: true })
   })
 
-  it('creates agent tabs in the focused window and reuses the session group', async () => {
+  it('creates agent tabs in the focused window with one group per session', async () => {
     const worker = loadWorker([webTab(1)])
 
-    const first = (await worker.request('tabs.create', { groupTitle: 'Research' })).result
-    await worker.request('tabs.create', { url: 'https://example.test/next', groupTitle: 'Research' })
+    const first = (await worker.request('tabs.create', { groupKey: 'thread-a', groupTitle: 'DotCraft' })).result
+    await worker.request('tabs.create', { url: 'https://example.test/next', groupKey: 'thread-a', groupTitle: 'DotCraft' })
+    await worker.request('tabs.create', { groupKey: 'thread-b', groupTitle: 'DotCraft' })
+    await worker.request('tabs.setGroupTitle', { groupKey: 'thread-a', title: 'Research' })
 
     expect(first).toMatchObject({ tabId: 2, url: 'about:blank', active: false })
     expect(worker.chrome.tabs.create.mock.calls.map(([options]) => options)).toEqual([
       { url: 'about:blank', active: false, windowId: 1 },
-      { url: 'https://example.test/next', active: false, windowId: 1 }
+      { url: 'https://example.test/next', active: false, windowId: 1 },
+      { url: 'about:blank', active: false, windowId: 1 }
     ])
     expect(worker.chrome.tabs.group.mock.calls.map(([options]) => options)).toEqual([
       { createProperties: { windowId: 1 }, tabIds: [2] },
-      { groupId: 100, tabIds: [3] }
+      { groupId: 100, tabIds: [3] },
+      { createProperties: { windowId: 1 }, tabIds: [4] }
     ])
-    expect(worker.chrome.tabGroups.update).toHaveBeenCalledWith(100, { title: 'Research', color: 'blue' })
+    expect(worker.chrome.tabGroups.update.mock.calls).toEqual([
+      [100, { title: 'DotCraft', color: 'blue' }],
+      [101, { title: 'DotCraft', color: 'blue' }],
+      [100, { title: 'Research' }]
+    ])
   })
 
   it('hides the overlay while a viewport screenshot is captured', async () => {

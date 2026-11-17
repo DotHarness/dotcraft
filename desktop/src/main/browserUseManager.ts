@@ -84,6 +84,7 @@ export interface BrowserUseViewerHost {
     sessionUrl?: string
     allowFileScheme?: boolean
     temporary?: boolean
+    sessionName?: string
   }): unknown
   getTabWebContents(win: BrowserWindow, tabId: string): Electron.WebContents | null
   ensureTabWebContents(win: BrowserWindow, tabId: string): Promise<Electron.WebContents>
@@ -100,6 +101,7 @@ export interface BrowserUseViewerHost {
   } | null
   setAutomationState(win: BrowserWindow, params: {
     tabId: string
+    threadId?: string
     active: boolean
     release?: boolean
     sessionName?: string
@@ -1158,10 +1160,10 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
         return {}
       }
       case 'navigate_tab_back':
-        await this.goBack(this.backendTabForCommand(runtime, params))
+        await this.goHistory(this.backendTabForCommand(runtime, params), -1)
         return {}
       case 'navigate_tab_forward':
-        await this.goForward(this.backendTabForCommand(runtime, params))
+        await this.goHistory(this.backendTabForCommand(runtime, params), 1)
         return {}
       case 'navigate_tab_reload':
         await this.reload(this.backendTabForCommand(runtime, params))
@@ -1621,7 +1623,8 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       initialUrl: 'about:blank',
       sessionUrl: normalizedInitial ?? 'about:blank',
       allowFileScheme: true,
-      ...(options.purpose === 'temporary-content' ? { temporary: true } : {})
+      ...(options.purpose === 'temporary-content' ? { temporary: true } : {}),
+      ...(runtime.sessionName ? { sessionName: runtime.sessionName } : {})
     })
 
     const tab = this.registerTab(owner, runtime, id, false)
@@ -1754,6 +1757,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
   }
 
   private detachDebugger(tab: BrowserUseTabRuntime): void {
+    if (!tab.debuggerMessageHandler) return
     try {
       const wc = this.webContentsFor(tab.owner, tab.id)
       this.screenshots.reset(wc)
@@ -2358,6 +2362,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
   ): void {
     this.viewerHost.setAutomationState(tab.owner, {
       tabId: tab.id,
+      threadId: runtime.threadId,
       active,
       release,
       sessionName: runtime.sessionName,
@@ -2370,22 +2375,17 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     this.setAutomationState(runtime, tab, true, action)
   }
 
-  private async goBack(tab: BrowserUseTabRuntime): Promise<void> {
-    this.markAutomation(tab, 'back')
+  private async goHistory(tab: BrowserUseTabRuntime, offset: -1 | 1): Promise<void> {
+    const back = offset < 0
+    this.markAutomation(tab, back ? 'back' : 'forward')
     this.clearNavigationFailure(tab)
-    const wc = this.webContentsFor(tab.owner, tab.id)
-    if (wc.navigationHistory.canGoBack()) wc.navigationHistory.goBack()
-    await this.waitForLoad(tab, 'load', 30_000).catch((error) => {
-      if (error instanceof BrowserUseBackendError && error.message.startsWith('NavigationFailed:')) throw error
-    })
-    this.throwIfNavigationFailed(tab)
-  }
-
-  private async goForward(tab: BrowserUseTabRuntime): Promise<void> {
-    this.markAutomation(tab, 'forward')
-    this.clearNavigationFailure(tab)
-    const wc = this.webContentsFor(tab.owner, tab.id)
-    if (wc.navigationHistory.canGoForward()) wc.navigationHistory.goForward()
+    const history = await this.cdpCommand<{ currentIndex?: number; entries?: unknown[] }>(tab, 'Page.getNavigationHistory')
+    if (!history?.entries?.[(history.currentIndex ?? -1) + offset]) {
+      throw BrowserUseBackendError.navigationFailed(`Cannot navigate ${back ? 'back' : 'forward'}: no ${back ? 'previous' : 'next'} page in history.`)
+    }
+    const navigation = this.webContentsFor(tab.owner, tab.id).navigationHistory
+    if (back) navigation.goBack()
+    else navigation.goForward()
     await this.waitForLoad(tab, 'load', 30_000).catch((error) => {
       if (error instanceof BrowserUseBackendError && error.message.startsWith('NavigationFailed:')) throw error
     })

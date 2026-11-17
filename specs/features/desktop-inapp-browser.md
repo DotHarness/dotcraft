@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.10.0 |
+| **Version** | 0.11.0 |
 | **Status** | Living |
 | **Date** | 2026-11-17 |
 | **Parent Specs** | [Node REPL](node-repl.md) |
@@ -187,6 +187,7 @@ Navigation is command-scoped and never depends on a successful DOM snapshot.
 - Navigation is subject to Desktop browser policy: external-domain approval, allowed domains, and blocked domains.
 - A main-frame load failure becomes a structured navigation failure with safe error code, description, and requested and final URL summaries.
 - After a failed navigation, snapshots report the actual page URL or error-page URL, never the failed target as loaded. Chromium error pages are never reported as successful navigation.
+- `tab.back()` and `tab.forward()` read the tab's current navigation history when called and fail with `NavigationFailed` when there is no previous or next entry.
 - DOM, locator, and accessibility commands use their own readiness. DOM snapshots may proceed for an `interactive` or `complete` document with a body, even when text and interactable-element heuristics are empty.
 - `waitForLoadState("domcontentloaded")` completes for an already loaded tab when `document.readyState` is `interactive` or `complete` and a body exists; readiness sampling does not depend on animation frames, which hidden tabs throttle.
 - No page-text heuristic is a global precondition for unrelated commands.

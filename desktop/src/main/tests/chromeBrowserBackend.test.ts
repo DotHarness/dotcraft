@@ -15,13 +15,18 @@ import { CHROME_BACKEND_PROFILE } from '../browserUseBackendProfile'
 import { ChromeBrowserHost } from '../chrome/chromeBrowserHost'
 import type { ChromeRelay } from '../chrome/chromeRelayClient'
 
-interface FakeTab { tabId: number; url: string; title: string; loading: boolean; active: boolean; width: number; height: number }
+interface FakeHistory { currentIndex: number; entries: Array<{ id: number; url: string }> }
+interface FakeTab { tabId: number; url: string; title: string; loading: boolean; active: boolean; width: number; height: number; history?: FakeHistory }
+
+const mailTab = (history?: FakeHistory): FakeTab =>
+  ({ tabId: 50, url: 'https://mail.example/', title: 'Mail', loading: false, active: true, width: 1280, height: 720, history })
 
 class FakeChromeRelay extends EventEmitter implements ChromeRelay {
   readonly calls: Array<{ method: string; params: Record<string, unknown> }> = []
   readonly tabs = new Map<number, FakeTab>()
   readonly attached = new Set<number>()
   private nextTabId = 100
+  private onHeldEvaluate: ((held: { reject: (error: Error) => void }) => void) | null = null
 
   constructor(userTabs: FakeTab[] = []) {
     super()
@@ -34,6 +39,10 @@ class FakeChromeRelay extends EventEmitter implements ChromeRelay {
 
   emitEvent(name: string, params: Record<string, unknown>): void {
     this.emit('event', name, params)
+  }
+
+  holdNextEvaluate(): Promise<{ reject: (error: Error) => void }> {
+    return new Promise((resolve) => { this.onHeldEvaluate = resolve })
   }
 
   async request<T>(method: string, params: Record<string, unknown> = {}): Promise<T> {
@@ -49,7 +58,7 @@ class FakeChromeRelay extends EventEmitter implements ChromeRelay {
 
   private handle(method: string, params: Record<string, unknown>): unknown {
     switch (method) {
-      case 'tabs.list': return [...this.tabs.values()].map((tab) => ({ ...tab }))
+      case 'tabs.list': return [...this.tabs.values()].map(({ history: _history, ...tab }) => tab)
       case 'tabs.create': {
         const tab = { tabId: this.nextTabId++, url: 'about:blank', title: '', loading: false, active: params.active === true, width: 1280, height: 720 }
         this.tabs.set(tab.tabId, tab)
@@ -86,7 +95,20 @@ class FakeChromeRelay extends EventEmitter implements ChromeRelay {
       this.emitEvent('debugger.event', { tabId: tab.tabId, method: name, params: eventParams })
     switch (method) {
       case 'Page.getFrameTree': return { frameTree: { frame: { id: 'main', url: tab.url } } }
-      case 'Page.getNavigationHistory': return { currentIndex: 0, entries: [{ id: 1 }] }
+      case 'Page.getNavigationHistory': return tab.history ?? { currentIndex: 0, entries: [{ id: 1, url: tab.url }] }
+      case 'Page.navigateToHistoryEntry': {
+        const history = tab.history!
+        const index = history.entries.findIndex((entry) => entry.id === params.entryId)
+        event('Page.frameStartedLoading', { frameId: 'main' })
+        setTimeout(() => {
+          history.currentIndex = index
+          tab.url = history.entries[index].url
+          event('Page.frameNavigated', { frame: { id: 'main', url: tab.url } })
+          event('Page.loadEventFired')
+          event('Page.frameStoppedLoading', { frameId: 'main' })
+        }, 0)
+        return {}
+      }
       case 'Page.navigate': {
         const url = String(params.url)
         if (url.includes('unreachable')) return { errorText: 'net::ERR_NAME_NOT_RESOLVED' }
@@ -102,6 +124,11 @@ class FakeChromeRelay extends EventEmitter implements ChromeRelay {
       }
       case 'Runtime.evaluate': {
         const expression = String(params.expression ?? '')
+        const hold = this.onHeldEvaluate
+        if (hold && expression === '1 + 1') {
+          this.onHeldEvaluate = null
+          return new Promise((_resolve, reject) => hold({ reject }))
+        }
         if (expression.includes('readyState')) {
           return { result: { value: { url: tab.url, title: tab.title, readyState: 'complete', hasBody: true, bodyTextLength: 1, interactiveCount: 1, appRootTextLength: 1 } } }
         }
@@ -130,9 +157,13 @@ afterEach(async () => {
   await Promise.all(managers.splice(0).map((manager) => manager.closeBackendForTests()))
 })
 
-async function openChromeSession(relay: FakeChromeRelay, threadId = 'chrome-thread') {
+function createChromeManager(relay: FakeChromeRelay): BrowserUseManager {
   const manager = new BrowserUseManager(new ChromeBrowserHost(relay), {}, CHROME_BACKEND_PROFILE)
   managers.push(manager)
+  return manager
+}
+
+async function openChromeSession(relay: FakeChromeRelay, threadId = 'chrome-thread', manager = createChromeManager(relay)) {
   const owner = createOwner()
   await manager.prepareNodeRepl(owner, {
     threadId,
@@ -176,7 +207,7 @@ describe('Chrome browser backend', () => {
   })
 
   it('controls user tabs only after a claim and releases them when the turn ends', async () => {
-    const relay = new FakeChromeRelay([{ tabId: 50, url: 'https://mail.example/', title: 'Mail', loading: false, active: true, width: 1280, height: 720 }])
+    const relay = new FakeChromeRelay([mailTab()])
     const { manager, call, evaluate } = await openChromeSession(relay)
 
     const userTabs = await call('getUserTabs') as Array<{ id: number; url: string }>
@@ -194,16 +225,82 @@ describe('Chrome browser backend', () => {
     expect(relay.count('tabs.close', 50)).toBe(0)
   })
 
-  it('stops controlling a tab after the user cancels debugging in Chrome', async () => {
+  it('cancels in-flight commands when the user stops debugging and re-attaches on the next command', async () => {
     const relay = new FakeChromeRelay()
     const { call, evaluate } = await openChromeSession(relay)
     const tab = await call('createTab', { url: 'https://example.com/' }) as { id: number }
-    const chromeTabId = relay.calls.find((item) => item.method === 'debugger.attach')?.params.tabId
+    const chromeTabId = relay.calls.find((item) => item.method === 'debugger.attach')?.params.tabId as number
+    const held = relay.holdNextEvaluate()
+    const inFlight = evaluate(tab)
+    const command = await held
 
+    relay.attached.delete(chromeTabId)
     relay.emitEvent('debugger.detached', { tabId: chromeTabId, reason: 'canceled_by_user' })
+    command.reject(new Error('Detached while handling command.'))
 
-    await expect(evaluate(tab)).rejects.toThrow(/^CommandCancelled: Browser control was stopped in Chrome/)
-    expect(relay.count('debugger.attach')).toBe(1)
+    await expect(inFlight).rejects.toThrow(/^CommandCancelled: Browser control was stopped in Chrome/)
+    await evaluate(tab)
+    expect(relay.count('debugger.attach', chromeTabId)).toBe(2)
+  })
+
+  it('lists a released agent tab as a user tab', async () => {
+    const { call } = await openChromeSession(new FakeChromeRelay())
+    const tab = await call('createTab', { url: 'https://example.com/' }) as { id: number }
+
+    await call('finalizeTabs', { keep: [{ tabId: tab.id, status: 'deliverable' }] })
+
+    expect(await call('getUserTabs')).toEqual([expect.objectContaining({ url: 'https://example.com/' })])
+  })
+
+  it('groups agent tabs by session and retitles the group when the session is renamed', async () => {
+    const relay = new FakeChromeRelay()
+    const { call } = await openChromeSession(relay)
+
+    await call('nameSession', { name: 'Research' })
+    await call('createTab')
+    await call('nameSession', { name: 'Checkout' })
+    await call('createTab')
+
+    expect(relay.calls.filter((item) => item.method === 'tabs.create').map((item) => item.params)).toEqual([
+      expect.objectContaining({ groupKey: 'chrome-thread', groupTitle: 'Research' }),
+      expect.objectContaining({ groupKey: 'chrome-thread', groupTitle: 'Checkout' })
+    ])
+    expect(relay.calls).toContainEqual({ method: 'tabs.setGroupTitle', params: { groupKey: 'chrome-thread', title: 'Checkout' } })
+  })
+
+  it('keeps a claimed user tab under one session', async () => {
+    const relay = new FakeChromeRelay([mailTab()])
+    const first = await openChromeSession(relay, 'thread-a')
+    const second = await openChromeSession(relay, 'thread-b', first.manager)
+    const [claimed] = await first.call('getUserTabs') as Array<{ id: number }>
+    await first.call('claimUserTab', { tabId: claimed.id })
+    await first.evaluate(claimed)
+    const [listed] = await second.call('getUserTabs') as Array<{ id: number }>
+
+    await expect(second.call('claimUserTab', { tabId: listed.id }))
+      .rejects.toThrow(/^InvalidArgument: Browser tab is controlled by another DotCraft session/)
+    await second.call('finalizeTabs', { keep: [] })
+    await first.evaluate(claimed)
+
+    expect(relay.count('debugger.detach', 50)).toBe(0)
+    expect(relay.count('debugger.attach', 50)).toBe(1)
+    expect(relay.calls).not.toContainEqual({ method: 'overlay.set', params: { tabId: 50, active: false } })
+  })
+
+  it('reads live history for back and fails when there is no previous page', async () => {
+    const relay = new FakeChromeRelay([mailTab({
+      currentIndex: 1,
+      entries: [{ id: 1, url: 'https://mail.example/' }, { id: 2, url: 'https://mail.example/inbox' }]
+    })])
+    const { call } = await openChromeSession(relay)
+    const [listed] = await call('getUserTabs') as Array<{ id: number }>
+    await call('claimUserTab', { tabId: listed.id })
+    const back = () => call('executeUnhandledCommand', { type: 'navigate_tab_back', tab_id: listed.id })
+
+    await back()
+
+    expect(await call('getTabs')).toEqual([expect.objectContaining({ url: 'https://mail.example/' })])
+    await expect(back()).rejects.toThrow(/^NavigationFailed: Cannot navigate back: no previous page in history/)
   })
 
   it('reports Chrome navigation errors as navigation failures', async () => {

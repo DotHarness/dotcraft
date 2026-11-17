@@ -33,6 +33,8 @@ function consoleText(args: unknown): string {
 class ChromeTabDebugger extends EventEmitter {
   private attached = false
   private ready: Promise<void> | null = null
+  private detachCount = 0
+  private lastDetachReason = ''
 
   constructor(private readonly page: ChromeTabPage) {
     super()
@@ -44,7 +46,6 @@ class ChromeTabDebugger extends EventEmitter {
 
   attach(_protocolVersion?: string): void {
     if (this.page.isDestroyed()) throw new Error(`PageClosed: Browser page is closed: ${this.page.tabId}`)
-    if (this.page.stoppedByUser) throw new Error(STOPPED_BY_USER)
     if (this.attached) return
     this.attached = true
     const ready = this.page.relay.request('debugger.attach', { tabId: this.page.tabId })
@@ -67,13 +68,19 @@ class ChromeTabDebugger extends EventEmitter {
   async sendCommand(method: string, params: Record<string, unknown> = {}, sessionId?: string): Promise<unknown> {
     const ready = this.ready
     if (!this.attached || !ready) throw new Error(`Debugger is not attached to Chrome tab ${this.page.tabId}.`)
-    await ready
-    return await this.page.relay.request('debugger.send', {
-      tabId: this.page.tabId,
-      method,
-      params,
-      ...(sessionId ? { sessionId } : {})
-    })
+    const detachCount = this.detachCount
+    try {
+      await ready
+      return await this.page.relay.request('debugger.send', {
+        tabId: this.page.tabId,
+        method,
+        params,
+        ...(sessionId ? { sessionId } : {})
+      })
+    } catch (error) {
+      if (this.detachCount !== detachCount && this.lastDetachReason === 'canceled_by_user') throw new Error(STOPPED_BY_USER)
+      throw error
+    }
   }
 
   sendInternal(method: string, params: Record<string, unknown> = {}): Promise<unknown> {
@@ -82,6 +89,8 @@ class ChromeTabDebugger extends EventEmitter {
 
   handleDetached(reason: string): void {
     if (!this.attached) return
+    this.detachCount += 1
+    this.lastDetachReason = reason
     this.attached = false
     this.ready = null
     this.emit('detach', {}, reason)
@@ -91,12 +100,9 @@ class ChromeTabDebugger extends EventEmitter {
 export class ChromeTabPage extends EventEmitter {
   readonly debugger: ChromeTabDebugger
   readonly navigationHistory = {
-    canGoBack: (): boolean => this.historyIndex > 0,
-    canGoForward: (): boolean => this.historyIndex >= 0 && this.historyIndex < this.historyEntries.length - 1,
     goBack: (): void => this.goToHistoryOffset(-1),
     goForward: (): void => this.goToHistoryOffset(1)
   }
-  stoppedByUser = false
   private destroyed = false
   private url: string
   private title: string
@@ -234,7 +240,6 @@ export class ChromeTabPage extends EventEmitter {
   }
 
   handleDetached(reason: string): void {
-    if (reason === 'canceled_by_user') this.stoppedByUser = true
     this.debugger.handleDetached(reason)
   }
 

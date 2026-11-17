@@ -120,6 +120,8 @@ function dispatchRelay(method, params) {
       return updateTab(params);
     case 'tabs.close':
       return closeTab(params.tabId);
+    case 'tabs.setGroupTitle':
+      return setGroupTitle(params);
     case 'debugger.attach':
       return attachDebugger(params.tabId);
     case 'debugger.detach':
@@ -186,21 +188,36 @@ async function listTabs() {
   return tabs.filter(isListedTab).map(tabSnapshot);
 }
 
-async function groupTab(tab, title) {
-  if (!title) return;
-  const key = `${tab.windowId}:${title}`;
-  const existing = tabGroups.get(key);
+async function groupTab(tab, key, title) {
+  const windows = tabGroups.get(key) ?? new Map();
+  tabGroups.set(key, windows);
+  const existing = windows.get(tab.windowId);
   if (existing !== undefined) {
     try {
       await chrome.tabs.group({ groupId: existing, tabIds: [tab.id] });
       return;
     } catch {
-      tabGroups.delete(key);
+      windows.delete(tab.windowId);
     }
   }
   const groupId = await chrome.tabs.group({ createProperties: { windowId: tab.windowId }, tabIds: [tab.id] });
-  tabGroups.set(key, groupId);
+  windows.set(tab.windowId, groupId);
   await chrome.tabGroups.update(groupId, { title, color: 'blue' });
+}
+
+async function setGroupTitle(params) {
+  const windows = tabGroups.get(params.groupKey);
+  if (!windows) return { updated: 0 };
+  let updated = 0;
+  for (const [windowId, groupId] of windows) {
+    try {
+      await chrome.tabGroups.update(groupId, { title: params.title });
+      updated += 1;
+    } catch {
+      windows.delete(windowId);
+    }
+  }
+  return { updated };
 }
 
 async function createTab(params) {
@@ -210,7 +227,7 @@ async function createTab(params) {
     active: params.active === true,
     ...(window ? { windowId: window.id } : {})
   });
-  await groupTab(tab, params.groupTitle).catch((error) => console.warn(errorMessage(error)));
+  await groupTab(tab, params.groupKey, params.groupTitle).catch((error) => console.warn(errorMessage(error)));
   return tabSnapshot(await getTab(tab.id));
 }
 
