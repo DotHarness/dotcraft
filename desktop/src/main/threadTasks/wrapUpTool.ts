@@ -2,33 +2,31 @@ import type { ThreadTaskConnection } from './childThreads'
 import type { DesktopThreadTasks } from './threadTaskService'
 import type { ThreadTaskToolCall, ThreadTaskToolResult } from './threadTaskTools'
 
-const MAX_RECAP = 300
-const MAX_ASK = 100
-const MAX_LABEL = 24
+const RECAP_CHARS = 300
+const ASK_CHARS = 100
+const LABEL_CHARS = 24
 const MAX_ACTIONS = 2
 
-export const WRAP_UP_DESCRIPTION = `Fill the next-step box the user sees when this turn ends: a short recap and, when this turn leaves the user a decision to make, one question with buttons that answer it. Call it once in every turn in which you changed files, ran commands, or completed multi-step work, when the work is done and before your closing message. Skip it for short answers and pure conversation.
-A button sends its label to you as the user's next message, so the user can go on with a click. One follow-up that acts on what this chat just found belongs here as the question, with a button that has you do it here. A task of its own goes to CreateThread "ownInitiative" instead.
-Your closing message follows this call and is your full answer to the user. The recap never replaces it.`
+export const WRAP_UP_DESCRIPTION = `Fill the next-step box the user sees when this turn ends: a two-or-three-sentence recap and, when this turn leaves the user a decision to make or a step to take, one question and buttons that answer it. A turn with nothing pending ends with the recap alone, and no box is shown. Call it once in every turn in which you changed files, ran commands, or completed multi-step work, when this turn's work is done and before your closing message. Skip it for short answers, pure conversation, or a brief read-and-explain turn. A reply that names a follow-up is not brief: ask or propose it, and call this.
+Your closing message is ordinary text right after this call, the last thing you say this turn: your answer to the user in full, which the recap never replaces. The result says whether the box shows your question: ask in the message only a question it does not show.
+recap and ask are said to the user, in the second person. A button's label is the user's words back to you.`
 
 export const WRAP_UP_PROPERTIES = {
   recap: {
     type: 'string',
-    description: `Two or three short sentences to the user (at most ${MAX_RECAP} characters): what is now true or changed, then what is not done or not verified.`
+    description: `Two or three short sentences to the user (about ${RECAP_CHARS} characters): what is now true or changed, then where it stands, including what is not done or not verified.`
   },
   ask: {
     type: 'string',
-    description: `The one decision the user must make next, in one short sentence (at most ${MAX_ASK} characters), without listing the options the buttons give. Omit it, and actions, when nothing waits on the user.`
+    description: `The one decision the user must make next, in one short sentence (about ${ASK_CHARS} characters), with no reason or recommendation and without listing the options the buttons give. Omit it, and actions, when nothing waits on the user.`
   },
   actions: {
     type: 'array',
-    minItems: 1,
-    maxItems: MAX_ACTIONS,
-    description: `1–${MAX_ACTIONS} answers to ask, your recommendation first. Another button is there only when it is a realistic alternative the user might pick instead.`,
+    description: `1–${MAX_ACTIONS} buttons, recommendation first. They are answers to your ask: the first accepts your recommendation, and another is there only when it is a realistic alternative the user might pick instead. When blocked is true, they are the most likely answers to your question. Never repeat an offer the user passed over, unless what it acts on has changed since or they bring it up.`,
     items: {
       type: 'object',
       properties: {
-        label: { type: 'string', description: `The button text, 1–3 words (at most ${MAX_LABEL} characters), written as the user's reply to you.` }
+        label: { type: 'string', description: `The button text, 1–3 words (${LABEL_CHARS} characters): a button, not a sentence. A click sends it to you as the user's answer.` }
       },
       required: ['label'],
       additionalProperties: false
@@ -36,70 +34,61 @@ export const WRAP_UP_PROPERTIES = {
   },
   blocked: {
     type: 'boolean',
-    description: 'true when your work stops here until the user answers. Omit it when the answer can wait.'
+    description: 'true when your work stops here until the user answers (the chat shows as waiting on them). Omit it when the answer can wait.'
   }
 }
 
-export interface WrapUpArguments {
+interface WrapUpCall {
   recap: string
-  ask?: string
-  actions?: Array<{ label: string }>
-  blocked?: boolean
+  ask: string
+  labels: string[]
+  blocked: boolean
+  advice: string[]
 }
 
-export function parseWrapUp(args: Record<string, unknown>): { ok: true; value: WrapUpArguments } | { ok: false; message: string } {
+function readWrapUp(args: Record<string, unknown>): WrapUpCall | null {
   const recap = typeof args.recap === 'string' ? args.recap.trim() : ''
-  if (!recap) return { ok: false, message: 'recap must be a non-empty string.' }
-  if (recap.length > MAX_RECAP) return { ok: false, message: `recap must be at most ${MAX_RECAP} characters.` }
-  if (args.blocked != null && typeof args.blocked !== 'boolean') return { ok: false, message: 'blocked must be a boolean.' }
-
-  if (args.ask != null && typeof args.ask !== 'string') return { ok: false, message: 'ask must be a string.' }
+  if (!recap) return null
   const ask = typeof args.ask === 'string' ? args.ask.trim() : ''
-  if (ask.length > MAX_ASK) return { ok: false, message: `ask must be at most ${MAX_ASK} characters.` }
+  const labels = (Array.isArray(args.actions) ? args.actions : []).flatMap((action) => {
+    const label = (action as { label?: unknown } | null)?.label
+    return typeof label === 'string' && label.trim() ? [label.trim()] : []
+  })
 
-  const rawActions = args.actions
-  if (rawActions != null && !Array.isArray(rawActions)) return { ok: false, message: 'actions must be an array.' }
-  const actions: Array<{ label: string }> = []
-  for (const action of rawActions ?? []) {
-    const label = action && typeof action === 'object' && typeof (action as { label?: unknown }).label === 'string'
-      ? (action as { label: string }).label.trim()
-      : ''
-    if (!label) return { ok: false, message: 'Each action must be { "label": "…" } with a non-empty label.' }
-    if (label.length > MAX_LABEL) return { ok: false, message: `Each action label must be at most ${MAX_LABEL} characters.` }
-    actions.push({ label })
+  const advice: string[] = []
+  if (Boolean(ask) !== labels.length > 0) {
+    advice.push('The box drew no buttons: it needs ask and at least one entry in actions. When nothing is left for the user, the recap alone is the whole call.')
   }
-  if (actions.length > MAX_ACTIONS) return { ok: false, message: `actions holds at most ${MAX_ACTIONS} buttons.` }
-  if (Boolean(ask) !== actions.length > 0) return { ok: false, message: 'ask and actions come together: send both, or neither.' }
+  if (recap.length > RECAP_CHARS) advice.push(`recap is two or three sentences (about ${RECAP_CHARS} characters). This one ran ${recap.length}.`)
+  if (ask.length > ASK_CHARS) advice.push(`ask is the decision alone, in one short sentence (about ${ASK_CHARS} characters). This one ran ${ask.length}.`)
+  if (labels.length > MAX_ACTIONS) advice.push(`actions is 1–${MAX_ACTIONS} buttons. Only the first ${MAX_ACTIONS} were shown.`)
+  const long = labels.find((label) => label.length > LABEL_CHARS)
+  if (long) advice.push(`A reply label is a button, 1–3 words (${LABEL_CHARS} characters). "${long}" is too long.`)
 
-  return {
-    ok: true,
-    value: {
-      recap,
-      ...(ask ? { ask, actions } : {}),
-      ...(args.blocked === true ? { blocked: true } : {})
-    }
-  }
+  return { recap, ask, labels, blocked: args.blocked === true, advice }
 }
 
-export async function wrapUpTool(
+export function wrapUpTool(
   connection: ThreadTaskConnection,
   tasks: DesktopThreadTasks | undefined,
   args: Record<string, unknown>,
   call: ThreadTaskToolCall
-): Promise<ThreadTaskToolResult> {
-  const parsed = parseWrapUp(args)
-  if (!parsed.ok) return { success: false, errorCode: 'InvalidArguments', errorMessage: parsed.message }
+): ThreadTaskToolResult {
+  const wrapUp = readWrapUp(args)
+  if (!wrapUp) {
+    return { success: false, errorCode: 'InvalidArguments', errorMessage: 'recap is required: what is now true or changed and where it stands, said to the user in two or three sentences.' }
+  }
+  if (!wrapUp.ask || wrapUp.labels.length === 0) {
+    return result('Nothing is pending, so no box is shown. Write your closing message now, in full, as the last thing you say this turn.', false, wrapUp.advice)
+  }
   const threadId = call.threadId?.trim()
-  if (!tasks || !threadId || !(await tasks.canSeeCard(connection, threadId, call.turnId))) {
-    return shownResult('Not shown: nobody is watching this turn. Carry on and report your result as usual.', false)
-  }
-  if (!parsed.value.ask) {
-    return shownResult('Nothing is pending, so no box is shown. Write your closing message now, in full, as the last thing you say this turn.', false)
-  }
-  if (parsed.value.blocked && call.callId) tasks.notifyWrapUpQuestion(connection, threadId, call.turnId, call.callId)
-  return shownResult('Shown in the next-step box. Write your closing message now, in full, as the last thing you say this turn. The box asks your question, so do not ask it again.', true)
+  if (wrapUp.blocked && threadId && call.callId) tasks?.notifyWrapUpQuestion(connection, threadId, call.turnId, call.callId)
+  return result('Shown in the next-step box. Write your closing message now, in full, as the last thing you say this turn. The box asks your question, so do not ask it again.', true, wrapUp.advice)
 }
 
-function shownResult(text: string, shown: boolean): ThreadTaskToolResult {
-  return { success: true, contentItems: [{ type: 'text', text }], structuredContent: { shown } }
+function result(text: string, shown: boolean, advice: string[]): ThreadTaskToolResult {
+  const full = advice.length === 0
+    ? text
+    : `${text}\nDo not call WrapUp again this turn. The advice below is for your next call:\n${advice.map((line) => `- ${line}`).join('\n')}`
+  return { success: true, contentItems: [{ type: 'text', text: full }], structuredContent: { shown } }
 }

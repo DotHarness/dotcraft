@@ -120,7 +120,7 @@ export function turnNextStep(items: readonly ConversationItem[]): TurnNextStep |
     return {
       recap: typeof args?.recap === 'string' ? args.recap.trim() : '',
       ask,
-      actions,
+      actions: actions.slice(0, 2),
       blocked: args?.blocked === true
     }
   }

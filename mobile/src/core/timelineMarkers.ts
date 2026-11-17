@@ -141,5 +141,5 @@ export function nextStepOf(item: HistoryItem, result: HistoryItem | undefined): 
         return label ? [label] : []
       })
     : []
-  return ask && actions.length > 0 ? { recap: str(input.recap).trim(), ask, actions } : null
+  return ask && actions.length > 0 ? { recap: str(input.recap).trim(), ask, actions: actions.slice(0, 2) } : null
 }

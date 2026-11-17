@@ -394,7 +394,7 @@ export async function handleDesktopRuntimeThreadToolCall(
       case 'DismissProposal':
         return dismissProposalTool(options.tasks, args, p)
       case 'WrapUp':
-        return await wrapUpTool(threadTaskConnection(client, workspacePath, options), options.tasks, args, p)
+        return wrapUpTool(threadTaskConnection(client, workspacePath, options), options.tasks, args, p)
       case 'ListThreads':
         return await listThreadsTool(client, args, workspacePath, options)
       case 'SendMessageToThread':

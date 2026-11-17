@@ -66,10 +66,10 @@ describe('turnNextStep', () => {
     structuredResult: { shown }
   })
 
-  it('reads the latest shown question with its buttons in order', () => {
+  it('reads the latest shown question with its first two buttons in order', () => {
     const items = [
       wrapUp({ recap: 'First.', ask: 'Old?', actions: [{ label: 'Yes' }] }),
-      wrapUp({ recap: 'Fixed it.', ask: 'Commit?', actions: [{ label: 'Commit' }, { label: 'Not yet' }], blocked: true })
+      wrapUp({ recap: 'Fixed it.', ask: 'Commit?', actions: [{ label: 'Commit' }, { label: 'Not yet' }, { label: 'Later' }], blocked: true })
     ]
     expect(turnNextStep(items)).toEqual({ recap: 'Fixed it.', ask: 'Commit?', actions: ['Commit', 'Not yet'], blocked: true })
   })
