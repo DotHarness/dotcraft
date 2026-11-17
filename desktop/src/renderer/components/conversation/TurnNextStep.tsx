@@ -1,10 +1,13 @@
 import { memo, useState, type JSX } from 'react'
+import { X } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import { addToast } from '../../stores/toastStore'
+import { useThreadTasks } from '../../stores/threadTasksStore'
 import { sendTextHere } from '../../utils/sendTextHere'
 import { turnNextStep } from '../../utils/threadToolDisplay'
 import { Button } from '../ui/Button'
+import { IconButton } from '../ui/IconButton'
 import css from './TurnNextStep.module.css'
 
 export const TurnNextStep = memo(function TurnNextStep({ turnId }: { turnId: string }): JSX.Element | null {
@@ -14,7 +17,20 @@ export const TurnNextStep = memo(function TurnNextStep({ turnId }: { turnId: str
   const workspacePath = useConversationStore((s) => s.workspacePath)
   const [busy, setBusy] = useState(false)
   const step = turn ? turnNextStep(turn.items) : null
-  if (!turn || !step) return null
+  const snapshot = useThreadTasks(step ? turn?.threadId ?? '' : '')
+  if (!turn || !step || snapshot?.dismissedQuestionCallIds?.includes(step.callId)) return null
+
+  const dismiss = async (): Promise<void> => {
+    setBusy(true)
+    try {
+      const result = await window.api.threadTasks.dismissQuestion({ threadId: turn.threadId, callId: step.callId })
+      if (!result.ok) throw new Error(result.error)
+    } catch (error) {
+      addToast(error instanceof Error ? error.message : String(error), 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
 
   const reply = async (label: string): Promise<void> => {
     setBusy(true)
@@ -30,9 +46,13 @@ export const TurnNextStep = memo(function TurnNextStep({ turnId }: { turnId: str
   const [primary, ...others] = step.actions
   return (
     <div className={css.card} role="group" aria-label={step.ask}>
-      <div className={css.text}>
-        {step.recap ? <p className={css.recap}>{step.recap}</p> : null}
-        <p className={css.ask}>{step.ask}</p>
+      <div className={css.header}>
+        <div className={css.text}>
+          {step.recap ? <p className={css.recap}>{step.recap}</p> : null}
+          <p className={css.ask}>{step.ask}</p>
+        </div>
+        <IconButton icon={<X size={16} />} label={t('common.close')} className={css.close}
+          disabled={busy} onClick={() => { void dismiss() }} />
       </div>
       {latest ? (
         <div className={css.buttons}>

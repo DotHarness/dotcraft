@@ -70,6 +70,15 @@ export function registerThreadTasksIpc(host: ThreadTasksIpcHost, ipc: WindowIpcM
     return host.tasks.startProposals(connection, threadId, taskIds, options)
   })
 
+  ipc.handle('threadTasks:dismiss-question', (_event, params: unknown): ThreadTaskActionResult => {
+    const record = isRecord(params) ? params : {}
+    const threadId = requireString(record.threadId, 'threadId')
+    const callId = requireString(record.callId, 'callId')
+    if (!host.getConnection(threadId)) return { ok: false, error: NOT_CONNECTED }
+    host.tasks.dismissQuestion(threadId, callId)
+    return { ok: true }
+  })
+
   ipc.handle('threadTasks:dismiss', (_event, params: unknown): ThreadTaskActionResult => {
     const { threadId, taskId } = readTaskRef(params)
     const connection = host.getConnection(threadId)

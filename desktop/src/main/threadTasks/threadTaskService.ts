@@ -101,6 +101,10 @@ export class DesktopThreadTasks {
     this.host.store.setQuestion(threadId, undefined)
   }
 
+  dismissQuestion(threadId: string, callId: string): void {
+    this.host.store.dismissQuestion(threadId, callId)
+  }
+
   handleNotification(method: string, params: unknown): void {
     this.audience.observe(method, params)
     const turn = readBrowserTurnNotification(method, params)

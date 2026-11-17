@@ -31,6 +31,7 @@ export function useThreadAwaitsAnswer(threadId: string): boolean {
 export function useThreadTasks(threadId: string): ThreadTasksSnapshot | undefined {
   const snapshot = useThreadTasksStore((state) => state.byThread[threadId])
   useEffect(() => {
+    if (!threadId) return
     subscribe()
     void useThreadTasksStore.getState().load(threadId).catch(() => undefined)
   }, [threadId])

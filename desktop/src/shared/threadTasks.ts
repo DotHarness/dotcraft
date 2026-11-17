@@ -61,6 +61,7 @@ export interface ThreadTasksSnapshot {
   threadId: string
   tasks: ThreadTask[]
   question?: ThreadWaitingQuestion
+  dismissedQuestionCallIds?: string[]
 }
 
 export type ThreadOfferAnswer =

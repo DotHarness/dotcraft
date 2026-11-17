@@ -59,6 +59,7 @@ describe('getSpawnedFromThreadId', () => {
 
 describe('turnNextStep', () => {
   const wrapUp = (args: Record<string, unknown>, shown = true): ConversationItem => item({
+    toolCallId: 'wrap-call',
     toolName: 'WrapUp',
     pluginNamespace: 'desktop_conversation',
     success: true,
@@ -71,7 +72,7 @@ describe('turnNextStep', () => {
       wrapUp({ recap: 'First.', ask: 'Old?', actions: [{ label: 'Yes' }] }),
       wrapUp({ recap: 'Fixed it.', ask: 'Commit?', actions: [{ label: 'Commit' }, { label: 'Not yet' }, { label: 'Later' }], blocked: true })
     ]
-    expect(turnNextStep(items)).toEqual({ recap: 'Fixed it.', ask: 'Commit?', actions: ['Commit', 'Not yet'], blocked: true })
+    expect(turnNextStep(items)).toEqual({ callId: 'wrap-call', recap: 'Fixed it.', ask: 'Commit?', actions: ['Commit', 'Not yet'], blocked: true })
   })
 
   it('has no box for a recap alone, a call nobody saw, or another namespace', () => {

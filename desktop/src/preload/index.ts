@@ -1531,6 +1531,9 @@ const api = {
     dismiss(params: { threadId: string; taskId: string }): Promise<ThreadTaskActionResult> {
       return ipcRenderer.invoke('threadTasks:dismiss', params)
     },
+    dismissQuestion(params: { threadId: string; callId: string }): Promise<ThreadTaskActionResult> {
+      return ipcRenderer.invoke('threadTasks:dismiss-question', params)
+    },
     markKeptHere(params: { threadId: string; taskId: string }): Promise<ThreadTaskActionResult> {
       return ipcRenderer.invoke('threadTasks:mark-kept-here', params)
     }

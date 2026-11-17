@@ -92,6 +92,7 @@ export function threadTaskCardKind(item: ConversationItem): 'offer' | 'proposal'
 }
 
 export interface TurnNextStep {
+  callId: string
   recap: string
   ask: string
   actions: string[]
@@ -118,6 +119,7 @@ export function turnNextStep(items: readonly ConversationItem[]): TurnNextStep |
       : []
     if (!shown || !ask || actions.length === 0) return null
     return {
+      callId: item.toolCallId ?? item.id,
       recap: typeof args?.recap === 'string' ? args.recap.trim() : '',
       ask,
       actions: actions.slice(0, 2),

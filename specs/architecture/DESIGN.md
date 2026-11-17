@@ -1352,6 +1352,11 @@ completion cards and reserves no footer space. A continued response presents the
 completion cards of its earlier turns after its final reply. Background tasks still running do not suppress the final reply's
 copy, fork, and timestamp controls.
 
+The Wrap Up next-step card uses the same 8px separation and 12px content inset
+as the adjacent document and file-change cards. Its close icon sits at the top
+right, remains visible at rest, and has its own text-free hit target. Recap and
+question text wrap without running beneath it. Reply buttons wrap at narrow widths.
+
 Tooltips on these markers carry only what the visible line does not already say,
 so the part that matters (the originating thread, the job name) is not pushed past
 the clamp. A marker with no extra detail has no tooltip. Accessible names keep the

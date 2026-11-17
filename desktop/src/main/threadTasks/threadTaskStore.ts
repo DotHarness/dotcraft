@@ -32,6 +32,7 @@ export interface AddedThreadTask {
 interface ThreadEntry {
   tasks: ThreadTask[]
   question?: ThreadWaitingQuestion
+  dismissedQuestionCallIds?: string[]
 }
 
 type ChangeListener = (snapshot: ThreadTasksSnapshot) => void
@@ -57,14 +58,25 @@ export class ThreadTaskStore {
     return {
       threadId,
       tasks: entry ? entry.tasks.map((task) => ({ ...task })) : [],
-      ...(entry?.question ? { question: { ...entry.question } } : {})
+      ...(entry?.question ? { question: { ...entry.question } } : {}),
+      ...(entry?.dismissedQuestionCallIds?.length ? { dismissedQuestionCallIds: [...entry.dismissedQuestionCallIds] } : {})
     }
   }
 
   setQuestion(threadId: string, question: ThreadWaitingQuestion | undefined): void {
     const entry = this.threads.get(threadId)
     if (!question && !entry?.question) return
-    this.threads.set(threadId, { tasks: entry?.tasks ?? [], ...(question ? { question } : {}) })
+    this.threads.set(threadId, { ...entry, tasks: entry?.tasks ?? [], question })
+    this.changed(threadId)
+  }
+
+  dismissQuestion(threadId: string, callId: string): void {
+    const entry = this.threads.get(threadId) ?? { tasks: [] }
+    this.threads.set(threadId, {
+      ...entry,
+      dismissedQuestionCallIds: [...new Set([...(entry.dismissedQuestionCallIds ?? []), callId])],
+      question: entry.question?.callId === callId ? undefined : entry.question
+    })
     this.changed(threadId)
   }
 
@@ -150,7 +162,7 @@ export class ThreadTaskStore {
     try {
       const stored = JSON.parse(readFileSync(this.filePath, 'utf8')) as { threads: Record<string, ThreadEntry> }
       for (const [threadId, entry] of Object.entries(stored.threads)) {
-        this.threads.set(threadId, { tasks: entry.tasks.map(recoverAfterRestart), ...(entry.question ? { question: entry.question } : {}) })
+        this.threads.set(threadId, { ...entry, tasks: entry.tasks.map(recoverAfterRestart) })
       }
     } catch {
       this.threads = new Map()
@@ -161,7 +173,7 @@ export class ThreadTaskStore {
     if (!this.filePath) return
     const threads: Record<string, ThreadEntry> = {}
     for (const [threadId, entry] of this.threads) {
-      if (entry.tasks.length > 0 || entry.question) threads[threadId] = entry
+      if (entry.tasks.length > 0 || entry.question || entry.dismissedQuestionCallIds?.length) threads[threadId] = entry
     }
     try {
       mkdirSync(dirname(this.filePath), { recursive: true })
