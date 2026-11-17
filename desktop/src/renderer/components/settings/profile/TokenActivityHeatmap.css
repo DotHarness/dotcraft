@@ -67,19 +67,14 @@
     animation: none !important;
   }
 
-  .setup-interstitial--opening .setup-interstitial-content,
-  .welcome-screen--opening .welcome-language-switcher,
   .welcome-screen--opening .welcome-screen-background,
   .workspace-launch-transition__scrim,
   .workspace-launch-transition__logo,
-  .workspace-launch-transition__logo *,
-  .workspace-setup-logo-handoff__logo {
+  .workspace-launch-transition__logo * {
     animation: none !important;
   }
 
-  .welcome-screen--opening .welcome-language-switcher,
-  .welcome-screen--opening .welcome-screen-background,
-  .setup-interstitial--opening .setup-interstitial-content {
+  .welcome-screen--opening .welcome-screen-background {
     opacity: 0;
     transform: none;
   }
@@ -110,8 +105,7 @@
   .workspace-launch-transition--setup-handoff .workspace-launch-transition__logo,
   .workspace-launch-transition--setup-complete-to-center .workspace-launch-transition__logo,
   .workspace-launch-transition--connecting .workspace-launch-transition__logo,
-  .workspace-launch-transition--preparing .workspace-launch-transition__logo,
-  .workspace-setup-logo-handoff--move .workspace-setup-logo-handoff__logo {
+  .workspace-launch-transition--preparing .workspace-launch-transition__logo {
     transform:
       translate3d(var(--launch-logo-to-x, 0), var(--launch-logo-to-y, 0), 0)
       scale(var(--launch-logo-to-scale, 1));

@@ -63,11 +63,9 @@ import { ConversationPanel } from './components/layout/ConversationPanel'
 import { DetailPanel } from './components/layout/DetailPanel'
 import { ErrorScreen } from './components/ErrorScreen'
 import { WelcomeScreen } from './components/WelcomeScreen'
-import { WorkspaceSetupInterstitial } from './components/WorkspaceSetupInterstitial'
-import { WorkspaceSetupWizard } from './components/WorkspaceSetupWizard'
+import { WorkspaceSetupWizard, type WorkspaceSetupSubmitContext } from './components/WorkspaceSetupWizard'
 import {
   WorkspaceLaunchTransition,
-  WorkspaceSetupLogoHandoff,
   WorkspaceSetupLogoHop,
   centeredLaunchLogoRect,
   elementToLaunchLogoRect,
@@ -126,7 +124,6 @@ import type {
   WorkspaceSetupRequest,
   WorkspaceStatusPayload
 } from '../preload/api.d'
-const SETUP_PAGE_HANDOFF_PREP_MS = 260
 const WORKSPACE_LAUNCH_TRANSITION_MS = 620
 const WORKSPACE_LAUNCH_REVEAL_MS = 360
 const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0'
@@ -142,19 +139,8 @@ const CoreAutomationsView = coreMainViews.automations
 const CorePluginsView = coreMainViews.skills
 const CoreSettingsView = coreMainViews.settings
 
-type WorkspaceLaunchTarget = 'unknown' | 'setup' | 'main' | 'error'
-
 interface WorkspaceLaunchTransitionState {
   phase: WorkspaceLaunchTransitionPhase
-  from: LaunchLogoRect
-  to: LaunchLogoRect
-  target: WorkspaceLaunchTarget
-  requestPath?: string
-  logoSrc?: string
-}
-
-interface SetupLogoHandoffState {
-  phase: 'hold' | 'move'
   from: LaunchLogoRect
   to: LaunchLogoRect
 }
@@ -237,9 +223,7 @@ function createInitialWorkspaceLaunchTransition(
   return {
     phase: 'connecting',
     from: centerRect,
-    to: centerRect,
-    target: 'main',
-    requestPath: path
+    to: centerRect
   }
 }
 
@@ -427,17 +411,12 @@ export function App(): JSX.Element {
   const [workspaceConfigChange, setWorkspaceConfigChange] = useState<ConfigChangedPayload | null>(null)
   const [workspaceConfigChangeSeq, setWorkspaceConfigChangeSeq] = useState(0)
   const [workspaceStatus, setWorkspaceStatus] = useState<WorkspaceStatusPayload>(initialWorkspaceStatus)
-  const [showSetupWizard, setShowSetupWizard] = useState(false)
-  const [setupOpening, setSetupOpening] = useState(false)
   const [workspaceLaunchTransition, setWorkspaceLaunchTransition] =
     useState<WorkspaceLaunchTransitionState | null>(() =>
       createInitialWorkspaceLaunchTransition(initialWorkspaceStatus)
     )
-  const [setupLogoHandoff, setSetupLogoHandoff] = useState<SetupLogoHandoffState | null>(null)
   const [launchErrorScreenVisible, setLaunchErrorScreenVisible] = useState(false)
-  const [setupLogoAnchorNode, setSetupLogoAnchorNode] = useState<HTMLDivElement | null>(null)
   const [wizardLogoAnchorNode, setWizardLogoAnchorNode] = useState<HTMLDivElement | null>(null)
-  const setupOpeningRef = useRef(false)
   const { status, errorType, errorMessage } = useConnectionStore()
   const isExpectedRestart = useConnectionStore((s) => s.isExpectedRestart)
   const capabilities = useConnectionStore((s) => s.capabilities)
@@ -594,9 +573,7 @@ export function App(): JSX.Element {
       setWorkspaceLaunchTransition({
         phase: 'connecting',
         from: centerRect,
-        to: centerRect,
-        target: 'main',
-        requestPath: path
+        to: centerRect
       })
     }
   }, [])
@@ -616,9 +593,7 @@ export function App(): JSX.Element {
     setWorkspaceLaunchTransition({
       phase: 'welcome-hold',
       from: request.logoRect,
-      to: request.logoRect,
-      target: 'unknown',
-      requestPath: request.path
+      to: request.logoRect
     })
 
     try {
@@ -632,55 +607,15 @@ export function App(): JSX.Element {
     }
   }, [])
 
-  const handleStartWorkspaceSetup = useCallback((): void => {
-    if (setupOpeningRef.current) return
-
-    const sourceRect = elementToLaunchLogoRect(setupLogoAnchorNode) ?? centeredLaunchLogoRect()
-    setupOpeningRef.current = true
-    setSetupOpening(true)
-    setSetupLogoHandoff({
-      phase: 'hold',
-      from: sourceRect,
-      to: sourceRect
-    })
-    const openingDelay = new Promise<void>((resolve) => {
-      window.setTimeout(resolve, SETUP_PAGE_HANDOFF_PREP_MS)
-    })
-    const statusRefresh = window.api.workspace
-      .getStatus()
-      .then((payload) => {
-        syncWorkspaceStatus(payload)
-        return payload.status === 'needs-setup'
-      })
-      .catch(() => true)
-
-    void Promise.all([openingDelay, statusRefresh])
-      .then(([, shouldShowWizard]) => {
-        if (shouldShowWizard) {
-          setShowSetupWizard(true)
-        } else {
-          setSetupLogoHandoff(null)
-        }
-      })
-      .finally(() => {
-        setupOpeningRef.current = false
-        setSetupOpening(false)
-      })
-  }, [setupLogoAnchorNode, syncWorkspaceStatus])
-
   const handleRunWorkspaceSetup = useCallback(async (
     request: WorkspaceSetupRequest,
-    context: { logoRect: LaunchLogoRect; logoSrc: string }
+    context: WorkspaceSetupSubmitContext
   ): Promise<void> => {
-    const centerRect = centeredLaunchLogoRect()
     setLaunchErrorScreenVisible(false)
     setWorkspaceLaunchTransition({
       phase: 'setup-complete-to-center',
       from: context.logoRect,
-      to: centerRect,
-      target: 'main',
-      requestPath: workspacePathRef.current,
-      logoSrc: context.logoSrc
+      to: centeredLaunchLogoRect()
     })
 
     try {
@@ -984,20 +919,6 @@ export function App(): JSX.Element {
   }, [workspacePath])
 
   useEffect(() => {
-    if (workspaceStatus.status === 'needs-setup') return
-
-    setupOpeningRef.current = false
-    setSetupOpening(false)
-    setSetupLogoHandoff(null)
-
-    if (workspaceLaunchTransition?.phase === 'setup-complete-to-center') {
-      return
-    }
-
-    setShowSetupWizard(false)
-  }, [workspaceLaunchTransition?.phase, workspaceStatus.status])
-
-  useEffect(() => {
     if (!workspaceLaunchTransition) return
 
     if (workspaceLaunchTransition.phase === 'welcome-to-center') {
@@ -1040,14 +961,14 @@ export function App(): JSX.Element {
 
     if (
       workspaceStatus.status === 'needs-setup' &&
-      setupLogoAnchorNode &&
+      wizardLogoAnchorNode &&
       (
         workspaceLaunchTransition.phase === 'welcome-hold' ||
         workspaceLaunchTransition.phase === 'welcome-to-center' ||
         workspaceLaunchTransition.phase === 'connecting'
       )
     ) {
-      const targetRect = elementToLaunchLogoRect(setupLogoAnchorNode)
+      const targetRect = elementToLaunchLogoRect(wizardLogoAnchorNode)
       if (!targetRect) return
       const sourceRect = workspaceLaunchTransition.phase === 'welcome-hold'
         ? workspaceLaunchTransition.from
@@ -1056,8 +977,7 @@ export function App(): JSX.Element {
         ...workspaceLaunchTransition,
         phase: 'setup-handoff',
         from: sourceRect,
-        to: targetRect,
-        target: 'setup'
+        to: targetRect
       })
       return
     }
@@ -1067,8 +987,7 @@ export function App(): JSX.Element {
       setWorkspaceLaunchTransition({
         ...workspaceLaunchTransition,
         phase: 'welcome-to-center',
-        to: centerRect,
-        target: 'main'
+        to: centerRect
       })
       return
     }
@@ -1085,35 +1004,16 @@ export function App(): JSX.Element {
         ...workspaceLaunchTransition,
         phase: 'main-reveal',
         from: centerRect,
-        to: centerRect,
-        target: 'main'
+        to: centerRect
       })
     }
   }, [
-    setupLogoAnchorNode,
     status,
+    wizardLogoAnchorNode,
     workspaceLaunchTransition,
     workspacePath,
     workspaceStatus.status
   ])
-
-  useEffect(() => {
-    if (!setupLogoHandoff) return
-    if (setupLogoHandoff.phase !== 'hold') return
-    if (!showSetupWizard || !wizardLogoAnchorNode) return
-
-    const targetRect = elementToLaunchLogoRect(wizardLogoAnchorNode)
-    if (!targetRect) return
-    setSetupLogoHandoff({
-      ...setupLogoHandoff,
-      phase: 'move',
-      to: targetRect
-    })
-  }, [setupLogoHandoff, showSetupWizard, wizardLogoAnchorNode])
-
-  const handleSetupLogoHopDone = useCallback((): void => {
-    setSetupLogoHandoff((current) => current?.phase === 'move' ? null : current)
-  }, [])
 
   const handleSetupCompleteHopDone = useCallback((): void => {
     setWorkspaceLaunchTransition((current) => {
@@ -1134,8 +1034,7 @@ export function App(): JSX.Element {
       ...workspaceLaunchTransition,
       phase: 'error-reveal',
       from: centerRect,
-      to: centerRect,
-      target: 'error'
+      to: centerRect
     })
   }, [status, workspaceLaunchTransition])
 
@@ -1543,26 +1442,18 @@ export function App(): JSX.Element {
     workspaceLaunchTransition?.phase === 'welcome-to-center'
 
   const showWelcome = (!workspacePath || keepWelcomeDuringLaunch) && !showErrorScreen
-  const showSetupInterstitial =
-    workspacePath !== '' &&
-    workspaceStatus.status === 'needs-setup' &&
-    !showSetupWizard &&
-    !showErrorScreen
-  const keepSetupFlowDuringCompletionCover =
-    workspacePath !== '' &&
-    showSetupWizard &&
-    workspaceLaunchTransition?.phase === 'setup-complete-to-center'
   const showSetupFlow =
     workspacePath !== '' &&
-    showSetupWizard &&
     !showErrorScreen &&
-    (workspaceStatus.status === 'needs-setup' || keepSetupFlowDuringCompletionCover)
+    (
+      workspaceStatus.status === 'needs-setup' ||
+      workspaceLaunchTransition?.phase === 'setup-complete-to-center'
+    )
   const showMainWorkspaceUi =
     workspacePath !== '' &&
     workspaceStatus.status === 'ready' &&
     !showErrorScreen &&
     !showWelcome &&
-    !showSetupInterstitial &&
     !showSetupFlow
   showMainWorkspaceUiRef.current = showMainWorkspaceUi
 
@@ -1623,31 +1514,13 @@ export function App(): JSX.Element {
             <WorkspaceSetupLogoHop
               from={workspaceLaunchTransition.from}
               to={workspaceLaunchTransition.to}
-              logoSrc={workspaceLaunchTransition.logoSrc}
               onDone={handleSetupCompleteHopDone}
             />
           )}
         </>
       )
     : null
-  const setupHandoffOverlay = setupLogoHandoff?.phase === 'hold'
-    ? <WorkspaceSetupLogoHandoff from={setupLogoHandoff.from} />
-    : setupLogoHandoff?.phase === 'move'
-      ? (
-          <WorkspaceSetupLogoHop
-            from={setupLogoHandoff.from}
-            to={setupLogoHandoff.to}
-            onDone={handleSetupLogoHopDone}
-          />
-        )
-      : null
-  const hideSetupInterstitialLogo =
-    (workspaceLaunchTransition != null && showSetupInterstitial) ||
-    (setupLogoHandoff != null && showSetupInterstitial)
-  const hideSetupWizardLogo =
-    (workspaceLaunchTransition != null && showSetupFlow) ||
-    (setupLogoHandoff != null && showSetupFlow)
-  const deferSetupWizardContent = setupLogoHandoff?.phase === 'hold' && showSetupFlow
+  const hideSetupWizardLogo = workspaceLaunchTransition != null && showSetupFlow
 
   let content: ReactNode
 
@@ -1674,22 +1547,6 @@ export function App(): JSX.Element {
         <WelcomeScreen onOpenWorkspace={handleOpenWorkspaceFromWelcome} />
       </>
     )
-  } else if (showSetupInterstitial) {
-    content = (
-      <>
-        <ToastContainer />
-        <WorkspaceSetupInterstitial
-          workspacePath={workspacePath}
-          isOpening={setupOpening}
-          hideLogo={hideSetupInterstitialLogo}
-          logoAnchorRef={setSetupLogoAnchorNode}
-          onStart={handleStartWorkspaceSetup}
-          onChooseDifferentWorkspace={() => {
-            void window.api.workspace.clearSelection()
-          }}
-        />
-      </>
-    )
   } else if (showSetupFlow) {
     content = (
       <>
@@ -1697,11 +1554,10 @@ export function App(): JSX.Element {
         <WorkspaceSetupWizard
           workspaceStatus={setupFlowWorkspaceStatus}
           hideLogo={hideSetupWizardLogo}
-          deferContent={deferSetupWizardContent}
           logoAnchorRef={setWizardLogoAnchorNode}
           onRunSetup={handleRunWorkspaceSetup}
           onCancel={() => {
-            setShowSetupWizard(false)
+            void window.api.workspace.clearSelection()
           }}
         />
       </>
@@ -1858,13 +1714,8 @@ export function App(): JSX.Element {
 
   return (
     <WindowFrame
-      plainSurface={showWelcome || showSetupInterstitial || showSetupFlow}
-      overlays={(
-        <>
-          {setupHandoffOverlay}
-          {launchOverlay}
-        </>
-      )}
+      plainSurface={showWelcome || showSetupFlow}
+      overlays={launchOverlay}
     >
       <>
         {content}

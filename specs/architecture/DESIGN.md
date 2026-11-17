@@ -332,7 +332,7 @@ it by mixing in ink. A default seed writes nothing.
 
 The Appearance settings expose:
 
-- Theme mode `system | light | dark` (`system` resolves from the OS).
+- Theme mode `system | light | dark` (`system` resolves from the OS and is the default).
 - A custom accent, from which `--accent`, `--accent-hover`, and the on-accent
   foreground derive. A custom accent stays restrained per the Accent rules; it is
   never promoted to a primary-action fill.

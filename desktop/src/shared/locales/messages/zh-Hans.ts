@@ -1965,7 +1965,6 @@ export const MESSAGES_ZH_HANS = {
   'channels.feishu.title': '飞书',
 
   'welcome.tagline': '选择工作区文件夹以开始。',
-  'welcome.language': '语言',
   'welcome.openWorkspace': '打开工作区',
   'welcome.openWorkspaceHint': '选择本机文件夹开始',
   'welcome.openChats': '对话',
@@ -1979,10 +1978,6 @@ export const MESSAGES_ZH_HANS = {
   'welcome.sendTitle': '发送 (Enter)',
   'welcome.sendAria': '发送消息',
 
-  'setupInterstitial.title': 'DotCraft 还没有完成设置',
-  'setupInterstitial.description': 'DotCraft 需要通过一个简短向导，配置模型提供商和基础偏好。',
-  'setupInterstitial.start': '开始设置',
-  'setupInterstitial.chooseDifferent': '选择其他文件夹',
   'setupWizard.kicker': '欢迎使用 DotCraft',
   'setupWizard.subtitle': '一次性设置',
   'setupWizard.outline.language': '语言',

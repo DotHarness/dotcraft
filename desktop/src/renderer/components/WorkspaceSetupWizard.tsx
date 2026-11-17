@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject, type Ref } from 'react'
 import { AlertCircle, Check } from 'lucide-react'
-import { normalizeLocale, SUPPORTED_LOCALES, type AppLocale } from '../../shared/locales'
+import { SUPPORTED_LOCALES, type AppLocale } from '../../shared/locales'
 import { cloneModelPreference, createManualModelPreference, type ModelPreference } from '../../shared/modelPreference'
 import type {
   WorkspaceSetupModelListRequest,
@@ -39,7 +39,6 @@ import { centeredLaunchLogoRect, elementToLaunchLogoRect, type LaunchLogoRect } 
 interface WorkspaceSetupWizardProps {
   workspaceStatus: WorkspaceStatusPayload
   hideLogo?: boolean
-  deferContent?: boolean
   logoAnchorRef?: Ref<HTMLDivElement>
   onRunSetup?: (request: WorkspaceSetupRequest, context: WorkspaceSetupSubmitContext) => Promise<void>
   onCancel: () => void
@@ -47,7 +46,6 @@ interface WorkspaceSetupWizardProps {
 
 export interface WorkspaceSetupSubmitContext {
   logoRect: LaunchLogoRect
-  logoSrc: string
 }
 
 type SectionId = 'language' | 'access' | 'model'
@@ -60,7 +58,6 @@ const setupLogoUrl = new URL('../../../resources/dotcraft.svg', import.meta.url)
 export function WorkspaceSetupWizard({
   workspaceStatus,
   hideLogo = false,
-  deferContent = false,
   logoAnchorRef,
   onRunSetup,
   onCancel
@@ -197,15 +194,10 @@ export function WorkspaceSetupWizard({
     if (await loginProvider({ providerId: savedProvider.id }, setSavedSignIn)) setCatalogNonce((value) => value + 1)
   }
 
-  async function changeLocale(next: AppLocale): Promise<void> {
-    const normalized = normalizeLocale(next)
-    if (normalized === locale) return
-    setUiLocale(normalized)
-    try {
-      await window.api.settings.set({ locale: normalized })
-    } catch {
-      return
-    }
+  function changeLocale(next: AppLocale): void {
+    if (next === locale) return
+    setUiLocale(next)
+    void window.api.settings.set({ locale: next }).catch(() => undefined)
   }
 
   function buildRequest(): WorkspaceSetupRequest {
@@ -224,8 +216,7 @@ export function WorkspaceSetupWizard({
     setSubmit({ phase: 'submitting' })
     try {
       await runSetup(buildRequest(), {
-        logoRect: elementToLaunchLogoRect(logoNode.current) ?? centeredLaunchLogoRect(),
-        logoSrc: setupLogoUrl
+        logoRect: elementToLaunchLogoRect(logoNode.current) ?? centeredLaunchLogoRect()
       })
       setSubmit({ phase: 'idle' })
     } catch (error) {
@@ -272,7 +263,7 @@ export function WorkspaceSetupWizard({
   }
 
   return (
-    <div className="workspace-setup" data-handoff={deferContent ? 'true' : undefined}>
+    <div className="workspace-setup">
       <aside className="workspace-setup__rail">
         <div className="workspace-setup__identity">
           <div ref={setLogoNode} className="workspace-setup__logo" data-hidden={hideLogo ? 'true' : undefined} aria-hidden="true">
@@ -326,7 +317,7 @@ export function WorkspaceSetupWizard({
         <div className="workspace-setup__scroll">
           <div className="workspace-setup__column workspace-setup__content" key={section}>
             {section === 'language' && (
-              <SetupLanguageSection locale={locale} onLocale={(next) => { void changeLocale(next) }} />
+              <SetupLanguageSection locale={locale} onLocale={changeLocale} />
             )}
             {section === 'access' && (
               <SetupAccessSection

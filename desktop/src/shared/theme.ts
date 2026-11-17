@@ -4,11 +4,8 @@ export type ThemeMode = 'system' | 'dark' | 'light'
 /** The theme actually applied to the document (`system` resolved to one of these). */
 export type ResolvedTheme = 'dark' | 'light'
 
-/** Default theme preference when none is persisted. Preserves historical light-first behavior. */
-export const DEFAULT_THEME_MODE: ThemeMode = 'light'
-
-/** Applied-theme default (used where a concrete dark/light value is required up front). */
-export const DEFAULT_THEME: ResolvedTheme = 'light'
+/** Default theme preference when none is persisted. */
+export const DEFAULT_THEME_MODE: ThemeMode = 'system'
 
 export const THEME_CHANGED_EVENT = 'dotcraft:theme-changed'
 

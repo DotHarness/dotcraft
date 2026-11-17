@@ -1283,7 +1283,6 @@ export const MESSAGES_ES = {
   'settings.saveFailed': 'No se pudo guardar la configuración: {{error}}',
 
   'welcome.tagline': 'Selecciona una carpeta de espacio de trabajo para empezar.',
-  'welcome.language': 'Idioma',
   'welcome.openWorkspace': 'Abrir espacio de trabajo',
   'welcome.openWorkspaceHint': 'Elige una carpeta local para comenzar',
   'welcome.openChats': 'Chats',
@@ -3206,10 +3205,6 @@ export const MESSAGES_ES = {
   'channels.weixin.title': 'WeChat',
   'channels.weixin.transportNote': 'Este canal utiliza el modo de adaptador WebSocket externo y requiere que AppServer WebSocket esté habilitado.',
   'channels.feishu.title': 'Feishu',
-  'setupInterstitial.title': 'DotCraft aún no está configurado',
-  'setupInterstitial.description': 'DotCraft necesita un breve asistente para configurar el proveedor del modelo y las preferencias básicas.',
-  'setupInterstitial.start': 'Empezar la configuración',
-  'setupInterstitial.chooseDifferent': 'Elige otra carpeta',
   'error.desc.binary.bundled': 'El binario DotCraft incluido falta o está dañado. Reinstale Desktop o cambie a otra fuente binaria en Configuración.',
   'error.desc.binary.path': 'El escritorio no pudo encontrar dotcraft en la RUTA de su sistema. Instálelo o cambie al binario incluido en Configuración.',
   'error.desc.binary.custom': 'El escritorio no pudo encontrar la ruta binaria personalizada de DotCraft que configuró. Verifique la ruta o cambie a otra fuente en Configuración.',

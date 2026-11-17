@@ -1283,7 +1283,6 @@ export const MESSAGES_FR = {
   'settings.saveFailed': 'Échec de l’enregistrement des paramètres : {{error}}',
 
   'welcome.tagline': 'Sélectionnez un dossier d’espace de travail pour commencer.',
-  'welcome.language': 'Langue',
   'welcome.openWorkspace': 'Ouvrir un espace',
   'welcome.openWorkspaceHint': 'Choisissez un dossier local pour commencer',
   'welcome.openChats': 'Discussions',
@@ -3206,10 +3205,6 @@ export const MESSAGES_FR = {
   'channels.weixin.title': 'WeChat',
   'channels.weixin.transportNote': 'Ce canal utilise le mode adaptateur WebSocket externe et nécessite l\'activation d\'AppServer WebSocket.',
   'channels.feishu.title': 'Feishu',
-  'setupInterstitial.title': 'DotCraft n’est pas encore configuré',
-  'setupInterstitial.description': 'DotCraft a besoin d’un petit assistant pour configurer le fournisseur de modèles et les préférences de base.',
-  'setupInterstitial.start': 'Commencer la configuration',
-  'setupInterstitial.chooseDifferent': 'Choisissez un autre dossier',
   'error.desc.binary.bundled': 'Le binaire DotCraft fourni est manquant ou endommagé. Réinstallez Desktop ou passez à une autre source binaire dans Paramètres.',
   'error.desc.binary.path': 'Desktop n\'a pas pu trouver dotcraft sur le PATH de votre système. Installez-le ou passez au binaire fourni dans Paramètres.',
   'error.desc.binary.custom': 'Desktop n\'a pas trouvé le chemin binaire DotCraft personnalisé que vous avez configuré. Vérifiez le chemin ou passez à une autre source dans Paramètres.',

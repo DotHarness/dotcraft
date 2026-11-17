@@ -30,7 +30,6 @@ interface WorkspaceLaunchTransitionProps {
 interface WorkspaceSetupLogoHopProps {
   from: LaunchLogoRect
   to: LaunchLogoRect
-  logoSrc?: string
   onDone: () => void
 }
 
@@ -86,14 +85,12 @@ export function elementToLaunchLogoRect(node: HTMLElement | null): LaunchLogoRec
   }
 }
 
-export function centeredLaunchLogoRect(size = LAUNCH_LOGO_BASE_SIZE): LaunchLogoRect {
-  const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0
-  const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0
+export function centeredLaunchLogoRect(): LaunchLogoRect {
   return {
-    left: Math.round((viewportWidth - size) / 2),
-    top: Math.round((viewportHeight - size) / 2),
-    width: size,
-    height: size
+    left: Math.round((window.innerWidth - LAUNCH_LOGO_BASE_SIZE) / 2),
+    top: Math.round((window.innerHeight - LAUNCH_LOGO_BASE_SIZE) / 2),
+    width: LAUNCH_LOGO_BASE_SIZE,
+    height: LAUNCH_LOGO_BASE_SIZE
   }
 }
 
@@ -165,20 +162,6 @@ export function WorkspaceLaunchTransition({
   )
 }
 
-export function WorkspaceSetupLogoHandoff({ from }: { from: LaunchLogoRect }): JSX.Element {
-  const style = {
-    '--launch-logo-from-x': `${from.left}px`,
-    '--launch-logo-from-y': `${from.top}px`,
-    '--launch-logo-from-scale': String(from.width / LAUNCH_LOGO_BASE_SIZE)
-  } as CSSProperties
-
-  return (
-    <div aria-hidden="true" className="workspace-setup-logo-handoff" style={style}>
-      <DotCraftFullLogo size={LAUNCH_LOGO_BASE_SIZE} className="workspace-setup-logo-handoff__logo" />
-    </div>
-  )
-}
-
 function ballistic(start: number, end: number, rise: number): (flight: number) => number {
   const apex = Math.min(start, end) - rise
   const up = Math.sqrt(start - apex)
@@ -188,7 +171,7 @@ function ballistic(start: number, end: number, rise: number): (flight: number) =
   return (flight) => apex + curve * (flight - peakAt) * (flight - peakAt)
 }
 
-export function WorkspaceSetupLogoHop({ from, to, logoSrc, onDone }: WorkspaceSetupLogoHopProps): JSX.Element {
+export function WorkspaceSetupLogoHop({ from, to, onDone }: WorkspaceSetupLogoHopProps): JSX.Element {
   const node = useRef<HTMLDivElement | null>(null)
   const done = useRef(onDone)
   done.current = onDone
@@ -223,11 +206,7 @@ export function WorkspaceSetupLogoHop({ from, to, logoSrc, onDone }: WorkspaceSe
 
   return (
     <div ref={node} className="workspace-setup-logo-hop" aria-hidden="true">
-      {logoSrc ? (
-        <img src={logoSrc} alt="" draggable={false} className="workspace-setup-logo-hop__logo" />
-      ) : (
-        <DotCraftFullLogo size={LAUNCH_LOGO_BASE_SIZE} className="workspace-setup-logo-hop__logo" />
-      )}
+      <DotCraftFullLogo size={LAUNCH_LOGO_BASE_SIZE} className="workspace-setup-logo-hop__logo" />
     </div>
   )
 }

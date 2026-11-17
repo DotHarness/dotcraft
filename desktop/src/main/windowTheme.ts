@@ -8,13 +8,9 @@ import { DEFAULT_SEEDS } from '../shared/themeSeed'
 import { resolveAppliedTheme, resolveThemeMode } from '../shared/theme'
 import type { BrowserWindow, BrowserWindowConstructorOptions, TitleBarOverlayOptions } from 'electron'
 
-/**
- * `system` resolves through a caller-supplied OS preference, defaulting to light, so this
- * module stays free of an electron runtime import.
- */
 export function resolveInitialTheme(
   settings: Pick<AppSettings, 'theme'>,
-  prefersDark = false
+  prefersDark: boolean
 ): TitleBarOverlayTheme {
   return resolveAppliedTheme(resolveThemeMode(settings.theme), prefersDark)
 }

@@ -77,30 +77,18 @@ vi.mock('../components/WelcomeScreen', () => ({
   WelcomeScreen: () => <div data-testid="welcome-screen" />
 }))
 
-vi.mock('../components/WorkspaceSetupInterstitial', () => ({
-  WorkspaceSetupInterstitial: ({ onStart, logoAnchorRef }: {
-    onStart: () => void
-    logoAnchorRef?: (node: HTMLDivElement | null) => void
-  }) => (
-    <div data-testid="setup-interstitial" ref={logoAnchorRef}>
-      <button type="button" onClick={onStart}>Start setup</button>
-    </div>
-  )
-}))
-
 vi.mock('../components/WorkspaceSetupWizard', () => ({
-  WorkspaceSetupWizard: ({ deferContent, logoAnchorRef, onRunSetup }: {
-    deferContent?: boolean
+  WorkspaceSetupWizard: ({ logoAnchorRef, onRunSetup }: {
     logoAnchorRef?: (node: HTMLDivElement | null) => void
     onRunSetup?: (request: unknown, context: unknown) => Promise<unknown>
   }) => (
-    <div data-testid="setup-wizard" data-defer={deferContent ? 'true' : 'false'} ref={logoAnchorRef}>
+    <div data-testid="setup-wizard" ref={logoAnchorRef}>
       <button
         type="button"
         onClick={() => {
           void onRunSetup?.(
             { model: 'gpt-5.6', providerMode: 'existing', providerId: 'openai', setAsUserDefault: false },
-            { logoRect: { left: 40, top: 40, width: 48, height: 48 }, logoSrc: 'logo.svg' }
+            { logoRect: { left: 40, top: 40, width: 48, height: 48 } }
           )
         }}
       >

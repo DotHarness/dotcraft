@@ -60,14 +60,6 @@
 .workspace-setup__outline li:nth-child(4) { animation-delay: 240ms; }
 .workspace-setup__main { animation-name: workspace-setup-panel; animation-delay: 0ms; animation-duration: 460ms; }
 
-.workspace-setup[data-handoff='true'] .workspace-setup__kicker,
-.workspace-setup[data-handoff='true'] .workspace-setup__folder,
-.workspace-setup[data-handoff='true'] .workspace-setup__outline li,
-.workspace-setup[data-handoff='true'] .workspace-setup__main {
-  opacity: 0;
-  animation: none;
-}
-
 @keyframes workspace-setup-rise {
   from {
     opacity: 0;

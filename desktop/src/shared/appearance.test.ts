@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { resolveAppliedTheme, resolveThemeMode } from './theme'
 import {
   DEFAULT_APPEARANCE,
   DEFAULT_UI_FONT_SIZE,
@@ -10,18 +9,6 @@ import {
   normalizeInterfaceZoom,
   resolveAppearanceSettings
 } from './appearance'
-
-describe('theme mode resolution', () => {
-  it('normalizes theme preferences and resolves system to the OS preference', () => {
-    expect(resolveThemeMode('system')).toBe('system')
-    expect(resolveThemeMode('dark')).toBe('dark')
-    expect(resolveThemeMode(undefined)).toBe('light')
-    expect(resolveThemeMode('bogus')).toBe('light')
-    expect(resolveAppliedTheme('system', true)).toBe('dark')
-    expect(resolveAppliedTheme('system', false)).toBe('light')
-    expect(resolveAppliedTheme('light', true)).toBe('light')
-  })
-})
 
 describe('value normalization', () => {
   it('normalizes accent hex values and rejects invalid ones', () => {

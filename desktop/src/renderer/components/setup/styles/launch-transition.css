@@ -139,29 +139,6 @@
   52% { opacity: 1; }
 }
 
-.workspace-setup-logo-handoff {
-  position: absolute;
-  inset: 0;
-  z-index: 50010;
-  pointer-events: none;
-  overflow: hidden;
-  border-radius: inherit;
-}
-
-.workspace-setup-logo-handoff__logo {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 96px;
-  height: 96px;
-  object-fit: contain;
-  transform:
-    translate3d(var(--launch-logo-from-x, 0), var(--launch-logo-from-y, 0), 0)
-    scale(var(--launch-logo-from-scale, 1));
-  transform-origin: top left;
-  filter: var(--dotcraft-logo-shadow);
-}
-
 .workspace-setup-logo-hop {
   position: fixed;
   top: 0;

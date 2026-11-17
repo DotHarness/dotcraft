@@ -1283,7 +1283,6 @@ export const MESSAGES_JA = {
   'settings.saveFailed': '設定の保存に失敗しました: {{error}}',
 
   'welcome.tagline': '開始するにはワークスペースフォルダーを選択してください。',
-  'welcome.language': '言語',
   'welcome.openWorkspace': 'ワークスペースを開く',
   'welcome.openWorkspaceHint': 'ローカルフォルダーを選択して開始',
   'welcome.openChats': 'チャット',
@@ -3206,10 +3205,6 @@ export const MESSAGES_JA = {
   'channels.weixin.title': '微信',
   'channels.weixin.transportNote': 'このチャネルは外部 WebSocket アダプター モードを使用し、AppServer WebSocket が有効になっている必要があります。',
   'channels.feishu.title': 'フェイシュ',
-  'setupInterstitial.title': 'DotCraft のセットアップが完了していません',
-  'setupInterstitial.description': 'DotCraft には、モデル プロバイダーと基本設定を構成するための短いウィザードが必要です。',
-  'setupInterstitial.start': '設定を始める',
-  'setupInterstitial.chooseDifferent': '別のフォルダーを選択してください',
   'error.desc.binary.bundled': 'バンドルされている DotCraft バイナリが見つからないか破損しています。デスクトップを再インストールするか、設定で別のバイナリ ソースに切り替えます。',
   'error.desc.binary.path': 'デスクトップはシステム PATH で dotcraft を見つけることができませんでした。インストールするか、設定でバンドルされたバイナリに切り替えてください。',
   'error.desc.binary.custom': 'デスクトップは、構成したカスタム DotCraft バイナリ パスを見つけることができませんでした。パスを確認するか、設定で別のソースに切り替えてください。',

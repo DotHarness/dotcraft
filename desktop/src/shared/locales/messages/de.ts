@@ -1283,7 +1283,6 @@ export const MESSAGES_DE = {
   'settings.saveFailed': 'Einstellungen konnten nicht gespeichert werden: {{error}}',
 
   'welcome.tagline': 'Wählen Sie einen Workspace-Ordner aus, um zu beginnen.',
-  'welcome.language': 'Sprache',
   'welcome.openWorkspace': 'Workspace öffnen',
   'welcome.openWorkspaceHint': 'Lokalen Ordner auswählen und beginnen',
   'welcome.openChats': 'Chats',
@@ -3206,10 +3205,6 @@ export const MESSAGES_DE = {
   'channels.weixin.title': 'WeChat',
   'channels.weixin.transportNote': 'Dieser Kanal verwendet den externen WebSocket-Adaptermodus und erfordert die Aktivierung von AppServer WebSocket.',
   'channels.feishu.title': 'Feishu',
-  'setupInterstitial.title': 'Die DotCraft-Einrichtung ist noch nicht abgeschlossen',
-  'setupInterstitial.description': 'DotCraft benötigt einen kurzen Assistenten, um den Modellanbieter und die Grundeinstellungen zu konfigurieren.',
-  'setupInterstitial.start': 'Einrichtung starten',
-  'setupInterstitial.chooseDifferent': 'Wählen Sie einen anderen Ordner',
   'error.desc.binary.bundled': 'Die gebündelte DotCraft-Binärdatei fehlt oder ist beschädigt. Installieren Sie Desktop neu oder wechseln Sie in den Einstellungen zu einer anderen Binärquelle.',
   'error.desc.binary.path': 'Desktop konnte DotCraft auf Ihrem Systempfad nicht finden. Installieren Sie es oder wechseln Sie in den Einstellungen zur gebündelten Binärdatei.',
   'error.desc.binary.custom': 'Desktop konnte den von Ihnen konfigurierten benutzerdefinierten DotCraft-Binärpfad nicht finden. Überprüfen Sie den Pfad oder wechseln Sie in den Einstellungen zu einer anderen Quelle.',

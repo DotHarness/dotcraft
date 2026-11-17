@@ -52,14 +52,3 @@
     opacity: 0;
   }
 }
-
-@keyframes setup-content-dim {
-  from {
-    opacity: 1;
-    transform: translateY(0);
-  }
-  to {
-    opacity: 0.4;
-    transform: translateY(8px);
-  }
-}

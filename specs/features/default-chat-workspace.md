@@ -110,7 +110,7 @@ For read-only consulting against an external observability or business system:
 
 Desktop renders default Chat workspace threads as a separate `Chats` group rather than as a Project row. The physical workspace path is diagnostic information, not the primary label.
 
-When Desktop starts without an explicit target or a restorable foreground entry, it shows the welcome chooser. The chooser provides a Chats entry alongside project workspace selection. Choosing Chats foregrounds the default Chat workspace; choosing a project foregrounds that workspace and adds it to the user's recent projects.
+The first local start, with no explicit target and no remembered foreground surface or last workspace, foregrounds Chats so a new user goes straight to Workspace Setup without choosing a folder. The welcome chooser provides a Chats entry alongside project workspace selection. Choosing Chats foregrounds the default Chat workspace; choosing a project foregrounds that workspace and adds it to the user's recent projects.
 
 Desktop remembers which surface was last in the foreground. Later local starts restore Chats after the user has chosen Chats, restore a project workspace while that project still exists, or return to the welcome chooser when Welcome was the last foreground surface. Explicit workspace paths and workspace deep links take precedence over the remembered surface. The explicit `--no-workspace` entry point always opens the welcome chooser, and remote startup never implicitly restores the local default Chat workspace.
 

@@ -1,17 +1,11 @@
 import { useState, useEffect, useMemo, useRef, type CSSProperties } from 'react'
 import { isWorkspaceLockedSwitchError } from '../../shared/workspaceSwitchErrors'
-import { SUPPORTED_LOCALES, type AppLocale } from '../../shared/locales'
-import { useLocale, useSetUiLocale, useT } from '../contexts/LocaleContext'
+import { useT } from '../contexts/LocaleContext'
 import { ActionTooltip } from './ui/ActionTooltip'
-import { SettingsSelect } from './settings/ui/SettingsSelect'
 import { DotCraftFullLogo } from './ui/DotCraftLogo'
 import { elementToLaunchLogoRect, type LaunchLogoRect } from './WorkspaceLaunchTransition'
-import { ChevronRight, FolderOpen, Languages, MessageCircle } from 'lucide-react'
+import { ChevronRight, FolderOpen, MessageCircle } from 'lucide-react'
 import { localProjectsByLastOpened, useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
-
-function isLockError(err: unknown): boolean {
-  return isWorkspaceLockedSwitchError(err)
-}
 
 interface WelcomeScreenProps {
   onOpenWorkspace: (request: { path: string; logoRect: LaunchLogoRect }) => Promise<void>
@@ -19,14 +13,9 @@ interface WelcomeScreenProps {
 
 export function WelcomeScreen({ onOpenWorkspace }: WelcomeScreenProps): JSX.Element {
   const t = useT()
-  const locale = useLocale()
-  const setUiLocale = useSetUiLocale()
-  const isMac = window.api.platform === 'darwin'
-  const languageSwitcherTop = isMac ? 20 : window.api.titleBarOverlayHeight + 16
   const projects = useWorkspaceProjectsStore((s) => s.projects)
   const recents = useMemo(() => localProjectsByLastOpened(projects), [projects])
   const [loading, setLoading] = useState(false)
-  const [switchingLocale, setSwitchingLocale] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [lockedPath, setLockedPath] = useState<string | null>(null)
   const [openingWorkspacePath, setOpeningWorkspacePath] = useState<string | null>(null)
@@ -38,9 +27,9 @@ export function WelcomeScreen({ onOpenWorkspace }: WelcomeScreenProps): JSX.Elem
 
   useEffect(() => {
     let disposed = false
-    window.api.workspace.getProjects?.()
+    window.api.workspace.getProjects()
       .then((payload) => {
-        if (!disposed) setChatWorkspacePath(payload?.chat?.path?.trim() || null)
+        if (!disposed) setChatWorkspacePath(payload.chat?.path || null)
       })
       .catch(() => {})
     return () => {
@@ -59,7 +48,7 @@ export function WelcomeScreen({ onOpenWorkspace }: WelcomeScreenProps): JSX.Elem
     try {
       await onOpenWorkspace({ path, logoRect })
     } catch (err) {
-      if (isLockError(err)) {
+      if (isWorkspaceLockedSwitchError(err)) {
         setLockedPath(path)
         setShakingPath(path)
       } else {
@@ -77,26 +66,9 @@ export function WelcomeScreen({ onOpenWorkspace }: WelcomeScreenProps): JSX.Elem
     await openWorkspaceWithBrandTransition(picked)
   }
 
-  async function handleOpenRecent(path: string): Promise<void> {
-    await openWorkspaceWithBrandTransition(path)
-  }
-
   async function handleOpenChats(): Promise<void> {
     if (!chatWorkspacePath) return
     await openWorkspaceWithBrandTransition(chatWorkspacePath)
-  }
-
-  async function handleLocaleSwitch(nextLocale: AppLocale): Promise<void> {
-    if (nextLocale === locale || switchingLocale) return
-    setSwitchingLocale(true)
-    setUiLocale(nextLocale)
-    try {
-      await window.api.settings.set({ locale: nextLocale })
-    } catch {
-      // Ignore locale persistence failures on welcome screen.
-    } finally {
-      setSwitchingLocale(false)
-    }
   }
 
   const rootClassName = isOpeningWorkspace
@@ -122,28 +94,6 @@ export function WelcomeScreen({ onOpenWorkspace }: WelcomeScreenProps): JSX.Elem
       style={rootStyle}
       className={rootClassName}
     >
-      <div
-        className="welcome-language-switcher"
-        style={{
-          position: 'absolute',
-          top: `${languageSwitcherTop}px`,
-          right: '20px'
-        }}
-      >
-        <SettingsSelect<AppLocale>
-          value={locale}
-          onValueChange={(value) => {
-            void handleLocaleSwitch(value)
-          }}
-          disabled={switchingLocale || loading}
-          ariaLabel={t('welcome.language')}
-          appearance="frameless"
-          menuAlign="end"
-          triggerIcon={<Languages size={14} strokeWidth={1.8} />}
-          options={SUPPORTED_LOCALES.map((item) => ({ value: item.value, label: item.nativeName }))}
-        />
-      </div>
-
       <div className="welcome-logo-focus" aria-hidden="true" ref={logoRef}>
         <DotCraftFullLogo size={96} className="welcome-logo-image" />
       </div>
@@ -227,7 +177,7 @@ export function WelcomeScreen({ onOpenWorkspace }: WelcomeScreenProps): JSX.Elem
                 key={r.path}
                 type="button"
                 className="welcome-workspace-row welcome-recent-workspace-row"
-                onClick={() => { void handleOpenRecent(r.path) }}
+                onClick={() => { void openWorkspaceWithBrandTransition(r.path) }}
                 disabled={loading}
                 style={{
                   animation: isShaking ? 'shake 0.4s ease' : undefined

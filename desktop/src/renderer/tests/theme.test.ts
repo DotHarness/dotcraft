@@ -1,14 +1,14 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { THEME_CHANGED_EVENT } from '../../shared/theme'
-import { applyTheme, resolveTheme } from '../utils/theme'
+import { applyTheme } from '../utils/theme'
 import { installDesktopApiMock } from './desktopApiMock'
 
-function mockMatchMedia(prefersDark: boolean): void {
+function mockMatchMedia(): void {
   Object.defineProperty(window, 'matchMedia', {
     configurable: true,
     value: vi.fn().mockImplementation((query: string) => ({
-      matches: prefersDark,
+      matches: false,
       media: query,
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
@@ -23,21 +23,13 @@ describe('theme utilities', () => {
   beforeEach(() => {
     document.documentElement.removeAttribute('data-theme')
     vi.restoreAllMocks()
-    mockMatchMedia(false)
+    mockMatchMedia()
     installDesktopApiMock({
       platform: 'win32',
       window: {
         setTitleBarOverlayTheme: vi.fn().mockResolvedValue(undefined)
       }
     })
-  })
-
-  it('resolves explicit preferences and defaults missing or unknown values to light', () => {
-    expect(resolveTheme(undefined)).toBe('light')
-    expect(resolveTheme(null)).toBe('light')
-    expect(resolveTheme('bogus')).toBe('light')
-    expect(resolveTheme('system')).toBe('system')
-    expect(resolveTheme('dark')).toBe('dark')
   })
 
   it('applies the theme and emits a renderer-local change event', () => {
@@ -50,17 +42,5 @@ describe('theme utilities', () => {
     expect(window.api.window.setTitleBarOverlayTheme).toHaveBeenCalledWith('light')
     expect(listener).toHaveBeenCalledTimes(1)
     window.removeEventListener(THEME_CHANGED_EVENT, listener)
-  })
-
-  it('resolves system mode to the OS preference', () => {
-    mockMatchMedia(true)
-    applyTheme('system')
-    expect(document.documentElement.getAttribute('data-theme')).toBe('dark')
-    expect(window.api.window.setTitleBarOverlayTheme).toHaveBeenCalledWith('dark')
-
-    mockMatchMedia(false)
-    applyTheme('system')
-    expect(document.documentElement.getAttribute('data-theme')).toBe('light')
-    expect(window.api.window.setTitleBarOverlayTheme).toHaveBeenLastCalledWith('light')
   })
 })

@@ -1283,7 +1283,6 @@ export const MESSAGES_KO = {
   'settings.saveFailed': '설정 저장 실패: {{error}}',
 
   'welcome.tagline': '시작하려면 워크스페이스 폴더를 선택하세요.',
-  'welcome.language': '언어',
   'welcome.openWorkspace': '워크스페이스 열기',
   'welcome.openWorkspaceHint': '로컬 폴더를 선택해 시작',
   'welcome.openChats': '채팅',
@@ -3206,10 +3205,6 @@ export const MESSAGES_KO = {
   'channels.weixin.title': '위챗',
   'channels.weixin.transportNote': '이 채널은 외부 WebSocket 어댑터 모드를 사용하며 AppServer WebSocket을 활성화해야 합니다.',
   'channels.feishu.title': '페이슈',
-  'setupInterstitial.title': 'DotCraft 설정이 완료되지 않았습니다.',
-  'setupInterstitial.description': 'DotCraft에서는 모델 공급자와 기본 설정을 구성하기 위해 간단한 마법사가 필요합니다.',
-  'setupInterstitial.start': '설정 시작',
-  'setupInterstitial.chooseDifferent': '다른 폴더 선택',
   'error.desc.binary.bundled': '번들 DotCraft 바이너리가 없거나 손상되었습니다. 데스크톱을 다시 설치하거나 설정에서 다른 바이너리 소스로 전환하세요.',
   'error.desc.binary.path': '데스크탑이 시스템 PATH에서 dotcraft를 찾을 수 없습니다. 이를 설치하거나 설정에서 번들 바이너리로 전환하세요.',
   'error.desc.binary.custom': '데스크톱에서 구성한 사용자 정의 DotCraft 바이너리 경로를 찾을 수 없습니다. 경로를 확인하거나 설정에서 다른 소스로 전환하세요.',

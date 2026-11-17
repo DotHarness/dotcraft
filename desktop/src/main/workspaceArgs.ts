@@ -1,4 +1,3 @@
-import { existsSync } from 'fs'
 import type { AppSettings } from './settings'
 import { findNewThreadDeepLink, findWorkspaceOpenDeepLink } from '../shared/desktopDeepLink'
 import { isLocalDirectory } from './newThreadDeepLink'
@@ -28,31 +27,12 @@ function resolveExplicitWorkspacePathFromArgs(argv: readonly string[]): string |
   return null
 }
 
-export function resolveWorkspacePathFromArgs(
-  settings: AppSettings,
-  argv: readonly string[] = process.argv,
-  pathExists: (path: string) => boolean = existsSync
-): string | null {
-  const explicitWorkspacePath = resolveExplicitWorkspacePathFromArgs(argv)
-  if (explicitWorkspacePath) return explicitWorkspacePath
-
-  if (hasNoWorkspaceArg(argv)) {
-    return null
-  }
-
-  if (settings.lastWorkspacePath && pathExists(settings.lastWorkspacePath)) {
-    return settings.lastWorkspacePath
-  }
-
-  return null
-}
-
 export function resolveStartupWorkspacePath(
   settings: AppSettings,
-  argv: readonly string[] = process.argv,
-  pathExists: (path: string) => boolean = existsSync,
-  defaultChatWorkspacePath = '',
-  connectionMode: 'local' | 'remote' = 'local'
+  argv: readonly string[],
+  pathExists: (path: string) => boolean,
+  defaultChatWorkspacePath: string,
+  connectionMode: 'local' | 'remote'
 ): string | null {
   const explicitWorkspacePath = resolveExplicitWorkspacePathFromArgs(argv)
   if (explicitWorkspacePath) return explicitWorkspacePath
@@ -74,8 +54,7 @@ export function resolveStartupWorkspacePath(
   if (
     (connectionMode === 'local' || settings.activeRemoteProject || settings.activeRemoteDevice) &&
     !hasRemoteEndpointArg(argv) &&
-    settings.lastForegroundEntry === 'chats' &&
-    defaultChatWorkspacePath.trim()
+    settings.lastForegroundEntry === 'chats'
   ) {
     return defaultChatWorkspacePath
   }
@@ -86,6 +65,14 @@ export function resolveStartupWorkspacePath(
 
   if (settings.lastWorkspacePath && pathExists(settings.lastWorkspacePath)) {
     return settings.lastWorkspacePath
+  }
+
+  if (
+    connectionMode === 'local' &&
+    !hasRemoteEndpointArg(argv) &&
+    settings.lastForegroundEntry === undefined
+  ) {
+    return defaultChatWorkspacePath
   }
 
   return null

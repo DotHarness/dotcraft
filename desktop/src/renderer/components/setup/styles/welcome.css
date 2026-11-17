@@ -22,13 +22,11 @@
   opacity: 0;
 }
 
-.welcome-language-switcher,
 .welcome-screen-background {
   position: relative;
   z-index: 0;
 }
 
-.welcome-screen--opening .welcome-language-switcher,
 .welcome-screen--opening .welcome-screen-background {
   animation: welcome-content-dim 420ms ease-out both;
 }

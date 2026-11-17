@@ -1,4 +1,4 @@
-import { resolveThemeMode, type ThemeMode } from './theme'
+import { DEFAULT_THEME_MODE, resolveThemeMode, type ThemeMode } from './theme'
 import {
   EMPTY_THEME_SEEDS,
   normalizeHexColor,
@@ -40,37 +40,27 @@ export const CODE_FONT_SIZE_MAX = 20
 /** Matches the `--text-code-size` default in tokens.css. */
 export const DEFAULT_CODE_FONT_SIZE = 12
 
-/**
- * The base UI font size in px that a 100% interface zoom represents — matches `--type-body-size`
- * in tokens.css. The Appearance control reads as a UI font size anchored on this value, but it is
- * applied as a whole-interface zoom (not a font CSS var), so the persisted value stays a zoom factor.
- */
+/** The UI font size in px at 100% interface zoom, matching `--type-body-size`. The control shows a font size but persists a zoom factor. */
 export const DEFAULT_UI_FONT_SIZE = 14
-/** UI font size bounds (px), spanning roughly the historical 0.8-1.5 interface-zoom range. */
 export const UI_FONT_SIZE_MIN = 11
 export const UI_FONT_SIZE_MAX = 21
-/** Interface zoom factor (1 = 100% = the base UI font size). Applied via the renderer zoom. */
 export const DEFAULT_INTERFACE_ZOOM = 1
 
-/** The UI font size (px) an interface-zoom factor renders, anchored on {@link DEFAULT_UI_FONT_SIZE}. */
 export function interfaceZoomToUiFontPx(zoom: number): number {
   return Math.round(zoom * DEFAULT_UI_FONT_SIZE)
 }
 
-/** The interface-zoom factor that renders the UI at the given font size (px). */
 export function uiFontPxToInterfaceZoom(px: number): number {
   return px / DEFAULT_UI_FONT_SIZE
 }
 
 export const DEFAULT_APPEARANCE: AppearanceSettings = {
-  themeMode: 'light',
+  themeMode: DEFAULT_THEME_MODE,
   accent: null,
   themeSeeds: EMPTY_THEME_SEEDS,
   codeFontSize: null,
   diffMarkers: 'color',
   reduceMotion: 'system',
-  // Default true preserves DotCraft's historical pointer-on-clickable look; turning it off
-  // switches interactive elements to the native arrow cursor.
   pointerCursors: true,
   interfaceZoom: DEFAULT_INTERFACE_ZOOM,
   translucentSidebar: true,
@@ -80,7 +70,6 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
 /** The accent is one field of the theme seed, so it normalizes the same way every color does. */
 export const normalizeAccentHex = normalizeHexColor
 
-/** Normalize a code font size to an integer within bounds, or null when invalid/out of range. */
 export function normalizeCodeFontSize(raw: unknown): number | null {
   if (typeof raw !== 'number' || !Number.isFinite(raw)) return null
   const value = Math.round(raw)
@@ -96,7 +85,6 @@ export function normalizeReduceMotion(raw: unknown): ReduceMotionMode {
   return raw === 'on' || raw === 'off' ? raw : 'system'
 }
 
-/** Pointer cursors default to on; only an explicit `false` disables them. */
 export function normalizePointerCursors(raw: unknown): boolean {
   return raw !== false
 }
@@ -112,7 +100,6 @@ export function normalizeInterfaceZoom(raw: unknown): number {
   return px / DEFAULT_UI_FONT_SIZE
 }
 
-/** Sidebar translucency defaults to on; only an explicit `false` makes it opaque. */
 export function normalizeTranslucentSidebar(raw: unknown): boolean {
   return raw !== false
 }

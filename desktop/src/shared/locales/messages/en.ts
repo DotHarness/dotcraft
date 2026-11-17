@@ -2010,7 +2010,6 @@ export const MESSAGES_EN = {
   'channels.feishu.title': 'Feishu',
 
   'welcome.tagline': 'Select a workspace folder to get started.',
-  'welcome.language': 'Language',
   'welcome.openWorkspace': 'Open Workspace',
   'welcome.openWorkspaceHint': 'Choose a local folder to begin',
   'welcome.openChats': 'Chats',
@@ -2024,10 +2023,6 @@ export const MESSAGES_EN = {
   'welcome.sendTitle': 'Send (Enter)',
   'welcome.sendAria': 'Send message',
 
-  'setupInterstitial.title': "DotCraft isn't set up yet",
-  'setupInterstitial.description': 'DotCraft needs a short wizard to configure the model provider and basic preferences.',
-  'setupInterstitial.start': 'Start setup',
-  'setupInterstitial.chooseDifferent': 'Choose another folder',
   'setupWizard.kicker': 'Welcome to DotCraft',
   'setupWizard.subtitle': 'One-time setup',
   'setupWizard.outline.language': 'Language',
