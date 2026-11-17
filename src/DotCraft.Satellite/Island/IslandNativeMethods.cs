@@ -136,6 +136,14 @@ internal static class IslandNativeMethods
             SetWindowLongPtr(window, GWL_EXSTYLE, next);
     }
 
+    private const uint WDA_EXCLUDEFROMCAPTURE = 0x11;
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetWindowDisplayAffinity(nint window, uint affinity);
+
+    public static void ExcludeFromCapture(nint window) => SetWindowDisplayAffinity(window, WDA_EXCLUDEFROMCAPTURE);
+
     public static void RaiseToTop(nint window) => SetWindowPos(
         window, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
 }

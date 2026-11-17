@@ -1,75 +1,63 @@
 # DotCraft Satellite
 
-Satellite enables remote tool calls so your agent can work on another Windows PC. You continue the chat in Desktop, while the person sharing the PC controls access, sees running tools, and can pause sharing. Enable the bundled Satellite plugin in Desktop to manage PCs, choose where tools run, and view their screens.
+Satellite lets your DotCraft work on another Windows PC. You keep chatting in Desktop, while the person sharing the PC decides what the agent may do, sees what it is doing, and can pause at any time. Enable the bundled Satellite plugin in Desktop to manage PCs, choose where tools run, and view their screens.
 
 ![The inviting PC runs Desktop and the Hub, and Satellite on the shared PC connects to it](/satellite-overview.svg)
 
 ## Person inviting: create an invitation
 
-Open **Settings → Satellites** and choose **Invite**. The link is ready as soon as the dialog opens: copy it and send it to the other person.
+Open **Settings → Satellites** and choose **Invite**. Copy the link and send it to the other person.
 
 If Windows asks whether to allow DotCraft through the firewall on your first invitation, allow it on a private network you trust. The shared PC must be able to reach the address in the invitation link.
 
 ## Person sharing: install and open Satellite
 
-Open the invitation link on the PC you want to share, check who is asking, and choose **Download DotCraft Satellite**. Complete the installation to open **Share this PC**. Satellite installs for your Windows user without requesting administrator access.
-
-If Satellite is already installed, use the invitation page's option to open it.
+Open the invitation link on the PC you want to share, check who is asking, and choose **Download DotCraft Satellite**. When the installation finishes, **Share this PC** opens. If Satellite is already installed, use the invitation page's option to open it.
 
 ## Person sharing: choose an access mode
 
-Satellite offers two access modes side by side, each stating what it allows. **Full access** is selected when the window opens.
-
 ### Full access
 
-Choose **Allow connection**. Files and commands then run with your Windows permissions without asking each time. Operating system permissions and explicit host restrictions still apply, so choose this mode only when you trust the other person to operate this PC.
+Choose **Allow connection**. The agent can then work with files and run commands with your Windows permissions without asking each time. Choose this only when you trust the other person to operate this PC.
 
 ![Full access selected on the left, with Folder only offered beside it](https://github.com/DotHarness/resources/raw/master/dotcraft/satellite/authorize-full.png)
 
 ### Folder only
 
-Choose **Folder only** and Satellite asks you to pick the folder to share. Cancel that picker to use the suggested task folder instead, which is created only when you allow the connection. The folder button on the card picks a different folder.
-
-The agent can read and change files in that folder. Other file access and local commands need your approval, which is not a strict filesystem sandbox.
+Choose **Folder only** and pick the folder to share, or cancel to use the suggested task folder. The agent can read and change files in that folder. Anything else, including local commands, waits for your approval. This is not a strict sandbox.
 
 ![Folder only selected, showing the folder it shares and the change-folder button](https://github.com/DotHarness/resources/raw/master/dotcraft/satellite/authorize-workspace.png)
 
-**Decline** leaves the PC unpaired and does not create the suggested task folder.
+Choose **Decline** to refuse the invitation.
 
 ## Person inviting: choose where to run
 
-After the other person allows the connection, find the PC in **Settings → Satellites**. Open **Run on** below the chat composer, select the remote PC and its workspace, and submit your task.
+After the other person allows the connection, open **Run on** below the chat composer, select the remote PC and its workspace, and submit your task. File, Shell, and language tools then run on that PC. Select **This PC** to switch back.
 
-File, Shell, language tools, and .NET extension tools that support remote calls run on the selected PC. A failed remote call does not automatically run on your own PC. Select **This PC** to switch back.
-
-The agent can also access files on your own PC without changing this selection, and copy files or folders between the two PCs when needed. For example: “Upload my local checker CLI to the remote workspace and run it there.” Replacing existing files requires the overwrite option.
-
-For .NET tools that support remote calls, DotCraft automatically prepares the plugin bundles, dependencies, and settings on the shared PC. Skill instructions stay on your PC, with supporting files transferred as needed. Any CLI must support the shared PC's operating system. See [local access and file transfer](../contribute/architecture/remote-tool-host#local-access-and-file-transfer) for tool parameters.
+The agent can still reach files on your own PC, and copy files or folders between the two PCs when needed. For example: “Upload my local checker CLI to the remote workspace and run it there.”
 
 ## Person inviting: watch the remote screen
 
-While the chat runs on the remote PC, choose **Watch … screen** in the chat header to open a live view of that PC's desktop. Drag it wherever it suits you and resize it from its corner; point at it for **Expand** and **Stop watching**. The view is read-only and nothing is recorded. If the other person pauses sharing or their PC drops off, the view comes back on its own when sharing resumes.
+While the chat runs on the remote PC, choose **Watch … screen** in the chat header to open a live view of that PC's desktop. Drag and resize it as you like, and point at it for **Expand** and **Stop watching**. The view is read-only.
 
 ## Person sharing: see who is using your PC
 
-As long as your PC is paired, a bar sits at the top of your screen, above your other windows. While someone is using your PC it names who is connected, and while a tool runs, the operation and the command it is running. Point at the bar to see every connected PC with its access mode, disconnect one, or open its task folder. **Pause sharing** below that list stops every PC at once, and **Resume sharing** on the bar lets them back in. Drag the bar elsewhere if it covers what you are working on; it comes back where you left it.
+While your PC is paired, a bar at the top of the screen shows who is connected and what the agent is doing. While a tool runs, the edges of the screen light up. Click the bar to see each connected PC, disconnect one, or open its task folder. Use the pause button on the bar to stop every PC at once, and **Resume sharing** to let them back in.
 
-While the other person is watching your screen, the bar shows an eye, and Windows notifies you when watching starts and stops. **Pause sharing** ends it.
+While the other person watches your screen, the bar shows an eye.
 
 ## Person sharing: handle additional access
 
-In Folder only mode, additional access is asked for on that same bar. Check the inviter, the operation, and the path or full command, then choose **Allow once** or **Decline**. Commands may affect files outside the task folder. You answer one request at a time, and a request nobody answers within two minutes is declined.
+In Folder only mode, requests for additional access appear on the bar. Check who is asking and the exact path or command, then choose **Allow once** or **Decline**. Commands may affect files outside the task folder. A request nobody answers within two minutes is declined.
 
-![The island asking whether Ann may run a command, with Decline and Allow once](https://github.com/DotHarness/resources/raw/master/dotcraft/satellite/approve-command.png)
-
-If you decline, the agent receives that result. The person inviting your PC cannot approve this access on your behalf.
+![The bar asking whether Ann may run a command, with Decline and Allow once](https://github.com/DotHarness/resources/raw/master/dotcraft/satellite/approve-command.png)
 
 ## Person sharing: review, pause, or revoke access
 
-If Desktop is also installed on this PC, open **Settings → Satellites → Share this PC** to see who has access, their access mode, and their task folder. Change permissions in Satellite.
+Right-click the Satellite tray icon and choose a PC to change its access mode, open its task folder, disconnect it, or revoke its access. **Pause sharing** in the same menu stops every PC until you resume.
+
+If Desktop is also installed on this PC, **Settings → Satellites → Share this PC** shows who has access and how.
 
 ![Share this PC showing two paired computers with their access modes and task folders](https://github.com/DotHarness/resources/raw/master/dotcraft/satellite/manage-access.png)
-
-Right-click the Satellite tray icon and choose a machine to open its actions: **Manage access** changes its access mode, **Open folder** opens its task folder, **Disconnect** ends its current session, and **Revoke access** removes its access. **Pause sharing** stops every machine at once and can be resumed later.
 
 The person inviting can also remove the PC from **Settings → Satellites**. Sharing again requires a new invitation.

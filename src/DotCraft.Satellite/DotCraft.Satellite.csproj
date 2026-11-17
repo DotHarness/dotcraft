@@ -29,6 +29,7 @@
     <AssemblyVersion>0.12.1</AssemblyVersion>
     <Version>0.12.1</Version>
     <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
+    <DefaultItemExcludes>$(DefaultItemExcludes);Pages\node_modules\**;Pages\dist\**</DefaultItemExcludes>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
@@ -62,8 +63,11 @@
     <EmbeddedResource Include="Localization\Strings.zh-Hans.json" WithCulture="false">
       <LogicalName>DotCraft.Satellite.Strings.zh-Hans.json</LogicalName>
     </EmbeddedResource>
-    <EmbeddedResource Include="Island\island.html">
+    <EmbeddedResource Include="Pages\dist\island.html">
       <LogicalName>DotCraft.Satellite.island.html</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Pages\dist\glow.html">
+      <LogicalName>DotCraft.Satellite.glow.html</LogicalName>
     </EmbeddedResource>
     <EmbeddedResource Include="Consent\consent.html">
       <LogicalName>DotCraft.Satellite.consent.html</LogicalName>
@@ -84,5 +88,19 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
+
+  <ItemGroup>
+    <SatellitePageInput Include="Pages\src\**\*;Pages\package.json;Pages\package-lock.json;Pages\vite.config.ts;Pages\tsconfig.json" />
+    <SatellitePageInput Include="..\..\sdk\typescript\packages\island\src\**\*;..\..\sdk\typescript\packages\avatar\src\**\*" />
+  </ItemGroup>
+
+  <Target Name="RestoreSatellitePages" Condition="'$(DesignTimeBuild)' != 'true' And !Exists('Pages\node_modules\.package-lock.json')">
+    <Exec Command="npm ci --no-audit --no-fund" WorkingDirectory="Pages" />
+  </Target>
+
+  <Target Name="BuildSatellitePages" BeforeTargets="BeforeBuild" DependsOnTargets="RestoreSatellitePages" Condition="'$(DesignTimeBuild)' != 'true'"
+          Inputs="@(SatellitePageInput)" Outputs="Pages\dist\island.html;Pages\dist\glow.html">
+    <Exec Command="npm run build" WorkingDirectory="Pages" />
+  </Target>
 
 </Project>

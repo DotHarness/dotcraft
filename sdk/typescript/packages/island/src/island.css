@@ -1,0 +1,398 @@
+.dci-island {
+  --dci-text: #eeeeec;
+  --dci-text-secondary: #a4a4a3;
+  --dci-text-dimmed: #70706f;
+  --dci-hover: rgb(238 238 236 / 0.08);
+  --dci-active: #343434;
+  --dci-border: rgb(238 238 236 / 0.16);
+  --dci-accent: #4566cc;
+  --dci-accent-hover: #5976d0;
+  --dci-on-accent: #ffffff;
+  --dci-surface: rgb(36 36 36 / 0.92);
+  --dci-shadow: 0 12px 30px rgb(0 0 0 / 0.24), 0 1px 2px rgb(0 0 0 / 0.16);
+  --dci-rim-lit: rgb(255 255 255 / 0.38);
+  --dci-rim: rgb(255 255 255 / 0.08);
+  --dci-font-ui: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --dci-font-mono: Consolas, "Cascadia Mono", monospace;
+  --dci-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --dci-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --dci-morph: 420ms cubic-bezier(0.33, 0, 0.2, 1);
+
+  position: relative;
+  box-sizing: content-box;
+  max-width: min(100%, 540px);
+  height: 44px;
+  overflow: hidden;
+  border-radius: 22px;
+  background: var(--dci-surface);
+  box-shadow: var(--dci-shadow);
+  color: var(--dci-text);
+  font-family: var(--dci-font-ui);
+  font-size: 13px;
+  line-height: 18px;
+  user-select: none;
+  -webkit-user-select: none;
+  interpolate-size: allow-keywords;
+  transition: width var(--dci-morph), height var(--dci-morph), opacity 120ms var(--dci-ease);
+  animation: dci-island-enter 280ms var(--dci-ease-out) both;
+}
+
+.dci-island[data-theme="light"] {
+  --dci-text: #1a1c1f;
+  --dci-text-secondary: #5d5e60;
+  --dci-text-dimmed: #8a8b8c;
+  --dci-hover: rgb(26 28 31 / 0.06);
+  --dci-active: #e8e8e8;
+  --dci-border: rgb(26 28 31 / 0.12);
+  --dci-accent: #4f6cce;
+  --dci-accent-hover: #4962b9;
+  --dci-surface: rgb(255 255 255 / 0.94);
+  --dci-shadow: 0 12px 30px rgb(0 0 0 / 0.14), 0 1px 2px rgb(0 0 0 / 0.08);
+  --dci-rim-lit: rgb(26 28 31 / 0.2);
+  --dci-rim: rgb(26 28 31 / 0.08);
+}
+
+.dci-island[data-card] {
+  width: 440px;
+  height: auto;
+}
+
+.dci-island[data-leaving] {
+  animation: dci-island-leave 180ms var(--dci-ease) both;
+}
+
+@keyframes dci-island-enter {
+  from { opacity: 0; translate: 0 -10px; scale: 0.96; }
+}
+
+@keyframes dci-island-leave {
+  to { opacity: 0; translate: 0 -8px; scale: 0.98; }
+}
+
+.dci-island[data-reduce-motion="on"] {
+  animation: none;
+  transition: none;
+}
+
+.dci-island::before {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: conic-gradient(from 315deg, var(--dci-rim-lit), var(--dci-rim) 25%, var(--dci-rim) 75%, var(--dci-rim-lit));
+  content: "";
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+
+.dci-island__content {
+  display: flex;
+  box-sizing: border-box;
+  width: max-content;
+  max-width: 540px;
+  height: 100%;
+  align-items: center;
+  gap: 2px;
+  padding: 0 6px 0 0;
+}
+
+.dci-island[data-card] .dci-island__content {
+  display: block;
+  width: 100%;
+  max-width: none;
+  height: auto;
+  padding: 0;
+}
+
+.dci-island button {
+  font: inherit;
+}
+
+.dci-island button:focus-visible {
+  outline: 2px solid var(--dci-accent);
+  outline-offset: -2px;
+}
+
+.dci-head {
+  display: flex;
+  min-width: 0;
+  height: 44px;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px 0 5px;
+  border: 0;
+  border-radius: 22px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.dci-head:disabled {
+  color: inherit;
+  cursor: default;
+}
+
+.dci-island[data-card] .dci-head {
+  width: 100%;
+}
+
+.dci-body {
+  padding: 2px 12px 12px;
+  animation: dci-body-in 280ms var(--dci-ease-out) 60ms both;
+}
+
+.dci-body[data-leaving] {
+  opacity: 0;
+  transition: opacity 180ms var(--dci-ease);
+}
+
+@keyframes dci-body-in {
+  from { opacity: 0; translate: 0 -4px; }
+}
+
+.dci-choices {
+  display: grid;
+  gap: 8px;
+}
+
+.dci-choices__title {
+  margin: 0;
+  font-weight: 600;
+}
+
+.dci-choices__detail {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+}
+
+.dci-choices__options {
+  display: grid;
+  gap: 6px;
+}
+
+.dci-choices__options button {
+  display: grid;
+  gap: 2px;
+  padding: 8px 12px;
+  border: 1px solid var(--dci-border);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--dci-text);
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 120ms var(--dci-ease);
+}
+
+.dci-choices__options button:hover {
+  background: var(--dci-hover);
+}
+
+.dci-choices__options button[data-primary] {
+  border-color: transparent;
+  background: var(--dci-accent);
+  color: var(--dci-on-accent);
+}
+
+.dci-choices__options button[data-primary]:hover {
+  background: var(--dci-accent-hover);
+}
+
+.dci-choices__options small {
+  color: inherit;
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.dci-robots {
+  display: flex;
+  flex: none;
+  align-items: center;
+}
+
+.dci-robot {
+  position: relative;
+  display: grid;
+  width: calc(var(--dci-robot) + 4px);
+  height: calc(var(--dci-robot) + 4px);
+  place-items: center;
+  line-height: 0;
+}
+
+.dci-robot + .dci-robot {
+  margin-left: calc(var(--dci-robot) * -0.46);
+}
+
+.dci-robot[data-lead] {
+  z-index: 1;
+}
+
+/* The robot's face sits below the middle of its box, so beside a line it rises a tenth of its size. */
+.dci-robot > * {
+  translate: 0 -10%;
+}
+
+.dci-live {
+  background: linear-gradient(90deg, var(--dci-text) 0%, var(--dci-text) 35%, var(--dci-text-dimmed) 50%, var(--dci-text) 65%, var(--dci-text) 100%) 0 0 / 300% 100%;
+  color: transparent;
+  background-clip: text;
+  -webkit-background-clip: text;
+  animation: dci-live 2.4s linear infinite;
+}
+
+@keyframes dci-live {
+  from { background-position: 100% 0; }
+  to { background-position: 0 0; }
+}
+
+.dci-detail {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: baseline;
+  gap: 6px;
+  overflow: hidden;
+  color: var(--dci-text-secondary);
+  font-family: var(--dci-font-mono);
+  font-size: 12px;
+}
+
+.dci-detail b {
+  flex: none;
+  color: var(--dci-text);
+  font-family: var(--dci-font-ui);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.dci-detail > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dci-badge {
+  flex: none;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--dci-active);
+  color: var(--dci-text-secondary);
+  font-size: 11px;
+  line-height: 15px;
+}
+
+.dci-button {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dci-text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+  transition: background-color 120ms var(--dci-ease), color 120ms var(--dci-ease);
+}
+
+.dci-button:hover:not(:disabled) {
+  background: var(--dci-active);
+  color: var(--dci-text);
+}
+
+.dci-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.dci-button[data-variant="icon"] {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 999px;
+}
+
+.dci-button[data-variant="secondary"],
+.dci-button[data-variant="primary"] {
+  padding: 0 12px;
+  font-size: 12px;
+}
+
+.dci-button[data-variant="secondary"] {
+  border: 1px solid var(--dci-border);
+}
+
+.dci-button[data-variant="secondary"]:hover {
+  background: var(--dci-hover);
+}
+
+.dci-button[data-variant="primary"] {
+  background: var(--dci-accent);
+  color: var(--dci-on-accent);
+}
+
+.dci-button[data-variant="primary"]:hover {
+  background: var(--dci-accent-hover);
+  color: var(--dci-on-accent);
+}
+
+.dci-countdown {
+  position: relative;
+  display: flex;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+}
+
+.dci-countdown svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  rotate: -90deg;
+}
+
+.dci-countdown circle {
+  fill: none;
+  stroke-width: 1.5;
+}
+
+.dci-countdown__track {
+  stroke: var(--dci-border);
+}
+
+.dci-countdown__value {
+  stroke: var(--dci-accent);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 1s linear;
+}
+
+.dci-countdown em {
+  color: var(--dci-text-secondary);
+  font-size: 9px;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.dci-island[data-reduce-motion="on"] .dci-body,
+.dci-island[data-reduce-motion="on"] .dci-live,
+.dci-island[data-reduce-motion="on"] .dci-countdown__value {
+  animation: none;
+  transition: none;
+}
+
+.dci-island[data-reduce-motion="on"] .dci-live {
+  color: inherit;
+  background: none;
+}

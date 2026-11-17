@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.9.1 |
+| Version | 0.9.2 |
 | Status | Draft |
-| Date | 2026-10-19 |
+| Date | 2026-11-17 |
 | Parent spec | [Remote Tool Host](../architecture/remote-tool-host.md) |
 | Related Specs | [Hub Architecture](../architecture/hub-architecture.md), [Remote Screen View](../features/remote-screen-view.md) |
 
@@ -118,41 +118,61 @@ would help while the Hub is unreachable.
 
 ## Island
 
-The island is a floating capsule at the top of the primary display, above other windows, with no
-taskbar or Alt-Tab presence. It MUST be visible whenever at least one pairing exists, in every state,
-so a lent-out machine always says so. It is hidden only while no pairing exists or its page failed to
-load. It has no close or hide action; the whole capsule drags, and its position is remembered per
-display in `~/.craft/satellite.json`.
+The island is a floating pill fixed at the top centre of the primary display's work area, above
+other windows, with no taskbar or Alt-Tab presence. It MUST be visible whenever at least one pairing
+exists, in every state, so a lent-out machine always says so. It is hidden only while no pairing
+exists or its page failed to load. It has no close, hide, or move action.
 
-Outside `connected` the capsule is one quiet line using the tray status wording, with no rows,
-expansion, or approval: `standby` says the machine is ready; `paused` says sharing is paused and
-offers resume; `offline` says the machine is not connected. At sign-in the capsule waits a short
-grace for the first dial before showing `offline`, so a machine that connects within seconds never
-flashes it.
+The pill takes the pointer and every click outside it passes through. Its width follows its words
+and eases between them. Under the pointer it only grows, so its control never moves away.
 
-Within `connected` its states have the precedence `approval > running > expanded > compact`:
+Outside `connected` the pill is one quiet line using the tray status wording. `standby` says the
+machine is ready, `paused` says sharing is paused and its control resumes, and `offline` says the
+machine is not connected. At sign-in the pill waits a short grace for the first dial before showing
+`offline`, so a machine that connects within seconds never flashes it.
+
+Within `connected` its states have the precedence `approval > running > compact`, and its control
+pauses sharing for every machine:
 
 - **Compact** names the peer and when it connected, or counts machines when there are several.
-- **Running** names the current operation in the approval vocabulary, previews the command on one
-  truncated line, and counts concurrent tools, so work on the machine is visible without opening
-  anything.
-- **Expanded** (hover or click) adds one row per connected machine with its access mode and
-  connection time, disconnect and open-task-folder actions, and one machine-wide pause. Nothing
-  already on the compact line is repeated.
-- **Approval** names the inviter, operation, and target, counts queued requests, and shows the time
-  left.
+- **Running** names the machine and the current operation in the approval vocabulary, previews the
+  command on one truncated line, and counts concurrent tools.
+- **Approval** opens the pill into a card that names the inviter, operation, and target, counts
+  queued requests, shows the time left, and offers Decline and Allow once. Pressing the card lets
+  the keyboard answer, and Decline takes focus first.
 
-While a machine's screen is being viewed, the capsule's glyph becomes an eye and that machine's row
-says the screen is shared. The marker changes no mode, uses no colour, and has no action; pause is
+Pressing the pill's line in `compact` or `running` opens it into a card with one row per connected
+machine: its access mode and connection time, disconnect, and open task folder. Pressing the line
+again or Escape closes it. The tray menu offers the same per-machine actions.
+
+Within `connected` each connected machine appears as a robot derived from its display name, using
+the shared DotCraft avatar. Several machines stack, and the one whose tool is running leads. The
+robot's pose follows the pill: idle in compact, working while a tool runs, waiting during an
+approval. Outside `connected` the pill shows the Satellite glyph instead, since nobody is there.
+
+While a machine's screen is being viewed, an eye follows the pill's words and that machine's row
+says the screen is shared. The marker changes no mode, uses no colour, and has no action. Pause is
 the owner's answer.
 
 Text from a peer or inviter is attacker-influenced: it MUST be rendered as plain text, length-capped,
 and truncated to one line, with the full value on hover.
 
-The capsule is a hosted web page in a transparent, always-on-top window. The page owns look and
-motion; the window owns geometry, input, and dragging, and keeps the margin around the capsule
-click-through. Size changes animate as one continuous shape. Localized copy reuses the consent and
-approval keys.
+### Edge glow
+
+While at least one tool is running, every display shows a glow along its edges, so work on the
+machine is visible even when the pill is out of sight. The light starts at the pill: on the pill's
+display it gathers at the edge point nearest the pill, and two comets travel the edges from there
+in opposite directions to meet straight across from it. Other displays start from their top centre.
+The glow ends when the last tool finishes. It takes no input, never takes the foreground, and MUST be
+excluded from screen capture, including Remote Screen View. With reduced motion it is a still rim.
+
+### Hosting
+
+The pill and the glow are hosted web pages in transparent, always-on-top windows. The pages own look
+and motion and are built from `@dotcraft/island`, the DotCraft package shared by every product that
+shows an Agent working on a machine. The pill page reports where the pill is, and the window owns
+placement and input: it polls the cursor against that box and keeps everything outside it
+click-through. Localized copy reuses the consent and approval keys.
 
 ## Notifications
 

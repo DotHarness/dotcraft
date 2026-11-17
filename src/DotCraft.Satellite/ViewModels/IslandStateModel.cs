@@ -12,17 +12,10 @@ internal enum IslandMode
     Standby,
     Compact,
     Running,
-    Expanded,
     Approval
 }
 
-internal sealed record IslandPeerRow(
-    string PeerId,
-    string Name,
-    string Meta,
-    bool CanOpenFolder,
-    string DisconnectLabel,
-    string OpenFolderLabel);
+internal sealed record IslandPeer(string PeerId, string Name, string Meta, bool CanOpenFolder);
 
 /// <summary>Everything the island derives its state from, with no user interface types.</summary>
 internal sealed record IslandInputs(
@@ -30,8 +23,6 @@ internal sealed record IslandInputs(
     IReadOnlyList<RemoteToolPeer> Peers,
     IReadOnlyList<RemoteToolActivity> Activities,
     IReadOnlyList<IslandApprovalEntry> Approvals,
-    bool Pinned,
-    bool PointerOver,
     DateTimeOffset Now);
 
 /// <summary>Every value the view renders; the view binds to this and holds no logic of its own.</summary>
@@ -46,20 +37,7 @@ internal sealed record IslandStateModel
 
     public bool Visible => Mode != IslandMode.Hidden;
 
-    public double Width => Mode switch
-    {
-        IslandMode.Approval => 380,
-        IslandMode.Paused => 230,
-        IslandMode.Offline or IslandMode.Standby => 160,
-        IslandMode.Compact => 240,
-        _ => 340
-    };
-
-    public bool IsPanelShape => Mode is IslandMode.Expanded or IslandMode.Approval;
-
     public bool IsApproval => Mode == IslandMode.Approval;
-
-    public bool IsQuiet => Mode is IslandMode.Offline or IslandMode.Paused or IslandMode.Standby;
 
     public bool ShowRunning { get; init; }
 
@@ -67,21 +45,31 @@ internal sealed record IslandStateModel
 
     public string SinceLabel { get; init; } = string.Empty;
 
+    public string RunningPeerId { get; init; } = string.Empty;
+
     public string OperationLabel { get; init; } = string.Empty;
 
     public string CommandPreview { get; init; } = string.Empty;
 
     public string CommandFull { get; init; } = string.Empty;
 
-    public string ElapsedLabel { get; init; } = string.Empty;
-
     public int Concurrency { get; init; }
 
     public string PauseLabel { get; init; } = string.Empty;
 
+    public string ExpandLabel { get; init; } = string.Empty;
+
+    public string CollapseLabel { get; init; } = string.Empty;
+
+    public string DisconnectLabel { get; init; } = string.Empty;
+
+    public string OpenFolderLabel { get; init; } = string.Empty;
+
     public string ResumeLabel { get; init; } = string.Empty;
 
-    public IReadOnlyList<IslandPeerRow> Peers { get; init; } = [];
+    public IReadOnlyList<IslandPeer> Peers { get; init; } = [];
+
+    public string ApprovalPeerId { get; init; } = string.Empty;
 
     public string ApprovalTitle { get; init; } = string.Empty;
 
@@ -108,7 +96,6 @@ internal sealed record IslandStateModel
 
     public string WatchingLabel { get; init; } = string.Empty;
 
-    /// <summary>The expanded panel is an addition to the header, not a replacement for it.</summary>
     public static IslandStateModel Derive(IslandInputs inputs, SatelliteStrings strings)
     {
         if (inputs.Peers.Count == 0)
@@ -121,19 +108,20 @@ internal sealed record IslandStateModel
         var activity = inputs.Activities.Count > 0 ? inputs.Activities[^1] : null;
         var approval = inputs.Approvals.Count > 0 ? inputs.Approvals[0] : null;
         var mode = approval is not null ? IslandMode.Approval
-            : inputs.Pinned || inputs.PointerOver ? IslandMode.Expanded
             : activity is not null ? IslandMode.Running
             : IslandMode.Compact;
 
-        var machines = strings.Format("island.machines", peers.Length);
-        var since = peers.Length == 1 ? Since(peers[0], strings) : string.Empty;
         var model = new IslandStateModel
         {
             Mode = mode,
             ShowRunning = activity is not null,
-            CompactLabel = peers.Length > 1 ? machines : Cap(peers[0].DisplayName),
-            SinceLabel = since,
+            CompactLabel = peers.Length > 1 ? strings.Format("island.machines", peers.Length) : Cap(peers[0].DisplayName),
+            SinceLabel = peers.Length == 1 ? Since(peers[0], strings) : string.Empty,
             PauseLabel = strings["tray.pause"],
+            ExpandLabel = strings["island.expand"],
+            CollapseLabel = strings["island.collapse"],
+            DisconnectLabel = strings["island.disconnect"],
+            OpenFolderLabel = strings["island.openFolder"],
             Peers = [.. peers.Select(peer => Row(peer, strings))],
             DenyLabel = strings["consent.decline"],
             AllowLabel = strings["approval.once"],
@@ -146,10 +134,10 @@ internal sealed record IslandStateModel
             var command = activity.CommandPreview ?? activity.ToolName;
             model = model with
             {
+                RunningPeerId = activity.PeerId,
                 OperationLabel = Label(Operation(activity.ToolName), activity.ToolName, strings),
                 CommandFull = command,
                 CommandPreview = Clip(command, CommandCap),
-                ElapsedLabel = Clock(inputs.Now - activity.StartedAt),
                 Concurrency = inputs.Activities.Count - 1
             };
         }
@@ -159,6 +147,7 @@ internal sealed record IslandStateModel
             var left = IslandApprovalQueue.Window - (inputs.Now - approval.ReceivedAt);
             model = model with
             {
+                ApprovalPeerId = approval.Request.PeerId,
                 ApprovalTitle = strings.Format("approval.inviter", Cap(approval.Request.InviterName)),
                 ApprovalOperation = Label(
                     approval.Request.Operation, approval.Request.Operation, strings),
@@ -203,9 +192,8 @@ internal sealed record IslandStateModel
         _ => model.CompactLabel
     };
 
-    private static IslandPeerRow Row(RemoteToolPeer peer, SatelliteStrings strings)
+    private static IslandPeer Row(RemoteToolPeer peer, SatelliteStrings strings)
     {
-        var name = Cap(peer.DisplayName);
         var meta = strings[peer.AuthorizationMode switch
         {
             RemoteToolAuthorization.FullAccess => "consent.full",
@@ -214,13 +202,7 @@ internal sealed record IslandStateModel
         }] + " · " + Since(peer, strings);
         if (peer.ScreenViewers > 0)
             meta += " · " + strings["island.watching"];
-        return new IslandPeerRow(
-            peer.PeerId,
-            name,
-            meta,
-            !string.IsNullOrEmpty(peer.WorkspacePath),
-            strings["island.disconnect"] + " · " + name,
-            strings["island.openFolder"] + " · " + name);
+        return new IslandPeer(peer.PeerId, Cap(peer.DisplayName), meta, !string.IsNullOrEmpty(peer.WorkspacePath));
     }
 
     private static string Since(RemoteToolPeer peer, SatelliteStrings strings) =>

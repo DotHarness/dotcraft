@@ -32,14 +32,12 @@ public sealed class IslandStateModelTests
     }
 
     [Fact]
-    public void Derive_WhileQuiet_AnswersToNeitherPinningNorHoverNorRequests()
+    public void Derive_WhileQuiet_AnswersToNoActivityOrRequest()
     {
         var model = Derive(
             SatelliteTrayState.Standby,
             [Peer()],
             [Activity("Exec", "npm run build")],
-            pinned: true,
-            pointerOver: true,
             approvals: [Request("execute", "npm run test -- --runInBand")]);
 
         Assert.Equal(IslandMode.Standby, model.Mode);
@@ -59,8 +57,18 @@ public sealed class IslandStateModelTests
         Assert.Equal(IslandStateModel.CommandCap, model.CommandPreview.Length);
         Assert.EndsWith("…", model.CommandPreview, StringComparison.Ordinal);
         Assert.Equal(command, model.CommandFull);
-        Assert.Equal("0:20", model.ElapsedLabel);
-        Assert.Equal(340, model.Width);
+    }
+
+    [Fact]
+    public void Derive_WhileAToolRuns_NamesTheMachineRunningIt()
+    {
+        var model = Derive(
+            SatelliteTrayState.Connected,
+            [Peer(), Peer(peerId: "pair_priya", name: "Priya's desktop")],
+            [Activity("Exec", "npm run build")]);
+
+        Assert.Equal("pair_ann", model.RunningPeerId);
+        Assert.Equal(["pair_ann", "pair_priya"], model.Peers.Select(peer => peer.PeerId));
     }
 
     [Fact]
@@ -82,11 +90,9 @@ public sealed class IslandStateModelTests
             SatelliteTrayState.Connected,
             [Peer()],
             [Activity("Exec", "npm run build")],
-            pinned: true,
             approvals: [Request("execute", "npm run test -- --runInBand")]);
 
         Assert.Equal(IslandMode.Approval, model.Mode);
-        Assert.Equal(380, model.Width);
         Assert.Equal("Ann is requesting access", model.ApprovalTitle);
         Assert.Equal(Strings["approval.operation.execute"], model.ApprovalOperation);
         Assert.Equal("npm run test -- --runInBand", model.ApprovalTarget);
@@ -137,11 +143,9 @@ public sealed class IslandStateModelTests
         SatelliteTrayState state,
         IReadOnlyList<RemoteToolPeer> peers,
         IReadOnlyList<RemoteToolActivity>? activities = null,
-        bool pinned = false,
-        IReadOnlyList<IslandApprovalEntry>? approvals = null,
-        bool pointerOver = false) =>
+        IReadOnlyList<IslandApprovalEntry>? approvals = null) =>
         IslandStateModel.Derive(
-            new IslandInputs(state, peers, activities ?? [], approvals ?? [], pinned, pointerOver, Now),
+            new IslandInputs(state, peers, activities ?? [], approvals ?? [], Now),
             Strings);
 
     private static RemoteToolPeer Peer(

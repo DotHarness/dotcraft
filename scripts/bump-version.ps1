@@ -276,6 +276,7 @@ $targets = @(
     @{ Type = "packageJson"; Path = "sdk/typescript/packages/channel-wecom/package.json" },
     @{ Type = "packageJson"; Path = "sdk/typescript/packages/plugin/package.json"; SyncSdkDependency = $true },
     @{ Type = "packageJson"; Path = "sdk/typescript/packages/avatar/package.json" },
+    @{ Type = "packageJson"; Path = "sdk/typescript/packages/island/package.json" },
     @{ Type = "packageJsonDependency"; Path = "sdk/dotnet/samples/DotNetExtensionSample/Desktop/package.json"; Dependency = "@dotcraft/plugin" },
     @{ Type = "packageJson"; Path = "mobile/package.json" },
     @{ Type = "expoApp"; Path = "mobile/app.json" },

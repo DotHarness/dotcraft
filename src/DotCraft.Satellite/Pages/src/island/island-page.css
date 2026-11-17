@@ -1,0 +1,147 @@
+html,
+body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: transparent;
+}
+
+.sat-top {
+  position: absolute;
+  inset: 12px 16px auto;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.sat-island {
+  pointer-events: auto;
+}
+
+.sat-line {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 2px;
+  padding-right: 6px;
+}
+
+.sat-text {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 8px;
+  white-space: nowrap;
+  animation: sat-words-in 260ms var(--dci-ease-out) 90ms both;
+}
+
+@keyframes sat-words-in {
+  from { opacity: 0; filter: blur(6px); scale: 0.96; }
+}
+
+.sat-name {
+  min-width: 0;
+  max-width: 200px;
+  flex: 0 1 auto;
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+}
+
+/* The command gives way six times faster than the words that name the operation. */
+.sat-step {
+  display: flex;
+  min-width: 72px;
+  flex: 0 6 auto;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--dci-text-secondary);
+}
+
+.sat-step code {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--dci-text-dimmed);
+  font-family: var(--dci-font-mono);
+  font-size: 12px;
+  text-overflow: ellipsis;
+}
+
+.sat-glyph {
+  display: flex;
+  flex: none;
+  margin-left: 9px;
+  color: var(--dci-text-secondary);
+}
+
+.sat-quiet {
+  color: var(--dci-text-secondary);
+}
+
+.sat-eye {
+  display: flex;
+  flex: none;
+  color: var(--dci-text-dimmed);
+}
+
+.sat-resume {
+  height: 30px;
+  margin-left: 4px;
+  border-radius: 999px;
+}
+
+.sat-peers {
+  display: grid;
+  max-height: 200px;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+  scrollbar-width: none;
+}
+
+.sat-peers li {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 4px 4px 6px;
+  border-radius: 12px;
+}
+
+.sat-peers li:hover {
+  background: var(--dci-hover);
+}
+
+.sat-peer {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+}
+
+.sat-peer__name,
+.sat-peer__meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sat-peer__meta {
+  color: var(--dci-text-dimmed);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.dci-island[data-reduce-motion="on"] .sat-text {
+  animation: none;
+}
+
+.sat-announce {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

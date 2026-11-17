@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "types": [],
+    "paths": {
+      "@dotcraft/avatar": ["../../../sdk/typescript/packages/avatar/src/index.ts"],
+      "@dotcraft/avatar/react": ["../../../sdk/typescript/packages/avatar/src/react.ts"],
+      "@dotcraft/island": ["../../../sdk/typescript/packages/island/src/index.ts"],
+      "@dotcraft/island/react": ["../../../sdk/typescript/packages/island/src/react.ts"],
+      "react": ["./node_modules/@types/react"],
+      "react/jsx-runtime": ["./node_modules/@types/react/jsx-runtime"]
+    }
+  },
+  "include": ["src"]
+}

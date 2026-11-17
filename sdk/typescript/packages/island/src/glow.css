@@ -1,0 +1,91 @@
+.dci-glow {
+  --dci-glow-rim: rgb(123 149 255 / 0.6);
+  --dci-glow-haze: rgb(69 102 204 / 0.3);
+  --dci-glow-comet: rgb(150 174 255);
+  --dci-glow-source: rgb(143 165 255 / 0.4);
+  --dci-glow-depth: 30px;
+  --dci-glow-period: 5.6s;
+
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  contain: strict;
+}
+
+.dci-glow__rim {
+  position: absolute;
+  inset: 0;
+  box-shadow:
+    inset 0 0 0 1.5px var(--dci-glow-rim),
+    inset 0 0 var(--dci-glow-depth) var(--dci-glow-haze),
+    inset 0 0 calc(var(--dci-glow-depth) * 2.6) rgb(69 102 204 / 0.12);
+  animation: dci-glow-breathe 4.8s ease-in-out infinite;
+}
+
+.dci-glow__source {
+  position: absolute;
+  top: var(--dci-glow-y);
+  left: var(--dci-glow-x);
+  width: 440px;
+  height: 440px;
+  background: radial-gradient(closest-side, var(--dci-glow-source), rgb(69 102 204 / 0.14) 46%, transparent);
+  translate: -50% -50%;
+  animation: dci-glow-source var(--dci-glow-period) ease-out infinite;
+}
+
+.dci-glow__comets {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+
+.dci-glow__comet {
+  opacity: 0;
+  animation: dci-glow-fade var(--dci-glow-period) linear infinite;
+}
+
+.dci-glow__comet path {
+  fill: none;
+  stroke: var(--dci-glow-comet);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  animation: dci-glow-forward var(--dci-glow-period) cubic-bezier(0.45, 0, 0.25, 1) infinite;
+}
+
+/* The back comet runs counterclockwise from the end of the clockwise path. */
+.dci-glow__comet[data-direction="back"] path {
+  animation-name: dci-glow-back;
+}
+
+@keyframes dci-glow-forward {
+  0% { stroke-dashoffset: var(--dci-glow-tail); }
+  72%, 100% { stroke-dashoffset: calc(var(--dci-glow-tail) - var(--dci-glow-meet)); }
+}
+
+@keyframes dci-glow-back {
+  0% { stroke-dashoffset: calc(-1 * var(--dci-glow-loop)); }
+  72%, 100% { stroke-dashoffset: calc(-1 * var(--dci-glow-meet)); }
+}
+
+@keyframes dci-glow-fade {
+  0% { opacity: 0; }
+  6%, 58% { opacity: 1; }
+  72%, 100% { opacity: 0; }
+}
+
+@keyframes dci-glow-source {
+  0% { opacity: 0.55; }
+  8% { opacity: 1; }
+  40%, 100% { opacity: 0.55; }
+}
+
+@keyframes dci-glow-breathe {
+  0%, 100% { opacity: 0.78; }
+  50% { opacity: 1; }
+}
+
+.dci-glow[data-reduce-motion="on"] .dci-glow__rim,
+.dci-glow[data-reduce-motion="on"] .dci-glow__source {
+  animation: none;
+}

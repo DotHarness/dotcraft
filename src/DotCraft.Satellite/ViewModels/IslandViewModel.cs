@@ -12,22 +12,17 @@ namespace DotCraft.Satellite.ViewModels;
 /// </summary>
 internal sealed partial class IslandViewModel : ObservableObject, IDisposable
 {
-    private static readonly TimeSpan HoverGrace = TimeSpan.FromMilliseconds(150);
-
     private static readonly TimeSpan SettleGrace = TimeSpan.FromSeconds(3);
 
     private readonly SatelliteStrings _strings;
     private readonly SatelliteDispatcher _dispatcher;
     private SatelliteCommands? _commands;
     private readonly DispatcherQueueTimer _ticker;
-    private readonly DispatcherQueueTimer _hoverExit;
     private readonly DispatcherQueueTimer _settle;
     private SatelliteRuntimeConnection? _connection;
     private IReadOnlyList<RemoteToolPeer> _peers = [];
     private IReadOnlyList<RemoteToolActivity> _activities = [];
     private SatelliteTrayState _state = SatelliteTrayState.Offline;
-    private bool _pinned;
-    private bool _pointerOver;
     private bool _frozen;
     private bool _settled;
 
@@ -44,14 +39,6 @@ internal sealed partial class IslandViewModel : ObservableObject, IDisposable
         _ticker = dispatcher.Queue.CreateTimer();
         _ticker.Interval = TimeSpan.FromSeconds(1);
         _ticker.Tick += (_, _) => RunCallback("island.tick", Tick);
-        _hoverExit = dispatcher.Queue.CreateTimer();
-        _hoverExit.Interval = HoverGrace;
-        _hoverExit.IsRepeating = false;
-        _hoverExit.Tick += (_, _) => RunCallback("island.hover", () =>
-        {
-            _pointerOver = false;
-            Update();
-        });
         _settle = dispatcher.Queue.CreateTimer();
         _settle.Interval = SettleGrace;
         _settle.IsRepeating = false;
@@ -72,7 +59,6 @@ internal sealed partial class IslandViewModel : ObservableObject, IDisposable
     public void Dispose()
     {
         _ticker.Stop();
-        _hoverExit.Stop();
         _settle.Stop();
         if (_connection is not { } connection)
             return;
@@ -103,7 +89,6 @@ internal sealed partial class IslandViewModel : ObservableObject, IDisposable
         IReadOnlyList<RemoteToolPeer> peers,
         IReadOnlyList<RemoteToolActivity> activities,
         IReadOnlyList<IslandApprovalEntry> approvals,
-        bool pinned,
         SatelliteTrayState state = SatelliteTrayState.Connected)
     {
         _frozen = true;
@@ -111,7 +96,6 @@ internal sealed partial class IslandViewModel : ObservableObject, IDisposable
         _state = state;
         _peers = peers;
         _activities = activities;
-        _pinned = pinned;
         foreach (var approval in approvals)
             Approvals.Add(approval);
         Update();
@@ -130,34 +114,6 @@ internal sealed partial class IslandViewModel : ObservableObject, IDisposable
         _state = next;
         _peers = connection.Runtime.Peers;
         _activities = connection.Runtime.CurrentActivity is { } activity ? [activity] : [];
-        if (next != SatelliteTrayState.Connected)
-            _pinned = false;
-        Update();
-    }
-
-    public void PointerEntered()
-    {
-        _hoverExit.Stop();
-        _pointerOver = true;
-        Update();
-    }
-
-    /// <summary>Leaves a moment of grace so the pointer may cross a gap without collapsing the list.</summary>
-    public void PointerExited() => _hoverExit.Start();
-
-    public void Toggle()
-    {
-        if (State.IsQuiet)
-            return;
-        _pinned = !_pinned;
-        Update();
-    }
-
-    public void Collapse()
-    {
-        if (!_pinned)
-            return;
-        _pinned = false;
         Update();
     }
 
@@ -173,7 +129,6 @@ internal sealed partial class IslandViewModel : ObservableObject, IDisposable
 
     public void Pause()
     {
-        _pinned = false;
         Approvals.Invalidate();
         Run(commands => commands.PauseAsync());
     }
@@ -209,14 +164,11 @@ internal sealed partial class IslandViewModel : ObservableObject, IDisposable
                     _peers,
                     _activities,
                     Approvals.Pending,
-                    _pinned,
-                    _pointerOver,
                     DateTimeOffset.Now),
                 _strings)
             : new IslandStateModel();
 
-        // Only the running elapsed time and the countdown move on their own.
-        var counting = !_frozen && State.Visible && (State.ShowRunning || State.Mode == IslandMode.Approval);
+        var counting = !_frozen && State.Mode == IslandMode.Approval;
         if (counting && !_ticker.IsRunning)
             _ticker.Start();
         else if (!counting && _ticker.IsRunning)
