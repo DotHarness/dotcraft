@@ -1012,12 +1012,19 @@ disappears on the next pointer move, and is never a place the user travels to.
 
 - The surface is the current theme's elevated overlay (`--tooltip-bg` /
   `--tooltip-text`), the same as menus.
-- No border; the shadow carries the lift.
+- A `1px` `--tooltip-border` frame mixes the tooltip text color at 5% with
+  transparency in both themes. A compact `0 8px 18px #0f172a33` shadow carries the
+  lift, with `20px` superellipse (`1.5`) corners and `5px 12px` padding for ordinary
+  tooltips.
 - Type is `--type-secondary` (12/16); the keycap chip is sized to its 16px line.
 - Copy stays short. The single-line form clamps at 320px with an ellipsis; only a
   genuine explanation takes the multiline form, which wraps to 32rem.
 - A tooltip inside a row that carries a details card takes the block axis (see
   Hover annotations).
+
+The Token HUD usage card shares the tooltip frame, surface, and shadow to remain
+distinct where it overlaps the composer card. It keeps the compact card's `10px`
+corners and `10px 12px` padding.
 
 ### Keyboard shortcuts
 

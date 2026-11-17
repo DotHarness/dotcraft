@@ -9,9 +9,10 @@
   align-items: center;
   gap: 10px;
   max-width: min(320px, calc(100vw - 16px));
-  padding: 6px 8px;
+  padding: 5px 12px;
   border: 1px solid var(--tooltip-border);
   border-radius: var(--tooltip-radius);
+  corner-shape: superellipse(1.5);
   background: var(--tooltip-bg);
   color: var(--tooltip-text);
   box-shadow: var(--tooltip-shadow);

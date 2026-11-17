@@ -41,6 +41,7 @@
   z-index: var(--z-tooltip);
   width: 280px;
   padding: 10px 12px;
+  border: 1px solid var(--tooltip-border);
   border-radius: 10px;
   background: var(--tooltip-bg);
   color: var(--tooltip-text);

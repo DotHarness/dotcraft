@@ -304,10 +304,10 @@
   --shadow-level-3: 0 18px 48px rgba(0, 0, 0, 0.32);
 
   --tooltip-bg: var(--glass-surface-strong);
-  --tooltip-border: transparent;
+  --tooltip-border: color-mix(in oklab, var(--tooltip-text) 5%, transparent);
   --tooltip-text: var(--text-primary);
-  --tooltip-shadow: var(--shadow-lg);
-  --tooltip-radius: 8px;
+  --tooltip-shadow: 0 8px 18px #0f172a33;
+  --tooltip-radius: 20px;
   --shortcut-bg: var(--bg-tertiary);
   --shortcut-border: var(--border-default);
   --shortcut-text: var(--text-secondary);
