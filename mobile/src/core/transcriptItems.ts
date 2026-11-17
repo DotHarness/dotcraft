@@ -1,5 +1,5 @@
 import { isComplete, type HistoryItem, type HistoryTurn } from './history'
-import { dividerOf, failureEntry, originOf, threadActionOf } from './timelineMarkers'
+import { dividerOf, failureEntry, isWrapUp, originOf, threadActionOf } from './timelineMarkers'
 import { baseName, entryId, imageUri, planEntry, str, subagentEndingEntry, toolEntry } from './transcriptTools'
 import type { NoticeKind, TaskWake, TranscriptEntry } from './transcriptTypes'
 import { splitMessageComments } from './messageComments'
@@ -125,6 +125,7 @@ function projectItem(item: HistoryItem, context: ItemContext): ItemProjection {
     case 'dynamicToolCall': {
       const plan = planEntry(item, context.result)
       if (plan) return { entry: plan }
+      if (isWrapUp(item)) return {}
       const action = threadActionOf(item, item.type === 'toolCall' ? context.result : item)
       if (action) return { action: { kind: 'threadAction', id, action } }
       const entry = toolEntry(item, context.result, context.execution, context.turn ? !DONE.has(context.turn.status) : !isComplete(item))

@@ -10,6 +10,7 @@ import { resetDesktopThreadToolBindings } from '../desktopRuntimeThreadTools'
 import { bindLocalProjectRecovery } from '../localProjectRecovery'
 import { handleWorkspaceNodeReplNotification, ownsWorkspaceNodeReplThread } from './windowNodeReplRequests'
 import { handleWorkspaceThreadPanelDeletion } from './windowThreadPanelDeletion'
+import { recoverThreadQuestions } from './windowThreadQuestionRecovery'
 import { refreshVoiceChatGptAvailability } from '../voice/voiceIpc'
 import {
   canBridgeRendererInteractiveServerRequest,
@@ -204,6 +205,7 @@ export async function connectViaWebSocket(
     entry.reconnectAttempt = 0
     const firstReady = !connectedOnce
     connectedOnce = true
+    recoverThreadQuestions(ctx, entry)
 
     if (entry.role === 'secondary') {
       ctx.emitWorkspaceProjects()

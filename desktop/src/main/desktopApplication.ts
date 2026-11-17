@@ -70,6 +70,9 @@ export class DesktopApplication implements DesktopApplicationServices {
     getNewTaskPrompt: () => normalizeNewTaskPromptMode(this.settings.newTaskPrompt),
     notifyOffer: (task, ownerId) => {
       if (ownerId !== undefined) this.windows.get(ownerId)?.notifyNewTaskOffer(task)
+    },
+    notifyWrapUpQuestion: (threadId, turnId, callId, ownerId) => {
+      if (ownerId !== undefined) this.windows.get(ownerId)?.notifyWrapUpQuestion(threadId, turnId, callId)
     }
   })
   private readonly hubs = new Map<string, DesktopHubClient>()

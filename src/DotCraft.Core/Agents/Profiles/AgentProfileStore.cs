@@ -550,6 +550,8 @@ public sealed partial class AgentProfileStore
             resolved.Speed = requested.Speed;
         if (HasConfigProperty(configElement, "developerInstructions"))
             resolved.DeveloperInstructions = NormalizeNullableString(requested.DeveloperInstructions);
+        if (HasConfigProperty(configElement, "codeModeExcludedNamespaces"))
+            resolved.CodeModeExcludedNamespaces = requested.CodeModeExcludedNamespaces == null ? null : [.. requested.CodeModeExcludedNamespaces];
 
         return resolved;
     }
@@ -577,7 +579,8 @@ public sealed partial class AgentProfileStore
         || string.Equals(name, "model", StringComparison.OrdinalIgnoreCase)
         || string.Equals(name, "reasoning", StringComparison.OrdinalIgnoreCase)
         || string.Equals(name, "speed", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(name, "developerInstructions", StringComparison.OrdinalIgnoreCase);
+        || string.Equals(name, "developerInstructions", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(name, "codeModeExcludedNamespaces", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsBenignSerializedDefaultOverlay(JsonProperty property)
     {
@@ -1454,6 +1457,7 @@ public sealed partial class AgentProfileStore
         UseToolProfileOnly = source.UseToolProfileOnly,
         AgentInstructions = source.AgentInstructions,
         ToolAllowList = source.ToolAllowList == null ? null : [.. source.ToolAllowList],
+        CodeModeExcludedNamespaces = source.CodeModeExcludedNamespaces == null ? null : [.. source.CodeModeExcludedNamespaces],
         ToolDenyList = source.ToolDenyList == null ? null : [.. source.ToolDenyList],
         ToolPolicy = source.ToolPolicy == null
             ? null

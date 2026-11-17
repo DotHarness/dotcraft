@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.12.1 |
+| Version | 0.12.2 |
 | Status | Draft |
-| Date | 2026-11-16 |
+| Date | 2026-11-17 |
 | Parent spec | [Hub Architecture](../architecture/hub-architecture.md) |
 | Related Specs | [Device Gateway](../protocols/device-gateway.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Desktop Client](desktop-client.md), [TypeScript SDK](../sdk/typescript.md) |
 
@@ -249,6 +249,9 @@ resting frame while focused or typing, and the caret is the focus cue. No field 
   recovered from overflow; `micro` shows nothing). Successful Desktop `CreateThread` and
   `SendMessageToThread` calls show as **Chat created** or **Message sent** cards that open the
   chat.
+- A Desktop `WrapUp` call shows neither a tool row nor a next-step box. The phone has no box, so a
+  Turn sent from the phone tells the agent its question was not shown
+  ([Desktop Client §5.14](desktop-client.md#514-desktop-runtime-thread-tools)).
 - Live states follow Desktop: `system/event` `compacting` shows a compacting divider after the last
   turn (manual without a `turnId`, automatic with one) until a terminal compaction event or turn
   change; a repeated `streamError` shows the reconnect attempt until the turn ends; a turn the phone

@@ -23,9 +23,9 @@ function subscribe(): void {
   unsubscribe = window.api.threadTasks.onChanged((snapshot) => useThreadTasksStore.getState().apply(snapshot))
 }
 
-export function useThreadAwaitsOfferAnswer(threadId: string): boolean {
+export function useThreadAwaitsAnswer(threadId: string): boolean {
   const snapshot = useThreadTasks(threadId)
-  return snapshot?.tasks.some((task) => task.kind === 'offer' && task.state === 'pending') === true
+  return snapshot?.question != null || snapshot?.tasks.some((task) => task.kind === 'offer' && task.state === 'pending') === true
 }
 
 export function useThreadTasks(threadId: string): ThreadTasksSnapshot | undefined {

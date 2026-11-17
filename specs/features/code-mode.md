@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.12.1 |
+| **Version** | 0.12.2 |
 | **Status** | Draft |
-| **Date** | 2026-11-15 |
+| **Date** | 2026-11-17 |
 | **Parent Specs** | [Tool Architecture](../architecture/tools-architecture.md), [Session Core](../architecture/session-core.md), [Prompt Cache](../architecture/prompt-cache.md) |
 | **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [Shell Command Safety](../architecture/shell-command-safety.md) |
 
@@ -159,9 +159,15 @@ snapshot. It never contains volatile values such as call ids or timestamps.
 ### 4.3 Nested surface and declarations
 
 The nested surface is computed from the Turn's `EffectiveToolSnapshot`: every `Direct` or `Deferred`
-registration except `DirectModelOnly`, `Hidden`, `CodeMode`, and the deferred-search registration.
-Tools that talk to the user or wait on the conversation are `DirectModelOnly`, so a program never blocks
-on them and they stay direct model tools in `only` mode: `RequestUserInput` and `SendUserMessageAsync`.
+registration except `DirectModelOnly`, `Hidden`, `CodeMode`, the deferred-search registration, and
+registrations in a namespace listed in the thread's `codeModeExcludedNamespaces`
+([AppServer Protocol §4.1.1](../protocols/appserver-protocol.md#411-threadconfiguration-wire-shape)).
+Tools that talk to the user or wait on the conversation stay off the nested surface, so a program never
+blocks on them and they stay direct model tools in `only` mode. Built-in ones are `DirectModelOnly`:
+`RequestUserInput` and `SendUserMessageAsync`. A client's own tools of that kind cannot declare an
+exposure, so the client lists their namespace in `codeModeExcludedNamespaces`. An excluded registration
+keeps its own exposure in every mode: a direct tool stays listed and a deferred one stays reachable through
+deferred search.
 
 Each nested registration has a JavaScript name: `namespace__name` when the canonical name has a
 namespace (MCP tools become `mcp__<server>__<tool>`), otherwise the bare name, with every character

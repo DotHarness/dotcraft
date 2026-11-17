@@ -78,7 +78,7 @@ internal sealed class CodeModeToolFinalizer(
             return ToolSnapshotFinalization.None;
         }
 
-        var surface = CodeModeSurface.Build(snapshot, logger);
+        var surface = CodeModeSurface.Build(snapshot, context.CodeModeExcludedNamespaces, logger);
         var declaration = DotCraft.GeneratedTools.CodeMode.GeneratedToolDeclarations
             .ICodeModeToolDeclaration_Exec_Declaration;
         var definitionId = new ToolDefinitionId(ToolSourceKind.CoreNative, SourceId, new SourceToolId(declaration.Name));

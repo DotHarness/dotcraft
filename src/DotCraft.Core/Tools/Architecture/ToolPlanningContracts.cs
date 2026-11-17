@@ -23,7 +23,8 @@ public sealed class ToolPlanningContext
         SubAgentModelCatalogSnapshot? subAgentModelCatalogSnapshot = null,
         bool? requireApprovalOutsideWorkspace = null,
         Memory.ThreadMemoryStores? memoryStores = null,
-        ToolLocation? location = null)
+        ToolLocation? location = null,
+        IEnumerable<string>? codeModeExcludedNamespaces = null)
     {
         if (string.IsNullOrWhiteSpace(threadId))
             throw new ArgumentException("A thread identifier is required.", nameof(threadId));
@@ -50,6 +51,8 @@ public sealed class ToolPlanningContext
         RequireApprovalOutsideWorkspace = requireApprovalOutsideWorkspace;
         MemoryStores = memoryStores;
         Location = location;
+        CodeModeExcludedNamespaces = (codeModeExcludedNamespaces ?? [])
+            .ToFrozenSet(StringComparer.Ordinal);
     }
 
     /// <summary>Gets the thread identifier.</summary>
@@ -89,4 +92,6 @@ public sealed class ToolPlanningContext
     public Memory.ThreadMemoryStores? MemoryStores { get; }
     /// <summary>Gets where the thread's tools work, when a worktree tool may move them during a Turn.</summary>
     public ToolLocation? Location { get; }
+    /// <summary>Gets the tool namespaces kept off the code mode nested surface.</summary>
+    public IReadOnlySet<string> CodeModeExcludedNamespaces { get; }
 }

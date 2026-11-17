@@ -694,9 +694,10 @@ Desktop exposes a client-owned thread-management profile as Runtime Dynamic Tool
 
 **Declaration**
 
-- Tools use the `desktop` namespace and PascalCase names: `CreateThread`, `DismissProposal`, `ListThreads`, `ReadThread`, `SearchThreadMessages`, `ListThreadItems`, `ReadThreadItem`, `SendMessageToThread`, `SetThreadTitle`, `SetThreadArchived`, `SetThreadPinned`, `ReadTerminal`, and `ListTerminalTabs`. No other model-visible aliases exist.
-- They are declared with `deferLoading = true` so they are discoverable on demand, except on runtimes without deferred-tool discovery. `ReadTerminal` is always loaded.
-- Whenever the tools are declared, Desktop also declares `additionalContext["desktop.threadCoordination"]` (`kind = "application"`): a hint to search for the relevant thread tool before background thread management, plus the rules for starting other chats: how to classify the user's latest message, when to offer, propose, or start a chat, and that loading the deferred `CreateThread` does not count as the turn's first call.
+- Tools use PascalCase names in two namespaces. `desktop_conversation` holds the tools that put something in front of the user: `CreateThread`, `DismissProposal`, and `WrapUp`. `desktop` holds the rest: `ListThreads`, `ReadThread`, `SearchThreadMessages`, `ListThreadItems`, `ReadThreadItem`, `SendMessageToThread`, `SetThreadTitle`, `SetThreadArchived`, `SetThreadPinned`, `ReadTerminal`, and `ListTerminalTabs`. No other model-visible aliases exist.
+- Desktop starts every thread, on `thread/start` and `worktree/createAndStart`, with `codeModeExcludedNamespaces = ["desktop_conversation"]`, so these tools stay direct model calls under Code Mode ([Code Mode §4.3](../features/code-mode.md#43-nested-surface-and-declarations)). An offer then waits as one open tool call rather than a script the agent has to keep polling.
+- Tools are declared with `deferLoading = true` so they are discoverable on demand, except on runtimes without deferred-tool discovery. `ReadTerminal` and `WrapUp` are always loaded.
+- Whenever the tools are declared, Desktop also declares `additionalContext["desktop.threadCoordination"]` (`kind = "application"`): a hint to search for the relevant thread tool before background thread management, the rules for starting other chats (how to classify the user's latest message, when to offer, propose, or start a chat, and that loading the deferred `CreateThread` does not count as the turn's first call).
 - Declarations are stable across Agent/Plan switches; handlers enforce mode policy.
 - Desktop declares the tools only when it can handle their `item/tool/call` requests on the active transport. On reconnect with `capabilities.dynamicToolRebind = true`, Desktop re-declares the same specs and context when resuming; without rebind, pending calls fail through the normal unavailable path.
 
@@ -734,6 +735,21 @@ Desktop exposes a client-owned thread-management profile as Runtime Dynamic Tool
   - While an offer waits, its chat shows the user-input waiting indicator in the sidebar. Unless that chat is open in a focused window, Desktop shows a system notification under the Questions notification switch; clicking it opens the chat. Auto modes never notify.
 - `proposalId` starts a waiting proposal exactly as proposed, or sends the brief of an accepted offer. For a proposal, `title`, `prompt`, and `background` may restate the brief. Any other argument refuses the call unless a `prompt` is given, in which case the extra arguments are ignored and the result says so. A proposal that is no longer waiting, expired, withdrawn, or unknown is refused with a result that says why.
 - `DismissProposal(taskId, reason?)` withdraws a waiting proposal. Results distinguish withdrawn, already started or handled here, already withdrawn, expired, being started, and unknown ids.
+
+**Ending a turn: `WrapUp`**
+
+`WrapUp` lets the agent close a turn with a short recap and, when the next move is the user's, one question with buttons that answer it, so the user can continue with a click instead of typing. A follow-up that acts on what this chat just found is asked here, and a task of its own goes to an `ownInitiative` card instead.
+
+- Arguments: `recap` (required, about 300 characters: what is now true, then what is not done or not verified), `ask` (about 100 characters: one decision), `actions` (1–2 reply buttons, each `{ label }` of about 24 characters, the agent's recommendation first), and `blocked` (`true` when the agent's work stops until the user answers). A box needs both `ask` and at least one button.
+- Only a missing `recap` fails the call, with `InvalidArguments`. The other sizes are guidance: a call past them is still shown, with at most its first two buttons, and its result tells the agent what to change in its next call. Refusing would cost the agent another call for a box the user can already read.
+- The call returns at once and never waits for the user. The agent calls it once, when the turn's work is done and before its closing message. A later successful call in the same Turn replaces the earlier one.
+- The box is rebuilt from the persisted `WrapUp` tool item, so it survives a reload and shows in every Desktop window.
+- The phone has no box. When the phone sent the Turn (`originChannel` is `dotcraft-mobile`), the result tells the agent its question was not shown, so it asks in its closing message, and Desktop shows no box for that call either.
+- The `WrapUp` tool row is not rendered. When its Turn completes, a call with `ask` shows the next-step box after the Turn's final reply: the recap, the question, and the buttons, the first one primary. A call without `ask` shows no box. An interrupted or failed Turn shows no box.
+- Only the box of the thread's latest Turn has buttons, and only until the user sends another message. Older boxes keep their recap and question.
+- A button sends its label as the user's message through the normal composer path, leaving any draft in the composer untouched.
+- A `blocked` box is recorded per thread in Desktop's per-user state, beside the thread's proposals, so the sidebar knows about it for chats that are not loaded and after a restart. While recorded, the chat shows the user-input waiting indicator and notifies like a waiting offer. A later successful `WrapUp` replaces that record too: a call without a shown blocked box clears it, while a failed call leaves it unchanged. The record also clears when the thread's next Turn starts, or when the box's own Turn fails or is cancelled.
+- On loading waiting state and after reconnecting, Desktop reconciles recorded questions with the server's latest Turn metadata, including chats whose sidebar rows stayed mounted while disconnected. A newer Turn or a failed or cancelled question Turn clears the record; normal completion of the question Turn does not. An unavailable server leaves it unchanged, and a delayed reconciliation must not clear a question that replaced the one it checked.
 
 **Who can see the card**
 

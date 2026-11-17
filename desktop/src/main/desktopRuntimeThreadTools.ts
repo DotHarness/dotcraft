@@ -20,8 +20,10 @@ import {
 } from './threadTasks/threadTaskPrompts'
 import type { DesktopThreadTasks } from './threadTasks/threadTaskService'
 import { createThreadTool, dismissProposalTool } from './threadTasks/threadTaskTools'
+import { WRAP_UP_DESCRIPTION, WRAP_UP_PROPERTIES, wrapUpTool } from './threadTasks/wrapUpTool'
 
 export const DESKTOP_THREAD_TOOL_NAMESPACE = 'desktop'
+export const DESKTOP_CONVERSATION_TOOL_NAMESPACE = 'desktop_conversation'
 export const DESKTOP_THREAD_COORDINATION_CONTEXT_KEY = 'desktop.threadCoordination'
 
 const MAX_LIST_THREADS_LIMIT = 100
@@ -129,9 +131,9 @@ interface ThreadWire extends ThreadSummaryWire {
   configuration?: JsonObject | null
 }
 
+const CONVERSATION_TOOL_NAMES = new Set(['CreateThread', 'DismissProposal', 'WrapUp'])
+
 const TOOL_NAMES = new Set([
-  'CreateThread',
-  'DismissProposal',
   'ListThreads',
   ...threadHistoryToolNames,
   'SendMessageToThread',
@@ -160,7 +162,7 @@ export function resetDesktopThreadToolBindings(client: AppServerRequestClient): 
 export function buildDesktopThreadDynamicTools(): DynamicToolSpec[] {
   const functions: DesktopThreadFunctionAuthoring[] = [
     {
-      namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
+      namespace: DESKTOP_CONVERSATION_TOOL_NAMESPACE,
       name: 'CreateThread',
       description: CREATE_THREAD_DESCRIPTION,
       inputSchema: {
@@ -182,7 +184,7 @@ export function buildDesktopThreadDynamicTools(): DynamicToolSpec[] {
       display: { title: 'Create chat', subtitle: 'Desktop' }
     },
     {
-      namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
+      namespace: DESKTOP_CONVERSATION_TOOL_NAMESPACE,
       name: 'DismissProposal',
       description: DISMISS_PROPOSAL_DESCRIPTION,
       inputSchema: {
@@ -192,6 +194,18 @@ export function buildDesktopThreadDynamicTools(): DynamicToolSpec[] {
         additionalProperties: false
       },
       display: { title: 'Dismiss proposal', subtitle: 'Desktop' }
+    },
+    {
+      namespace: DESKTOP_CONVERSATION_TOOL_NAMESPACE,
+      name: 'WrapUp',
+      description: WRAP_UP_DESCRIPTION,
+      inputSchema: {
+        type: 'object',
+        properties: WRAP_UP_PROPERTIES,
+        required: ['recap'],
+        additionalProperties: false
+      },
+      deferLoading: false
     },
     {
       namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
@@ -319,17 +333,22 @@ export function buildDesktopThreadDynamicTools(): DynamicToolSpec[] {
     { ...themeToolDefinition, namespace: DESKTOP_THREAD_TOOL_NAMESPACE }
   ]
 
-  return [
-    {
-      type: 'namespace',
-      name: DESKTOP_THREAD_TOOL_NAMESPACE,
-      description: 'Desktop chats, terminal output, and theme authoring.',
-      tools: functions.map(({ namespace: _namespace, outputSchema: _outputSchema, display: _display, ...tool }) => ({
+  const namespace = (name: string, description: string): DynamicToolNamespaceSpec => ({
+    type: 'namespace',
+    name,
+    description,
+    tools: functions
+      .filter((tool) => tool.namespace === name)
+      .map(({ namespace: _namespace, outputSchema: _outputSchema, display: _display, ...tool }) => ({
         type: 'function',
         deferLoading: true,
         ...tool
       }))
-    }
+  })
+
+  return [
+    namespace(DESKTOP_CONVERSATION_TOOL_NAMESPACE, 'Desktop cards and the next-step box the user answers.'),
+    namespace(DESKTOP_THREAD_TOOL_NAMESPACE, 'Desktop chats, terminal output, and theme authoring.')
   ]
 }
 
@@ -356,7 +375,10 @@ export async function handleDesktopRuntimeThreadToolCall(
   options: DesktopAppServerRequestOptions = {}
 ): Promise<DynamicToolCallResult | undefined> {
   const p = isRecord(params) ? params as DynamicToolCallParams : {}
-  if (p.namespace !== DESKTOP_THREAD_TOOL_NAMESPACE || !p.tool || !TOOL_NAMES.has(p.tool)) {
+  const known = p.namespace === DESKTOP_CONVERSATION_TOOL_NAMESPACE
+    ? CONVERSATION_TOOL_NAMES
+    : p.namespace === DESKTOP_THREAD_TOOL_NAMESPACE ? TOOL_NAMES : null
+  if (!known || !p.tool || !known.has(p.tool)) {
     return undefined
   }
 
@@ -371,6 +393,8 @@ export async function handleDesktopRuntimeThreadToolCall(
         return await createThreadTool(threadTaskConnection(client, workspacePath, options), options.tasks, args, p)
       case 'DismissProposal':
         return dismissProposalTool(options.tasks, args, p)
+      case 'WrapUp':
+        return await wrapUpTool(threadTaskConnection(client, workspacePath, options), options.tasks, args, p)
       case 'ListThreads':
         return await listThreadsTool(client, args, workspacePath, options)
       case 'SendMessageToThread':
@@ -578,8 +602,17 @@ function withDesktopThreadDynamicTools(params: unknown): unknown {
     ? params.additionalContext
     : {}
 
+  const startsThread = !('threadId' in params)
   return {
     ...params,
+    ...(startsThread
+      ? {
+          config: {
+            ...(isRecord(params.config) ? params.config : {}),
+            codeModeExcludedNamespaces: [DESKTOP_CONVERSATION_TOOL_NAMESPACE]
+          }
+        }
+      : {}),
     additionalContext: {
       ...existingAdditionalContext,
       ...buildDesktopThreadAdditionalContext()
@@ -600,7 +633,7 @@ function requestIncludesDesktopThreadTools(params: unknown): boolean {
 function isDesktopThreadToolSpec(value: unknown): boolean {
   if (!isRecord(value)) return false
   return value.type === 'namespace'
-    && value.name === DESKTOP_THREAD_TOOL_NAMESPACE
+    && (value.name === DESKTOP_THREAD_TOOL_NAMESPACE || value.name === DESKTOP_CONVERSATION_TOOL_NAMESPACE)
     && Array.isArray(value.tools)
 }
 

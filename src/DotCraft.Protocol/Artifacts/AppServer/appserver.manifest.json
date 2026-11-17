@@ -21867,6 +21867,13 @@
           "const": null
         },
         {
+          "name": "codeModeExcludedNamespaces",
+          "type": "array<string>",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "customTools",
           "type": "array<string>",
           "required": false,

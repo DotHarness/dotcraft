@@ -8,8 +8,9 @@ export const THREAD_OPENING_PAGE = {
     { name: 'CreatePlan' },
     { name: 'Workflow' },
     { name: 'Automation' },
-    { name: 'CreateThread', namespace: 'desktop' },
-    { name: 'SendMessageToThread', namespace: 'desktop' }
+    { name: 'CreateThread', namespace: 'desktop_conversation' },
+    { name: 'SendMessageToThread', namespace: 'desktop' },
+    { name: 'WrapUp', namespace: 'desktop_conversation' }
   ]
 }
 

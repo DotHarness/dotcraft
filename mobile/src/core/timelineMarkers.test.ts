@@ -128,6 +128,20 @@ describe('thread actions', () => {
   })
 })
 
+describe('WrapUp', () => {
+  it('shows neither a row nor a box on the phone and keeps the reply on top', () => {
+    const entries = buildTranscript(
+      history([
+        item('userMessage', { text: 'fix it' }),
+        item('dynamicToolCall', { toolName: 'WrapUp', namespace: 'desktop_conversation', success: true, arguments: { recap: 'Fixed.', ask: 'Commit?', actions: [{ label: 'Commit' }] }, structuredResult: { shown: true } }),
+        item('agentMessage', { text: 'done', phase: 'final' }),
+      ]),
+    )
+    expect(flat(entries).filter((entry) => entry.kind === 'tool' || entry.kind === 'toolGroup')).toHaveLength(0)
+    expect(entries.at(-1)).toEqual(expect.objectContaining({ kind: 'assistant', text: 'done' }))
+  })
+})
+
 describe('turn endings', () => {
   it('shows each error in place and the turn error only when no item carries it', () => {
     const entries = buildTranscript(

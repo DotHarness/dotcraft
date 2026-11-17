@@ -52,6 +52,7 @@ export interface ThreadTaskServiceHost {
   store: ThreadTaskStore
   getNewTaskPrompt(): NewTaskPromptMode
   notifyOffer?(task: ThreadTask, ownerId?: number): void
+  notifyWrapUpQuestion?(threadId: string, turnId: string | undefined, callId: string, ownerId?: number): void
 }
 
 interface OfferWaiter {
@@ -75,9 +76,35 @@ export class DesktopThreadTasks {
     return this.host.store.snapshot(threadId)
   }
 
+  async reconcileQuestion(connection: ThreadTaskConnection, threadId: string): Promise<void> {
+    const question = this.snapshot(threadId).question
+    if (!question?.turnId) return
+    try {
+      const result = await connection.request<{ data: Array<{ id: string; status: string }> }>('thread/turns/list', {
+        threadId,
+        limit: 1,
+        sortDirection: 'descending',
+        itemsView: 'none'
+      })
+      const latest = result.data[0]
+      const current = this.snapshot(threadId).question
+      if (!latest || current?.turnId !== question.turnId || current.callId !== question.callId) return
+      if (latest.id !== question.turnId || latest.status === 'failed' || latest.status === 'cancelled') {
+        this.clearQuestion(threadId)
+      }
+    } catch {
+      // Keep waiting when the server cannot confirm whether the question was answered.
+    }
+  }
+
+  clearQuestion(threadId: string): void {
+    this.host.store.setQuestion(threadId, undefined)
+  }
+
   handleNotification(method: string, params: unknown): void {
     this.audience.observe(method, params)
     const turn = readBrowserTurnNotification(method, params)
+    if (turn) this.settleQuestion(method, turn.threadId, turn.turnId)
     if (turn?.terminal) this.abandonTurn(turn.threadId, turn.turnId)
   }
 
@@ -108,6 +135,23 @@ export class DesktopThreadTasks {
 
   canSeeCard(connection: ThreadTaskConnection, threadId: string, turnId: string | undefined): Promise<boolean> {
     return this.audience.fromComposer(connection, threadId, turnId)
+  }
+
+  fromPhone(connection: ThreadTaskConnection, threadId: string, turnId: string | undefined): Promise<boolean> {
+    return this.audience.fromPhone(connection, threadId, turnId)
+  }
+
+  waitForQuestion(connection: ThreadTaskConnection, threadId: string, turnId: string | undefined, callId: string): void {
+    this.host.store.setQuestion(threadId, { ...(turnId ? { turnId } : {}), callId })
+    this.host.notifyWrapUpQuestion?.(threadId, turnId, callId, connection.ownerId)
+  }
+
+  private settleQuestion(method: string, threadId: string, turnId: string): void {
+    const question = this.host.store.snapshot(threadId).question
+    if (!question) return
+    const otherTurn = method === 'turn/started' && question.turnId !== turnId
+    const noBox = (method === 'turn/failed' || method === 'turn/cancelled') && question.turnId === turnId
+    if (otherTurn || noBox) this.host.store.setQuestion(threadId, undefined)
   }
 
   async offerDecision(connection: ThreadTaskConnection, threadId: string, turnId: string | undefined): Promise<OfferDecision> {

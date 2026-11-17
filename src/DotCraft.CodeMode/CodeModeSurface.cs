@@ -38,7 +38,10 @@ public sealed class CodeModeSurface
         return _byJsName.TryGetValue(name, out tool!);
     }
 
-    public static CodeModeSurface Build(EffectiveToolSnapshot snapshot, ILogger? logger = null)
+    public static CodeModeSurface Build(
+        EffectiveToolSnapshot snapshot,
+        IReadOnlySet<string> excludedNamespaces,
+        ILogger? logger = null)
     {
         var direct = snapshot.ModelVisibleDefinitions.Select(definition => (definition, listed: true));
         var deferred = snapshot.DeferredDefinitions.Values.SelectMany(static group => group)
@@ -48,6 +51,8 @@ public sealed class CodeModeSurface
             .Where(entry => entry.registration.Exposure is ToolExposure.Direct or ToolExposure.Deferred
                             && entry.registration.Definition.Name != CodeModeToolName
                             && !EffectiveToolSnapshot.IsDeferredToolSearch(entry.registration)
+                            && !(entry.registration.Definition.Name.Namespace is { } ns
+                                 && excludedNamespaces.Contains(ns))
                             && entry.registration.InvocationAudiences.HasFlag(ToolInvocationAudience.Model))
             .OrderBy(entry => entry.registration.Definition.Name.Namespace, StringComparer.Ordinal)
             .ThenBy(entry => entry.registration.Definition.Name.Name, StringComparer.Ordinal);

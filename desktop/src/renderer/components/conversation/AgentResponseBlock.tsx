@@ -13,8 +13,9 @@ import { getTaskWake, getTurnActivityState } from './turnActivityModel'
 import { TurnCompletionSummary } from './TurnCompletionSummary'
 import { TurnArtifacts } from './TurnArtifacts'
 import { TurnThreadActions } from './TurnThreadActions'
+import { TurnNextStep } from './TurnNextStep'
 import { TurnAutomations } from './TurnAutomations'
-import { isThreadActionToolItem, parseThreadToolAction, threadTaskCardKind } from '../../utils/threadToolDisplay'
+import { isThreadActionToolItem, isWrapUpItem, parseThreadToolAction, threadTaskCardKind } from '../../utils/threadToolDisplay'
 import { TurnThreadTaskCards } from './threadTasks/TurnThreadTaskCards'
 import { ApprovalCard } from './ApprovalCard'
 import { SystemNoticeBlock } from './SystemNoticeBlock'
@@ -446,6 +447,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
 function shouldHideCoordinationTool(item: ConversationItem, turnRunning: boolean): boolean {
   if (!isToolLikeItemType(item.type)) return false
   if (item.presentation?.presentationId === CORE_TOOL_PRESENTATION_IDS.sendUserMessageAsync) return true
+  if (isWrapUpItem(item)) return true
   if (resolveToolKind(item) === 'writeStdin') return !isToolExecutionFailure(item)
   return item.presentation?.presentationId === 'core.request-user-input'
     && isToolItemLive(item, { turnRunning })
@@ -512,6 +514,7 @@ function TurnCompletionContent({ turnId }: { turnId: string }): JSX.Element {
       <TurnAutomations turnId={turnId} />
       <TurnArtifacts turnId={turnId} />
       <TurnCompletionSummary turnId={turnId} />
+      <TurnNextStep turnId={turnId} />
     </>
   )
 }

@@ -2,6 +2,8 @@ import { EventEmitter } from 'node:events'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DesktopWindowRuntime } from '../windows/windowRuntime'
 import type { HubEvent } from '../desktopHub'
+import { DesktopThreadTasks } from '../threadTasks/threadTaskService'
+import { ThreadTaskStore } from '../threadTasks/threadTaskStore'
 
 const host = vi.hoisted(() => ({ createClient: vi.fn(), chatPath: '/fixture/chats' }))
 vi.mock('electron', () => ({ app: { getPath: () => '', getLocale: () => 'en-US' } }))
@@ -51,7 +53,11 @@ function fixture() {
     listAppServers: vi.fn(async () => []),
     subscribeEvents: vi.fn(async (listener: (event: HubEvent) => void) => { publish = listener })
   }
+  const store = new ThreadTaskStore(null)
+  const tasks = new DesktopThreadTasks({ store, getNewTaskPrompt: () => 'ask' })
   const ctx = {
+    getThreadTasks: () => tasks,
+    desktopThreadToolOptions: () => ({}),
     argv: [], settings: { connectionMode: 'remote', locale: 'en' }, currentWorkspacePath: host.chatPath,
     activeRemoteProject: {
       projectId: remoteKey, source: 'device', displayPath: '/fixture/remote', identityWorkspacePath: '/fixture/remote',
@@ -82,12 +88,41 @@ function fixture() {
   ctx.isSecondaryProjectEvent = event => isSecondaryProjectEvent(ctx, event)
   ctx.isCurrentWorkspaceEvent = (event, path) => event.workspacePath === path
   ctx.connectViaWebSocket = vi.fn((...args) => connectViaWebSocket(ctx, ...args))
-  return { ctx, hub, localCreated, publish: (event: HubEvent) => publish(event) }
+  return { ctx, hub, store, tasks, localCreated, publish: (event: HubEvent) => publish(event) }
 }
 
 beforeEach(() => vi.clearAllMocks())
 
 describe('local Recents with a remote foreground', () => {
+  it.each(['foreground', 'secondary'] as const)('reconciles a mounted chat after its %s connection reconnects', async (role) => {
+    const { ctx, store, tasks } = fixture()
+    let entry
+    if (role === 'foreground') {
+      await ctx.connectViaWebSocket('/workspace', 'ws://fixture/ws')
+      entry = ctx.workspaceConnections.get('/workspace')!
+    } else {
+      entry = ctx.createSecondaryWorkspaceConnection('/workspace', 'ws://fixture/ws')
+    }
+    const client = entry.client as unknown as Client
+    client.emit('ready', initialized)
+    entry.threads = [{ id: 'waiting-thread' }, { id: 'idle-thread' }]
+    store.setQuestion('waiting-thread', { turnId: 'turn-1', callId: 'call-1' })
+    client.emit('close')
+    const changed = new Promise<void>((resolve) => store.onChanged((snapshot) => {
+      if (snapshot.threadId === 'waiting-thread' && !snapshot.question) resolve()
+    }))
+    client.sendRequest.mockResolvedValue({ data: [{ id: 'turn-2', status: 'completed' }] } as never)
+    client.sendRequest.mockClear()
+
+    client.emit('reconnected', initialized)
+    await changed
+
+    expect(tasks.snapshot('waiting-thread').question).toBeUndefined()
+    expect(client.sendRequest.mock.calls.filter(([method]) => method === 'thread/turns/list').map(([method, params]) => [method, params])).toEqual([
+      ['thread/turns/list', { threadId: 'waiting-thread', limit: 1, sortDirection: 'descending', itemsView: 'none' }]
+    ])
+  })
+
   it('ensures and loads local Chats on remote startup without taking over the foreground', async () => {
     const { ctx, hub, localCreated } = fixture()
     await ctx.connectViaWebSocket(host.chatPath, 'ws://127.0.0.1:2345/ws', {

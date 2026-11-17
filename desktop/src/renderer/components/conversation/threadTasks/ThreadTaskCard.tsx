@@ -3,13 +3,10 @@ import { ChevronDown, X } from 'lucide-react'
 import { doThisTaskHereMessage, type ThreadTask } from '../../../../shared/threadTasks'
 import { useT } from '../../../contexts/LocaleContext'
 import { useComposerPreferencesStore } from '../../../stores/composerPreferencesStore'
-import { useConversationStore } from '../../../stores/conversationStore'
 import { useThreadStore } from '../../../stores/threadStore'
 import { addToast } from '../../../stores/toastStore'
 import { useUIStore } from '../../../stores/uiStore'
-import { buildComposerInputParts } from '../../../utils/composeInputParts'
-import { startTurnWithOptimisticUI } from '../../../utils/startTurn'
-import { enqueueTurn } from '../../../utils/enqueueTurn'
+import { sendTextHere } from '../../../utils/sendTextHere'
 import { Button } from '../../ui/Button'
 import { ContextMenu, type ContextMenuPosition } from '../../ui/ContextMenu'
 import { IconButton } from '../../ui/IconButton'
@@ -200,28 +197,8 @@ export function ThreadTaskOfferCard({ task }: { task: ThreadTask }): JSX.Element
   )
 }
 
-async function sendHere(task: ThreadTask, fallbackThreadName: string): Promise<void> {
-  const text = doThisTaskHereMessage(task.title)
-  if (useConversationStore.getState().turnStatus === 'idle') {
-    await startTurnWithOptimisticUI({
-      threadId: task.threadId,
-      workspacePath: task.workspacePath,
-      text,
-      segments: [],
-      images: [],
-      files: [],
-      fallbackThreadName,
-      throwOnStartError: true
-    })
-  } else {
-    const { inputParts } = buildComposerInputParts({ text })
-    await enqueueTurn({
-      identityWorkspacePath: task.workspacePath,
-      clientUserMessageId: crypto.randomUUID(),
-      threadId: task.threadId,
-      input: inputParts
-    })
-  }
+function sendHere(task: ThreadTask, fallbackThreadName: string): Promise<void> {
+  return sendTextHere(task.threadId, task.workspacePath, doThisTaskHereMessage(task.title), fallbackThreadName)
 }
 
 function ProposalRow({ task }: { task: ThreadTask }): JSX.Element {

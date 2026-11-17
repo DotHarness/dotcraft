@@ -330,6 +330,36 @@ Review.
     }
 
     [Fact]
+    public void ResolveThreadStartConfiguration_AcceptsCodeModeExcludedNamespacesOverlay()
+    {
+        var store = new AgentProfileStore(_workspaceCraftPath, _userCraftPath);
+        store.Upsert(
+            "reviewer",
+            AgentProfileSources.Workspace,
+            """
+---
+name: reviewer
+description: Reviewer
+---
+
+Review.
+""");
+        using var document = JsonDocument.Parse(
+            """{"agentProfileId":"reviewer","codeModeExcludedNamespaces":["client_user"]}""");
+
+        var resolved = store.ResolveThreadStartConfiguration(
+            new ThreadConfiguration
+            {
+                AgentProfileId = "reviewer",
+                CodeModeExcludedNamespaces = ["client_user"]
+            },
+            RuntimeConfig(),
+            document.RootElement);
+
+        Assert.Equal(["client_user"], resolved.CodeModeExcludedNamespaces);
+    }
+
+    [Fact]
     public void ResolveThreadStartConfiguration_ExplicitReasoningOutputOverridesCatalogDefault()
     {
         var store = new AgentProfileStore(_workspaceCraftPath, _userCraftPath);

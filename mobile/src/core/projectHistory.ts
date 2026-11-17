@@ -12,7 +12,7 @@ export const OPENING_TURNS_PAGE = {
     { name: 'CreatePlan' },
     { name: 'Workflow' },
     { name: 'Automation' },
-    { name: 'CreateThread', namespace: 'desktop' },
+    { name: 'CreateThread', namespace: 'desktop_conversation' },
     { name: 'SendMessageToThread', namespace: 'desktop' },
   ],
 }

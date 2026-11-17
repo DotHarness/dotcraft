@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { STANDALONE_CHAT_INSTRUCTIONS } from '../../shared/chatFolders'
 import {
+  DESKTOP_CONVERSATION_TOOL_NAMESPACE,
   DESKTOP_THREAD_TOOL_NAMESPACE,
   DESKTOP_THREAD_COORDINATION_CONTEXT_KEY,
   buildDesktopThreadDynamicTools,
@@ -51,12 +52,20 @@ describe('desktop runtime thread tools', () => {
           value: expect.stringContaining('CreateThread')
         })
       }),
+      config: { codeModeExcludedNamespaces: [DESKTOP_CONVERSATION_TOOL_NAMESPACE] },
       dynamicTools: expect.arrayContaining([
+        expect.objectContaining({
+          type: 'namespace',
+          name: DESKTOP_CONVERSATION_TOOL_NAMESPACE,
+          tools: expect.arrayContaining([
+            expect.objectContaining({ type: 'function', name: 'CreateThread' }),
+            expect.objectContaining({ type: 'function', name: 'WrapUp' })
+          ])
+        }),
         expect.objectContaining({
           type: 'namespace',
           name: DESKTOP_THREAD_TOOL_NAMESPACE,
           tools: expect.arrayContaining([
-            expect.objectContaining({ type: 'function', name: 'CreateThread' }),
             expect.objectContaining({ type: 'function', name: 'ListThreads' })
           ])
         })
@@ -79,7 +88,8 @@ describe('desktop runtime thread tools', () => {
     await sendDesktopAppServerRequest(client, 'worktree/createAndStart', { identity: { channelName: 'dotcraft-desktop' } })
 
     expect(vi.mocked(client.sendRequest).mock.calls[1][1]).toMatchObject({
-      dynamicTools: [expect.objectContaining({ name: 'desktop' })]
+      config: { codeModeExcludedNamespaces: ['desktop_conversation'] },
+      dynamicTools: [expect.objectContaining({ name: 'desktop_conversation' }), expect.objectContaining({ name: 'desktop' })]
     })
     expect(hasDesktopThreadTools(client, 'thread-started', {})).toBe(true)
     expect(hasDesktopThreadTools(client, 'thread-worktree', {})).toBe(true)
@@ -106,17 +116,19 @@ describe('desktop runtime thread tools', () => {
     expect(calls[0][1]).toEqual(params)
   })
 
-  it('declares Desktop thread tools as deferred, keeping ReadTerminal always loaded', () => {
+  it('declares Desktop thread tools as deferred, keeping ReadTerminal and WrapUp always loaded', () => {
     const tools = buildDesktopThreadDynamicTools()
 
-    expect(tools).toHaveLength(1)
-    const namespace = tools[0]
-    expect(namespace.type).toBe('namespace')
-    if (namespace.type !== 'namespace') throw new Error('Expected a namespace declaration')
-    expect(namespace.name).toBe(DESKTOP_THREAD_TOOL_NAMESPACE)
-    expect(namespace.tools).toHaveLength(14)
-    expect(namespace.tools.filter((tool) => tool.deferLoading !== true).map((tool) => tool.name)).toEqual(['ReadTerminal'])
-    expect(namespace.tools.map((tool) => tool.name)).toEqual(expect.arrayContaining([
+    expect(tools.map((tool) => tool.type === 'namespace' ? tool.name : null)).toEqual([
+      DESKTOP_CONVERSATION_TOOL_NAMESPACE,
+      DESKTOP_THREAD_TOOL_NAMESPACE
+    ])
+    const [conversation, desktop] = tools
+    if (conversation.type !== 'namespace' || desktop.type !== 'namespace') throw new Error('Expected namespace declarations')
+    expect(conversation.tools.map((tool) => tool.name)).toEqual(['CreateThread', 'DismissProposal', 'WrapUp'])
+    expect(desktop.tools).toHaveLength(12)
+    expect([...conversation.tools, ...desktop.tools].filter((tool) => tool.deferLoading !== true).map((tool) => tool.name)).toEqual(['WrapUp', 'ReadTerminal'])
+    expect(desktop.tools.map((tool) => tool.name)).toEqual(expect.arrayContaining([
       'SetThreadPinned', 'ReadThread', 'SearchThreadMessages', 'ListThreadItems', 'ReadThreadItem', 'ListTerminalTabs'
     ]))
   })
@@ -343,13 +355,13 @@ describe('desktop runtime thread tools', () => {
     const startParams = () => vi.mocked(client.sendRequest).mock.calls.filter((call) => call[0] === 'thread/start').map((call) => call[1])
 
     const result = await handleDesktopRuntimeThreadToolCall(client, {
-      namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
+      namespace: DESKTOP_CONVERSATION_TOOL_NAMESPACE,
       tool: 'CreateThread',
       threadId: 'thread-parent',
       arguments: { initiation: 'userAsked', title: 'Research', prompt: 'start', model: 'gpt-5', reasoningEffort: 'ultra' }
     }, 'F:\\examples\\workspace')
     await handleDesktopRuntimeThreadToolCall(client, {
-      namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
+      namespace: DESKTOP_CONVERSATION_TOOL_NAMESPACE,
       tool: 'CreateThread',
       arguments: { initiation: 'userAsked', title: 'Start', prompt: 'start' }
     }, 'F:\\examples\\workspace')
@@ -364,7 +376,8 @@ describe('desktop runtime thread tools', () => {
           enabled: true,
           effort: 'ultra',
           output: 'full'
-        }
+        },
+        codeModeExcludedNamespaces: [DESKTOP_CONVERSATION_TOOL_NAMESPACE]
       }
     }))
     expect(startParams()[1]).not.toHaveProperty('spawnedFromThreadId')
@@ -379,7 +392,7 @@ describe('desktop runtime thread tools', () => {
     const createChatFolder = vi.fn(async () => '/docs/DotCraft/2026-10-11/plan-a-trip')
 
     await handleDesktopRuntimeThreadToolCall(client, {
-      namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
+      namespace: DESKTOP_CONVERSATION_TOOL_NAMESPACE,
       tool: 'CreateThread',
       arguments: { initiation: 'userAsked', title: 'Trip', prompt: 'Plan a trip' }
     }, '/home/me/.craft/workspaces/chats', { createChatFolder })
@@ -389,7 +402,7 @@ describe('desktop runtime thread tools', () => {
     expect(startCall?.[1]).toEqual(expect.objectContaining({
       cwd: '/docs/DotCraft/2026-10-11/plan-a-trip',
       identity: expect.objectContaining({ workspacePath: '/home/me/.craft/workspaces/chats' }),
-      config: { developerInstructions: STANDALONE_CHAT_INSTRUCTIONS }
+      config: { developerInstructions: STANDALONE_CHAT_INSTRUCTIONS, codeModeExcludedNamespaces: [DESKTOP_CONVERSATION_TOOL_NAMESPACE] }
     }))
     const turnCall = vi.mocked(client.sendRequest).mock.calls.find((call) => call[0] === 'turn/start')
     expect(turnCall?.[1]).not.toHaveProperty('cwd')

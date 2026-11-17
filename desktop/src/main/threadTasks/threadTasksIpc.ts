@@ -20,6 +20,7 @@ export interface DesktopThreadTasksRuntimeOptions {
   filePath: string
   getNewTaskPrompt(): NewTaskPromptMode
   notifyOffer(task: ThreadTask, ownerId?: number): void
+  notifyWrapUpQuestion(threadId: string, turnId: string | undefined, callId: string, ownerId?: number): void
 }
 
 export function createDesktopThreadTasks(options: DesktopThreadTasksRuntimeOptions): DesktopThreadTasks {
@@ -32,7 +33,8 @@ export function createDesktopThreadTasks(options: DesktopThreadTasksRuntimeOptio
   return new DesktopThreadTasks({
     store,
     getNewTaskPrompt: options.getNewTaskPrompt,
-    notifyOffer: options.notifyOffer
+    notifyOffer: options.notifyOffer,
+    notifyWrapUpQuestion: options.notifyWrapUpQuestion
   })
 }
 
@@ -42,9 +44,10 @@ export interface ThreadTasksIpcHost {
 }
 
 export function registerThreadTasksIpc(host: ThreadTasksIpcHost, ipc: WindowIpcMain): void {
-  ipc.handle('threadTasks:list', (_event, value: unknown) => {
+  ipc.handle('threadTasks:list', async (_event, value: unknown) => {
     const threadId = requireString(value, 'threadId')
     const connection = host.getConnection(threadId)
+    if (connection) await host.tasks.reconcileQuestion(connection, threadId)
     const snapshot = host.tasks.snapshot(threadId)
     return { ...snapshot, tasks: snapshot.tasks.filter((task) => connection && sameFilePath(task.workspacePath, connection.workspacePath)) }
   })
