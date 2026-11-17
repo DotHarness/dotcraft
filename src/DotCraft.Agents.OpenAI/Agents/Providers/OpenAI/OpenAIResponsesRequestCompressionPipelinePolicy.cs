@@ -3,6 +3,7 @@ using System.ClientModel.Primitives;
 using System.Security.Cryptography;
 using System.Text.Json;
 using ZstdSharp;
+using ZstdSharp.Unsafe;
 
 namespace DotCraft.Agents;
 
@@ -13,6 +14,7 @@ internal sealed class OpenAIResponsesRequestCompressionPipelinePolicy : Pipeline
 {
     internal const string ContentEncodingHeader = "Content-Encoding";
     internal const string ZstdContentEncoding = "zstd";
+    private const int MaxWindowLog = 20;
 
     private sealed record OriginalBodySnapshot(byte[] Bytes, string Sha256);
 
@@ -98,6 +100,8 @@ internal sealed class OpenAIResponsesRequestCompressionPipelinePolicy : Pipeline
             throw new InvalidDataException("Responses request body must be a JSON object.");
 
         using var compressor = new Compressor(3);
+        // Larger default windows can make the subscription backend reject inline-image requests.
+        compressor.SetParameter(ZSTD_cParameter.ZSTD_c_windowLog, MaxWindowLog);
         var compressed = compressor.Wrap(original).ToArray();
         var hash = Convert.ToHexString(SHA256.HashData(original)).ToLowerInvariant();
         message.SetProperty(

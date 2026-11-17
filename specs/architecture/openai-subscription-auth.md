@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.12.0 |
+| Version | 0.12.1 |
 | Status | Living |
-| Date | 2026-11-14 |
+| Date | 2026-11-17 |
 
 DotCraft can authenticate outgoing model requests against a user's ChatGPT subscription (Plus,
 Pro, Team, Business, Enterprise, Edu) as an alternative to a pay-as-you-go OpenAI API key. This
@@ -210,7 +210,9 @@ compaction, and differs for changed instructions, child threads, and forks.
 
 Every OAuth `/responses` request sends `x-codex-beta-features: remote_compaction_v2`. Sampling
 requests use `stream=true`, `Accept: text/event-stream`, and Zstandard level 3 compression of the
-complete JSON body; compact requests are not compressed.
+complete JSON body with a maximum 1 MiB window (`windowLog=20`). This bound also applies to large
+inline-image requests so compression does not introduce backend rejection. Compact requests are
+not compressed.
 
 Every outbound input item that supports an id has a stable id of the form `<prefix>_<suffix>`.
 Valid provider ids are preserved. Missing ids are assigned before first send and retained in

@@ -2,9 +2,11 @@ using System.ClientModel;
 using System.ClientModel.Primitives;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using DotCraft.Agents;
 using Xunit;
 using ZstdSharp;
+using ZstdSharp.Unsafe;
 
 namespace DotCraft.Tests.Agents;
 
@@ -81,6 +83,44 @@ public sealed class OpenAIResponsesRequestCompressionPipelinePolicyTests
 
         Assert.True(compressed);
         Assert.Equal(JsonBody, Decompress(ReadContent(message)));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task LargeInlineImageRequestsDecompressWithOneMiBWindow(bool asyncCompression)
+    {
+        var imageBytes = new byte[1024 * 1024];
+        new Random(42).NextBytes(imageBytes);
+        var image = new
+        {
+            type = "input_image",
+            image_url = "data:image/png;base64," + Convert.ToBase64String(imageBytes)
+        };
+        var body = JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            model = "gpt-5.6",
+            input = new object[]
+            {
+                new { type = "message", role = "user", content = new[] { image } },
+                new { type = "custom_tool_call", call_id = "call-image", name = "CodeMode", input = "image(fixture)" },
+                new { type = "custom_tool_call_output", call_id = "call-image", output = new[] { image } }
+            }
+        });
+        Assert.True(body.Length > 2 * 1024 * 1024);
+        using var message = CreateMessage("https://chatgpt.com/backend-api/codex/responses", body);
+
+        var compressed = asyncCompression
+            ? await OpenAIResponsesRequestCompressionPipelinePolicy.CompressAsync(message)
+            : OpenAIResponsesRequestCompressionPipelinePolicy.Compress(message);
+
+        Assert.True(compressed);
+        using var input = new MemoryStream(ReadContent(message));
+        using var decoder = new DecompressionStream(input);
+        decoder.SetParameter(ZSTD_dParameter.ZSTD_d_windowLogMax, 20);
+        using var decoded = new MemoryStream();
+        decoder.CopyTo(decoded);
+        Assert.Equal(body, decoded.ToArray());
     }
 
     [Fact]
