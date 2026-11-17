@@ -43,23 +43,30 @@ function remoteHost(files: Record<string, string>, directories: Record<string, A
     connectionId: 'remote-a',
     isRemoteHost: true,
     sendRequest,
-    onNotification: (callback: NotificationCallback) => { listeners.push(callback); return () => {} }
+    onNotification: (callback: NotificationCallback) => { listeners.push(callback); return () => {} },
+    on: (event: string, callback: () => void) => { if (event === 'reconnected') reconnectListeners.push(callback) }
   } as unknown as DesktopAppServerClient
+  const reconnectListeners: Array<() => void> = []
   const notify = (method: string, params: unknown) => { for (const listener of listeners) listener(method, params) }
-  return { client, disk, sendRequest, notify }
+  const reconnect = () => { for (const listener of reconnectListeners) listener() }
+  return { client, disk, sendRequest, notify, reconnect }
 }
 
 let ownerSeed = 9100
 const releases: Array<() => void> = []
 afterEach(() => { while (releases.length) releases.pop()!() })
 
-function handlersFor(client: DesktopAppServerClient) {
+function handlersFor(client: DesktopAppServerClient, connections: Record<string, DesktopAppServerClient> = {}) {
   const handlers = new Map<string, (event: unknown, params: unknown) => Promise<unknown>>()
   const context = {
     workspacePath: 'C:\\local\\project',
     owner: { webContents: { id: ++ownerSeed } },
     getWireClient: () => client,
-    callbacks: { getSettings: () => ({ locale: 'en' }), getConnectionContext: () => ({ workspacePath: '/srv/app' }) },
+    callbacks: {
+      getSettings: () => ({ locale: 'en' }),
+      getConnectionContext: () => ({ workspacePath: '/srv/app' }),
+      getConnectionClient: (key: string) => connections[key] ?? null
+    },
     handleSafe: (channel: string, fn: never) => handlers.set(channel, fn)
   } as unknown as WindowIpcContext
   registerWorkspaceFileHandlers(context)
@@ -129,6 +136,34 @@ describe('remote viewer files', () => {
 
     await invoke('workspace:viewer:unwatch-text', { subscriptionId }, { sender })
     expect(host.sendRequest).toHaveBeenCalledWith('fs/unwatch', { watchId: subscriptionId })
+  })
+
+  it('re-registers watches after a reconnect and reports changes missed meanwhile', async () => {
+    const host = remoteHost({ '/srv/app/main.cs': 'v1' })
+    const invoke = handlersFor(host.client)
+    const send = vi.fn()
+    const sender = { id: 78, send, once: vi.fn(), removeListener: vi.fn(), isDestroyed: () => false }
+    const { subscriptionId } = await invoke('workspace:viewer:watch-text', { absolutePath: '/srv/app/main.cs' }, { sender }) as { subscriptionId: string }
+    host.sendRequest.mockClear()
+
+    host.disk.set('/srv/app/main.cs', { bytes: Buffer.from('v2'), mtime: 3000 })
+    host.reconnect()
+    await vi.waitFor(() => expect(send).toHaveBeenCalledWith('workspace:viewer:text-changed', expect.objectContaining({ subscriptionId, mtimeMs: 3000 })))
+    expect(host.sendRequest).toHaveBeenCalledWith('fs/watch', { watchId: subscriptionId, path: '/srv/app/main.cs' })
+  })
+
+  it('saves to the connection that opened the file, not the current foreground', async () => {
+    const opened = remoteHost({ '/srv/app/notes.md': 'old' })
+    const foreground = remoteHost({ '/srv/app/notes.md': 'old' })
+    const invoke = handlersFor(foreground.client, { 'host-a': opened.client })
+    const write = { absolutePath: '/srv/app/notes.md', text: 'new', hasUtf8Bom: false, lineEnding: 'lf', expectedMtimeMs: 1000 }
+
+    expect(await invoke('workspace:viewer:write-text', { ...write, connectionKey: 'host-a' })).toMatchObject({ outcome: 'saved' })
+    expect(opened.disk.get('/srv/app/notes.md')!.bytes.toString()).toBe('new')
+    expect(foreground.disk.get('/srv/app/notes.md')!.bytes.toString()).toBe('old')
+
+    await expect(invoke('workspace:viewer:write-text', { ...write, connectionKey: 'host-gone' })).rejects.toThrow()
+    expect(foreground.disk.get('/srv/app/notes.md')!.bytes.toString()).toBe('old')
   })
 
   it('serves host bytes for viewer URLs, including byte ranges', async () => {

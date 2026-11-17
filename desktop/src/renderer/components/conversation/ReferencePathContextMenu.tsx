@@ -32,6 +32,7 @@ export function ReferencePathContextMenu({
 }: ReferencePathContextMenuProps): JSX.Element {
   const t = useT()
   const projectRoot = useConversationStore((s) => s.workspacePath)
+  const remote = useConversationStore((s) => s.remoteWorkspaceActive)
   const view = useOpenTargets(projectRoot)
   const statusLabel = openTargetStatusLabel(view.status, t)
   const effective = view.effective
@@ -90,8 +91,7 @@ export function ReferencePathContextMenu({
   ]
 
   const items: ContextMenuEntry[] = [
-    ...openEntries,
-    { type: 'separator' },
+    ...(remote ? [] : [...openEntries, { type: 'separator' } as const]),
     {
       label: t('conversation.reference.copyPath'),
       icon: <Copy size={16} />,
@@ -104,11 +104,11 @@ export function ReferencePathContextMenu({
           onClick: addToChat
         }]
       : []),
-    {
+    ...(remote ? [] : [{
       label: t('conversation.reference.openInExplorer'),
       icon: <FolderOpen size={16} />,
       onClick: () => { void revealInExplorer() }
-    }
+    }])
   ]
 
   return <ContextMenu items={items} position={position} onClose={onClose} width={menuWidth} />

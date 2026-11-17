@@ -18,7 +18,7 @@ const MAX_REMOTE_FILE_BYTES = 10 * 1024 * 1024
 const REMOTE_PREVIEW_CLASSES = new Set<ViewerContentClass>(['text', 'image', 'pdf'])
 const EXPLORER_SKIP_NAMES = new Set(['.git'])
 
-type RemoteFileClient = Pick<DesktopAppServerClient, 'sendRequest' | 'onNotification'>
+type RemoteFileClient = Pick<DesktopAppServerClient, 'sendRequest' | 'onNotification' | 'on'>
 
 interface RemoteMetadata {
   isFile: boolean
@@ -31,6 +31,15 @@ interface RemoteWatch {
   onDestroyed: () => void
 }
 
+const watchOwners = new Map<string, RemoteViewerFiles>()
+let nextWatchId = 0
+
+export function unwatchRemoteViewerFile(subscriptionId: string, senderId: number): boolean {
+  const owner = watchOwners.get(subscriptionId)
+  owner?.unwatch(subscriptionId, senderId)
+  return !!owner
+}
+
 function hostPath(absolutePath: string): path.PlatformPath {
   return /^[A-Za-z]:[\\/]|^\\\\/.test(absolutePath) ? path.win32 : path.posix
 }
@@ -38,7 +47,6 @@ function hostPath(absolutePath: string): path.PlatformPath {
 export class RemoteViewerFiles {
   private readonly watches = new Map<string, RemoteWatch>()
   private readonly writes = new Map<string, Promise<unknown>>()
-  private nextWatchId = 0
   private listening = false
 
   constructor(private readonly client: RemoteFileClient) {}
@@ -106,9 +114,10 @@ export class RemoteViewerFiles {
 
   async watch(sender: WebContents, absolutePath: string): Promise<string> {
     this.listen()
-    const subscriptionId = `viewer-remote-${sender.id}-${++this.nextWatchId}`
+    const subscriptionId = `viewer-remote-${sender.id}-${++nextWatchId}`
     const onDestroyed = () => this.unwatch(subscriptionId, sender.id)
     this.watches.set(subscriptionId, { sender, absolutePath, onDestroyed })
+    watchOwners.set(subscriptionId, this)
     sender.once('destroyed', onDestroyed)
     try {
       await this.client.sendRequest('fs/watch', { watchId: subscriptionId, path: absolutePath })
@@ -117,10 +126,6 @@ export class RemoteViewerFiles {
       throw error
     }
     return subscriptionId
-  }
-
-  ownsWatch(subscriptionId: string): boolean {
-    return this.watches.has(subscriptionId)
   }
 
   unwatch(subscriptionId: string, senderId: number): void {
@@ -135,6 +140,7 @@ export class RemoteViewerFiles {
     if (!watch) return
     watch.sender.removeListener('destroyed', watch.onDestroyed)
     this.watches.delete(subscriptionId)
+    watchOwners.delete(subscriptionId)
   }
 
   private listen(): void {
@@ -144,6 +150,12 @@ export class RemoteViewerFiles {
       if (method !== 'fs/changed') return
       const { watchId } = params as { watchId: string }
       if (this.watches.has(watchId)) void this.emitChange(watchId)
+    })
+    this.client.on('reconnected', () => {
+      for (const [watchId, watch] of this.watches) {
+        void this.client.sendRequest('fs/watch', { watchId, path: watch.absolutePath })
+          .then(() => this.emitChange(watchId), () => {})
+      }
     })
   }
 

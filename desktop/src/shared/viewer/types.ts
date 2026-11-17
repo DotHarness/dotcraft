@@ -155,8 +155,20 @@ export interface ReadTextParams {
   limitBytes?: number
 }
 
+export interface ReadTextParams {
+  absolutePath: string
+  limitBytes?: number
+  connectionKey?: string
+}
+
+export interface WatchTextParams {
+  absolutePath: string
+  connectionKey?: string
+}
+
 export interface WriteTextParams {
   absolutePath: string
+  connectionKey?: string
   text: string
   expectedMtimeMs: number
   hasUtf8Bom: boolean

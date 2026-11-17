@@ -3,6 +3,7 @@ import type { EditorState } from '@codemirror/state'
 import type { ReadTextResult } from '../../shared/viewer/types'
 import { normalizeLocale, translate } from '../../shared/locales'
 import { showToast } from './toastStore'
+import { useConnectionStore } from './connectionStore'
 
 export type FileEditorMode = 'preview' | 'source'
 export type FileEditorSaveState = 'idle' | 'saving' | 'failed' | 'conflict'
@@ -59,6 +60,7 @@ interface Runtime {
   timer?: ReturnType<typeof setTimeout>
   stop?: () => void
   disposed: boolean
+  connectionKey?: string
 }
 const runtimes = new Map<string, Runtime>()
 const normalize = (text: string) => text.replace(/\r\n?/g, '\n')
@@ -148,7 +150,8 @@ export const useFileEditorStore = create<FileEditorStore>((set, get) => ({
   async load(tabId, absolutePath, markdown) {
     if (get().sessions.get(tabId)?.absolutePath === absolutePath) return
     get().discard(tabId)
-    const runtime: Runtime = { tail: Promise.resolve(), disposed: false }
+    const runtime: Runtime = { tail: Promise.resolve(), disposed: false, connectionKey: useConnectionStore.getState().connectionKey ?? undefined }
+    const { connectionKey } = runtime
     runtimes.set(tabId, runtime)
     set((state) => ({
       sessions: new Map(state.sessions).set(tabId, {
@@ -170,7 +173,7 @@ export const useFileEditorStore = create<FileEditorStore>((set, get) => ({
       })
     }))
     try {
-      const disk = await window.api.workspace.viewer.readText({ absolutePath })
+      const disk = await window.api.workspace.viewer.readText({ absolutePath, connectionKey })
       if (runtime.disposed) return
       patch(tabId, (session) => ({
         ...session,
@@ -180,7 +183,7 @@ export const useFileEditorStore = create<FileEditorStore>((set, get) => ({
         baseText: normalize(disk.text)
       }))
       void window.api.workspace.viewer
-        .watchText({ absolutePath }, () => {
+        .watchText({ absolutePath, connectionKey }, () => {
           if (!runtime.disposed) void get().refreshFromDisk(tabId)
         })
         .then((stop) => {
@@ -247,6 +250,7 @@ export const useFileEditorStore = create<FileEditorStore>((set, get) => ({
           try {
             const result = await window.api.workspace.viewer.writeText({
               absolutePath: session.absolutePath,
+              connectionKey: runtime.connectionKey,
               text: session.text,
               expectedMtimeMs: session.mtimeMs,
               hasUtf8Bom: session.hasUtf8Bom,
@@ -306,7 +310,8 @@ export const useFileEditorStore = create<FileEditorStore>((set, get) => ({
         if (!session || runtime.disposed || session.status !== 'ready') return
         try {
           const disk = await window.api.workspace.viewer.readText({
-            absolutePath: session.absolutePath
+            absolutePath: session.absolutePath,
+            connectionKey: runtime.connectionKey
           })
           if (!runtime.disposed) applyDisk(tabId, disk)
         } catch (error) {

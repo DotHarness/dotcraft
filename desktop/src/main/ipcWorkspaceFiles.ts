@@ -2,7 +2,7 @@ import { translate } from '../shared/locales'
 import { sameWorkspaceProjectKey } from '../shared/workspaceProjectKey'
 import type { ReadPresentationParams } from '../shared/viewer/presentation'
 import type { ReadSpreadsheetParams } from '../shared/viewer/spreadsheet'
-import type { ListDirParams, SaveCopyAsParams, WriteTextParams } from '../shared/viewer/types'
+import type { ListDirParams, ReadTextParams, SaveCopyAsParams, WatchTextParams, WriteTextParams } from '../shared/viewer/types'
 import { saveFileCopyAs } from './fileSaveAs'
 import { mainLocale, type WindowIpcContext } from './ipcBridgeContracts'
 import { assertPathWithinViewerRoots, assertWorkspaceOrChatFolder } from './ipcBridgePaths'
@@ -20,11 +20,16 @@ import { listWorkspaceFiles } from './workspaceComposerIpc'
 import { WorkspaceAttachmentAccess } from './workspaceAttachments'
 import type { AttachmentReadParams } from '../shared/attachments'
 import type { AppServerConnectionSource } from '../shared/appServerBoundary'
-import { remoteViewerFilesFor } from './remoteViewerFiles'
+import { remoteViewerFilesFor, unwatchRemoteViewerFile } from './remoteViewerFiles'
 
 export function registerWorkspaceFileHandlers(context: WindowIpcContext): void {
   const { handleSafe, workspacePath, callbacks, owner } = context
-  const remoteFiles = () => remoteViewerFilesFor(context.getWireClient())
+  const remoteFiles = (connectionKey?: string) => {
+    if (!connectionKey) return remoteViewerFilesFor(context.getWireClient())
+    const client = callbacks.getConnectionClient?.(connectionKey)
+    if (!client) throw new Error('The AppServer connection is no longer active.')
+    return remoteViewerFilesFor(client)
+  }
   handleSafe('workspace:create-pasted-text', async (_event, params: { text: string; workspacePath?: string }) => {
     const root = params.workspacePath || workspacePath
     if (!root) throw new Error(translate(mainLocale(callbacks), 'ipc.noWorkspaceOpen'))
@@ -99,8 +104,8 @@ export function registerWorkspaceFileHandlers(context: WindowIpcContext): void {
     return classifyFile(params.absolutePath, workspacePath)
   })
 
-  handleSafe('workspace:viewer:read-text', async (_event, params: { absolutePath: string; limitBytes?: number }) => {
-    const remote = remoteFiles()
+  handleSafe('workspace:viewer:read-text', async (_event, params: ReadTextParams) => {
+    const remote = remoteFiles(params.connectionKey)
     if (remote) return remote.readText(params.absolutePath, params.limitBytes)
     if (!workspacePath) {
       throw new Error(translate(mainLocale(callbacks), 'ipc.noWorkspaceOpen'))
@@ -126,7 +131,7 @@ export function registerWorkspaceFileHandlers(context: WindowIpcContext): void {
   })
 
   handleSafe('workspace:viewer:write-text', async (_event, params: WriteTextParams) => {
-    const remote = remoteFiles()
+    const remote = remoteFiles(params.connectionKey)
     if (remote) return remote.writeText(params)
     if (!workspacePath) {
       throw new Error(translate(mainLocale(callbacks), 'ipc.noWorkspaceOpen'))
@@ -139,8 +144,8 @@ export function registerWorkspaceFileHandlers(context: WindowIpcContext): void {
 
   handleSafe(
     'workspace:viewer:watch-text',
-    async (event, params: { absolutePath: string }): Promise<{ subscriptionId: string }> => {
-      const remote = remoteFiles()
+    async (event, params: WatchTextParams): Promise<{ subscriptionId: string }> => {
+      const remote = remoteFiles(params.connectionKey)
       if (remote) return { subscriptionId: await remote.watch(event.sender, params.absolutePath) }
       if (!workspacePath) {
         throw new Error(translate(mainLocale(callbacks), 'ipc.noWorkspaceOpen'))
@@ -151,9 +156,9 @@ export function registerWorkspaceFileHandlers(context: WindowIpcContext): void {
   )
 
   handleSafe('workspace:viewer:unwatch-text', async (event, params: { subscriptionId: string }): Promise<void> => {
-    const remote = remoteFiles()
-    if (remote?.ownsWatch(params.subscriptionId)) remote.unwatch(params.subscriptionId, event.sender.id)
-    else viewerTextWatchManager.unsubscribe(params.subscriptionId, event.sender.id)
+    if (!unwatchRemoteViewerFile(params.subscriptionId, event.sender.id)) {
+      viewerTextWatchManager.unsubscribe(params.subscriptionId, event.sender.id)
+    }
   })
 
   handleSafe(
