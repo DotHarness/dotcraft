@@ -81,7 +81,8 @@ function TodoChecklist({ todos, live, tasksLabel }: {
 }): JSX.Element {
   const t = useT()
   const [unfolded, setUnfolded] = useState(false)
-  const folded = unfolded ? 0 : foldedPrefix(todos, FOLD_AFTER)
+  const prefix = unfolded ? 0 : foldedPrefix(todos, FOLD_AFTER)
+  const folded = tasksLabel && prefix === todos.length ? prefix - 1 : prefix
   const visible = todos.slice(folded)
   const tasksAnchor = (visible.find((todo) => todo.status === 'in_progress') ?? visible.at(-1))?.id
 

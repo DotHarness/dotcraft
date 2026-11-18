@@ -41,6 +41,7 @@ public sealed partial class AppServerHost
                         .Deserialize<ThreadConfiguration>(SessionWireJsonOptions.Default)
                     : null
             };
+        wire = wire with { Runtime = runtime.SessionService.GetThreadRuntimeSnapshot(thread).ToWireRuntimeState() };
         var skipTransport = string.Equals(AppServerRequestContext.CurrentMethod,
             Contract.AppServerRpc.ThreadWorktreeHandoff.Name, StringComparison.Ordinal)
             ? AppServerRequestContext.CurrentTransport : null;

@@ -174,6 +174,8 @@ public sealed class SubAgentTurnCompletionTests
         Assert.Contains(context.ParentThread.Id, signaled);
         var child = await service.GetThreadAsync(childId!);
         Assert.False(service.GetThreadRuntimeSnapshot(child).HasBackgroundWork);
+        await service.UnloadIdleThreadsAsync(DateTimeOffset.UtcNow + TimeSpan.FromHours(1), SessionService.ThreadIdleUnloadDelay);
+        Assert.NotNull(service.TryGetLoadedThread(context.ParentThread.Id));
 
         signaled.Clear();
         await service.CancelTurnAsync(child.Id, Assert.Single(child.Turns).Id);
