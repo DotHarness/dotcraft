@@ -221,17 +221,12 @@ internal sealed partial class PluginRequestHandler
             return new AgentImportState(entry, AgentImportStates.Bundled);
 
         var source = entry.Marketplace!;
-        var marketplace = marketplaces.FirstOrDefault(candidate =>
-            string.Equals(MarketplaceKind(candidate.Kind), source.SourceKind, StringComparison.Ordinal)
-            && string.Equals(candidate.Source, source.Source, StringComparison.Ordinal)
-            && string.Equals(candidate.MarketplacePath, source.MarketplacePath, StringComparison.Ordinal)
-            && string.Equals(candidate.Ref ?? string.Empty, source.Ref ?? string.Empty, StringComparison.Ordinal));
+        var marketplace = FindConfiguredMarketplace(marketplaces, source);
         if (marketplace != null)
         {
-            var offered = discovery.Plugins.Any(plugin =>
+            var offered = discovery.CatalogEntries.Any(plugin =>
                 !plugin.Installed
-                && string.Equals(plugin.MarketplaceName, marketplace.Name, StringComparison.OrdinalIgnoreCase)
-                && PluginIds.EqualsCanonical(plugin.Manifest.Id, entry.Name));
+                && PluginIds.KeysEqual(plugin.Key, PluginIds.Key(entry.Name, marketplace.Name)));
             return offered
                 ? new AgentImportState(entry, AgentImportStates.Marketplace, MarketplaceName: marketplace.DisplayName ?? marketplace.Name)
                 : new AgentImportState(entry, AgentImportStates.Unavailable, MarketplaceName: marketplace.DisplayName ?? marketplace.Name, Reason: "notOffered");
@@ -244,6 +239,15 @@ internal sealed partial class PluginRequestHandler
             _ => new AgentImportState(entry, AgentImportStates.Unavailable, MarketplaceName: source.Name, Reason: "notOffered")
         };
     }
+
+    private static MarketplaceEntry? FindConfiguredMarketplace(
+        IReadOnlyList<MarketplaceEntry> marketplaces,
+        AgentPackageMarketplace source) =>
+        marketplaces.FirstOrDefault(candidate =>
+            string.Equals(MarketplaceKind(candidate.Kind), source.SourceKind, StringComparison.Ordinal)
+            && string.Equals(candidate.Source, source.Source, StringComparison.Ordinal)
+            && string.Equals(candidate.MarketplacePath, source.MarketplacePath, StringComparison.Ordinal)
+            && string.Equals(candidate.Ref ?? string.Empty, source.Ref ?? string.Empty, StringComparison.Ordinal));
 
     private AgentImport FindAgentImport(string importId)
     {

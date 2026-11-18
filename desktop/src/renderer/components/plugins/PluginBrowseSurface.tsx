@@ -206,7 +206,7 @@ export function PluginBrowseSurface({
               <div style={compactGrid}>
                 {section.plugins.map((plugin) => (
                   <PluginCatalogItem
-                    key={plugin.id}
+                    key={plugin.key}
                     plugin={plugin}
                     tryLabel={t('plugins.tryInChat')}
                     installLabel={t('plugins.install')}

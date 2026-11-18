@@ -6,6 +6,16 @@
   "properties": {
     "id": {
       "type": "string"
+    },
+    "marketplaceName": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "additionalProperties": true

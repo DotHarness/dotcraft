@@ -178,7 +178,7 @@ internal sealed partial class PluginRequestHandler
         var marketplaces = ConfiguredMarketplaces();
         foreach (var plugin in plugins)
         {
-            var offeredBy = catalog.FirstOrDefault(item => PluginIds.EqualsCanonical(item.Manifest.Id, plugin.Manifest.Id));
+            var offeredBy = catalog.FirstOrDefault(item => PluginIds.KeysEqual(item.Key, plugin.Key));
             var marketplace = marketplaces.FirstOrDefault(item =>
                 string.Equals(item.Name, offeredBy?.MarketplaceName, StringComparison.OrdinalIgnoreCase));
             if (offeredBy != null && marketplace == null)
@@ -357,7 +357,7 @@ internal sealed partial class PluginRequestHandler
         }
 
         var pluginId = PluginIds.Canonicalize(entry.Name);
-        DeployCatalogPlugin(pluginId);
+        DeployCatalogPlugin(PluginIds.Key(pluginId, FindConfiguredMarketplace(ConfiguredMarketplaces(), entry.Marketplace!)?.Name));
         installedPlugins.Add(pluginId);
     }
 

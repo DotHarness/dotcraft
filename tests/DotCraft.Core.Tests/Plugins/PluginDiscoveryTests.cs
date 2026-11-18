@@ -522,25 +522,6 @@ public sealed class PluginDiscoveryTests
         }
     }
 
-    [Fact]
-    public void BuiltInPluginCatalog_BundledPluginSuppressesRegistryDuplicate()
-    {
-        var root = NewTempDir();
-        var bundledRoot = Path.Combine(root, "bundled");
-        var registryRoot = Path.Combine(root, "registry");
-        WriteSkillOnlyPlugin(Path.Combine(bundledRoot, "demo"), id: "demo", displayName: "Bundled Demo");
-        WriteRegistryMarketplace(registryRoot, "demo");
-        WriteSkillOnlyPlugin(Path.Combine(registryRoot, "plugins", "demo"), id: "demo", displayName: "Registry Demo");
-        var config = new AppConfig();
-        config.Plugins.PluginRegistries.Add(new AppConfig.PluginRegistryConfig { Url = registryRoot });
-
-        var result = new BuiltInPluginCatalog([bundledRoot], config.Plugins).Discover();
-
-        var plugin = Assert.Single(result.Plugins, plugin => plugin.Manifest.Id == "demo");
-        Assert.Equal("Bundled Demo", plugin.Manifest.DisplayName);
-        Assert.Contains(result.Diagnostics, d => d.Code == "DuplicateBuiltInPluginId");
-    }
-
     [Theory]
     [InlineData("./../demo", "local", "AVAILABLE", "demo", "InvalidPluginRegistryEntryPath")]
     [InlineData(null, "local", "AVAILABLE", "manifest-demo", "PluginRegistryManifestIdMismatch")]
@@ -600,7 +581,7 @@ public sealed class PluginDiscoveryTests
         config.Plugins.PluginRegistries.Add(new AppConfig.PluginRegistryConfig { Url = registryRoot });
 
         var diagnostics = new BuiltInPluginDeployer(workspacePluginsRoot, [], config.Plugins)
-            .DeployPlugin("registry-install");
+            .DeployPlugin("registry-install@test-registry");
 
         Assert.DoesNotContain(diagnostics, d => d.Severity == PluginDiagnosticSeverity.Error);
         Assert.True(File.Exists(Path.Combine(workspacePluginsRoot, "registry-install", ".craft-plugin", "plugin.json")));

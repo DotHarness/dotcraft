@@ -106,15 +106,19 @@ export function PluginDetailView({
                 }}
               />
             )}
-            <PluginPrimaryAction
-              installed={plugin.installed}
-              enabled={plugin.enabled}
-              installing={installing}
-              enabling={enabling}
-              onInstall={onInstall}
-              onEnable={onEnable}
-              onTryInChat={onTryInChat}
-            />
+            {plugin.installed || plugin.installable ? (
+              <PluginPrimaryAction
+                installed={plugin.installed}
+                enabled={plugin.enabled}
+                installing={installing}
+                enabling={enabling}
+                onInstall={onInstall}
+                onEnable={onEnable}
+                onTryInChat={onTryInChat}
+              />
+            ) : (
+              <span className={styles.unavailableNote}>{t('plugins.installedFromOtherSource')}</span>
+            )}
           </div>
         </div>
       </header>

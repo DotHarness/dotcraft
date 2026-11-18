@@ -1,9 +1,12 @@
 import { create } from 'zustand'
 import type { PluginDesktopInfo } from '@dotcraft/sdk/contracts'
 import {
+  findPluginEntry,
+  hasOtherEntries,
   normalizeMarketplace,
   normalizePlugin,
   operationResultPatch,
+  pluginKeyParams,
   requireRevision,
   validRevision,
   type PluginOperationResult
@@ -14,7 +17,7 @@ export type {
   PluginOperationResult,
   PluginRuntimeProjection
 } from './pluginSnapshot'
-export { operationFailureMessage } from './pluginSnapshot'
+export { findPluginEntry, operationFailureMessage, pluginKeyParams } from './pluginSnapshot'
 
 export interface PluginInterface {
   displayName?: string | null
@@ -170,6 +173,7 @@ export interface MarketplaceFailure {
 
 export interface PluginEntry {
   id: string
+  key: string
   displayName: string
   description?: string | null
   version?: string | null
@@ -220,7 +224,7 @@ interface PluginState {
   diagnostics: PluginDiagnosticEntry[]
   loading: boolean
   error: string | null
-  selectedPluginId: string | null
+  selectedPluginKey: string | null
   selectedPlugin: PluginEntry | null
   detailLoading: boolean
   snapshotRevision: number
@@ -232,9 +236,9 @@ interface PluginState {
 
   resetForWorkspaceChange(): void
   fetchPlugins(): Promise<void>
-  selectPlugin(id: string): Promise<void>
+  selectPlugin(keyOrId: string): Promise<void>
   clearSelection(): void
-  installPlugin(id: string): Promise<PluginOperationResult>
+  installPlugin(keyOrId: string): Promise<PluginOperationResult>
   installLocalPlugin(path: string): Promise<PluginEntry | undefined>
   removePlugin(id: string): Promise<PluginOperationResult>
   togglePluginEnabled(id: string, enabled: boolean): Promise<PluginOperationResult>
@@ -255,7 +259,7 @@ export const usePluginStore = create<PluginState>((set, get) => ({
   diagnostics: [],
   loading: false,
   error: null,
-  selectedPluginId: null,
+  selectedPluginKey: null,
   selectedPlugin: null,
   detailLoading: false,
   snapshotRevision: 0,
@@ -271,7 +275,7 @@ export const usePluginStore = create<PluginState>((set, get) => ({
       diagnostics: [],
       loading: false,
       error: null,
-      selectedPluginId: null,
+      selectedPluginKey: null,
       selectedPlugin: null,
       detailLoading: false,
       snapshotRevision: 0,
@@ -306,12 +310,12 @@ export const usePluginStore = create<PluginState>((set, get) => ({
         plugins,
         marketplaces: (result.marketplaces ?? []).map(normalizeMarketplace),
         diagnostics,
-        selectedPlugin: state.selectedPluginId
-          ? plugins.find((plugin) => plugin.id === state.selectedPluginId) ?? null
+        selectedPlugin: state.selectedPluginKey
+          ? plugins.find((plugin) => plugin.key === state.selectedPluginKey) ?? null
           : state.selectedPlugin,
-        selectedPluginId: state.selectedPluginId && !plugins.some((plugin) => plugin.id === state.selectedPluginId)
+        selectedPluginKey: state.selectedPluginKey && !plugins.some((plugin) => plugin.key === state.selectedPluginKey)
           ? null
-          : state.selectedPluginId,
+          : state.selectedPluginKey,
         snapshotRevision,
         completeSnapshotRevision: snapshotRevision,
         catalogStatus: 'ready',
@@ -325,14 +329,15 @@ export const usePluginStore = create<PluginState>((set, get) => ({
     }
   },
 
-  async selectPlugin(id: string) {
-    set({ selectedPluginId: id, selectedPlugin: null, detailLoading: true })
+  async selectPlugin(keyOrId: string) {
+    const key = findPluginEntry(get().plugins, keyOrId)?.key ?? keyOrId
+    set({ selectedPluginKey: key, selectedPlugin: null, detailLoading: true })
     try {
-      const result = (await window.api.appServer.sendRequest('plugin/view', { id })) as {
+      const result = (await window.api.appServer.sendRequest('plugin/view', pluginKeyParams(key))) as {
         plugin?: PluginEntry
         snapshotRevision: number
       }
-      if (get().selectedPluginId !== id) return
+      if (get().selectedPluginKey !== key) return
       const snapshotRevision = requireRevision(result.snapshotRevision)
       if (snapshotRevision < get().snapshotRevision) {
         set({ detailLoading: false })
@@ -341,23 +346,24 @@ export const usePluginStore = create<PluginState>((set, get) => ({
       const plugin = result.plugin ? normalizePlugin(result.plugin) : null
       set({ selectedPlugin: plugin, snapshotRevision, detailLoading: false })
     } catch (e: unknown) {
-      if (get().selectedPluginId !== id) return
+      if (get().selectedPluginKey !== key) return
       const msg = e instanceof Error ? e.message : String(e)
       set({ error: msg, detailLoading: false })
     }
   },
 
   clearSelection() {
-    set({ selectedPluginId: null, selectedPlugin: null, detailLoading: false })
+    set({ selectedPluginKey: null, selectedPlugin: null, detailLoading: false })
   },
 
   // Every mutation returns the Host's final projection, even when rejected, so records are
   // replaced with server truth. Only a complete list can prove a missing plugin record is gone.
-  async installPlugin(id: string) {
+  async installPlugin(keyOrId: string) {
     try {
-      const result = (await window.api.appServer.sendRequest('plugin/install', { id })) as PluginOperationResult
+      const key = findPluginEntry(get().plugins, keyOrId)?.key ?? keyOrId
+      const result = (await window.api.appServer.sendRequest('plugin/install', pluginKeyParams(key))) as PluginOperationResult
       set((state) => operationResultPatch(state, result))
-      if (!result.plugin) await get().fetchPlugins()
+      if (!result.plugin || hasOtherEntries(get().plugins, result.plugin)) await get().fetchPlugins()
       return result
     } catch (e: unknown) {
       console.error('plugin/install failed:', e)
@@ -382,10 +388,11 @@ export const usePluginStore = create<PluginState>((set, get) => ({
     try {
       const result = (await window.api.appServer.sendRequest('plugin/remove', { id })) as PluginOperationResult
       set((state) => operationResultPatch(state, result))
-      if (!result.plugin) {
+      if (!result.plugin || hasOtherEntries(get().plugins, result.plugin)) {
         await get().fetchPlugins()
-        if (get().selectedPluginId === id) {
-          set({ selectedPluginId: null, selectedPlugin: null, detailLoading: false })
+        const selected = get().selectedPluginKey
+        if (selected && !get().plugins.some((plugin) => plugin.key === selected)) {
+          set({ selectedPluginKey: null, selectedPlugin: null, detailLoading: false })
         }
       }
       return result

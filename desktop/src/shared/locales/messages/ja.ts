@@ -1923,6 +1923,7 @@ export const MESSAGES_JA = {
   'plugins.unavailable': 'この AppServer はプラグイン管理をサポートしていません。',
   'plugins.updateFailed': 'プラグインの更新に失敗しました',
   'plugins.install': 'インストール',
+  'plugins.installedFromOtherSource': '別のソースからインストール済み',
   'plugins.installSuccess': '{{name}} をすべてのワークスペースにインストールしました',
   'plugins.installFailed': 'プラグインのインストールに失敗しました',
   'plugins.tryInChat': 'チャットで試してみる',

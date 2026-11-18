@@ -30,14 +30,22 @@ public sealed record DiscoveredPlugin(
 {
     /// <summary>Catalog-time availability of each declared cross-plugin dependency.</summary>
     public IReadOnlyList<PluginDependencyObservation> DependencyObservations { get; init; } = [];
+
+    public string Key => PluginIds.Key(Manifest.Id, MarketplaceName);
 }
 
 /// <summary>
-/// Result of a plugin discovery pass.
+/// Result of a plugin discovery pass. <see cref="Plugins"/> holds one entry per plugin id, preferring the installed plugin.
 /// </summary>
 public sealed record PluginDiscoveryResult(
     IReadOnlyList<DiscoveredPlugin> Plugins,
-    IReadOnlyList<PluginDiagnostic> Diagnostics);
+    IReadOnlyList<PluginDiagnostic> Diagnostics)
+{
+    /// <summary>Catalog entries whose id <see cref="Plugins"/> already represents under another key.</summary>
+    public IReadOnlyList<DiscoveredPlugin> AdditionalCatalogEntries { get; init; } = [];
+
+    public IEnumerable<DiscoveredPlugin> CatalogEntries => Plugins.Concat(AdditionalCatalogEntries);
+}
 
 /// <summary>
 /// Finds local DotCraft plugin manifests from workspace, configured, user-global, and bundled roots.
@@ -80,36 +88,37 @@ public sealed class PluginDiscoveryService(
         var diagnostics = new List<PluginDiagnostic>();
         var candidates = EnumerateCandidates(config, workspacePath, botPath, diagnostics);
         var discovered = DiscoverCandidates(config, candidates, diagnostics);
-        var seen = discovered.Select(static plugin => plugin.Manifest.Id)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var byId = discovered.ToDictionary(static plugin => plugin.Manifest.Id, StringComparer.OrdinalIgnoreCase);
+        var additional = new List<DiscoveredPlugin>();
 
         LogStage("plugin-local-manifests");
         var builtInDiscovery = new BuiltInPluginCatalog(builtInPluginSourceRoots, config.Plugins, craftHome).Discover();
         diagnostics.AddRange(builtInDiscovery.Diagnostics);
-        foreach (var builtIn in builtInDiscovery.Plugins)
+        foreach (var entry in builtInDiscovery.Plugins)
         {
-            if (seen.Add(builtIn.Manifest.Id))
+            if (!byId.TryGetValue(entry.Manifest.Id, out var existing))
             {
-                discovered.Add(builtIn);
-                continue;
+                byId[entry.Manifest.Id] = entry;
+                discovered.Add(entry);
             }
-
-            if (builtIn.MarketplaceName == null)
-                continue;
-            var index = discovered.FindIndex(plugin =>
-                string.Equals(plugin.Manifest.Id, builtIn.Manifest.Id, StringComparison.OrdinalIgnoreCase));
-            if (index >= 0
-                && discovered[index].SourceKind == PluginDiscoverySourceKind.UserGlobal
-                && BuiltInPluginDeployer.IsManagedBuiltInPluginRoot(discovered[index].Manifest.RootPath))
+            else if (!existing.Installed)
             {
-                discovered[index] = discovered[index] with { MarketplaceName = builtIn.MarketplaceName };
+                additional.Add(entry);
+            }
+            else if (!PluginIds.KeysEqual(existing.Key, entry.Key))
+            {
+                additional.Add(entry with { Installable = false });
             }
         }
 
         LogStage("plugin-built-in-catalog");
+        var projected = PluginDependencyCatalogProjection.Attach([.. discovered, .. additional]);
         var result = new PluginDiscoveryResult(
-            PluginDependencyCatalogProjection.Attach(discovered),
-            PluginDiagnostic.Deduplicate(diagnostics));
+            projected.Take(discovered.Count).ToArray(),
+            PluginDiagnostic.Deduplicate(diagnostics))
+        {
+            AdditionalCatalogEntries = projected.Skip(discovered.Count).ToArray()
+        };
         LogStage("plugin-dependency-projection");
         return result;
 
@@ -181,7 +190,10 @@ public sealed class PluginDiscoveryService(
                 enabled,
                 Installed: true,
                 Installable: false,
-                Removable: removable));
+                Removable: removable,
+                MarketplaceName: candidate.SourceKind == PluginDiscoverySourceKind.UserGlobal
+                    ? ManagedPluginMarker.TryRead(manifest.RootPath)?.MarketplaceName
+                    : null));
         }
 
         return discovered;

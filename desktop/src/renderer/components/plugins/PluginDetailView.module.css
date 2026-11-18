@@ -15,6 +15,13 @@
   background: rgb(255 255 255 / 82%);
 }
 
+.unavailableNote {
+  align-self: center;
+  color: var(--text-secondary);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line-height);
+}
+
 :global(html[data-theme='dark']) .promptBubble {
   border-color: transparent;
   color: var(--text-primary);

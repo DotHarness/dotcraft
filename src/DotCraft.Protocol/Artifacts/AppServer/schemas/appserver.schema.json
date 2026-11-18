@@ -11233,6 +11233,9 @@
             }
           ]
         },
+        "key": {
+          "type": "string"
+        },
         "lspServers": {
           "type": "array",
           "items": {
@@ -11305,6 +11308,16 @@
       "properties": {
         "id": {
           "type": "string"
+        },
+        "marketplaceName": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": true
@@ -11739,6 +11752,16 @@
         "id": {
           "type": "string"
         },
+        "marketplaceName": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "name": {
           "type": "string"
         }
@@ -11794,6 +11817,16 @@
       "properties": {
         "id": {
           "type": "string"
+        },
+        "marketplaceName": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": true

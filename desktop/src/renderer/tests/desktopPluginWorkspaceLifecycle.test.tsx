@@ -13,7 +13,7 @@ import { installDesktopApiMock } from './desktopApiMock'
 const revision = 'a'.repeat(64)
 const localSourceKey = 'c'.repeat(64)
 const plugin: PluginEntry = {
-  id: 'sample-extension', displayName: 'Sample', version: '1.0.0', installed: true, enabled: true,
+  id: 'sample-extension', key: 'sample-extension', displayName: 'Sample', version: '1.0.0', installed: true, enabled: true,
   installable: false, removable: true, source: 'local', rootPath: 'X:\\plugins\\sample-extension',
   desktop: { revision, entry: './desktop/dist/index.mjs' },
   functions: [], skills: [], mcpServers: [], lspServers: []

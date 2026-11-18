@@ -14164,6 +14164,13 @@
           "const": null
         },
         {
+          "name": "key",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
           "name": "lspServers",
           "type": "array<core.PluginLspServerInfo>",
           "required": false,
@@ -14260,6 +14267,13 @@
           "type": "string",
           "required": false,
           "nullable": false,
+          "const": null
+        },
+        {
+          "name": "marketplaceName",
+          "type": "string",
+          "required": false,
+          "nullable": true,
           "const": null
         }
       ],
@@ -14802,6 +14816,13 @@
           "const": null
         },
         {
+          "name": "marketplaceName",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "name",
           "type": "string",
           "required": true,
@@ -14883,6 +14904,13 @@
           "type": "string",
           "required": false,
           "nullable": false,
+          "const": null
+        },
+        {
+          "name": "marketplaceName",
+          "type": "string",
+          "required": false,
+          "nullable": true,
           "const": null
         }
       ],

@@ -26,7 +26,7 @@ export function PluginCatalogItem({
 }): JSX.Element {
   const [active, setActive] = useState(false)
   const showTry = plugin.installed && plugin.enabled && active && onTryInChat
-  const showInstall = !plugin.installed && onInstall
+  const showInstall = !plugin.installed && plugin.installable && onInstall
 
   return (
     <div
@@ -80,11 +80,11 @@ export function PluginCatalogItem({
           </Button>
         ) : plugin.installed ? (
           plugin.enabled ? <Check size={16} aria-hidden /> : null
-        ) : (
+        ) : plugin.installable ? (
           <span style={iconAction(active)}>
             <Plus size={16} aria-hidden />
           </span>
-        )}
+        ) : null}
       </span>
     </div>
   )

@@ -4,6 +4,7 @@ import { installDesktopApiMock } from './desktopApiMock'
 
 const plugin = (overrides: Partial<PluginEntry> = {}): PluginEntry => ({
   id: 'acme.review-core',
+  key: overrides.key ?? overrides.id ?? 'acme.review-core',
   displayName: 'Review Core',
   description: 'Native review tools.',
   version: '1.0.0',
@@ -55,7 +56,7 @@ function resetStore(patch: Partial<ReturnType<typeof usePluginStore.getState>> =
     diagnostics: [],
     loading: false,
     error: null,
-    selectedPluginId: null,
+    selectedPluginKey: null,
     selectedPlugin: null,
     detailLoading: false,
     snapshotRevision: 0,
@@ -132,7 +133,7 @@ describe('pluginStore snapshot revisions', () => {
     }))
     resetStore({
       plugins: [trusted()],
-      selectedPluginId: 'acme.review-core',
+      selectedPluginKey: 'acme.review-core',
       selectedPlugin: trusted(),
       snapshotRevision: 6,
       completeSnapshotRevision: 6
@@ -147,7 +148,7 @@ describe('pluginStore snapshot revisions', () => {
       diagnostics: [],
       loading: false,
       error: null,
-      selectedPluginId: null,
+      selectedPluginKey: null,
       selectedPlugin: null,
       detailLoading: false,
       snapshotRevision: 0,
@@ -285,7 +286,7 @@ describe('pluginStore operation outcomes', () => {
   })
 
   it('re-reads the list when a mutation leaves no record for the id', async () => {
-    resetStore({ plugins: [plugin()], selectedPluginId: 'acme.review-core' })
+    resetStore({ plugins: [plugin()], selectedPluginKey: 'acme.review-core' })
     sendRequest
       .mockResolvedValueOnce({ outcome: 'applied', plugin: null, affectedPlugins: [], snapshotRevision: 2 })
       .mockResolvedValueOnce({ plugins: [], diagnostics: [], snapshotRevision: 2 })
@@ -294,6 +295,79 @@ describe('pluginStore operation outcomes', () => {
 
     expect(sendRequest).toHaveBeenNthCalledWith(2, 'plugin/list', { includeDisabled: true })
     expect(usePluginStore.getState().plugins).toHaveLength(0)
-    expect(usePluginStore.getState().selectedPluginId).toBeNull()
+    expect(usePluginStore.getState().selectedPluginKey).toBeNull()
+  })
+})
+
+describe('pluginStore plugin keys', () => {
+  const entry = (marketplaceName: string, overrides: Partial<PluginEntry> = {}): PluginEntry => plugin({
+    id: 'review',
+    key: `review@${marketplaceName}`,
+    marketplaceName,
+    installed: false,
+    installable: true,
+    dotnet: null,
+    dotnetRuntime: null,
+    ...overrides
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetStore()
+    vi.stubGlobal('window', {})
+    installDesktopApiMock({ appServer: { sendRequest } })
+  })
+
+  it('views and installs the entry of the selected marketplace', async () => {
+    resetStore({ plugins: [entry('a'), entry('b')], snapshotRevision: 1, completeSnapshotRevision: 1 })
+    sendRequest
+      .mockResolvedValueOnce({ plugin: entry('b'), snapshotRevision: 1 })
+      .mockResolvedValueOnce({ outcome: 'applied', plugin: entry('b', { installed: true, installable: false }), affectedPlugins: [], snapshotRevision: 2 })
+      .mockResolvedValueOnce({
+        plugins: [entry('b', { installed: true, installable: false }), entry('a', { installable: false })],
+        diagnostics: [],
+        snapshotRevision: 2
+      })
+
+    await usePluginStore.getState().selectPlugin('review@b')
+    await usePluginStore.getState().installPlugin('review@b')
+
+    expect(sendRequest).toHaveBeenNthCalledWith(1, 'plugin/view', { id: 'review', marketplaceName: 'b' })
+    expect(sendRequest).toHaveBeenNthCalledWith(2, 'plugin/install', { id: 'review', marketplaceName: 'b' })
+    expect(sendRequest).toHaveBeenNthCalledWith(3, 'plugin/list', { includeDisabled: true })
+    const state = usePluginStore.getState()
+    expect(state.selectedPluginKey).toBe('review@b')
+    expect(state.plugins.find((candidate) => candidate.key === 'review@a')?.installable).toBe(false)
+  })
+
+  it('applies runtime projections only to the installed entry sharing an id', async () => {
+    const installed = entry('a', { installed: true, installable: false, enabled: false })
+    const other = entry('b', { installable: false })
+    resetStore({ plugins: [installed, other], snapshotRevision: 1, completeSnapshotRevision: 1 })
+    sendRequest.mockResolvedValueOnce({
+      outcome: 'applied',
+      plugin: plugin(),
+      affectedPlugins: [{
+        id: 'review',
+        installed: true,
+        enabled: true,
+        dotnetRuntime: {
+          state: 'active',
+          generationId: 'gen-3',
+          blockers: [],
+          leakedGenerations: 0,
+          restartRecommended: false,
+          trustStatus: 'trusted'
+        }
+      }],
+      diagnostics: [],
+      snapshotRevision: 2
+    })
+
+    await usePluginStore.getState().setPluginTrusted('acme.review-core', true)
+
+    const state = usePluginStore.getState()
+    expect(state.plugins.find((candidate) => candidate.key === 'review@a')?.enabled).toBe(true)
+    expect(state.plugins.find((candidate) => candidate.key === 'review@b')).toMatchObject({ installed: false, enabled: false })
   })
 })

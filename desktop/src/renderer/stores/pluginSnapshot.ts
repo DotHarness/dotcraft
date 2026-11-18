@@ -49,13 +49,14 @@ export function operationResultPatch(
   if (result.plugin) {
     const updated = normalizePlugin(result.plugin)
     plugins = upsertPlugin(plugins, updated)
-    if (selectedPlugin?.id === updated.id) selectedPlugin = updated
+    if (selectedPlugin?.key === updated.key) selectedPlugin = updated
   }
 
   for (const affected of result.affectedPlugins ?? []) {
     const fields = runtimeFields(affected)
-    plugins = plugins.map((plugin) => (plugin.id === affected.id ? { ...plugin, ...fields } : plugin))
-    if (selectedPlugin && selectedPlugin.id === affected.id) selectedPlugin = { ...selectedPlugin, ...fields }
+    const matches = (plugin: PluginEntry): boolean => plugin.installed && plugin.id === affected.id
+    plugins = plugins.map((plugin) => (matches(plugin) ? { ...plugin, ...fields } : plugin))
+    if (selectedPlugin && matches(selectedPlugin)) selectedPlugin = { ...selectedPlugin, ...fields }
   }
 
   return { plugins, selectedPlugin, snapshotRevision }
@@ -103,9 +104,27 @@ export function normalizePlugin(plugin: PluginEntry): PluginEntry {
 }
 
 export function upsertPlugin(plugins: PluginEntry[], updated: PluginEntry): PluginEntry[] {
-  const found = plugins.some((plugin) => plugin.id === updated.id)
+  const found = plugins.some((plugin) => plugin.key === updated.key)
   if (!found) return [...plugins, updated]
-  return plugins.map((plugin) => (plugin.id === updated.id ? updated : plugin))
+  return plugins.map((plugin) => (plugin.key === updated.key ? updated : plugin))
+}
+
+export function findPluginEntry(plugins: PluginEntry[], keyOrId: string): PluginEntry | undefined {
+  return plugins.find((plugin) => plugin.key === keyOrId)
+    ?? plugins.find((plugin) => plugin.installed && plugin.id === keyOrId)
+    ?? plugins.find((plugin) => plugin.id === keyOrId)
+}
+
+// Plugin ids never contain '@', so the first one separates the marketplace.
+export function pluginKeyParams(key: string): { id: string; marketplaceName?: string } {
+  const separator = key.indexOf('@')
+  return separator < 0
+    ? { id: key }
+    : { id: key.slice(0, separator), marketplaceName: key.slice(separator + 1) }
+}
+
+export function hasOtherEntries(plugins: PluginEntry[], updated: PluginEntry): boolean {
+  return plugins.some((plugin) => plugin.id === updated.id && plugin.key !== updated.key)
 }
 
 // A projection carries only these fields; the rest of the record in state is already normalized.

@@ -2877,6 +2877,10 @@ public sealed class PluginInfo : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> Installable { get; init; }
 
+    [JsonPropertyName("key")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Key { get; init; }
+
     [JsonPropertyName("installed")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> Installed { get; init; }
@@ -2952,6 +2956,10 @@ public sealed class PluginInstallParams : ExtensibleJsonObject
     [JsonPropertyName("id")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> Id { get; init; }
+
+    [JsonPropertyName("marketplaceName")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> MarketplaceName { get; init; }
 
 }
 
@@ -3295,6 +3303,10 @@ public sealed class PluginSkillReadParams : ExtensibleJsonObject
     [JsonPropertyName("id")]
     public required string Id { get; init; }
 
+    [JsonPropertyName("marketplaceName")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> MarketplaceName { get; init; }
+
     [JsonPropertyName("name")]
     public required string Name { get; init; }
 }
@@ -3316,6 +3328,10 @@ public sealed class PluginViewParams : ExtensibleJsonObject
     [JsonPropertyName("id")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> Id { get; init; }
+
+    [JsonPropertyName("marketplaceName")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> MarketplaceName { get; init; }
 
 }
 

@@ -3,6 +3,7 @@ import { AtSign, FolderInput, Store } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import {
   operationFailureMessage,
+  pluginKeyParams,
   usePluginStore,
   type MarketplaceEntry,
   type PluginEntry,
@@ -49,6 +50,7 @@ type PluginMode = 'browse' | 'manage'
 
 interface PluginSkillPreview {
   pluginId: string
+  pluginKey: string
   skill: PluginSkillInfo
   content: string
   loading: boolean
@@ -128,11 +130,11 @@ export function PluginsView(): JSX.Element {
     if (mode === 'manage') void fetchSkills()
   }, [fetchSkills, mode])
 
-  const previewPluginId = pluginSkillPreview?.pluginId
+  const previewPluginKey = pluginSkillPreview?.pluginKey
   const previewSkillName = pluginSkillPreview?.skill.name
   useEffect(() => {
-    if (!previewPluginId || !previewSkillName) return
-    const skill = plugins.find((plugin) => plugin.id === previewPluginId)?.skills
+    if (!previewPluginKey || !previewSkillName) return
+    const skill = plugins.find((plugin) => plugin.key === previewPluginKey)?.skills
       .find((entry) => entry.name === previewSkillName)
     if (!skill) {
       setPluginSkillPreview(null)
@@ -140,18 +142,18 @@ export function PluginsView(): JSX.Element {
     }
     setPluginSkillPreview((current) => current ? { ...current, skill, loading: true, failed: false } : current)
     void window.api.appServer.sendRequest('plugin/skill/read', {
-      id: previewPluginId,
+      ...pluginKeyParams(previewPluginKey),
       name: previewSkillName
     }).then((result) => {
-      setPluginSkillPreview((current) => current?.pluginId === previewPluginId && current.skill.name === previewSkillName
+      setPluginSkillPreview((current) => current?.pluginKey === previewPluginKey && current.skill.name === previewSkillName
         ? { ...current, content: result.content, loading: false }
         : current)
     }).catch(() => {
-      setPluginSkillPreview((current) => current?.pluginId === previewPluginId && current.skill.name === previewSkillName
+      setPluginSkillPreview((current) => current?.pluginKey === previewPluginKey && current.skill.name === previewSkillName
         ? { ...current, loading: false, failed: true }
         : current)
     })
-  }, [plugins, previewPluginId, previewSkillName])
+  }, [plugins, previewPluginKey, previewSkillName])
 
   // Removing the last marketplace leaves the marketplace mode with nothing to show,
   // so the listing returns to the unfiltered view rather than looking empty.
@@ -186,7 +188,7 @@ export function PluginsView(): JSX.Element {
   // The dialog owns installed/app state for its own session and takes the live trust state from
   // the store, so completing the trust step advances the dialog without reopening it.
   const installDialogTrust = installTarget
-    ? plugins.find((entry) => entry.id === installTarget.id)?.dotnetRuntime
+    ? plugins.find((entry) => entry.key === installTarget.key)?.dotnetRuntime
     : undefined
   const installDialogPlugin = installTarget
     ? (installDialogTrust ? { ...installTarget, dotnetRuntime: installDialogTrust } : installTarget)
@@ -194,7 +196,7 @@ export function PluginsView(): JSX.Element {
   const installDialog = installDialogPlugin ? (
     <PluginInstallDialog
       plugin={installDialogPlugin}
-      installing={installingId === installDialogPlugin.id}
+      installing={installingId === installDialogPlugin.key}
       onClose={closeInstallDialog}
       onSetupComplete={() => {
         if (announceInstall) announceInstalled(installDialogPlugin)
@@ -202,13 +204,13 @@ export function PluginsView(): JSX.Element {
       }}
       onInstall={async () => {
         try {
-          setInstallingId(installDialogPlugin.id)
+          setInstallingId(installDialogPlugin.key)
           // Copying the bundle is not authority: an in-process plugin may still owe the trust step.
           const keepOpenForSetup = (installDialogPlugin.apps ?? []).length > 0 || installDialogPlugin.dotnet != null
-          await installPlugin(installDialogPlugin.id)
+          await installPlugin(installDialogPlugin.key)
           await fetchSkills()
           await fetchPlugins()
-          await selectPlugin(installDialogPlugin.id)
+          await selectPlugin(installDialogPlugin.key)
           if (keepOpenForSetup) {
             setAnnounceInstall(true)
             setInstallTarget({ ...installDialogPlugin, installed: true, enabled: true, installable: false })
@@ -259,6 +261,7 @@ export function PluginsView(): JSX.Element {
       clearSkillSelection()
       setPluginSkillPreview({
         pluginId: plugin.id,
+        pluginKey: plugin.key,
         skill,
         content: '',
         loading: true,
@@ -332,7 +335,7 @@ export function PluginsView(): JSX.Element {
       const installed = await installLocalPlugin(path)
       await fetchSkills()
       await fetchPlugins()
-      if (installed) await selectPlugin(installed.id)
+      if (installed) await selectPlugin(installed.key)
       // Only now is it known whether the folder carried in-process code, and the trust step
       // it owes is the same one a catalog install completes.
       if (installed?.dotnet) {
@@ -375,16 +378,16 @@ export function PluginsView(): JSX.Element {
   }
 
   async function handleInstallFromDetail(plugin: PluginEntry): Promise<void> {
-    if (installingId === plugin.id) return
+    if (installingId === plugin.key) return
     try {
-      setInstallingId(plugin.id)
-      const result = await installPlugin(plugin.id)
+      setInstallingId(plugin.key)
+      const result = await installPlugin(plugin.key)
       if (result.outcome === 'notApplied') {
         addToast(operationFailureMessage(result) ?? t('plugins.installFailed'), 'error')
         return
       }
       await fetchSkills()
-      const installed = usePluginStore.getState().plugins.find((entry) => entry.id === plugin.id)
+      const installed = usePluginStore.getState().plugins.find((entry) => entry.key === plugin.key)
       if (!installed?.installed) {
         addToast(t('plugins.installFailed'), 'error')
         return
@@ -399,7 +402,7 @@ export function PluginsView(): JSX.Element {
     } catch {
       addToast(t('plugins.installFailed'), 'error')
     } finally {
-      setInstallingId((current) => current === plugin.id ? null : current)
+      setInstallingId((current) => current === plugin.key ? null : current)
     }
   }
 
@@ -472,7 +475,7 @@ export function PluginsView(): JSX.Element {
             clearSelection()
           }}
           onInstall={() => void handleInstallFromDetail(selectedPlugin)}
-          installing={installingId === selectedPlugin.id}
+          installing={installingId === selectedPlugin.key}
           onRemove={async () => {
             const pluginName = pluginTitle(selectedPlugin)
             const ok = await confirm({
@@ -512,7 +515,7 @@ export function PluginsView(): JSX.Element {
               setEnablingLspId(selectedPlugin.id)
               await useConfigStore.getState().write([{ keyPath: 'Tools.Lsp.Enabled', value: true }])
               await fetchPlugins()
-              await selectPlugin(selectedPlugin.id)
+              await selectPlugin(selectedPlugin.key)
               addToast(t('plugins.lsp.enableSuccess'), 'success')
             } catch {
               addToast(t('plugins.lsp.enableFailed'), 'error')
@@ -583,7 +586,7 @@ export function PluginsView(): JSX.Element {
           onSurfaceChange={setSurface}
           onPluginQueryChange={setManagePluginQuery}
           onSkillQueryChange={setSkillManageQuery}
-          onOpenPlugin={(plugin) => void selectPlugin(plugin.id)}
+          onOpenPlugin={(plugin) => void selectPlugin(plugin.key)}
           onInstallPlugin={setInstallTarget}
           onTogglePlugin={(plugin, enabled) => void handleToggleEnabled(plugin, enabled)}
           onToggleSkill={async (skill, enabled) => {
@@ -625,7 +628,7 @@ export function PluginsView(): JSX.Element {
       onQueryChange={setBrowseQuery}
       onPublisherFilterChange={setPublisherFilter}
       onCategoryFilterChange={setCategoryFilter}
-      onOpenPlugin={(plugin) => void selectPlugin(plugin.id)}
+      onOpenPlugin={(plugin) => void selectPlugin(plugin.key)}
       onTryPlugin={stagePluginTryInChat}
       onInstallPlugin={setInstallTarget}
       onRefreshMarketplace={(marketplace) => void handleRefreshMarketplace(marketplace)}

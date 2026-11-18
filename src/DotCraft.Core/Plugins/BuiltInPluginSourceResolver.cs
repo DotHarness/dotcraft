@@ -6,7 +6,10 @@ internal sealed record BuiltInPluginSource(
     PluginManifest Manifest,
     string PluginRoot,
     string ContainerRoot,
-    string? MarketplaceName = null);
+    string? MarketplaceName = null)
+{
+    public string Key => PluginIds.Key(Manifest.Id, MarketplaceName);
+}
 
 internal static class BuiltInPluginSourceResolver
 {
@@ -20,7 +23,7 @@ internal static class BuiltInPluginSourceResolver
     {
         var roots = sourceRoots ?? ResolveEnvironmentRoots();
         var sources = new List<BuiltInPluginSource>();
-        var seenPluginIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var seenKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var seenPluginRoots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var root in roots)
@@ -59,33 +62,16 @@ internal static class BuiltInPluginSourceResolver
                 if (manifest == null)
                     continue;
 
-                if (!seenPluginIds.Add(manifest.Id))
-                {
-                    diagnostics.Add(PluginDiagnostic.Warning(
-                        "DuplicateBuiltInPluginId",
-                        $"Built-in plugin '{manifest.Id}' was skipped because a higher-priority bundled root already provided it.",
-                        manifest.Id,
-                        path: manifest.ManifestPath));
-                    continue;
-                }
-
-                sources.Add(new BuiltInPluginSource(manifest, fullPluginRoot, fullRoot));
+                var source = new BuiltInPluginSource(manifest, fullPluginRoot, fullRoot);
+                if (seenKeys.Add(source.Key))
+                    sources.Add(source);
             }
         }
 
         foreach (var registryPlugin in PluginSourceRegistryCatalog.Discover(pluginsConfig, diagnostics, craftHome))
         {
-            if (!seenPluginIds.Add(registryPlugin.Manifest.Id))
-            {
-                diagnostics.Add(PluginDiagnostic.Warning(
-                    "DuplicateBuiltInPluginId",
-                    $"Marketplace plugin '{registryPlugin.Manifest.Id}' was skipped because a higher-priority source already provided it.",
-                    registryPlugin.Manifest.Id,
-                    path: registryPlugin.PluginRoot));
-                continue;
-            }
-
-            sources.Add(registryPlugin);
+            if (seenKeys.Add(registryPlugin.Key))
+                sources.Add(registryPlugin);
         }
 
         return sources;

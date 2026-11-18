@@ -1925,6 +1925,7 @@ export const MESSAGES_KO = {
   'plugins.unavailable': '이 AppServer은(는) 플러그인 관리를 지원하지 않습니다.',
   'plugins.updateFailed': '플러그인을 업데이트하지 못했습니다.',
   'plugins.install': '설치하다',
+  'plugins.installedFromOtherSource': '다른 소스에서 설치됨',
   'plugins.installSuccess': '모든 작업 공간에 {{name}} 설치됨',
   'plugins.installFailed': '플러그인을 설치하지 못했습니다.',
   'plugins.tryInChat': '채팅으로 시도해 보세요',

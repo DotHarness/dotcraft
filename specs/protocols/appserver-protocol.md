@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.12.2 |
+| **Version** | 0.13.0 |
 | **Status** | Living |
-| **Date** | 2026-11-17 |
+| **Date** | 2026-11-18 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
 | **Related Specs** | [Plugin Architecture](../architecture/plugin-architecture.md), [.NET Extension Runtime](../architecture/dotnet-extensions.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md) |
 
@@ -1466,16 +1466,21 @@ Each response projects plugin metadata and workflow summaries from the same disc
 
 `MarketplaceInfo`: `name` (from the marketplace document), optional `displayName`, `sourceType` (`git`, `local`, `archive`), resolved `source`, `ref` and `sparsePaths` (git only), `marketplacePath`, materialized `root`, `lastUpdated`, `revision`, `removable` (`false` for the host-provided default marketplace), and `pluginIds` in marketplace order. Plugins contributed by a marketplace carry `marketplaceName`, kept while the DotCraft-managed install remains; bundled, workspace-local, and user-owned plugins omit it.
 
+Entries with the same `id` may appear more than once: the installed plugin and catalog entries from other marketplaces. `key` tells them apart (see the table below).
+
+Methods that select one entry take `id` and an optional `marketplaceName`. With `marketplaceName`, they select the entry whose key is `<id>@<marketplaceName>`. Without it, they select the installed plugin with that id, or else its first catalog entry in source order. Other plugin methods act on the installed plugin and take `id` alone.
+
 #### `plugin/view`
 
-Params `id`. Result `{ plugin, snapshotRevision }`.
+Params `id`, optional `marketplaceName`. Result `{ plugin, snapshotRevision }`.
 
 `PluginInfo` semantics beyond the obvious:
 
 | Field | Semantics |
 |-------|-----------|
+| `key` | The plugin key from [Plugin Architecture](../architecture/plugin-architecture.md#27-plugin-keys): `<id>@<marketplaceName>` for marketplace catalog entries and marketplace-managed installs, otherwise `id`. Unique within one `plugin/list`. Clients key rows and selection by it, while runtime methods and contribution attribution use `id`. |
 | `installed` | The plugin exists in a discovered local root and can contribute runtime behavior. |
-| `installable` | A known bundled or registry catalog entry that is not installed. |
+| `installable` | A known bundled or registry catalog entry that is not installed and whose id is not installed from another key. |
 | `removable` | A directory under `<craft-home>/plugins/<id>` or the workspace `.craft/plugins/<id>` that DotCraft can remove. |
 | `functions` | Metadata for in-process Tools published by the current active .NET generation; empty otherwise. |
 | `skills` | Declared skills (`name`, `description`, `displayName`, `shortDescription`, `enabled`, optional icons from that skill's own interface metadata, available for catalog previews too). Enablement is managed through `skills/setEnabled` on the matching `skills/list` entry. |
@@ -1521,7 +1526,7 @@ Downloads an installed, enabled plugin's Desktop module over the authenticated t
 
 #### `plugin/skill/read`
 
-Params `id`, `name`. Result `{ id, name, content }`: the source Markdown of a skill declared by a discovered plugin, installed or catalog. The server resolves the file from the discovery snapshot; clients cannot supply paths. Unknown plugins and skills are invalid params. Reading never installs, enables, loads, or executes anything.
+Params `id`, optional `marketplaceName`, `name`. Result `{ id, name, content }`: the source Markdown of a skill declared by a discovered plugin, installed or catalog. The server resolves the file from the discovery snapshot; clients cannot supply paths. Unknown plugins and skills are invalid params. Reading never installs, enables, loads, or executes anything.
 
 #### `PluginOperationResult`
 
@@ -1539,7 +1544,7 @@ Successful mutations other than `plugin/setTrusted` refresh plugin-contributed s
 
 #### `plugin/install`
 
-Params `id`. Installs a known catalog plugin for the user (available in every workspace) by copying it to `<craft-home>/plugins/<id>` with a source fingerprint marker, and clears the workspace's disabled record for the id. Bundled entries require configured bundled source roots; registry entries require a loadable registry source. An installed id returns `noChange`. Install never installs, enables, updates, or fetches dependencies and never grants trust, so a new `dotnet` plugin returns `applied` with its runtime `blocked` on `PluginUntrusted`.
+Params `id`, optional `marketplaceName`. Installs the selected catalog entry for the user (available in every workspace) by copying it to `<craft-home>/plugins/<id>` with a marker recording its source fingerprint and marketplace, and clears the workspace's disabled record for the id. Bundled entries require configured bundled source roots, and registry entries require a loadable registry source. An entry already installed from the same key returns `noChange`. An id installed from another key or by a user-owned plugin fails with `-32602`. Install never installs, enables, updates, or fetches dependencies and never grants trust, so a new `dotnet` plugin returns `applied` with its runtime `blocked` on `PluginUntrusted`.
 
 #### `plugin/installLocal`
 

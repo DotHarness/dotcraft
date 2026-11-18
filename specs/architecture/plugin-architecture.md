@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.6 |
+| **Version** | 0.10.0 |
 | **Status** | Living |
-| **Date** | 2026-10-25 |
+| **Date** | 2026-11-18 |
 
 Purpose: define the durable architecture for DotCraft plugins, including plugin-contained skills and
 workflows, local plugin manifests, plugin-bundled MCP servers, client-facing plugin metadata, and the
@@ -249,9 +249,27 @@ DotCraft discovers plugin roots in priority order:
 5. Configured plugin registry snapshots.
 
 Explicit roots may be one plugin root or a container of plugin roots. Missing roots are skipped
-with diagnostics. When multiple roots contain the same plugin id, the higher-priority root wins and
-lower-priority duplicates are skipped with diagnostics; a workspace, explicit, or user-global plugin
-suppresses the bundled catalog entry with the same id.
+with diagnostics. Roots 1 to 3 hold installed plugins. When several of them contain the same plugin
+id, the higher-priority root wins and lower-priority duplicates are skipped with diagnostics. The
+plugin id is the runtime identity that skills, workflows, MCP and LSP runtime names, hooks,
+settings, trust, and plugin data key on, so at most one plugin per id is installed and contributes.
+
+### 2.7 Plugin keys
+
+Roots 4 and 5 are catalogs of installable entries. Each catalog entry has a plugin key: the plugin id
+for a bundled entry, and `<id>@<marketplace>` for a marketplace entry, where `<marketplace>` is the
+marketplace document name. The key is the catalog, install, and update identity, and it is never a
+runtime or model-visible name.
+
+- Entries with different keys coexist, so every marketplace that lists a plugin id shows its own
+  entry for it.
+- Within one key, the first entry in source order wins and later duplicates are skipped without a
+  diagnostic, because a source configured twice or a repeated marketplace entry gives the user
+  nothing to act on.
+- A managed install records the key it was installed from. It hides the catalog entry with that key
+  and receives updates only from it.
+- A catalog entry whose id is already installed from another key, or by a user-owned or
+  workspace-local plugin, stays listed but is not installable until that plugin is removed.
 
 ## 3. Manifest Path Rules
 
@@ -304,7 +322,7 @@ snapshots survive container replacement. Registry catalog entries are source pat
 registry snapshot.
 
 Catalog entries are visible before installation but inactive until `plugin/install` copies them
-into `<craft-home>/plugins/<pluginId>`; registry availability never installs anything. Install
+into `<craft-home>/plugins/<pluginId>`. Registry availability never installs anything. Install
 validates the marketplace entry and the target manifest id. DotCraft never executes code directly
 from a registry URL.
 
@@ -314,7 +332,7 @@ sharing-violation failures up to five times, waiting 100, 200, 300, 400, and 500
 and exhausted retries fail the affected plugin operation; staging paths and rollback behavior are unchanged.
 
 Installed built-in and registry plugins carry a `.builtin` marker holding a fingerprint of the
-source directory. Marked directories are DotCraft-owned and may be refreshed or removed by explicit
+source directory and, for a marketplace install, the marketplace name that completes its plugin key. Marked directories are DotCraft-owned and may be refreshed or removed by explicit
 plugin lifecycle operations; unmarked directories are user-owned and never overwritten or removed
 automatically. Discovery and thread projections never update installed plugin directories. Marketplace
 refresh may refresh managed installations through the plugin mutation path, collecting failures per

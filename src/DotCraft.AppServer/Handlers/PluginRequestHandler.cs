@@ -82,6 +82,9 @@ internal sealed partial class PluginRequestHandler(
         var plugins = discovery.Plugins
             .Where(plugin => Read(p.IncludeDisabled) != false || plugin.Enabled)
             .Select(plugin => MapPluginToWire(plugin, diagnostics, hookSummaries, mcpSummaries, lspSummaries, skillIndex))
+            .Concat(discovery.AdditionalCatalogEntries
+                .Where(_ => Read(p.IncludeDisabled) != false)
+                .Select(plugin => MapAdditionalCatalogEntryToWire(plugin, skillIndex)))
             .OrderBy(plugin => Read(plugin.DisplayName), StringComparer.OrdinalIgnoreCase)
             .ToList();
 
@@ -116,15 +119,15 @@ internal sealed partial class PluginRequestHandler(
         var mcpSummaries = BuildPluginMcpSummaryIndex(discovery, diagnostics);
         var lspSummaries = BuildPluginLspSummaryIndex(discovery, diagnostics);
         var skillIndex = BuildSkillIndex();
-        var plugin = discovery.Plugins.FirstOrDefault(
-            candidate => PluginIds.EqualsCanonical(candidate.Manifest.Id, id));
-        if (plugin == null)
-            throw AppServerErrors.InvalidParams($"Plugin '{id}' was not found.");
+        var plugin = FindPluginEntry(discovery, id, Read(request.Params.MarketplaceName))
+            ?? throw AppServerErrors.InvalidParams($"Plugin '{id}' was not found.");
 
         return Task.FromResult(AppServerTypedResult<Contract.PluginViewResult>.FromResult(
             new Contract.PluginViewResult
             {
-                Plugin = MapPluginToWire(plugin, diagnostics, hookSummaries, mcpSummaries, lspSummaries, skillIndex),
+                Plugin = discovery.Plugins.Contains(plugin)
+                    ? MapPluginToWire(plugin, diagnostics, hookSummaries, mcpSummaries, lspSummaries, skillIndex)
+                    : MapAdditionalCatalogEntryToWire(plugin, skillIndex),
                 SnapshotRevision = CurrentPluginSnapshotRevision
             }));
     }
@@ -144,10 +147,8 @@ internal sealed partial class PluginRequestHandler(
         if (name.Length == 0)
             throw AppServerErrors.InvalidParams("'name' is required.");
 
-        var plugin = RefreshPluginRuntime().Plugins.FirstOrDefault(
-            candidate => PluginIds.EqualsCanonical(candidate.Manifest.Id, id));
-        if (plugin == null)
-            throw AppServerErrors.InvalidParams($"Plugin '{id}' was not found.");
+        var plugin = FindPluginEntry(RefreshPluginRuntime(), id, Read(request.Params.MarketplaceName))
+            ?? throw AppServerErrors.InvalidParams($"Plugin '{id}' was not found.");
 
         var skillsPath = plugin.Manifest.SkillsPath;
         var skillDirectory = string.IsNullOrWhiteSpace(skillsPath) || !Directory.Exists(skillsPath)
@@ -236,17 +237,21 @@ internal sealed partial class PluginRequestHandler(
 
         var pluginId = RequireLifecyclePluginId(request.Params.Id);
         var before = RefreshPluginRuntime();
-        var beforePlugin = before.Plugins.FirstOrDefault(candidate => PluginIds.EqualsCanonical(candidate.Manifest.Id, pluginId));
-        if (beforePlugin == null)
-            throw AppServerErrors.InvalidParams($"Plugin '{pluginId}' was not found.");
+        var beforePlugin = FindPluginEntry(before, pluginId, Read(request.Params.MarketplaceName))
+            ?? throw AppServerErrors.InvalidParams($"Plugin '{pluginId}' was not found.");
         if (beforePlugin.Installed)
             return AppServerTypedResult<Contract.PluginOperationResult>.FromResult(
                 BuildOperationResult(before, pluginId, "noChange", [], []));
         if (!beforePlugin.Installable)
-            throw AppServerErrors.InvalidParams($"Plugin '{pluginId}' is not installable.");
+        {
+            throw AppServerErrors.InvalidParams(before.Plugins.Any(plugin =>
+                    plugin.Installed && PluginIds.EqualsCanonical(plugin.Manifest.Id, pluginId))
+                ? $"Plugin '{pluginId}' is already installed from another source. Remove it before installing '{beforePlugin.Key}'."
+                : $"Plugin '{pluginId}' is not installable.");
+        }
         var commitToken = EnterMutationCommit(ct);
 
-        DeployCatalogPlugin(pluginId);
+        DeployCatalogPlugin(beforePlugin.Key);
 
         return await FinalizeInstalledPluginAsync(
             pluginId,
@@ -256,24 +261,6 @@ internal sealed partial class PluginRequestHandler(
             commitToken,
             ct);
     }
-
-    private void DeployCatalogPlugin(string pluginId)
-    {
-        var deployDiagnostics = new BuiltInPluginDeployer(
-                Path.Combine(PluginDataPath("user"), "plugins"),
-                builtInPluginSourceRoots,
-                appConfigMonitor?.Current.Plugins ?? new AppConfig.PluginsConfig(),
-                workspaceConfig.UserDataPath)
-            .DeployPlugin(pluginId);
-        PluginDiagnosticsLogger.Write(deployDiagnostics, logger);
-        if (deployDiagnostics.Any(d => IsBlockingDeployDiagnosticForPlugin(d, pluginId)))
-            throw AppServerErrors.InvalidParams($"Plugin '{pluginId}' could not be installed.");
-    }
-
-    private static bool IsBlockingDeployDiagnosticForPlugin(PluginDiagnostic diagnostic, string pluginId) =>
-        (diagnostic.Severity == PluginDiagnosticSeverity.Error || diagnostic.Code == "BuiltInPluginNotFound")
-        && !string.IsNullOrWhiteSpace(diagnostic.PluginId)
-        && PluginIds.EqualsCanonical(diagnostic.PluginId, pluginId);
 
     private async Task<AppServerTypedResult<Contract.PluginOperationResult>> HandlePluginInstallLocalAsync(
         AppServerTypedRequest<Contract.PluginInstallLocalParams> request,

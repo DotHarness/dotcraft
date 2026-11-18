@@ -257,7 +257,7 @@ public sealed class MarketplaceManagerTests
             PluginsConfigPersistence.ReadPluginRegistries(ConfigPath(craftHome)));
         var userPlugins = Path.Combine(craftHome, "plugins");
         Assert.DoesNotContain(
-            new BuiltInPluginDeployer(userPlugins, [], config.Plugins, craftHome).DeployPlugin("example-plugin"),
+            new BuiltInPluginDeployer(userPlugins, [], config.Plugins, craftHome).DeployPlugin("example-plugin@example-marketplace"),
             diagnostic => diagnostic.Severity == PluginDiagnosticSeverity.Error);
         WritePlugin(Path.Combine(userPlugins, "owned-plugin"), "owned-plugin");
         var workspace = NewTempDir();

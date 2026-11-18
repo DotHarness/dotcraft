@@ -244,7 +244,7 @@ function PluginsManageList({
       <PluginDiagnosticsBanner diagnostics={diagnostics} column={catalogStyles.manageColumn} />
       {plugins.map((plugin) => (
         <PluginManageItem
-          key={plugin.id}
+          key={plugin.key}
           plugin={plugin}
           pending={pendingPluginIds.has(plugin.id)}
           onOpen={() => onOpen(plugin)}
@@ -300,9 +300,9 @@ function PluginManageItem({
             size="sm"
             aria-label={t('plugins.manage.toggleLabel', { name: pluginTitle(plugin) })}
           />
-        ) : (
+        ) : plugin.installable ? (
           <Button size="sm" onClick={onInstall}>{t('plugins.install')}</Button>
-        )}
+        ) : null}
       </span>
     </div>
   )

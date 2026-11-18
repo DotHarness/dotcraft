@@ -2402,6 +2402,7 @@ export const MESSAGES_EN = {
   'plugins.unavailable': 'This AppServer does not support plugin management.',
   'plugins.updateFailed': 'Failed to update plugin',
   'plugins.install': 'Install',
+  'plugins.installedFromOtherSource': 'Installed from another source',
   'plugins.installBrowserUse': 'Install Browser',
   'plugins.installing': 'Installing…',
   'plugins.installSuccess': '{{name}} installed for all workspaces',
