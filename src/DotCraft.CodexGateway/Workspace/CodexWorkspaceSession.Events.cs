@@ -39,6 +39,11 @@ public sealed partial class CodexWorkspaceSession
                 case "thread/status/changed":
                     projected = new { threadId, status = WorkspaceProjector.RuntimeStatus(p.Get("runtime")) };
                     break;
+                case "thread/queue/updated":
+                    if (!_attached.ContainsKey(thread)) continue;
+                    method = "thread/queue/changed";
+                    projected = new { threadId };
+                    break;
                 case "turn/started":
                 case "turn/completed":
                 case "turn/cancelled":

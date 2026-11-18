@@ -110,6 +110,23 @@ public sealed class CodexHandshakeSessionTests
         Assert.DoesNotContain("private-source-details", string.Join('\n', diagnostics));
     }
 
+    [Fact]
+    public async Task QueueListAndChangesRequireExperimentalApi()
+    {
+        var messages = new List<JsonElement>();
+        await using var session = new CodexHandshakeSession(new() { StateDirectory = Path.GetTempPath() },
+            Status, Capture(messages), requestHandler: (_, _, _) => Task.FromResult<object?>(new { }));
+        await ReceiveAsync(session, """
+            {"id":1,"method":"initialize","params":{"clientInfo":{"name":"remote-test","version":"1.0"}}}
+            """);
+        await ReceiveAsync(session, """{"id":2,"method":"thread/queue/list","params":{"threadId":"thread"}}""");
+        Assert.Equal(-32600, messages[^1].GetProperty("error").GetProperty("code").GetInt32());
+
+        await session.SendAsync(JsonSerializer.Deserialize<JsonElement>(
+            """{"method":"thread/queue/changed","params":{"threadId":"thread"}}"""), CancellationToken.None);
+        Assert.Equal(2, messages.Count);
+    }
+
     private const string Initialize = """
         {"id":1,"method":"initialize","params":{"clientInfo":{"name":"remote-test","version":"1.0"},"capabilities":{"experimentalApi":true,"optOutNotificationMethods":["thread/started"]}}}
         """;

@@ -4,7 +4,7 @@ using Xunit;
 
 namespace DotCraft.CodexGateway.Tests;
 
-public sealed class RealWorkspaceGatewayTests
+public sealed partial class RealWorkspaceGatewayTests
 {
     [Fact]
     public async Task OneHostSharesTwoRealWorkspaceSessionsWithoutCollidingTurnOrItemRoutes()

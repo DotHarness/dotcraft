@@ -104,7 +104,9 @@ internal sealed partial class WorkspaceProjector(WorkspaceRoutes routes, string 
                     p.Text("triggerKind") is "subagentMailbox" or "terminal" or "subagent" or "workflow")
                     return null;
                 result["type"] = "userMessage";
-                result["clientId"] = p.Text("clientUserMessageId");
+                result["clientId"] = p.Text("clientUserMessageId") ??
+                    (p.Text("deliveryMode") is "queued" or "guidance" && p.Text("triggerKind") is null &&
+                     p.Text("queuedInputId") is { } queuedId ? QueueId(thread, queuedId) : null);
                 result["content"] = p.Get("nativeInputParts").ValueKind == JsonValueKind.Array
                     ? p.Get("nativeInputParts").Rows().Select(InputPart).ToArray()
                     : new[] { TextPart(p.Text("text") ?? "") };
@@ -162,6 +164,20 @@ internal sealed partial class WorkspaceProjector(WorkspaceRoutes routes, string 
         RememberVisibleSource(source, merged);
         return merged;
     }
+
+    public object QueuedSubmission(string thread, JsonElement source)
+    {
+        var id = QueueId(thread, source.Required("id"));
+        return new
+        {
+            id,
+            input = source.GetProperty("nativeInputParts").EnumerateArray().Select(InputPart).ToArray(),
+            clientUserMessageId = source.Text("clientUserMessageId") ?? id,
+            responsesapiClientMetadata = (object?)null
+        };
+    }
+
+    private string QueueId(string thread, string sourceId) => routes.External("queuedInput", thread, item: sourceId);
 
     private static object TextPart(string text) => new { type = "text", text, text_elements = Array.Empty<object>() };
 

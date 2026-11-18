@@ -77,6 +77,12 @@ public sealed class CodexHandshakeSession(
             return;
         }
 
+        if (method == "thread/queue/list" && !_experimentalApi)
+        {
+            await ErrorAsync(id, -32600, "thread/queue/list requires experimentalApi capability", cancellationToken);
+            return;
+        }
+
         if (requestHandler is not null)
         {
             try
@@ -196,8 +202,8 @@ public sealed class CodexHandshakeSession(
 
     public Task SendAsync(JsonElement message, CancellationToken cancellationToken)
     {
-        if (!message.TryGetProperty("id", out _) && message.TryGetProperty("method", out var method)
-            && _optOutNotifications.Contains(method.GetString()!))
+        if (!message.TryGetProperty("id", out _) && message.Text("method") is { } method &&
+            (_optOutNotifications.Contains(method) || (method == "thread/queue/changed" && !_experimentalApi)))
             return Task.CompletedTask;
         CodexGatewayDiagnostics.Notification(observedMethod, message);
         return send(message, cancellationToken);

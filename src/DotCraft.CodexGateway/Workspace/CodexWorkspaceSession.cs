@@ -74,6 +74,7 @@ public sealed partial class CodexWorkspaceSession : IAsyncDisposable
             case "thread/items/list": return await ItemsAsync(p, ct);
             case "thread/items/read": return await ReadItemsAsync(p, ct);
             case "thread/timeline/list": return await TimelineAsync(p, ct);
+            case "thread/queue/list": return await ListQueueAsync(p, ct);
             case "turn/start": return await StartTurnAsync(p, ct);
             case "turn/steer":
             {
