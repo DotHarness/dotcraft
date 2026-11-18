@@ -102,6 +102,7 @@ export const createTabUpdates: StateCreator<DetailPanelStore, [], [], Pick<Detai
         tabs: newTabs,
         activeTabId,
         activeDetailTab,
+        ...(threadState.pendingBrowserPresentation === tabId ? { pendingBrowserPresentation: undefined } : {}),
         ...(!newTabs.length && !threadState.openSystemTabs.length
           ? { detailPanelPreferredVisible: false, detailPanelFullView: false }
           : {})

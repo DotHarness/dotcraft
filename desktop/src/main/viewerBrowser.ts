@@ -371,6 +371,11 @@ export class ViewerBrowserManager {
     return this.hosts.isVisible(win, tabId)
   }
 
+  requestVisibility(win: BrowserWindow, { tabId, visible }: { tabId: string; visible: boolean }): void {
+    const entry = this.pages.get(win, tabId)
+    if (entry) this.emit(win, { type: visible ? 'request-show' : 'request-hide', tabId, threadId: entry.owner.threadId })
+  }
+
   setVisible(win: BrowserWindow, params: { tabId: string; visible: boolean }): void {
     const tab = this.getTab(win, params.tabId)
     if (!tab) return

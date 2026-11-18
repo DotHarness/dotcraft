@@ -15,6 +15,7 @@ export interface PanelSession {
   tabs: ViewerTab[]
   activeTabId: string | null
   activeDetailTab: ActiveDetailTab
+  pendingBrowserPresentation?: string
   openSystemTabs: SystemDetailTab[]
   lastActiveSystemTab: SystemDetailTab
   detailPanelPreferredVisible: boolean

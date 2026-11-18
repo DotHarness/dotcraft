@@ -199,17 +199,29 @@ describe('ViewerBrowserManager tab creation', () => {
     expect(electronMock.loadURL).toHaveBeenCalledOnce()
   })
 
-  it('retains the same guest when its presentation changes', async () => {
+  it('routes show requests to the owning panel without showing or recreating the retained guest', async () => {
     const manager = new ViewerBrowserManager()
+    const scope = { projectKey: 'project:a', threadId: 'thread-a' }
+    const params = { ...scope, tabId: 'tab-a', workspacePath: '/workspace' }
     const request = vi.spyOn(manager.hosts, 'request').mockResolvedValue(electronMock.webContents as unknown as Electron.WebContents)
-    vi.spyOn(manager.hosts, 'list').mockReturnValue([{ tabId: 'tab' } as never])
+    vi.spyOn(manager.hosts, 'list').mockReturnValue([{ tabId: params.tabId } as never])
     const update = vi.spyOn(manager.hosts, 'update')
-    await manager.createTab(win, { tabId: 'tab', workspacePath: '/workspace' })
-    manager.setVisible(win, { tabId: 'tab', visible: true })
-    manager.setBounds(win, { tabId: 'tab', x: 12, y: 40, width: 600, height: 400 })
-    expect(update).toHaveBeenLastCalledWith(win, 'tab', { bounds: { x: 12, y: 40, width: 600, height: 400 }, visible: true })
-    manager.setVisible(win, { tabId: 'tab', visible: false })
-    await manager.createTab(win, { tabId: 'tab', workspacePath: '/workspace' })
+    await manager.createTab(win, params)
+    manager.setForegroundScope(win, scope)
+    manager.setActiveTab(win, params.tabId)
+    manager.setBounds(win, { tabId: params.tabId, x: 12, y: 40, width: 600, height: 400 })
+    expect(update).toHaveBeenLastCalledWith(win, params.tabId, expect.objectContaining({ visible: true }))
+    manager.setVisible(win, { tabId: params.tabId, visible: false })
+    manager.setForegroundScope(win, { ...scope, threadId: 'thread-b' })
+    update.mockClear()
+
+    manager.requestVisibility(win, { tabId: params.tabId, visible: true })
+
+    expect(update).not.toHaveBeenCalled()
+    expect(win.webContents.send).toHaveBeenLastCalledWith('viewer:browser:event', expect.objectContaining({
+      ...scope, tabId: params.tabId, type: 'request-show'
+    }))
+    await manager.createTab(win, params)
     expect(request).toHaveBeenCalledOnce()
     expect(electronMock.webContents.close).not.toHaveBeenCalled()
     expect(electronMock.loadURL).toHaveBeenCalledOnce()

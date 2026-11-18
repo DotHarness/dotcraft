@@ -275,6 +275,8 @@ export type BrowserEventType =
   | 'blocked-navigation'
   | 'download-blocked'
   | 'request-new-tab'
+  | 'request-show'
+  | 'request-hide'
   | 'crashed'
   | 'update-history-flags'
   | 'external-handoff'

@@ -4,6 +4,7 @@ import { useDetailPanelPresentation } from '../stores/detailPanelPresentation'
 import { startDetailPanelPersistence } from '../stores/detailPanelPersistence'
 import { useUIStore } from '../stores/uiStore'
 import { useTransientOverlayStore } from '../stores/transientOverlayStore'
+import { presentPendingBrowserUseTab } from '../utils/browserUseOpenHandler'
 
 export function useDetailPanelLifecycle(params: { projectKey: string; workspacePath: string; browserWorkspacePath: string; threadId: string | null; selectionProjectKey: string | null; welcomeScopeId: string }) {
   const { projectKey, workspacePath, browserWorkspacePath, welcomeScopeId } = params
@@ -41,6 +42,7 @@ export function useDetailPanelLifecycle(params: { projectKey: string; workspaceP
       threadId: scope.threadId
     })
   }, [projectKey, workspacePath, browserWorkspacePath, threadId, welcomeScopeId])
+  useLayoutEffect(presentPendingBrowserUseTab, [projectKey, threadId, activeMainView])
   useEffect(() => {
     const manager = startDetailPanelPersistence(window.api.workspace.viewer.panelState, async (scope, session) => {
       const tabs = session.tabs.flatMap(tab => tab.kind === 'browser' && tab.restore === 'required' && tab.browserStorageId
