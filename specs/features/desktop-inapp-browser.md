@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.11.0 |
+| **Version** | 0.13.0 |
 | **Status** | Living |
 | **Date** | 2026-11-18 |
 | **Parent Specs** | [Node REPL](node-repl.md) |
@@ -268,7 +268,7 @@ Input rules:
 
 - Coordinate actions require object-shaped finite coordinates such as `{ x: 940, y: 444 }` in CSS pixels of the current viewport, the same space as viewport screenshots. Positional calls such as `tab.cua.click(940, 444)` fail with `InvalidArgument` and a message showing the object form.
 - Page input is dispatched only through CDP `Input.dispatchMouseEvent`, `Input.dispatchKeyEvent`, and `Input.insertText`. Other `Input.*` methods fail with `UnsupportedApi`. Input waits for pending viewport emulation and runs with focus emulation enabled.
-- On Windows x64, automated guest input preserves the host's focused editor and ongoing IME composition, including while another thread is selected or the guest is hidden. Keyboard input and Escape stay within the targeted guest or its focused iframe.
+- On Windows x64, an automated guest can focus its own editor without taking over the host's system text-input target. The user's IME composition stays with the host's focused editor, including when the guest is hidden or another thread is selected. Automated keyboard input and Escape stay within the targeted guest or its focused iframe.
 - Native input isolation is tied to the supported Electron build. If the native module or runtime validation is unavailable on Windows x64, browser automation fails rather than running through an unisolated path. Other platforms retain their existing focus handling.
 - A real mouse press in the guest permits user takeover. Presentation updates do not rearm isolation after takeover. The next automated page command rearms it, and automation deactivation releases it. Guest destruction removes its native registration, including after navigation.
 - Pointer sequences:

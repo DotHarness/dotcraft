@@ -21,6 +21,11 @@ app.commandLine.appendSwitch('site-per-process')
 
 interface ObservedEvent { type: string; target: string; key?: string; data?: string }
 interface PageState { active: string; values: Record<string, string>; events: ObservedEvent[] }
+interface NativeFocus {
+  diagnostics(): Record<string, number>
+  hasSystemTextInputTarget(processId: number, routingId: number): boolean
+}
+const imeControls = '<button id="imeOpen">Open input</button><input id="imeEditor" hidden>'
 const observation = `
 window.events=[];
 for(const type of ['blur','keydown','click','compositionstart','compositionupdate','compositionend']) {
@@ -28,6 +33,11 @@ for(const type of ['blur','keydown','click','compositionstart','compositionupdat
 }
 window.state=()=>({active:document.activeElement.id,events,values:Object.fromEntries(
   [...document.querySelectorAll('input,[contenteditable]')].map(e=>[e.id,e.value??e.textContent]))});
+document.querySelector('#imeOpen')?.addEventListener('click', () => requestAnimationFrame(() => {
+  const editor = document.querySelector('#imeEditor');
+  editor.hidden = false;
+  editor.focus();
+}));
 `
 const server = createServer((request, response) => {
   response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
@@ -35,8 +45,8 @@ const server = createServer((request, response) => {
   const content = request.url === '/host'
     ? '<div id="composer" contenteditable style="height:90px">HOST</div>'
     : request.url === '/frame'
-      ? '<input id="frameTarget" value="FRAME"><input id="frameOther" value="OTHER">'
-      : '<input id="target" value="PAGE"><input id="other" value="OTHER">' +
+      ? '<input id="frameTarget" value="FRAME"><input id="frameOther" value="OTHER">' + imeControls
+      : '<input id="target" value="PAGE"><input id="other" value="OTHER">' + imeControls +
         '<iframe id="child" src="http://localhost:' + port + '/frame" style="display:block;width:400px;height:140px"></iframe>'
   response.end('<!doctype html><html><body>' + content + '<script>' + observation + '</script></body></html>')
 })
@@ -84,10 +94,14 @@ async function key(page: WebContents, value: 'a' | 'Escape'): Promise<void> {
   await input(page, 'Input.dispatchKeyEvent', { ...params, type: 'keyUp' })
 }
 
-async function click(page: WebContents, inFrame = false, isolated = true): Promise<void> {
-  const selector = inFrame ? '#frameOther' : '#other'
+async function click(
+  page: WebContents,
+  { inFrame = false, isolated = true, selector = inFrame ? '#frameOther' : '#other' }: {
+    inFrame?: boolean; isolated?: boolean; selector?: string
+  } = {}
+): Promise<void> {
   const position = await evaluate<{ x: number; y: number }>(inFrame ? child(page) : page,
-    `(()=>{const r=document.querySelector('${selector}').getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2}})()`)
+    `(()=>{const r=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2}})()`)
   if (inFrame) {
     const offset = await evaluate<{ x: number; y: number }>(page, "(()=>{const r=document.querySelector('#child').getBoundingClientRect();return{x:r.x+2,y:r.y+2}})()")
     position.x += offset.x
@@ -113,6 +127,43 @@ async function assertComposer(composition = false): Promise<void> {
   const continuation = (await host<PageState>('state()')).events.slice(length)
   assert(continuation.some(event => event.type === 'compositionupdate' && event.data === 'nihao'))
   assert(!continuation.some(event => event.type === 'compositionstart' || event.type === 'compositionend'))
+}
+
+async function assertSystemImeRouting(page: WebContents, native: NativeFocus): Promise<void> {
+  const composer = owner.webContents.mainFrame
+  const hasSystemTarget = ({ processId, routingId }: WebFrameMain): boolean =>
+    native.hasSystemTextInputTarget(processId, routingId)
+  // Chromium publishes the text-input state at the start of the frame after the deferred focus.
+  const afterFocusPublication = (frame: WebFrameMain): Promise<PageState> =>
+    evaluate(frame, 'new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve(state()))))')
+
+  for (const inFrame of [false, true]) {
+    const frame = inFrame ? child(page) : page.mainFrame
+    const scope = inFrame ? 'cross-process iframe' : 'guest'
+    await prepare(page)
+    assert(hasSystemTarget(composer), 'Expected the host to own the initial system IME target')
+
+    await click(page, { inFrame, selector: '#imeOpen' })
+    assert.equal((await afterFocusPublication(frame)).active, 'imeEditor')
+    assert(hasSystemTarget(composer), 'The ' + scope + ' took the host system IME target during an automated click')
+
+    await input(page, 'Input.insertText', { text: 'BROWSER' })
+    assert.equal((await afterFocusPublication(frame)).values.imeEditor, 'BROWSER')
+    assert(hasSystemTarget(composer), 'The ' + scope + ' took the host system IME target during automated typing')
+  }
+  log({ status: 'pass', name: 'asynchronously focused guest editors do not take the system IME target' })
+
+  const frame = child(page)
+  browserFocusIsolation.release(page)
+  await click(page, { inFrame: true, isolated: false, selector: '#imeEditor' })
+  assert.equal((await afterFocusPublication(frame)).active, 'imeEditor')
+  assert(hasSystemTarget(frame), 'Expected the already focused editor to receive the system IME target after release')
+
+  browserFocusIsolation.arm(page)
+  assert(!hasSystemTarget(frame), 'The guest kept its system IME target when isolation resumed')
+  await prepare(page)
+  assert(hasSystemTarget(composer), 'The host did not regain its system IME target')
+  log({ status: 'pass', name: 'release and rearm transfer the system IME target correctly' })
 }
 
 async function main(): Promise<void> {
@@ -167,7 +218,7 @@ async function main(): Promise<void> {
   assert.deepEqual(frame.events.filter(event => event.type === 'keydown').map(event => event.key), ['Escape', 'a'])
   assert.equal(frame.values.frameTarget.replace('a', ''), 'FRAME')
   await prepare(page, true)
-  await click(page, true)
+  await click(page, { inFrame: true })
   await key(page, 'a')
   await assertComposer(true)
   const frameClick = await state(child(page))
@@ -177,7 +228,7 @@ async function main(): Promise<void> {
 
   await prepare(page, true)
   browserFocusIsolation.release(page)
-  await click(page, false, false)
+  await click(page, { isolated: false })
   await settle()
   const released = await host<PageState>('state()')
   assert(released.events.some(event => event.type === 'blur' && event.target === 'composer'))
@@ -188,7 +239,9 @@ async function main(): Promise<void> {
   assert((await state(page)).events.some(event => event.type === 'click' && event.target === 'other'))
   log({ status: 'pass', name: 'deactivation releases focus and automated input rearms isolation' })
 
-  const native = require(join(app.getAppPath(), 'resources', 'native', 'browser-focus.node')) as { diagnostics(): Record<string, number> }
+  const native = require(join(app.getAppPath(), 'resources', 'native', 'browser-focus.node')) as NativeFocus
+  await assertSystemImeRouting(page, native)
+
   const identity = { processId: page.mainFrame.processId, routingId: page.mainFrame.routingId }
   await page.loadURL('http://localhost:' + port + '/page')
   assert.notDeepEqual({ processId: page.mainFrame.processId, routingId: page.mainFrame.routingId }, identity)

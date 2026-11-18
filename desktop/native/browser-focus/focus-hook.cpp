@@ -11,10 +11,12 @@
 #include "electron-42-win32-x64.h"
 
 using Pointer = unsigned char*;
+using Void1 = void(*)(Pointer);
 using Void2 = void(*)(Pointer, Pointer);
 using Void3 = void(*)(Pointer, Pointer, Pointer);
 using Pointer1 = Pointer(*)(Pointer);
 using Pointer2 = Pointer(*)(Pointer, Pointer);
+using FromId = Pointer(*)(int, int);
 using MouseHandler = bool(*)(Pointer, Pointer, Pointer);
 
 namespace {
@@ -42,7 +44,7 @@ struct Counters {
 } counters{};
 
 Void2 originalTree;
-Void3 originalFrame, originalSend;
+Void3 originalFrame, originalSend, originalTextInputState;
 Pointer2 originalFocused;
 Pointer1 originalPage;
 MouseHandler originalMouse;
@@ -66,6 +68,32 @@ Guest* findGuest(Pointer contents) {
     return guest.contents == contents;
   });
   return found == guests.end() ? nullptr : &*found;
+}
+Pointer contentsForTextInputView(Pointer view) {
+  auto widget = view ? function<Pointer1>(electron42::ViewWidget)(view) : nullptr;
+  auto delegate = widget ? read<Pointer>(widget, electron42::WidgetDelegateFieldOffset) : nullptr;
+  return delegate ? delegate - electron42::WidgetDelegateOffset : nullptr;
+}
+
+void updateTextInputState(Pointer manager, Pointer view, Pointer state) {
+  // Only non-NONE updates can claim the system input target shared with the host.
+  if (onUiThread() &&
+      read<int>(state, electron42::TextInputStateTypeOffset) != electron42::TextInputTypeNone) {
+    auto* guest = findGuest(contentsForTextInputView(view));
+    if (guest && guest->active) return;
+  }
+  originalTextInputState(manager, view, state);
+}
+void clearGuestTextInput(Pointer contents) {
+  auto manager = function<Pointer1>(electron42::ContentsTextInputManager)(
+      contents + electron42::WidgetDelegateOffset);
+  auto view = manager ? read<Pointer>(manager, electron42::ActiveTextInputViewOffset) : nullptr;
+  if (contentsForTextInputView(view) != contents) return;
+
+  alignas(std::max_align_t) unsigned char state[electron42::TextInputStateSize]{};
+  function<Pointer1>(electron42::ConstructTextInputState)(state);
+  originalTextInputState(manager, view, state);
+  function<Void1>(electron42::DestroyTextInputState)(state);
 }
 
 void focusTree(Pointer self, Pointer tree) {
@@ -189,6 +217,7 @@ void install() {
     hook(electron42::PageWidget, reinterpret_cast<void*>(&pageWidget), &originalPage);
     hook(electron42::PreMouse, reinterpret_cast<void*>(&beforeMouse), &originalMouse);
     hook(electron42::SendInput, reinterpret_cast<void*>(&sendInput), &originalSend);
+    hook(electron42::UpdateTextInputState, reinterpret_cast<void*>(&updateTextInputState), &originalTextInputState);
     if (MH_EnableHook(MH_ALL_HOOKS) != MH_OK)
       throw std::runtime_error("Browser focus hook activation failed.");
   } catch (...) {
@@ -216,6 +245,24 @@ napi_value error(napi_env env, const char* message) {
   api_napi_throw_error(env, nullptr, message);
   return nullptr;
 }
+napi_value hasSystemTextInputTarget(napi_env env, napi_callback_info info) {
+  try {
+    requireUiThread();
+    napi_value args[2];
+    size_t count = 2;
+    check(api_napi_get_cb_info(env, info, &count, args, nullptr, nullptr));
+    if (count != 2) throw std::runtime_error("hasSystemTextInputTarget(processId, routingId) required.");
+    int processId, routingId;
+    check(api_napi_get_value_int32(env, args[0], &processId));
+    check(api_napi_get_value_int32(env, args[1], &routingId));
+    auto frame = function<FromId>(electron42::FromId)(processId, routingId);
+    auto view = frame ? function<Pointer1>(electron42::FrameView)(frame) : nullptr;
+    auto manager = view ? read<Pointer>(view, electron42::ViewTextInputManagerFieldOffset) : nullptr;
+    return boolean(env, manager && read<Pointer>(manager, electron42::ActiveTextInputViewOffset) == view);
+  } catch (const std::exception& failure) {
+    return error(env, failure.what());
+  }
+}
 napi_value setIsolation(napi_env env, napi_callback_info info) {
   try {
     requireUiThread();
@@ -228,7 +275,6 @@ napi_value setIsolation(napi_env env, napi_callback_info info) {
     check(api_napi_get_value_int32(env, args[0], &processId));
     check(api_napi_get_value_int32(env, args[1], &routingId));
     check(api_napi_get_value_bool(env, args[2], &active));
-    using FromId = Pointer(*)(int, int);
     auto frame = function<FromId>(electron42::FromId)(processId, routingId);
     if (!frame) throw std::runtime_error("Browser frame not found.");
     auto contents = function<Pointer1>(electron42::FromFrame)(frame);
@@ -247,8 +293,11 @@ napi_value setIsolation(napi_env env, napi_callback_info info) {
         function<Pointer1>(electron42::TreeMain)(tree) != frame)
       throw std::runtime_error("Unsupported browser guest layout.");
     Guest value{contents, tree, node, processId, routingId, active};
-    if (auto* guest = findGuest(contents)) *guest = value;
+    auto* guest = findGuest(contents);
+    bool starting = active && (!guest || !guest->active);
+    if (guest) *guest = value;
     else guests.push_back(value);
+    if (starting) clearGuestTextInput(contents);
     return boolean(env, active);
   } catch (const std::exception& failure) {
     return error(env, failure.what());
@@ -316,7 +365,7 @@ extern "C" __declspec(dllexport) napi_value napi_register_module_v1(napi_env env
     struct Export { const char* name; napi_callback callback; };
     Export methods[] = {
       {"setIsolation", setIsolation}, {"unregister", unregisterGuest},
-      {"diagnostics", diagnostics}
+      {"diagnostics", diagnostics}, {"hasSystemTextInputTarget", hasSystemTextInputTarget}
     };
     for (const auto& method : methods) {
       napi_value callback;
