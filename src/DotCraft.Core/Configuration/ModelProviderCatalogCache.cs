@@ -118,7 +118,7 @@ internal sealed class ModelProviderCatalogCache(TimeProvider? timeProvider = nul
                 CreatedAt = model.CreatedAt,
                 Reasoning = model.Reasoning, ContextWindow = model.ContextWindow, MaxOutputTokens = model.MaxOutputTokens,
                 SupportedProtocols = model.SupportedProtocols, DefaultProtocol = model.DefaultProtocol,
-                InputModalities = model.InputModalities, Pricing = model.Pricing
+                InputModalities = model.InputModalities, Pricing = model.Pricing, SpeedModes = model.SpeedModes
             })
             .ToList()
     };

@@ -164,10 +164,30 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
         Assert.Equal(
             [["standard", "fast", "ultrafast"], ["standard", "fast"], ["standard"]],
             result.Models.Select(model => model.SpeedModes));
-        Assert.Equal("ultrafast", RequestedServiceTier("sol", "Ultrafast"));
-        Assert.Null(RequestedServiceTier("astra", "Ultrafast"));
-        Assert.Equal("priority", RequestedServiceTier("astra", "Fast"));
-        Assert.Null(RequestedServiceTier("plain", "Fast"));
+        Assert.Equal("ultrafast", RequestedServiceTier(Runtime(model: "sol"), "Ultrafast"));
+        Assert.Null(RequestedServiceTier(Runtime(model: "astra"), "Ultrafast"));
+        Assert.Equal("priority", RequestedServiceTier(Runtime(model: "astra"), "Fast"));
+        Assert.Null(RequestedServiceTier(Runtime(model: "plain"), "Fast"));
+    }
+
+    [Fact]
+    public async Task ChatGptOAuthSendsFetchedServiceTiersWithoutDiskCache()
+    {
+        var handler = new RecordingHandler((HttpStatusCode.OK, """
+            {
+              "models": [
+                { "slug": "memory-model", "visibility": "list", "priority": 1, "service_tiers": [{ "id": "ultrafast" }] }
+              ]
+            }
+            """));
+        var provider = new OpenAIClientProvider(new FakeOpenAIAuthService("acct_memory"), handler);
+
+        await ((IModelCatalogProvider)provider).FetchModelsAsync(
+            Runtime("acct_memory", persistCache: false), CancellationToken.None);
+
+        Assert.Equal(
+            "ultrafast",
+            RequestedServiceTier(Runtime("acct_memory", "memory-model", persistCache: false), "Ultrafast"));
     }
 
     [Fact]
@@ -204,11 +224,11 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
             Directory.Delete(_tempRoot, recursive: true);
     }
 
-    private string? RequestedServiceTier(string model, string speed)
+    private static string? RequestedServiceTier(EffectiveModelRuntime runtime, string speed)
     {
         using var client = new OpenAIFastModeChatClient(new NoopChatClient());
         using var scope = ProviderPipelineOptionsScope.Push(
-            new ProviderPipelineOptions(Runtime(model: model), null, null, false, speed, false, null));
+            new ProviderPipelineOptions(runtime, null, null, false, speed, false, null));
         var factory = client.PrepareOptions(new ChatOptions())?.RawRepresentationFactory;
         if (factory is null)
             return null;
@@ -239,7 +259,8 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
 
     private EffectiveModelRuntime Runtime(
         string? accountId = "acct_test",
-        string? model = null) => new(
+        string? model = null,
+        bool persistCache = true) => new(
         ProviderId: "openai",
         Model: model ?? "runtime-model",
         Protocol: ModelProviderProtocols.OpenAIResponses,
@@ -251,7 +272,7 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
         Capabilities: ModelProviderCapabilities.ForProtocol(ModelProviderProtocols.OpenAIResponses),
         AuthMethod: ModelProviderAuthMethods.ChatGptOAuth,
         AccountId: accountId,
-        ProviderStateDirectory: Path.Combine(_tempRoot, "global"));
+        ProviderStateDirectory: persistCache ? Path.Combine(_tempRoot, "global") : null);
 
     private sealed class FakeOpenAIAuthService(string accountId = "acct_test") : IOpenAIAuthService
     {

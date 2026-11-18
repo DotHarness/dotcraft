@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
@@ -20,6 +21,7 @@ internal static class ChatGptCodexModelCatalog
         WriteIndented = true
     };
     private static readonly Lazy<IReadOnlyList<CodexModelInfo>> BuiltInModels = new(LoadBuiltInModels);
+    private static readonly ConcurrentDictionary<string, IReadOnlyList<CodexModelInfo>> AccountModels = new(StringComparer.Ordinal);
 
     public static string DefaultModel => ModelProviderDefaults.DefaultChatGptCodexModel;
 
@@ -38,8 +40,11 @@ internal static class ChatGptCodexModelCatalog
     {
         ArgumentNullException.ThrowIfNull(runtime);
 
-        var cache = ModelCatalogCache.Load(ResolveCachePath(runtime));
         var cacheKey = BuildCacheKey(runtime.EndPoint, accountId, ClientVersion);
+        if (AccountModels.TryGetValue(cacheKey, out var accountModels))
+            return FindModel(accountModels, runtime.Model);
+
+        var cache = ModelCatalogCache.Load(ResolveCachePath(runtime));
         return cache.TryGet(cacheKey, CacheTtl, requireFresh: false, out var cachedModels)
             ? FindModel(cachedModels, runtime.Model)
             : FindModel(BuiltInModels.Value, runtime.Model);
@@ -60,7 +65,7 @@ internal static class ChatGptCodexModelCatalog
         var cache = ModelCatalogCache.Load(cachePath);
 
         if (cache.TryGet(cacheKey, CacheTtl, requireFresh: true, out var cachedModels))
-            return Success(cachedModels);
+            return Remember(cacheKey, cachedModels);
 
         try
         {
@@ -76,7 +81,7 @@ internal static class ChatGptCodexModelCatalog
                 {
                     cache.Set(cacheKey, runtime.EndPoint, accountId, clientVersion, response.ETag, models);
                     await cache.SaveAsync(cachePath, cancellationToken).ConfigureAwait(false);
-                    return Success(models);
+                    return Remember(cacheKey, models);
                 }
             }
         }
@@ -90,9 +95,15 @@ internal static class ChatGptCodexModelCatalog
         }
 
         if (cache.TryGet(cacheKey, CacheTtl, requireFresh: false, out cachedModels))
-            return Success(cachedModels);
+            return Remember(cacheKey, cachedModels);
 
         return Success(BuiltInModels.Value);
+    }
+
+    private static OpenAIModelCatalogResult Remember(string cacheKey, IReadOnlyList<CodexModelInfo> models)
+    {
+        AccountModels[cacheKey] = models;
+        return Success(models);
     }
 
     private static OpenAIModelCatalogResult Success(IReadOnlyList<CodexModelInfo> models) => new()

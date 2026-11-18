@@ -105,6 +105,30 @@ public sealed class ModelProviderCatalogCacheTests
         Assert.Equal(2, fetches);
     }
 
+    [Fact]
+    public async Task GetOrFetchAsync_PreservesSpeedModesForCachedListings()
+    {
+        var cache = new ModelProviderCatalogCache(new TestClock());
+        var catalog = new ModelCatalogResult
+        {
+            Success = true,
+            Models =
+            [
+                new ModelCatalogEntry { Id = "sol", SpeedModes = ["standard", "fast", "ultrafast"] },
+                new ModelCatalogEntry { Id = "plain", SpeedModes = ["standard"] }
+            ]
+        };
+
+        await cache.GetOrFetchAsync("identity", ModelCatalogRefreshStrategy.OnlineIfUncached,
+            _ => Task.FromResult(catalog), CancellationToken.None);
+        var cached = await cache.GetOrFetchAsync("identity", ModelCatalogRefreshStrategy.OnlineIfUncached,
+            _ => throw new InvalidOperationException("Expected a cached listing."), CancellationToken.None);
+
+        Assert.Equal(
+            [["standard", "fast", "ultrafast"], ["standard"]],
+            cached.Models.Select(model => model.SpeedModes));
+    }
+
     private static ModelCatalogResult SuccessResult(string modelId) => new()
     {
         Success = true,
