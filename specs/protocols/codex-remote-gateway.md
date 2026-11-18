@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.12.2 |
+| Version | 0.13.0 |
 | Status | Living |
-| Date | 2026-11-17 |
+| Date | 2026-11-18 |
 | Parent specs | [AppServer protocol](appserver-protocol.md), [Runtime boundaries](../architecture/runtime-module-boundaries.md) |
 
 ## 1. Purpose and scope
@@ -72,6 +72,16 @@ Turn trigger, message phase and async delivery are independent. A normal main-as
 Codex summary contains only the first visible userMessage and last real agentMessage in stored order. notLoaded contains no Items; full contains the complete projected logical Items. DotCraft summary is a candidate view, not the external summary contract. Output deferral follows the Codex command/MCP deferOutput flags, outputDeferred marker and targeted items/read contract; it does not silently remove other tool content.
 
 Thread and turn lifecycle transitions are source-owned. A steered turn does not produce a second turn/started. All terminal outcomes become turn/completed with the appropriate status, including interruption and failure. Background command completion remains observable after the turn ends.
+
+### 5.1 Queued user messages
+
+`thread/queue/list` requires `experimentalApi`. It takes `threadId`, an optional nullable `cursor`, and an optional nullable `limit`. It reads the authorized thread's source queue without attaching to the thread, loading its history, or starting execution. It does not support ephemeral threads.
+
+The response is `{ data, nextCursor }` in source queue order. The default page size is 25 and valid nonnegative limits are clamped to 1–100. The cursor is opaque and invalid cursors are rejected. `nextCursor` is null at the end, including when the queue is empty.
+
+Each entry contains `id`, `input`, `clientUserMessageId`, and `responsesapiClientMetadata`. Only direct user input waiting for a later Turn is included, not guidance pending in the current Turn or system-triggered input. `input` projects the native input parts. Queue ids are stable and scoped to their thread. The source client message id is preserved, or the projected queue id is used consistently for the entry and its eventual user message when the source has no client id. Client metadata unavailable from the source is null.
+
+On source queue changes, clients observing the thread that enabled `experimentalApi` receive `thread/queue/changed` with `{ threadId }`, unless opted out. The notification signals a fresh read, not a queue snapshot. Queue writes through the Codex gateway are unsupported.
 
 ## 6. Models, configuration and admission
 
