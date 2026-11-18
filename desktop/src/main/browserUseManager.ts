@@ -22,6 +22,7 @@ import {
 } from './browserUseFrames'
 import { browserObservationSource } from './browserUseObservation'
 import { withAutomationInput } from './browserAutomationInput'
+import { browserFocusIsolation } from './browserFocusIsolation'
 import { BrowserUseViewports, normalizeViewportSize, type ViewportSize } from './browserUseViewport'
 import type { AppSettings } from './settings'
 import { IAB_BACKEND_PROFILE, type BrowserUseBackendProfile } from './browserUseBackendProfile'
@@ -1825,6 +1826,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     await this.ensureDebuggerAttached(tab)
     await this.viewports.settled(tab)
     const wc = this.webContentsFor(tab.owner, tab.id)
+    if (wc.hostWebContents) browserFocusIsolation.arm(wc)
     if (method === 'Page.navigate') {
       const url = typeof params?.url === 'string' ? params.url : ''
       params = { ...params, url: this.viewerHost.prepareNavigation?.(wc, url) ?? assertBrowserPageNavigation(wc, url) }

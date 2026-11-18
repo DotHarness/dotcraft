@@ -41,6 +41,7 @@ tmp
 # build and the electron-builder run. Their dist/ output was already ignored, which
 # left the tracked manifests useless on their own and free to drift.
 desktop/resources/modules/
+desktop/resources/native/
 
 # Local Playwright CLI state
 desktop/.playwright-cli/
