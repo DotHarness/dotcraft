@@ -129,7 +129,7 @@ public sealed class ManagedLocalServiceProcessTests
     {
         await using var fixture = ManagedLocalServiceProcessFixture.Start(
             "set /p begin=\nstart \"\" /b cmd.exe /d /q /c descendant.cmd\nexit /b 0",
-            "read begin\n/bin/sh descendant.sh <&0 &\nprintf '%s' \"$!\" > descendant.pid\nexit 0",
+            "read begin\nexec 3<&0\n/bin/sh descendant.sh <&3 &\nprintf '%s' \"$!\" > descendant.pid\nexit 0",
             inheritedOutput: true);
         using var process = Process.GetProcessById(fixture.Service.ProcessId);
         var ready = fixture.Service.WaitForReadyAsync(CancellationToken.None);
