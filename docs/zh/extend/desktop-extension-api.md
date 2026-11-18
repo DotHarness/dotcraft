@@ -230,11 +230,11 @@ host.ui.add("conversation.aside.trailing", NotesPanel);
 
 ### 在会话末尾显示状态
 
-`conversation.turn.status` 的挂载条件与上面相同：位于最后一个可见轮次中、紧贴工作行上方，新轮次开始时随之移动。它的 context 包含 `workspacePath`、`threadId`、`turnId` 和 `running`。轮次结束后座位仍然存在，所以状态不再适用时请返回 `null`。空座位不占空间。内容位于阅读列中，沿用对话的间距：
+`conversation.turn.status` 的挂载条件与上面相同：位于最后一个可见轮次中、紧贴工作行上方，新轮次开始时随之移动。它的 context 包含 `workspacePath`、`threadId`、`turnId` 和 `status`：`running`（等待审批或输入时也算）、`completed`、`failed` 或 `cancelled`。轮次结束后座位仍然存在，所以状态不再适用时请返回 `null`。空座位不占空间。内容位于阅读列中，沿用对话的间距：
 
 ```tsx
 function BuildStatus({ context }: DesktopPluginSurfaceProps<"conversation.turn.status">) {
-  return context.running ? <div>正在构建 {context.turnId}…</div> : null;
+  return context.status === "running" ? <div>正在构建 {context.turnId}…</div> : null;
 }
 
 host.ui.add("conversation.turn.status", BuildStatus);

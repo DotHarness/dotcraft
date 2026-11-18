@@ -260,18 +260,18 @@ The Host owns layout, which depends only on the side space: half the difference 
 
 A trailing contribution calls `pin` while it shows a panel and disposes the handle when it stops. `conversation.aside.leading` never pins. `width` is the seat's width: the side space plus the shift for the trailing seat, or minus it for the leading seat. When Core shows a rail in the outermost leading lane, the leading seat starts after it. Layout changes animate unless reduced motion is requested and never remount contributions.
 
-`conversation.turn.status` mounts with the same conditions in the last visible turn of a thread the user can act on, and moves to the next turn when one starts. Its context names the turn and whether it is still running:
+`conversation.turn.status` mounts with the same conditions in the last visible turn of a thread the user can act on, and moves to the next turn when one starts. Its context names the turn and its status, where a turn waiting on approval or input is still `running`:
 
 ```ts
 interface DesktopPluginTurnStatusContext {
   readonly workspacePath: string | null
   readonly threadId: string
   readonly turnId: string
-  readonly running: boolean
+  readonly status: "running" | "completed" | "failed" | "cancelled"
 }
 ```
 
-The seat stays mounted after the turn ends, so a contribution decides whether its status still applies. Content renders in the reading column with the transcript's spacing, and an empty contribution takes no space.
+The seat stays mounted after the turn ends, so a contribution decides from how the turn ended whether its status still applies. Content renders in the reading column with the transcript's spacing, and an empty contribution takes no space.
 
 ## Convenience contributions
 

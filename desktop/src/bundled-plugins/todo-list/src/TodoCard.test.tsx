@@ -29,8 +29,8 @@ function fixtureHost(plan: { title?: string; todos: Todo[] } | null) {
   return { host, notify: (params: unknown) => listeners.forEach((listener) => listener(params)) }
 }
 
-function context(running: boolean): DesktopPluginTurnStatusContext {
-  return { workspacePath: null, threadId: 'thread', turnId: 'turn', running }
+function context(status: DesktopPluginTurnStatusContext['status']): DesktopPluginTurnStatusContext {
+  return { workspacePath: null, threadId: 'thread', turnId: 'turn', status }
 }
 
 afterEach(() => {
@@ -41,25 +41,35 @@ afterEach(() => {
 describe('to-do list card', () => {
   it('restores the thread list and follows plan updates while the turn runs', async () => {
     const { host, notify } = fixtureHost({ todos: working })
-    render(<TodoCard host={host} context={context(true)} />)
+    render(<TodoCard host={host} context={context('running')} />)
     expect(await screen.findByRole('region', { name: 'To-dos, 1 of 2 done' })).toBeInTheDocument()
 
     act(() => notify({ threadId: 'thread', todos: finished }))
     expect(screen.getByRole('region', { name: 'To-dos, 2 of 2 done' })).toBeInTheDocument()
   })
 
-  it('stays after the turn ends only while steps remain', async () => {
+  it('stays after a stopped turn only while steps remain', async () => {
     const { host, notify } = fixtureHost({ todos: working })
-    render(<TodoCard host={host} context={context(false)} />)
+    render(<TodoCard host={host} context={context('cancelled')} />)
     expect(await screen.findByRole('region')).toBeInTheDocument()
 
     act(() => notify({ threadId: 'thread', todos: finished }))
     expect(screen.queryByRole('region')).not.toBeInTheDocument()
   })
 
+  it('counts a last step left in progress as done when the turn completes', async () => {
+    const { host, notify } = fixtureHost({ todos: working })
+    render(<TodoCard host={host} context={context('completed')} />)
+    await waitFor(() => expect(host.appServer.request).toHaveBeenCalled())
+    expect(screen.queryByRole('region')).not.toBeInTheDocument()
+
+    act(() => notify({ threadId: 'thread', todos: [...working, { content: 'Write docs', status: 'pending' }] }))
+    expect(screen.getByRole('region')).toBeInTheDocument()
+  })
+
   it('leaves an unstarted plan to its plan card', async () => {
     const { host } = fixtureHost({ title: 'Plan', todos: [{ content: 'Read the spec', status: 'pending' }] })
-    render(<TodoCard host={host} context={context(true)} />)
+    render(<TodoCard host={host} context={context('running')} />)
     await waitFor(() => expect(host.appServer.request).toHaveBeenCalled())
     expect(screen.queryByRole('region')).not.toBeInTheDocument()
   })

@@ -4,7 +4,7 @@ import type { ConversationItem, ConversationTurn } from '../../types/conversatio
 import { isToolLikeItemType } from '../../types/conversation'
 import { ThinkingIndicator } from './ThinkingIndicator'
 import { TurnWorkingLine } from './TurnWorkingLine'
-import { TurnStatusSeat } from './TurnStatusSeat'
+import { TurnStatusSeat, turnEndStatus } from './TurnStatusSeat'
 import { turnThinkingLabel } from './turnThinkingStatus'
 import { ToolCallCard, type ShellRuntimeScope } from './ToolCallCard'
 import { isMcpAppCandidate } from '../../utils/mcpAppCandidate'
@@ -434,7 +434,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
 
       {turnCompletionContent && !footerAgentMessageId && turnCompletionContent}
 
-      {isLastVisibleTurn && !readOnly && !embedded && <TurnStatusSeat threadId={turn.threadId} turnId={turn.id} running={isRunning} />}
+      {isLastVisibleTurn && !readOnly && !embedded && <TurnStatusSeat threadId={turn.threadId} turnId={turn.id} status={turnEndStatus(isRunning, turn.status)} />}
 
       <TurnWorkingLine
         working={working}

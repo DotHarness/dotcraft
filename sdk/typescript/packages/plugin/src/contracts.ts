@@ -143,8 +143,8 @@ export interface DesktopPluginTurnStatusContext {
   readonly workspacePath: string | null;
   readonly threadId: string;
   readonly turnId: string;
-  /** The seat stays mounted after the turn ends, so this tells live status from leftover status. */
-  readonly running: boolean;
+  /** The seat stays mounted after the turn ends, so this also tells how it ended. */
+  readonly status: "running" | "completed" | "failed" | "cancelled";
 }
 
 /**

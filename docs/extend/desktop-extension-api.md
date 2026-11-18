@@ -234,11 +234,11 @@ host.ui.add("conversation.aside.trailing", NotesPanel);
 
 ### Show status at the end of the conversation
 
-`conversation.turn.status` mounts under the same conditions, in the last visible turn, directly above the working line, and moves to the next turn when one starts. Its context carries `workspacePath`, `threadId`, `turnId`, and `running`. The seat stays after the turn ends, so return `null` once your status no longer applies. An empty seat takes no space. Content sits in the reading column with the transcript's spacing:
+`conversation.turn.status` mounts under the same conditions, in the last visible turn, directly above the working line, and moves to the next turn when one starts. Its context carries `workspacePath`, `threadId`, `turnId`, and `status`: `running` (including while the turn waits on approval or input), `completed`, `failed`, or `cancelled`. The seat stays after the turn ends, so return `null` once your status no longer applies. An empty seat takes no space. Content sits in the reading column with the transcript's spacing:
 
 ```tsx
 function BuildStatus({ context }: DesktopPluginSurfaceProps<"conversation.turn.status">) {
-  return context.running ? <div>Building {context.turnId}…</div> : null;
+  return context.status === "running" ? <div>Building {context.turnId}…</div> : null;
 }
 
 host.ui.add("conversation.turn.status", BuildStatus);
