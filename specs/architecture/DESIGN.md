@@ -1833,6 +1833,8 @@ unread dot, then the branch's pull request glyph.
 ### Settings navigation
 
 The Settings sidebar groups pages by subject: Personal, Integrations, and Coding.
+Model Providers belongs under Personal because it configures models used across
+Desktop, not just for coding.
 Every setting applies to every workspace, so the sidebar names no workspace and
 has no workspace picker. Data that only makes sense for one project, such as a
 local environment or a Perforce checkout, stays with its project, and the page

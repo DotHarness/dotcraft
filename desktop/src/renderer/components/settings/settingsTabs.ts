@@ -55,6 +55,7 @@ export function buildSettingsTabs(t: Translate, options: SettingsTabOptions): Se
     { id: 'personalization', label: t('settings.tab.personalization'), icon: SlidersHorizontal, group: 'personal' },
     { id: 'pet', label: t('settings.tab.pet'), icon: PetIcon, group: 'personal' },
     { id: 'usage', label: t('settings.tab.usage'), icon: BarChart3, group: 'personal' },
+    { id: 'llmService', label: t('settings.tab.llmService'), icon: Cpu, group: 'personal' },
     { id: 'browserUse', label: t('settings.tab.browserUse'), icon: Globe2, group: 'integrations' },
     { id: 'computerControl', label: t('settings.tab.computerControl'), icon: Monitor, group: 'integrations' },
     { id: 'connections', label: t('settings.tab.connections'), icon: Cable, group: 'integrations' }
@@ -65,7 +66,6 @@ export function buildSettingsTabs(t: Translate, options: SettingsTabOptions): Se
   if (options.hooksEnabled) {
     tabs.push({ id: 'hooks', label: t('settings.tab.hooks'), icon: Anchor, group: 'coding' })
   }
-  tabs.push({ id: 'llmService', label: t('settings.tab.llmService'), icon: Cpu, group: 'coding' })
   if (options.sourceControlEnabled) {
     tabs.push({ id: 'sourceControl', label: t('settings.tab.sourceControl'), icon: GitBranch, group: 'coding' })
   }
