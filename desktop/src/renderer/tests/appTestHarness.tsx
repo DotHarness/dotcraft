@@ -309,7 +309,8 @@ function installApi(
       settings: {
         get: settingsGet,
         set: settingsSet,
-        onPinnedThreadIdsChanged: undefined
+        onPinnedThreadIdsChanged: undefined,
+        onComposerPreferencesChanged: vi.fn(() => () => undefined)
       },
       window: {
         setTitle: vi.fn(),

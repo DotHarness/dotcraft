@@ -145,11 +145,8 @@ public sealed class ConfigurationService
             var targetPath = target == ConfigLayerType.User ? _userConfigPath : _workspaceConfigPath;
             WriteOutcome outcome = null!;
             AtomicConfigDocument.WithLock(targetPath, () => outcome = CommitLocked(target, targetPath, edit));
-            if (target == ConfigLayerType.User)
-            {
-                _appliedUser = outcome.Layer;
-                _appliedUserStamp = FileStamp(_userConfigPath);
-            }
+            _appliedUser = outcome.UserLayer;
+            _appliedUserStamp = outcome.UserStamp;
 
             await ApplyAsync(outcome.Changed, source, [], forceThreadAgents: false, cancellationToken).ConfigureAwait(false);
 
@@ -204,6 +201,7 @@ public sealed class ConfigurationService
         try
         {
             changed = Diff(previous, next);
+            Validate(previous, next, changed, changed.Select(c => c.Field.KeyPath).ToArray());
         }
         catch (ConfigWriteException)
         {
@@ -253,13 +251,14 @@ public sealed class ConfigurationService
 
     private WriteOutcome CommitLocked(ConfigLayerType target, string targetPath, Func<JsonObject, LayerEdit> edit)
     {
+        var userStamp = FileStamp(_userConfigPath);
         var current = AtomicConfigDocument.Read(targetPath);
         var other = ReadLayer(target == ConfigLayerType.User ? _workspaceConfigPath : _userConfigPath);
         var (edited, editedKeyPaths) = edit(current);
 
-        var (previousUser, previousWorkspace) = target == ConfigLayerType.User ? (current, other) : (other, current);
+        var previousWorkspace = target == ConfigLayerType.User ? other : current;
         var (user, workspace) = target == ConfigLayerType.User ? (edited, other) : (other, edited);
-        var previous = TryBuild(previousUser, previousWorkspace) ?? _monitor.Current;
+        var previous = TryBuild(_appliedUser, previousWorkspace) ?? _monitor.Current;
         var next = Build(user, workspace);
         var changed = Diff(previous, next);
         Validate(previous, next, changed, editedKeyPaths ?? changed.Select(c => c.Field.KeyPath).ToArray());
@@ -269,12 +268,14 @@ public sealed class ConfigurationService
         {
             AtomicConfigDocument.Write(targetPath, edited);
             version = ConfigJsonPath.Version(edited);
+            if (target == ConfigLayerType.User)
+                userStamp = FileStamp(_userConfigPath);
         }
 
         var overridden = target == ConfigLayerType.User && editedKeyPaths != null
             ? FindOverride(editedKeyPaths, user, workspace)
             : null;
-        return new WriteOutcome(changed, version, overridden, edited);
+        return new WriteOutcome(changed, version, overridden, user, userStamp);
     }
 
     private static void RestoreMasked(JsonNode? node, JsonNode? current)
@@ -628,5 +629,6 @@ public sealed class ConfigurationService
         IReadOnlyList<(ConfigFieldDescriptor Field, object? Value)> Changed,
         string Version,
         ConfigOverriddenMetadata? Overridden,
-        JsonObject Layer);
+        JsonObject UserLayer,
+        (DateTime WriteTime, long Length)? UserStamp);
 }

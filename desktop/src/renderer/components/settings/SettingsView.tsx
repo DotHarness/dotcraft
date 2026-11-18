@@ -785,7 +785,14 @@ export function SettingsView({
   )
 
   async function handleDefaultApprovalPolicyChange(nextPolicy: VisibleApprovalPolicy): Promise<boolean> {
-    if (nextPolicy === defaultApprovalPolicy || defaultApproval.pending) return false
+    if (defaultApproval.pending) return false
+    const clearNewChatPolicy = (): void => {
+      void useComposerPreferencesStore.getState().saveNewChatApprovalPolicy(null).catch(() => undefined)
+    }
+    if (nextPolicy === defaultApprovalPolicy) {
+      clearNewChatPolicy()
+      return false
+    }
 
     if (nextPolicy === 'autoApprove') {
       const confirmed = await confirm({
@@ -799,7 +806,7 @@ export function SettingsView({
     }
 
     const saved = await defaultApproval.set(nextPolicy)
-    if (saved) void useComposerPreferencesStore.getState().saveNewChatApprovalPolicy(null).catch(() => undefined)
+    if (saved) clearNewChatPolicy()
     return saved
   }
 

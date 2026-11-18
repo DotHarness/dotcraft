@@ -42,6 +42,9 @@ public static class WorkspaceConfigUpgrade
         if (File.Exists(markerPath) && File.ReadAllText(markerPath).Trim() == Version)
             return;
         var workspaceConfigPath = Path.Combine(craftPath, "config.json");
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        if (string.Equals(Path.GetFullPath(workspaceConfigPath), Path.GetFullPath(userConfigPath), comparison))
+            return;
         try
         {
             AtomicConfigDocument.Update(workspaceConfigPath, workspace => Clean(workspace, userConfigPath));

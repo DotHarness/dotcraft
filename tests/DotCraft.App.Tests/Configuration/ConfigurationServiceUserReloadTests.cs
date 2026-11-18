@@ -56,6 +56,20 @@ public sealed class ConfigurationServiceUserReloadTests
     }
 
     [Fact]
+    public async Task InvalidUserLayerValue_IsNotApplied()
+    {
+        using var a = new ConfigurationServiceFixture();
+        var b = OtherWorkspace(a, workspace: null);
+        var before = b.Monitor.Current.ProjectDocMaxBytes;
+
+        ConfigurationServiceFixture.WriteFile(a.UserPath, """{ "ProjectDocMaxBytes": -1 }""");
+        await b.Service.ReloadUserLayerAsync();
+
+        Assert.Equal(before, b.Monitor.Current.ProjectDocMaxBytes);
+        Assert.Empty(b.Events);
+    }
+
+    [Fact]
     public async Task LocalWrite_FirstAppliesThePendingUserLayerChange()
     {
         using var a = new ConfigurationServiceFixture();

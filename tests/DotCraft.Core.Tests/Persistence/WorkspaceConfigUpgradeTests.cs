@@ -87,6 +87,18 @@ public sealed class WorkspaceConfigUpgradeTests : IDisposable
         Assert.Null(Read(WorkspaceConfig)["Memory"]);
     }
 
+    [Fact]
+    public void LeavesTheUserConfigAloneWhenItIsTheWorkspaceConfig()
+    {
+        Write(WorkspaceConfig, """{ "ProviderId": "global", "Permissions": { "DefaultApprovalPolicy": "prompt" } }""");
+
+        WorkspaceConfigUpgrade.Apply(CraftPath, WorkspaceConfig);
+
+        var config = Read(WorkspaceConfig);
+        Assert.Equal("global", config["ProviderId"]!.GetValue<string>());
+        Assert.NotNull(config["Permissions"]);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);
