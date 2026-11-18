@@ -154,7 +154,7 @@ public sealed class ThreadObservationStateTests
         PublishItem(state, Item("optional-input", ItemType.UserInputRequest,
             new UserInputRequestPayload { RequestId = "optional-1", IsBlocking = false }));
         var optional = Capture(state, ThreadObservationView.Metadata);
-        Assert.False(optional.Runtime.WaitingOnInput);
+        Assert.True(optional.Runtime.WaitingOnInput);
         Assert.True(optional.Runtime.Running);
         Assert.False(Assert.Single(optional.PendingRequests).IsBlocking);
     }
