@@ -111,7 +111,7 @@ export interface BrowserUseViewerHost {
   setViewport(win: BrowserWindow, params: { tabId: string; viewport: ViewportSize | undefined }): void
   getLayoutSize(win: BrowserWindow, tabId: string): ViewportSize
   isVisible(win: BrowserWindow, tabId: string): boolean
-  setVisible?(win: BrowserWindow, params: { tabId: string; visible: boolean }): void
+  requestVisibility?(win: BrowserWindow, params: { tabId: string; visible: boolean }): void
   moveMouse(win: BrowserWindow, params: { tabId: string; x: number; y: number; waitForArrival?: boolean }): Promise<void>
   refreshAutomationTargetTabs?(win: BrowserWindow, threadId: string): Promise<void>
   prepareNavigation?(page: Electron.WebContents, url: string): string
@@ -1428,11 +1428,14 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     if (typeof params.visible !== 'boolean') {
       throw BrowserUseBackendError.invalidArgument('browser_visibility_set requires visible.')
     }
-    runtime.browserVisible = params.visible
-    for (const tab of runtime.tabs.values()) {
-      this.viewerHost.setVisible?.(tab.owner, { tabId: tab.id, visible: runtime.browserVisible })
+    const visible = params.visible
+    runtime.browserVisible = visible
+    const tabs = this.modelFacingTabs(runtime)
+    const tab = tabs.find(tab => tab.id === runtime.selectedTabId) ?? tabs[0]
+    if (tab) {
+      if (visible) runtime.hasFocusedFirstTab = true
+      this.viewerHost.requestVisibility?.(tab.owner, { tabId: tab.id, visible })
     }
-    if (runtime.browserVisible) this.presentVisibleTabs(runtime)
     return {}
   }
 
@@ -1634,9 +1637,6 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
 
     const tab = this.registerTab(owner, runtime, id, false)
     tab.exposedToRenderer = exposeToRenderer
-    if (!visible) {
-      this.viewerHost.setVisible?.(owner, { tabId: tab.id, visible: false })
-    }
 
     if (exposeToRenderer) {
       const focusMode = visible && !runtime.hasFocusedFirstTab ? 'first-open' : 'none'
@@ -1680,22 +1680,6 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
   private emitClose(owner: BrowserWindow, payload: BrowserUseClosePayload): void {
     if (!this.profile.presentsInViewer || owner.isDestroyed() || owner.webContents.isDestroyed()) return
     owner.webContents.send(BROWSER_USE_CLOSE_CHANNEL, payload)
-  }
-
-  private presentVisibleTabs(runtime: BrowserUseThreadRuntime): void {
-    let focusNext = !runtime.hasFocusedFirstTab
-    for (const tab of runtime.tabs.values()) {
-      if (tab.exposedToRenderer !== true) continue
-      this.emitOpen(tab.owner, {
-        threadId: runtime.threadId,
-        tabId: tab.id,
-        initialUrl: this.operationUrl(tab),
-        title: runtime.sessionName?.trim() || 'Browser',
-        focusMode: focusNext ? 'first-open' : 'none'
-      })
-      focusNext = false
-    }
-    if (runtime.tabs.size > 0) runtime.hasFocusedFirstTab = true
   }
 
   private tabForId(owner: BrowserWindow, tabId: string): BrowserUseTabRuntime | null {

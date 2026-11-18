@@ -185,7 +185,6 @@ describe('BrowserUseManager viewport', () => {
       setViewport: vi.fn(),
       getLayoutSize: vi.fn(() => ({ width: 1280, height: 720 })),
       isVisible: vi.fn(() => false),
-      setVisible: vi.fn(),
       moveMouse: vi.fn()
     }
 

@@ -171,7 +171,8 @@ Each session tracks tab ownership:
 
 Rules:
 
-- Agent-created tabs are regular viewer tabs. Creating a session's first tab may focus it; later automation never steals focus.
+- Agent-created tabs are regular viewer tabs. The first tab may open the browser panel when visibility was requested before creation. Later tab creation does not change the user's selection.
+- An in-app browser visibility request belongs to its conversation and target tab. A request to show the browser waits until its conversation is foreground, then selects the target in that conversation's panel. Hiding or closing the target cancels a pending show. Hiding changes the displayed panel only when that conversation and tab are selected. Background browser work continues without presenting its page.
 - At finalization, agent-created tabs close and claimed tabs release by default. Release removes agent registrations, debugger connections, listeners, and page caches without destroying or reloading the page, which stays discoverable for re-acquisition.
 - Stale or guessed tab ids are rejected with `TabStale` or `InvalidArgument`.
 - Only a turn that used browser commands triggers automatic cleanup on completion, failure, or cancellation; evaluation completion does not. `tab.markDeliverable()` releases the page from agent management at cleanup, leaving it a user page. `tab.markHandoff()` keeps a temporary page under agent management until the next browser-using turn. The latest mark wins and is consumed at cleanup.

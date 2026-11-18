@@ -178,7 +178,7 @@ function createFakeHost(webContents = createFakeWebContents()) {
     }),
     getLayoutSize: vi.fn((_win: Electron.BrowserWindow, tabId: string) => viewports.get(tabId) ?? { width: 1280, height: 720 }),
     isVisible: vi.fn((_win: Electron.BrowserWindow, _tabId: string) => false),
-    setVisible: vi.fn(),
+    requestVisibility: vi.fn(),
     moveMouse: vi.fn()
   }
 }
@@ -286,11 +286,6 @@ describe('BrowserUseManager IAB backend', () => {
       workspacePath: '/workspace/test-root',
       sessionUrl: 'http://localhost:3000/',
       allowFileScheme: true
-    }))
-    const createdTabId = host.createAutomationTab.mock.calls[0]?.[1]?.tabId
-    expect(host.setVisible).toHaveBeenCalledWith(owner, expect.objectContaining({
-      tabId: createdTabId,
-      visible: false
     }))
     expect(owner.webContents.send).toHaveBeenNthCalledWith(1, 'viewer:browser:open', expect.objectContaining({
       threadId: 'thread-1',
@@ -754,6 +749,7 @@ describe('BrowserUseManager IAB backend', () => {
     const [existing] = await call('getUserTabs') as Array<{ id: number }>
     const created = await createTab('localhost:3000')
     await command('browser_viewport_set', { width: 800, height: 600 })
+    await command('browser_visibility_set', { visible: true })
     await command('browser_visibility_set', { visible: false })
     const visibility = await command('browser_visibility_get')
     const openTabs = await call('getUserTabs') as Array<{ id: number }>
@@ -772,10 +768,10 @@ describe('BrowserUseManager IAB backend', () => {
     expect(host.setViewport.mock.calls).toEqual([
       [owner, { tabId: createdViewerId, viewport: { width: 800, height: 600 } }]
     ])
-    expect(host.setVisible).toHaveBeenCalledWith(owner, expect.objectContaining({
-      tabId: 'existing-tab',
-      visible: false
-    }))
+    expect(host.requestVisibility.mock.calls).toEqual([
+      [owner, { tabId: createdViewerId, visible: true }],
+      [owner, { tabId: createdViewerId, visible: false }]
+    ])
   })
 
   it('round-trips structured clipboard items through the virtual clipboard', async () => {

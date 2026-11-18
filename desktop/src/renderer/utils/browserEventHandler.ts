@@ -1,6 +1,7 @@
 import { translate, type AppLocale } from '../../shared/locales'
 import type { BrowserEventPayload } from '../../shared/viewer/types'
 import { useDetailPanelStore } from '../stores/detailPanelStore'
+import { handleBrowserUseVisibility } from './browserUseOpenHandler'
 
 interface BrowserEventHandlerOptions {
   locale: AppLocale
@@ -98,6 +99,10 @@ export function handleBrowserEvent(
         ...(event.sessionName !== undefined ? { automationSessionName: event.sessionName } : {}),
         ...(event.action !== undefined ? { lastAutomationAction: event.action } : {})
       })
+      return
+    case 'request-show':
+    case 'request-hide':
+      handleBrowserUseVisibility(owner, event.tabId, event.type === 'request-show')
       return
     case 'request-new-tab':
       handleRequestNewBrowserTab(event, threadId, state.currentThreadId, workspacePath, locale)

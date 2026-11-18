@@ -151,8 +151,6 @@ export class ChromeBrowserHost implements BrowserUseViewerHost {
 
   setViewport(): void {}
 
-  setVisible(): void {}
-
   setCaptureSurface(_win: BrowserWindow, tabId: string, size: { width: number; height: number } | null): void {
     const page = this.pages.get(tabId)
     if (!size || !page || page.active) return
