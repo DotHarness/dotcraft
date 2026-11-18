@@ -59,7 +59,7 @@ Workspace model selection example:
 | **`Reasoning.Enabled`** | `true`, `false` | Enables reasoning when the model supports the choice |
 | **`Reasoning.Effort`** | `Low`, `Medium`, `High`, `ExtraHigh`, `Max`, `Ultra` | Requested reasoning effort |
 | **`Reasoning.Output`** | `None`, `Summary`, `Full` | Requested reasoning output |
-| **`Speed`** | `Standard`, `Fast` | Requested inference speed; unsupported Fast runs as Standard |
+| **`Speed`** | `Standard`, `Fast`, `Ultrafast` | Requested inference speed. A speed the model does not offer runs as Standard. ChatGPT subscriptions offer Fast and Ultrafast per model according to your plan |
 
 Max requests native maximum reasoning effort. Ultra uses the same Max effort and adds proactive Dynamic Workflow orchestration.
 

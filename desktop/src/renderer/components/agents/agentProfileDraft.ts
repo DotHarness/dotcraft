@@ -3,9 +3,10 @@ import { load as loadYaml } from 'js-yaml'
  * `toMarkdown` renders the write format `agent/profiles/upsert` expects.
  */
 
-import type {
-  ModelPreferenceReasoningEffort,
-  ModelPreferenceSpeed
+import {
+  MODEL_PREFERENCE_SPEEDS,
+  type ModelPreferenceReasoningEffort,
+  type ModelPreferenceSpeed
 } from '../../../shared/modelPreference'
 
 export type SaveTarget = 'user' | 'workspace'
@@ -157,7 +158,7 @@ export function parseProfile(rawContent: string | null | undefined): ProfileDraf
     && scalarText(preference.model)
     && typeof reasoning.enabled === 'boolean'
     && ['low', 'medium', 'high', 'extraHigh', 'max', 'ultra'].includes(effort)
-    && ['standard', 'fast'].includes(speed)
+    && (MODEL_PREFERENCE_SPEEDS as readonly string[]).includes(speed)
   ) {
     draft.providerPreference = {
       providerId: scalarText(preference.providerId),

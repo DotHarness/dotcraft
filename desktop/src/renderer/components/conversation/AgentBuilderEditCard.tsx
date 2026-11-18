@@ -21,6 +21,11 @@ interface AgentBuilderEditCardProps {
 }
 
 const TITLE_CHIP_LIMIT = 3
+const speedLabelKeys = {
+  standard: 'agentBuilder.model.speed.standard',
+  fast: 'agentBuilder.model.speed.fast',
+  ultrafast: 'agentBuilder.model.speed.ultrafast'
+} as const
 const SLOT = '__DOTCRAFT_SLOT__'
 
 type Args = Record<string, unknown> | undefined
@@ -296,7 +301,7 @@ function ModelDetails({ preference, locale }: { preference: AgentProviderPrefere
     ],
     [
       translate(locale, 'agentBuilder.model.speed'),
-      translate(locale, preference.speed === 'fast' ? 'agentBuilder.model.speed.fast' : 'agentBuilder.model.speed.standard')
+      translate(locale, speedLabelKeys[preference.speed])
     ],
   ]
   return (

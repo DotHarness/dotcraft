@@ -13,4 +13,11 @@ describe('modelPreference', () => {
       expect(preference?.reasoning.effort).toBe(effort)
     }
   })
+
+  it('reads Ultrafast and treats unknown speeds as Standard', () => {
+    const read = (speed: string) => readModelPreference({ model: 'gpt-6.2-sol', speed })?.speed
+
+    expect(read('Ultrafast')).toBe('ultrafast')
+    expect(read('warp')).toBe('standard')
+  })
 })

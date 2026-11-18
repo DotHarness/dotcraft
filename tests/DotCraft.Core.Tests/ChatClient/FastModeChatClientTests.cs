@@ -114,13 +114,46 @@ public sealed class FastModeChatClientTests
         }
     }
 
+    [Theory]
+    [InlineData(ModelProviderAuthMethods.ChatGptOAuth, "Ultrafast")]
+    [InlineData(ModelProviderAuthMethods.ApiKey, "Standard")]
+    public async Task Ultrafast_ReachesProviderOnlyForChatGptAccountCatalogs(string authMethod, string expected)
+    {
+        var inner = new CaptureChatClient();
+        var runtime = new EffectiveModelRuntime(
+            "test",
+            "gpt-5.4",
+            ModelProviderProtocols.OpenAIResponses,
+            "test",
+            "test-key",
+            "https://api.openai.com/v1",
+            30,
+            null,
+            ModelProviderCapabilities.ForProtocol(ModelProviderProtocols.OpenAIResponses),
+            AuthMethod: authMethod);
+        using var client = ProviderChatClientAdapters.CreateRequestAdaptedClient(
+            inner,
+            new AppConfig { Speed = InferenceSpeed.Ultrafast },
+            runtime);
+
+        await client.GetResponseAsync("hello");
+
+        Assert.Equal(expected, inner.InferenceSpeed);
+    }
+
     private sealed class CaptureChatClient : IChatClient
     {
+        public string? InferenceSpeed { get; private set; }
+
+
         public Task<ChatResponse> GetResponseAsync(
             IEnumerable<ChatMessage> messages,
             ChatOptions? options = null,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, "ok")));
+            CancellationToken cancellationToken = default)
+        {
+            InferenceSpeed = ProviderPipelineOptionsScope.Current?.InferenceSpeed;
+            return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, "ok")));
+        }
 
         public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
             IEnumerable<ChatMessage> messages,

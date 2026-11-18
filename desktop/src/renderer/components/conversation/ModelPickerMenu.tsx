@@ -1,9 +1,12 @@
 import type { CSSProperties, JSX, MouseEvent as ReactMouseEvent } from 'react'
 import { Check, ChevronRight } from 'lucide-react'
 
-export type SecondaryMenu = 'provider' | 'model'
-export const MODEL_MENU_WIDTH = 310
-export const PROVIDER_MENU_WIDTH = 280
+export type SecondaryMenu = 'provider' | 'model' | 'speed'
+const SUBMENU_WIDTHS: Record<SecondaryMenu, number> = { provider: 280, model: 310, speed: 240 }
+
+export function submenuWidth(kind: SecondaryMenu): number {
+  return SUBMENU_WIDTHS[kind]
+}
 
 export function MainMenuRow({
   label,
@@ -146,7 +149,7 @@ function mainMenuRowStyle(highlighted: boolean): CSSProperties {
 }
 
 export function submenuStyle(kind: SecondaryMenu, top: number, opensLeft: boolean, maxHeight: number): CSSProperties {
-  const width = kind === 'provider' ? PROVIDER_MENU_WIDTH : MODEL_MENU_WIDTH
+  const width = submenuWidth(kind)
   return {
     position: 'absolute',
     top,

@@ -104,7 +104,8 @@ public sealed partial class OpenAIClientProvider :
             {
                 Id = model.Id,
                 OwnedBy = model.OwnedBy,
-                CreatedAt = model.CreatedAt
+                CreatedAt = model.CreatedAt,
+                SpeedModes = model.SpeedModes
             }).ToList(),
             ErrorCode = result.ErrorCode switch
             {

@@ -103,8 +103,8 @@ export interface WorkspaceSetupModelCatalogItem {
     defaultOutput: 'none' | 'summary' | 'full'
   } | null
   speed?: {
-    supportedModes: Array<'standard' | 'fast'>
-    defaultMode: 'standard' | 'fast'
+    supportedModes: Array<'standard' | 'fast' | 'ultrafast'>
+    defaultMode: 'standard' | 'fast' | 'ultrafast'
   } | null
   contextWindow?: number | null
 }

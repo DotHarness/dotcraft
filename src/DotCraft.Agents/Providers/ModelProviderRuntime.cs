@@ -205,6 +205,8 @@ public sealed class ModelCatalogEntry
     public string? DefaultProtocol { get; set; }
     public IReadOnlyList<string>? InputModalities { get; set; }
     public ModelPricing? Pricing { get; set; }
+    /// <summary>Ordered speed modes reported by the provider account, or null to use the merged model catalog.</summary>
+    public IReadOnlyList<string>? SpeedModes { get; set; }
 }
 
 public sealed record ModelPricing(decimal? InputPerMillion, decimal? OutputPerMillion,

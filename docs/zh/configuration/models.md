@@ -59,7 +59,7 @@
 | **`Reasoning.Enabled`** | `true`、`false` | 模型支持时启用或关闭 reasoning |
 | **`Reasoning.Effort`** | `Low`、`Medium`、`High`、`ExtraHigh`、`Max`、`Ultra` | 请求的思考程度 |
 | **`Reasoning.Output`** | `None`、`Summary`、`Full` | 请求的 reasoning 输出 |
-| **`Speed`** | `Standard`、`Fast` | 请求的推理速率。不支持 Fast 时按 Standard 执行 |
+| **`Speed`** | `Standard`、`Fast`、`Ultrafast` | 请求的推理速率。模型不提供所选速率时按 Standard 执行。ChatGPT 订阅按套餐为各模型提供 Fast 和 Ultrafast |
 
 Max 请求原生最高思考档位。Ultra 使用相同的 Max 思考程度，并启用主动 Dynamic Workflow 编排。
 

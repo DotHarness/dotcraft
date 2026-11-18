@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.1 |
+| **Version** | 0.10.0 |
 | **Status** | Living |
-| **Date** | 2026-10-19 |
+| **Date** | 2026-11-18 |
 | **Parent Specs** | [Session Core](../architecture/session-core.md) |
 
 Purpose: define the provider-neutral, model-aware options that control how DotCraft runs a selected
@@ -20,7 +20,7 @@ options without visiting Settings.
 This specification covers:
 
 - reasoning effort and reasoning-output visibility
-- Standard and Fast inference speed
+- Standard, Fast, and Ultrafast inference speed
 - model-catalog context capacity
 - workspace presets, thread snapshots, model capability metadata, and Desktop behavior
 
@@ -118,7 +118,7 @@ Creating a preference uses model-catalog capability defaults:
 - speed uses the catalog default, normally Standard
 - manual models use Off / Full / Standard
 
-Changing models replaces unsupported reasoning selections with the model defaults. Fast remains stored as a user preference, but unsupported models execute as Standard.
+Changing models replaces unsupported reasoning selections with the model defaults. Speed remains stored as a user preference, but a model that does not advertise it executes as Standard.
 
 ### 2.4 Presets and Thread Snapshots
 
@@ -236,24 +236,34 @@ Anthropic-compatible reasoning-history adapters may map historical assistant rea
 
 ### 4.1 Model and Persistence
 
-Inference speed is `standard` or `fast`:
+Inference speed is `standard`, `fast`, or `ultrafast`:
 
 - `standard` is the default for configurations and threads without a speed value
 - the Welcome composer writes the workspace preset without creating a thread
 - new threads capture that preset; active threads store their own speed snapshot
-- a stored Fast preference is preserved on an unsupported model, but request shaping behaves as
-  Standard until a supported model becomes active again
+- a stored accelerated preference is preserved on a model that does not advertise it, but request
+  shaping behaves as Standard until a model that advertises it becomes active again
 
 ### 4.2 Capability and Provider Mapping
 
-`model/list.speed` contains ordered `supportedModes` and `defaultMode`. Desktop shows Speed only when
-the active model advertises Fast.
+`model/list.speed` contains ordered `supportedModes` and `defaultMode`, and is present only when
+the model advertises an accelerated speed. Availability depends on the provider:
 
-| Protocol | Standard | Fast |
-|----------|----------|------|
-| `openai-responses` | Omit `service_tier` | Send `service_tier: "priority"` |
-| `anthropic` | Omit Fast fields | Send `speed: "fast"` and beta `fast-mode-2026-02-01` |
-| `openai-chat-completions` | No change | Unsupported; never send Fast fields |
+- ChatGPT subscription providers take it from the account's model catalog: a model advertises
+  `fast` when its `service_tiers` include `priority` and `ultrafast` when they include
+  `ultrafast`. The upstream service decides tiers per account and plan, and DotCraft does not
+  infer plans. The bundled ChatGPT catalog used before the first successful fetch declares the same tiers,
+  and merged-catalog Fast selectors do not apply to these providers.
+- Other providers use merged-catalog Fast selectors and never advertise Ultrafast.
+
+| Protocol | Standard | Fast | Ultrafast |
+|----------|----------|------|-----------|
+| `openai-responses` | Omit `service_tier` | Send `service_tier: "priority"` | Send `service_tier: "ultrafast"` |
+| `anthropic` | Omit Fast fields | Send `speed: "fast"` and beta `fast-mode-2026-02-01` | Unsupported |
+| `openai-chat-completions` | No change | Unsupported; never send Fast fields | Unsupported |
+
+ChatGPT requests send a tier only while the account catalog advertises it for the requested model,
+and run as Standard otherwise.
 
 Catalog-matched Anthropic-protocol models use the Anthropic Fast request shape regardless of endpoint.
 Capacity, access, and rate-limit failures remain Fast through retries and fail normally;
@@ -263,7 +273,7 @@ DotCraft does not silently retry as Standard.
 
 OpenAI Responses estimates use the response `service_tier`, falling back to the actual request tier.
 `priority` and `fast` multiply all token costs by 2, or 2.5 for the exact model ID `gpt-5.5`;
-`flex` multiplies them by 0.5. Other or missing tiers use 1. ChatGPT OAuth/Codex preserves a
+`flex` multiplies them by 0.5. Other or missing tiers, including `ultrafast`, use 1. ChatGPT OAuth/Codex preserves a
 requested `priority` or `flex` when the response echoes `default`; its `fast` response tier uses 1.
 The provider resolves this adjustment for both runtime and model-service requests. Reported amounts,
 including zero, always take precedence and are never multiplied. Other protocols, including
@@ -291,16 +301,20 @@ metadata always reports raw capacity independently of this budget.
 ## 6. Desktop UX
 
 The composer Model picker is one shared panel. Its trigger names the model and its reasoning level,
-with a speed indicator when a Fast-capable model uses Fast. The panel reads as one decision:
+with a speed indicator when the model uses an accelerated speed it advertises. The panel reads as one decision:
 
 - The headline is the active model's reasoning level, with the model name beneath it leading one
   level in. A model without reasoning metadata has no level: its name takes the headline's place and
   the panel has no scale.
 - The scale is a slider with one stop per effort the active model advertises, in catalog order, with
   an `Off` stop at the near end only when the model supports disabling reasoning. Moving the thumb
-  applies the level at once and leaves the panel open. The top stop and Fast have distinct visual
+  applies the level at once and leaves the panel open. The top stop and accelerated speeds have distinct visual
   treatments; reduced-motion mode shows them still.
-- A Fast toggle appears only for Fast-capable models and is pressed while Fast is active.
+- A speed control appears only when the model advertises an accelerated speed. Without Ultrafast it is
+  a Fast toggle pressed while Fast is active. With Ultrafast, hovering or activating it opens a flyout
+  beside the control listing Standard and each advertised speed with a short description, marking the
+  active one. A selection closes the flyout and keeps the panel open. Ultrafast uses a double-bolt
+  icon.
 - Reset appears only while the level or speed differs from the active model's catalog defaults and
   returns each differing setting to its default.
 - One level in, a menu offers Provider (configured providers; Welcome uses the workspace provider and
@@ -309,8 +323,8 @@ with a speed indicator when a Fast-capable model uses Fast. The panel reads as o
   submenu, then returns to the panel, then closes the picker.
 
 Provider/model changes are one `thread/config/update`. If the target model invalidates reasoning,
-Desktop selects its default effort; the speed preference is preserved and unsupported Fast runs as
-Standard. Changes made in quick succession apply one after another, each on the configuration the
+Desktop selects its default effort; the speed preference is preserved and an unsupported speed runs
+as Standard. Changes made in quick succession apply one after another, each on the configuration the
 previous one wrote.
 
 The picker remains available while a turn is running or waiting for approval or user input; changes
@@ -339,4 +353,4 @@ has a SubAgent record.
 - Config-file enum values are read case-insensitively; wire values use camelCase strings.
 - Invalid explicit AppServer values return protocol validation errors.
 - Provider rejection of an advertised option fails through the normal turn error contract.
-- Unknown models never receive Fast fields without a catalog match.
+- Unknown models never receive accelerated-speed fields without a catalog match.

@@ -17,6 +17,7 @@ import {
   resolveWorkspaceProviderFromConfig
 } from '../../utils/workspaceCoreConfig'
 import type { ReasoningQuickValue } from './ModelPicker'
+import { readInferenceSpeed } from './modelSpeed'
 import { modelSettingsFromConfiguration, type TurnModelSettings } from '../../utils/turnModelSettings'
 import { useT } from '../../contexts/LocaleContext'
 import { applyModelCompatibility, applyPreferenceToThreadConfig, deleteCaseInsensitiveField, readThreadSpeed, readWorkspacePreference, resolveReasoningFromConfiguration, setCaseInsensitiveField } from './composerModelConfiguration'
@@ -146,7 +147,7 @@ export function useComposerModelControls({
       const raw = thread?.configuration?.speed
         ?? thread?.configuration?.Speed
         ?? readWorkspacePreference(workspaceCfg, effectiveProviderId)?.speed
-      return typeof raw === 'string' && raw.toLowerCase() === 'fast' ? 'fast' : 'standard'
+      return readInferenceSpeed(raw)
     },
     []
   )

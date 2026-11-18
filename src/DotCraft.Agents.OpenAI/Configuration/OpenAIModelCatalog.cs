@@ -23,6 +23,8 @@ internal sealed class OpenAIModelCatalogEntry
     public string OwnedBy { get; set; } = string.Empty;
 
     public DateTimeOffset CreatedAt { get; set; }
+
+    public IReadOnlyList<string>? SpeedModes { get; set; }
 }
 
 internal sealed class OpenAIModelCatalogResult

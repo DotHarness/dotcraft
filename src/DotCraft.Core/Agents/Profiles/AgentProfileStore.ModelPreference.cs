@@ -118,13 +118,15 @@ public sealed partial class AgentProfileStore
         string? raw,
         List<AgentProfileDiagnostic> diagnostics)
     {
-        if (string.Equals(raw, "fast", StringComparison.OrdinalIgnoreCase))
-            return InferenceSpeed.Fast;
-        if (string.Equals(raw, "standard", StringComparison.OrdinalIgnoreCase))
-            return InferenceSpeed.Standard;
+        switch (raw?.Trim().ToLowerInvariant())
+        {
+            case "fast": return InferenceSpeed.Fast;
+            case "ultrafast": return InferenceSpeed.Ultrafast;
+            case "standard": return InferenceSpeed.Standard;
+        }
 
         if (!string.IsNullOrWhiteSpace(raw))
-            diagnostics.Add(Error("InvalidPolicyValue", "providerPreference.speed must be standard or fast."));
+            diagnostics.Add(Error("InvalidPolicyValue", "providerPreference.speed must be standard, fast, or ultrafast."));
         return InferenceSpeed.Standard;
     }
 

@@ -70,7 +70,8 @@
   font-weight: 640;
 }
 
-.model-picker-fast[aria-pressed='true'] {
+.model-picker-fast[aria-pressed='true'],
+.model-picker-fast[data-speed-active] {
   color: var(--text-primary);
 }
 

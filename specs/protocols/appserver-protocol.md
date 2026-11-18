@@ -320,7 +320,7 @@ A request carrying `chat` from a connection without `capabilities.channelAdapter
 | `skillsPolicy` | `allow`/`deny` by skill name. Omitted `allow` means every enabled skill; excluded skills are left out of skill context and refused by `SkillView`. |
 | `approvalPolicy` | `default`, `prompt`, `autoApprove`, or `deny` (below). |
 | `reasoning` | Effort (`low` … `ultra`) and output (`none`, `summary`, `full`); absent falls back to workspace defaults. |
-| `speed` | `standard` or `fast`. New threads capture the workspace value; absent means `standard`. Changes affect future and queued turns, not a running request. |
+| `speed` | `standard`, `fast`, or `ultrafast`. New threads capture the workspace value; absent means `standard`. Changes affect future and queued turns, not a running request. |
 | `requireApprovalOutsideWorkspace` | `true` routes outside-workspace file/shell operations through approval; `false` rejects them without prompting; omitted uses workspace defaults. |
 
 Approval policy:
@@ -1819,7 +1819,7 @@ Non-obvious fields:
 - `id`: the model id used in provider preferences and thread configuration. `ownedBy` may be empty.
 - `displayName`: optional name clients show instead of `id`.
 - `reasoning`: optional server-authored capability metadata; clients use it rather than hardcoding compatibility. A model backend's models carry only the reasoning their backend reports, and preference repair and reasoning validation never apply built-in protocol catalogs to them; built-in providers use the merged model catalog. `supportsDisable` (an Off choice is allowed), `supportedEfforts` (`effort` among `low`, `medium`, `high`, `extraHigh`, `max`, `ultra`, plus a display `label`; `ultra` is advertised only when the model supports `max` and the Dynamic Workflow runtime is available), `defaultEffort`, `supportedOutputs` (`none`, `summary`, `full`), `defaultOutput`.
-- `speed`: optional `supportedModes` (Fast-capable models list `standard` and `fast`) and `defaultMode` (`standard`). When missing, clients must not offer Fast. Model backend models never carry it.
+- `speed`: optional ordered `supportedModes` (`standard` followed by each accelerated mode the model advertises, `fast` and/or `ultrafast`) and `defaultMode` (`standard`). Present only when at least one accelerated mode is advertised. When missing, clients must not offer accelerated speeds. Model backend models never carry it.
 - `contextWindow`: raw model capacity from the merged model catalog, independent of compaction limits.
 - Built-in backend models may report `supportedProtocols`, `defaultProtocol`, `maxOutputTokens`,
   `inputModalities`, and `pricing` from the same model record as context and reasoning. Model-list
@@ -2608,7 +2608,7 @@ Group keys are raw; clients map labels:
 
 - `tokenType`: `uncached`, `cached`, `cacheWrite`, `output` (never folded).
 - `surface`: the root thread's origin channel. Clients display built-in surface IDs with friendly names, including `dotcraft-desktop` as Desktop and `dotcraft-mobile` as Mobile, while preserving the raw IDs for grouping and requests.
-- `model`, `reasoning` (`low`, `medium`, `high`, `extrahigh`), `speed` (`standard`, `fast`): as recorded on the Turn; `unknown` when absent (or reasoning off).
+- `model`, `reasoning` (`low`, `medium`, `high`, `extrahigh`), `speed` (`standard`, `fast`, `ultrafast`): as recorded on the Turn; `unknown` when absent (or reasoning off).
 - `toolSource`: `builtin`, `mcp:<server>`, `plugin:<pluginId>`, `client`, `binding`, or `unknown`.
 - `tool`: tool name as invoked. `skill`: skill name without `$`.
 

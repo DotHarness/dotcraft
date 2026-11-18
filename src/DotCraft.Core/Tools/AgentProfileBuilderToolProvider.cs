@@ -11,7 +11,7 @@ namespace DotCraft.Tools;
 internal enum AgentToolPolicyMode { All, AllowList, DenyList }
 internal enum AgentToolControl { Full, Disabled, AllowList }
 internal enum AgentReasoningEffort { Low, Medium, High, ExtraHigh, Max, Ultra }
-internal enum AgentInferenceSpeed { Standard, Fast }
+internal enum AgentInferenceSpeed { Standard, Fast, Ultrafast }
 internal enum AgentApprovalPolicy { Prompt, AutoApprove }
 
 /// <summary>Registers the Agent Builder's profile-editing tools on threads that carry a builder target capability.</summary>

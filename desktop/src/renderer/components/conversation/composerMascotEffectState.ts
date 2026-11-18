@@ -1,6 +1,7 @@
 import type { InferenceSpeedWire, ModelCatalogItem, ReasoningEffortWire } from '../../stores/modelCatalogStore'
 import type { ReasoningQuickValue } from './ModelPicker'
 import type { ComposerMascotReasoningEffort, ComposerMascotSpeed } from './ComposerShell'
+import { effectiveSpeed } from './modelSpeed'
 
 export interface ComposerMascotEffectState {
   reasoningEffort: ComposerMascotReasoningEffort
@@ -30,9 +31,7 @@ export function resolveComposerMascotEffectState({
     ? model?.reasoning?.defaultEffort ?? 'off'
     : reasoningValue
   const reasoningEffort = toComposerMascotReasoningEffort(resolvedReasoningEffort)
-  const speed = speedValue === 'fast' && model?.speed?.supportedModes.includes('fast') === true
-    ? 'fast'
-    : 'standard'
+  const speed = effectiveSpeed(model?.speed, speedValue) === 'standard' ? 'standard' : 'fast'
 
   return {
     reasoningEffort,
