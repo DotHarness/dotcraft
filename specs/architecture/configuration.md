@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.10.0 |
+| **Version** | 0.13.1 |
 | **Status** | Living |
-| **Date** | 2026-11-02 |
+| **Date** | 2026-11-18 |
 
 Purpose: Define how DotCraft configuration fields are declared, layered, read, written, applied at runtime, and exposed to AppServer clients.
 
@@ -48,11 +48,19 @@ Configuration has two file layers, from lowest to highest precedence:
 | `user` | The global configuration file, `~/.craft/config.json` unless the host supplies another path |
 | `workspace` | `<workspace>/.craft/config.json` |
 
+The user layer holds settings that follow the user across workspaces, and clients write it by default. The workspace layer is a hand-authored override for one checkout, and clients write it only when they name it.
+
 The effective configuration is the descriptor defaults overlaid by the user layer and then the workspace layer. Objects merge recursively by case-insensitive key; scalars and arrays are replaced by the higher layer. `ProviderPreferences` replaces per provider. Environment-variable expansion applies to the effective result.
 
 Each layer has a version: `sha256:` followed by the hex digest of the layer's JSON serialized with sorted keys. A missing file has the version of an empty object.
 
 For each field whose value comes from a file layer, the origin of its key path is that layer. Fields at their defaults have no origin.
+
+### 4.1 Personal settings left in the workspace layer
+
+Releases before 0.13.1 wrote personal settings to the workspace layer, where they would shadow every later user-layer write. Once per workspace, before a host loads configuration, the 0.13.1 upgrade removes these key paths from the workspace layer: `ProviderId`, `ProviderPreferences`, `Permissions.DefaultApprovalPolicy`, `Memory.Enabled`, `Memory.AutoExtract`, `Dreams.Enabled`, `Dreams.AutoApply`, `Dreams.Interval`, `PromptSuggestions.Enabled`, `Skills.IncludeSharedSkills`, `InstantInterruptEnabled`, `Tools.CodeMode.Mode`, `Tools.ImageGeneration.Enabled`, `Tools.ImageGeneration.Provider`, `Tools.Lsp.Enabled`, `Tools.Web.SearchProvider`, `Tools.Web.DeepSeekCredentialSource`, `Tools.Web.DeepSeekProvider`, `Worktrees.BranchPrefix`, `SubAgent.DisabledProfiles`, `SubAgent.EnableExternalCliSessionResume`, `SubAgent.ProviderPreferences`, and `SubAgent.Models`. Values are removed, not moved, except that when the user layer has no `ProviderId`, the workspace's `ProviderId` and its `ProviderPreferences` entry move to the user layer so the workspace keeps a usable model. MCP servers, SubAgent profiles, credentials, plugin, and channel settings are kept.
+
+A workspace whose `.craft/config.json` is the user configuration file itself is skipped. The upgrade records its release in `<workspace>/.craft/upgrade-version`. A workspace layer that cannot be read or parsed is left unchanged and unrecorded, so the upgrade runs again on the next start. Workspace setup applies the upgrade before it writes its own provider selection, so a selection that setup deliberately stores in the workspace layer survives. The upgrade is removed in the next release.
 
 ## 5. Configuration service
 
@@ -66,7 +74,7 @@ A read returns the effective configuration, the origins map, and optionally each
 
 A write applies one or more edits to a single target layer. Each edit names a key path, a value, and a merge strategy.
 
-1. The target layer defaults to `workspace`, or to `user` when every edit is under `Providers` (§5.5). A target that is not one of the two file layers fails with `configLayerReadonly`.
+1. The target layer defaults to `user`. A target that is not one of the two file layers fails with `configLayerReadonly`.
 2. When an expected version is supplied and differs from the target layer's current version, the write fails with `configVersionConflict`.
 3. A key path that matches no descriptor and is not inside a descriptor-backed object fails with `configSchemaUnknownKey`.
 4. Sensitive values are write-only. A `***` string that is the edit's value or the value of an object member nested in it is replaced by the value stored at the same path in the target layer as it was before the write, or removed when there is none, so writing the mask leaves the stored value unchanged. A `***` array element is kept as written. Any other value replaces the stored one.
@@ -93,6 +101,12 @@ The field's reload behavior then decides when the change takes effect:
 Every `Hot` or `SubsystemRestart` field either is read at use time or has a registered subsystem handler, and a test enforces it. A field whose change cannot be honored without a restart is declared `ProcessRestart`.
 
 Finally the service raises one change event with the write's source and the changed key paths. A write that changes no effective value raises no event. The event carries key paths only, never values.
+
+### 5.3.1 User-layer changes from elsewhere
+
+The user layer is shared by every workspace runtime on the machine, each in its own process, and can also be edited by hand. Before it handles each AppServer request, and before each Turn captures its agent, a runtime compares the user layer on disk with the content it last applied. When they differ, it recomputes the effective configuration from the new user layer and the current workspace layer, applies every changed field as in §5.3 (accessor assignment, then subsystem handlers), and raises one change event with the source `config/reload` and the changed key paths. It also reloads the `SubAgent` section and `SubAgentProfiles` when the user layer's content under them changed, and adds the `subagent` region. A user layer that cannot be read, or whose changed fields fail the checks a local write applies, is ignored until it is valid, and the runtime keeps its last applied state. A local write first applies any pending user-layer change, so its result and event cover only its own edits.
+
+A runtime that receives no request and starts no Turn applies the change, and notifies its clients, on its next request or Turn.
 
 ### 5.4 Subsystems and semantic rules
 
@@ -123,7 +137,7 @@ Provider-specific routing and authentication follow the selected backend's contr
 
 Providers are created, edited, and deleted only by configuration writes: an edit of `Providers.<id>` or `Providers.<id>.<Field>` creates or changes a provider, and a `null` value at `Providers.<id>` deletes it. A write does not distinguish creating from editing; a client that must not overwrite an existing provider checks the listed ids and supplies the expected version of the user layer.
 
-Provider definitions are personal and live in the user layer. A write whose edits are all under `Providers` targets the user layer by default; a write that mixes `Providers` edits with other keys must name the user layer; any write with an edit under `Providers` whose target is another layer fails with `configValidationError`, as does a replacement of the workspace layer that changes content under `Providers`.
+Provider definitions are personal and live in the user layer, the default write target. A write with an edit under `Providers` that names the workspace layer fails with `configValidationError`, as does a replacement of the workspace layer that changes content under `Providers`.
 
 While a remote model service manages providers, a write with any edit under `Providers` fails with `configValidationError`, and no configuration write replaces the service-managed provider set.
 
@@ -146,11 +160,11 @@ Returns the effective configuration keyed by on-disk property names and the orig
 
 ### 6.2 `config/value/write`
 
-Writes one edit (§5.2). A key-path segment that contains `.`, `"`, or `\` is written in double quotes with `\` escaping, for example `ProviderPreferences."openai.personal"`. The target layer is named by a layer file path from `config/read`, defaulting as in §5.2 step 1. The result carries the status (`ok` or `okOverridden` with the overriding layer and masked effective value), the new version, and the file path.
+Writes one edit (§5.2). A key-path segment that contains `.`, `"`, or `\` is written in double quotes with `\` escaping, for example `ProviderPreferences."openai.personal"`. The target layer is named by a layer file path from `config/read`, and an omitted path means the user layer (§5.2 step 1). The result carries the status (`ok` or `okOverridden` with the overriding layer and masked effective value), the new version, and the file path.
 
 ### 6.3 `config/batchWrite`
 
-Applies several edits atomically to one layer with the same rules and result as `config/value/write`. A batch that mixes `Providers` edits with other keys must name the user layer (§5.5).
+Applies several edits atomically to one layer with the same rules, default target, and result as `config/value/write`.
 
 ### 6.4 Errors
 
@@ -158,7 +172,7 @@ Write failures are JSON-RPC invalid-request errors whose `data.configWriteErrorC
 
 ### 6.5 `config/changed`
 
-The notification's `regions` lists the changed configuration key paths for configuration writes. A change that includes `Providers` also lists the `providers` domain tag. Domain operations that change persisted state outside field-level configuration (skills, plugins, MCP, hooks, external channels, SubAgent settings, source control) report their own domain tags. Clients refresh configuration views when a key path under a prefix they display appears and refresh provider views on `providers`.
+The notification's `regions` lists the changed configuration key paths for configuration writes and for user-layer changes applied from elsewhere (§5.3.1). A change that includes `Providers` also lists the `providers` domain tag. Domain operations that change persisted state outside field-level configuration (skills, plugins, MCP, hooks, external channels, SubAgent settings, source control) report their own domain tags. Clients refresh configuration views when a key path under a prefix they display appears and refresh provider views on `providers`.
 
 Region key paths are the canonical key paths from the descriptor registry. Clients match them against configuration keys case-insensitively, because file layers may spell keys in any case.
 
@@ -170,7 +184,7 @@ Region key paths are the canonical key paths from the descriptor registry. Clien
 
 ## 7. Clients
 
-Clients read and write configuration only through these methods against the server they are connected to, for local, SSH-managed, and manually configured remote connections alike. Defaults come from the effective configuration, not from client constants. A setting control applies its change optimistically, restores the previous value and reports an error when the write fails, and refreshes when `config/changed` names one of its key paths.
+Clients read and write configuration only through these methods against the server they are connected to, for local, SSH-managed, and manually configured remote connections alike. Settings write the user layer by omitting the target. A result of `okOverridden` tells the user that the workspace layer still sets the value. Defaults come from the effective configuration, not from client constants. A setting control applies its change optimistically, restores the previous value and reports an error when the write fails, and refreshes when `config/changed` names one of its key paths.
 
 A provider editor lists providers with `provider/list` and saves with `config/batchWrite` on `Providers.<id>`: an untouched secret is sent as `***` or left out, and deleting writes `null` to `Providers.<id>`.
 

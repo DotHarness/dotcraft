@@ -93,12 +93,14 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
             "model-a",
             expectedSpeed: "fast");
 
+        var edit = System.Text.Json.Nodes.JsonNode.Parse(
+            """
+            { "keyPath": "ProviderPreferences.openai", "value": { "Model": "model-b" }, "mergeStrategy": "replace" }
+            """)!;
+        edit["filePath"] = Path.Combine(_craftPath, "config.json");
         var update = InMemoryTransport.BuildRequest(
             DotCraft.Protocol.AppServer.AppServerMethodNames.ConfigValueWrite,
-            System.Text.Json.Nodes.JsonNode.Parse(
-                """
-                { "keyPath": "ProviderPreferences.openai", "value": { "Model": "model-b" }, "mergeStrategy": "replace" }
-                """),
+            edit,
             id: 11);
         await ExecuteRequestAsync(handler, transport, update);
         await ReadResponseForIdAsync(transport, 11);
@@ -199,17 +201,19 @@ public sealed class AppServerThreadModelSnapshotTests : IDisposable
             expectedModel: "claude-sonnet-4-5",
             expectedProviderId: "anthropic-main");
 
+        var edits = System.Text.Json.Nodes.JsonNode.Parse(
+            """
+            {
+              "edits": [
+                { "keyPath": "ProviderId", "value": "openrouter", "mergeStrategy": "replace" },
+                { "keyPath": "ProviderPreferences.openrouter", "value": { "Model": "openrouter-model" }, "mergeStrategy": "replace" }
+              ]
+            }
+            """)!;
+        edits["filePath"] = Path.Combine(_craftPath, "config.json");
         var update = InMemoryTransport.BuildRequest(
             DotCraft.Protocol.AppServer.AppServerMethodNames.ConfigBatchWrite,
-            System.Text.Json.Nodes.JsonNode.Parse(
-                """
-                {
-                  "edits": [
-                    { "keyPath": "ProviderId", "value": "openrouter", "mergeStrategy": "replace" },
-                    { "keyPath": "ProviderPreferences.openrouter", "value": { "Model": "openrouter-model" }, "mergeStrategy": "replace" }
-                  ]
-                }
-                """),
+            edits,
             id: 21);
         await ExecuteRequestAsync(handler, transport, update);
         await ReadResponseForIdAsync(transport, 21);

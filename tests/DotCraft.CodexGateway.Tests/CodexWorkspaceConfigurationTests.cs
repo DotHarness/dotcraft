@@ -99,7 +99,7 @@ public sealed class CodexWorkspaceConfigurationTests
         await using var session = await fixture.ConnectAsync();
         await session.HandleAsync("config/batchWrite", Json(new
         {
-            expectedVersion = "workspace-v1",
+            expectedVersion = "user-v1",
             edits = new[]
             {
                 new { keyPath = "default_permissions", value = "dotcraft", mergeStrategy = "replace" },
@@ -307,7 +307,7 @@ public sealed class CodexWorkspaceConfigurationTests
                         ProviderId = "provider", ProviderPreferences = new { provider = new { model = "model", reasoning = new { effort = "max" } } },
                         Permissions = new { DefaultApprovalPolicy = workspacePolicy }
                     },
-                    layers = new[] { new { name = new { type = "workspace", file = Path.Combine(Path.GetTempPath(), ".craft", "config.json") }, version = "workspace-v1", config = new { } } }
+                    layers = new[] { new { name = new { type = "user", file = Path.Combine(Path.GetTempPath(), ".craft", "config.json") }, version = "user-v1", config = new { } } }
                 },
                 "provider/list" => new { providers = new[] { new { id = "provider" }, new { id = "other-provider" } } },
                 "model/list" => new

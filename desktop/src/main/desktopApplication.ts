@@ -197,6 +197,13 @@ export class DesktopApplication implements DesktopApplicationServices {
   ): Promise<void> => {
     Object.assign(this.settings, mergeUpdatedSettings(this.settings, partial))
     saveSettings(this.settings)
+    if ('followUpQueueMode' in partial || 'newTaskPrompt' in partial || 'newChatApprovalPolicy' in partial) {
+      this.broadcast('settings:composer-preferences-changed', {
+        followUpQueueMode: this.settings.followUpQueueMode,
+        newTaskPrompt: this.settings.newTaskPrompt,
+        newChatApprovalPolicy: this.settings.newChatApprovalPolicy
+      })
+    }
     const draftOnly = Object.keys(partial).length === 1 && partial.composerTextDrafts !== undefined
     for (const window of this.windows.values()) {
       const update =

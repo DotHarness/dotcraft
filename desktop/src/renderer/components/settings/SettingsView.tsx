@@ -192,6 +192,10 @@ function toContractMcpServer(server: McpServerConfigWire) {
   }
 }
 
+function mcpWriteScope(server: McpServerConfigWire | undefined): 'user' | 'workspace' {
+  return server?.origin?.kind === 'workspace' ? 'workspace' : 'user'
+}
+
 function cardStyle(): CSSProperties {
   return {
     border: '1px solid var(--border-default)',
@@ -781,7 +785,14 @@ export function SettingsView({
   )
 
   async function handleDefaultApprovalPolicyChange(nextPolicy: VisibleApprovalPolicy): Promise<boolean> {
-    if (nextPolicy === defaultApprovalPolicy || defaultApproval.pending) return false
+    if (defaultApproval.pending) return false
+    const clearNewChatPolicy = (): void => {
+      void useComposerPreferencesStore.getState().saveNewChatApprovalPolicy(null).catch(() => undefined)
+    }
+    if (nextPolicy === defaultApprovalPolicy) {
+      clearNewChatPolicy()
+      return false
+    }
 
     if (nextPolicy === 'autoApprove') {
       const confirmed = await confirm({
@@ -794,7 +805,9 @@ export function SettingsView({
       if (!confirmed) return false
     }
 
-    return defaultApproval.set(nextPolicy)
+    const saved = await defaultApproval.set(nextPolicy)
+    if (saved) clearNewChatPolicy()
+    return saved
   }
 
   useSettingsWorkspaceConfigChangeEffects({
@@ -961,7 +974,7 @@ export function SettingsView({
     setMcpTestResult(null)
     try {
       const result = (await window.api.appServer.sendRequest('mcp/test', {
-        scope: mcpServers.find(server => server.name === editingServerName)?.origin?.kind === 'user' ? 'user' : 'workspace',
+        scope: mcpWriteScope(mcpServers.find(server => server.name === editingServerName)),
         server: toContractMcpServer(payload)
       })) as McpTestResultWire
       setMcpTestResult(result)
@@ -985,7 +998,7 @@ export function SettingsView({
     setSavingMcp(true)
     try {
       await window.api.appServer.sendRequest('mcp/upsert', {
-        scope: mcpServers.find(server => server.name === editingServerName)?.origin?.kind === 'user' ? 'user' : 'workspace',
+        scope: mcpWriteScope(mcpServers.find(server => server.name === editingServerName)),
         server: toContractMcpServer(payload)
       })
       await Promise.all([reloadMcpServers(), reloadMcpStatuses()])
@@ -1003,7 +1016,7 @@ export function SettingsView({
     setTogglingServerName(server.name)
     try {
       await window.api.appServer.sendRequest('mcp/upsert', {
-        scope: server.origin?.kind === 'user' ? 'user' : 'workspace',
+        scope: mcpWriteScope(server),
         server: { ...toContractMcpServer(server), enabled: nextEnabled }
       })
       await Promise.all([reloadMcpServers(), reloadMcpStatuses()])
@@ -1022,7 +1035,7 @@ export function SettingsView({
     if (!name) return
     setDeletingMcp(true)
     try {
-      await window.api.appServer.sendRequest('mcp/remove', { name, scope: mcpServers.find(server => server.name === name)?.origin?.kind === 'user' ? 'user' : 'workspace' })
+      await window.api.appServer.sendRequest('mcp/remove', { name, scope: mcpWriteScope(mcpServers.find(server => server.name === name)) })
       await Promise.all([reloadMcpServers(), reloadMcpStatuses()])
       setMcpSavedHint(t('settings.savedToast'))
       cancelMcpEdit()
@@ -1208,8 +1221,7 @@ export function SettingsView({
       images: [],
       files: [],
       mode: existing?.mode ?? 'agent',
-      model: existing?.model || 'Default',
-      approvalPolicy: existing?.approvalPolicy ?? 'default'
+      model: existing?.model || 'Default'
     })
   }
 

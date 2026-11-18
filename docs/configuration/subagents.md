@@ -55,7 +55,7 @@ Fields inside each `SubAgent.Roles` entry:
 
 ## External CLI profiles
 
-Custom external CLI profiles live under `SubAgentProfiles`. Workspace config overrides same-named global profiles.
+Custom external CLI profiles live under `SubAgentProfiles`. Workspace config overrides same-named global profiles. Profiles, enablement, and model choices saved from Desktop go to the global config, so they apply in every workspace.
 
 ```json
 {

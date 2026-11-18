@@ -213,6 +213,7 @@ public static class ServiceRegistration
         services.AddSingleton<IWorkspaceRuntimeFactory, WorkspaceRuntimeFactory>();
         services.AddSingleton(sp => sp.GetRequiredService<IWorkspaceRuntimeFactory>().Create(sp));
         services.AddSingleton<ISessionService>(sp => sp.GetRequiredService<WorkspaceRuntime>().SessionService);
+        services.AddSingleton<ISessionRuntimeRefresher>(sp => new UserConfigurationRefresher(sp));
         services.AddSingleton<IHostedService, WorkspaceRuntimeHostedService>();
 
         // WorkspaceRuntime starts this manager after the kernel and stops it before tearing the

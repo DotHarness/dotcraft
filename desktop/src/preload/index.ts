@@ -314,6 +314,12 @@ export interface ModulesRescanSummaryPayload {
   changedRunningModuleIds: string[]
 }
 
+export interface ComposerPreferencesChangedPayload {
+  followUpQueueMode?: FollowUpQueueMode
+  newTaskPrompt?: NewTaskPromptMode
+  newChatApprovalPolicy?: 'prompt' | 'autoApprove'
+}
+
 export interface PinnedThreadIdsChangedPayload {
   workspacePath: string
   threadIds: string[]
@@ -456,6 +462,14 @@ ipcRenderer.on(
   'settings:pinned-thread-ids-changed',
   (_event: Electron.IpcRendererEvent, payload: PinnedThreadIdsChangedPayload) => {
     activePinnedThreadIdsChangedCallback?.(payload)
+  }
+)
+
+const composerPreferencesChangedDispatcher = new TokenMulticastDispatcher<ComposerPreferencesChangedPayload>()
+ipcRenderer.on(
+  'settings:composer-preferences-changed',
+  (_event: Electron.IpcRendererEvent, payload: ComposerPreferencesChangedPayload) => {
+    composerPreferencesChangedDispatcher.dispatch(payload)
   }
 )
 
@@ -1619,6 +1633,7 @@ const api = {
       showThinkingContent?: boolean
       followUpQueueMode?: FollowUpQueueMode
       newTaskPrompt?: NewTaskPromptMode
+      newChatApprovalPolicy?: 'prompt' | 'autoApprove'
       projectsSectionCollapsed?: boolean
       pinnedSectionCollapsed?: boolean
       chatsSectionCollapsed?: boolean
@@ -1712,6 +1727,7 @@ const api = {
       showThinkingContent?: boolean
       followUpQueueMode?: FollowUpQueueMode
       newTaskPrompt?: NewTaskPromptMode
+      newChatApprovalPolicy?: 'prompt' | 'autoApprove'
       projectsSectionCollapsed?: boolean
       pinnedSectionCollapsed?: boolean
       chatsSectionCollapsed?: boolean
@@ -1770,6 +1786,9 @@ const api = {
       return ipcRenderer.invoke('settings:set', partial)
     },
 
+    onComposerPreferencesChanged(callback: (payload: ComposerPreferencesChangedPayload) => void): UnsubscribeFn {
+      return composerPreferencesChangedDispatcher.subscribe(callback)
+    },
     onPinnedThreadIdsChanged(callback: (payload: PinnedThreadIdsChangedPayload) => void): UnsubscribeFn {
       const token = ++pinnedThreadIdsChangedToken
       activePinnedThreadIdsChangedCallback = callback

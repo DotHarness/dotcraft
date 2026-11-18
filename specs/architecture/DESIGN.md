@@ -1,5 +1,5 @@
 ---
-version: "0.13.0"
+version: "0.13.1"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 colors:
@@ -1831,18 +1831,16 @@ unread dot, then the branch's pull request glyph.
 
 ### Settings navigation
 
-The Settings sidebar groups pages by what a setting changes: Personal and
-Integrations hold what belongs to the whole Desktop, and Workspace holds what
-belongs to one workspace. The Workspace group opens with a picker row naming the
-foreground workspace (or Chats, when no project is open). The picker switches the
-foreground workspace in place and Settings stays open. A setting that writes to the
-workspace configuration lives in the Workspace group, never under General.
+The Settings sidebar groups pages by subject: Personal, Integrations, and Coding.
+Every setting applies to every workspace, so the sidebar names no workspace and
+has no workspace picker. Data that only makes sense for one project, such as a
+local environment or a Perforce checkout, stays with its project, and the page
+names the project it edits.
 
 Search sits directly below Back to app. It is the composed search control without a
 frame: `36px` tall, pill radius, and a `--bg-hover` fill. The field does not take
 focus when Settings opens, and Ctrl/Cmd+F focuses it. Results replace the navigation
-until the query is cleared; each result names its page, and a result in the Workspace
-group also names the workspace.
+until the query is cleared; each result names its page.
 
 A page's title and description describe the whole page, so switching a segmented
 control inside it changes neither. Text about one segment belongs to a group in that

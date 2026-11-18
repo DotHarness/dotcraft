@@ -32,7 +32,6 @@ export function stageChatDraft(text: string, segments: ComposerDraftSegment[]): 
     images: [],
     files: [],
     mode: existing?.mode ?? 'agent',
-    model: existing?.model || 'Default',
-    approvalPolicy: existing?.approvalPolicy ?? 'default'
+    model: existing?.model || 'Default'
   })
 }

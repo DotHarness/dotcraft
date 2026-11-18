@@ -22,7 +22,7 @@ public sealed partial class CodexGatewaySession
         object result, CodexWorkspace route, CodexWorkspaceSession backend, JsonElement p, CancellationToken ct)
     {
         var source = await backend.ReadConfigurationMetadataAsync(ct);
-        var layer = source.Get("layers").Rows().LastOrDefault(l => l.Get("name").Text("type") == "workspace");
+        var layer = source.Get("layers").Rows().LastOrDefault(l => l.Get("name").Text("type") == "user");
         var version = layer.Required("version");
         var node = JsonSerializer.SerializeToNode(result)!.AsObject();
         var name = new { type = "project", dotCodexFolder = Path.GetDirectoryName(ConfigurationPath(route))! };

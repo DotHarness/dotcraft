@@ -121,6 +121,7 @@ export interface AppSettings extends SidebarThreadOrderSettings {
   remoteDesktopPluginGrants?: string[]
   followUpQueueMode?: FollowUpQueueMode
   newTaskPrompt?: NewTaskPromptMode
+  newChatApprovalPolicy?: 'prompt' | 'autoApprove'
   lastWorkspacePath?: string
   lastForegroundEntry?: LastForegroundEntry
   modulesDirectory?: string
@@ -356,6 +357,12 @@ function normalizeWelcomeBackdropSetting(settings: AppSettings): boolean | undef
 
 function normalizeNewTaskPromptSetting(settings: AppSettings): NewTaskPromptMode | undefined {
   return settings.newTaskPrompt === 'newThread' || settings.newTaskPrompt === 'here' ? settings.newTaskPrompt : undefined
+}
+
+function normalizeNewChatApprovalPolicy(settings: AppSettings): AppSettings['newChatApprovalPolicy'] {
+  return settings.newChatApprovalPolicy === 'prompt' || settings.newChatApprovalPolicy === 'autoApprove'
+    ? settings.newChatApprovalPolicy
+    : undefined
 }
 
 function normalizeShowThinkingContent(settings: AppSettings): boolean | undefined {
@@ -642,6 +649,7 @@ export function loadSettings(): AppSettings {
       raw.activeModuleVariants = normalizeActiveModuleVariants(raw)
       raw.showThinkingContent = normalizeShowThinkingContent(raw)
       raw.newTaskPrompt = normalizeNewTaskPromptSetting(raw)
+      raw.newChatApprovalPolicy = normalizeNewChatApprovalPolicy(raw)
       raw.projectsSectionCollapsed = normalizeProjectsSectionCollapsed(raw)
       raw.pinnedSectionCollapsed = normalizePinnedSectionCollapsed(raw)
       raw.chatsSectionCollapsed = normalizeChatsSectionCollapsed(raw)
@@ -712,6 +720,7 @@ export function saveSettings(settings: AppSettings): void {
     settings.activeModuleVariants = normalizeActiveModuleVariants(settings)
     settings.showThinkingContent = normalizeShowThinkingContent(settings)
     settings.newTaskPrompt = normalizeNewTaskPromptSetting(settings)
+    settings.newChatApprovalPolicy = normalizeNewChatApprovalPolicy(settings)
     settings.projectsSectionCollapsed = normalizeProjectsSectionCollapsed(settings)
     settings.pinnedSectionCollapsed = normalizePinnedSectionCollapsed(settings)
     settings.chatsSectionCollapsed = normalizeChatsSectionCollapsed(settings)

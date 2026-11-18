@@ -1,6 +1,7 @@
 import { useCallback, useEffect } from 'react'
 import { create } from 'zustand'
 import type { JsonValue } from '@dotcraft/sdk/contracts'
+import { normalizeLocale, translate } from '../../shared/locales'
 import { useConnectionStore } from './connectionStore'
 import { addToast } from './toastStore'
 import { requestWorkspaceResource, workspaceResourceKey, type WorkspaceResourceScope } from './workspaceResourceScope'
@@ -251,10 +252,11 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
       keyPath: edit.keyPath, value: edit.value as JsonValue, mergeStrategy: 'replace' as const
     }))
     try {
-      if (wireEdits.length === 1) {
-        await requestWorkspaceResource(entry.scope, 'config/value/write', wireEdits[0], 20_000)
-      } else {
-        await requestWorkspaceResource(entry.scope, 'config/batchWrite', { edits: wireEdits }, 20_000)
+      const result = wireEdits.length === 1
+        ? await requestWorkspaceResource(entry.scope, 'config/value/write', wireEdits[0], 20_000)
+        : await requestWorkspaceResource(entry.scope, 'config/batchWrite', { edits: wireEdits }, 20_000)
+      if (result.status === 'okOverridden') {
+        addToast(translate(normalizeLocale(document.documentElement.lang), 'settings.config.overriddenByProject'), 'warning')
       }
       if (live(entry)) {
         const applicable = edits.filter((edit) => !hasNewerCommit(entry, edit, sequence))

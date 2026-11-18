@@ -38,7 +38,7 @@ public sealed class RemoteProviderManagementTests : IDisposable
         CoreAppServerTestHarness.AssertIsSuccessResponse(responses[1]);
         Assert.Same(managed, Assert.Single(config.Providers).Value);
         Assert.Equal("primary", config.ProviderId);
-        Assert.False(File.Exists(config.GlobalConfigPath));
+        Assert.Null(AtomicConfigDocument.Value(AtomicConfigDocument.Read(config.GlobalConfigPath!), "Providers"));
     }
 
     [Fact]

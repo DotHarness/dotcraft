@@ -201,8 +201,8 @@ function ConversationWelcomeCore({
   const initialWelcomeDraftRef = useRef(useUIStore.getState().getWelcomeDraftForWorkspace(draftProjectKey))
   const workspaceConfig = useConfig()
   const configuredApprovalDefault = readConfigValue(workspaceConfig, 'Permissions.DefaultApprovalPolicy')
-  const { welcomeApprovalPolicy, welcomeApprovalPolicyDirty, setWelcomeApprovalPolicyFromUser, hydrateApprovalPolicy } =
-    useWelcomeApprovalPolicy(initialWelcomeDraftRef, configuredApprovalDefault)
+  const { welcomeApprovalPolicy, welcomeApprovalPolicyDirty, setWelcomeApprovalPolicyFromUser } =
+    useWelcomeApprovalPolicy(configuredApprovalDefault)
   const [skillCatalogReady, setSkillCatalogReady] = useState(false)
   const sendInFlightRef = useRef(false)
   const skipDraftPersistRef = useRef(false)
@@ -449,7 +449,6 @@ function ConversationWelcomeCore({
     setImages(welcomeDraft.images)
     setFiles([...(welcomeDraft.files ?? [])])
     setWelcomeMode(welcomeDraft.mode)
-    hydrateApprovalPolicy(welcomeDraft)
     hydrateDraft(welcomeDraft)
     setContentRevision((n) => n + 1)
     draftHydratedRef.current = true
@@ -473,7 +472,6 @@ function ConversationWelcomeCore({
       || reasoningConfig.output !== DEFAULT_REASONING_CONFIG.output
     const hasCustomSettings = welcomeMode !== 'agent'
       || model !== 'Default'
-      || welcomeApprovalPolicyDirty
       || hasCustomReasoning
     const fallbackCaret = text.length
 
@@ -490,10 +488,9 @@ function ConversationWelcomeCore({
       providerId,
       model,
       reasoning: reasoningConfig,
-      speed: speedValue,
-      approvalPolicy: welcomeApprovalPolicyDirty ? welcomeApprovalPolicy : undefined,
+      speed: speedValue
     }
-  }, [files, images, modelName, providerId, reasoningConfig, speedValue, welcomeApprovalPolicy, welcomeApprovalPolicyDirty, welcomeMode])
+  }, [files, images, modelName, providerId, reasoningConfig, speedValue, welcomeMode])
 
   const flushWelcomeDraft = useCallback((): void => {
     if (skipDraftPersistRef.current) return
@@ -535,7 +532,7 @@ function ConversationWelcomeCore({
     return () => {
       clearTimeout(timer)
     }
-  }, [contentRevision, files, flushWelcomeDraft, images, modelName, reasoningConfig, speedValue, welcomeApprovalPolicy, welcomeApprovalPolicyDirty, welcomeMode])
+  }, [contentRevision, files, flushWelcomeDraft, images, modelName, reasoningConfig, speedValue, welcomeMode])
 
   const latestFlushWelcomeDraft = useRef(flushWelcomeDraft)
   latestFlushWelcomeDraft.current = flushWelcomeDraft

@@ -66,57 +66,59 @@ internal sealed class SubAgentRequestHandler(
         if (!hasResumeEnabled && !hasProviderPreferences)
             throw AppServerErrors.InvalidParams("At least one of 'externalCliSessionResumeEnabled' or 'providerPreferences' is required.");
 
-        var state = SubAgentProfilesPersistence.LoadWorkspaceState(workspaceCraftPath!);
-        var nextResumeEnabled = hasResumeEnabled
-            ? p.ExternalCliSessionResumeEnabled.Value!.Value
-            : state.EnableExternalCliSessionResume;
-        var nextProviderPreferences = hasProviderPreferences
-            ? NormalizeProviderPreferences(
-                SubAgentContractMapper.FromContract(p.ProviderPreferences.Value))
-            : state.ProviderPreferences;
-        if (hasProviderPreferences)
+        return WithUserConfigLock(() =>
         {
-            var currentConfig = appConfigMonitor?.Current ?? AppConfig.Load(
-                Path.Combine(workspaceCraftPath!, "config.json"));
-            foreach (var (providerId, preference) in nextProviderPreferences)
+            var state = SubAgentProfilesPersistence.LoadState(UserConfigPath);
+            var nextResumeEnabled = hasResumeEnabled
+                ? p.ExternalCliSessionResumeEnabled.Value!.Value
+                : state.EnableExternalCliSessionResume;
+            var nextProviderPreferences = hasProviderPreferences
+                ? NormalizeProviderPreferences(
+                    SubAgentContractMapper.FromContract(p.ProviderPreferences.Value))
+                : state.ProviderPreferences;
+            if (hasProviderPreferences)
             {
-                if (preference.ProviderId != null && !currentConfig.Providers.ContainsKey(preference.ProviderId))
+                var currentConfig = appConfigMonitor?.Current ?? runtimeConfig.LoadMergedConfig();
+                foreach (var (providerId, preference) in nextProviderPreferences)
                 {
-                    var previous = SubAgentModelPreference.Find(state.ProviderPreferences, providerId);
-                    if (previous == null
-                        || !string.Equals(previous.ProviderId, preference.ProviderId, StringComparison.OrdinalIgnoreCase)
-                        || !ModelPreferenceRules.ValueEquals(previous.ToModelPreference(), preference.ToModelPreference()))
-                        throw AppServerErrors.InvalidParams($"Model provider '{preference.ProviderId}' is not configured.");
-                    continue;
+                    if (preference.ProviderId != null && !currentConfig.Providers.ContainsKey(preference.ProviderId))
+                    {
+                        var previous = SubAgentModelPreference.Find(state.ProviderPreferences, providerId);
+                        if (previous == null
+                            || !string.Equals(previous.ProviderId, preference.ProviderId, StringComparison.OrdinalIgnoreCase)
+                            || !ModelPreferenceRules.ValueEquals(previous.ToModelPreference(), preference.ToModelPreference()))
+                            throw AppServerErrors.InvalidParams($"Model provider '{preference.ProviderId}' is not configured.");
+                        continue;
+                    }
+                    var targetProviderId = preference.ProviderId ?? providerId;
+                    AppServerRuntimeRequestValidator.ValidateReasoningForRuntime(
+                        currentConfig,
+                        targetProviderId,
+                        preference.Model,
+                        preference.Reasoning);
                 }
-                var targetProviderId = preference.ProviderId ?? providerId;
-                AppServerRuntimeRequestValidator.ValidateReasoningForRuntime(
-                    currentConfig,
-                    targetProviderId,
-                    preference.Model,
-                    preference.Reasoning);
             }
-        }
 
-        SubAgentProfilesPersistence.SaveWorkspaceState(
-            workspaceCraftPath!,
-            state.DisabledProfiles,
-            nextResumeEnabled,
-            state.Profiles,
-            hasProviderPreferences ? nextProviderPreferences : null);
-        runtimeConfig.RefreshCurrentSubAgentConfig();
-        runtimeConfig.InvalidateThreadAgents();
-        appConfigMonitor?.NotifyChanged(
-            Protocol.AppServer.AppServerMethodNames.SubAgentSettingsUpdate,
-            [ConfigChangeRegions.SubAgent]);
+            SubAgentProfilesPersistence.SaveState(
+                UserConfigPath,
+                state.DisabledProfiles,
+                nextResumeEnabled,
+                state.Profiles,
+                hasProviderPreferences ? nextProviderPreferences : null);
+            runtimeConfig.RefreshCurrentSubAgentConfig();
+            runtimeConfig.InvalidateThreadAgents();
+            appConfigMonitor?.NotifyChanged(
+                Protocol.AppServer.AppServerMethodNames.SubAgentSettingsUpdate,
+                [ConfigChangeRegions.SubAgent]);
 
-        return Task.FromResult(AppServerTypedResult<Contract.SubAgentSettingsUpdateResult>.FromResult(
-            new Contract.SubAgentSettingsUpdateResult
-            {
-                Settings = SubAgentContractMapper.ToContract(
-                    nextResumeEnabled,
-                    nextProviderPreferences)
-            }));
+            return Task.FromResult(AppServerTypedResult<Contract.SubAgentSettingsUpdateResult>.FromResult(
+                new Contract.SubAgentSettingsUpdateResult
+                {
+                    Settings = SubAgentContractMapper.ToContract(
+                        nextResumeEnabled,
+                        nextProviderPreferences)
+                }));
+        });
     }
 
     private Task<AppServerTypedResult<Contract.SubAgentProfileSetEnabledResult>> HandleSubAgentProfileSetEnabledAsync(
@@ -134,35 +136,39 @@ internal sealed class SubAgentRequestHandler(
         if (string.Equals(name, SubAgentCoordinator.DefaultProfileName, StringComparison.OrdinalIgnoreCase) && !enabled)
             throw AppServerErrors.SubAgentProfileProtected($"'{SubAgentCoordinator.DefaultProfileName}' cannot be disabled.");
 
-        var state = SubAgentProfilesPersistence.LoadWorkspaceState(workspaceCraftPath!);
-        var registry = Catalog.CreateRegistry(
-            state.Profiles,
-            disabledProfiles: state.DisabledProfiles);
-        if (!registry.TryGet(name, out _))
-            throw AppServerErrors.SubAgentProfileNotFound(name);
+        return WithUserConfigLock(() =>
+        {
+            var state = SubAgentProfilesPersistence.LoadState(UserConfigPath);
+            var effective = SubAgentProfilesPersistence.FromConfig(runtimeConfig.LoadMergedConfig());
+            var registry = Catalog.CreateRegistry(
+                effective.Profiles,
+                disabledProfiles: effective.DisabledProfiles);
+            if (!registry.TryGet(name, out _))
+                throw AppServerErrors.SubAgentProfileNotFound(name);
 
-        var disabled = state.DisabledProfiles.ToList();
-        if (enabled)
-            disabled.RemoveAll(item => string.Equals(item, name, StringComparison.OrdinalIgnoreCase));
-        else if (!disabled.Contains(name, StringComparer.OrdinalIgnoreCase))
-            disabled.Add(name);
+            var disabled = state.DisabledProfiles.ToList();
+            if (enabled)
+                disabled.RemoveAll(item => string.Equals(item, name, StringComparison.OrdinalIgnoreCase));
+            else if (!disabled.Contains(name, StringComparer.OrdinalIgnoreCase))
+                disabled.Add(name);
 
-        SubAgentProfilesPersistence.SaveWorkspaceState(
-            workspaceCraftPath!,
-            disabled,
-            state.EnableExternalCliSessionResume,
-            state.Profiles,
-            state.ProviderPreferences);
-        runtimeConfig.RefreshCurrentSubAgentConfig();
-        runtimeConfig.InvalidateThreadAgents();
-        appConfigMonitor?.NotifyChanged(
-            Protocol.AppServer.AppServerMethodNames.SubAgentProfileSetEnabled,
-            [ConfigChangeRegions.SubAgent]);
+            SubAgentProfilesPersistence.SaveState(
+                UserConfigPath,
+                disabled,
+                state.EnableExternalCliSessionResume,
+                state.Profiles,
+                state.ProviderPreferences);
+            runtimeConfig.RefreshCurrentSubAgentConfig();
+            runtimeConfig.InvalidateThreadAgents();
+            appConfigMonitor?.NotifyChanged(
+                Protocol.AppServer.AppServerMethodNames.SubAgentProfileSetEnabled,
+                [ConfigChangeRegions.SubAgent]);
 
-        var updated = SubAgentContractMapper.Read(BuildSubAgentProfileListResult().Profiles)!
-            .First(profile => string.Equals(SubAgentContractMapper.Read(profile.Name), name, StringComparison.OrdinalIgnoreCase));
-        return Task.FromResult(AppServerTypedResult<Contract.SubAgentProfileSetEnabledResult>.FromResult(
-            new Contract.SubAgentProfileSetEnabledResult { Profile = updated }));
+            var updated = SubAgentContractMapper.Read(BuildSubAgentProfileListResult().Profiles)!
+                .First(profile => string.Equals(SubAgentContractMapper.Read(profile.Name), name, StringComparison.OrdinalIgnoreCase));
+            return Task.FromResult(AppServerTypedResult<Contract.SubAgentProfileSetEnabledResult>.FromResult(
+                new Contract.SubAgentProfileSetEnabledResult { Profile = updated }));
+        });
     }
 
     private Task<AppServerTypedResult<Contract.SubAgentProfileUpsertResult>> HandleSubAgentProfileUpsertAsync(
@@ -181,30 +187,33 @@ internal sealed class SubAgentRequestHandler(
             SubAgentContractMapper.Read(p.Definition) ?? new Contract.SubAgentProfileWrite());
         ValidateSubAgentProfileWire(profile);
 
-        var state = SubAgentProfilesPersistence.LoadWorkspaceState(workspaceCraftPath!);
-        var profiles = state.Profiles.Select(existing => existing.Clone()).ToList();
-        var existingIndex = profiles.FindIndex(existing => string.Equals(existing.Name, name, StringComparison.OrdinalIgnoreCase));
-        if (existingIndex >= 0)
-            profiles[existingIndex] = profile;
-        else
-            profiles.Add(profile);
+        return WithUserConfigLock(() =>
+        {
+            var state = SubAgentProfilesPersistence.LoadState(UserConfigPath);
+            var profiles = state.Profiles.Select(existing => existing.Clone()).ToList();
+            var existingIndex = profiles.FindIndex(existing => string.Equals(existing.Name, name, StringComparison.OrdinalIgnoreCase));
+            if (existingIndex >= 0)
+                profiles[existingIndex] = profile;
+            else
+                profiles.Add(profile);
 
-        SubAgentProfilesPersistence.SaveWorkspaceState(
-            workspaceCraftPath!,
-            state.DisabledProfiles,
-            state.EnableExternalCliSessionResume,
-            profiles,
-            state.ProviderPreferences);
-        runtimeConfig.RefreshCurrentSubAgentConfig();
-        runtimeConfig.InvalidateThreadAgents();
-        appConfigMonitor?.NotifyChanged(
-            Protocol.AppServer.AppServerMethodNames.SubAgentProfileUpsert,
-            [ConfigChangeRegions.SubAgent]);
+            SubAgentProfilesPersistence.SaveState(
+                UserConfigPath,
+                state.DisabledProfiles,
+                state.EnableExternalCliSessionResume,
+                profiles,
+                state.ProviderPreferences);
+            runtimeConfig.RefreshCurrentSubAgentConfig();
+            runtimeConfig.InvalidateThreadAgents();
+            appConfigMonitor?.NotifyChanged(
+                Protocol.AppServer.AppServerMethodNames.SubAgentProfileUpsert,
+                [ConfigChangeRegions.SubAgent]);
 
-        var updated = SubAgentContractMapper.Read(BuildSubAgentProfileListResult().Profiles)!
-            .First(entry => string.Equals(SubAgentContractMapper.Read(entry.Name), name, StringComparison.OrdinalIgnoreCase));
-        return Task.FromResult(AppServerTypedResult<Contract.SubAgentProfileUpsertResult>.FromResult(
-            new Contract.SubAgentProfileUpsertResult { Profile = updated }));
+            var updated = SubAgentContractMapper.Read(BuildSubAgentProfileListResult().Profiles)!
+                .First(entry => string.Equals(SubAgentContractMapper.Read(entry.Name), name, StringComparison.OrdinalIgnoreCase));
+            return Task.FromResult(AppServerTypedResult<Contract.SubAgentProfileUpsertResult>.FromResult(
+                new Contract.SubAgentProfileUpsertResult { Profile = updated }));
+        });
     }
 
     private Task<AppServerTypedResult<Contract.SubAgentProfileRemoveResult>> HandleSubAgentProfileRemoveAsync(
@@ -218,33 +227,36 @@ internal sealed class SubAgentRequestHandler(
         if (string.IsNullOrWhiteSpace(name))
             throw AppServerErrors.InvalidParams("'name' is required.");
 
-        var state = SubAgentProfilesPersistence.LoadWorkspaceState(workspaceCraftPath!);
-        var workspaceProfiles = state.Profiles.Select(profile => profile.Clone()).ToList();
-        var existingIndex = workspaceProfiles.FindIndex(profile => string.Equals(profile.Name, name, StringComparison.OrdinalIgnoreCase));
-        if (existingIndex < 0)
-            throw AppServerErrors.SubAgentProfileNotFound(name);
+        return WithUserConfigLock(() =>
+        {
+            var state = SubAgentProfilesPersistence.LoadState(UserConfigPath);
+            var profiles = state.Profiles.Select(profile => profile.Clone()).ToList();
+            var existingIndex = profiles.FindIndex(profile => string.Equals(profile.Name, name, StringComparison.OrdinalIgnoreCase));
+            if (existingIndex < 0)
+                throw AppServerErrors.SubAgentProfileNotFound(name);
 
-        workspaceProfiles.RemoveAt(existingIndex);
-        var disabled = state.DisabledProfiles.ToList();
-        var isBuiltIn = Catalog.BuiltInProfiles
-            .Any(profile => string.Equals(profile.Name, name, StringComparison.OrdinalIgnoreCase));
-        if (!isBuiltIn)
-            disabled.RemoveAll(item => string.Equals(item, name, StringComparison.OrdinalIgnoreCase));
+            profiles.RemoveAt(existingIndex);
+            var disabled = state.DisabledProfiles.ToList();
+            var isBuiltIn = Catalog.BuiltInProfiles
+                .Any(profile => string.Equals(profile.Name, name, StringComparison.OrdinalIgnoreCase));
+            if (!isBuiltIn)
+                disabled.RemoveAll(item => string.Equals(item, name, StringComparison.OrdinalIgnoreCase));
 
-        SubAgentProfilesPersistence.SaveWorkspaceState(
-            workspaceCraftPath!,
-            disabled,
-            state.EnableExternalCliSessionResume,
-            workspaceProfiles,
-            state.ProviderPreferences);
-        runtimeConfig.RefreshCurrentSubAgentConfig();
-        runtimeConfig.InvalidateThreadAgents();
-        appConfigMonitor?.NotifyChanged(
-            Protocol.AppServer.AppServerMethodNames.SubAgentProfileRemove,
-            [ConfigChangeRegions.SubAgent]);
+            SubAgentProfilesPersistence.SaveState(
+                UserConfigPath,
+                disabled,
+                state.EnableExternalCliSessionResume,
+                profiles,
+                state.ProviderPreferences);
+            runtimeConfig.RefreshCurrentSubAgentConfig();
+            runtimeConfig.InvalidateThreadAgents();
+            appConfigMonitor?.NotifyChanged(
+                Protocol.AppServer.AppServerMethodNames.SubAgentProfileRemove,
+                [ConfigChangeRegions.SubAgent]);
 
-        return Task.FromResult(AppServerTypedResult<Contract.SubAgentProfileRemoveResult>.FromResult(
-            new Contract.SubAgentProfileRemoveResult { Removed = true }));
+            return Task.FromResult(AppServerTypedResult<Contract.SubAgentProfileRemoveResult>.FromResult(
+                new Contract.SubAgentProfileRemoveResult { Removed = true }));
+        });
     }
 
     private async Task<AppServerTypedResult<Contract.SubAgentChildrenListResult>> HandleSubAgentChildrenListAsync(
@@ -320,9 +332,18 @@ internal sealed class SubAgentRequestHandler(
         return AppServerTypedResult<Contract.SubAgentControlResult>.FromResult(SubAgentContractMapper.ToContract(result));
     }
 
+    private T WithUserConfigLock<T>(Func<T> action)
+    {
+        T result = default!;
+        AtomicConfigDocument.WithLock(UserConfigPath, () => result = action());
+        return result;
+    }
+
+    private string UserConfigPath => appConfigMonitor?.Current.GlobalConfigPath!;
+
     private void EnsureSubAgentManagementAvailable()
     {
-        if (string.IsNullOrWhiteSpace(workspaceCraftPath))
+        if (string.IsNullOrWhiteSpace(workspaceCraftPath) || string.IsNullOrWhiteSpace(appConfigMonitor?.Current.GlobalConfigPath))
             throw AppServerErrors.MethodNotFound("subagent/profiles/*");
     }
 
@@ -393,8 +414,8 @@ internal sealed class SubAgentRequestHandler(
 
     private Contract.SubAgentProfileListResult BuildSubAgentProfileListResult()
     {
-        var state = SubAgentProfilesPersistence.LoadWorkspaceState(workspaceCraftPath!);
-        var workspaceOverrideNames = state.Profiles
+        var state = SubAgentProfilesPersistence.FromConfig(runtimeConfig.LoadMergedConfig());
+        var userOverrideNames = SubAgentProfilesPersistence.LoadState(UserConfigPath).Profiles
             .Select(profile => profile.Name)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var catalog = Catalog;
@@ -416,7 +437,7 @@ internal sealed class SubAgentRequestHandler(
                     Name = profile.Name,
                     IsBuiltIn = registry.IsBuiltInProfile(profile.Name),
                     IsTemplate = registry.IsTemplateProfile(profile.Name),
-                    HasWorkspaceOverride = workspaceOverrideNames.Contains(profile.Name),
+                    HasWorkspaceOverride = userOverrideNames.Contains(profile.Name),
                     IsDefault = string.Equals(profile.Name, SubAgentCoordinator.DefaultProfileName, StringComparison.OrdinalIgnoreCase),
                     Enabled = registry.IsEnabled(profile.Name),
                     Definition = SubAgentContractMapper.ToContract(profile),
@@ -461,7 +482,7 @@ internal sealed class SubAgentRequestHandler(
             string? resolvedBinary = null;
             var hiddenReasons = new List<string>();
             if (!enabled)
-                hiddenReasons.Add("disabled by workspace configuration");
+                hiddenReasons.Add("disabled by configuration");
 
             if (!runtimeRegistered)
                 hiddenReasons.Add("runtime not registered");

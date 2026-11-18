@@ -19,6 +19,8 @@ public sealed class ConfigurationService
     private readonly Dictionary<string, Func<IReadOnlyList<string>, CancellationToken, Task>> _subsystemHandlers =
         new(StringComparer.Ordinal);
     private readonly Dictionary<string, Func<AppConfig, AppConfig, string?>> _validators = new(StringComparer.Ordinal);
+    private JsonObject _appliedUser;
+    private (DateTime WriteTime, long Length)? _appliedUserStamp;
 
     public ConfigurationService(
         IConfigDescriptorRegistry registry,
@@ -38,7 +40,11 @@ public sealed class ConfigurationService
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (var field in _fields)
             ConfigJsonPath.Set(_defaults, ConfigJsonPath.Split(field.KeyPath), Serialize(field, field.DefaultValue));
+        _appliedUserStamp = FileStamp(_userConfigPath);
+        _appliedUser = TryReadLayer(_userConfigPath) ?? new JsonObject();
     }
+
+    public const string ConfigReloadSource = "config/reload";
 
     public string UserConfigPath => _userConfigPath;
 
@@ -135,22 +141,14 @@ public sealed class ConfigurationService
         await _writeGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            await ApplyUserLayerChangeAsync().ConfigureAwait(false);
             var targetPath = target == ConfigLayerType.User ? _userConfigPath : _workspaceConfigPath;
             WriteOutcome outcome = null!;
             AtomicConfigDocument.WithLock(targetPath, () => outcome = CommitLocked(target, targetPath, edit));
+            _appliedUser = outcome.UserLayer;
+            _appliedUserStamp = outcome.UserStamp;
 
-            foreach (var (field, value) in outcome.Changed)
-                field.Set(_monitor.Current, value);
-            var changedKeyPaths = outcome.Changed.Select(c => c.Field.KeyPath).ToArray();
-            try
-            {
-                await DispatchSubsystemsAsync(outcome.Changed.Select(c => c.Field), cancellationToken).ConfigureAwait(false);
-            }
-            finally
-            {
-                if (changedKeyPaths.Length > 0)
-                    _monitor.NotifyChanged(source, ChangeRegions(changedKeyPaths));
-            }
+            await ApplyAsync(outcome.Changed, source, [], forceThreadAgents: false, cancellationToken).ConfigureAwait(false);
 
             return new ConfigWriteResult(
                 outcome.Overridden == null ? ConfigWriteStatus.Ok : ConfigWriteStatus.OkOverridden,
@@ -164,15 +162,103 @@ public sealed class ConfigurationService
         }
     }
 
+    public async Task ReloadUserLayerAsync()
+    {
+        if (!await _writeGate.WaitAsync(0).ConfigureAwait(false))
+            return;
+        try
+        {
+            await ApplyUserLayerChangeAsync().ConfigureAwait(false);
+        }
+        catch (Exception)
+        {
+            // A failing subsystem must not fail the unrelated request that triggered the reload.
+        }
+        finally
+        {
+            _writeGate.Release();
+        }
+    }
+
+    private async Task ApplyUserLayerChangeAsync()
+    {
+        var stamp = FileStamp(_userConfigPath);
+        if (stamp == _appliedUserStamp)
+            return;
+        if (TryReadLayer(_userConfigPath) is not { } user)
+            return;
+        if (JsonNode.DeepEquals(user, _appliedUser))
+        {
+            _appliedUserStamp = stamp;
+            return;
+        }
+        if (TryReadLayer(_workspaceConfigPath) is not { } workspace
+            || TryBuild(user, workspace) is not { } next
+            || TryBuild(_appliedUser, workspace) is not { } previous)
+            return;
+
+        List<(ConfigFieldDescriptor Field, object? Value)> changed;
+        try
+        {
+            changed = Diff(previous, next);
+            Validate(previous, next, changed, changed.Select(c => c.Field.KeyPath).ToArray());
+        }
+        catch (ConfigWriteException)
+        {
+            return;
+        }
+
+        var subAgentChanged = !JsonNode.DeepEquals(SubAgentNodes(_appliedUser), SubAgentNodes(user));
+        _appliedUser = user;
+        _appliedUserStamp = stamp;
+        if (subAgentChanged)
+        {
+            _monitor.Current.SubAgent = next.SubAgent;
+            _monitor.Current.SubAgentProfiles = next.SubAgentProfiles;
+        }
+
+        await ApplyAsync(
+            changed,
+            ConfigReloadSource,
+            subAgentChanged ? [ConfigChangeRegions.SubAgent] : [],
+            subAgentChanged,
+            CancellationToken.None).ConfigureAwait(false);
+    }
+
+    private static JsonArray SubAgentNodes(JsonObject layer) =>
+        [AtomicConfigDocument.Value(layer, "SubAgent")?.DeepClone(), AtomicConfigDocument.Value(layer, "SubAgentProfiles")?.DeepClone()];
+
+    private async Task ApplyAsync(
+        IReadOnlyList<(ConfigFieldDescriptor Field, object? Value)> changed,
+        string source,
+        IReadOnlyList<string> extraRegions,
+        bool forceThreadAgents,
+        CancellationToken cancellationToken)
+    {
+        foreach (var (field, value) in changed)
+            field.Set(_monitor.Current, value);
+        var changedKeyPaths = changed.Select(c => c.Field.KeyPath).ToArray();
+        try
+        {
+            await DispatchSubsystemsAsync(changed.Select(c => c.Field), forceThreadAgents, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            if (changedKeyPaths.Length > 0 || extraRegions.Count > 0)
+                _monitor.NotifyChanged(source, [.. ChangeRegions(changedKeyPaths), .. extraRegions]);
+        }
+    }
+
     private WriteOutcome CommitLocked(ConfigLayerType target, string targetPath, Func<JsonObject, LayerEdit> edit)
     {
+        var userStamp = FileStamp(_userConfigPath);
         var current = AtomicConfigDocument.Read(targetPath);
         var other = ReadLayer(target == ConfigLayerType.User ? _workspaceConfigPath : _userConfigPath);
         var (edited, editedKeyPaths) = edit(current);
 
-        var (previousUser, previousWorkspace) = target == ConfigLayerType.User ? (current, other) : (other, current);
+        var previousWorkspace = target == ConfigLayerType.User ? other : current;
         var (user, workspace) = target == ConfigLayerType.User ? (edited, other) : (other, edited);
-        var previous = TryBuild(previousUser, previousWorkspace) ?? _monitor.Current;
+        var previous = TryBuild(_appliedUser, previousWorkspace) ?? _monitor.Current;
         var next = Build(user, workspace);
         var changed = Diff(previous, next);
         Validate(previous, next, changed, editedKeyPaths ?? changed.Select(c => c.Field.KeyPath).ToArray());
@@ -182,12 +268,14 @@ public sealed class ConfigurationService
         {
             AtomicConfigDocument.Write(targetPath, edited);
             version = ConfigJsonPath.Version(edited);
+            if (target == ConfigLayerType.User)
+                userStamp = FileStamp(_userConfigPath);
         }
 
         var overridden = target == ConfigLayerType.User && editedKeyPaths != null
             ? FindOverride(editedKeyPaths, user, workspace)
             : null;
-        return new WriteOutcome(changed, version, overridden);
+        return new WriteOutcome(changed, version, overridden, user, userStamp);
     }
 
     private static void RestoreMasked(JsonNode? node, JsonNode? current)
@@ -390,15 +478,21 @@ public sealed class ConfigurationService
         return null;
     }
 
-    private async Task DispatchSubsystemsAsync(IEnumerable<ConfigFieldDescriptor> changed, CancellationToken cancellationToken)
+    private async Task DispatchSubsystemsAsync(
+        IEnumerable<ConfigFieldDescriptor> changed,
+        bool forceThreadAgents,
+        CancellationToken cancellationToken)
     {
         var groups = changed
             .Where(f => f.Reload == ReloadBehavior.SubsystemRestart && f.SubsystemKey != null)
-            .GroupBy(f => f.SubsystemKey!, StringComparer.Ordinal);
-        foreach (var group in groups)
+            .GroupBy(f => f.SubsystemKey!, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.Select(f => f.KeyPath).ToArray(), StringComparer.Ordinal);
+        if (forceThreadAgents)
+            groups.TryAdd(ConfigurationSubsystems.ThreadAgents, []);
+        foreach (var (key, keyPaths) in groups)
         {
-            if (_subsystemHandlers.TryGetValue(group.Key, out var handler))
-                await handler(group.Select(f => f.KeyPath).ToArray(), cancellationToken).ConfigureAwait(false);
+            if (_subsystemHandlers.TryGetValue(key, out var handler))
+                await handler(keyPaths, cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -406,16 +500,9 @@ public sealed class ConfigurationService
 
     private ConfigLayerType ResolveWriteTarget(IReadOnlyList<ConfigEdit> edits, string? filePath)
     {
-        var providerEdits = edits.Count(e => ProviderConfiguration.IsProviderKeyPath(e.KeyPath));
-        if (providerEdits == 0)
-            return ResolveTarget(filePath);
-        if (IsRemoteManaged)
-            throw ValidationError(ProviderConfiguration.RemoteManagedMessage);
-        if (filePath == null && providerEdits < edits.Count)
-            throw ValidationError("A write that mixes 'Providers' edits with other keys must name the user layer.");
-
-        var target = filePath == null ? ConfigLayerType.User : ResolveTarget(filePath);
-        CheckProviderTarget(target);
+        var target = ResolveTarget(filePath);
+        if (edits.Any(e => ProviderConfiguration.IsProviderKeyPath(e.KeyPath)))
+            CheckProviderTarget(target);
         return target;
     }
 
@@ -435,7 +522,7 @@ public sealed class ConfigurationService
     private ConfigLayerType ResolveTarget(string? filePath)
     {
         if (filePath == null)
-            return ConfigLayerType.Workspace;
+            return ConfigLayerType.User;
 
         var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
         var fullPath = Path.GetFullPath(filePath);
@@ -492,6 +579,24 @@ public sealed class ConfigurationService
     private ConfigLayerInfo LayerInfo(ConfigLayerType type, JsonObject content) =>
         new(type, type == ConfigLayerType.User ? _userConfigPath : _workspaceConfigPath, ConfigJsonPath.Version(content));
 
+    private static (DateTime WriteTime, long Length)? FileStamp(string path)
+    {
+        var info = new FileInfo(path);
+        return info.Exists ? (info.LastWriteTimeUtc, info.Length) : null;
+    }
+
+    private static JsonObject? TryReadLayer(string path)
+    {
+        try
+        {
+            return ReadLayer(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or InvalidDataException)
+        {
+            return null;
+        }
+    }
+
     private static JsonObject ReadLayer(string path) =>
         File.Exists(path)
             ? JsonNode.Parse(File.ReadAllText(path)) as JsonObject
@@ -523,5 +628,7 @@ public sealed class ConfigurationService
     private sealed record WriteOutcome(
         IReadOnlyList<(ConfigFieldDescriptor Field, object? Value)> Changed,
         string Version,
-        ConfigOverriddenMetadata? Overridden);
+        ConfigOverriddenMetadata? Overridden,
+        JsonObject UserLayer,
+        (DateTime WriteTime, long Length)? UserStamp);
 }

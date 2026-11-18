@@ -44,11 +44,13 @@ public sealed partial class CodexWorkspaceSession
 
     private async Task<object> UnchangedConfigurationAsync(JsonElement p, CancellationToken ct)
     {
-        var source = await ReadConfigurationMetadataAsync(ct);
-        var layer = source.Get("layers").Rows().Last(l => l.Get("name").Text("type") == "workspace");
+        var layer = await UserLayerAsync(ct);
         var version = layer.Required("version");
         if (p.Text("expectedVersion") is { } expected && expected != version)
-            throw new ArgumentException("The workspace configuration changed since the expected version.");
+            throw new ArgumentException("The configuration changed since the expected version.");
         return new { status = "ok", version, filePath = layer.Get("name").Required("file"), overriddenMetadata = (object?)null };
     }
+
+    private async Task<JsonElement> UserLayerAsync(CancellationToken ct) =>
+        (await ReadConfigurationMetadataAsync(ct)).Get("layers").Rows().Last(l => l.Get("name").Text("type") == "user");
 }

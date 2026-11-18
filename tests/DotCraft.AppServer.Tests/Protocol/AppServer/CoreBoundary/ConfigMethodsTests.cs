@@ -64,7 +64,7 @@ public sealed class ConfigMethodsTests : IDisposable
     }
 
     [Fact]
-    public async Task ValueWrite_HotField_WritesWorkspaceLayerAppliesAndReportsKeyPath()
+    public async Task ValueWrite_HotField_WritesUserLayerAppliesAndReportsKeyPath()
     {
         using var harness = new AppServerTestHarness(workspaceCraftPath: _craftPath);
         using var bridge = ConfigChangedTests.AttachConfigChangedBridge(harness);
@@ -75,15 +75,15 @@ public sealed class ConfigMethodsTests : IDisposable
         var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
         var result = Assert.Single(sent, d => d.RootElement.TryGetProperty("result", out _)).RootElement.GetProperty("result");
         Assert.Equal("ok", result.GetProperty("status").GetString());
-        Assert.Equal(Path.GetFullPath(_workspaceConfigPath), result.GetProperty("filePath").GetString());
+        Assert.Equal(Path.GetFullPath(harness.Monitor.Current.GlobalConfigPath!), result.GetProperty("filePath").GetString());
         Assert.False(result.TryGetProperty("overriddenMetadata", out _));
         ConfigChangedTests.AssertSingleConfigChanged(sent, Methods.ConfigValueWrite, "InstantInterruptEnabled");
         Assert.False(harness.Monitor.Current.InstantInterruptEnabled);
         Assert.Equal(0, harness.Service.AgentInvalidationCount);
-        Assert.False(ReadWorkspaceConfig().RootElement.GetProperty("InstantInterruptEnabled").GetBoolean());
+        Assert.False(ReadUserConfig(harness).RootElement.GetProperty("InstantInterruptEnabled").GetBoolean());
 
         var read = await SendAsync(harness, Methods.ConfigRead, new JsonObject { ["includeLayers"] = true });
-        Assert.Equal(result.GetProperty("version").GetString(), read.GetProperty("layers")[1].GetProperty("version").GetString());
+        Assert.Equal(result.GetProperty("version").GetString(), read.GetProperty("layers")[0].GetProperty("version").GetString());
     }
 
     [Fact]
@@ -98,16 +98,16 @@ public sealed class ConfigMethodsTests : IDisposable
         var sent = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
         Assert.All(sent, message => Assert.DoesNotContain("dashboard-secret", message.RootElement.GetRawText()));
         ConfigChangedTests.AssertSingleConfigChanged(sent, Methods.ConfigValueWrite, "DashBoard.Password");
-        Assert.Equal("dashboard-secret", ReadWorkspaceConfig().RootElement.GetProperty("DashBoard").GetProperty("Password").GetString());
+        Assert.Equal("dashboard-secret", ReadUserConfig(harness).RootElement.GetProperty("DashBoard").GetProperty("Password").GetString());
 
         var read = await SendAsync(harness, Methods.ConfigRead, new JsonObject { ["includeLayers"] = true });
         Assert.Equal("***", read.GetProperty("config").GetProperty("DashBoard").GetProperty("Password").GetString());
-        Assert.Equal("***", read.GetProperty("layers")[1].GetProperty("config").GetProperty("DashBoard").GetProperty("Password").GetString());
+        Assert.Equal("***", read.GetProperty("layers")[0].GetProperty("config").GetProperty("DashBoard").GetProperty("Password").GetString());
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(Methods.ConfigValueWrite, Edit("DashBoard.Password", "\"***\"")));
 
         AppServerTestHarness.AssertIsSuccessResponse(Assert.Single(await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5))));
-        Assert.Equal("dashboard-secret", ReadWorkspaceConfig().RootElement.GetProperty("DashBoard").GetProperty("Password").GetString());
+        Assert.Equal("dashboard-secret", ReadUserConfig(harness).RootElement.GetProperty("DashBoard").GetProperty("Password").GetString());
     }
 
     [Fact]
@@ -118,7 +118,9 @@ public sealed class ConfigMethodsTests : IDisposable
         harness.Monitor.Current.InstantInterruptEnabled = false;
         await harness.InitializeAsync();
 
-        await SendAsync(harness, Methods.ConfigValueWrite, Edit("InstantInterruptEnabled", "null"));
+        var edit = Edit("InstantInterruptEnabled", "null");
+        edit["filePath"] = _workspaceConfigPath;
+        await SendAsync(harness, Methods.ConfigValueWrite, edit);
 
         using var file = ReadWorkspaceConfig();
         Assert.False(file.RootElement.TryGetProperty("InstantInterruptEnabled", out _));
@@ -156,6 +158,8 @@ public sealed class ConfigMethodsTests : IDisposable
     {
         using var harness = new AppServerTestHarness(workspaceCraftPath: _craftPath);
         WriteUserConfig(harness, """{ "Providers": { "anthropic-main": { "Protocol": "anthropic" } } }""");
+        await harness.Configuration!.ReloadUserLayerAsync();
+        var invalidations = harness.Service.AgentInvalidationCount;
         using var bridge = ConfigChangedTests.AttachConfigChangedBridge(harness);
         await harness.InitializeAsync(configChange: true);
 
@@ -163,12 +167,12 @@ public sealed class ConfigMethodsTests : IDisposable
         var first = await harness.Transport.WaitAndDrainAsync(2, TimeSpan.FromSeconds(5));
         ConfigChangedTests.AssertSingleConfigChanged(first, Methods.ConfigValueWrite, "ProviderId");
         Assert.Equal("anthropic-main", harness.Monitor.Current.ProviderId);
-        Assert.Equal(1, harness.Service.AgentInvalidationCount);
+        Assert.Equal(invalidations + 1, harness.Service.AgentInvalidationCount);
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(Methods.ConfigValueWrite, Edit("ProviderId", "\"anthropic-main\"")));
         var second = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
         ConfigChangedTests.AssertNoConfigChanged(second);
-        Assert.Equal(1, harness.Service.AgentInvalidationCount);
+        Assert.Equal(invalidations + 1, harness.Service.AgentInvalidationCount);
     }
 
     [Fact]
@@ -263,6 +267,9 @@ public sealed class ConfigMethodsTests : IDisposable
     }
 
     private JsonDocument ReadWorkspaceConfig() => JsonDocument.Parse(File.ReadAllText(_workspaceConfigPath));
+
+    private static JsonDocument ReadUserConfig(AppServerTestHarness harness) =>
+        JsonDocument.Parse(File.ReadAllText(harness.Monitor.Current.GlobalConfigPath!));
 
     private sealed class CountingLspServerManager(AppConfig config, string workspacePath) : LspServerManager(
         config,

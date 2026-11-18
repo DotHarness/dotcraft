@@ -8,18 +8,18 @@ public sealed class ConfigurationServiceWriteTests
     private const string ExistingWorkspace = "{\n  \"tools\": { \"lsp\": { \"enabled\": false } },\n  \"Hub\": { \"Port\": 4100 }\n}\n";
 
     [Fact]
-    public async Task Write_DefaultsToWorkspaceLayer_AndReturnsItsNewVersion()
+    public async Task Write_DefaultsToUserLayer_AndReturnsItsNewVersion()
     {
-        using var fixture = new ConfigurationServiceFixture(workspace: ExistingWorkspace);
+        using var fixture = new ConfigurationServiceFixture(user: ExistingWorkspace);
 
         var result = await fixture.WriteAsync("Tools.Lsp.Enabled", "true");
 
         Assert.Equal(ConfigWriteStatus.Ok, result.Status);
-        Assert.Equal(Path.GetFullPath(fixture.WorkspacePath), result.FilePath);
-        var file = ConfigurationServiceFixture.ReadFile(fixture.WorkspacePath);
+        Assert.Equal(Path.GetFullPath(fixture.UserPath), result.FilePath);
+        var file = ConfigurationServiceFixture.ReadFile(fixture.UserPath);
         Assert.True(file["tools"]!["lsp"]!["enabled"]!.GetValue<bool>());
         Assert.Equal(4100, file["Hub"]!["Port"]!.GetValue<int>());
-        Assert.Equal(result.Version, fixture.Service.Read(includeLayers: true).Layers![1].Layer.Version);
+        Assert.Equal(result.Version, fixture.Service.Read(includeLayers: true).Layers![0].Layer.Version);
 
         var next = await fixture.WriteAsync("Hub.Port", "4200", expectedVersion: result.Version);
         Assert.Equal(ConfigWriteStatus.Ok, next.Status);
@@ -29,11 +29,11 @@ public sealed class ConfigurationServiceWriteTests
     [Fact]
     public async Task Write_QuotedSegment_AddressesAKeyContainingDots()
     {
-        using var fixture = new ConfigurationServiceFixture(workspace: ExistingWorkspace);
+        using var fixture = new ConfigurationServiceFixture(user: ExistingWorkspace);
 
         await fixture.WriteAsync("ProviderPreferences.\"openai.personal\"", "{ \"Model\": \"gpt-5\" }");
 
-        var preferences = ConfigurationServiceFixture.ReadFile(fixture.WorkspacePath)["ProviderPreferences"]!.AsObject();
+        var preferences = ConfigurationServiceFixture.ReadFile(fixture.UserPath)["ProviderPreferences"]!.AsObject();
         Assert.Equal("gpt-5", preferences["openai.personal"]!["Model"]!.GetValue<string>());
         Assert.Single(preferences);
     }
@@ -57,11 +57,11 @@ public sealed class ConfigurationServiceWriteTests
     [Fact]
     public async Task Write_KeepsNonAsciiTextReadableInTheFile()
     {
-        using var fixture = new ConfigurationServiceFixture(workspace: ExistingWorkspace);
+        using var fixture = new ConfigurationServiceFixture(user: ExistingWorkspace);
 
         await fixture.WriteAsync("ProviderId", "\"本地模型\"");
 
-        Assert.Contains("\"本地模型\"", File.ReadAllText(fixture.WorkspacePath));
+        Assert.Contains("\"本地模型\"", File.ReadAllText(fixture.UserPath));
     }
 
     [Theory]
@@ -78,8 +78,8 @@ public sealed class ConfigurationServiceWriteTests
         string? expectedVersion,
         ConfigWriteErrorCode expected)
     {
-        using var fixture = new ConfigurationServiceFixture(workspace: ExistingWorkspace);
-        var before = File.ReadAllBytes(fixture.WorkspacePath);
+        using var fixture = new ConfigurationServiceFixture(user: ExistingWorkspace);
+        var before = File.ReadAllBytes(fixture.UserPath);
 
         var error = await Assert.ThrowsAsync<ConfigWriteException>(() => fixture.WriteAsync(
             keyPath,
@@ -88,15 +88,15 @@ public sealed class ConfigurationServiceWriteTests
             expectedVersion: expectedVersion));
 
         Assert.Equal(expected, error.Code);
-        Assert.Equal(before, File.ReadAllBytes(fixture.WorkspacePath));
+        Assert.Equal(before, File.ReadAllBytes(fixture.UserPath));
         Assert.Empty(fixture.Events);
     }
 
     [Fact]
     public async Task Write_BatchWithOneInvalidEdit_WritesNothing()
     {
-        using var fixture = new ConfigurationServiceFixture(workspace: ExistingWorkspace);
-        var before = File.ReadAllBytes(fixture.WorkspacePath);
+        using var fixture = new ConfigurationServiceFixture(user: ExistingWorkspace);
+        var before = File.ReadAllBytes(fixture.UserPath);
 
         var error = await Assert.ThrowsAsync<ConfigWriteException>(() => fixture.Service.WriteAsync(
             [
@@ -108,18 +108,18 @@ public sealed class ConfigurationServiceWriteTests
             source: "test"));
 
         Assert.Equal(ConfigWriteErrorCode.ConfigValidationError, error.Code);
-        Assert.Equal(before, File.ReadAllBytes(fixture.WorkspacePath));
+        Assert.Equal(before, File.ReadAllBytes(fixture.UserPath));
         Assert.False(fixture.Monitor.Current.Tools.Lsp.Enabled);
     }
 
     [Fact]
     public async Task Write_NullRemovesKeyAndPrunesEmptyParents()
     {
-        using var fixture = new ConfigurationServiceFixture(workspace: ExistingWorkspace);
+        using var fixture = new ConfigurationServiceFixture(user: ExistingWorkspace);
 
         await fixture.WriteAsync("Tools.Lsp.Enabled", null);
 
-        var file = ConfigurationServiceFixture.ReadFile(fixture.WorkspacePath);
+        var file = ConfigurationServiceFixture.ReadFile(fixture.UserPath);
         Assert.Null(AtomicConfigDocument.Key(file, "Tools"));
         Assert.Equal(4100, file["Hub"]!["Port"]!.GetValue<int>());
     }
@@ -132,7 +132,7 @@ public sealed class ConfigurationServiceWriteTests
             """);
 
         Assert.Equal("inherited-account", fixture.Monitor.Current.Tools.Web.DeepSeekProvider);
-        var result = await fixture.WriteAsync("Tools.Web.DeepSeekProvider", "\"\"");
+        var result = await fixture.WriteAsync("Tools.Web.DeepSeekProvider", "\"\"", filePath: fixture.WorkspacePath);
 
         Assert.Equal(ConfigWriteStatus.Ok, result.Status);
         Assert.Empty(ConfigurationServiceFixture.ReadFile(fixture.WorkspacePath)["Tools"]!["Web"]!["DeepSeekProvider"]!.GetValue<string>());
@@ -143,7 +143,7 @@ public sealed class ConfigurationServiceWriteTests
     [Fact]
     public async Task Write_UpsertDeepMergesObject_ReplaceSetsWholeValue()
     {
-        using var fixture = new ConfigurationServiceFixture(workspace: """
+        using var fixture = new ConfigurationServiceFixture(user: """
             {
               "ProviderPreferences": {
                 "anthropic": { "Model": "claude" },
@@ -153,13 +153,13 @@ public sealed class ConfigurationServiceWriteTests
             """);
 
         await fixture.WriteAsync("ProviderPreferences", """{ "openai": { "Model": "new" } }""", ConfigMergeStrategy.Upsert);
-        var upserted = ConfigurationServiceFixture.ReadFile(fixture.WorkspacePath)["ProviderPreferences"]!;
+        var upserted = ConfigurationServiceFixture.ReadFile(fixture.UserPath)["ProviderPreferences"]!;
         Assert.Equal("claude", upserted["anthropic"]!["Model"]!.GetValue<string>());
         Assert.Equal("new", upserted["openai"]!["Model"]!.GetValue<string>());
         Assert.True(upserted["openai"]!["Reasoning"]!["Enabled"]!.GetValue<bool>());
 
         await fixture.WriteAsync("ProviderPreferences.openai", """{ "Model": "replaced" }""");
-        var replaced = ConfigurationServiceFixture.ReadFile(fixture.WorkspacePath)["ProviderPreferences"]!;
+        var replaced = ConfigurationServiceFixture.ReadFile(fixture.UserPath)["ProviderPreferences"]!;
         Assert.Equal("replaced", replaced["openai"]!["Model"]!.GetValue<string>());
         Assert.Null(replaced["openai"]!["Reasoning"]);
         Assert.Equal("replaced", fixture.Monitor.Current.ProviderPreferences["openai"].Model);
@@ -183,7 +183,7 @@ public sealed class ConfigurationServiceWriteTests
     [Fact]
     public async Task Write_SemanticValidatorRunsForItsKeyPath_AndRejectsAtomically()
     {
-        using var fixture = new ConfigurationServiceFixture(workspace: ExistingWorkspace);
+        using var fixture = new ConfigurationServiceFixture(user: ExistingWorkspace);
         var calls = 0;
         fixture.Service.RegisterValidator("Dreams.Interval", config =>
         {
@@ -194,23 +194,23 @@ public sealed class ConfigurationServiceWriteTests
         await fixture.WriteAsync("Dreams.AutoApply", "true");
         Assert.Equal(0, calls);
 
-        var before = File.ReadAllBytes(fixture.WorkspacePath);
+        var before = File.ReadAllBytes(fixture.UserPath);
         var error = await Assert.ThrowsAsync<ConfigWriteException>(() => fixture.WriteAsync("Dreams.Interval", "\"00:00:00\""));
 
         Assert.Equal(ConfigWriteErrorCode.ConfigValidationError, error.Code);
         Assert.Equal(1, calls);
-        Assert.Equal(before, File.ReadAllBytes(fixture.WorkspacePath));
+        Assert.Equal(before, File.ReadAllBytes(fixture.UserPath));
     }
 
     [Fact]
     public async Task Write_ExistingOutOfRangeValueElsewhere_DoesNotBlockUnrelatedWrite()
     {
-        using var fixture = new ConfigurationServiceFixture(workspace: "{ \"Hub\": { \"Port\": 70000 } }");
+        using var fixture = new ConfigurationServiceFixture(user: "{ \"Hub\": { \"Port\": 70000 } }");
 
         var result = await fixture.WriteAsync("Tools.Lsp.Enabled", "true");
 
         Assert.Equal(["Tools.Lsp.Enabled"], Assert.Single(fixture.Events).Regions);
-        var file = ConfigurationServiceFixture.ReadFile(fixture.WorkspacePath);
+        var file = ConfigurationServiceFixture.ReadFile(fixture.UserPath);
         Assert.True(file["Tools"]!["Lsp"]!["Enabled"]!.GetValue<bool>());
         Assert.Equal(70000, file["Hub"]!["Port"]!.GetValue<int>());
     }

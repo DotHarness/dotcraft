@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.12.0 |
+| **Version** | 0.13.1 |
 | **Status** | Living |
-| **Date** | 2026-11-16 |
+| **Date** | 2026-11-18 |
 
 Purpose: Define the **server-managed** session model (Thread / Turn / Item), including lifecycle, persistence, event semantics, approval semantics, and adapter boundaries.
 
@@ -739,6 +739,8 @@ User-level usage statistics live at `<UserDataPath>/usage.db`, independently of 
 ### 9.1.1 Workspace Data Upgrades
 
 When a release changes the shape of existing workspace data, it may ship one release-scoped upgrade. Its table changes run once when the state database is first opened for writing, before any Thread loads. Code reads only the current table shape, so there are no compatibility readers. Rewriting rollouts takes time proportional to the thread history, so it never blocks startup: it runs in the background after the workspace runtime starts, one Thread at a time while holding that Thread's rollout write gate, and only for changes the current readers can still read in the old form. Each rewrite clears the Thread's history projection, writes a temporary file, and atomically replaces the rollout; a rollout already in the new shape is skipped, so a pass that stops early resumes on the next start. The upgrade is removed in the next release, so a workspace that skips a release keeps that release's old data shape.
+
+A release may also clean the workspace configuration layer before configuration loads. [Configuration §4.1](configuration.md#41-personal-settings-left-in-the-workspace-layer) defines the 0.13.1 cleanup.
 
 ### 9.1.2 Workspace Database Initialization
 

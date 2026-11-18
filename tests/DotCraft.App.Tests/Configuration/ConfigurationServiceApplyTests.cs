@@ -111,7 +111,7 @@ public sealed class ConfigurationServiceApplyTests
 
         Assert.Empty(fixture.Events);
         Assert.Equal(0, handlerCalls);
-        Assert.True(ConfigurationServiceFixture.ReadFile(fixture.WorkspacePath)["Memory"]!["Enabled"]!.GetValue<bool>());
+        Assert.True(ConfigurationServiceFixture.ReadFile(fixture.UserPath)["Memory"]!["Enabled"]!.GetValue<bool>());
     }
 
     [Fact]

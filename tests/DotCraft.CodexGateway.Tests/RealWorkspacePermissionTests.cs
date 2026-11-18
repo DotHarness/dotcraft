@@ -114,7 +114,7 @@ public sealed class RealWorkspacePermissionTests
 
     private static string? PersistedPolicy(RealWorkspaceAppServer source)
     {
-        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(source.CraftPath, "config.json")));
+        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(source.Root, "global-config.json")));
         return document.RootElement.GetProperty("Permissions").GetProperty("DefaultApprovalPolicy").GetString();
     }
 

@@ -72,7 +72,7 @@ public sealed class ConfigValueWriteParams : ExtensibleJsonObject
     /// <summary><c>replace</c> or <c>upsert</c>.</summary>
     [JsonPropertyName("mergeStrategy")] public required string MergeStrategy { get; init; }
 
-    /// <summary>A layer file from <c>config/read</c>; <c>null</c> targets the workspace layer.</summary>
+    /// <summary>A layer file from <c>config/read</c>; <c>null</c> targets the user layer.</summary>
     [JsonPropertyName("filePath")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? FilePath { get; init; }
@@ -86,7 +86,7 @@ public sealed class ConfigBatchWriteParams : ExtensibleJsonObject
 {
     [JsonPropertyName("edits")] public required IReadOnlyList<ConfigEdit> Edits { get; init; }
 
-    /// <summary>A layer file from <c>config/read</c>; <c>null</c> targets the workspace layer.</summary>
+    /// <summary>A layer file from <c>config/read</c>; <c>null</c> targets the user layer.</summary>
     [JsonPropertyName("filePath")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? FilePath { get; init; }

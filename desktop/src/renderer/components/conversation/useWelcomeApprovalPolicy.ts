@@ -1,22 +1,21 @@
-import { useCallback, useState, type RefObject } from 'react'
-import type { WelcomeDraft } from '../../stores/uiStore'
+import { useCallback } from 'react'
+import { useT } from '../../contexts/LocaleContext'
+import { useComposerPreferencesStore } from '../../stores/composerPreferencesStore'
+import { addToast } from '../../stores/toastStore'
 import { resolveConcreteApprovalPolicyFromWorkspaceDefault } from '../../utils/workspaceCoreConfig'
 import type { VisibleApprovalPolicy } from './ApprovalPolicyPicker'
 
-function explicitPolicy(value: unknown): VisibleApprovalPolicy | null {
-  return value === 'prompt' || value === 'autoApprove' ? value : null
-}
-
-export function useWelcomeApprovalPolicy(initialDraft: RefObject<WelcomeDraft | null>, workspaceDefault: unknown) {
-  const [explicit, setExplicit] = useState(() => explicitPolicy(initialDraft.current?.approvalPolicy))
-  const hydrateApprovalPolicy = useCallback((draft: WelcomeDraft): void => {
-    const policy = explicitPolicy(draft.approvalPolicy)
-    if (policy) setExplicit((current) => current ?? policy)
-  }, [])
+export function useWelcomeApprovalPolicy(configuredDefault: unknown) {
+  const t = useT()
+  const explicit = useComposerPreferencesStore((state) => state.newChatApprovalPolicy)
+  const setWelcomeApprovalPolicyFromUser = useCallback((policy: VisibleApprovalPolicy): void => {
+    void useComposerPreferencesStore.getState().saveNewChatApprovalPolicy(policy).catch((error: unknown) => {
+      addToast(t('settings.saveFailed', { error: error instanceof Error ? error.message : String(error) }), 'error')
+    })
+  }, [t])
   return {
-    welcomeApprovalPolicy: explicit ?? resolveConcreteApprovalPolicyFromWorkspaceDefault(workspaceDefault),
+    welcomeApprovalPolicy: explicit ?? resolveConcreteApprovalPolicyFromWorkspaceDefault(configuredDefault),
     welcomeApprovalPolicyDirty: explicit != null,
-    setWelcomeApprovalPolicyFromUser: setExplicit,
-    hydrateApprovalPolicy
+    setWelcomeApprovalPolicyFromUser
   }
 }

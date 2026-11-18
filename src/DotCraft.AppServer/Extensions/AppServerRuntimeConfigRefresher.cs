@@ -15,7 +15,7 @@ internal sealed class AppServerRuntimeConfigRefresher(
         if (appConfigMonitor == null || string.IsNullOrWhiteSpace(workspaceCraftPath))
             return;
 
-        var mergedConfig = LoadMergedWorkspaceConfig();
+        var mergedConfig = LoadMergedConfig();
         appConfigMonitor.Current.SubAgent = new AppConfig.SubAgentConfig
         {
             DisabledProfiles = [.. mergedConfig.SubAgent.DisabledProfiles],
@@ -44,7 +44,7 @@ internal sealed class AppServerRuntimeConfigRefresher(
         if (appConfigMonitor == null || string.IsNullOrWhiteSpace(workspaceCraftPath))
             return false;
 
-        var onDisk = LoadMergedWorkspaceConfig().SubAgentProfiles;
+        var onDisk = LoadMergedConfig().SubAgentProfiles;
         if (ProfileFingerprint(onDisk) == ProfileFingerprint(appConfigMonitor.Current.SubAgentProfiles))
             return false;
 
@@ -66,7 +66,7 @@ internal sealed class AppServerRuntimeConfigRefresher(
 
         if (!string.IsNullOrWhiteSpace(workspaceCraftPath))
         {
-            var mergedConfig = LoadMergedWorkspaceConfig();
+            var mergedConfig = LoadMergedConfig();
             appConfigMonitor.Current.Hooks = mergedConfig.Hooks;
             return;
         }
@@ -85,7 +85,7 @@ internal sealed class AppServerRuntimeConfigRefresher(
             refreshService.InvalidateThreadAgents();
     }
 
-    private AppConfig LoadMergedWorkspaceConfig() =>
+    public AppConfig LoadMergedConfig() =>
         AppConfig.LoadWithGlobalFallback(
             Path.Combine(workspaceCraftPath!, "config.json"),
             workspaceConfig.EffectiveGlobalConfigPath);

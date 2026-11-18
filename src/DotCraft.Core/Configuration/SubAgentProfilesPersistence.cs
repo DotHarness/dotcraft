@@ -4,15 +4,15 @@ using System.Text.Json.Nodes;
 namespace DotCraft.Configuration;
 
 /// <summary>
-/// Persists workspace-scoped SubAgent profile config and enablement state to <c>.craft/config.json</c>.
+/// Persists SubAgent profile config and enablement state in one configuration layer file.
 /// </summary>
 public static class SubAgentProfilesPersistence
 {
-    public static SubAgentWorkspaceState LoadWorkspaceState(string craftPath)
+    public static SubAgentConfigState LoadState(string configPath) => FromConfig(AppConfig.Load(configPath));
+
+    public static SubAgentConfigState FromConfig(AppConfig config)
     {
-        var configPath = Path.Combine(craftPath, "config.json");
-        var config = AppConfig.Load(configPath);
-        return new SubAgentWorkspaceState(
+        return new SubAgentConfigState(
             config.SubAgent.DisabledProfiles
                 .Where(name => !string.IsNullOrWhiteSpace(name))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -25,14 +25,14 @@ public static class SubAgentProfilesPersistence
                 .ToArray());
     }
 
-    public static void SaveWorkspaceState(
-        string craftPath,
+    public static void SaveState(
+        string configPath,
         IReadOnlyCollection<string> disabledProfiles,
         bool enableExternalCliSessionResume,
         IReadOnlyCollection<SubAgentProfile> profiles,
         IReadOnlyDictionary<string, SubAgentModelPreference>? providerPreferences = null)
     {
-        AtomicConfigDocument.Update(Path.Combine(craftPath, "config.json"), root =>
+        AtomicConfigDocument.Update(configPath, root =>
         {
             WriteDisabledProfiles(root, disabledProfiles);
             WriteEnableExternalCliSessionResume(root, enableExternalCliSessionResume);
@@ -187,7 +187,7 @@ public static class SubAgentProfilesPersistence
     }
 }
 
-public sealed record SubAgentWorkspaceState(
+public sealed record SubAgentConfigState(
     IReadOnlyList<string> DisabledProfiles,
     bool EnableExternalCliSessionResume,
     IReadOnlyDictionary<string, SubAgentModelPreference> ProviderPreferences,

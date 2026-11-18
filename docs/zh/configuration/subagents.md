@@ -55,7 +55,7 @@ Role 示例：
 
 ## 外部 CLI Profile
 
-自定义外部 CLI profile 位于 `SubAgentProfiles`。工作区配置覆盖同名全局 profile。
+自定义外部 CLI profile 位于 `SubAgentProfiles`。工作区配置覆盖同名全局 profile。在 Desktop 中保存的 profile、启用状态和模型选择写入全局配置，在所有工作区生效。
 
 ```json
 {

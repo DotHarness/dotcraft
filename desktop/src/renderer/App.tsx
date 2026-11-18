@@ -532,6 +532,10 @@ export function App(): JSX.Element {
   })
   useWorkspaceReadinessTiming(foregroundThreadListKey, status, loadedProjectKey)
 
+  useEffect(() => window.api.settings.onComposerPreferencesChanged((preferences) => {
+    useComposerPreferencesStore.getState().hydrate(preferences)
+  }), [])
+
   useEffect(() => {
     const onPinnedThreadIdsChanged = window.api.settings.onPinnedThreadIdsChanged
     if (typeof onPinnedThreadIdsChanged !== 'function') return undefined
