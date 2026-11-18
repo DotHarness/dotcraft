@@ -107,10 +107,12 @@ internal sealed class RealWorkspaceAppServer : IAsyncDisposable
             ClientName = "desktop-fixture", AutoReconnect = false
         }, ct);
 
-    public async Task EnqueueBackgroundNoticeAsync(string threadId, CancellationToken ct)
+    public async Task<string> EnqueueBackgroundNoticeAsync(string threadId, CancellationToken ct)
     {
         using var trigger = TurnTriggerScope.Set(new() { Kind = "terminal", Status = "completed" });
-        await _sessions.EnqueueTurnInputAsync(threadId, [new Microsoft.Extensions.AI.TextContent("background notice")], null, ct);
+        var queued = await _sessions.EnqueueTurnInputAsync(
+            threadId, [new Microsoft.Extensions.AI.TextContent("background notice")], null, ct);
+        return queued.Id;
     }
 
     private async Task HandleConnectionAsync(HttpContext context)

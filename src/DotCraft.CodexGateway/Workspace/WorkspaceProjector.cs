@@ -105,7 +105,7 @@ internal sealed partial class WorkspaceProjector(WorkspaceRoutes routes, string 
                     return null;
                 result["type"] = "userMessage";
                 result["clientId"] = p.Text("clientUserMessageId") ??
-                    (p.Text("deliveryMode") == "queued" && p.Text("triggerKind") is null &&
+                    (p.Text("deliveryMode") is "queued" or "guidance" && p.Text("triggerKind") is null &&
                      p.Text("queuedInputId") is { } queuedId ? QueueId(thread, queuedId) : null);
                 result["content"] = p.Get("nativeInputParts").ValueKind == JsonValueKind.Array
                     ? p.Get("nativeInputParts").Rows().Select(InputPart).ToArray()
