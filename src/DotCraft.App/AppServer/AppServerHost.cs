@@ -859,11 +859,15 @@ public sealed partial class AppServerHost(
     private void OnThreadRuntimeSignal(string threadId, SessionThreadRuntimeSignal signal, SessionTurn? turn)
     {
         var thread = runtime.SessionService.TryGetLoadedThread(threadId);
-        if (thread is not null && _threadRuntimeNotifications.ApplySnapshot(
+        if (thread is null)
+            return;
+        var snapshot = runtime.SessionService.GetThreadRuntimeSnapshot(thread);
+        if (_threadRuntimeNotifications.ApplySnapshot(
                 threadId,
-                runtime.SessionService.GetThreadRuntimeSnapshot(thread),
+                snapshot,
                 _activeTransports,
-                connection => _hiddenThreads.Accepts(threadId, connection)))
+                connection => _hiddenThreads.Accepts(threadId, connection))
+            && !(signal == SessionThreadRuntimeSignal.TurnCompleted && snapshot.HasBackgroundWork))
             RequestHubTurnNotification(threadId, signal);
     }
 

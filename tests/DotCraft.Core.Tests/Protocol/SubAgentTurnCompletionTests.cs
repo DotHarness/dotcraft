@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using DotCraft.Agents;
 using DotCraft.Contributions;
@@ -144,6 +145,50 @@ public sealed class SubAgentTurnCompletionTests
                     return (started, evt);
             }
             throw new InvalidOperationException("Child wake did not complete.");
+        }
+    }
+
+    [Fact]
+    public async Task RunningChild_GivesItsParentBackgroundWorkUntilItEnds()
+    {
+        using var host = new ContributionAgentHost("SubAgentBackgroundWork");
+        var client = new CancellableClient();
+        var factory = host.CreateFactory(null, client);
+        await using var store = new ThreadStore(host.WorkspacePath);
+        var service = new SessionService(factory, client.AsAIAgent(), new SessionPersistenceService(store), new SessionGate());
+        var context = await CreateContextAsync(service, host.WorkspacePath);
+        var signaled = new ConcurrentQueue<string>();
+        service.ThreadRuntimeSignalForBroadcast = (threadId, signal, _) =>
+        {
+            if (signal == SessionThreadRuntimeSignal.BackgroundWorkChanged) signaled.Enqueue(threadId);
+        };
+        string? childId = null;
+        var spawn = SubAgentSessionControl.SpawnAgentAsync(context, new()
+        {
+            AgentPrompt = "work", TaskName = "worker", ForkTurns = "none", SilentCompletion = true,
+            ChildCreated = (child, _) => { childId = child.Id; return Task.CompletedTask; }
+        }, true, null, CancellationToken.None);
+
+        await client.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await WaitUntilAsync(() => service.GetThreadRuntimeSnapshot(context.ParentThread).HasBackgroundWork);
+        Assert.Contains(context.ParentThread.Id, signaled);
+        var child = await service.GetThreadAsync(childId!);
+        Assert.False(service.GetThreadRuntimeSnapshot(child).HasBackgroundWork);
+
+        signaled.Clear();
+        await service.CancelTurnAsync(child.Id, Assert.Single(child.Turns).Id);
+        await spawn.WaitAsync(TimeSpan.FromSeconds(10));
+        await WaitUntilAsync(() => !service.GetThreadRuntimeSnapshot(context.ParentThread).HasBackgroundWork);
+        await WaitUntilAsync(() => signaled.Contains(context.ParentThread.Id));
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);
+        while (!condition())
+        {
+            if (DateTime.UtcNow > deadline) throw new TimeoutException("Condition was not met.");
+            await Task.Delay(10);
         }
     }
 

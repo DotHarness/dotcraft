@@ -241,7 +241,7 @@ public static partial class SubAgentSessionControl
         }
 
         var runningChild = new RunningChild(parentThreadId, childCts, completion, parentTurnId, childLifetime);
-        RunningChildren[childThreadId] = runningChild;
+        TrackRunningChild(sessionService, childThreadId, runningChild);
         _ = ObserveChildCompletionAsync(sessionService, childThreadId, runningChild, lifecycleHook);
         await using (ct.Register(childCts.Cancel))
             await dispatchStarted.Task.WaitAsync(ct);
@@ -282,7 +282,7 @@ public static partial class SubAgentSessionControl
             source.ParentThreadId ?? child.ChannelContext ?? string.Empty,
             cancellation,
             ObserveQueuedChildTurnAsync(sessionService, child.Id, events, cancellation.Token));
-        RunningChildren[child.Id] = runningChild;
+        TrackRunningChild(sessionService, child.Id, runningChild);
         _ = ObserveChildCompletionAsync(sessionService, child.Id, runningChild, lifecycleHook: null);
         return true;
     }

@@ -9,7 +9,7 @@ const builder = resolve(
   'node_modules/@dotcraft/plugin/scripts/build-plugin.mjs'
 )
 
-for (const pluginId of ['dotcraft', 'oratorio', 'satellite', 'token-hud', 'themes', 'todo-list']) {
+for (const pluginId of ['dotcraft', 'oratorio', 'satellite', 'token-hud', 'themes']) {
   const sourceRoot = resolve(desktopRoot, 'src/bundled-plugins', pluginId)
   const sourceDist = resolve(sourceRoot, 'dist')
   const resourceDist = resolve(

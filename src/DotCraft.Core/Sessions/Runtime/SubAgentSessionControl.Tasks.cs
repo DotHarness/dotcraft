@@ -180,4 +180,6 @@ internal sealed class SubAgentTaskKind(ISessionService sessionService) : IBackgr
 
     public Task StopAsync(BackgroundTask task, CancellationToken ct) =>
         SubAgentSessionControl.StopAgentTaskAsync(sessionService, task, ct);
+
+    public IEnumerable<string> RunningOwnerThreadIds() => SubAgentSessionControl.RunningParentThreadIds();
 }

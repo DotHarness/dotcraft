@@ -121,6 +121,8 @@ public interface IBackgroundTaskKind
 
     /// <summary>Stops the task and returns once it has settled; a task that already ended is left unchanged.</summary>
     Task StopAsync(BackgroundTask task, CancellationToken ct);
+
+    IEnumerable<string> RunningOwnerThreadIds() => [];
 }
 
 public sealed record BackgroundTaskEnding

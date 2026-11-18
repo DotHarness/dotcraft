@@ -24,9 +24,11 @@ public sealed partial class SessionService
 
         public ThreadSummaryRuntime GetRuntimeSnapshot(SessionThread thread)
         {
-            return owner._runtimeRegistry.TryGetRuntime(thread.Id, out var runtime)
+            var snapshot = owner._runtimeRegistry.TryGetRuntime(thread.Id, out var runtime)
                 ? runtime.Broker.GetRuntimeSnapshot(thread, runtime.Maintenance?.Kind)
                 : ThreadSummaryRuntime.FromThread(thread);
+            snapshot.HasBackgroundWork = owner.HasBackgroundWork(thread.Id);
+            return snapshot;
         }
 
         public async IAsyncEnumerable<SessionEvent> Subscribe(

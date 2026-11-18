@@ -64,6 +64,7 @@ export interface PlanTodoItem {
   id: string
   content: string
   status: PlanTodoStatus
+  activeForm?: string
 }
 
 export interface AgentPlan {

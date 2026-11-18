@@ -815,8 +815,9 @@ A workspace-level broadcast of a thread's aggregated **runtime snapshot**, deliv
 - `busy`: the thread cannot start a new turn because a turn, approval, input request, or blocking maintenance is active.
 - `maintenanceKind`: current blocking maintenance (`"compacting"`), omitted when none.
 - `queuePaused`: the latest Turn was cancelled, so queued input waits for `turn/queue/start` ([5.2.6](#526-turnqueuestart)).
+- `hasBackgroundWork`: a SubAgent or Workflow run the thread owns is still working ([Background Tasks §5.4](../architecture/background-tasks.md#54-background-work)). Background terminals do not count.
 
-Emitted when the snapshot changes because a turn starts or ends, an approval or user-input request is created or resolved, plan confirmation is set or cleared, or maintenance starts or completes. The server should emit only on effective change; duplicates are allowed and the latest payload replaces the cached snapshot. Clients ignore unknown `runtime` fields.
+Emitted when the snapshot changes because a turn starts or ends, an approval or user-input request is created or resolved, plan confirmation is set or cleared, maintenance starts or completes, or the thread's background work starts or ends. The server should emit only on effective change; duplicates are allowed and the latest payload replaces the cached snapshot. Clients ignore unknown `runtime` fields.
 
 For each connection and thread, the runtime update precedes the corresponding Turn lifecycle notification. Thread creation and runtime broadcasts share that ordered delivery path, using [Session Core's published state](../architecture/session-core.md#35-published-presentation-state).
 
@@ -986,7 +987,7 @@ Rules:
 
 #### `plan/updated`
 
-Complete plan snapshot `{ threadId, title, overview, content, todos }` emitted each time `CreatePlan` or `TodoWrite` succeeds; clients replace local plan state. `title` is empty when the thread has only a to-do list. `todos` entries have `id`, `content`, `priority` (`high`, `medium`, `low`), and `status` (`pending`, `in_progress`, `completed`, `cancelled`). Missing `content` means empty.
+Complete plan snapshot `{ threadId, title, overview, content, todos }` emitted each time `CreatePlan` or `TodoWrite` succeeds; clients replace local plan state. `title` is empty when the thread has only a to-do list. `todos` entries have `id`, `content`, `priority` (`high`, `medium`, `low`), `status` (`pending`, `in_progress`, `completed`, `cancelled`), and an optional `activeForm`, the present-tense label clients show while the item is in progress. Missing `content` means empty.
 
 The notification is sent outside the `SessionEvent` stream to all connections. Clients ignore snapshots for a thread other than the selected one and restore plans from `thread/read.thread.plan` when switching.
 

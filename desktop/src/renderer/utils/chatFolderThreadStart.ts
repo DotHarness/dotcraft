@@ -1,5 +1,6 @@
 import type { ThreadConfiguration } from '@dotcraft/sdk/contracts'
 import { STANDALONE_CHAT_INSTRUCTIONS } from '../../shared/chatFolders'
+import { withTaskListInstructions } from '../../shared/taskListInstructions'
 import { isDefaultChatWorkspacePathCandidate } from '../../shared/defaultChatWorkspace'
 
 export function startsInChatFolder(workspacePath: string, remoteWorkspace: boolean): boolean {
@@ -11,5 +12,5 @@ export async function chatFolderThreadStart(
   config: ThreadConfiguration
 ): Promise<{ cwd: string; config: ThreadConfiguration }> {
   const { path } = await window.api.workspace.createChatFolder({ firstMessage })
-  return { cwd: path, config: { ...config, developerInstructions: STANDALONE_CHAT_INSTRUCTIONS } }
+  return { cwd: path, config: { ...config, developerInstructions: withTaskListInstructions(STANDALONE_CHAT_INSTRUCTIONS) } }
 }

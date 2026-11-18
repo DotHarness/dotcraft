@@ -30,11 +30,13 @@ internal sealed class ThreadRuntimeNotificationCoordinator
                 Deliver(transport, connection, activeTransports, () => connection.RunThreadNotificationAsync(threadId, snapshot =>
                 {
                     snapshot?.EnsureCurrent();
+                    var wire = (snapshot?.Runtime ?? runtime).ToWireRuntimeState();
+                    wire.HasBackgroundWork = runtime.HasBackgroundWork;
                     return connection.SendThreadNotificationAsync(transport, Contract.AppServerRpc.ThreadStatusChanged.Name,
                         new Contract.ThreadStatusChangedNotification
                         {
                             ThreadId = threadId,
-                            Runtime = AppServerContractMapper.ToContract((snapshot?.Runtime ?? runtime).ToWireRuntimeState())
+                            Runtime = AppServerContractMapper.ToContract(wire)
                         });
                 }));
             }
@@ -112,5 +114,6 @@ internal sealed class ThreadRuntimeNotificationCoordinator
         && left.WaitingOnPlanConfirmation == right.WaitingOnPlanConfirmation
         && left.Busy == right.Busy
         && left.MaintenanceKind == right.MaintenanceKind
-        && left.QueuePaused == right.QueuePaused;
+        && left.QueuePaused == right.QueuePaused
+        && left.HasBackgroundWork == right.HasBackgroundWork;
 }

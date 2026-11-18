@@ -102,7 +102,8 @@ public static class AppServerContractMapper
         MaintenanceKind = value.MaintenanceKind is null
             ? default
             : Optional<string?>.FromValue(value.MaintenanceKind),
-        QueuePaused = value.QueuePaused
+        QueuePaused = value.QueuePaused,
+        HasBackgroundWork = value.HasBackgroundWork
     };
 
     /// <summary>Projects the complete public Session Wire item shape into Contracts.</summary>

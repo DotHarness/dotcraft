@@ -328,6 +328,7 @@ public sealed class DynamicWorkflowProductIntegrationTests : IDisposable
         protected override object? Invoke(MethodInfo? targetMethod, object?[]? args) => targetMethod?.Name switch
         {
             nameof(ISessionService.GetThreadAsync) => Task.FromResult(Thread),
+            nameof(ISessionService.PublishBackgroundWorkChanged) => null,
             _ => throw new NotSupportedException($"Unexpected Session method '{targetMethod?.Name}'.")
         };
     }

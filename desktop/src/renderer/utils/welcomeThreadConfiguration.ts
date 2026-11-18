@@ -1,5 +1,6 @@
 import type { ThreadMode } from '../types/conversation'
 import type { ThreadConfiguration } from '@dotcraft/sdk/contracts'
+import { TASK_LIST_INSTRUCTIONS } from '../../shared/taskListInstructions'
 import type {
   ApprovalPolicyWire,
   InferenceSpeedWire,
@@ -20,7 +21,7 @@ export interface WelcomeThreadConfigurationInput {
 export function buildWelcomeThreadConfiguration(
   input: WelcomeThreadConfigurationInput
 ): ThreadConfiguration {
-  const config: ThreadConfiguration = {}
+  const config: ThreadConfiguration = { developerInstructions: TASK_LIST_INSTRUCTIONS }
   const profileId = input.agentProfileId?.trim()
   const providerId = input.providerId?.trim()
   const model = input.model?.trim()

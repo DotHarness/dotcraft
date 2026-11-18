@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { TASK_LIST_INSTRUCTIONS } from '../../shared/taskListInstructions'
 import { buildWelcomeThreadConfiguration } from '../utils/welcomeThreadConfiguration'
 
 const reasoning = {
@@ -20,6 +21,7 @@ describe('buildWelcomeThreadConfiguration', () => {
     })
 
     expect(config).toEqual({
+      developerInstructions: TASK_LIST_INSTRUCTIONS,
       mode: 'plan',
       providerId: 'openai',
       model: 'gpt-test',

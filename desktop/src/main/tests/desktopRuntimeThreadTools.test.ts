@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { STANDALONE_CHAT_INSTRUCTIONS } from '../../shared/chatFolders'
+import { TASK_LIST_INSTRUCTIONS, withTaskListInstructions } from '../../shared/taskListInstructions'
 import {
   DESKTOP_CONVERSATION_TOOL_NAMESPACE,
   DESKTOP_THREAD_TOOL_NAMESPACE,
@@ -371,6 +372,7 @@ describe('desktop runtime thread tools', () => {
       displayName: 'Research',
       spawnedFromThreadId: 'thread-parent',
       config: {
+        developerInstructions: TASK_LIST_INSTRUCTIONS,
         model: 'gpt-5',
         reasoning: {
           enabled: true,
@@ -402,7 +404,7 @@ describe('desktop runtime thread tools', () => {
     expect(startCall?.[1]).toEqual(expect.objectContaining({
       cwd: '/docs/DotCraft/2026-10-11/plan-a-trip',
       identity: expect.objectContaining({ workspacePath: '/home/me/.craft/workspaces/chats' }),
-      config: { developerInstructions: STANDALONE_CHAT_INSTRUCTIONS, codeModeExcludedNamespaces: [DESKTOP_CONVERSATION_TOOL_NAMESPACE] }
+      config: { developerInstructions: withTaskListInstructions(STANDALONE_CHAT_INSTRUCTIONS), codeModeExcludedNamespaces: [DESKTOP_CONVERSATION_TOOL_NAMESPACE] }
     }))
     const turnCall = vi.mocked(client.sendRequest).mock.calls.find((call) => call[0] === 'turn/start')
     expect(turnCall?.[1]).not.toHaveProperty('cwd')

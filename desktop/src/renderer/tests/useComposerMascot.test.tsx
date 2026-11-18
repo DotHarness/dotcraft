@@ -7,8 +7,6 @@ import { usePluginStore, type PluginEntry } from '../stores/pluginStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
 import { installDesktopApiMock } from './desktopApiMock'
-import { withTestCorePresentation } from './testToolPresentation'
-import { CORE_TOOL_PRESENTATION_IDS } from '../utils/toolRendererRegistry'
 import type { ConversationItem, ConversationTurn } from '../types/conversation'
 
 const THREAD_ID = 'thread-mascot'
@@ -278,19 +276,12 @@ describe('useComposerMascot turn completion', () => {
     expect(screen.queryByRole('heading')).not.toBeInTheDocument()
   })
 
-  it('returns to idle when a background terminal is still running', () => {
-    const terminal = withTestCorePresentation({
-      id: 'shell-1',
-      type: 'toolCall',
-      status: 'completed',
-      toolName: 'Exec',
-      toolCallId: 'shell-1',
-      createdAt: '2026-08-27T00:00:00.000Z',
-      executionStatus: 'inProgress',
-      terminalRunning: true
-    }, CORE_TOOL_PRESENTATION_IDS.shell)
+  it('returns to idle while the thread still has background work', () => {
+    useThreadStore.getState().applyRuntimeSnapshot(THREAD_ID, {
+      running: false, waitingOnApproval: false, waitingOnPlanConfirmation: false, hasBackgroundWork: true
+    }, { isDesktopOrigin: true })
 
-    finishTurn([terminal])
+    finishTurn([{ id: 'reply', type: 'agentMessage', status: 'completed', text: 'Started.', createdAt: '2026-08-27T00:00:01.000Z' }])
 
     expect(screen.getByTestId('mascot')).toHaveAttribute('data-light', 'default')
   })

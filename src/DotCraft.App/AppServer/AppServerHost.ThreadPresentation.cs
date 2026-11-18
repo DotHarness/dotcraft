@@ -22,6 +22,12 @@ public sealed partial class AppServerHost
         }
     }
 
+    private SessionRuntimeSnapshot WithBackgroundWork(SessionRuntimeSnapshot snapshot, string threadId)
+    {
+        snapshot.HasBackgroundWork = runtime.SessionService.HasBackgroundWork(threadId);
+        return snapshot;
+    }
+
     private void BroadcastThreadUpdated(SessionThread thread)
     {
         _hiddenThreads.Observe(thread);
@@ -48,7 +54,7 @@ public sealed partial class AppServerHost
                 var current = snapshot is null ? wire : wire with
                 {
                     Configuration = snapshot.Configuration,
-                    Runtime = snapshot.Runtime.ToWireRuntimeState(),
+                    Runtime = WithBackgroundWork(snapshot.Runtime.ToWireRuntimeState(), thread.Id),
                     ContextUsage = snapshot.ContextUsage ?? wire.ContextUsage,
                     QueuedInputs = snapshot.QueuedInputs.ToList()
                 };
@@ -117,7 +123,8 @@ public sealed partial class AppServerHost
         ThreadId = threadId, Title = plan.Title, Overview = plan.Overview, Content = plan.Content,
         Todos = plan.Todos.Select(todo => new Contract.PlanTodo
         {
-            Id = todo.Id, Content = todo.Content, Priority = todo.Priority, Status = todo.Status
+            Id = todo.Id, Content = todo.Content, Priority = todo.Priority, Status = todo.Status,
+            ActiveForm = todo.ActiveForm is null ? default : todo.ActiveForm
         }).ToArray()
     };
 }

@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.6 |
+| **Version** | 0.13.1 |
 | **Status** | Living |
-| **Date** | 2026-10-27 |
+| **Date** | 2026-11-18 |
 | **Parent Specs** | [Session Core](session-core.md), [Tool Architecture](tools-architecture.md) |
 | **Related Specs** | [Prompt Cache](prompt-cache.md), [Remote Tool Host](remote-tool-host.md) |
 
@@ -215,6 +215,17 @@ persistent notification delivery and acknowledgement.
 
 An Agent's ending reaches its parent only as a task notification; Agent messages travel through the
 mailbox (§4.2).
+
+### 5.4 Background work
+
+A Thread has background work while an Agent it owns is running or has background work of its own,
+or while a Workflow run it owns is running. Shell tasks do not count, so a long-running command such
+as a development server never keeps a Thread working. Session Core reports this as the Thread
+runtime's `hasBackgroundWork` ([AppServer Protocol](../protocols/appserver-protocol.md#threadstatuschanged))
+and republishes the runtime of the owner Thread and each of its ancestors whenever it changes.
+
+A Turn that completes while its Thread has background work has not finished the user's task. The
+Turn that the last task notification starts finishes it.
 
 ## 6. Clients
 

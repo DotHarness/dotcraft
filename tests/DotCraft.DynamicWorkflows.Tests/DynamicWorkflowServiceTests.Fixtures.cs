@@ -34,6 +34,7 @@ public sealed partial class DynamicWorkflowServiceTests
             nameof(ISessionService.RemoveManagedWorktreeAsync) => RemoveWorktree(args),
             nameof(IBackgroundTaskNotifications.NotifyBackgroundTaskEndedAsync) => Notify(args),
             nameof(ISessionService.ReadThreadAggregatesAsync) => ReadAggregates(args),
+            nameof(ISessionService.PublishBackgroundWorkChanged) => null,
             _ => throw new NotSupportedException($"Unexpected Session method '{targetMethod?.Name}'.")
         };
 

@@ -84,7 +84,7 @@ describe('retained conversation activity handoff', () => {
     feed.release()
   })
 
-  it('counts a child and its background task after the turn ends without opening any details', async () => {
+  it('counts only the background task once the child turn ends, without opening any details', async () => {
     await discover()
     expect(activity().count).toBe(1)
     notify('terminal/started', { terminal: { ...terminal, isBackground: false } })
@@ -99,8 +99,8 @@ describe('retained conversation activity handoff', () => {
     notify('thread/status/changed', { threadId: 'child', runtime: { running: false } })
     await vi.waitFor(() => expect(useSubAgentTaskActivity.getState().reconcilingThreads.size).toBe(0))
     expect(useThreadStore.getState().runtimeSnapshots.get('child')?.running).toBe(false)
-    expect(activity().count).toBe(2)
-    expect(listDesktopPluginSubAgents('root')[0].state).toBe('working')
+    expect(activity().count).toBe(1)
+    expect(listDesktopPluginSubAgents('root')[0].state).toBe('done')
     expect(request.mock.calls.some(([, method]) => method === 'thread/resume' || method === 'thread/items/list')).toBe(false)
 
     notify('terminal/completed', { terminal: { ...terminal, status: 'completed' } })
@@ -130,7 +130,7 @@ describe('retained conversation activity handoff', () => {
     expect(activity().count).toBe(2)
     response.resolve({ terminals: [] })
     await vi.waitFor(() => expect(useSubAgentTaskActivity.getState().reconcilingThreads.size).toBe(0))
-    expect(activity().count).toBe(2)
+    expect(activity().count).toBe(1)
     expect(counts).not.toContain(0)
     stopTasks()
     stopRuntime()
@@ -151,11 +151,11 @@ describe('retained conversation activity handoff', () => {
       thread: { id: 'child', runtime: { running: false } }
     }] })
     await discovering
-    expect(activity().count).toBe(2)
+    expect(activity().count).toBe(1)
     expect(activity('child').count).toBe(1)
-    expect(listDesktopPluginSubAgents('root')[0].state).toBe('working')
+    expect(listDesktopPluginSubAgents('root')[0].state).toBe('done')
     background.resolve({ terminals: [terminal] })
-    await vi.waitFor(() => expect(activity().count).toBe(2))
+    await vi.waitFor(() => expect(activity().count).toBe(1))
   })
 
   it('never revives an ended session from a delayed handoff or older list', async () => {
@@ -218,7 +218,7 @@ describe('retained conversation activity handoff', () => {
     offline = false
     await useSubAgentStore.getState().ensureChildren('root')
     expect(useSubAgentStore.getState().discoveryByParent.get('grandchild')?.status).toBe('ready')
-    await vi.waitFor(() => expect(activity().count).toBe(4))
+    await vi.waitFor(() => expect(activity().count).toBe(1))
     expect(reads('grandchild')).toBe(before.grandchild + 1)
     expect(reads('root')).toBe(before.root)
     expect(reads('child')).toBe(before.child)
@@ -231,7 +231,7 @@ describe('retained conversation activity handoff', () => {
       if (method === 'subagent/children/list') {
         const id = params.parentThreadId === 'root' ? 'child' : params.parentThreadId === 'child' ? 'grandchild' : null
         return { data: id ? [{ edge: { parentThreadId: params.parentThreadId, childThreadId: id, status: 'open' },
-          thread: { id, runtime: { running: false } } }] : [] }
+          thread: { id, runtime: { running: false, hasBackgroundWork: id === 'grandchild' } } }] : [] }
       }
       if (method === 'terminal/list') return { terminals: params.threadId === 'child' && terminalRunning ? [terminal] : [] }
       if (method === 'workflow/run/list') return { runs: params.threadId === 'grandchild' ? [{ ...run }] : [] }
@@ -254,6 +254,7 @@ describe('retained conversation activity handoff', () => {
     expect(await retained.refresh()).toBe(true)
     run.status = 'succeeded'
     notify('workflow/run/updated', { threadId: run.threadId, runId: run.runId, reason: 'terminal' })
+    notify('thread/status/changed', { threadId: 'grandchild', runtime: { running: false } })
     await vi.waitFor(() => expect(activity('child').count).toBe(0))
 
     retained.release()
@@ -266,8 +267,9 @@ describe('retained conversation activity handoff', () => {
     request.mockImplementation(async (_connection, method, params) => {
       if (method === 'subagent/children/list') {
         const child = params.parentThreadId === 'root' ? 'child' : params.parentThreadId === 'child' ? 'grandchild' : null
+        const runtime = child === 'child' ? { running: false, hasBackgroundWork: true } : { running: true, activeTurnId: 'nested' }
         return { data: child ? [{ edge: { parentThreadId: params.parentThreadId, childThreadId: child, status: 'open' },
-          thread: { id: child, runtime: { running: false } } }] : [] }
+          thread: { id: child, runtime } }] : [] }
       }
       if (method === 'terminal/list') return { terminals: params.threadId === 'grandchild' ? [{ ...terminal, threadId: 'grandchild' }] : [] }
       return { runs: [] }

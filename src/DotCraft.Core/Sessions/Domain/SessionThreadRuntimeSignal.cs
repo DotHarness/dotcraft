@@ -31,4 +31,5 @@ public enum SessionThreadRuntimeSignal
     /// Thread-scoped maintenance reached a terminal state.
     /// </summary>
     MaintenanceCompleted,
+    BackgroundWorkChanged,
 }

@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 0.12.2 |
+| Version | 0.13.1 |
 | Status | Living |
 | Date | 2026-11-18 |
 | Parent Specs | [Plugin Architecture](plugin-architecture.md), [Tool Architecture](tools-architecture.md) |
@@ -206,7 +206,7 @@ The Core surfaces are:
 | `thread.header.actions` | The action group in the active thread header, between the overflow menu and the Detail Panel toggle. Empty by default. |
 | `conversation.aside.leading` | A seat beside the leading edge of the conversation reading column. Empty by default. |
 | `conversation.aside.trailing` | A seat beside the trailing edge of the conversation reading column, for panels that accompany the conversation. Core supplies the pinned Summary card. |
-| `conversation.turn.status` | A seat at the end of the last visible turn, directly above its working line, for status that belongs to the conversation's current work. Empty by default. |
+| `conversation.turn.status` | A seat inside the last visible turn, for status that belongs to the conversation's current work: above the reply's actions once the turn has a reply, otherwise directly above its working line. Empty by default. |
 
 `app.background`, `app.overlay`, and `app.status` share the application context. The overlay paints over the shell without consuming the single `app` wrapper. Overlay, status, and aside seats are click-through (`pointer-events: none`, inherited); a contribution opts back in on its own interactive elements.
 
@@ -269,6 +269,13 @@ interface DesktopPluginTurnStatusContext {
   readonly turnId: string
   readonly status: "running" | "completed" | "failed" | "cancelled"
   readonly plan: DesktopPluginTurnPlan | null
+  readonly runningTasks: DesktopPluginTurnRunningTasks
+}
+
+interface DesktopPluginTurnRunningTasks {
+  readonly count: number
+  open(): void
+  claim(): DesktopPluginDispose
 }
 
 interface DesktopPluginTurnPlan {
@@ -282,10 +289,13 @@ interface DesktopPluginPlanTodo {
   readonly id: string
   readonly content: string
   readonly status: "pending" | "in_progress" | "completed" | "cancelled"
+  readonly activeForm?: string
 }
 ```
 
 The plan is the thread's saved snapshot. `implementsPlan` identifies the execution turn started by accepting the Plan in Desktop. `updatedTodos` identifies a turn that successfully updated the checklist.
+
+`runningTasks.count` is the thread's running background task count that the turn's working line shows, and `open` shows the Summary that lists them. A contribution that shows the count itself calls `claim` and disposes the handle when it stops. While any claim is live, the working line omits the count.
 
 The seat stays mounted after the turn ends, so a contribution decides from how the turn ended whether its status still applies. Content renders in the reading column with the transcript's spacing, and an empty contribution takes no space.
 

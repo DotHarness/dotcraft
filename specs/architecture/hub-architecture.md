@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.12.1 |
+| **Version** | 0.13.1 |
 | **Status** | Living |
-| **Date** | 2026-11-15 |
+| **Date** | 2026-11-18 |
 
 Purpose: Define DotCraft Hub as a local coordinator that discovers, starts, reuses, monitors, and stops workspace-bound AppServer processes and a small set of product-owned local services, without changing the AppServer Protocol or the per-workspace runtime model. Hub is also the rendezvous point for paired Remote Tool Hosts and the gateway for paired devices; in both roles it relays connections as opaque byte streams.
 
@@ -341,7 +341,7 @@ A managed AppServer requests four kinds of turn notification, each naming the ch
 
 | Kind | Raised when | Desktop setting |
 |------|-------------|-----------------|
-| `turnCompleted` | A turn completes | Task completion: `never`, `always`, or `whenUnfocused` |
+| `turnCompleted` | A turn completes while its chat has no background work ([Background Tasks §5.4](background-tasks.md#54-background-work)) | Task completion: `never`, `always`, or `whenUnfocused` |
 | `turnFailed` | A turn fails | Task completion |
 | `approvalRequested` | A turn starts waiting on an approval | Approval requests: on (default) or off, shown unless its chat is in view |
 | `inputRequested` | A turn starts waiting on a question | Questions: on (default) or off, shown unless its chat is in view |

@@ -2572,6 +2572,10 @@ public sealed class PerforceConnection : ExtensibleJsonObject
 
 public sealed class PlanTodo : ExtensibleJsonObject
 {
+    [JsonPropertyName("activeForm")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> ActiveForm { get; init; }
+
     [JsonPropertyName("content")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> Content { get; init; }
@@ -5600,6 +5604,10 @@ public sealed class ThreadRuntimeState : ExtensibleJsonObject
     [JsonPropertyName("busy")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> Busy { get; init; }
+
+    [JsonPropertyName("hasBackgroundWork")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool> HasBackgroundWork { get; init; }
 
     [JsonPropertyName("maintenanceKind")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

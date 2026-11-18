@@ -28,6 +28,22 @@ public sealed partial class SessionService
             ct,
             BackgroundTaskRegistry.UserStopOrigin).ConfigureAwait(false);
 
+    public bool HasBackgroundWork(string threadId) =>
+        BackgroundTasks.RunningOwnerThreadIds()
+            .Any(ownerId => SelfAndAncestors(ownerId).Contains(threadId, StringComparer.Ordinal));
+
+    public void PublishBackgroundWorkChanged(string ownerThreadId)
+    {
+        foreach (var threadId in SelfAndAncestors(ownerThreadId))
+            ThreadRuntimeSignalForBroadcast?.Invoke(threadId, SessionThreadRuntimeSignal.BackgroundWorkChanged, null);
+    }
+
+    private IEnumerable<string> SelfAndAncestors(string threadId)
+    {
+        for (var id = threadId; !string.IsNullOrEmpty(id); id = TryGetLoadedThread(id)?.Source.SubAgent?.ParentThreadId)
+            yield return id;
+    }
+
     private async Task<BackgroundTaskCaller> UserTaskCallerAsync(string threadId, CancellationToken ct)
     {
         var thread = await GetOrLoadThreadAsync(threadId, ct).ConfigureAwait(false);

@@ -1,16 +1,5 @@
-import type { ConversationTurn } from '../types/conversation'
-import { isSubAgentChildWorking, useSubAgentStore } from '../stores/subAgentStore'
-import { useWorkflowRunStore } from '../stores/workflowRunStore'
-import { resolveShellBackgroundState } from './toolCallAggregation'
+import { useThreadStore } from '../stores/threadStore'
 
-export function hasRunningBackgroundWork(threadId: string, turns: ConversationTurn[]): boolean {
-  const terminalRunning = turns.some((turn) =>
-    turn.items.some((item) => item.type === 'toolCall' && resolveShellBackgroundState(item) === 'backgroundRunning')
-  )
-  if (terminalRunning) return true
-  if ((useSubAgentStore.getState().childrenByParent.get(threadId) ?? []).some(isSubAgentChildWorking)) return true
-  for (const entry of useWorkflowRunStore.getState().entries.values()) {
-    if (entry.run?.threadId === threadId && entry.run.status === 'running') return true
-  }
-  return false
+export function hasRunningBackgroundWork(threadId: string): boolean {
+  return useThreadStore.getState().runtimeSnapshots.get(threadId)?.hasBackgroundWork === true
 }

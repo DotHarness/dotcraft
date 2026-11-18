@@ -19,7 +19,8 @@ public static class SessionWireMapper
             Id = todo.Id,
             Content = todo.Content,
             Priority = todo.Priority,
-            Status = todo.Status
+            Status = todo.Status,
+            ActiveForm = todo.ActiveForm
         }).ToList()
     };
 
@@ -115,7 +116,8 @@ public static class SessionWireMapper
         WaitingOnPlanConfirmation = runtime.WaitingOnPlanConfirmation,
         Busy = runtime.Busy,
         MaintenanceKind = runtime.MaintenanceKind,
-        QueuePaused = runtime.QueuePaused
+        QueuePaused = runtime.QueuePaused,
+        HasBackgroundWork = runtime.HasBackgroundWork
     };
 
     /// <summary>

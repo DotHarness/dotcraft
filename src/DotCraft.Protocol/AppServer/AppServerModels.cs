@@ -1345,6 +1345,10 @@ public sealed class SessionPlanTodo : ExtensibleJsonObject
 
     [JsonPropertyName("status")]
     public required string Status { get; init; }
+
+    [JsonPropertyName("activeForm")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ActiveForm { get; init; }
 }
 
 /// <summary>Compact thread entry returned by thread/list.</summary>

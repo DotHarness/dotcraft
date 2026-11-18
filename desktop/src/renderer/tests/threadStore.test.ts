@@ -146,7 +146,8 @@ describe('threadStore.setThreadList', () => {
       waitingOnApproval: false,
       waitingOnInput: false,
       waitingOnPlanConfirmation: false,
-      maintenanceKind: null
+      maintenanceKind: null,
+      hasBackgroundWork: false
     })
     expect([...state.pendingApprovalThreadIds]).toEqual(['approval'])
     expect([...state.pendingUserInputThreadIds]).toEqual(['input'])

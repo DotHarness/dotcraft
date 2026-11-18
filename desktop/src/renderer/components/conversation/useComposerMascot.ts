@@ -99,7 +99,7 @@ export function useComposerMascot({
       if (handledRef.current !== key) {
         handledRef.current = key
         if (lastTurnStatus === 'failed') setLocal({ kind: 'error', turnId: lastTurnId })
-        else if (lastTurnHasContent && !hasRunningBackgroundWork(threadId, useConversationStore.getState().turns)) setLocal({ kind: 'success', turnId: lastTurnId })
+        else if (lastTurnHasContent && !hasRunningBackgroundWork(threadId)) setLocal({ kind: 'success', turnId: lastTurnId })
       }
     }
   }, [turnStatus, lastTurnId, lastTurnStatus, lastTurnHasContent, approvalItemId, local?.kind, threadId])

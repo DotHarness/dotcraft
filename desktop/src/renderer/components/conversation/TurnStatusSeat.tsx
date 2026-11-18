@@ -6,10 +6,16 @@ import { useConversationStore } from '../../stores/conversationStore'
 import type { ConversationTurn } from '../../types/conversation'
 import { resolveToolKind } from '../../utils/toolKind'
 import { readPlanApprovalInput } from '../../utils/planApprovalInput'
+import { useRunningTaskCount } from './summary/store'
+import { desktopSummaryServices } from './summary/summaryServices'
+import { setSummaryShown } from './summary/view'
+import { claimTurnTasks } from './turnTaskClaims'
+import styles from './TurnStatusSeat.module.css'
+import { TurnTodoCard } from './TurnTodoCard'
 
 type TurnEndStatus = DesktopPluginTurnStatusContext['status']
 
-export function TurnStatusSeat({ turn, running }: { turn: ConversationTurn; running: boolean }): JSX.Element {
+export function TurnStatusSeat({ turn, running, inReply = false }: { turn: ConversationTurn; running: boolean; inReply?: boolean }): JSX.Element {
   const workspacePath = useConversationThread()?.workspacePath ?? null
   const { id: turnId, threadId } = turn
   const activeThreadId = useConversationStore.useThreadId()
@@ -19,14 +25,20 @@ export function TurnStatusSeat({ turn, running }: { turn: ConversationTurn; runn
   const implementsPlan = inputId != null && inputId === readPlanApprovalInput(threadId)
   const updatedTodos = turn.items.some((item) =>
     item.type === 'toolCall' && item.success === true && resolveToolKind(item) === 'todoWrite')
+  const taskCount = useRunningTaskCount(desktopSummaryServices, threadId)
   const context = useMemo<DesktopPluginTurnStatusContext>(
     () => ({
       workspacePath, threadId, turnId, status,
-      plan: snapshot && { title: snapshot.title, todos: snapshot.todos, implementsPlan, updatedTodos }
+      plan: snapshot && { title: snapshot.title, todos: snapshot.todos, implementsPlan, updatedTodos },
+      runningTasks: { count: taskCount, open: () => setSummaryShown(true), claim: () => claimTurnTasks(turnId) }
     }),
-    [workspacePath, threadId, turnId, status, snapshot, implementsPlan, updatedTodos]
+    [workspacePath, threadId, turnId, status, snapshot, implementsPlan, updatedTodos, taskCount]
   )
-  return <DesktopPluginSurface name="conversation.turn.status" context={context} />
+  const content = <>
+    <TurnTodoCard threadId={threadId} turnId={turnId} status={status} plan={context.plan} />
+    <DesktopPluginSurface name="conversation.turn.status" context={context} />
+  </>
+  return inReply ? <div className={styles.reply}>{content}</div> : content
 }
 
 function turnEndStatus(running: boolean, status: string): TurnEndStatus {

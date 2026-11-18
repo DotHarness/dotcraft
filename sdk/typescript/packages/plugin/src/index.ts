@@ -90,6 +90,7 @@ export type {
   DesktopPluginToastOptions,
   DesktopPluginPlanTodo,
   DesktopPluginTurnPlan,
+  DesktopPluginTurnRunningTasks,
   DesktopPluginTurnStatusContext,
   DesktopPluginUi,
   DesktopPluginViewProps,

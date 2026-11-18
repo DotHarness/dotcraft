@@ -269,7 +269,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
               isLastTurn={isLastTurn}
               readOnly={readOnly}
               showFooter={isFooterMessage}
-              afterContent={isFooterMessage ? turnCompletionContent : undefined}
+              afterContent={isFooterMessage ? <>{turnCompletionContent}{replyStatusSeat}</> : undefined}
             />
           )
         })
@@ -319,6 +319,8 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
   const turnCompletionContent = !completesResponse || embedded?.completion === false ? null
     : leadingTurns.length === 0 ? completionOf(turn.id)
       : <>{[...leadingTurns, turn].map((member) => <Fragment key={member.id}>{completionOf(member.id)}</Fragment>)}</>
+  const showsStatusSeat = isLastVisibleTurn && !readOnly && !embedded
+  const replyStatusSeat = showsStatusSeat && footerAgentMessageId ? <TurnStatusSeat turn={turn} running={isRunning} inReply /> : null
   const omitsWork = turn.summary != null && turn.summary.itemCount > turn.items.length
   const collapsesIntermediate = activity.status === 'worked'
     && (lastFinalAgentMessageIndex > 0 || omitsWork || (leadingTurns.length > 0 && lastFinalAgentMessageIndex === 0))
@@ -434,9 +436,10 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
 
       {turnCompletionContent && !footerAgentMessageId && turnCompletionContent}
 
-      {isLastVisibleTurn && !readOnly && !embedded && <TurnStatusSeat turn={turn} running={isRunning} />}
+      {showsStatusSeat && !footerAgentMessageId && <TurnStatusSeat turn={turn} running={isRunning} />}
 
       <TurnWorkingLine
+        turnId={turn.id}
         working={working}
         label={thinkingLabel}
         keepSpace={isLastVisibleTurn}

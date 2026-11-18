@@ -1,12 +1,9 @@
 import './setupPluginRuntime'
-import type { DesktopPluginHost } from '@dotcraft/plugin'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { PlanApprovalComposer } from '../components/conversation/PlanApprovalComposer'
 import { TurnStatusSeat } from '../components/conversation/TurnStatusSeat'
-import { TodoCard } from '../../bundled-plugins/todo-list/src/TodoCard'
-import { clearDesktopPluginRegistry, registerDesktopPluginSurface } from '../plugins/desktopPluginRegistry'
 import { applyThreadRestoration } from '../stores/applyThreadRestoration'
 import { useConnectionStore } from '../stores/connectionStore'
 import { getThreadConversation, useConversationStore } from '../stores/conversationStore'
@@ -76,9 +73,6 @@ describe('PlanApprovalComposer', () => {
     openThreadState('thread-1')
     useUIStore.setState({ planApprovalDismissed: {} })
     useConversationStore.setState({ threadMode: 'plan', turnStatus: 'idle', plan: pendingPlan })
-    registerDesktopPluginSurface(
-      'todo-list', { environment: { locale: 'en' } } as DesktopPluginHost, 'conversation.turn.status', 'add', TodoCard
-    )
     useThreadStore.setState({
       activeThreadId: 'thread-1',
       threadList: [{
@@ -98,8 +92,6 @@ describe('PlanApprovalComposer', () => {
       workspace: { saveImageToTemp: vi.fn() }
     })
   })
-
-  afterEach(() => act(clearDesktopPluginRegistry))
 
   it('shows approved tasks before confirmation and after restoring without a cached turn', async () => {
     const response = deferred()

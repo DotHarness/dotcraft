@@ -4,6 +4,9 @@
   "title": "PlanTodo",
   "type": "object",
   "properties": {
+    "activeForm": {
+      "type": "string"
+    },
     "content": {
       "type": "string"
     },

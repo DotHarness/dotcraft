@@ -163,6 +163,8 @@ public sealed class SessionRuntimeSnapshot
     public string? MaintenanceKind { get; set; }
 
     public bool QueuePaused { get; set; }
+
+    public bool HasBackgroundWork { get; set; }
 }
 
 /// <summary>
@@ -354,6 +356,8 @@ public sealed record SessionWirePlanTodo
     public string Priority { get; init; } = PlanTodoPriority.Medium;
 
     public string Status { get; init; } = PlanTodoStatus.Pending;
+
+    public string? ActiveForm { get; init; }
 }
 
 /// <summary>

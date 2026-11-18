@@ -121,7 +121,7 @@ DotCraft's formal surfaces cover the application, the Composer, and the active c
 | **`thread.header.actions`** | The action group in the active thread header, between the overflow menu and the Detail Panel toggle. |
 | **`conversation.aside.leading`** | A seat beside the leading edge of the conversation reading column. |
 | **`conversation.aside.trailing`** | A seat beside the trailing edge of the conversation reading column. |
-| **`conversation.turn.status`** | A seat at the end of the last visible turn, directly above its working line. |
+| **`conversation.turn.status`** | A seat inside the last visible turn: above the reply's actions once the turn has a reply, otherwise directly above its working line. |
 
 Target these Core controls when a region is too broad:
 
@@ -234,7 +234,7 @@ host.ui.add("conversation.aside.trailing", NotesPanel);
 
 ### Show status at the end of the conversation
 
-`conversation.turn.status` mounts under the same conditions, in the last visible turn, directly above the working line, and moves to the next turn when one starts. Its context carries `workspacePath`, `threadId`, `turnId`, and `status`: `running` (including while the turn waits on approval or input), `completed`, `failed`, or `cancelled`. The seat stays after the turn ends, so return `null` once your status no longer applies. An empty seat takes no space. Content sits in the reading column with the transcript's spacing:
+`conversation.turn.status` mounts under the same conditions, in the last visible turn, above the reply's copy and time row once the turn has a reply and directly above the working line before that, and moves to the next turn when one starts. Its context carries `workspacePath`, `threadId`, `turnId`, and `status`: `running` (including while the turn waits on approval or input), `completed`, `failed`, or `cancelled`. The seat stays after the turn ends, so return `null` once your status no longer applies. An empty seat takes no space. Content sits in the reading column with the transcript's spacing:
 
 ```tsx
 function BuildStatus({ context }: DesktopPluginSurfaceProps<"conversation.turn.status">) {
@@ -243,6 +243,8 @@ function BuildStatus({ context }: DesktopPluginSurfaceProps<"conversation.turn.s
 
 host.ui.add("conversation.turn.status", BuildStatus);
 ```
+
+`context.runningTasks.count` is the number of background tasks the working line shows, and `open()` opens the Summary that lists them. To show the count inside your own content, call `claim()` while you show it and call the returned dispose function when you stop. While a claim is live, the working line leaves the count out.
 
 ### Replace the Composer mascot
 

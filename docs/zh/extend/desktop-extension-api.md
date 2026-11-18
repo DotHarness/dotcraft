@@ -117,7 +117,7 @@ DotCraft 的正式 surface 覆盖 application、Composer 与当前会话。Compo
 | **`thread.header.actions`** | 当前 thread 标题栏中的操作组，位于溢出菜单与 Detail Panel 开关之间。 |
 | **`conversation.aside.leading`** | 会话阅读列 leading 一侧的座位。 |
 | **`conversation.aside.trailing`** | 会话阅读列 trailing 一侧的座位。 |
-| **`conversation.turn.status`** | 最后一个可见轮次末尾、紧贴工作行上方的座位。 |
+| **`conversation.turn.status`** | 最后一个可见轮次内的座位：轮次有回复后位于回复的操作行上方，此前紧贴工作行上方。 |
 
 当区域范围过大时，可以直接定位这些 Core 控件：
 
@@ -230,7 +230,7 @@ host.ui.add("conversation.aside.trailing", NotesPanel);
 
 ### 在会话末尾显示状态
 
-`conversation.turn.status` 的挂载条件与上面相同：位于最后一个可见轮次中、紧贴工作行上方，新轮次开始时随之移动。它的 context 包含 `workspacePath`、`threadId`、`turnId` 和 `status`：`running`（等待审批或输入时也算）、`completed`、`failed` 或 `cancelled`。轮次结束后座位仍然存在，所以状态不再适用时请返回 `null`。空座位不占空间。内容位于阅读列中，沿用对话的间距：
+`conversation.turn.status` 的挂载条件与上面相同：位于最后一个可见轮次中，轮次有回复后在回复的复制和时间这一行上方，此前紧贴工作行上方，新轮次开始时随之移动。它的 context 包含 `workspacePath`、`threadId`、`turnId` 和 `status`：`running`（等待审批或输入时也算）、`completed`、`failed` 或 `cancelled`。轮次结束后座位仍然存在，所以状态不再适用时请返回 `null`。空座位不占空间。内容位于阅读列中，沿用对话的间距：
 
 ```tsx
 function BuildStatus({ context }: DesktopPluginSurfaceProps<"conversation.turn.status">) {
@@ -239,6 +239,8 @@ function BuildStatus({ context }: DesktopPluginSurfaceProps<"conversation.turn.s
 
 host.ui.add("conversation.turn.status", BuildStatus);
 ```
+
+`context.runningTasks.count` 是工作行显示的后台任务数，`open()` 会打开列出这些任务的 Summary。要在自己的内容里显示这个数，请在显示期间调用 `claim()`，不再显示时调用它返回的 dispose 函数。只要还有 claim，工作行就不再显示这个数。
 
 ### 替换 Composer mascot
 

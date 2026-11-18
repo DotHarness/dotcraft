@@ -36,6 +36,10 @@ public sealed class PlanTodo
 
     [JsonPropertyName("status")]
     public string Status { get; set; } = PlanTodoStatus.Pending;
+
+    [JsonPropertyName("activeForm")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ActiveForm { get; set; }
 }
 
 public static class PlanTodoPriority
