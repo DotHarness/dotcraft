@@ -13,6 +13,10 @@
   margin-top: calc(var(--conversation-tool-run-gap) - var(--conversation-tool-assistant-gap));
 }
 
+:global([data-turn-todo-card]) ~ .line[data-after-tool] {
+  margin-top: 0;
+}
+
 .glyph {
   display: flex;
   flex-shrink: 0;

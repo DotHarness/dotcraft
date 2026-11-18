@@ -68,7 +68,7 @@ export function TurnTodoCard({ threadId, turnId, status, plan }: {
     ? t(taskCount === 1 ? 'conversation.runningTasks.one' : 'conversation.runningTasks.other', { count: taskCount })
     : null
   return (
-    <section className={styles.card} aria-label={`${t('conversation.todo.label')}, ${t('conversation.todo.progress', { done, total })}`}>
+    <section className={styles.card} data-turn-todo-card aria-label={`${t('conversation.todo.label')}, ${t('conversation.todo.progress', { done, total })}`}>
       <TodoChecklist todos={plan.todos} live={live} tasksLabel={tasksLabel} />
     </section>
   )
@@ -115,7 +115,7 @@ function StatusMark({ status, live }: { status: TurnTodo['status']; live: boolea
     <span className={styles.mark} data-status={status}>
       {status === 'completed' ? <CircleCheck {...ICON} />
         : status === 'cancelled' ? <CircleX {...ICON} />
-          : status === 'in_progress' ? (live ? <Spinner size={13} /> : <CircleDot {...ICON} />)
+          : status === 'in_progress' ? (live ? <Spinner size={13} className={styles.spinner} /> : <CircleDot {...ICON} />)
             : <Circle {...ICON} />}
     </span>
   )

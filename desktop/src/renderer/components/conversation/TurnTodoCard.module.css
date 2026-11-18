@@ -36,6 +36,16 @@
   color: var(--text-primary);
 }
 
+.mark .spinner {
+  color: var(--text-dimmed);
+  animation-duration: 1.6s;
+}
+
+.mark .spinner :global(.dc-spinner__track) {
+  stroke: var(--border-default);
+  opacity: 1;
+}
+
 .item[data-status='completed'],
 .item[data-status='cancelled'] {
   color: var(--text-dimmed);
