@@ -204,7 +204,8 @@ Each configured source contributes at most one diagnostic per discovery pass. A 
 
 Source precedence and plugin keys follow [Plugin Architecture](plugin-architecture.md#27-plugin-keys).
 Each marketplace lists its own entries under `<id>@<marketplace>`, so two marketplaces offering the
-same plugin id never hide each other. Marketplaces participate in configured source order. `Plugins.DisableDefaultPluginRegistry` disables
+same plugin id never hide each other. Discovery skips a configured source whose marketplace name is
+`dotcraft-bundled` with a warning, because bundled plugin keys reserve it. Marketplaces participate in configured source order. `Plugins.DisableDefaultPluginRegistry` disables
 the host-provided default source for private or organization-only deployments.
 
 ## 9. Plugin Install Lifecycle

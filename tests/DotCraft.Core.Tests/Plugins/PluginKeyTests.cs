@@ -69,6 +69,23 @@ public sealed class PluginKeyTests : IDisposable
         Assert.Equal(["demo@alpha"], pendingForRecordedSource);
     }
 
+    [Fact]
+    public void Deployer_IgnoresAConfiguredMarketplaceUsingTheBundledName()
+    {
+        var bundled = Path.Combine(_root, "bundled");
+        WritePlugin(Path.Combine(bundled, "demo"), "bundled");
+        new BuiltInPluginDeployer(Installed, [bundled], new AppConfig.PluginsConfig { DisableDefaultPluginRegistry = true }, UserData)
+            .DeployPlugin("demo@dotcraft-bundled");
+        var config = Config(PluginIds.BundledMarketplace);
+        var diagnostics = new List<PluginDiagnostic>();
+
+        var pending = new BuiltInPluginDeployer(Installed, [], config.Plugins, UserData).GetPendingUpdates(diagnostics);
+
+        Assert.Empty(pending);
+        Assert.Contains(diagnostics, diagnostic => diagnostic.Code == "PluginRegistryNameReserved");
+        Assert.Equal("bundled", File.ReadAllText(Path.Combine(Installed, "demo", "content.txt")));
+    }
+
     private AppConfig Config(params string[] marketplaces)
     {
         var config = new AppConfig();

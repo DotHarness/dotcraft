@@ -77,6 +77,16 @@ internal static class PluginSourceRegistryCatalog
                 continue;
 
             var marketplaceName = string.IsNullOrWhiteSpace(document.Name) ? source.Name : document.Name!.Trim();
+            if (string.Equals(marketplaceName, PluginIds.BundledMarketplace, StringComparison.OrdinalIgnoreCase))
+            {
+                diagnostics.Add(PluginDiagnostic.Warning(
+                    "PluginRegistryNameReserved",
+                    $"Plugin marketplace '{marketplaceName}' is skipped because the name is reserved for bundled plugins.",
+                    path: marketplacePath,
+                    parameters: MarketplaceParameter(source.Name)));
+                continue;
+            }
+
             foreach (var entry in document.Plugins)
             {
                 var plugin = BuildPluginSource(marketplaceName, registryRoot, marketplacePath, entry, diagnostics);
