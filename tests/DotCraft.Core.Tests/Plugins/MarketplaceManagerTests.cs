@@ -103,6 +103,19 @@ public sealed class MarketplaceManagerTests
     }
 
     [Fact]
+    public async Task AddAsync_RejectsTheBundledMarketplaceName()
+    {
+        var sourceRoot = NewTempDir();
+        WriteMarketplace(sourceRoot, PluginIds.BundledMarketplace);
+        var manager = NewManager(NewTempDir(), new FakeGitFetcher(_ => throw new InvalidOperationException("must not fetch")));
+
+        var error = await Assert.ThrowsAsync<MarketplaceException>(
+            () => manager.AddAsync(new MarketplaceAddRequest(sourceRoot), CancellationToken.None));
+
+        Assert.Equal(MarketplaceErrorCodes.NameConflict, error.Code);
+    }
+
+    [Fact]
     public async Task Remove_DropsConfiguredEntryAndMaterializedRoot()
     {
         var craftHome = NewTempDir();

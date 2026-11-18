@@ -22,7 +22,7 @@ internal sealed partial class PluginRequestHandler
         var changed = false;
         foreach (var pluginKey in pending)
         {
-            var pluginId = PluginIds.ParseKey(pluginKey).PluginId;
+            var pluginId = PluginIds.IdFromKey(pluginKey);
             var quiesceFailure = await QuiesceRootBackedContributionsAsync(pluginId, ct).ConfigureAwait(false);
             if (quiesceFailure != null)
             {

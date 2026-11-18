@@ -1,6 +1,6 @@
 import type { CSSProperties, JSX } from 'react'
 import { Plug } from 'lucide-react'
-import { usePluginStore } from '../../stores/pluginStore'
+import { findPluginEntry, usePluginStore } from '../../stores/pluginStore'
 import { pluginIconUrl } from '../plugins/PluginCatalogItem'
 
 interface PluginUsageIconProps {
@@ -12,7 +12,7 @@ interface PluginUsageIconProps {
 export function PluginUsageIcon({ pluginId, size, style }: PluginUsageIconProps): JSX.Element {
   const src = usePluginStore((state) => {
     if (!pluginId) return null
-    const plugin = state.plugins.find((candidate) => candidate.id === pluginId)
+    const plugin = findPluginEntry(state.plugins, pluginId)
     return plugin ? pluginIconUrl(plugin) : null
   })
   return src

@@ -132,7 +132,7 @@ Rules:
 3. If a configured entry already matches the same kind, source, reference, and sparse paths, and its root still contains a valid marketplace document, report the marketplace as already added and do not fetch.
 4. For a local source, validate the directory in place and read the marketplace name from it.
 5. For a git source, fetch into a staging directory, validate the marketplace document, and read the marketplace name from it.
-6. Reject a marketplace whose name is already configured from a different repository or directory. The existing marketplace must be removed first. Re-adding the same repository or directory at another reference or sparse path set re-points the existing marketplace instead of failing.
+6. Reject a marketplace named `dotcraft-bundled`, which bundled plugin keys reserve, or whose name is already configured from a different repository or directory. The existing marketplace must be removed first. Re-adding the same repository or directory at another reference or sparse path set re-points the existing marketplace instead of failing.
 7. For a git source, atomically replace the installed root for that name with the staged content.
 8. Record the entry in user-global configuration, including the resolved source, reference, sparse paths, the update timestamp, and the resolved revision when the source kind provides one.
 9. Refresh plugin discovery so the marketplace plugins appear as installable catalog entries.

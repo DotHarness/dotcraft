@@ -14,7 +14,7 @@ internal sealed partial class PluginRequestHandler
                 workspaceConfig.UserDataPath)
             .DeployPlugin(pluginKey);
         PluginDiagnosticsLogger.Write(deployDiagnostics, logger);
-        var pluginId = PluginIds.ParseKey(pluginKey).PluginId;
+        var pluginId = PluginIds.IdFromKey(pluginKey);
         if (deployDiagnostics.Any(d => IsBlockingDeployDiagnosticForPlugin(d, pluginId)))
             throw AppServerErrors.InvalidParams($"Plugin '{pluginKey}' could not be installed.");
     }

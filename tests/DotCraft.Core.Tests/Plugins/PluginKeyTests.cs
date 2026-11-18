@@ -25,7 +25,7 @@ public sealed class PluginKeyTests : IDisposable
 
         var result = new BuiltInPluginCatalog([bundled], config.Plugins, UserData).Discover();
 
-        Assert.Equal(["demo", "demo@alpha", "demo@beta"], result.Plugins.Select(plugin => plugin.Key));
+        Assert.Equal(["demo@dotcraft-bundled", "demo@alpha", "demo@beta"], result.Plugins.Select(plugin => plugin.Key));
         Assert.Empty(result.Diagnostics);
     }
 

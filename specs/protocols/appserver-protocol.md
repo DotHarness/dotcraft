@@ -1468,7 +1468,7 @@ Each response projects plugin metadata and workflow summaries from the same disc
 
 Entries with the same `id` may appear more than once: the installed plugin and catalog entries from other marketplaces. `key` tells them apart (see the table below).
 
-Methods that select one entry take `id` and an optional `marketplaceName`. With `marketplaceName`, they select the entry whose key is `<id>@<marketplaceName>`. Without it, they select the installed plugin with that id, or else its first catalog entry in source order. Other plugin methods act on the installed plugin and take `id` alone.
+Methods that select one entry take `id` and an optional `marketplaceName`. With `marketplaceName`, they select the entry whose key is `<id>@<marketplaceName>`, where bundled entries use `dotcraft-bundled`. Without it, they select the installed plugin with that id, or else its first catalog entry in source order. Other plugin methods act on the installed plugin and take `id` alone.
 
 #### `plugin/view`
 
@@ -1478,7 +1478,7 @@ Params `id`, optional `marketplaceName`. Result `{ plugin, snapshotRevision }`.
 
 | Field | Semantics |
 |-------|-----------|
-| `key` | The plugin key from [Plugin Architecture](../architecture/plugin-architecture.md#27-plugin-keys): `<id>@<marketplaceName>` for marketplace catalog entries and marketplace-managed installs, otherwise `id`. Unique within one `plugin/list`. Clients key rows and selection by it, while runtime methods and contribution attribution use `id`. |
+| `key` | The plugin key from [Plugin Architecture](../architecture/plugin-architecture.md#27-plugin-keys): `<id>@<marketplaceName>` for marketplace entries, `<id>@dotcraft-bundled` for bundled entries, and `id` for installed plugins DotCraft does not manage. Unique within one `plugin/list`. Clients key rows and selection by it, while runtime methods and contribution attribution use `id`. |
 | `installed` | The plugin exists in a discovered local root and can contribute runtime behavior. |
 | `installable` | A known bundled or registry catalog entry that is not installed and whose id is not installed from another key. |
 | `removable` | A directory under `<craft-home>/plugins/<id>` or the workspace `.craft/plugins/<id>` that DotCraft can remove. |
@@ -1628,7 +1628,7 @@ Params optional `name` (omitted refreshes all). Result `{ marketplaces, errors }
 | `code` | Meaning |
 |--------|---------|
 | `MarketplaceSourceInvalid` | Empty, malformed, unsupported scheme, embedded credentials, or ref/sparse paths on a non-repository source. |
-| `MarketplaceNameConflict` | Name already configured from a different source. |
+| `MarketplaceNameConflict` | Name already configured from a different source, or the reserved name `dotcraft-bundled`. |
 | `MarketplaceNotFound` | Named marketplace not configured. |
 | `MarketplaceNotRemovable` | Host-provided marketplace. |
 | `MarketplaceDocumentMissing` | No valid marketplace document at the resolved path. |

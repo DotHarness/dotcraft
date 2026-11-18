@@ -5,6 +5,7 @@ public static class PluginIds
     public const string Browser = "browser";
     public const string Chrome = "chrome";
     public const string Computer = "computer";
+    public const string BundledMarketplace = "dotcraft-bundled";
 
     public static string Canonicalize(string pluginId) => pluginId;
 
@@ -12,13 +13,13 @@ public static class PluginIds
         string.Equals(Canonicalize(left), Canonicalize(right), StringComparison.OrdinalIgnoreCase);
 
     public static string Key(string pluginId, string? marketplaceName) =>
-        string.IsNullOrEmpty(marketplaceName) ? pluginId : $"{pluginId}@{marketplaceName}";
+        $"{pluginId}@{marketplaceName ?? BundledMarketplace}";
 
-    // Plugin ids never contain '@', so the first one separates the marketplace.
-    public static (string PluginId, string? MarketplaceName) ParseKey(string key)
+    // Plugin ids never contain '@', so the first one ends the id.
+    public static string IdFromKey(string key)
     {
         var separator = key.IndexOf('@');
-        return separator < 0 ? (key, null) : (key[..separator], key[(separator + 1)..]);
+        return separator < 0 ? key : key[..separator];
     }
 
     public static bool KeysEqual(string left, string right) =>

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { usePluginStore, type PluginEntry } from '../stores/pluginStore'
+import { findPluginEntry, usePluginStore, type PluginEntry } from '../stores/pluginStore'
 import { installDesktopApiMock } from './desktopApiMock'
 
 const plugin = (overrides: Partial<PluginEntry> = {}): PluginEntry => ({
@@ -338,6 +338,13 @@ describe('pluginStore plugin keys', () => {
     const state = usePluginStore.getState()
     expect(state.selectedPluginKey).toBe('review@b')
     expect(state.plugins.find((candidate) => candidate.key === 'review@a')?.installable).toBe(false)
+  })
+
+  it('finds the installed entry by id and any entry by its exact key', () => {
+    const plugins = [entry('a'), entry('dotcraft-bundled', { marketplaceName: null }), entry('b', { installed: true, installable: false })]
+
+    expect(findPluginEntry(plugins, 'review')?.key).toBe('review@b')
+    expect(findPluginEntry(plugins, 'review@dotcraft-bundled')?.key).toBe('review@dotcraft-bundled')
   })
 
   it('applies runtime projections only to the installed entry sharing an id', async () => {

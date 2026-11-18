@@ -256,10 +256,11 @@ settings, trust, and plugin data key on, so at most one plugin per id is install
 
 ### 2.7 Plugin keys
 
-Roots 4 and 5 are catalogs of installable entries. Each catalog entry has a plugin key: the plugin id
-for a bundled entry, and `<id>@<marketplace>` for a marketplace entry, where `<marketplace>` is the
-marketplace document name. The key is the catalog, install, and update identity, and it is never a
-runtime or model-visible name.
+Roots 4 and 5 are catalogs of installable entries. Each catalog entry has a plugin key
+`<id>@<marketplace>`, where `<marketplace>` is the marketplace document name for a marketplace entry
+and the reserved name `dotcraft-bundled` for a bundled entry, which no marketplace may use. An
+installed plugin that DotCraft does not manage has the plugin id as its key. The key is the catalog,
+install, and update identity, and it is never a runtime or model-visible name.
 
 - Entries with different keys coexist, so every marketplace that lists a plugin id shows its own
   entry for it.

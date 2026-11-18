@@ -31,7 +31,7 @@ public sealed record DiscoveredPlugin(
     /// <summary>Catalog-time availability of each declared cross-plugin dependency.</summary>
     public IReadOnlyList<PluginDependencyObservation> DependencyObservations { get; init; } = [];
 
-    public string Key => PluginIds.Key(Manifest.Id, MarketplaceName);
+    public string Key { get; init; } = Manifest.Id;
 }
 
 /// <summary>
@@ -183,6 +183,9 @@ public sealed class PluginDiscoveryService(
 
             var removable = candidate.SourceKind is PluginDiscoverySourceKind.Workspace or PluginDiscoverySourceKind.UserGlobal
                             && IsStrictPathWithinDirectory(manifest.RootPath, candidate.SourceRoot);
+            var marker = candidate.SourceKind == PluginDiscoverySourceKind.UserGlobal
+                ? ManagedPluginMarker.TryRead(manifest.RootPath)
+                : null;
             discovered.Add(new DiscoveredPlugin(
                 manifest,
                 candidate.SourceKind,
@@ -191,9 +194,10 @@ public sealed class PluginDiscoveryService(
                 Installed: true,
                 Installable: false,
                 Removable: removable,
-                MarketplaceName: candidate.SourceKind == PluginDiscoverySourceKind.UserGlobal
-                    ? ManagedPluginMarker.TryRead(manifest.RootPath)?.MarketplaceName
-                    : null));
+                MarketplaceName: marker?.MarketplaceName)
+            {
+                Key = marker == null ? manifest.Id : PluginIds.Key(manifest.Id, marker.MarketplaceName)
+            });
         }
 
         return discovered;

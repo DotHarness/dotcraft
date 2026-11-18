@@ -169,7 +169,7 @@ public sealed class BuiltInPluginDeployer(
             diagnostics.Add(PluginDiagnostic.Warning(
                 "BuiltInPluginNotFound",
                 $"Built-in plugin '{missing}' was not found.",
-                PluginIds.ParseKey(missing).PluginId));
+                PluginIds.IdFromKey(missing)));
         }
 
         logger?.LogInformation(

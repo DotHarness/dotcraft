@@ -1,5 +1,5 @@
 import { pluginIconUrl } from '../components/plugins/PluginCatalogItem'
-import { usePluginStore, type PluginEntry } from '../stores/pluginStore'
+import { findPluginEntry, usePluginStore, type PluginEntry } from '../stores/pluginStore'
 import { useSkillsStore, type SkillEntry } from '../stores/skillsStore'
 
 export function normalizeSkillName(name: string): string {
@@ -7,7 +7,7 @@ export function normalizeSkillName(name: string): string {
 }
 
 export function skillIconUrl(skill: SkillEntry, plugins: PluginEntry[]): string | null {
-  const plugin = skill.pluginId ? plugins.find((entry) => entry.id === skill.pluginId) : undefined
+  const plugin = skill.pluginId ? findPluginEntry(plugins, skill.pluginId) : undefined
   return skill.iconSmallDataUrl || skill.iconLargeDataUrl || (plugin && pluginIconUrl(plugin)) || null
 }
 

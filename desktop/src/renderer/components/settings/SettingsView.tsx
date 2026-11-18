@@ -44,7 +44,7 @@ import {
   useConfigStore,
   type ConfigSetting
 } from '../../stores/configStore'
-import { usePluginStore } from '../../stores/pluginStore'
+import { findPluginEntry, usePluginStore } from '../../stores/pluginStore'
 import { useSkillsStore } from '../../stores/skillsStore'
 import { usePendingRestartStore } from '../../stores/pendingRestartStore'
 import {
@@ -360,7 +360,7 @@ export function SettingsView({
     dreamsPageActive: activeSettingsTab === 'dreams',
     dashboardUrl
   })
-  const browserUsePlugin = plugins.find((plugin) => plugin.id === 'browser') ?? null
+  const browserUsePlugin = findPluginEntry(plugins, 'browser') ?? null
   const browserUsePluginReady = !pluginManagementEnabled || browserUsePlugin?.installed === true
   const selectedProvider = providers.find((provider) => provider.id === selectedProviderId) ?? null
   const providerEditorProvider =

@@ -15,7 +15,7 @@ public sealed class PluginManagedUpdateTests : IDisposable
     public void Discovery_DoesNotWriteManagedInstallationWhenSourceChanges()
     {
         WritePlugin("demo", "old");
-        new BuiltInPluginDeployer(Installed, [Sources], _plugins).DeployPlugin("demo");
+        new BuiltInPluginDeployer(Installed, [Sources], _plugins).DeployPlugin("demo@dotcraft-bundled");
         WritePlugin("demo", "new");
         using var occupied = File.Open(Path.Combine(Installed, "demo", BuiltInPluginDeployer.MarkerFile),
             FileMode.Open, FileAccess.Read, FileShare.None);

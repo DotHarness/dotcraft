@@ -46,6 +46,37 @@ public sealed partial class AppServerPluginManagementTests
         AppServerTestHarness.AssertIsErrorResponse(rejected, AppServerErrors.InvalidParamsCode);
     }
 
+    [Fact]
+    public async Task PluginView_SelectsTheBundledEntryWhileAMarketplaceCopyIsInstalled()
+    {
+        WriteSkillPlugin(Path.Combine(_bundledPluginSourceRoot, "shared"), "shared", "bundled-skill");
+        var config = new AppConfig();
+        config.Plugins.DisableDefaultPluginRegistry = true;
+        ConfigureSharedPluginMarketplace(config, "beta");
+        using var harness = CreateHarness(config);
+        using (await harness.InitializeAsync()) { }
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.PluginInstall,
+            new { id = "shared", marketplaceName = "beta" }));
+        using (await harness.Transport.ReadNextSentAsync()) { }
+        using (await harness.Transport.ReadNextSentAsync()) { }
+
+        Assert.Equal(["shared@beta", "shared@dotcraft-bundled"], SharedKeys(await ReadPluginListResultAsync(harness)));
+        Assert.Equal("shared@dotcraft-bundled", await ViewKeyAsync(harness, new { id = "shared", marketplaceName = "dotcraft-bundled" }));
+        Assert.Equal("shared@beta", await ViewKeyAsync(harness, new { id = "shared" }));
+    }
+
+    private static async Task<string?> ViewKeyAsync(AppServerTestHarness harness, object parameters)
+    {
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.PluginView,
+            parameters));
+        using var response = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+        return response.RootElement.GetProperty("result").GetProperty("plugin").GetProperty("key").GetString();
+    }
+
     private void ConfigureSharedPluginMarketplace(AppConfig config, string marketplace)
     {
         var root = Path.Combine(_tempRoot, "marketplaces", marketplace);

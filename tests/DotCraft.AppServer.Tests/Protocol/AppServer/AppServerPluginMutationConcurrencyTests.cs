@@ -187,9 +187,7 @@ public sealed class AppServerPluginMutationConcurrencyTests : IDisposable
         AppServerTestHarness.AssertIsSuccessResponse(listResponse);
         var result = listResponse.RootElement.GetProperty("result");
         Assert.Equal(mutationRevision, result.GetProperty("snapshotRevision").GetInt64());
-        var browser = Assert.Single(
-            result.GetProperty("plugins").EnumerateArray(),
-            plugin => plugin.GetProperty("id").GetString() == "browser");
+        var browser = AppServerPluginManagementTests.FindPlugin(result, "browser");
         Assert.False(browser.GetProperty("enabled").GetBoolean());
     }
 
@@ -349,9 +347,7 @@ public sealed class AppServerPluginMutationConcurrencyTests : IDisposable
             AppServerTestHarness.AssertIsSuccessResponse(listResponse);
             var listResult = listResponse.RootElement.GetProperty("result");
             Assert.True(listResult.GetProperty("snapshotRevision").GetInt64() >= secondRevision);
-            var browser = Assert.Single(
-                listResult.GetProperty("plugins").EnumerateArray(),
-                plugin => plugin.GetProperty("id").GetString() == "browser");
+            var browser = AppServerPluginManagementTests.FindPlugin(listResult, "browser");
             Assert.Equal(
                 runtime.RecoveredGenerationId,
                 browser.GetProperty("dotnetRuntime").GetProperty("generationId").GetString());
