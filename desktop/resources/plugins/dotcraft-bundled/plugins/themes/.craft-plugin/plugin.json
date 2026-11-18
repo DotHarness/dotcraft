@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "themes",
-  "version": "0.12.1",
+  "version": "0.13.0",
   "displayName": "Themes",
   "description": "Adds themes to DotCraft: app colors, backdrops, and Agent-created animated scenes.",
   "capabilities": ["skill", "desktop"],
