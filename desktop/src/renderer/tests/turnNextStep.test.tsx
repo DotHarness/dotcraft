@@ -22,14 +22,14 @@ const dismissQuestion = vi.fn(async ({ callId }: { threadId: string; callId: str
   return { ok: true }
 })
 
-function turn(callId = 'wrap-call'): ConversationTurn {
+function turn(callId = 'wrap-call', blocked = false): ConversationTurn {
   return {
     id: 'wrap-turn', threadId, status: 'completed', startedAt: '2026-11-18T00:00:00Z',
     items: [{
       id: 'wrap-item', toolCallId: callId, type: 'dynamicToolCall', status: 'completed',
       createdAt: '2026-11-18T00:00:00Z', toolName: 'WrapUp', pluginNamespace: 'desktop_conversation',
       success: true, structuredResult: { shown: true },
-      arguments: { recap: 'The draft is ready.', ask: 'Publish?', actions: [{ label: 'Publish' }, { label: 'Keep draft' }], blocked: true },
+      arguments: { recap: 'The draft is ready.', ask: 'Publish?', actions: [{ label: 'Publish' }, { label: 'Keep draft' }], blocked },
     }],
   }
 }
@@ -90,11 +90,32 @@ describe('Wrap Up card', () => {
     expect(screen.getByRole('group', { name: 'Publish?' })).toBeTruthy()
   })
 
-  it('allows closing a historical card without offering replies', async () => {
+  it('hides a box once a later Turn exists', () => {
     useConversationStore.setState({ turns: [turn(), { ...turn('new-call'), id: 'new-turn' }] })
     show()
-    expect(screen.queryByRole('button', { name: 'Publish', exact: true })).toBeNull()
-    fireEvent.click(await screen.findByRole('button', { name: 'Close' }))
-    await waitFor(() => expect(dismissQuestion).toHaveBeenCalledWith({ threadId, callId: 'wrap-call' }))
+    expect(screen.queryByRole('group', { name: 'Publish?' })).toBeNull()
+  })
+
+  it('hides a blocked box close button so the user answers it', async () => {
+    useConversationStore.setState({ turns: [turn('wrap-call', true)] })
+    show()
+    expect(await screen.findByRole('group', { name: 'Publish?' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Close' })).toBeNull()
+  })
+
+  it('hides the box as soon as a reply is clicked and leaves the draft alone', async () => {
+    show()
+    fireEvent.click(await screen.findByRole('button', { name: 'Publish', exact: true }))
+    expect(screen.queryByRole('group', { name: 'Publish?' })).toBeNull()
+    expect(sendTextHere).toHaveBeenCalledWith(threadId, '/work', 'Publish', expect.any(String))
+    expect(useComposerDraftStore.getState().getDraft(threadId)?.text).toBe('Unsent draft')
+  })
+
+  it('brings the box back when the reply fails to send', async () => {
+    vi.mocked(sendTextHere).mockRejectedValueOnce(new Error('Send failed'))
+    show()
+    fireEvent.click(await screen.findByRole('button', { name: 'Keep draft' }))
+    await waitFor(() => expect(useToastStore.getState().toasts).toMatchObject([{ type: 'error', message: 'Send failed' }]))
+    expect(screen.getByRole('group', { name: 'Publish?' })).toBeTruthy()
   })
 })

@@ -16,9 +16,10 @@ export const TurnNextStep = memo(function TurnNextStep({ turnId }: { turnId: str
   const latest = useConversationStore((s) => s.turns.at(-1)?.id === turnId)
   const workspacePath = useConversationStore((s) => s.workspacePath)
   const [busy, setBusy] = useState(false)
-  const step = turn ? turnNextStep(turn.items) : null
+  const [replied, setReplied] = useState(false)
+  const step = turn && latest ? turnNextStep(turn.items) : null
   const snapshot = useThreadTasks(step ? turn?.threadId ?? '' : '')
-  if (!turn || !step || snapshot?.dismissedQuestionCallIds?.includes(step.callId)) return null
+  if (!turn || !step || replied || snapshot?.dismissedQuestionCallIds?.includes(step.callId)) return null
 
   const dismiss = async (): Promise<void> => {
     setBusy(true)
@@ -33,13 +34,12 @@ export const TurnNextStep = memo(function TurnNextStep({ turnId }: { turnId: str
   }
 
   const reply = async (label: string): Promise<void> => {
-    setBusy(true)
+    setReplied(true)
     try {
       await sendTextHere(turn.threadId, workspacePath, label, t('threadActionCard.untitled'))
     } catch (error) {
+      setReplied(false)
       addToast(error instanceof Error ? error.message : String(error), 'error')
-    } finally {
-      setBusy(false)
     }
   }
 
@@ -51,17 +51,17 @@ export const TurnNextStep = memo(function TurnNextStep({ turnId }: { turnId: str
           {step.recap ? <p className={css.recap}>{step.recap}</p> : null}
           <p className={css.ask}>{step.ask}</p>
         </div>
-        <IconButton icon={<X size={16} />} label={t('common.close')} className={css.close}
-          disabled={busy} onClick={() => { void dismiss() }} />
+        {step.blocked ? null : (
+          <IconButton icon={<X size={16} />} label={t('common.close')} className={css.close}
+            disabled={busy} onClick={() => { void dismiss() }} />
+        )}
       </div>
-      {latest ? (
-        <div className={css.buttons}>
-          {others.map((label) => (
-            <Button key={label} variant="ghost" size="sm" disabled={busy} onClick={() => { void reply(label) }}>{label}</Button>
-          ))}
-          <Button variant="primary" size="sm" disabled={busy} onClick={() => { void reply(primary) }}>{primary}</Button>
-        </div>
-      ) : null}
+      <div className={css.buttons}>
+        {others.map((label) => (
+          <Button key={label} variant="ghost" size="sm" disabled={busy} onClick={() => { void reply(label) }}>{label}</Button>
+        ))}
+        <Button variant="primary" size="sm" disabled={busy} onClick={() => { void reply(primary) }}>{primary}</Button>
+      </div>
     </div>
   )
 })
