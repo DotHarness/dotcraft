@@ -14,6 +14,7 @@ import { useThreadStore } from '../../stores/threadStore'
 import { useConversationStore } from '../../stores/conversationStore'
 import { addToast } from '../../stores/toastStore'
 import { startTurnWithOptimisticUI } from '../../utils/startTurn'
+import { rememberPlanApprovalInput } from '../../utils/planApprovalInput'
 import { emptyComposerDraftSnapshot, mergeRestoredComposerDraft } from '../../utils/composerSubmission'
 import { ComposerShell, DECISION_MASCOT } from './ComposerShell'
 import { ConversationColumn } from './ConversationColumn'
@@ -79,7 +80,10 @@ export function PlanApprovalComposer({
       || useConversationStore.getState().turnStatus !== 'idle') return
     sendInFlightRef.current = true
     try {
+      const clientUserMessageId = crypto.randomUUID()
+      rememberPlanApprovalInput(threadId, clientUserMessageId)
       await startTurnWithOptimisticUI({
+        clientUserMessageId,
         threadId,
         workspacePath,
         text: 'Implement the plan.',

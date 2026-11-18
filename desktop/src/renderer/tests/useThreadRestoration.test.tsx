@@ -101,6 +101,13 @@ describe('thread restoration', () => {
     renderHook(() => useThreadRestoration(props))
     await select('thread-0')
     expect(requests).toHaveLength(1)
+    expect(sendRequest).toHaveBeenCalledWith('thread/resume', {
+      threadId: 'thread-0',
+      initialTurnsPage: expect.objectContaining({
+        itemsView: 'summary',
+        summaryTools: expect.arrayContaining([{ name: 'TodoWrite' }])
+      })
+    }, undefined, expect.anything())
     expect(sendRequest.mock.calls.some(call => call[0] === 'thread/turns/list')).toBe(true)
     await act(async () => show({
       data: [{ id: 'preview-turn', threadId: 'thread-0', status: 'completed', itemsView: 'summary', items: [], createdAt: '2026-11-07T00:00:00Z' }]

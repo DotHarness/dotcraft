@@ -88,6 +88,8 @@ export type {
   DesktopPluginToolRendererProps,
   DesktopPluginThreadSurfaceContext,
   DesktopPluginToastOptions,
+  DesktopPluginPlanTodo,
+  DesktopPluginTurnPlan,
   DesktopPluginTurnStatusContext,
   DesktopPluginUi,
   DesktopPluginViewProps,

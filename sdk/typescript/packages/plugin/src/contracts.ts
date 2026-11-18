@@ -139,12 +139,26 @@ export interface DesktopPluginConversationAsideContext extends DesktopPluginThre
   pin(): DesktopPluginDispose;
 }
 
+export interface DesktopPluginPlanTodo {
+  readonly id: string;
+  readonly content: string;
+  readonly status: "pending" | "in_progress" | "completed" | "cancelled";
+}
+
+export interface DesktopPluginTurnPlan {
+  readonly title: string;
+  readonly todos: readonly DesktopPluginPlanTodo[];
+  readonly implementsPlan: boolean;
+  readonly updatedTodos: boolean;
+}
+
 export interface DesktopPluginTurnStatusContext {
   readonly workspacePath: string | null;
   readonly threadId: string;
   readonly turnId: string;
   /** The seat stays mounted after the turn ends, so this also tells how it ended. */
   readonly status: "running" | "completed" | "failed" | "cancelled";
+  readonly plan: DesktopPluginTurnPlan | null;
 }
 
 /**
