@@ -630,10 +630,11 @@ empty behind the heading, composer, and suggestions, so it moves in the margins.
   times the plain light.
 - The field fades in over a few seconds, runs at about 25 frames a second, settles
   after three minutes without input, and stops while the window is hidden or
-  unfocused. Switching between Welcome and a conversation keeps the same canvas
-  and WebGL context: hide the field and pause drawing and pointer interaction
-  outside Welcome, then resume it on return. Release resources when the owning
-  conversation surface is removed or the backdrop preference changes.
+  unfocused. Opening a conversation or switching to another main view hides
+  the field and pauses drawing and pointer interaction. Returning to Welcome
+  reuses the same canvas and WebGL context while the conversation view is
+  retained. Release the field's resources when that view is discarded or the
+  backdrop preference changes, without forcing the WebGL context to be lost.
 - The pointer lights the characters beneath it. A click off any control sends a
   front outward from that point that pushes the wind, carries the accent briefly,
   and leaves a faint afterlight; the front is never a drawn circle.

@@ -1,5 +1,4 @@
 import './setupPluginRuntime'
-import type { ReactNode } from 'react'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, expect, it, vi } from 'vitest'
 import { ConversationPanel } from '../components/layout/ConversationPanel'
@@ -19,9 +18,6 @@ import { useVoiceStore } from '../voice/voiceStore'
 import { installDesktopApiMock } from './desktopApiMock'
 import { activateTestWorkspace } from './workspaceResourceFixtures'
 
-vi.mock('../components/conversation/welcomeBackdrop/WelcomeBackdrop', () => ({
-  ConversationBackdrop: ({ children }: { children: ReactNode }) => children
-}))
 vi.mock('../components/conversation/MessageStream', () => ({ MessageStream: () => null }))
 vi.mock('../components/conversation/ThreadHeader', () => ({ ThreadHeader: () => null }))
 vi.mock('../components/conversation/ThreadCreatingContent', () => ({ ThreadCreatingContent: () => null }))

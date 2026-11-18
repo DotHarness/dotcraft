@@ -120,7 +120,10 @@ function compile(gl: WebGL2RenderingContext, vertex: string, fragment: string): 
   const program = gl.createProgram()
   for (const [type, source] of [[gl.VERTEX_SHADER, vertex], [gl.FRAGMENT_SHADER, fragment]] as const) {
     const shader = gl.createShader(type)
-    if (!shader) return null
+    if (!shader) {
+      gl.deleteProgram(program)
+      return null
+    }
     gl.shaderSource(shader, source)
     gl.compileShader(shader)
     gl.attachShader(program, shader)
@@ -173,17 +176,12 @@ export function startWelcomeBackdrop(
   })
   if (!gl) return null
   const debugInfo = gl.getExtension('WEBGL_debug_renderer_info')
-  const loseContext = (): void => {
-    gl.getExtension('WEBGL_lose_context')?.loseContext()
-  }
-  if (debugInfo && SOFTWARE_RENDERER.test(String(gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL)))) {
-    loseContext()
-    return null
-  }
+  if (debugInfo && SOFTWARE_RENDERER.test(String(gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL)))) return null
   const fieldProgram = compile(gl, BACKDROP_PROGRAMS.vertex, BACKDROP_PROGRAMS.field)
   const glyphProgram = compile(gl, BACKDROP_PROGRAMS.vertex, BACKDROP_PROGRAMS.glyph)
   if (!fieldProgram || !glyphProgram) {
-    loseContext()
+    gl.deleteProgram(fieldProgram)
+    gl.deleteProgram(glyphProgram)
     return null
   }
 
@@ -505,6 +503,7 @@ export function startWelcomeBackdrop(
     win.removeEventListener('blur', resume)
     setInteracting(false)
     canvas.removeEventListener('webglcontextlost', destroy)
+    gl.useProgram(null)
     gl.deleteProgram(fieldProgram)
     gl.deleteProgram(glyphProgram)
     gl.deleteTexture(fieldTexture)
@@ -512,7 +511,6 @@ export function startWelcomeBackdrop(
     gl.deleteTexture(sequenceTexture)
     gl.deleteFramebuffer(framebuffer)
     gl.deleteVertexArray(vertexArray)
-    loseContext()
     canvas.remove()
   }
   canvas.addEventListener('webglcontextlost', destroy)

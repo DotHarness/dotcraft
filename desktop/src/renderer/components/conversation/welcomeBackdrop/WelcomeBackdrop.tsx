@@ -1,4 +1,7 @@
-import { useEffect, useLayoutEffect, useRef, useState, type JSX, type ReactNode, type RefObject } from 'react'
+import {
+  createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState,
+  type JSX, type ReactNode, type RefCallback, type RefObject
+} from 'react'
 import { prefersReducedMotion } from '../../../utils/appearance'
 import { startWelcomeBackdrop, type WelcomeBackdropHandle } from './backdropEngine'
 import styles from './WelcomeBackdrop.module.css'
@@ -79,9 +82,28 @@ function WelcomeBackdrop({ active, calmRef }: WelcomeBackdropProps): JSX.Element
   return <div ref={hostRef} aria-hidden className={styles.layer} data-active={active} data-shown={shown} />
 }
 
-export function ConversationBackdrop({ children, ...props }: WelcomeBackdropProps & { children: ReactNode }): JSX.Element {
-  return <div className={styles.surface}>
-    <WelcomeBackdrop {...props} />
-    <div className={styles.content}>{children}</div>
-  </div>
+const WelcomeContentRefContext = createContext<RefCallback<HTMLDivElement> | undefined>(undefined)
+
+export function useWelcomeContentRef(): RefCallback<HTMLDivElement> | undefined {
+  return useContext(WelcomeContentRefContext)
+}
+
+export function ConversationBackdrop({ visible, children }: { visible: boolean; children: ReactNode }): JSX.Element {
+  const calmRef = useRef<HTMLDivElement>(null)
+  const [hasWelcomeContent, setHasWelcomeContent] = useState(false)
+  const setWelcomeContent = useCallback((element: HTMLDivElement | null) => {
+    calmRef.current = element
+    setHasWelcomeContent(element !== null)
+  }, [])
+
+  return (
+    <div className={styles.surface} hidden={!visible}>
+      <WelcomeBackdrop active={visible && hasWelcomeContent} calmRef={calmRef} />
+      <div className={styles.content}>
+        <WelcomeContentRefContext.Provider value={setWelcomeContent}>
+          {children}
+        </WelcomeContentRefContext.Provider>
+      </div>
+    </div>
+  )
 }

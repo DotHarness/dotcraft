@@ -1,4 +1,5 @@
 import { Activity, useEffect, useState, type JSX, type ReactNode } from 'react'
+import { ConversationBackdrop } from '../conversation/welcomeBackdrop/WelcomeBackdrop'
 
 export const RETAIN_HIDDEN_VIEW_MS = 10 * 60_000
 
@@ -40,13 +41,19 @@ export function MainViewOutlet({ activeView, retains, renderView }: MainViewOutl
 
   return (
     <>
-      {current.order.map((view) => (
-        <Activity key={view} mode={view === current.active ? 'visible' : 'hidden'}>
-          <div data-testid={`view-${view}`} style={{ display: 'contents' }}>
-            {renderView(view)}
-          </div>
-        </Activity>
-      ))}
+      {current.order.map((view) => {
+        const visible = view === current.active
+        const activity = (
+          <Activity key={view} mode={visible ? 'visible' : 'hidden'}>
+            <div data-testid={`view-${view}`} style={{ display: 'contents' }}>
+              {renderView(view)}
+            </div>
+          </Activity>
+        )
+        return view === 'conversation'
+          ? <ConversationBackdrop key={view} visible={visible}>{activity}</ConversationBackdrop>
+          : activity
+      })}
     </>
   )
 }

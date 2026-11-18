@@ -7,6 +7,10 @@
   overflow: hidden;
 }
 
+.surface[hidden] {
+  display: none;
+}
+
 .content {
   position: relative;
   z-index: 1;

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import type { DesktopPluginComposerSurfaceContext, DesktopPluginThreadSurfaceContext } from '@dotcraft/plugin'
 import { useT } from '../../contexts/LocaleContext'
 import { useThreadStore } from '../../stores/threadStore'
@@ -14,7 +14,7 @@ import { PlanApprovalComposer } from '../conversation/PlanApprovalComposer'
 import { RequestUserInputComposer } from '../conversation/RequestUserInputComposer'
 import { ApprovalDecisionComposer } from '../conversation/ApprovalDecisionComposer'
 import { ConversationWelcome } from '../conversation/ConversationWelcome'
-import { ConversationBackdrop } from '../conversation/welcomeBackdrop/WelcomeBackdrop'
+import { useWelcomeContentRef } from '../conversation/welcomeBackdrop/WelcomeBackdrop'
 import { ThreadCreatingContent } from '../conversation/ThreadCreatingContent'
 import { WorktreeCreationCard } from '../worktreeCreation/WorktreeCreationCard'
 import { useWorktreeCreationStore } from '../../stores/worktreeCreationStore'
@@ -69,15 +69,7 @@ export function ConversationPanel({
 }: ConversationPanelProps): JSX.Element {
   const t = useT()
   const isAgentBuilder = variant === 'agentBuilder'
-  const welcomeContentRef = useRef<HTMLDivElement>(null)
-  const [welcomeActive, setWelcomeActive] = useState(false)
-  const setWelcomeContent = useCallback((element: HTMLDivElement | null) => {
-    welcomeContentRef.current = element
-    setWelcomeActive(element !== null)
-  }, [])
-  const withBackdrop = (content: ReactNode): JSX.Element => (
-    <ConversationBackdrop active={welcomeActive} calmRef={welcomeContentRef}>{content}</ConversationBackdrop>
-  )
+  const welcomeContentRef = useWelcomeContentRef()
   const [composerPrefillRequest, setComposerPrefillRequest] = useState<{ id: number; text: string } | null>(null)
   const activeThread = useThreadStore((s) => s.activeThread?.id === s.activeThreadId ? s.activeThread : null)
   const activeThreadId = useThreadStore((s) => s.activeThreadId)
@@ -206,7 +198,7 @@ export function ConversationPanel({
   }, [t])
 
   if (!creating && activeThreadId && activeThreadLoadError?.threadId === activeThreadId) {
-    return withBackdrop(
+    return (
       <div style={centeredStyle} role="alert">
         <div style={loadErrorTitleStyle}>{t('conversation.loadFailed')}</div>
         <div style={loadErrorDetailStyle}>{activeThreadLoadError.message}</div>
@@ -222,17 +214,17 @@ export function ConversationPanel({
     </div>
   )
 
-  if (!workspaceReady && (thread || activeThreadId || pendingProjectThreadOpen)) return withBackdrop(loadingIndicator)
+  if (!workspaceReady && (thread || activeThreadId || pendingProjectThreadOpen)) return loadingIndicator
 
   if (!creating && !openingThread && (activeThreadId || openingProjectThread) && !activeThread) {
-    return withBackdrop(loadingIndicator)
+    return loadingIndicator
   }
 
   if (!thread) {
-    return withBackdrop(
+    return (
       <ConversationWelcome
         key={projectKey || protocolWorkspacePath}
-        welcomeContentRef={setWelcomeContent}
+        welcomeContentRef={welcomeContentRef}
         workspacePath={workspacePath}
         identityWorkspacePath={protocolWorkspacePath}
         projectKey={projectKey}
@@ -269,7 +261,7 @@ export function ConversationPanel({
           busy: desktopPluginSurfaceContext.busy
         }
 
-  return withBackdrop(
+  return (
     <ConversationAsideProvider thread={threadSurfaceContext} style={panelStyle}>
       {!isAgentBuilder && (
         <ThreadHeader
