@@ -28,42 +28,48 @@ internal static class IslandPreview
         switch (scenario)
         {
             case "running":
-                island.Freeze([ann], [build], []);
+                island.Freeze(new[] { ann }, new[] { build }, []);
                 break;
             case "multi":
-                island.Freeze([ann, priya], [], []);
+                island.Freeze(new[] { ann, priya }, [], []);
                 break;
             case "multi-running":
-                island.Freeze([ann, priya], [build], []);
+                island.Freeze(new[] { ann, priya }, new[] { build }, []);
                 break;
             case "approval":
-                island.Freeze([ann], [build], [Request(ann, "execute", "npm run test -- --runInBand", now, 13)]);
+                island.Freeze(
+                    new[] { ann },
+                    new[] { build },
+                    new[] { Request(ann, "execute", "npm run test -- --runInBand", now, 13) });
                 break;
             case "approval-queue":
                 island.Freeze(
-                    [ann],
-                    [build],
-                    [
+                    new[] { ann },
+                    new[] { build },
+                    new[]
+                    {
                         Request(ann, "execute", "npm run test -- --runInBand", now, 13),
                         Request(ann, "edit", "src/app/components/Editor.tsx", now, 2),
                         Request(ann, "input", "y", now, 0)
-                    ]);
+                    });
                 break;
             case "standby":
-                island.Freeze([ann], [], [], state: SatelliteTrayState.Standby);
+                island.Freeze(new[] { ann }, [], [], state: SatelliteTrayState.Standby);
                 break;
             case "paused":
-                island.Freeze([ann], [], [], state: SatelliteTrayState.Paused);
+                island.Freeze(new[] { ann }, [], [], state: SatelliteTrayState.Paused);
                 break;
             case "offline":
-                island.Freeze([ann], [], [], state: SatelliteTrayState.Offline);
+                island.Freeze(new[] { ann }, [], [], state: SatelliteTrayState.Offline);
                 break;
             case "long-name":
                 island.Freeze(
-                    [bay], [sweep], [Request(bay, "execute", longCommand, now, 7)]);
+                    new[] { bay },
+                    new[] { sweep },
+                    new[] { Request(bay, "execute", longCommand, now, 7) });
                 break;
             default:
-                island.Freeze([ann], [], []);
+                island.Freeze(new[] { ann }, [], []);
                 break;
         }
     }

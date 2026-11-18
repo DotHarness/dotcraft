@@ -72,8 +72,8 @@ internal static class TrayMenuModel
                 peer.ConnectedSince!.Value.ToLocalTime().ToString("t", CultureInfo.CurrentCulture))
             : peer.DisplayName;
 
-        return new TrayMenuItem(TrayMenuCommand.Machine, label, Children:
-        [
+        return new TrayMenuItem(TrayMenuCommand.Machine, label, Children: new[]
+        {
             new TrayMenuItem(
                 TrayMenuCommand.Header,
                 strings[peer.AuthorizationMode switch
@@ -100,6 +100,6 @@ internal static class TrayMenuModel
                 PeerId: peer.PeerId),
             Separator,
             new TrayMenuItem(TrayMenuCommand.Revoke, strings["tray.revoke"], PeerId: peer.PeerId)
-        ]);
+        });
     }
 }

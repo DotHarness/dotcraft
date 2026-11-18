@@ -122,7 +122,7 @@ internal sealed record IslandStateModel
             CollapseLabel = strings["island.collapse"],
             DisconnectLabel = strings["island.disconnect"],
             OpenFolderLabel = strings["island.openFolder"],
-            Peers = [.. peers.Select(peer => Row(peer, strings))],
+            Peers = peers.Select(peer => Row(peer, strings)).ToArray(),
             DenyLabel = strings["consent.decline"],
             AllowLabel = strings["approval.once"],
             Watching = peers.Any(peer => peer.ScreenViewers > 0),

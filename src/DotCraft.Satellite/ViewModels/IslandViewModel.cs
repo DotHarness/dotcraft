@@ -113,7 +113,7 @@ internal sealed partial class IslandViewModel : ObservableObject, IDisposable
             _settled = true;
         _state = next;
         _peers = connection.Runtime.Peers;
-        _activities = connection.Runtime.CurrentActivity is { } activity ? [activity] : [];
+        _activities = connection.Runtime.CurrentActivity is { } activity ? new[] { activity } : [];
         Update();
     }
 
