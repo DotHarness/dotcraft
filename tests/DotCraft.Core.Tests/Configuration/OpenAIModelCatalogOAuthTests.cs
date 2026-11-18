@@ -138,11 +138,35 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
         var handler = new RecordingHandler((HttpStatusCode.InternalServerError, "{}"));
 
         var result = await OpenAIModelCatalog.FetchAsync(
-            Runtime(),
-            openAIClientProvider: new OpenAIClientProvider(new FakeOpenAIAuthService(), handler));
+            Runtime("acct_bundled"),
+            openAIClientProvider: new OpenAIClientProvider(new FakeOpenAIAuthService("acct_bundled"), handler));
 
         Assert.True(result.Success);
         Assert.NotEmpty(result.Models);
+    }
+
+    [Fact]
+    public async Task ChatGptOAuthKeepsFetchedServiceTiersWhenRefreshFailsWithoutDiskCache()
+    {
+        var handler = new RecordingHandler(
+            (HttpStatusCode.OK, """
+                {
+                  "models": [
+                    { "slug": "remembered-model", "visibility": "list", "priority": 1, "service_tiers": [{ "id": "ultrafast" }] }
+                  ]
+                }
+                """),
+            (HttpStatusCode.InternalServerError, "{}"));
+        var provider = new OpenAIClientProvider(new FakeOpenAIAuthService("acct_refresh"), handler);
+        var runtime = Runtime("acct_refresh", persistCache: false);
+
+        await ((IModelCatalogProvider)provider).FetchModelsAsync(runtime, CancellationToken.None);
+        var refreshed = await ((IModelCatalogProvider)provider).FetchModelsAsync(runtime, CancellationToken.None);
+
+        Assert.Equal(2, handler.Requests.Count);
+        var model = Assert.Single(refreshed.Models);
+        Assert.Equal("remembered-model", model.Id);
+        Assert.Equal(["standard", "ultrafast"], model.SpeedModes);
     }
 
     [Fact]

@@ -94,6 +94,9 @@ internal static class ChatGptCodexModelCatalog
             // Model listing should not make a logged-in ChatGPT provider unusable while offline.
         }
 
+        if (AccountModels.TryGetValue(cacheKey, out var rememberedModels))
+            return Success(rememberedModels);
+
         if (cache.TryGet(cacheKey, CacheTtl, requireFresh: false, out cachedModels))
             return Remember(cacheKey, cachedModels);
 
