@@ -15,7 +15,9 @@ vi.mock('electron', () => ({
   nativeImage: { createFromBuffer: () => ({ isEmpty: () => true }) },
   shell: { openExternal: vi.fn(), openPath: vi.fn() }
 }))
+vi.mock('../browserFocusIsolation', () => ({ browserFocusIsolation: { arm: vi.fn(), release: vi.fn() } }))
 
+import { browserFocusIsolation } from '../browserFocusIsolation'
 import { ViewerBrowserManager, partitionForWorkspace } from '../viewerBrowser'
 import { buildViewerUrl, authorizeViewerFile } from '../viewerFileProtocol'
 import { registerWindowFileAccess } from '../windowFileAccess'
@@ -62,7 +64,11 @@ function harness() {
   }) as unknown as Electron.BrowserWindow & { webContents: { send: ReturnType<typeof vi.fn> } }
   return { manager, pages, a: window(1), b: window(2) }
 }
-beforeEach(() => { electron.sessions.clear(); electron.fromPartition.mockImplementation(sessionFor) })
+beforeEach(() => {
+  electron.sessions.clear()
+  electron.fromPartition.mockImplementation(sessionFor)
+  vi.mocked(browserFocusIsolation.arm).mockReset()
+})
 
 describe('browser window session ownership', () => {
   it('shares website profiles across windows while denying all local-file request schemes', async () => {
@@ -86,6 +92,17 @@ describe('browser window session ownership', () => {
     await manager.loadAutomationUrl(a, { tabId: 'auto', url: 'http://localhost:3000/' })
     expect(pages.get('auto')!.loadURL).toHaveBeenCalledWith('http://localhost:3000/')
     await expect(manager.loadAutomationUrl(a, { tabId: 'auto', url: 'file:///private/key' })).rejects.toThrow('Create a new tab')
+  })
+
+  it('does not navigate an automated guest if initial input isolation fails', async () => {
+    const { manager, pages, a } = harness()
+    vi.mocked(browserFocusIsolation.arm).mockImplementationOnce(() => { throw new Error('Input isolation failed') })
+
+    await expect(manager.createAutomationTab(a, {
+      tabId: 'auto', workspacePath: '/work', initialUrl: 'https://example.com/'
+    })).rejects.toThrow('Input isolation failed')
+    expect(pages.get('auto')!.loadURL).not.toHaveBeenCalled()
+    expect(manager.getTabWebContents(a, 'auto')).toBeNull()
   })
 
   it('opens cross-category UI navigation separately and leaves the source page unchanged', async () => {

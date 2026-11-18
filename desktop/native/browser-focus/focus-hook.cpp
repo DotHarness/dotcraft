@@ -18,6 +18,7 @@ using Pointer1 = Pointer(*)(Pointer);
 using Pointer2 = Pointer(*)(Pointer, Pointer);
 using FromId = Pointer(*)(int, int);
 using MouseHandler = bool(*)(Pointer, Pointer, Pointer);
+using FocusedElementHandler = void(*)(Pointer, Pointer, Pointer, int32_t);
 
 namespace {
 
@@ -48,6 +49,7 @@ Void3 originalFrame, originalSend, originalTextInputState;
 Pointer2 originalFocused;
 Pointer1 originalPage;
 MouseHandler originalMouse;
+FocusedElementHandler originalFocusedElement;
 
 template<class T> T read(Pointer object, size_t offset) {
   return *reinterpret_cast<T*>(object + offset);
@@ -76,11 +78,12 @@ Pointer contentsForTextInputView(Pointer view) {
 }
 
 void updateTextInputState(Pointer manager, Pointer view, Pointer state) {
-  // Only non-NONE updates can claim the system input target shared with the host.
-  if (onUiThread() &&
-      read<int>(state, electron42::TextInputStateTypeOffset) != electron42::TextInputTypeNone) {
+  if (onUiThread()) {
     auto* guest = findGuest(contentsForTextInputView(view));
-    if (guest && guest->active) return;
+    // Electron forwards stale NONE updates to Aura, where they can cancel the host composition.
+    if (guest && guest->active &&
+        (read<int>(state, electron42::TextInputStateTypeOffset) != electron42::TextInputTypeNone ||
+         read<Pointer>(manager, electron42::ActiveTextInputViewOffset) != view)) return;
   }
   originalTextInputState(manager, view, state);
 }
@@ -119,6 +122,13 @@ void focusFrame(Pointer self, Pointer node, Pointer source) {
     }
   }
   originalFrame(self, node, source);
+}
+void focusedElementChanged(Pointer self, Pointer frame, Pointer bounds, int32_t focusType) {
+  if (onUiThread()) {
+    auto* guest = findGuest(function<Pointer1>(electron42::FromFrame)(frame));
+    if (guest && guest->active) return;
+  }
+  originalFocusedElement(self, frame, bounds, focusType);
 }
 Pointer focusedWidget(Pointer self, Pointer receiving) {
   if (onUiThread()) {
@@ -213,6 +223,7 @@ void install() {
   try {
     hook(electron42::FocusTree, reinterpret_cast<void*>(&focusTree), &originalTree);
     hook(electron42::FocusFrame, reinterpret_cast<void*>(&focusFrame), &originalFrame);
+    hook(electron42::FocusedElementChanged, reinterpret_cast<void*>(&focusedElementChanged), &originalFocusedElement);
     hook(electron42::FocusedWidget, reinterpret_cast<void*>(&focusedWidget), &originalFocused);
     hook(electron42::PageWidget, reinterpret_cast<void*>(&pageWidget), &originalPage);
     hook(electron42::PreMouse, reinterpret_cast<void*>(&beforeMouse), &originalMouse);

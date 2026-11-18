@@ -1,4 +1,5 @@
 import { BrowserGuestRegistry } from './browserGuestRegistry'
+import { browserFocusIsolation } from './browserFocusIsolation'
 import { BrowserPageLifecycle, type BrowserPageEntry, type BrowserPageParams, type BrowserRestoreValidator } from './browserPageLifecycle'
 import { BrowserPageSnapshotStore } from './browserPageSnapshotStore'
 import { app, BrowserWindow, shell } from 'electron'
@@ -171,6 +172,7 @@ export class ViewerBrowserManager {
     try {
       const page = await this.hosts.request(win, params.tabId, partition, entry.automation)
       if (!this.pages.current(entry) || page.isDestroyed() || !this.hosts.list(win).some(host => host.tabId === params.tabId)) throw new Error('Browser page closed.')
+      if (entry.automation) browserFocusIsolation.arm(page)
       const tab: BrowserTabRuntime = {
         tabId: params.tabId, threadId: params.threadId,
         projectKey: entry.owner.projectKey, browserStorageId: entry.browserStorageId, page,
