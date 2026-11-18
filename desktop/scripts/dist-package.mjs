@@ -31,6 +31,7 @@ function runNpm(args) {
 
 runNpm(['run', 'ensure:electron'])
 const target = resolveTarget(process.argv.slice(2))
+run(process.execPath, ['./scripts/build-browser-focus.mjs', target.platform, target.arch])
 run(process.execPath, [
   './scripts/install-target-optional-deps.mjs',
   target.platform,

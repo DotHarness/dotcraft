@@ -10,6 +10,8 @@ vi.mock('electron', () => ({
   shell: { openExternal: vi.fn(), openPath: vi.fn() }
 }))
 
+vi.mock('../browserFocusIsolation', () => ({ browserFocusIsolation: { arm: vi.fn() } }))
+import { browserFocusIsolation } from '../browserFocusIsolation'
 import { BrowserWindow } from 'electron'
 import {
   BrowserUseManager,
@@ -931,8 +933,8 @@ describe('BrowserUseManager IAB backend', () => {
     expect(owner.webContents.send).not.toHaveBeenCalledWith('viewer:browser:close', expect.anything())
   })
 
-  it('executes CDP commands through the Electron debugger and marks the tab automation-active', async () => {
-    const wc = createFakeWebContents()
+  it('isolates guest CDP commands before dispatch and marks the tab automation-active', async () => {
+    const wc = Object.assign(createFakeWebContents(), { hostWebContents: {} })
     const host = createFakeHost(wc)
     const owner = createFakeOwner()
     const { call, createTab } = await openSession(new BrowserUseManager(host), owner, 'thread-cdp')
@@ -944,6 +946,7 @@ describe('BrowserUseManager IAB backend', () => {
     expect(await cdp('Page.captureScreenshot', { format: 'png' })).toEqual({ data: 'AQID' })
     expect(await cdp('DOM.scrollIntoViewIfNeeded', { backendNodeId: 42 })).toEqual({})
 
+    expect(browserFocusIsolation.arm).toHaveBeenCalledWith(wc)
     expect(wc.debugger.sendCommand).toHaveBeenCalledWith('Runtime.evaluate', { expression: '1 + 1' })
     expect(wc.debugger.sendCommand).toHaveBeenCalledWith('Page.captureScreenshot', { format: 'png' })
     expect(wc.debugger.sendCommand).toHaveBeenCalledWith('DOM.scrollIntoViewIfNeeded', { backendNodeId: 42 })
@@ -951,6 +954,10 @@ describe('BrowserUseManager IAB backend', () => {
       tabId: host.createAutomationTab.mock.calls[0]![1].tabId,
       active: true
     }))
+    wc.debugger.sendCommand.mockClear()
+    vi.mocked(browserFocusIsolation.arm).mockImplementationOnce(() => { throw new Error('IabBackendUnavailable') })
+    await expect(cdp('Input.insertText', { text: 'blocked' })).rejects.toThrow('IabBackendUnavailable')
+    expect(wc.debugger.sendCommand).not.toHaveBeenCalledWith('Input.insertText', { text: 'blocked' })
   })
 
   it('enables focus emulation before each Input command and rejects other Input methods', async () => {

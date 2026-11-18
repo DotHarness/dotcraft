@@ -4,7 +4,7 @@
 |-------|-------|
 | **Version** | 0.11.0 |
 | **Status** | Living |
-| **Date** | 2026-11-17 |
+| **Date** | 2026-11-18 |
 | **Parent Specs** | [Node REPL](node-repl.md) |
 
 Purpose: define the behavior contract for DotCraft Desktop's browser automation runtime and its embedded in-app browser backend. The runtime is exposed to AppServer as `desktop-iab` and presents a browser-use compatible `iab` backend inside the thread-bound Node REPL. The [Chrome backend](chrome-browser-runtime.md) reuses the same client, primitives, page operations, and lifecycle; this spec owns them for both backends.
@@ -267,7 +267,10 @@ Virtual cursor rules:
 Input rules:
 
 - Coordinate actions require object-shaped finite coordinates such as `{ x: 940, y: 444 }` in CSS pixels of the current viewport, the same space as viewport screenshots. Positional calls such as `tab.cua.click(940, 444)` fail with `InvalidArgument` and a message showing the object form.
-- Page input is dispatched only through CDP `Input.dispatchMouseEvent`, `Input.dispatchKeyEvent`, and `Input.insertText`; other `Input.*` methods fail with `UnsupportedApi`. Input waits for pending viewport emulation and runs with focus emulation enabled.
+- Page input is dispatched only through CDP `Input.dispatchMouseEvent`, `Input.dispatchKeyEvent`, and `Input.insertText`. Other `Input.*` methods fail with `UnsupportedApi`. Input waits for pending viewport emulation and runs with focus emulation enabled.
+- On Windows x64, automated guest input preserves the host's focused editor and ongoing IME composition, including while another thread is selected or the guest is hidden. Keyboard input and Escape stay within the targeted guest or its focused iframe.
+- Native input isolation is tied to the supported Electron build. If the native module or runtime validation is unavailable on Windows x64, browser automation fails rather than running through an unisolated path. Other platforms retain their existing focus handling.
+- A real mouse press in the guest permits user takeover. Presentation updates do not rearm isolation after takeover. The next automated page command rearms it, and automation deactivation releases it. Guest destruction removes its native registration, including after navigation.
 - Pointer sequences:
   - move: cursor move, then a button-less mouse move;
   - click: cursor move, mouse move, then one press/release pair per click count with increasing `clickCount`. If the page starts loading within 250 ms, the click waits up to 3 seconds for `DOMContentLoaded` or `load` without failing on timeout; a blocked navigation fails it;

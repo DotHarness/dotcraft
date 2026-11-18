@@ -13,10 +13,12 @@
   "main": "./out/main/index.js",
   "scripts": {
     "ensure:electron": "node scripts/ensure-electron.mjs",
+    "build:native": "node scripts/build-browser-focus.mjs",
+    "test:browser-focus": "node scripts/test-browser-focus.mjs",
     "prepare:bundled-plugins": "node scripts/build-bundled-plugins.mjs",
-    "dev": "npm run ensure:electron && npm run prepare:bundled-plugins && electron-vite dev",
-    "dev:debug": "npm run ensure:electron && npm run prepare:bundled-plugins && node scripts/check-debug-port.mjs 9222 && electron-vite dev --remoteDebuggingPort 9222",
-    "dev:websocket": "npm run ensure:electron && npm run prepare:bundled-plugins && electron-vite dev -- --remote ws://127.0.0.1:9100/ws",
+    "dev": "npm run ensure:electron && npm run build:native && npm run prepare:bundled-plugins && electron-vite dev",
+    "dev:debug": "npm run ensure:electron && npm run build:native && npm run prepare:bundled-plugins && node scripts/check-debug-port.mjs 9222 && electron-vite dev --remoteDebuggingPort 9222",
+    "dev:websocket": "npm run ensure:electron && npm run build:native && npm run prepare:bundled-plugins && electron-vite dev -- --remote ws://127.0.0.1:9100/ws",
     "build": "npm run prepare:bundled-plugins && electron-vite build",
     "check:styles": "node scripts/check-css-architecture.mjs",
     "typecheck": "tsc -p tsconfig.node.json --noEmit --pretty false && tsc -p tsconfig.preload.json --noEmit --pretty false && tsc -p tsconfig.web.json --noEmit --pretty false",
@@ -31,9 +33,9 @@
     "test:repl-worker": "node scripts/test-node-repl-worker.mjs",
     "test:thread-panels": "node scripts/test-thread-panels.mjs",
     "test:reference-copy": "node scripts/test-conversation-reference-copy.mjs",
-    "pack": "npm run ensure:electron && npm run prepare:runtime && npm run build && node --require ./scripts/electron-builder-rename-retry.cjs ./node_modules/electron-builder/cli.js --dir",
+    "pack": "npm run ensure:electron && npm run build:native && npm run prepare:runtime && npm run build && node --require ./scripts/electron-builder-rename-retry.cjs ./node_modules/electron-builder/cli.js --dir",
     "dist:package": "node scripts/dist-package.mjs",
-    "dist": "npm run ensure:electron && npm run prepare:runtime && npm run build && node --require ./scripts/electron-builder-rename-retry.cjs ./node_modules/electron-builder/cli.js"
+    "dist": "npm run ensure:electron && npm run build:native && npm run prepare:runtime && npm run build && node --require ./scripts/electron-builder-rename-retry.cjs ./node_modules/electron-builder/cli.js"
   },
   "dependencies": {
     "@codemirror/commands": "^6.11.1",
@@ -105,7 +107,7 @@
     "@types/react-dom": "^19.0.3",
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^4.3.4",
-    "electron": "^42.0.1",
+    "electron": "42.0.1",
     "electron-builder": "^26.15.3",
     "electron-vite": "^3.0.0",
     "esbuild": "^0.25.12",
@@ -172,6 +174,11 @@
       "node_modules/@fugood/node-whisper-*/**"
     ],
     "extraResources": [
+      {
+        "from": "resources/native",
+        "to": "native",
+        "filter": ["browser-focus.node", "browser-focus-LICENSES.txt"]
+      },
       {
         "from": "resources/icon.png",
         "to": "icon.png"

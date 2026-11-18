@@ -3,6 +3,8 @@ import { afterEach, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ fromId: vi.fn(), partition: {} }))
 vi.mock('electron', () => ({ webContents: { fromId: mocks.fromId }, session: { fromPartition: () => mocks.partition } }))
+vi.mock('../browserFocusIsolation', () => ({ browserFocusIsolation: { arm: vi.fn(), release: vi.fn() } }))
+import { browserFocusIsolation } from '../browserFocusIsolation'
 import { BrowserGuestRegistry } from '../browserGuestRegistry'
 import { withAutomationInput } from '../browserAutomationInput'
 
@@ -46,6 +48,8 @@ it('registers one guest, keeps it through presentation changes and forwards page
   page.emit('before-mouse-event', {}, { type: 'mouseDown' })
   expect(owner.send).toHaveBeenLastCalledWith('viewer:browser:host-event', { type: 'pointer-down', tabId: 'tab', source: 'user' })
   expect(page.close).not.toHaveBeenCalled()
+  registry.update(win, 'tab', { automation: false })
+  expect(browserFocusIsolation.release).toHaveBeenCalledWith(page)
   registry.clear(win)
   expect(page.close).toHaveBeenCalledOnce()
   expect(registry.list(win)).toEqual([])

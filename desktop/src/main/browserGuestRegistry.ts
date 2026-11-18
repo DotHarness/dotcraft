@@ -5,6 +5,7 @@ import type { BrowserHostDescriptor, BrowserHostEvent } from '../shared/viewer/b
 import { applyEmbeddedBrowserSecurity } from './browserSecurity'
 import { BrowserAutomationCursors } from './browserAutomationCursor'
 import { isAutomationInput } from './browserAutomationInput'
+import { browserFocusIsolation } from './browserFocusIsolation'
 
 interface GuestEntry {
   descriptor: BrowserHostDescriptor
@@ -130,6 +131,7 @@ export class BrowserGuestRegistry {
     const { visible, automation, captureSurfaceSize } = entry.descriptor
     if (entry.page && !entry.page.isDestroyed()) {
       entry.page.setBackgroundThrottling(!(visible || automation || captureSurfaceSize))
+      if (!automation) browserFocusIsolation.release(entry.page)
     }
   }
 
@@ -156,7 +158,10 @@ export class BrowserGuestRegistry {
     clearTimeout(entry.timer)
     entry.reject(new Error(message))
     this.emit(win, { type: 'remove', tabId })
-    if (entry.page && !entry.page.isDestroyed()) entry.page.close({ waitForBeforeUnload: false })
+    if (entry.page) {
+      browserFocusIsolation.release(entry.page)
+      if (!entry.page.isDestroyed()) entry.page.close({ waitForBeforeUnload: false })
+    }
   }
 
   clear(win: BrowserWindow): void {
