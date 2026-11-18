@@ -8,8 +8,8 @@
     <RootNamespace>DotCraft</RootNamespace>
 
     <!-- Version Information -->
-    <AssemblyVersion>0.13.0</AssemblyVersion>
-    <Version>0.13.0</Version>
+    <AssemblyVersion>0.13.1</AssemblyVersion>
+    <Version>0.13.1</Version>
     <AssemblyName>dotcraft</AssemblyName>
     <AssemblyTitle>DotCraft</AssemblyTitle>
     <Product>DotCraft</Product>

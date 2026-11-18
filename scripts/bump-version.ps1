@@ -285,8 +285,11 @@ $targets = @(
 )
 
 $bundledPluginsPath = "desktop/resources/plugins/dotcraft-bundled/plugins"
-foreach ($manifest in Get-ChildItem -Path (Join-Path $repoRoot "$bundledPluginsPath/*/.craft-plugin/plugin.json") -File | Sort-Object FullName) {
-    $targets += @{ Type = "packageJson"; Path = [System.IO.Path]::GetRelativePath($repoRoot, $manifest.FullName) }
+foreach ($plugin in Get-ChildItem -LiteralPath (Join-Path $repoRoot $bundledPluginsPath) -Directory | Sort-Object Name) {
+    $manifestPath = "$bundledPluginsPath/$($plugin.Name)/.craft-plugin/plugin.json"
+    if (Test-Path -LiteralPath (Join-Path $repoRoot $manifestPath) -PathType Leaf) {
+        $targets += @{ Type = "packageJson"; Path = $manifestPath }
+    }
 }
 
 # The lock file carries one entry per workspace beside its root entry. That list is
