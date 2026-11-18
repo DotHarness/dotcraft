@@ -145,7 +145,8 @@ const CORE_SURFACES: ReadonlySet<string> = new Set<keyof DesktopPluginSurfaceCon
   'composer.status.trailing',
   'thread.header.actions',
   'conversation.aside.leading',
-  'conversation.aside.trailing'
+  'conversation.aside.trailing',
+  'conversation.turn.status'
 ])
 
 export function registerDesktopPluginSurface<S extends string>(

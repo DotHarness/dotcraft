@@ -1,0 +1,86 @@
+.todo-list-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--type-ui-size);
+  line-height: 20px;
+}
+
+.todo-list-item,
+.todo-list-fold {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+  color: var(--text-secondary);
+}
+
+.todo-list-mark {
+  display: inline-flex;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dimmed);
+}
+
+.todo-list-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.todo-list-item[data-status='in_progress'],
+.todo-list-item[data-status='in_progress'] .todo-list-mark {
+  color: var(--text-primary);
+}
+
+.todo-list-item[data-status='completed'],
+.todo-list-item[data-status='cancelled'] {
+  color: var(--text-dimmed);
+}
+
+.todo-list-item[data-status='cancelled'] .todo-list-text {
+  text-decoration: line-through;
+}
+
+.todo-list-fold {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-dimmed);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.todo-list-fold:hover,
+.todo-list-fold:hover .todo-list-mark {
+  color: var(--text-secondary);
+}
+
+.todo-list-fold:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: 6px;
+}
+
+.todo-list-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.todo-list-card {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--bg-primary);
+}

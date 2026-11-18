@@ -68,6 +68,10 @@ export function useConversationAsideInsets(): ConversationAsideInsets {
   return useContext(ConversationAsideStateContext).insets
 }
 
+export function useConversationThread(): DesktopPluginThreadSurfaceContext | null {
+  return useContext(ConversationAsideStateContext).thread
+}
+
 interface ConversationAsideProviderProps {
   thread: DesktopPluginThreadSurfaceContext | null
   style: CSSProperties

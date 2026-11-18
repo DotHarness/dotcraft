@@ -121,6 +121,7 @@ DotCraft's formal surfaces cover the application, the Composer, and the active c
 | **`thread.header.actions`** | The action group in the active thread header, between the overflow menu and the Detail Panel toggle. |
 | **`conversation.aside.leading`** | A seat beside the leading edge of the conversation reading column. |
 | **`conversation.aside.trailing`** | A seat beside the trailing edge of the conversation reading column. |
+| **`conversation.turn.status`** | A seat at the end of the last visible turn, directly above its working line. |
 
 Target these Core controls when a region is too broad:
 
@@ -231,6 +232,18 @@ function NotesPanel({ context }: DesktopPluginSurfaceProps<"conversation.aside.t
 host.ui.add("conversation.aside.trailing", NotesPanel);
 ```
 
+### Show status at the end of the conversation
+
+`conversation.turn.status` mounts under the same conditions, in the last visible turn, directly above the working line, and moves to the next turn when one starts. Its context carries `workspacePath`, `threadId`, `turnId`, and `running`. The seat stays after the turn ends, so return `null` once your status no longer applies. An empty seat takes no space. Content sits in the reading column with the transcript's spacing:
+
+```tsx
+function BuildStatus({ context }: DesktopPluginSurfaceProps<"conversation.turn.status">) {
+  return context.running ? <div>Building {context.turnId}…</div> : null;
+}
+
+host.ui.add("conversation.turn.status", BuildStatus);
+```
+
 ### Replace the Composer mascot
 
 Replace `composer.mascot` with an image, SVG, canvas, Lottie player, or React character. This inline SVG example is self-contained and builds without a separate asset:
@@ -311,7 +324,7 @@ These six fields are convenience APIs, not an allowlist or a capability ceiling.
 
 The returned activation may also provide `dispose()`. Contribution ids must be unique within one activation. Put localized labels in `label.translations`, keyed by app locale. Desktop normalizes both sides of that lookup, so a `zh-CN` key still reaches a `zh-Hans` reader, while a key outside the seven locales falls back to `label.default`. Set `order` only where the convenience API defines ordered placement.
 
-A tool renderer receives `presentation` with the exact `presentationId`, options, arguments, result, `running` or `completed` status, success, `errorCode`, `errorMessage`, and optional `progress`. Progress is a discriminated snapshot, including `kind: "remoteFileTransfer"` for file transfers, and updates as the call progresses. Rendering does not depend on whether the tool comes from Core or a .NET extension.
+A tool renderer receives `presentation` with the exact `presentationId`, options, arguments, result, `running` or `completed` status, success, `errorCode`, `errorMessage`, and optional `progress`. Progress is a discriminated snapshot, including `kind: "remoteFileTransfer"` for file transfers, and updates as the call progresses. Rendering does not depend on whether the tool comes from Core or a .NET extension. A renderer that returns `null` leaves no row, for a tool your plugin shows somewhere else.
 
 ### Give a contribution an icon
 

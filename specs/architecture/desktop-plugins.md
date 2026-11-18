@@ -206,6 +206,7 @@ The Core surfaces are:
 | `thread.header.actions` | The action group in the active thread header, between the overflow menu and the Detail Panel toggle. Empty by default. |
 | `conversation.aside.leading` | A seat beside the leading edge of the conversation reading column. Empty by default. |
 | `conversation.aside.trailing` | A seat beside the trailing edge of the conversation reading column, for panels that accompany the conversation. Core supplies the pinned Summary card. |
+| `conversation.turn.status` | A seat at the end of the last visible turn, directly above its working line, for status that belongs to the conversation's current work. Empty by default. |
 
 `app.background`, `app.overlay`, and `app.status` share the application context. The overlay paints over the shell without consuming the single `app` wrapper. Overlay, status, and aside seats are click-through (`pointer-events: none`, inherited); a contribution opts back in on its own interactive elements.
 
@@ -258,6 +259,19 @@ The Host owns layout, which depends only on the side space: half the difference 
 - `gutter`: 400 logical pixels or more; the column stays centered.
 
 A trailing contribution calls `pin` while it shows a panel and disposes the handle when it stops. `conversation.aside.leading` never pins. `width` is the seat's width: the side space plus the shift for the trailing seat, or minus it for the leading seat. When Core shows a rail in the outermost leading lane, the leading seat starts after it. Layout changes animate unless reduced motion is requested and never remount contributions.
+
+`conversation.turn.status` mounts with the same conditions in the last visible turn of a thread the user can act on, and moves to the next turn when one starts. Its context names the turn and whether it is still running:
+
+```ts
+interface DesktopPluginTurnStatusContext {
+  readonly workspacePath: string | null
+  readonly threadId: string
+  readonly turnId: string
+  readonly running: boolean
+}
+```
+
+The seat stays mounted after the turn ends, so a contribution decides whether its status still applies. Content renders in the reading column with the transcript's spacing, and an empty contribution takes no space.
 
 ## Convenience contributions
 
@@ -432,7 +446,7 @@ Disposal withdraws the generation's subscriptions, uncommitted selections, and r
 
 ### Tool presentation data
 
-A tool renderer receives its exact `presentationId`, options, arguments, result, live/completed status, success, structured error fields, and an optional discriminated progress snapshot. Progress updates replace the snapshot delivered to the component. Renderers do not subscribe to a second progress stream or acquire execution authority. A missing or failed renderer falls back to the Host's ordinary tool presentation.
+A tool renderer receives its exact `presentationId`, options, arguments, result, live/completed status, success, structured error fields, and an optional discriminated progress snapshot. Progress updates replace the snapshot delivered to the component. Renderers do not subscribe to a second progress stream or acquire execution authority. A missing or failed renderer falls back to the Host's ordinary tool presentation. A renderer that renders nothing leaves no row, so a plugin that presents a tool elsewhere can omit its transcript row.
 
 ## .NET and AppServer boundary
 

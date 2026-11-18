@@ -139,6 +139,14 @@ export interface DesktopPluginConversationAsideContext extends DesktopPluginThre
   pin(): DesktopPluginDispose;
 }
 
+export interface DesktopPluginTurnStatusContext {
+  readonly workspacePath: string | null;
+  readonly threadId: string;
+  readonly turnId: string;
+  /** The seat stays mounted after the turn ends, so this tells live status from leftover status. */
+  readonly running: boolean;
+}
+
 /**
  * Known Desktop surface contexts. Plugins may augment this interface with their own surfaces.
  */
@@ -173,6 +181,7 @@ export interface DesktopPluginSurfaceContextMap {
   readonly "thread.header.actions": DesktopPluginThreadSurfaceContext;
   readonly "conversation.aside.leading": DesktopPluginConversationAsideContext;
   readonly "conversation.aside.trailing": DesktopPluginConversationAsideContext;
+  readonly "conversation.turn.status": DesktopPluginTurnStatusContext;
 }
 
 export type DesktopPluginSurfaceContext<Surface extends string> =

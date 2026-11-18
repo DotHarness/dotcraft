@@ -117,6 +117,7 @@ DotCraft 的正式 surface 覆盖 application、Composer 与当前会话。Compo
 | **`thread.header.actions`** | 当前 thread 标题栏中的操作组，位于溢出菜单与 Detail Panel 开关之间。 |
 | **`conversation.aside.leading`** | 会话阅读列 leading 一侧的座位。 |
 | **`conversation.aside.trailing`** | 会话阅读列 trailing 一侧的座位。 |
+| **`conversation.turn.status`** | 最后一个可见轮次末尾、紧贴工作行上方的座位。 |
 
 当区域范围过大时，可以直接定位这些 Core 控件：
 
@@ -227,6 +228,18 @@ function NotesPanel({ context }: DesktopPluginSurfaceProps<"conversation.aside.t
 host.ui.add("conversation.aside.trailing", NotesPanel);
 ```
 
+### 在会话末尾显示状态
+
+`conversation.turn.status` 的挂载条件与上面相同：位于最后一个可见轮次中、紧贴工作行上方，新轮次开始时随之移动。它的 context 包含 `workspacePath`、`threadId`、`turnId` 和 `running`。轮次结束后座位仍然存在，所以状态不再适用时请返回 `null`。空座位不占空间。内容位于阅读列中，沿用对话的间距：
+
+```tsx
+function BuildStatus({ context }: DesktopPluginSurfaceProps<"conversation.turn.status">) {
+  return context.running ? <div>正在构建 {context.turnId}…</div> : null;
+}
+
+host.ui.add("conversation.turn.status", BuildStatus);
+```
+
 ### 替换 Composer mascot
 
 替换 `composer.mascot` 后，可以使用图片、SVG、canvas、Lottie player 或 React character。下面的 inline SVG 不依赖额外资源，可直接构建：
@@ -307,7 +320,7 @@ Surface 只在它所在的组件 mounted 时存在。Registration 仍由注册�
 
 返回的 activation 还可以提供 `dispose()`。Contribution id 在同一个 activation 内必须唯一。本地化标签放进 `label.translations`，按应用 locale 作键：Desktop 会对查找的两侧都做归一化，所以 `zh-CN` 这个键同样能被 `zh-Hans` 的读者命中，而七个 locale 之外的键会回退到 `label.default`。`order` 只在 convenience API 定义了排序位置时才需要设置。
 
-工具渲染器接收 `presentation`，包含精确的 `presentationId`、options、参数、结果、`running` 或 `completed` 状态、success、`errorCode`、`errorMessage` 和可选的 `progress`。进度是带判别字段的快照，文件传输使用 `kind: "remoteFileTransfer"`，并随调用进展更新。工具来自 Core 还是 .NET 扩展，不影响渲染器选择。
+工具渲染器接收 `presentation`，包含精确的 `presentationId`、options、参数、结果、`running` 或 `completed` 状态、success、`errorCode`、`errorMessage` 和可选的 `progress`。进度是带判别字段的快照，文件传输使用 `kind: "remoteFileTransfer"`，并随调用进展更新。工具来自 Core 还是 .NET 扩展，不影响渲染器选择。渲染器返回 `null` 时不留下工具行，适合把工具改在别处展示的插件。
 
 ### 给 contribution 配图标
 
