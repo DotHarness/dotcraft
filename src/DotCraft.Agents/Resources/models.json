@@ -19,6 +19,12 @@
     "apertus-8b": {
       "contextWindow": 65536
     },
+    "apertus-v1.5-70b": {
+      "contextWindow": 262144
+    },
+    "apertus-v1.5-8b": {
+      "contextWindow": 262144
+    },
     "apodex-1.1-mini": {
       "contextWindow": 262144
     },
@@ -640,7 +646,7 @@
       "pricingProvider": "google",
       "pricing": {
         "inputPerMillion": 0.3,
-        "outputPerMillion": 30,
+        "outputPerMillion": 2.5,
         "cacheReadPerMillion": 0.075
       }
     },
@@ -700,7 +706,7 @@
       "pricingProvider": "google",
       "pricing": {
         "inputPerMillion": 0.25,
-        "outputPerMillion": 30
+        "outputPerMillion": 1.5
       }
     },
     "gemini-3.1-flash-lite-preview": {
@@ -801,6 +807,15 @@
         "cacheReadPerMillion": 0.1
       }
     },
+    "gemini-4-hydrogen": {
+      "contextWindow": 1048576,
+      "pricingProvider": "google",
+      "pricing": {
+        "inputPerMillion": 1.5,
+        "outputPerMillion": 7.5,
+        "cacheReadPerMillion": 0.075
+      }
+    },
     "gemini-flash-latest": {
       "contextWindow": 1048576,
       "pricingProvider": "google",
@@ -835,10 +850,20 @@
       "contextWindow": 262144
     },
     "gemma-4-26b-a4b-it": {
-      "contextWindow": 262144
+      "contextWindow": 262144,
+      "pricingProvider": "google",
+      "pricing": {
+        "inputPerMillion": 0,
+        "outputPerMillion": 0
+      }
     },
     "gemma-4-31b-it": {
-      "contextWindow": 262144
+      "contextWindow": 262144,
+      "pricingProvider": "google",
+      "pricing": {
+        "inputPerMillion": 0,
+        "outputPerMillion": 0
+      }
     },
     "gemma-4-e2b-it": {
       "contextWindow": 131072
@@ -1361,6 +1386,10 @@
     "gpt-6-astra-fast": {
       "contextWindow": 1050000
     },
+    "gpt-6-cyber": {
+      "contextWindow": 1050000,
+      "maxInputTokens": 922000
+    },
     "gpt-6-luna": {
       "contextWindow": 1050000,
       "maxInputTokens": 922000,
@@ -1418,6 +1447,38 @@
         "outputPerMillion": 5,
         "cacheReadPerMillion": 0.05,
         "cacheWritePerMillion": 1.25
+      }
+    },
+    "gpt-6.2-astra": {
+      "contextWindow": 1050000,
+      "maxInputTokens": 922000,
+      "fast": {
+        "protocols": [
+          "openai-responses"
+        ]
+      },
+      "pricingProvider": "openai",
+      "pricing": {
+        "inputPerMillion": 8,
+        "outputPerMillion": 40,
+        "cacheReadPerMillion": 0.4,
+        "cacheWritePerMillion": 10
+      }
+    },
+    "gpt-6.2-sol": {
+      "contextWindow": 1050000,
+      "maxInputTokens": 922000,
+      "fast": {
+        "protocols": [
+          "openai-responses"
+        ]
+      },
+      "pricingProvider": "openai",
+      "pricing": {
+        "inputPerMillion": 2,
+        "outputPerMillion": 10,
+        "cacheReadPerMillion": 0.1,
+        "cacheWritePerMillion": 2.5
       }
     },
     "gpt-oss-120b": {
@@ -1571,6 +1632,10 @@
     "hy4": {
       "contextWindow": 1048576,
       "maxInputTokens": 983010
+    },
+    "hy4-flash": {
+      "contextWindow": 1048576,
+      "maxInputTokens": 983040
     },
     "hy4-preview": {
       "contextWindow": 1024000
@@ -1755,8 +1820,14 @@
     "ling-3.0-flash-vl": {
       "contextWindow": 262144
     },
+    "ling-3.0-tiny": {
+      "contextWindow": 131072
+    },
     "ling-3.1-flash": {
       "contextWindow": 262144
+    },
+    "ling-3.2-flash": {
+      "contextWindow": 1000000
     },
     "llama-3.1": {
       "contextWindow": 131072
@@ -2198,9 +2269,9 @@
       "contextWindow": 262144,
       "pricingProvider": "mistral",
       "pricing": {
-        "inputPerMillion": 0.5,
-        "outputPerMillion": 1.5,
-        "cacheReadPerMillion": 0.05
+        "inputPerMillion": 0.7,
+        "outputPerMillion": 2.1,
+        "cacheReadPerMillion": 0.07
       }
     },
     "mistral-medium-": {
@@ -2511,6 +2582,12 @@
     "o4-mini-deep-research": {
       "contextWindow": 200000
     },
+    "openpangu-2.0-flash": {
+      "contextWindow": 524288
+    },
+    "openpangu-2.0-pro": {
+      "contextWindow": 524288
+    },
     "ornith-1.0-31b": {
       "contextWindow": 262144
     },
@@ -2523,6 +2600,9 @@
     "ornith-1.0-9b": {
       "contextWindow": 262144
     },
+    "ornith-1.5-122b": {
+      "contextWindow": 262144
+    },
     "ornith-1.5-35b-a3b": {
       "contextWindow": 262144
     },
@@ -2533,7 +2613,25 @@
       "contextWindow": 1000000
     },
     "pareto": {
-      "contextWindow": 262144
+      "contextWindow": 262144,
+      "pricingProvider": "unbiased",
+      "pricing": {
+        "inputPerMillion": 0.8,
+        "outputPerMillion": 3.2,
+        "cacheReadPerMillion": 0.03
+      }
+    },
+    "pareto-26.10": {
+      "contextWindow": 1048576,
+      "pricingProvider": "unbiased",
+      "pricing": {
+        "inputPerMillion": 0.8,
+        "outputPerMillion": 3.2,
+        "cacheReadPerMillion": 0.03
+      }
+    },
+    "particle-1": {
+      "contextWindow": 1048576
     },
     "perceptron-mk1.5": {
       "contextWindow": 36864
@@ -2968,6 +3066,9 @@
         "cacheReadPerMillion": 0.016
       }
     },
+    "qwen4-max": {
+      "contextWindow": 1000000
+    },
     "qwq-32b": {
       "contextWindow": 131072
     },
@@ -3032,6 +3133,9 @@
     },
     "seed-2.0-pro": {
       "contextWindow": 256000
+    },
+    "seed-2.1-lite": {
+      "contextWindow": 1024000
     },
     "seed-2.1-pro": {
       "contextWindow": 256000
@@ -3220,7 +3324,7 @@
   "providers": {
     "openrouter": {
       "source": "https://openrouter.ai/api/v1/models",
-      "capturedAt": "2026-11-12T13:17:17.0204854\u002B00:00",
+      "capturedAt": "2026-11-18T01:55:49.6667501\u002B00:00",
       "models": [
         {
           "id": "aion-labs/aion-2.0",
@@ -4373,8 +4477,8 @@
           "displayName": "DeepSeek: DeepSeek V3",
           "ownedBy": "deepseek",
           "createdAt": "2024-12-26T19:28:40\u002B00:00",
-          "contextWindow": 163840,
-          "maxOutputTokens": 16384,
+          "contextWindow": 128000,
+          "maxOutputTokens": 16000,
           "supportedProtocols": [
             "openai-chat-completions",
             "anthropic",
@@ -4385,8 +4489,8 @@
             "text"
           ],
           "pricing": {
-            "inputPerMillion": 0.32000000,
-            "outputPerMillion": 0.89000000
+            "inputPerMillion": 0.2574000000,
+            "outputPerMillion": 1.0287000000
           }
         },
         {
@@ -4598,7 +4702,7 @@
             "upstreamDefaultEffort": "high"
           },
           "contextWindow": 1048576,
-          "maxOutputTokens": 943718,
+          "maxOutputTokens": 384000,
           "supportedProtocols": [
             "openai-chat-completions",
             "anthropic",
@@ -4609,9 +4713,9 @@
             "text"
           ],
           "pricing": {
-            "inputPerMillion": 0.0434000000,
-            "outputPerMillion": 0.3000000,
-            "cacheReadPerMillion": 0.035000000
+            "inputPerMillion": 0.06000000,
+            "outputPerMillion": 0.18000000,
+            "cacheReadPerMillion": 0.015000000
           }
         },
         {
@@ -4663,8 +4767,8 @@
             "defaultEnabled": false,
             "upstreamDefaultEffort": "high"
           },
-          "contextWindow": 1024000,
-          "maxOutputTokens": 384000,
+          "contextWindow": 1048576,
+          "maxOutputTokens": 393216,
           "supportedProtocols": [
             "openai-chat-completions",
             "anthropic",
@@ -4675,9 +4779,9 @@
             "text"
           ],
           "pricing": {
-            "inputPerMillion": 0.897318000000,
-            "outputPerMillion": 1.794636000000,
-            "cacheReadPerMillion": 0.0747765000000
+            "inputPerMillion": 0.9000000,
+            "outputPerMillion": 1.5000000,
+            "cacheReadPerMillion": 0.25000000
           }
         },
         {
@@ -4742,9 +4846,9 @@
             "image"
           ],
           "pricing": {
-            "inputPerMillion": 0.022000000,
-            "outputPerMillion": 0.4000000,
-            "cacheReadPerMillion": 0.004000000
+            "inputPerMillion": 0.051000000,
+            "outputPerMillion": 0.567000000,
+            "cacheReadPerMillion": 0.018000000
           }
         },
         {
@@ -4764,7 +4868,7 @@
             "upstreamDefaultEffort": "high"
           },
           "contextWindow": 1048576,
-          "maxOutputTokens": 393216,
+          "maxOutputTokens": 943718,
           "supportedProtocols": [
             "openai-chat-completions",
             "anthropic",
@@ -4776,9 +4880,9 @@
             "image"
           ],
           "pricing": {
-            "inputPerMillion": 0.15000000,
-            "outputPerMillion": 0.6000000,
-            "cacheReadPerMillion": 0.003000000
+            "inputPerMillion": 0.036000000,
+            "outputPerMillion": 0.5000000,
+            "cacheReadPerMillion": 0.01000000
           }
         },
         {
@@ -5491,6 +5595,45 @@
           }
         },
         {
+          "id": "google/gemini-4-hydrogen",
+          "displayName": "Google: Gemini 4 Hydrogen",
+          "ownedBy": "google",
+          "createdAt": "2026-11-12T18:01:00\u002B00:00",
+          "reasoning": {
+            "supportsDisable": false,
+            "supportedEfforts": [
+              "low",
+              "medium",
+              "high",
+              "extraHigh"
+            ],
+            "defaultEffort": "medium",
+            "defaultEnabled": true,
+            "upstreamDefaultEffort": "medium"
+          },
+          "contextWindow": 1048576,
+          "maxOutputTokens": 943718,
+          "supportedProtocols": [
+            "openai-chat-completions",
+            "anthropic",
+            "openai-responses"
+          ],
+          "defaultProtocol": "openai-chat-completions",
+          "inputModalities": [
+            "audio",
+            "file",
+            "image",
+            "text",
+            "video"
+          ],
+          "pricing": {
+            "inputPerMillion": 1.5000000,
+            "outputPerMillion": 7.5000000,
+            "cacheReadPerMillion": 0.075000000,
+            "cacheWritePerMillion": 0.0833333333333333000000
+          }
+        },
+        {
           "id": "google/gemini-nano-banana-2.1",
           "displayName": "Google: Nano Banana 2.1",
           "ownedBy": "google",
@@ -5563,7 +5706,7 @@
           ],
           "pricing": {
             "inputPerMillion": 0.08000000,
-            "outputPerMillion": 0.35000000,
+            "outputPerMillion": 0.45000000,
             "cacheReadPerMillion": 0.04000000
           }
         },
@@ -5578,8 +5721,8 @@
             "defaultEffort": "medium",
             "defaultEnabled": false
           },
-          "contextWindow": 256000,
-          "maxOutputTokens": 128000,
+          "contextWindow": 262144,
+          "maxOutputTokens": 235929,
           "supportedProtocols": [
             "openai-chat-completions",
             "anthropic",
@@ -5592,9 +5735,9 @@
             "video"
           ],
           "pricing": {
-            "inputPerMillion": 0.08000000,
-            "outputPerMillion": 0.1000000,
-            "cacheReadPerMillion": 0.046000000
+            "inputPerMillion": 0.0765000000,
+            "outputPerMillion": 0.255000000,
+            "cacheReadPerMillion": 0.0425000000
           }
         },
         {
@@ -5831,18 +5974,18 @@
           }
         },
         {
-          "id": "liquid/lfm-2.5-2.6b",
-          "displayName": "LiquidAI: LFM2.5-2.6B",
-          "ownedBy": "liquid",
-          "createdAt": "2026-08-11T17:48:39\u002B00:00",
+          "id": "inclusionai/ling-3.2-flash:free",
+          "displayName": "inclusionAI: Ling 3.2 Flash (free)",
+          "ownedBy": "inclusionai",
+          "createdAt": "2026-11-13T17:45:58\u002B00:00",
           "reasoning": {
-            "supportsDisable": false,
+            "supportsDisable": true,
             "supportedEfforts": [],
             "defaultEffort": "medium",
             "defaultEnabled": true
           },
-          "contextWindow": 128000,
-          "maxOutputTokens": 8192,
+          "contextWindow": 1048576,
+          "maxOutputTokens": 262144,
           "supportedProtocols": [
             "openai-chat-completions",
             "anthropic",
@@ -5850,39 +5993,40 @@
           ],
           "defaultProtocol": "openai-chat-completions",
           "inputModalities": [
-            "text"
-          ],
-          "pricing": {
-            "inputPerMillion": 0.35000000,
-            "outputPerMillion": 0.5000000,
-            "cacheReadPerMillion": 0.04000000
-          }
-        },
-        {
-          "id": "liquid/lfm-2.5-2.6b:free",
-          "displayName": "LiquidAI: LFM2.5-2.6B (free)",
-          "ownedBy": "liquid",
-          "createdAt": "2026-08-11T17:48:39\u002B00:00",
-          "reasoning": {
-            "supportsDisable": false,
-            "supportedEfforts": [],
-            "defaultEffort": "medium",
-            "defaultEnabled": true
-          },
-          "contextWindow": 65536,
-          "maxOutputTokens": 8192,
-          "supportedProtocols": [
-            "openai-chat-completions",
-            "anthropic",
-            "openai-responses"
-          ],
-          "defaultProtocol": "openai-chat-completions",
-          "inputModalities": [
-            "text"
+            "text",
+            "image"
           ],
           "pricing": {
             "inputPerMillion": 0,
             "outputPerMillion": 0
+          }
+        },
+        {
+          "id": "kt/midm-k-3.0-pro",
+          "displayName": "KT: Mi:dm K 3.0 Pro",
+          "ownedBy": "kt",
+          "createdAt": "2026-11-05T16:55:01\u002B00:00",
+          "reasoning": {
+            "supportsDisable": true,
+            "supportedEfforts": [],
+            "defaultEffort": "medium",
+            "defaultEnabled": false
+          },
+          "contextWindow": 261795,
+          "maxOutputTokens": 235615,
+          "supportedProtocols": [
+            "openai-chat-completions",
+            "anthropic",
+            "openai-responses"
+          ],
+          "defaultProtocol": "openai-chat-completions",
+          "inputModalities": [
+            "text"
+          ],
+          "pricing": {
+            "inputPerMillion": 0.2000000,
+            "outputPerMillion": 0.8000000,
+            "cacheReadPerMillion": 0.04000000
           }
         },
         {
@@ -5994,6 +6138,27 @@
             "inputPerMillion": 0.3000000,
             "outputPerMillion": 1.2000000,
             "cacheReadPerMillion": 0.006000000
+          }
+        },
+        {
+          "id": "meta-llama/llama-3.1-70b-instruct",
+          "displayName": "Meta: Llama 3.1 70B Instruct",
+          "ownedBy": "meta-llama",
+          "createdAt": "2024-07-23T00:00:00\u002B00:00",
+          "contextWindow": 131072,
+          "maxOutputTokens": 8192,
+          "supportedProtocols": [
+            "openai-chat-completions",
+            "anthropic",
+            "openai-responses"
+          ],
+          "defaultProtocol": "openai-chat-completions",
+          "inputModalities": [
+            "text"
+          ],
+          "pricing": {
+            "inputPerMillion": 0.72000000,
+            "outputPerMillion": 0.72000000
           }
         },
         {
@@ -6142,7 +6307,7 @@
             "upstreamDefaultEffort": "medium"
           },
           "contextWindow": 131072,
-          "maxOutputTokens": 16384,
+          "maxOutputTokens": 117964,
           "supportedProtocols": [
             "openai-chat-completions",
             "anthropic",
@@ -6154,8 +6319,8 @@
             "image"
           ],
           "pricing": {
-            "inputPerMillion": 0.3000000,
-            "outputPerMillion": 1.2000000,
+            "inputPerMillion": 0.35000000,
+            "outputPerMillion": 1.5000000,
             "cacheReadPerMillion": 0.04000000
           }
         },
@@ -6363,8 +6528,8 @@
             "defaultEnabled": true,
             "upstreamDefaultEffort": "medium"
           },
-          "contextWindow": 1000000,
-          "maxOutputTokens": 262144,
+          "contextWindow": 1048576,
+          "maxOutputTokens": 943718,
           "supportedProtocols": [
             "openai-chat-completions",
             "anthropic",
@@ -6434,8 +6599,8 @@
             "defaultEffort": "medium",
             "defaultEnabled": true
           },
-          "contextWindow": 200000,
-          "maxOutputTokens": 128000,
+          "contextWindow": 196608,
+          "maxOutputTokens": 176947,
           "supportedProtocols": [
             "openai-chat-completions",
             "anthropic",
@@ -6446,9 +6611,9 @@
             "text"
           ],
           "pricing": {
-            "inputPerMillion": 0.27000000,
-            "outputPerMillion": 1.08000000,
-            "cacheReadPerMillion": 0.027000000
+            "inputPerMillion": 0.295000000,
+            "outputPerMillion": 1.2000000,
+            "cacheReadPerMillion": 0.06000000
           }
         },
         {
@@ -6782,9 +6947,9 @@
             "file"
           ],
           "pricing": {
-            "inputPerMillion": 0.4000000,
-            "outputPerMillion": 2.000000,
-            "cacheReadPerMillion": 0.04000000
+            "inputPerMillion": 0.44000000,
+            "outputPerMillion": 2.2000000,
+            "cacheReadPerMillion": 0.044000000
           }
         },
         {
@@ -6838,9 +7003,9 @@
             "file"
           ],
           "pricing": {
-            "inputPerMillion": 0.4000000,
-            "outputPerMillion": 2.000000,
-            "cacheReadPerMillion": 0.04000000
+            "inputPerMillion": 0.44000000,
+            "outputPerMillion": 2.2000000,
+            "cacheReadPerMillion": 0.044000000
           }
         },
         {
@@ -6946,8 +7111,8 @@
           "displayName": "Mistral: Mistral Small 3.2 24B",
           "ownedBy": "mistralai",
           "createdAt": "2025-06-20T18:10:16\u002B00:00",
-          "contextWindow": 32768,
-          "maxOutputTokens": 26214,
+          "contextWindow": 128000,
+          "maxOutputTokens": 16384,
           "supportedProtocols": [
             "openai-chat-completions",
             "anthropic",
@@ -6959,9 +7124,8 @@
             "text"
           ],
           "pricing": {
-            "inputPerMillion": 0.1000000,
-            "outputPerMillion": 0.3000000,
-            "cacheReadPerMillion": 0.01000000
+            "inputPerMillion": 0.075000000,
+            "outputPerMillion": 0.2000000
           }
         },
         {
@@ -7092,8 +7256,8 @@
             "defaultEffort": "medium",
             "defaultEnabled": true
           },
-          "contextWindow": 256000,
-          "maxOutputTokens": 65536,
+          "contextWindow": 262144,
+          "maxOutputTokens": 235929,
           "supportedProtocols": [
             "openai-chat-completions",
             "anthropic",
@@ -7105,9 +7269,9 @@
             "image"
           ],
           "pricing": {
-            "inputPerMillion": 0.532000000,
-            "outputPerMillion": 3.325000000,
-            "cacheReadPerMillion": 0.209000000
+            "inputPerMillion": 0.5000000,
+            "outputPerMillion": 2.5000000,
+            "cacheReadPerMillion": 0.15000000
           }
         },
         {
@@ -7163,9 +7327,9 @@
             "image"
           ],
           "pricing": {
-            "inputPerMillion": 0.6000000,
-            "outputPerMillion": 3.5000000,
-            "cacheReadPerMillion": 0.16000000
+            "inputPerMillion": 0.7000000,
+            "outputPerMillion": 3.75000000,
+            "cacheReadPerMillion": 0.17000000
           }
         },
         {
@@ -7233,9 +7397,37 @@
             "video"
           ],
           "pricing": {
-            "inputPerMillion": 0.2375000000,
-            "outputPerMillion": 8.7856000000,
-            "cacheReadPerMillion": 0.19000000
+            "inputPerMillion": 0.2403000000,
+            "outputPerMillion": 8.4023000000,
+            "cacheReadPerMillion": 0.2000000
+          }
+        },
+        {
+          "id": "motif-technologies/motif-3",
+          "displayName": "Motif Technologies: Motif 3",
+          "ownedBy": "motif-technologies",
+          "createdAt": "2026-11-02T21:35:34\u002B00:00",
+          "reasoning": {
+            "supportsDisable": true,
+            "supportedEfforts": [],
+            "defaultEffort": "medium",
+            "defaultEnabled": false
+          },
+          "contextWindow": 262144,
+          "maxOutputTokens": 235929,
+          "supportedProtocols": [
+            "openai-chat-completions",
+            "anthropic",
+            "openai-responses"
+          ],
+          "defaultProtocol": "openai-chat-completions",
+          "inputModalities": [
+            "text"
+          ],
+          "pricing": {
+            "inputPerMillion": 0.3000000,
+            "outputPerMillion": 1.2000000,
+            "cacheReadPerMillion": 0.06000000
           }
         },
         {
@@ -7408,8 +7600,8 @@
             "defaultEnabled": true,
             "upstreamDefaultEffort": "high"
           },
-          "contextWindow": 202800,
-          "maxOutputTokens": 182520,
+          "contextWindow": 262144,
+          "maxOutputTokens": 16384,
           "supportedProtocols": [
             "openai-chat-completions",
             "anthropic",
@@ -7420,9 +7612,9 @@
             "text"
           ],
           "pricing": {
-            "inputPerMillion": 0.6000000,
-            "outputPerMillion": 2.4000000,
-            "cacheReadPerMillion": 0.12000000
+            "inputPerMillion": 0.5000000,
+            "outputPerMillion": 2.2000000,
+            "cacheReadPerMillion": 0.1000000
           }
         },
         {
@@ -7522,8 +7714,8 @@
             "defaultEffort": "medium",
             "defaultEnabled": false
           },
-          "contextWindow": 1048576,
-          "maxOutputTokens": 943718,
+          "contextWindow": 262144,
+          "maxOutputTokens": 235929,
           "supportedProtocols": [
             "openai-chat-completions",
             "anthropic",
@@ -7537,7 +7729,7 @@
           ],
           "pricing": {
             "inputPerMillion": 0.15000000,
-            "outputPerMillion": 0.47000000,
+            "outputPerMillion": 0.5000000,
             "cacheReadPerMillion": 0.02000000
           }
         },
@@ -8608,10 +8800,10 @@
             "text"
           ],
           "pricing": {
-            "inputPerMillion": 4.4000000,
-            "outputPerMillion": 22.000000,
-            "cacheReadPerMillion": 0.44000000,
-            "cacheWritePerMillion": 5.5000000
+            "inputPerMillion": 4.000000,
+            "outputPerMillion": 20.00000,
+            "cacheReadPerMillion": 0.4000000,
+            "cacheWritePerMillion": 5.000000
           }
         },
         {
@@ -9109,6 +9301,158 @@
           }
         },
         {
+          "id": "openai/gpt-6.2-astra",
+          "displayName": "OpenAI: GPT-6.2 Astra",
+          "ownedBy": "openai",
+          "createdAt": "2026-11-17T18:00:23\u002B00:00",
+          "reasoning": {
+            "supportsDisable": false,
+            "supportedEfforts": [
+              "low",
+              "medium",
+              "high",
+              "extraHigh",
+              "max"
+            ],
+            "defaultEffort": "medium",
+            "defaultEnabled": true,
+            "upstreamDefaultEffort": "medium"
+          },
+          "contextWindow": 1050000,
+          "maxOutputTokens": 128000,
+          "supportedProtocols": [
+            "openai-chat-completions",
+            "anthropic",
+            "openai-responses"
+          ],
+          "defaultProtocol": "openai-responses",
+          "inputModalities": [
+            "file",
+            "image",
+            "text"
+          ],
+          "pricing": {
+            "inputPerMillion": 8.000000,
+            "outputPerMillion": 40.00000,
+            "cacheReadPerMillion": 0.4000000,
+            "cacheWritePerMillion": 10.00000
+          }
+        },
+        {
+          "id": "openai/gpt-6.2-astra-pro",
+          "displayName": "OpenAI: GPT-6.2 Astra Pro",
+          "ownedBy": "openai",
+          "createdAt": "2026-11-17T18:00:32\u002B00:00",
+          "reasoning": {
+            "supportsDisable": false,
+            "supportedEfforts": [
+              "low",
+              "medium",
+              "high",
+              "extraHigh",
+              "max"
+            ],
+            "defaultEffort": "medium",
+            "defaultEnabled": true,
+            "upstreamDefaultEffort": "medium"
+          },
+          "contextWindow": 1050000,
+          "maxOutputTokens": 128000,
+          "supportedProtocols": [
+            "openai-chat-completions",
+            "anthropic",
+            "openai-responses"
+          ],
+          "defaultProtocol": "openai-responses",
+          "inputModalities": [
+            "file",
+            "image",
+            "text"
+          ],
+          "pricing": {
+            "inputPerMillion": 8.000000,
+            "outputPerMillion": 40.00000,
+            "cacheReadPerMillion": 0.4000000,
+            "cacheWritePerMillion": 10.00000
+          }
+        },
+        {
+          "id": "openai/gpt-6.2-sol",
+          "displayName": "OpenAI: GPT-6.2 Sol",
+          "ownedBy": "openai",
+          "createdAt": "2026-11-17T17:59:31\u002B00:00",
+          "reasoning": {
+            "supportsDisable": false,
+            "supportedEfforts": [
+              "low",
+              "medium",
+              "high",
+              "extraHigh",
+              "max"
+            ],
+            "defaultEffort": "medium",
+            "defaultEnabled": true,
+            "upstreamDefaultEffort": "medium"
+          },
+          "contextWindow": 1050000,
+          "maxOutputTokens": 128000,
+          "supportedProtocols": [
+            "openai-chat-completions",
+            "anthropic",
+            "openai-responses"
+          ],
+          "defaultProtocol": "openai-responses",
+          "inputModalities": [
+            "file",
+            "image",
+            "text"
+          ],
+          "pricing": {
+            "inputPerMillion": 2.000000,
+            "outputPerMillion": 10.00000,
+            "cacheReadPerMillion": 0.1000000,
+            "cacheWritePerMillion": 2.5000000
+          }
+        },
+        {
+          "id": "openai/gpt-6.2-sol-pro",
+          "displayName": "OpenAI: GPT-6.2 Sol Pro",
+          "ownedBy": "openai",
+          "createdAt": "2026-11-17T18:00:09\u002B00:00",
+          "reasoning": {
+            "supportsDisable": false,
+            "supportedEfforts": [
+              "low",
+              "medium",
+              "high",
+              "extraHigh",
+              "max"
+            ],
+            "defaultEffort": "medium",
+            "defaultEnabled": true,
+            "upstreamDefaultEffort": "medium"
+          },
+          "contextWindow": 1050000,
+          "maxOutputTokens": 128000,
+          "supportedProtocols": [
+            "openai-chat-completions",
+            "anthropic",
+            "openai-responses"
+          ],
+          "defaultProtocol": "openai-responses",
+          "inputModalities": [
+            "file",
+            "image",
+            "text"
+          ],
+          "pricing": {
+            "inputPerMillion": 2.000000,
+            "outputPerMillion": 10.00000,
+            "cacheReadPerMillion": 0.1000000,
+            "cacheWritePerMillion": 2.5000000
+          }
+        },
+        {
           "id": "openai/gpt-audio",
           "displayName": "OpenAI: GPT Audio",
           "ownedBy": "openai",
@@ -9237,9 +9581,9 @@
             "text"
           ],
           "pricing": {
-            "inputPerMillion": 0.03000000,
-            "outputPerMillion": 0.13000000,
-            "cacheReadPerMillion": 0.03000000
+            "inputPerMillion": 0.018000000,
+            "outputPerMillion": 0.09000000,
+            "cacheReadPerMillion": 0.009000000
           }
         },
         {
@@ -9493,9 +9837,44 @@
             "image"
           ],
           "pricing": {
-            "inputPerMillion": 0.05000000,
+            "inputPerMillion": 0.06000000,
             "outputPerMillion": 0.5000000,
             "cacheReadPerMillion": 0.003000000
+          }
+        },
+        {
+          "id": "particle-ai/particle-1:free",
+          "displayName": "Particle AI: Particle-1 (free)",
+          "ownedBy": "particle-ai",
+          "createdAt": "2026-10-28T17:18:13\u002B00:00",
+          "reasoning": {
+            "supportsDisable": true,
+            "supportedEfforts": [
+              "low",
+              "medium",
+              "high",
+              "extraHigh",
+              "max"
+            ],
+            "defaultEffort": "high",
+            "defaultEnabled": true,
+            "upstreamDefaultEffort": "high"
+          },
+          "contextWindow": 1048576,
+          "maxOutputTokens": 131072,
+          "supportedProtocols": [
+            "openai-chat-completions",
+            "anthropic",
+            "openai-responses"
+          ],
+          "defaultProtocol": "openai-chat-completions",
+          "inputModalities": [
+            "text",
+            "image"
+          ],
+          "pricing": {
+            "inputPerMillion": 0,
+            "outputPerMillion": 0
           }
         },
         {
@@ -9885,7 +10264,7 @@
           "ownedBy": "qwen",
           "createdAt": "2025-09-11T17:36:53\u002B00:00",
           "contextWindow": 262144,
-          "maxOutputTokens": 16384,
+          "maxOutputTokens": 235929,
           "supportedProtocols": [
             "openai-chat-completions",
             "anthropic",
@@ -9896,8 +10275,9 @@
             "text"
           ],
           "pricing": {
-            "inputPerMillion": 0.09000000,
-            "outputPerMillion": 1.1000000
+            "inputPerMillion": 0.1000000,
+            "outputPerMillion": 1.1000000,
+            "cacheReadPerMillion": 0.07000000
           }
         },
         {
@@ -9943,34 +10323,6 @@
           "pricing": {
             "inputPerMillion": 0.15000000,
             "outputPerMillion": 0.6000000
-          }
-        },
-        {
-          "id": "qwen/qwen3-vl-30b-a3b-thinking",
-          "displayName": "Qwen: Qwen3 VL 30B A3B Thinking",
-          "ownedBy": "qwen",
-          "createdAt": "2025-10-06T23:47:59\u002B00:00",
-          "reasoning": {
-            "supportsDisable": false,
-            "supportedEfforts": [],
-            "defaultEffort": "medium",
-            "defaultEnabled": true
-          },
-          "contextWindow": 262144,
-          "maxOutputTokens": 235929,
-          "supportedProtocols": [
-            "openai-chat-completions",
-            "anthropic",
-            "openai-responses"
-          ],
-          "defaultProtocol": "openai-chat-completions",
-          "inputModalities": [
-            "text",
-            "image"
-          ],
-          "pricing": {
-            "inputPerMillion": 0.29000000,
-            "outputPerMillion": 1.000000
           }
         },
         {
@@ -10037,7 +10389,7 @@
             "defaultEnabled": false
           },
           "contextWindow": 262144,
-          "maxOutputTokens": 81920,
+          "maxOutputTokens": 65536,
           "supportedProtocols": [
             "openai-chat-completions",
             "anthropic",
@@ -10050,8 +10402,8 @@
             "video"
           ],
           "pricing": {
-            "inputPerMillion": 0.26000000,
-            "outputPerMillion": 2.6000000
+            "inputPerMillion": 0.3000000,
+            "outputPerMillion": 2.4000000
           }
         },
         {
@@ -10095,8 +10447,8 @@
             "defaultEffort": "medium",
             "defaultEnabled": false
           },
-          "contextWindow": 256000,
-          "maxOutputTokens": 64000,
+          "contextWindow": 262144,
+          "maxOutputTokens": 81920,
           "supportedProtocols": [
             "openai-chat-completions",
             "anthropic",
@@ -10109,9 +10461,9 @@
             "video"
           ],
           "pricing": {
-            "inputPerMillion": 0.6000000,
-            "outputPerMillion": 3.6000000,
-            "cacheReadPerMillion": 0.12000000
+            "inputPerMillion": 0.45000000,
+            "outputPerMillion": 3.000000,
+            "cacheReadPerMillion": 0.22000000
           }
         },
         {
@@ -10139,9 +10491,9 @@
             "video"
           ],
           "pricing": {
-            "inputPerMillion": 0.108000000,
-            "outputPerMillion": 0.159000000,
-            "cacheReadPerMillion": 0.097000000
+            "inputPerMillion": 0.17000000,
+            "outputPerMillion": 0.25000000,
+            "cacheReadPerMillion": 0.153000000
           }
         },
         {
@@ -10457,7 +10809,7 @@
             "defaultEnabled": true,
             "upstreamDefaultEffort": "extraHigh"
           },
-          "contextWindow": 1048576,
+          "contextWindow": 1000000,
           "maxOutputTokens": 131072,
           "supportedProtocols": [
             "openai-chat-completions",
@@ -10504,9 +10856,9 @@
             "video"
           ],
           "pricing": {
-            "inputPerMillion": 0.15000000,
-            "outputPerMillion": 1.875000000,
-            "cacheReadPerMillion": 0.0375000000
+            "inputPerMillion": 0.06000000,
+            "outputPerMillion": 2.2000000,
+            "cacheReadPerMillion": 0.059000000
           }
         },
         {
@@ -10643,6 +10995,42 @@
           }
         },
         {
+          "id": "qwen/qwen4-max",
+          "displayName": "Qwen: Qwen4 Max",
+          "ownedBy": "qwen",
+          "createdAt": "2026-11-16T02:18:46\u002B00:00",
+          "reasoning": {
+            "supportsDisable": true,
+            "supportedEfforts": [
+              "low",
+              "high",
+              "extraHigh"
+            ],
+            "defaultEffort": "high",
+            "defaultEnabled": true,
+            "upstreamDefaultEffort": "high"
+          },
+          "contextWindow": 1000000,
+          "maxOutputTokens": 131072,
+          "supportedProtocols": [
+            "openai-chat-completions",
+            "anthropic",
+            "openai-responses"
+          ],
+          "defaultProtocol": "openai-chat-completions",
+          "inputModalities": [
+            "text",
+            "image",
+            "video"
+          ],
+          "pricing": {
+            "inputPerMillion": 1.425000000,
+            "outputPerMillion": 4.275000000,
+            "cacheReadPerMillion": 0.07125000000,
+            "cacheWritePerMillion": 1.78125000000
+          }
+        },
+        {
           "id": "recursive/flint-v1.0:free",
           "displayName": "Recursive: Flint (free)",
           "ownedBy": "recursive",
@@ -10771,9 +11159,9 @@
             "text"
           ],
           "pricing": {
-            "inputPerMillion": 0.2000000,
-            "outputPerMillion": 0.6000000,
-            "cacheReadPerMillion": 0.05000000
+            "inputPerMillion": 0.1000000,
+            "outputPerMillion": 0.3000000,
+            "cacheReadPerMillion": 0.025000000
           }
         },
         {
@@ -10911,33 +11299,6 @@
             "inputPerMillion": 0.95000000,
             "outputPerMillion": 4.000000,
             "cacheReadPerMillion": 0.15000000
-          }
-        },
-        {
-          "id": "stepfun/step-3.5-flash",
-          "displayName": "StepFun: Step 3.5 Flash",
-          "ownedBy": "stepfun",
-          "createdAt": "2026-01-29T23:12:17\u002B00:00",
-          "reasoning": {
-            "supportsDisable": false,
-            "supportedEfforts": [],
-            "defaultEffort": "medium",
-            "defaultEnabled": true
-          },
-          "contextWindow": 262144,
-          "maxOutputTokens": 65536,
-          "supportedProtocols": [
-            "openai-chat-completions",
-            "anthropic",
-            "openai-responses"
-          ],
-          "defaultProtocol": "openai-chat-completions",
-          "inputModalities": [
-            "text"
-          ],
-          "pricing": {
-            "inputPerMillion": 0.1000000,
-            "outputPerMillion": 0.3000000
           }
         },
         {
@@ -11108,6 +11469,35 @@
           }
         },
         {
+          "id": "tencent/hy4-flash",
+          "displayName": "Tencent: Hy4 flash",
+          "ownedBy": "tencent",
+          "createdAt": "2026-11-16T14:18:26\u002B00:00",
+          "reasoning": {
+            "supportsDisable": true,
+            "supportedEfforts": [],
+            "defaultEffort": "medium",
+            "defaultEnabled": true
+          },
+          "contextWindow": 1048576,
+          "maxOutputTokens": 65536,
+          "supportedProtocols": [
+            "openai-chat-completions",
+            "anthropic",
+            "openai-responses"
+          ],
+          "defaultProtocol": "openai-chat-completions",
+          "inputModalities": [
+            "text",
+            "image"
+          ],
+          "pricing": {
+            "inputPerMillion": 0.035000000,
+            "outputPerMillion": 0.1405000000,
+            "cacheReadPerMillion": 0.0015000000
+          }
+        },
+        {
           "id": "tencent/hy4-preview",
           "displayName": "Tencent: Hy4 preview",
           "ownedBy": "tencent",
@@ -11173,6 +11563,41 @@
             "inputPerMillion": 1.000000,
             "outputPerMillion": 4.05000000,
             "cacheReadPerMillion": 0.17000000
+          }
+        },
+        {
+          "id": "thinkingmachines/inkling-2-small",
+          "displayName": "Thinking Machines: Inkling 2 Small",
+          "ownedBy": "thinkingmachines",
+          "createdAt": "2026-11-09T22:04:07\u002B00:00",
+          "reasoning": {
+            "supportsDisable": false,
+            "supportedEfforts": [
+              "low",
+              "medium",
+              "high",
+              "max"
+            ],
+            "defaultEffort": "high",
+            "defaultEnabled": true,
+            "upstreamDefaultEffort": "high"
+          },
+          "contextWindow": 1048576,
+          "maxOutputTokens": 943718,
+          "supportedProtocols": [
+            "openai-chat-completions",
+            "anthropic",
+            "openai-responses"
+          ],
+          "defaultProtocol": "openai-chat-completions",
+          "inputModalities": [
+            "text",
+            "image"
+          ],
+          "pricing": {
+            "inputPerMillion": 0.3000000,
+            "outputPerMillion": 1.000000,
+            "cacheReadPerMillion": 0.03000000
           }
         },
         {
@@ -11656,8 +12081,8 @@
             "defaultEffort": "medium",
             "defaultEnabled": false
           },
-          "contextWindow": 262144,
-          "maxOutputTokens": 235929,
+          "contextWindow": 1024000,
+          "maxOutputTokens": 131072,
           "supportedProtocols": [
             "openai-chat-completions",
             "anthropic",
@@ -11668,9 +12093,9 @@
             "text"
           ],
           "pricing": {
-            "inputPerMillion": 0.48000000,
-            "outputPerMillion": 1.8000000,
-            "cacheReadPerMillion": 0.096000000
+            "inputPerMillion": 0.435000000,
+            "outputPerMillion": 0.87000000,
+            "cacheReadPerMillion": 0.0036000000
           }
         },
         {
@@ -11817,9 +12242,9 @@
             "text"
           ],
           "pricing": {
-            "inputPerMillion": 0.2000000,
-            "outputPerMillion": 1.1000000,
-            "cacheReadPerMillion": 0.03000000
+            "inputPerMillion": 0.13000000,
+            "outputPerMillion": 0.85000000,
+            "cacheReadPerMillion": 0.025000000
           }
         },
         {
@@ -11906,7 +12331,7 @@
           "pricing": {
             "inputPerMillion": 0.3000000,
             "outputPerMillion": 0.9000000,
-            "cacheReadPerMillion": 0.055000000
+            "cacheReadPerMillion": 0.05000000
           }
         },
         {
@@ -11920,7 +12345,7 @@
             "defaultEffort": "medium",
             "defaultEnabled": true
           },
-          "contextWindow": 204800,
+          "contextWindow": 202752,
           "maxOutputTokens": 131072,
           "supportedProtocols": [
             "openai-chat-completions",
@@ -11932,9 +12357,9 @@
             "text"
           ],
           "pricing": {
-            "inputPerMillion": 0.6000000,
-            "outputPerMillion": 2.2000000,
-            "cacheReadPerMillion": 0.11000000
+            "inputPerMillion": 0.4000000,
+            "outputPerMillion": 1.75000000,
+            "cacheReadPerMillion": 0.08000000
           }
         },
         {
@@ -12032,7 +12457,7 @@
             "defaultEnabled": true
           },
           "contextWindow": 202752,
-          "maxOutputTokens": 131072,
+          "maxOutputTokens": 182476,
           "supportedProtocols": [
             "openai-chat-completions",
             "anthropic",
@@ -12129,8 +12554,8 @@
             "defaultEnabled": true,
             "upstreamDefaultEffort": "max"
           },
-          "contextWindow": 1048576,
-          "maxOutputTokens": 131072,
+          "contextWindow": 1048575,
+          "maxOutputTokens": 943717,
           "supportedProtocols": [
             "openai-chat-completions",
             "anthropic",
@@ -12143,8 +12568,8 @@
             "video"
           ],
           "pricing": {
-            "inputPerMillion": 0.0399000000,
-            "outputPerMillion": 0.0784000000,
+            "inputPerMillion": 0.15000000,
+            "outputPerMillion": 0.5000000,
             "cacheReadPerMillion": 0.03000000
           }
         },
@@ -12246,9 +12671,9 @@
             "text"
           ],
           "pricing": {
-            "inputPerMillion": 2.8000000,
-            "outputPerMillion": 8.8000000,
-            "cacheReadPerMillion": 0.56000000
+            "inputPerMillion": 1.68000000,
+            "outputPerMillion": 5.28000000,
+            "cacheReadPerMillion": 0.336000000
           }
         },
         {
@@ -12462,9 +12887,9 @@
             "image"
           ],
           "pricing": {
-            "inputPerMillion": 0.022000000,
-            "outputPerMillion": 0.4000000,
-            "cacheReadPerMillion": 0.004000000
+            "inputPerMillion": 0.036000000,
+            "outputPerMillion": 0.5000000,
+            "cacheReadPerMillion": 0.01000000
           }
         },
         {
@@ -12543,14 +12968,15 @@
             "supportedEfforts": [
               "low",
               "medium",
-              "high"
+              "high",
+              "extraHigh"
             ],
             "defaultEffort": "medium",
             "defaultEnabled": true,
             "upstreamDefaultEffort": "medium"
           },
           "contextWindow": 1048576,
-          "maxOutputTokens": 65536,
+          "maxOutputTokens": 943718,
           "supportedProtocols": [
             "openai-chat-completions",
             "anthropic",
@@ -12558,17 +12984,17 @@
           ],
           "defaultProtocol": "openai-chat-completions",
           "inputModalities": [
-            "text",
-            "image",
-            "video",
+            "audio",
             "file",
-            "audio"
+            "image",
+            "text",
+            "video"
           ],
           "pricing": {
-            "inputPerMillion": 0.75000000,
-            "outputPerMillion": 3.75000000,
+            "inputPerMillion": 1.5000000,
+            "outputPerMillion": 7.5000000,
             "cacheReadPerMillion": 0.075000000,
-            "cacheWritePerMillion": 0.0416666666666667000000
+            "cacheWritePerMillion": 0.0833333333333333000000
           }
         },
         {
@@ -12676,10 +13102,10 @@
             "text"
           ],
           "pricing": {
-            "inputPerMillion": 10.00000,
-            "outputPerMillion": 50.00000,
-            "cacheReadPerMillion": 1.000000,
-            "cacheWritePerMillion": 12.5000000
+            "inputPerMillion": 8.000000,
+            "outputPerMillion": 40.00000,
+            "cacheReadPerMillion": 0.4000000,
+            "cacheWritePerMillion": 10.00000
           }
         },
         {
@@ -12964,5 +13390,5 @@
     }
   },
   "pricingSource": "https://models.dev/api.json",
-  "pricingCapturedAt": "2026-11-12T13:17:16.5350818+00:00"
+  "pricingCapturedAt": "2026-11-18T01:55:48.5268952+00:00"
 }
