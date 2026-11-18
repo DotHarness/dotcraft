@@ -977,7 +977,6 @@ function mergeExistingRealtimeTurn(
 
   return {
     ...incoming,
-    ...(existing.implementsPlan && { implementsPlan: true }),
     status: keepExistingTerminalStatus ? existing.status : incoming.status,
     completedAt: keepExistingTerminalStatus ? existing.completedAt : incoming.completedAt,
     tokenUsage: keepExistingTerminalStatus ? existing.tokenUsage : incoming.tokenUsage,

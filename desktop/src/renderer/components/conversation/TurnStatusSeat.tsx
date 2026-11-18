@@ -5,6 +5,7 @@ import { useConversationThread } from './conversationAside/ConversationAside'
 import { useConversationStore } from '../../stores/conversationStore'
 import type { ConversationTurn } from '../../types/conversation'
 import { resolveToolKind } from '../../utils/toolKind'
+import { readPlanApprovalInput } from '../../utils/planApprovalInput'
 
 type TurnEndStatus = DesktopPluginTurnStatusContext['status']
 
@@ -14,7 +15,8 @@ export function TurnStatusSeat({ turn, running }: { turn: ConversationTurn; runn
   const activeThreadId = useConversationStore.useThreadId()
   const snapshot = useConversationStore((state) => threadId === activeThreadId ? state.plan : null)
   const status = turnEndStatus(running, turn.status)
-  const implementsPlan = turn.implementsPlan === true
+  const inputId = turn.items.find((item) => item.type === 'userMessage' && item.deliveryMode !== 'guidance')?.clientUserMessageId
+  const implementsPlan = inputId != null && inputId === readPlanApprovalInput(threadId)
   const updatedTodos = turn.items.some((item) =>
     item.type === 'toolCall' && item.success === true && resolveToolKind(item) === 'todoWrite')
   const context = useMemo<DesktopPluginTurnStatusContext>(

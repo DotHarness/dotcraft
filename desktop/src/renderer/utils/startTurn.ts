@@ -36,7 +36,6 @@ interface StartTurnParams {
   onScreen?: boolean
   onOptimisticEcho?: () => void
   sentAsGoal?: boolean
-  implementsPlan?: true
   mode?: ThreadMode
   modelSettings?: TurnModelSettings
   title?: ThreadTitleRequest
@@ -66,7 +65,6 @@ export function echoOptimisticTurn({
   attachmentFallbackThreadName,
   renameThreadFromText = true,
   sentAsGoal = false,
-  implementsPlan,
   onScreen = true,
   onOptimisticEcho,
   modelSettings,
@@ -111,7 +109,6 @@ export function echoOptimisticTurn({
     threadId,
     status: 'running',
     items: [createOptimisticUserMessage(inputParts, visibleText, clientUserMessageId, sentAsGoal)],
-    ...(implementsPlan && { implementsPlan }),
     startedAt: new Date().toISOString()
   }
   if (onScreen) {

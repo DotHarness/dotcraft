@@ -7,6 +7,7 @@ import { PlanApprovalComposer } from '../components/conversation/PlanApprovalCom
 import { TurnStatusSeat } from '../components/conversation/TurnStatusSeat'
 import { TodoCard } from '../../bundled-plugins/todo-list/src/TodoCard'
 import { clearDesktopPluginRegistry, registerDesktopPluginSurface } from '../plugins/desktopPluginRegistry'
+import { applyThreadRestoration } from '../stores/applyThreadRestoration'
 import { useConnectionStore } from '../stores/connectionStore'
 import { getThreadConversation, useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
@@ -14,9 +15,31 @@ import { useUIStore } from '../stores/uiStore'
 import { openThreadState, releaseThreadState } from '../stores/threadState'
 import { applyThreadNotification } from '../stores/threadNotifications'
 import { installDesktopApiMock } from './desktopApiMock'
-import { streamingToolCallStarted } from './testToolPresentation'
+import type { ThreadPlan } from '../types/thread'
+import { coreToolFields } from './testToolPresentation'
+import { makeRestoreResult } from './threadRestorationFixtures'
 
 const appServerSendRequest = vi.fn()
+const pendingPlan: ThreadPlan = {
+  title: 'Plan', content: 'Ship it', overview: '',
+  todos: [{ id: 'todo-1', content: 'Ship it', status: 'pending' }]
+}
+
+function restoreTodoTurn(plan: ThreadPlan, items: Record<string, unknown>[], turnId = 'turn-restored') {
+  const date = '2026-11-18T00:00:00Z'
+  const turn = {
+    id: turnId, threadId: 'thread-1', status: 'running' as const, startedAt: date,
+    itemsView: 'summary', itemCount: items.length + 1, items
+  }
+  applyThreadRestoration(makeRestoreResult({
+    id: turn.threadId, workspacePath: '/fixture', userId: 'local', metadata: {},
+    displayName: 'Thread', status: 'active', originChannel: 'dotcraft-desktop',
+    createdAt: date, lastActiveAt: date, configuration: { mode: 'agent' },
+    runtime: { running: true, waitingOnApproval: false, waitingOnPlanConfirmation: false },
+    turns: [turn], plan
+  }))
+  return turn
+}
 
 function LatestTurnStatus(): JSX.Element | null {
   const turn = useConversationStore((state) => state.turns.at(-1))
@@ -45,19 +68,14 @@ function deferred() {
 describe('PlanApprovalComposer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    localStorage.clear()
     releaseThreadState('thread-1')
     releaseThreadState('thread-2')
     useConnectionStore.getState().reset()
     useThreadStore.getState().reset()
     openThreadState('thread-1')
     useUIStore.setState({ planApprovalDismissed: {} })
-    useConversationStore.setState({
-      threadMode: 'plan', turnStatus: 'idle',
-      plan: {
-        title: 'Plan', content: 'Ship it', overview: '',
-        todos: [{ id: 'todo-1', content: 'Ship it', status: 'pending' }]
-      }
-    })
+    useConversationStore.setState({ threadMode: 'plan', turnStatus: 'idle', plan: pendingPlan })
     registerDesktopPluginSurface(
       'todo-list', { environment: { locale: 'en' } } as DesktopPluginHost, 'conversation.turn.status', 'add', TodoCard
     )
@@ -83,7 +101,7 @@ describe('PlanApprovalComposer', () => {
 
   afterEach(() => act(clearDesktopPluginRegistry))
 
-  it('shows the approved tasks before the execution turn is confirmed and keeps them on confirmation', async () => {
+  it('shows approved tasks before confirmation and after restoring without a cached turn', async () => {
     const response = deferred()
     appServerSendRequest.mockReturnValueOnce(response.promise)
     renderWithLocale(
@@ -100,9 +118,12 @@ describe('PlanApprovalComposer', () => {
     expect(screen.getByRole('region', { name: 'To-dos, 0 of 1 done' })).toBeInTheDocument()
 
     const clientUserMessageId = appServerSendRequest.mock.calls[0][1].clientUserMessageId
+    const acceptedInput = {
+      id: 'message-server-1', type: 'userMessage',
+      payload: { text: 'Implement the plan.', clientUserMessageId }
+    }
     act(() => useConversationStore.getState().onTurnStarted({
-      id: 'turn-server-1', threadId: 'thread-1', status: 'running',
-      items: [{ id: 'message-server-1', type: 'userMessage', text: 'Implement the plan.', clientUserMessageId }]
+      id: 'turn-server-1', threadId: 'thread-1', status: 'running', items: [acceptedInput]
     }))
     expect(screen.getByRole('region', { name: 'To-dos, 0 of 1 done' })).toBeInTheDocument()
 
@@ -119,6 +140,13 @@ describe('PlanApprovalComposer', () => {
         items: [expect.objectContaining({ type: 'userMessage', text: 'Implement the plan.' })]
       })
     ])
+
+    act(() => {
+      releaseThreadState('thread-1')
+      openThreadState('thread-1')
+      restoreTodoTurn(pendingPlan, [acceptedInput], 'turn-server-1')
+    })
+    expect(screen.getByRole('region', { name: 'To-dos, 0 of 1 done' })).toBeInTheDocument()
   })
 
   it('rolls back the execution checklist after rejected admission and allows retry', async () => {
@@ -141,26 +169,28 @@ describe('PlanApprovalComposer', () => {
     expect(appServerSendRequest.mock.calls.map(([method]) => method)).toEqual(['turn/start', 'turn/start'])
   })
 
-  it('keeps the completed checklist on the updating turn but not on an ordinary follow-up', () => {
-    const turn = { id: 'turn-todos', threadId: 'thread-1', status: 'running', items: [] }
-    const conversation = useConversationStore.getState()
-    conversation.onTurnStarted(turn)
+  it('restores a completed checklist on its running turn but not on an ordinary follow-up', () => {
+    const turn = restoreTodoTurn({
+      title: '', overview: '', content: '',
+      todos: [{ id: 'todo-1', content: 'Ship it', status: 'completed' }]
+    }, [
+      {
+        id: 'todo-write', type: 'toolCall',
+        payload: { callId: 'todo-call', toolName: 'TodoWrite', ...coreToolFields('TodoWrite') }
+      },
+      {
+        id: 'todo-result', type: 'toolResult',
+        payload: { callId: 'todo-call', success: true, result: 'Plan updated' }
+      }
+    ])
     renderWithLocale(<></>)
-
-    act(() => {
-      conversation.onItemStarted(streamingToolCallStarted(turn.id, 'todo-write', 'TodoWrite', 'todo-call'))
-      conversation.onPlanUpdated({ title: '', todos: [{ id: 'todo-1', content: 'Ship it', status: 'completed' }] })
-      conversation.onItemCompleted({
-        turnId: turn.id,
-        item: { id: 'todo-result', type: 'toolResult', payload: { callId: 'todo-call', success: true, result: 'Plan updated' } }
-      })
-    })
     expect(screen.getByRole('region', { name: 'To-dos, 1 of 1 done' })).toBeInTheDocument()
 
+    const conversation = useConversationStore.getState()
     act(() => conversation.onTurnCompleted({ ...turn, status: 'completed' }))
     expect(screen.queryByRole('region', { name: /To-dos/ })).not.toBeInTheDocument()
 
-    act(() => conversation.onTurnStarted({ ...turn, id: 'turn-follow-up' }))
+    act(() => conversation.onTurnStarted({ id: 'turn-follow-up', threadId: turn.threadId, status: 'running', items: [] }))
     expect(screen.queryByRole('region', { name: /To-dos/ })).not.toBeInTheDocument()
   })
 

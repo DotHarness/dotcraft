@@ -251,7 +251,6 @@ export interface ConversationTurn {
   threadId: string
   status: TurnStatusExtended
   items: ConversationItem[]
-  implementsPlan?: true
   startedAt: string
   completedAt?: string
   tokenUsage?: { inputTokens: number; outputTokens: number }

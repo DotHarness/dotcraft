@@ -6,6 +6,7 @@ export const THREAD_OPENING_PAGE = {
   itemsView: 'summary' as const,
   summaryTools: [
     { name: 'CreatePlan' },
+    { name: 'TodoWrite' },
     { name: 'Workflow' },
     { name: 'Automation' },
     { name: 'CreateThread', namespace: 'desktop_conversation' },
