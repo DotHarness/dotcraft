@@ -185,6 +185,27 @@ public sealed class RemoteExecutionSessionTests
         Assert.Equal(0, Assert.Single(monitor.Turns).ToolCalls);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Host_activity_remains_until_the_last_overlapping_call_finishes(bool finishNewerFirst)
+    {
+        var monitor = new RemoteToolHostActivityMonitor();
+        RemoteToolActivity? shown = null;
+        monitor.Changed += activity => shown = activity;
+        using var older = monitor.Begin("first", "ReadFile", null);
+        using var newer = monitor.Begin("second", "Exec", null);
+        Assert.Equal("second", shown?.PeerId);
+
+        (finishNewerFirst ? newer : older).Dispose();
+        Assert.Equal(finishNewerFirst ? "first" : "second", monitor.Current?.PeerId);
+        Assert.Same(monitor.Current, shown);
+
+        (finishNewerFirst ? older : newer).Dispose();
+        Assert.Null(monitor.Current);
+        Assert.Null(shown);
+    }
+
     [Fact]
     public async Task OwningThread_ListsAndStopsItsBackgroundCommand_AndIsNotified()
     {

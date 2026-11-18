@@ -79,7 +79,7 @@ public sealed partial class RemoteToolHostRuntime : IAsyncDisposable
         }
     }
 
-    /// <summary>The tool call currently running for a paired machine, if any.</summary>
+    /// <summary>The most recently started tool call that is still running, if any.</summary>
     public RemoteToolActivity? CurrentActivity => _activity.Current;
 
     /// <summary>The latest Turn of each Thread routed here, for as long as its execution session holds it.</summary>

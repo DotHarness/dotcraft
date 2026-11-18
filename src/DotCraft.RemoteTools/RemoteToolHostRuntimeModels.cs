@@ -105,7 +105,16 @@ internal sealed class RemoteToolHostActivityMonitor
     // Counted apart from the reports, because a call can reach the Host before its Turn's report does.
     private readonly Dictionary<string, (string SessionId, string TurnId, int Count)> _calls = new(StringComparer.Ordinal);
 
-    public RemoteToolActivity? Current { get; private set; }
+    private readonly List<RemoteToolActivity> _active = [];
+
+    public RemoteToolActivity? Current
+    {
+        get
+        {
+            lock (_gate)
+                return _active.Count == 0 ? null : _active[^1];
+        }
+    }
 
     public IReadOnlyList<RemoteToolTurn> Turns
     {
@@ -164,20 +173,26 @@ internal sealed class RemoteToolHostActivityMonitor
     {
         var activity = new RemoteToolActivity(peerId, toolName, commandPreview, DateTimeOffset.UtcNow);
         lock (_gate)
-            Current = activity;
+            _active.Add(activity);
         Changed?.Invoke(activity);
         return new Scope(this, activity);
     }
 
     private void End(RemoteToolActivity activity)
     {
+        RemoteToolActivity? next;
         lock (_gate)
         {
-            if (!ReferenceEquals(Current, activity))
+            var index = _active.FindLastIndex(call => ReferenceEquals(call, activity));
+            if (index < 0)
                 return;
-            Current = null;
+            var wasCurrent = index == _active.Count - 1;
+            _active.RemoveAt(index);
+            if (!wasCurrent)
+                return;
+            next = _active.Count == 0 ? null : _active[^1];
         }
-        Changed?.Invoke(null);
+        Changed?.Invoke(next);
     }
 
     private sealed class Scope(RemoteToolHostActivityMonitor monitor, RemoteToolActivity activity) : IDisposable
