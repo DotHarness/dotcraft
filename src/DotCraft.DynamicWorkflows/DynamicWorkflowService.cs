@@ -359,8 +359,15 @@ public sealed partial class DynamicWorkflowService(
         return $"run_{DateTimeOffset.UtcNow:yyyyMMddHHmmssfff}_{suffix.ToString()}";
     }
 
+    internal IEnumerable<string> RunningParentThreadIds() =>
+        _active.Values
+            .Select(static active => active.State)
+            .Where(static run => run.Status == DynamicWorkflowStatuses.Running)
+            .Select(static run => run.ParentThreadId);
+
     private void PublishChanged(DynamicWorkflowRun run, string reason)
     {
+        _sessionService?.PublishBackgroundWorkChanged(run.ParentThreadId);
         foreach (var observer in RunChanged?.GetInvocationList() ?? [])
         {
             try { ((Action<DynamicWorkflowRunChanged>)observer)(new(run.ParentThreadId, run.RunId, reason)); }

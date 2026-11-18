@@ -2736,6 +2736,7 @@ export interface PerforceConnection {
 }
 
 export interface PlanTodo {
+  activeForm?: string;
   content?: string;
   id?: string;
   priority?: string;
@@ -3584,6 +3585,7 @@ export interface SessionPlan {
 }
 
 export interface SessionPlanTodo {
+  activeForm?: string | null;
   content: string;
   id: string;
   priority: string;
@@ -4847,6 +4849,7 @@ export interface ThreadRuntimeState {
   activeTurnId?: string | null;
   activeTurnStartedAt?: string | null;
   busy?: boolean;
+  hasBackgroundWork?: boolean;
   maintenanceKind?: string | null;
   queuePaused?: boolean;
   running?: boolean;

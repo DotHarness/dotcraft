@@ -83,7 +83,8 @@ internal static class ThreadContractMapper
         WaitingOnPlanConfirmation = value.WaitingOnPlanConfirmation,
         Busy = value.Busy,
         MaintenanceKind = OmitIfNull(value.MaintenanceKind),
-        QueuePaused = value.QueuePaused
+        QueuePaused = value.QueuePaused,
+        HasBackgroundWork = value.HasBackgroundWork
     };
 
     public static Contract.ThreadGoal ToContract(Domain.ThreadGoalSnapshot value) => new()
@@ -264,7 +265,8 @@ internal static class ThreadContractMapper
             Id = todo.Id,
             Content = todo.Content,
             Priority = todo.Priority,
-            Status = todo.Status
+            Status = todo.Status,
+            ActiveForm = todo.ActiveForm
         }).ToArray()
     };
 

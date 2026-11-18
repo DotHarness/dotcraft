@@ -43,6 +43,7 @@ export interface ThreadRuntimeSnapshot {
   waitingOnInput?: boolean
   waitingOnPlanConfirmation: boolean
   maintenanceKind?: 'compacting' | string | null
+  hasBackgroundWork?: boolean
 }
 
 export interface SubAgentThreadSourceWire {
@@ -213,6 +214,7 @@ export interface ThreadPlanTodo {
   content: string
   priority?: string
   status: ThreadPlanTodoStatus
+  activeForm?: string
 }
 
 export interface ThreadPlan {

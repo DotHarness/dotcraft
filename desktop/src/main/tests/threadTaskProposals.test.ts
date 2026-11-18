@@ -1,4 +1,5 @@
 import { mkdtempSync, rmSync } from 'node:fs'
+import { TASK_LIST_INSTRUCTIONS } from '../../shared/taskListInstructions'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -43,7 +44,7 @@ describe('CreateThread proposals', () => {
 
     expect(started?.success).toBe(true)
     const start = harness.calls().find(([method]) => method === 'thread/start')?.[1]
-    expect(start).toEqual(expect.objectContaining({ spawnedFromThreadId: PARENT, config: { model: 'deepseek-v4', codeModeExcludedNamespaces: ['desktop_conversation'] } }))
+    expect(start).toEqual(expect.objectContaining({ spawnedFromThreadId: PARENT, config: { developerInstructions: TASK_LIST_INSTRUCTIONS, model: 'deepseek-v4', codeModeExcludedNamespaces: ['desktop_conversation'] } }))
     const turn = harness.calls().find(([method]) => method === 'turn/start')?.[1] as { input: Array<{ text: string }> }
     expect(turn.input[0].text).toBe('Brief for Add coverage')
     expect(harness.store.get(PARENT, task.id)?.state).toBe('started')
@@ -75,7 +76,7 @@ describe('CreateThread proposals', () => {
     const withBrief = await harness.call({ proposalId: task.id, model: 'deepseek-v4', prompt: 'Rewritten brief' })
     expect(withBrief?.success).toBe(true)
     const start = harness.calls().find(([method]) => method === 'thread/start')?.[1] as { config?: unknown }
-    expect(start.config).toEqual({ codeModeExcludedNamespaces: ['desktop_conversation'] })
+    expect(start.config).toEqual({ developerInstructions: TASK_LIST_INSTRUCTIONS, codeModeExcludedNamespaces: ['desktop_conversation'] })
     const turn = harness.calls().find(([method]) => method === 'turn/start')?.[1] as { input: Array<{ text: string }> }
     expect(turn.input[0].text).toBe('Rewritten brief')
   })
@@ -113,7 +114,7 @@ describe('CreateThread proposals', () => {
     expect(worktreeCalls[0][1]).toEqual(expect.objectContaining({
       baseRef: 'main',
       displayName: 'First',
-      config: { approvalPolicy: 'prompt' },
+      config: { developerInstructions: TASK_LIST_INSTRUCTIONS, approvalPolicy: 'prompt' },
       operationId: expect.any(String)
     }))
     expect(harness.store.snapshot(PARENT).tasks.map((task) => task.state)).toEqual(['started', 'started'])

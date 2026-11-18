@@ -504,6 +504,10 @@ public interface ISessionService
     ThreadSummaryRuntime GetThreadRuntimeSnapshot(SessionThread thread) =>
         ThreadSummaryRuntime.FromThread(thread);
 
+    bool HasBackgroundWork(string threadId) => false;
+
+    void PublishBackgroundWorkChanged(string ownerThreadId) { }
+
     /// <summary>Returns whether a loaded Thread is hidden; unloaded Threads report false.</summary>
     bool IsHiddenThread(string threadId) => false;
 

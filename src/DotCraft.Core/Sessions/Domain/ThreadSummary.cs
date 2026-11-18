@@ -55,6 +55,9 @@ public sealed class ThreadSummaryRuntime
     /// <summary>True when the latest Turn was cancelled, so queued input waits for an explicit start.</summary>
     public bool QueuePaused { get; set; }
 
+    /// <summary>True while a SubAgent or Workflow run the thread owns is still working. Background terminals do not count.</summary>
+    public bool HasBackgroundWork { get; set; }
+
     /// <summary>
     /// Creates a runtime snapshot from persisted thread state only.
     /// Process-local maintenance state is added by <see cref="ISessionService.GetThreadRuntimeSnapshot"/>.

@@ -6,13 +6,15 @@ import { useRunningTaskCount } from './summary/store'
 import { desktopSummaryServices } from './summary/summaryServices'
 import { setSummaryShown } from './summary/view'
 import type { TurnThinkingLabel } from './turnThinkingStatus'
+import { useTurnTasksClaimed } from './turnTaskClaims'
 import styles from './TurnWorkingLine.module.css'
 
 const FADE_MS = 180
 
 interface ShownLabel { text: string; live: boolean }
 
-export function TurnWorkingLine({ working, label, keepSpace, afterTool, tasksThreadId }: {
+export function TurnWorkingLine({ turnId, working, label, keepSpace, afterTool, tasksThreadId }: {
+  turnId: string
   working: boolean
   label: TurnThinkingLabel | null
   keepSpace: boolean
@@ -25,6 +27,7 @@ export function TurnWorkingLine({ working, label, keepSpace, afterTool, tasksThr
   if (working && !engaged) setEngaged(true)
   if (working && faded) setFaded(false)
   const tasks = useRunningTaskCount(desktopSummaryServices, tasksThreadId)
+  const tasksClaimed = useTurnTasksClaimed(turnId)
 
   const current: ShownLabel | null = label == null ? null
     : label.kind === 'waitingForAnswer' ? { text: t('conversation.thinking.waitingForAnswer'), live: true }
@@ -38,7 +41,7 @@ export function TurnWorkingLine({ working, label, keepSpace, afterTool, tasksThr
     return () => clearTimeout(timer)
   }, [working])
 
-  const showTasks = tasks > 0 && keepSpace
+  const showTasks = tasks > 0 && keepSpace && !tasksClaimed
   if (!showTasks && (!engaged || (!working && !keepSpace))) return null
   return (
     <div className={styles.line} data-after-tool={afterTool || undefined} data-exited={!working || undefined} data-testid="turn-working-line">

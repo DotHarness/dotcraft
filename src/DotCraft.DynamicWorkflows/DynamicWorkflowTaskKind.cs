@@ -34,6 +34,8 @@ internal sealed class DynamicWorkflowTaskKind(DynamicWorkflowService service, Dy
         return tasks;
     }
 
+    public IEnumerable<string> RunningOwnerThreadIds() => service.RunningParentThreadIds();
+
     private BackgroundTask ToTask(DynamicWorkflowRun run) =>
         new BackgroundTask
         {

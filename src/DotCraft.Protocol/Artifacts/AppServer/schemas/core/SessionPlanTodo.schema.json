@@ -4,6 +4,16 @@
   "title": "SessionPlanTodo",
   "type": "object",
   "properties": {
+    "activeForm": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "content": {
       "type": "string"
     },

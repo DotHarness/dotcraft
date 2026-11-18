@@ -28,6 +28,9 @@
     "busy": {
       "type": "boolean"
     },
+    "hasBackgroundWork": {
+      "type": "boolean"
+    },
     "maintenanceKind": {
       "anyOf": [
         {

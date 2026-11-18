@@ -13413,6 +13413,13 @@
       "additionalProperties": true,
       "fields": [
         {
+          "name": "activeForm",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
           "name": "content",
           "type": "string",
           "required": false,
@@ -17745,6 +17752,13 @@
       "schema": "schemas/core/SessionPlanTodo.schema.json",
       "additionalProperties": true,
       "fields": [
+        {
+          "name": "activeForm",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
         {
           "name": "content",
           "type": "string",
@@ -23960,6 +23974,13 @@
         },
         {
           "name": "busy",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "hasBackgroundWork",
           "type": "boolean",
           "required": false,
           "nullable": false,

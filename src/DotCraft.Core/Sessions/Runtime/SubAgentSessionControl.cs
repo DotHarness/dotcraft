@@ -228,6 +228,15 @@ public static partial class SubAgentSessionControl
     }
 
     private static readonly ConcurrentDictionary<string, RunningChild> RunningChildren = new(StringComparer.Ordinal);
+
+    internal static IEnumerable<string> RunningParentThreadIds() =>
+        RunningChildren.Values.Select(static child => child.ParentThreadId);
+
+    private static void TrackRunningChild(ISessionService sessionService, string childThreadId, RunningChild child)
+    {
+        RunningChildren[childThreadId] = child;
+        sessionService.PublishBackgroundWorkChanged(child.ParentThreadId);
+    }
     private sealed record ResolvedAgentTarget(
         string ThreadId,
         AgentPath Path,

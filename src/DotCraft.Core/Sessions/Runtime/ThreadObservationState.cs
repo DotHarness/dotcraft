@@ -36,7 +36,7 @@ internal sealed class ThreadObservationState
             CreatedAt = plan.CreatedAt, UpdatedAt = plan.UpdatedAt,
             Todos = plan.Todos.Select(todo => new DotCraft.Memory.PlanTodo
             {
-                Id = todo.Id, Content = todo.Content, Priority = todo.Priority, Status = todo.Status
+                Id = todo.Id, Content = todo.Content, Priority = todo.Priority, Status = todo.Status, ActiveForm = todo.ActiveForm
             }).ToList()
         };
 

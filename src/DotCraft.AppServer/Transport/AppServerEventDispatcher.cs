@@ -27,6 +27,7 @@ public sealed class AppServerEventDispatcher
     /// as <c>thread/list</c>. Without it, event-delivered threads fall back to the generic channel icon.
     /// </summary>
     private readonly Func<SessionWireThread, SessionWireThread>? _enrichThreadWire;
+    private readonly ISessionService _sessionService;
 
     /// <param name="events">Event stream to consume.</param>
     /// <param name="connection">Connection state for opt-out filtering and capability checks.</param>
@@ -45,6 +46,7 @@ public sealed class AppServerEventDispatcher
         _transport = transport;
         _streamDebugLogger = streamDebugLogger;
         _enrichThreadWire = enrichThreadWire;
+        _sessionService = sessionService;
         _interactiveRequests = new AppServerInteractiveRequestSender(
             connection,
             transport,
@@ -83,11 +85,15 @@ public sealed class AppServerEventDispatcher
             return;
 
         if (evt.RuntimeSnapshot is { } runtime && CanSendToClient(Contract.AppServerRpc.ThreadStatusChanged.Name))
+        {
+            var wire = runtime.ToWireRuntimeState();
+            wire.HasBackgroundWork = _sessionService.HasBackgroundWork(evt.ThreadId);
             await SendNotificationAsync(Contract.AppServerRpc.ThreadStatusChanged.Name, new Contract.ThreadStatusChangedNotification
             {
                 ThreadId = evt.ThreadId,
-                Runtime = AppServerContractMapper.ToContract(runtime.ToWireRuntimeState())
+                Runtime = AppServerContractMapper.ToContract(wire)
             }, ct);
+        }
 
         switch (evt.EventType)
         {

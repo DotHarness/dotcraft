@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { STANDALONE_CHAT_INSTRUCTIONS } from '../../shared/chatFolders'
+import { TASK_LIST_INSTRUCTIONS, withTaskListInstructions } from '../../shared/taskListInstructions'
 import type {
   ThreadTaskDefaults,
   ThreadTaskReasoningEffort,
@@ -63,7 +64,7 @@ export async function createChildThread(connection: ThreadTaskConnection, spec: 
   }
   const options = spec.options ?? {}
   const workspace = connection.getProjectWorkspace?.()
-  const config: JsonObject = { ...workspace }
+  const config: JsonObject = { ...workspace, developerInstructions: TASK_LIST_INSTRUCTIONS }
   const model = options.model ?? spec.defaults.model
   if (model) {
     config.model = model
@@ -85,7 +86,7 @@ export async function createChildThread(connection: ThreadTaskConnection, spec: 
       'worktree/createAndStart',
       {
         ...params,
-        ...(Object.keys(config).length > 0 ? { config } : {}),
+        config,
         ...(options.baseRef ? { baseRef: options.baseRef } : {}),
         ...(options.branchName ? { branchName: options.branchName } : {}),
         ...(options.environmentPath ? { environmentPath: options.environmentPath } : {}),
@@ -106,9 +107,9 @@ export async function createChildThread(connection: ThreadTaskConnection, spec: 
   if (callerThreadId) params.spawnedFromThreadId = callerThreadId
   if (connection.createChatFolder && !workspace) {
     params.cwd = await connection.createChatFolder(spec.folderSeed)
-    config.developerInstructions = STANDALONE_CHAT_INSTRUCTIONS
+    config.developerInstructions = withTaskListInstructions(STANDALONE_CHAT_INSTRUCTIONS)
   }
-  if (Object.keys(config).length > 0) params.config = config
+  params.config = config
   const result = await connection.request<{ thread?: ChildThreadWire }>('thread/start', params)
   return requireThread(result.thread, 'thread/start')
 }

@@ -36,6 +36,9 @@ public sealed class BackgroundTaskRegistry
             .ToArray();
     }
 
+    public IEnumerable<string> RunningOwnerThreadIds() =>
+        _kinds.Values.SelectMany(static kind => kind.RunningOwnerThreadIds());
+
     /// <summary>
     /// Stops a task and waits a bounded time for it to settle. A task that settles is reported with its
     /// final status and owes no notification; one that does not is reported as <c>stopping</c> and notifies when it ends.

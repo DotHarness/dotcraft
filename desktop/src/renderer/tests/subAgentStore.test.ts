@@ -59,16 +59,13 @@ describe('subagent metadata and shared runtime', () => {
     stop()
   })
 
-  it('derives parent working from a discovered active descendant without changing the idle parent runtime', () => {
+  it('keeps an idle child working while its runtime reports background work', () => {
     store().setChildren(parent, [makeSubAgent()])
-    threads().applyRuntimeSnapshot(childId, runtime(false), { isDesktopOrigin: false })
-    store().setChildren(childId, [makeSubAgent({ childThreadId: 'grandchild', parentThreadId: childId })])
-    threads().applyRuntimeSnapshot('grandchild', runtime(true, 'nested-turn'), { isDesktopOrigin: false })
+    threads().applyRuntimeSnapshot(childId, { ...runtime(false), hasBackgroundWork: true }, { isDesktopOrigin: false })
     expect(isSubAgentChildWorking(child())).toBe(true)
     expect(isSubAgentChildRunning(child())).toBe(false)
     expect(listDesktopPluginSubAgents(parent)[0].state).toBe('working')
-    expect(threads().runtimeSnapshots.get(childId)).toMatchObject({ running: false, busy: false })
-    store().setChildren(childId, [makeSubAgent({ childThreadId: 'grandchild', parentThreadId: childId, status: 'closed' })])
+    threads().applyRuntimeSnapshot(childId, runtime(false), { isDesktopOrigin: false })
     expect(isSubAgentChildWorking(child())).toBe(false)
     expect(listDesktopPluginSubAgents(parent)[0].state).toBe('done')
   })

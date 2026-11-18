@@ -105,7 +105,8 @@ public static partial class SubAgentSessionControl
             CancellationToken.None).ConfigureAwait(false);
 
         var notify = runningChild.Latch.TryClaimNotification();
-        RunningChildren.TryRemove(KeyValuePair.Create(childThreadId, runningChild));
+        if (RunningChildren.TryRemove(KeyValuePair.Create(childThreadId, runningChild)))
+            sessionService.PublishBackgroundWorkChanged(runningChild.ParentThreadId);
         runningChild.Cancellation.Dispose();
         if (!notify)
             return;

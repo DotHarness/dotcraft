@@ -9,7 +9,8 @@ export function normalizeThreadRuntime(runtime: Partial<ThreadRuntimeSnapshot>):
     waitingOnApproval: runtime.waitingOnApproval === true,
     waitingOnInput: runtime.waitingOnInput === true,
     waitingOnPlanConfirmation: runtime.waitingOnPlanConfirmation === true,
-    maintenanceKind: runtime.maintenanceKind ?? null
+    maintenanceKind: runtime.maintenanceKind ?? null,
+    hasBackgroundWork: runtime.hasBackgroundWork === true
   }
 }
 

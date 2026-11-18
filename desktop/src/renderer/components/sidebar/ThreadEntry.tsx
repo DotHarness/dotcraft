@@ -66,6 +66,8 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
   const isSubAgent = isSubAgentThread(thread)
   const subAgentDepth = getSubAgentDepth(thread)
   const hasRunningTurn = runningTurnThreadIds.has(thread.id)
+  const hasBackgroundWork = useThreadStore((s) => s.runtimeSnapshots.get(thread.id)?.hasBackgroundWork === true)
+  const showsRunning = hasRunningTurn || hasBackgroundWork
 
   const [contextMenu, setContextMenu] = useState<ContextMenuPosition | null>(null)
   const [renaming, setRenaming] = useState(false)
@@ -136,7 +138,7 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
     waitingStatus != null && !dropActive && !alreadyBound && anim !== 'success'
   const hasBadgeContent = dropActive || alreadyBound || anim === 'success'
   const showUnreadDot =
-    !hasRunningTurn
+    !showsRunning
     && !isSubAgent
     && thread.status === 'active'
     && isThreadUnread(thread)
@@ -458,7 +460,7 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
             >
               {showPendingInStatus ? (
                 <ThreadWaitingBadge status={waitingStatus} quiet={isActive} />
-              ) : hasRunningTurn ? (
+              ) : showsRunning ? (
                 <span className="dc-status-indicator">
                   <Spinner
                     label={t('threadEntry.turnRunning')}

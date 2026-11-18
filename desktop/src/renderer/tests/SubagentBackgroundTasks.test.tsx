@@ -59,7 +59,7 @@ beforeEach(async () => {
     if (method === 'subagent/children/list') {
       const id = params.parentThreadId === 'root' ? 'child' : params.parentThreadId === 'child' ? 'grandchild' : null
       return { data: id ? [{ edge: { parentThreadId: params.parentThreadId, childThreadId: id, status: 'open', agentNickname: id },
-        thread: { id, runtime: { running: false } } }] : [] }
+        thread: { id, runtime: { running: false, hasBackgroundWork: id === 'child' } } }] : [] }
     }
     if (method === 'terminal/list') return { terminals: params.threadId === 'grandchild' ? [terminal] : [] }
     if (method === 'terminal/stop') return { terminal: { ...terminal, status: 'killed' } }
@@ -85,7 +85,7 @@ describe('Subagent background task tree', () => {
   it('discovers unopened descendants and routes individual controls to their real owners', async () => {
     render(<LocaleProvider loadSettings={false}><Count /><Tasks /></LocaleProvider>)
     const stop = await screen.findByRole('button', { name: 'Stop background terminal' })
-    await waitFor(() => expect(screen.getByRole('status', { name: 'Task count' })).toHaveTextContent('4'))
+    await waitFor(() => expect(screen.getByRole('status', { name: 'Task count' })).toHaveTextContent('3'))
     const child = useSubAgentStore.getState().childrenByParent.get('root')![0]
     expect(isSubAgentChildWorking(child)).toBe(true)
 
@@ -100,6 +100,7 @@ describe('Subagent background task tree', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Stop workflow' }))
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Stop workflow' })).toBeNull())
     expect(request).toHaveBeenCalledWith(source.connectionKey, 'workflow/run/stop', { threadId: 'child', runId: run.runId }, undefined, { connectionId: source.connectionId })
+    act(() => useThreadStore.getState().applyRuntimeSnapshot('child', { running: false, waitingOnApproval: false, waitingOnPlanConfirmation: false }, { isDesktopOrigin: false }))
     expect(screen.getByRole('status', { name: 'Task count' })).toHaveTextContent('0')
     expect(isSubAgentChildWorking(child)).toBe(false)
   })
@@ -113,7 +114,7 @@ describe('Subagent background task tree', () => {
       <section aria-label="Child detail"><SubagentRunningTasks threadId="child" /></section>
     </LocaleProvider>)
     const detail = within(screen.getByRole('region', { name: 'Child detail' }))
-    fireEvent.click(await detail.findByRole('button', { name: '3 running tasks' }))
+    fireEvent.click(await detail.findByRole('button', { name: '2 running tasks' }))
     expect(summary.result.current.popoverOpen).toBe(true)
     act(() => { notify('terminal/completed', { terminal: { ...terminal, status: 'completed' } }) })
     expect(detail.getByRole('button', { name: '1 running task' })).toBeInTheDocument()

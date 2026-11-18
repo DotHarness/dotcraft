@@ -143,6 +143,7 @@ export interface DesktopPluginPlanTodo {
   readonly id: string;
   readonly content: string;
   readonly status: "pending" | "in_progress" | "completed" | "cancelled";
+  readonly activeForm?: string;
 }
 
 export interface DesktopPluginTurnPlan {
@@ -159,6 +160,14 @@ export interface DesktopPluginTurnStatusContext {
   /** The seat stays mounted after the turn ends, so this also tells how it ended. */
   readonly status: "running" | "completed" | "failed" | "cancelled";
   readonly plan: DesktopPluginTurnPlan | null;
+  readonly runningTasks: DesktopPluginTurnRunningTasks;
+}
+
+export interface DesktopPluginTurnRunningTasks {
+  readonly count: number;
+  open(): void;
+  /** Shows the count in this contribution instead of the working line while the handle is live. */
+  claim(): DesktopPluginDispose;
 }
 
 /**

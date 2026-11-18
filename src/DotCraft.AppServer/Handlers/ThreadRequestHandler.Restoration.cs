@@ -199,9 +199,11 @@ internal sealed partial class ThreadRequestHandler
         SessionThread thread, ThreadObservationSnapshot snapshot, CancellationToken ct)
     {
         var wire = await threadProjector.ProjectAsync(thread, false, false, ct);
+        var runtime = snapshot.Runtime.ToWireRuntimeState();
+        runtime.HasBackgroundWork = sessionService.HasBackgroundWork(thread.Id);
         return wire with
         {
-            Runtime = snapshot.Runtime.ToWireRuntimeState(),
+            Runtime = runtime,
             ContextUsage = snapshot.ContextUsage,
             Plan = snapshot.Plan is null ? null : SessionWireMapper.ToWire(snapshot.Plan),
             QueuedInputs = snapshot.QueuedInputs.ToList(),

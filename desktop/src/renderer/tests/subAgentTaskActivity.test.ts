@@ -4,11 +4,8 @@ import { useConnectionStore } from '../stores/connectionStore'
 import { registerThreadConnection, releaseThreadConnection } from '../stores/threadConnectionStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
-import {
-  isSubAgentChildRunning, isSubAgentChildWorking, useSubAgentStore
-} from '../stores/subAgentStore'
+import { isSubAgentChildRunning, useSubAgentStore } from '../stores/subAgentStore'
 import { syncSubAgentTaskActivity, useSubAgentTaskActivity } from '../stores/subAgentTaskActivity'
-import { listDesktopPluginSubAgents, onDesktopPluginSubAgentsChange } from '../plugins/desktopPluginSubAgents'
 import { deferred, makeSubAgent } from './subAgentFixtures'
 
 const parent = 'parent-B'
@@ -36,15 +33,19 @@ function notify(method: string, params: unknown, connectionId = 'A1', connection
   for (const listener of listeners) listener({ method, params, connectionId, connectionKey })
 }
 
-function activity(working: boolean): void {
-  expect(isSubAgentChildWorking(metadata())).toBe(working)
-  expect(listDesktopPluginSubAgents(parent)[0].state).toBe(working ? 'working' : 'done')
+function ownsActivity(): boolean {
+  const { tasksByThread, reconcilingThreads } = useSubAgentTaskActivity.getState()
+  return tasksByThread.has(child) || reconcilingThreads.has(child)
 }
 
-function nextActivity(working: boolean): Promise<void> {
+function activity(active: boolean): void {
+  expect(ownsActivity()).toBe(active)
+}
+
+function nextActivity(active: boolean): Promise<void> {
   return new Promise(resolve => {
-    const stop = onDesktopPluginSubAgentsChange(parent, agents => {
-      if (agents[0]?.state === (working ? 'working' : 'done')) {
+    const stop = useSubAgentTaskActivity.subscribe(() => {
+      if (ownsActivity() === active) {
         stop()
         resolve()
       }

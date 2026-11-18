@@ -110,6 +110,7 @@ public static partial class SubAgentSessionControl
     {
         if (RunningChildren.TryRemove(childThreadId, out var running))
         {
+            sessionService.PublishBackgroundWorkChanged(running.ParentThreadId);
             try
             {
                 await running.Cancellation.CancelAsync();

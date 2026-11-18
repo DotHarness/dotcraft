@@ -1,0 +1,10 @@
+.reply {
+  display: flex;
+  flex-direction: column;
+  gap: var(--conversation-tool-assistant-gap);
+  margin-top: 12px;
+}
+
+.reply:not(:has(> :not(:empty))) {
+  display: none;
+}

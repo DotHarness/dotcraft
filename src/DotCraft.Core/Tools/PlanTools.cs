@@ -38,7 +38,7 @@ public sealed class PlanTools(
             var parsedPlan = PlanMarkdownParser.Parse(plan);
             var todoList = CreateTodos(todos
                 .Where(static todo => !string.IsNullOrWhiteSpace(todo.Content))
-                .Select(static todo => (todo.Content, PlanTodoStatus.Pending)));
+                .Select(static todo => (todo.Content, PlanTodoStatus.Pending, (string?)null)));
 
             var now = DateTimeOffset.UtcNow;
             var existing = await planStore.LoadStructuredPlanAsync(sessionId);
@@ -69,32 +69,11 @@ public sealed class PlanTools(
     }
 
     [Description("""
-        Write the task list for the current session. This is a conditional organizational tool for complex multi-step work, not a default progress tracker. If the task does not genuinely benefit from a list, just do the work directly.
+        Create and update a task list for the current session. The list is rendered to the user as your working plan.
 
-        When to use this tool:
-        - Complex multi-step tasks (3+ genuinely distinct steps)
-        - Non-trivial tasks requiring planning or multiple operations
-        - User provides multiple tasks (numbered or comma-separated)
-        - After initial exploration reveals the scope is larger than first expected
-
-        When NOT to use this tool:
-        - Single, straightforward tasks
-        - Trivial tasks completable in fewer than 3 non-trivial steps
-        - A single obvious change in one well-understood file
-        - Purely conversational or informational requests
-        - Do NOT include operational steps like linting, testing, or searching the codebase as todo items
-
-        Timing:
-        - For non-trivial tasks, gather a minimum of context first (a quick read or search) so items are concrete and file-specific, then create the list before the main implementation work.
-        - A list written from guesses is worse than no list. Prefer one good TodoWrite after brief exploration over an immediate speculative one.
-
-        Each call replaces the whole list, so send every item with its current status. Remove items that no longer apply.
-
-        Rules:
-        - Mark a task in_progress before starting it, and keep only ONE task in_progress at a time
-        - Mark tasks completed IMMEDIATELY after finishing (do not batch completions)
-        - Never mark a task completed while its work is partial or failing
-        - Keep items high-level and actionable
+        - Each todo has `content`, `status`, and `activeForm` (present-tense label shown while in progress).
+        - Send the full list each call. It replaces the previous one.
+        - Keep one item `in_progress` at a time and mark it `completed` when done.
         """)]
     [Tool]
     [ToolPresentation("core.todo", Operation = "todoWrite")]
@@ -122,7 +101,7 @@ public sealed class PlanTools(
                 Title = existing?.Title ?? "",
                 Overview = existing?.Overview ?? "",
                 Content = existing?.Content ?? "",
-                Todos = CreateTodos(todos.Select(static todo => (todo.Content, ToStatus(todo.Status)))),
+                Todos = CreateTodos(todos.Select(static todo => (todo.Content, ToStatus(todo.Status), todo.ActiveForm))),
                 CreatedAt = existing?.CreatedAt ?? now,
                 UpdatedAt = now
             };
@@ -138,13 +117,14 @@ public sealed class PlanTools(
         }
     }
 
-    private static List<PlanTodo> CreateTodos(IEnumerable<(string Content, string Status)> todos) =>
+    private static List<PlanTodo> CreateTodos(IEnumerable<(string Content, string Status, string? ActiveForm)> todos) =>
         [.. todos.Select(static (todo, index) => new PlanTodo
         {
             Id = $"todo-{index + 1}",
             Content = todo.Content.Trim(),
             Priority = PlanTodoPriority.Medium,
-            Status = todo.Status
+            Status = todo.Status,
+            ActiveForm = string.IsNullOrWhiteSpace(todo.ActiveForm) ? null : todo.ActiveForm.Trim()
         })];
 
     private static string ToStatus(PlanTodoInputStatus status) => status switch
@@ -313,4 +293,5 @@ public sealed class TodoWriteInput
 {
     public required string Content { get; set; }
     public required PlanTodoInputStatus Status { get; set; }
+    public string? ActiveForm { get; set; }
 }

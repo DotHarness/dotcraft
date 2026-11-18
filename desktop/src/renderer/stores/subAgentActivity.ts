@@ -9,14 +9,13 @@ export interface ActivitySources {
   reconciling: ReadonlySet<string>
 }
 
-export function childIsWorking(child: SubAgentChild, sources: ActivitySources, visited = new Set<string>()): boolean {
-  if (isSubAgentChildClosed(child) || visited.has(child.childThreadId)) return false
-  visited.add(child.childThreadId)
-  return sources.runtimes.get(child.childThreadId)?.running === true
+export function childIsWorking(child: SubAgentChild, sources: ActivitySources): boolean {
+  if (isSubAgentChildClosed(child)) return false
+  const runtime = sources.runtimes.get(child.childThreadId)
+  return runtime?.running === true
+    || runtime?.hasBackgroundWork === true
     || (child.isPlaceholder === true && !isTerminalSubAgentStatus(child.status))
-    || sources.tasks.has(child.childThreadId)
     || sources.reconciling.has(child.childThreadId)
-    || (sources.graph.get(child.childThreadId) ?? []).some(next => childIsWorking(next, sources, visited))
 }
 
 export function subAgentDescendants(graph: ActivitySources['graph'], threadId: string): SubAgentChild[] {

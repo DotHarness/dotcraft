@@ -172,15 +172,16 @@ public sealed class PlanToolsTests
 
             _ = await tools.TodoWrite([
                 new TodoWriteInput { Content = "Add metrics", Status = PlanTodoInputStatus.Completed },
-                new TodoWriteInput { Content = "Expose cache hit rate", Status = PlanTodoInputStatus.InProgress }
+                new TodoWriteInput { Content = "Expose cache hit rate", Status = PlanTodoInputStatus.InProgress, ActiveForm = "Exposing cache hit rate" }
             ]);
 
             var plan = await store.LoadStructuredPlanAsync(sessionId);
             Assert.NotNull(plan);
             Assert.Equal("Cache plan", plan.Title);
             Assert.Equal(
-                [("todo-1", "Add metrics", PlanTodoStatus.Completed), ("todo-2", "Expose cache hit rate", PlanTodoStatus.InProgress)],
-                plan.Todos.Select(static todo => (todo.Id, todo.Content, todo.Status)));
+                [("todo-1", "Add metrics", PlanTodoStatus.Completed, (string?)null),
+                    ("todo-2", "Expose cache hit rate", PlanTodoStatus.InProgress, "Exposing cache hit rate")],
+                plan.Todos.Select(static todo => (todo.Id, todo.Content, todo.Status, todo.ActiveForm)));
             Assert.Equal(
                 "Error: todos[0].content is required.",
                 await tools.TodoWrite([new TodoWriteInput { Content = " ", Status = PlanTodoInputStatus.Pending }]));
