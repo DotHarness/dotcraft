@@ -2,7 +2,7 @@ import { useEffect, useState, type JSX } from 'react'
 
 import { useT } from '../../../../contexts/LocaleContext'
 import { useConnectionStore } from '../../../../stores/connectionStore'
-import { operationFailureMessage, usePluginStore, type PluginEntry } from '../../../../stores/pluginStore'
+import { findPluginEntry, operationFailureMessage, usePluginStore, type PluginEntry } from '../../../../stores/pluginStore'
 import { useSkillsStore } from '../../../../stores/skillsStore'
 import { addToast } from '../../../../stores/toastStore'
 import { useUIStore } from '../../../../stores/uiStore'
@@ -46,8 +46,8 @@ export function ComputerUsePanel({
   const [chromeInstalling, setChromeInstalling] = useState(false)
   const [busyPluginId, setBusyPluginId] = useState<string | null>(null)
 
-  const computerPlugin = isWindows ? plugins.find((plugin) => plugin.id === COMPUTER_PLUGIN_ID) ?? null : null
-  const chromePlugin = plugins.find((plugin) => plugin.id === CHROME_PLUGIN_ID) ?? null
+  const computerPlugin = isWindows ? findPluginEntry(plugins, COMPUTER_PLUGIN_ID) ?? null : null
+  const chromePlugin = findPluginEntry(plugins, CHROME_PLUGIN_ID) ?? null
   const chromeInstalled = chromePlugin?.installed === true
 
   useEffect(() => {
@@ -74,7 +74,7 @@ export function ComputerUsePanel({
       await fetchPlugins()
       showPluginInstalledToast(plugin, { message: t('plugins.installSuccess', { name: pluginTitle(plugin) }) })
     }
-    const current = usePluginStore.getState().plugins.find((entry) => entry.id === plugin.id) ?? plugin
+    const current = findPluginEntry(usePluginStore.getState().plugins, plugin.id) ?? plugin
     if (!current.installed) {
       addToast(t('plugins.installFailed'), 'error')
       return false

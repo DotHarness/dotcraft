@@ -8,7 +8,7 @@ import type {
 import type { SettingsTab } from '../types/settings'
 import { useUIStore } from './uiStore'
 import { useThreadStore } from './threadStore'
-import { usePluginStore } from './pluginStore'
+import { findPluginEntry, usePluginStore } from './pluginStore'
 import { useSkillsStore } from './skillsStore'
 import { useAutomationsStore } from './automationsStore'
 import { useDetailPanelStore, type ActiveDetailTab } from './detailPanelStore'
@@ -157,10 +157,10 @@ export function captureAppNavigationLocation(): AppNavigationLocation {
   }
 
   if (ui.activeMainView === 'skills') {
-    const pluginId = usePluginStore.getState().selectedPluginId
+    const pluginKey = usePluginStore.getState().selectedPluginKey
     const skillName = useSkillsStore.getState().selectedSkillName
     const selection = ui.pluginCatalogSurface === 'plugins'
-      ? pluginId ? { kind: 'plugin' as const, id: pluginId } : null
+      ? pluginKey ? { kind: 'plugin' as const, id: pluginKey } : null
       : skillName ? { kind: 'skill' as const, id: skillName } : null
     return { kind: 'catalog', surface: ui.pluginCatalogSurface, selection }
   }
@@ -288,7 +288,7 @@ function normalizeLocation(location: AppNavigationLocation): AppNavigationLocati
 
   if (location.kind === 'catalog' && location.selection) {
     if (location.selection.kind === 'plugin') {
-      const exists = usePluginStore.getState().plugins.some((plugin) => plugin.id === location.selection?.id)
+      const exists = findPluginEntry(usePluginStore.getState().plugins, location.selection.id) != null
       return exists ? location : { ...location, selection: null }
     }
     const exists = useSkillsStore.getState().skills.some((skill) => skill.name === location.selection?.id)

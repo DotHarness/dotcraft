@@ -391,8 +391,13 @@ public sealed partial class AppServerPluginManagementTests
             diagnostic.GetProperty("parameters").GetProperty("assemblyPath").GetString());
     }
 
-    private static JsonElement FindPlugin(JsonElement listResult, string id) =>
-        Assert.Single(
-            listResult.GetProperty("plugins").EnumerateArray(),
-            item => item.GetProperty("id").GetString() == id);
+    internal static JsonElement FindPlugin(JsonElement listResult, string id)
+    {
+        var entries = listResult.GetProperty("plugins").EnumerateArray()
+            .Where(item => item.GetProperty("id").GetString() == id)
+            .ToArray();
+        return entries.Length == 1
+            ? entries[0]
+            : Assert.Single(entries, item => item.TryGetProperty("installed", out var installed) && installed.GetBoolean());
+    }
 }

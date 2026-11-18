@@ -429,6 +429,13 @@ public sealed class MarketplaceManager
         MarketplaceSource source,
         string marketplacePath)
     {
+        if (string.Equals(name, PluginIds.BundledMarketplace, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new MarketplaceException(
+                MarketplaceErrorCodes.NameConflict,
+                $"Marketplace name '{name}' is reserved for bundled plugins.");
+        }
+
         var existing = configured.FirstOrDefault(entry => IsSameName(entry, name));
         if (existing == null
             || MatchesSource(existing, source, marketplacePath)

@@ -26,7 +26,10 @@ public sealed class BuiltInPluginCatalog(
                 Installed: false,
                 Installable: true,
                 Removable: false,
-                MarketplaceName: source.MarketplaceName))
+                MarketplaceName: source.MarketplaceName)
+            {
+                Key = source.Key
+            })
             .ToArray();
 
         return new PluginDiscoveryResult(plugins, diagnostics);

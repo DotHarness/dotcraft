@@ -1923,6 +1923,7 @@ export const MESSAGES_DE = {
   'plugins.unavailable': 'Dieser AppServer unterstützt keine Plugin-Verwaltung.',
   'plugins.updateFailed': 'Plugin konnte nicht aktualisiert werden',
   'plugins.install': 'Installieren',
+  'plugins.installedFromOtherSource': 'Aus einer anderen Quelle installiert',
   'plugins.installSuccess': '{{name}} für alle Arbeitsbereiche installiert',
   'plugins.installFailed': 'Plugin konnte nicht installiert werden',
   'plugins.tryInChat': 'Versuchen Sie es im Chat',

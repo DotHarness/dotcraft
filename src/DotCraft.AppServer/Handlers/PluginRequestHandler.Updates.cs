@@ -20,8 +20,9 @@ internal sealed partial class PluginRequestHandler
             workspaceConfig.UserDataPath);
         var pending = deployer.GetPendingUpdates(diagnostics, marketplaceName);
         var changed = false;
-        foreach (var pluginId in pending)
+        foreach (var pluginKey in pending)
         {
+            var pluginId = PluginIds.IdFromKey(pluginKey);
             var quiesceFailure = await QuiesceRootBackedContributionsAsync(pluginId, ct).ConfigureAwait(false);
             if (quiesceFailure != null)
             {
@@ -31,7 +32,7 @@ internal sealed partial class PluginRequestHandler
 
             try
             {
-                var deployment = deployer.DeployPlugin(pluginId);
+                var deployment = deployer.DeployPlugin(pluginKey);
                 diagnostics.AddRange(deployment);
                 changed |= !deployment.Any(diagnostic => IsBlockingDeployDiagnosticForPlugin(diagnostic, pluginId));
             }

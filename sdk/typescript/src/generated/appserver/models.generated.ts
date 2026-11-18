@@ -2884,6 +2884,7 @@ export interface PluginInfo {
   installable?: boolean;
   installed?: boolean;
   interface?: PluginInterface | null;
+  key?: string;
   lspServers?: PluginLspServerInfo[];
   marketplaceName?: string | null;
   mcpServers?: PluginMcpServerInfo[];
@@ -2903,6 +2904,7 @@ export interface PluginInstallLocalParams {
 
 export interface PluginInstallParams {
   id?: string;
+  marketplaceName?: string | null;
   [key: string]: unknown;
 }
 
@@ -3011,6 +3013,7 @@ export interface PluginSkillInfo {
 
 export interface PluginSkillReadParams {
   id: string;
+  marketplaceName?: string | null;
   name: string;
   [key: string]: unknown;
 }
@@ -3030,6 +3033,7 @@ export interface PluginSnapshotUpdatedNotification {
 
 export interface PluginViewParams {
   id?: string;
+  marketplaceName?: string | null;
   [key: string]: unknown;
 }
 

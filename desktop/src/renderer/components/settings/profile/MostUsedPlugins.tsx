@@ -1,6 +1,6 @@
 import { useEffect, type JSX } from 'react'
 import type { MessageKey } from '../../../../shared/locales'
-import { usePluginStore, type PluginEntry } from '../../../stores/pluginStore'
+import { findPluginEntry, usePluginStore, type PluginEntry } from '../../../stores/pluginStore'
 import type { SkillUsageWire } from '../../../stores/profileStore'
 import { useSkillsStore, type SkillEntry } from '../../../stores/skillsStore'
 import { useUIStore } from '../../../stores/uiStore'
@@ -77,7 +77,7 @@ function usageIconUrl(
   plugins: PluginEntry[],
   skills: SkillEntry[]
 ): string | null {
-  const plugin = usage.pluginId ? plugins.find((entry) => entry.id === usage.pluginId) : undefined
+  const plugin = usage.pluginId ? findPluginEntry(plugins, usage.pluginId) : undefined
   const skill = skills.find((entry) => entry.name === usage.name)
   return (plugin && pluginIconUrl(plugin)) || skill?.iconSmallDataUrl || skill?.iconLargeDataUrl || null
 }

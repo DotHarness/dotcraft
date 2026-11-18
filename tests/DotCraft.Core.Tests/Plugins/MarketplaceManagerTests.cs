@@ -103,6 +103,19 @@ public sealed class MarketplaceManagerTests
     }
 
     [Fact]
+    public async Task AddAsync_RejectsTheBundledMarketplaceName()
+    {
+        var sourceRoot = NewTempDir();
+        WriteMarketplace(sourceRoot, PluginIds.BundledMarketplace);
+        var manager = NewManager(NewTempDir(), new FakeGitFetcher(_ => throw new InvalidOperationException("must not fetch")));
+
+        var error = await Assert.ThrowsAsync<MarketplaceException>(
+            () => manager.AddAsync(new MarketplaceAddRequest(sourceRoot), CancellationToken.None));
+
+        Assert.Equal(MarketplaceErrorCodes.NameConflict, error.Code);
+    }
+
+    [Fact]
     public async Task Remove_DropsConfiguredEntryAndMaterializedRoot()
     {
         var craftHome = NewTempDir();
@@ -257,7 +270,7 @@ public sealed class MarketplaceManagerTests
             PluginsConfigPersistence.ReadPluginRegistries(ConfigPath(craftHome)));
         var userPlugins = Path.Combine(craftHome, "plugins");
         Assert.DoesNotContain(
-            new BuiltInPluginDeployer(userPlugins, [], config.Plugins, craftHome).DeployPlugin("example-plugin"),
+            new BuiltInPluginDeployer(userPlugins, [], config.Plugins, craftHome).DeployPlugin("example-plugin@example-marketplace"),
             diagnostic => diagnostic.Severity == PluginDiagnosticSeverity.Error);
         WritePlugin(Path.Combine(userPlugins, "owned-plugin"), "owned-plugin");
         var workspace = NewTempDir();

@@ -11,17 +11,33 @@ namespace DotCraft.AppServer;
 /// <summary>Projects discovered plugins and the .NET runtime snapshot onto the plugin management wire types.</summary>
 internal sealed partial class PluginRequestHandler
 {
+    // Id-keyed diagnostics, runtime state, and summaries belong to the entry in Plugins, not to these extra entries.
+    private Contract.PluginInfo MapAdditionalCatalogEntryToWire(
+        DiscoveredPlugin plugin,
+        IReadOnlyDictionary<string, SkillsLoader.SkillInfo>? skillIndex = null) =>
+        MapPluginToWire(
+            plugin,
+            [],
+            new Dictionary<string, IReadOnlyList<PluginHookDeclaration>>(),
+            new Dictionary<string, IReadOnlyList<PluginMcpServerSummary>>(),
+            new Dictionary<string, IReadOnlyList<PluginLspServerSummary>>(),
+            skillIndex ?? BuildSkillIndex(),
+            representsId: false);
+
     private Contract.PluginInfo MapPluginToWire(
         DiscoveredPlugin plugin,
         IReadOnlyList<PluginDiagnostic> diagnostics,
         IReadOnlyDictionary<string, IReadOnlyList<PluginHookDeclaration>> hookSummaries,
         IReadOnlyDictionary<string, IReadOnlyList<PluginMcpServerSummary>> mcpSummaries,
         IReadOnlyDictionary<string, IReadOnlyList<PluginLspServerSummary>> lspSummaries,
-        IReadOnlyDictionary<string, SkillsLoader.SkillInfo> skillIndex)
+        IReadOnlyDictionary<string, SkillsLoader.SkillInfo> skillIndex,
+        bool representsId = true)
     {
         var manifest = plugin.Manifest;
-        var runtime = dotnetRuntime?.Snapshot.Plugins.FirstOrDefault(candidate =>
-            PluginIds.EqualsCanonical(candidate.PluginId, manifest.Id));
+        var runtime = representsId
+            ? dotnetRuntime?.Snapshot.Plugins.FirstOrDefault(candidate =>
+                PluginIds.EqualsCanonical(candidate.PluginId, manifest.Id))
+            : null;
         var appDiagnostics = new List<PluginDiagnostic>();
         var apps = MapPluginAppsToWire(plugin, appDiagnostics);
         var pluginDiagnostics = diagnostics
@@ -32,6 +48,7 @@ internal sealed partial class PluginRequestHandler
         return new Contract.PluginInfo
         {
             Id = manifest.Id,
+            Key = plugin.Key,
             DisplayName = manifest.Interface?.DisplayName ?? manifest.DisplayName,
             Description = OmitIfNull(manifest.Interface?.ShortDescription ?? manifest.Description),
             Version = OmitIfNull(manifest.Version),

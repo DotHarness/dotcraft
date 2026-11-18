@@ -533,7 +533,7 @@ Check `capabilities.skillsManagement` before calling `skills/*`, `capabilities.p
 
 Plugin lifecycle separates installation from enablement:
 
-- `plugin/install`: installs an installable catalog plugin into `<craft-home>/plugins/<id>`, so it is available in every workspace, and enables it by default. Catalog entries can come from Desktop or a configured marketplace.
+- `plugin/install`: installs an installable catalog plugin into `<craft-home>/plugins/<id>`, so it is available in every workspace, and enables it by default. Catalog entries can come from Desktop or a configured marketplace. Pass `marketplaceName` with `id` to choose which entry to install when several sources offer the same plugin, using `dotcraft-bundled` for the bundled entry; `plugin/view` and `plugin/skill/read` accept it the same way.
 - `plugin/installLocal`: copies a valid local plugin directory into `<craft-home>/plugins/<id>` and enables it by default.
 - `plugin/setEnabled`: only controls whether an installed plugin enters the Agent context in the current workspace. It writes the workspace's `Plugins.DisabledPlugins` and does not install or delete plugin files.
 - `plugin/setTrusted`: grants or revokes execution trust for the server-accepted id and .NET fingerprint. The client selects the plugin, not an arbitrary fingerprint.
@@ -578,7 +578,7 @@ Removing a marketplace does not uninstall plugins already installed. A successfu
 
 #### Marketplace metadata
 
-`plugin/list` returns `marketplaces: MarketplaceInfo[]`. Marketplace-sourced plugin entries include `marketplaceName`.
+`plugin/list` returns `marketplaces: MarketplaceInfo[]`. Marketplace-sourced plugin entries include `marketplaceName`. Every entry has a unique `key`: `<id>@<marketplaceName>` for marketplace entries, `<id>@dotcraft-bundled` for plugins bundled with Desktop, and the plugin id for plugins you installed yourself, so two sources that offer the same plugin each list their own entry. Use `key` to identify list rows and `id` for plugin operations.
 
 | `MarketplaceInfo` field | Type | Description |
 |---|---|---|

@@ -1923,6 +1923,7 @@ export const MESSAGES_FR = {
   'plugins.unavailable': 'Ce AppServer ne prend pas en charge la gestion des plugins.',
   'plugins.updateFailed': 'Échec de la mise à jour du plugin',
   'plugins.install': 'Installer',
+  'plugins.installedFromOtherSource': 'Installé depuis une autre source',
   'plugins.installSuccess': '{{name}} installé pour tous les espaces de travail',
   'plugins.installFailed': 'Échec de l\'installation du plugin',
   'plugins.tryInChat': 'Essayez dans une discussion',

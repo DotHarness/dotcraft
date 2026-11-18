@@ -99,6 +99,9 @@
         }
       ]
     },
+    "key": {
+      "type": "string"
+    },
     "lspServers": {
       "type": "array",
       "items": {

@@ -532,7 +532,7 @@ App Binding 客户端通过 `capabilities.appBindingVersion: 1` 协商版本。�
 
 插件生命周期把安装状态和启用状态分开：
 
-- `plugin/install`：把可安装目录中的插件安装到 `<craft-home>/plugins/<id>`，所有工作区都可用，并默认启用。目录项可来自 Desktop 或已配置的市场。
+- `plugin/install`：把可安装目录中的插件安装到 `<craft-home>/plugins/<id>`，所有工作区都可用，并默认启用。目录项可来自 Desktop 或已配置的市场。多个来源提供同一插件时，随 `id` 传入 `marketplaceName` 选择要安装的目录项，内置目录项使用 `dotcraft-bundled`；`plugin/view` 和 `plugin/skill/read` 同样接受该参数。
 - `plugin/installLocal`：把有效的本地插件目录复制到 `<craft-home>/plugins/<id>`，并默认启用。
 - `plugin/setEnabled`：只切换已安装插件在当前工作区是否进入 Agent 上下文。它写入工作区的 `Plugins.DisabledPlugins`，不安装也不删除目录。
 - `plugin/setTrusted`：授予或撤销 server 已接受的 plugin id 与 .NET fingerprint 的执行信任。Client 选择插件，而不能任意指定 fingerprint。
@@ -577,7 +577,7 @@ Marketplace 方法管理插件目录来源。添加市场不会安装其中的�
 
 #### 市场元数据
 
-`plugin/list` 返回 `marketplaces: MarketplaceInfo[]`。来自市场的插件条目包含 `marketplaceName`。
+`plugin/list` 返回 `marketplaces: MarketplaceInfo[]`。来自市场的插件条目包含 `marketplaceName`。每个条目都有唯一的 `key`：市场条目为 `<id>@<marketplaceName>`，Desktop 内置插件为 `<id>@dotcraft-bundled`，自行安装的插件为插件 id，因此多个来源提供同一插件时会各自列出。用 `key` 标识列表行，用 `id` 执行插件操作。
 
 | `MarketplaceInfo` 字段 | 类型 | 说明 |
 |---|---|---|

@@ -7,6 +7,16 @@
     "id": {
       "type": "string"
     },
+    "marketplaceName": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "name": {
       "type": "string"
     }

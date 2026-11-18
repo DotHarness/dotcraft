@@ -36,7 +36,7 @@ describe('App initial workspace status bootstrap', () => {
       diagnostics: [],
       loading: false,
       error: null,
-      selectedPluginId: null,
+      selectedPluginKey: null,
       selectedPlugin: null,
       detailLoading: false
     })

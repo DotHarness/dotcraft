@@ -16,7 +16,7 @@ export function ImportedPluginTrust({ pluginIds, onDone }: { pluginIds: string[]
   }, [])
 
   const current = loaded
-    ? queue.map((id) => plugins.find((plugin) => plugin.id.toLowerCase() === id)).find((plugin) => plugin != null && needsTrust(plugin))
+    ? queue.map((id) => plugins.find((plugin) => plugin.installed && plugin.id.toLowerCase() === id)).find((plugin) => plugin != null && needsTrust(plugin))
     : undefined
 
   useEffect(() => {

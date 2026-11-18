@@ -212,7 +212,7 @@ internal sealed partial class PluginRequestHandler
             LastUpdated = OmitIfNull(entry.LastUpdated),
             Revision = OmitIfNull(entry.Revision),
             Removable = entry.Removable,
-            PluginIds = discovery.Plugins
+            PluginIds = discovery.CatalogEntries
                 .Where(plugin => string.Equals(plugin.MarketplaceName, entry.Name, StringComparison.OrdinalIgnoreCase))
                 .Select(plugin => plugin.Manifest.Id)
                 .Distinct(StringComparer.OrdinalIgnoreCase)

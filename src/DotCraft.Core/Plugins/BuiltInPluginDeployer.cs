@@ -17,19 +17,17 @@ public sealed class BuiltInPluginDeployer(
     string? userDataPath = null,
     ILogger? logger = null)
 {
-    public const string MarkerFile = ".builtin";
+    public const string MarkerFile = ManagedPluginMarker.FileName;
 
     public IReadOnlyList<PluginDiagnostic> Deploy()
-        => DeployCore(targetPluginIds: null);
+        => DeployCore(targetKeys: null);
 
-    public IReadOnlyList<PluginDiagnostic> DeployPlugin(string pluginId)
-        => DeployPlugins([pluginId]);
+    public IReadOnlyList<PluginDiagnostic> DeployPlugin(string pluginKey)
+        => DeployPlugins([pluginKey]);
 
-    public IReadOnlyList<PluginDiagnostic> DeployPlugins(IReadOnlyCollection<string> pluginIds)
+    public IReadOnlyList<PluginDiagnostic> DeployPlugins(IReadOnlyCollection<string> pluginKeys)
     {
-        var targets = pluginIds
-            .Select(PluginIds.Canonicalize)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var targets = pluginKeys.ToHashSet(StringComparer.OrdinalIgnoreCase);
         return targets.Count == 0 ? [] : DeployCore(targets);
     }
 
@@ -47,8 +45,18 @@ public sealed class BuiltInPluginDeployer(
                 continue;
 
             var targetRoot = Path.Combine(pluginsPath, source.Manifest.Id);
-            var markerPath = Path.Combine(targetRoot, MarkerFile);
-            if (!File.Exists(markerPath))
+            ManagedPluginMarker? marker;
+            try
+            {
+                marker = ManagedPluginMarker.Read(targetRoot);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                diagnostics.Add(DeploymentFailure(source.Manifest.Id, targetRoot, "check", exception));
+                continue;
+            }
+
+            if (marker == null || !PluginIds.KeysEqual(PluginIds.Key(source.Manifest.Id, marker.MarketplaceName), source.Key))
                 continue;
 
             var installed = PluginManifestParser.Load(targetRoot);
@@ -56,15 +64,8 @@ public sealed class BuiltInPluginDeployer(
             if (installed.Manifest == null || installed.Manifest.Dotnet != null || source.Manifest.Dotnet != null)
                 continue;
 
-            try
-            {
-                if (!string.Equals(File.ReadAllText(markerPath).Trim(), BuildMarkerText(source.PluginRoot), StringComparison.Ordinal))
-                    pending.Add(source.Manifest.Id);
-            }
-            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-            {
-                diagnostics.Add(DeploymentFailure(source.Manifest.Id, targetRoot, "check", exception));
-            }
+            if (marker != BuildMarker(source))
+                pending.Add(source.Key);
         }
 
         return pending;
@@ -73,7 +74,7 @@ public sealed class BuiltInPluginDeployer(
     public static bool IsManagedBuiltInPluginRoot(string pluginRoot) =>
         File.Exists(Path.Combine(pluginRoot, MarkerFile));
 
-    private IReadOnlyList<PluginDiagnostic> DeployCore(IReadOnlySet<string>? targetPluginIds)
+    private IReadOnlyList<PluginDiagnostic> DeployCore(IReadOnlySet<string>? targetKeys)
     {
         var identity = Path.GetFullPath(pluginsPath);
         if (OperatingSystem.IsWindows()) identity = identity.ToUpperInvariant();
@@ -85,7 +86,7 @@ public sealed class BuiltInPluginDeployer(
         {
             logger?.LogInformation("Startup stage {Stage} completed in {ElapsedMs}ms",
                 "plugin-deploy-mutex-wait", timer.Elapsed.TotalMilliseconds);
-            return DeployCoreLocked(targetPluginIds);
+            return DeployCoreLocked(targetKeys);
         }
         finally
         {
@@ -93,7 +94,7 @@ public sealed class BuiltInPluginDeployer(
         }
     }
 
-    private IReadOnlyList<PluginDiagnostic> DeployCoreLocked(IReadOnlySet<string>? targetPluginIds)
+    private IReadOnlyList<PluginDiagnostic> DeployCoreLocked(IReadOnlySet<string>? targetKeys)
     {
         var timer = Stopwatch.StartNew();
         var fingerprintMs = 0d;
@@ -108,14 +109,14 @@ public sealed class BuiltInPluginDeployer(
             userDataPath);
         logger?.LogInformation("Startup stage {Stage} completed in {ElapsedMs}ms",
             "plugin-deploy-source-discovery", timer.Elapsed.TotalMilliseconds);
-        var pending = targetPluginIds == null
+        var pending = targetKeys == null
             ? null
-            : new HashSet<string>(targetPluginIds, StringComparer.OrdinalIgnoreCase);
+            : new HashSet<string>(targetKeys, StringComparer.OrdinalIgnoreCase);
 
         Directory.CreateDirectory(pluginsPath);
         foreach (var source in sources)
         {
-            if (pending != null && !pending.Remove(PluginIds.Canonicalize(source.Manifest.Id)))
+            if (pending != null && !pending.Remove(source.Key))
                 continue;
 
             var pluginId = source.Manifest.Id;
@@ -133,18 +134,27 @@ public sealed class BuiltInPluginDeployer(
 
             try
             {
-                timer.Restart();
-                var markerText = BuildMarkerText(source.PluginRoot);
-                fingerprintMs += timer.Elapsed.TotalMilliseconds;
-                fingerprintCount++;
-                if (File.Exists(markerPath)
-                    && string.Equals(File.ReadAllText(markerPath).Trim(), markerText, StringComparison.Ordinal))
+                var installedMarker = ManagedPluginMarker.Read(pluginDir);
+                if (installedMarker != null
+                    && !PluginIds.KeysEqual(PluginIds.Key(pluginId, installedMarker.MarketplaceName), source.Key))
                 {
+                    diagnostics.Add(PluginDiagnostic.Error(
+                        "PluginInstalledFromOtherSource",
+                        $"Plugin '{pluginId}' is already installed from another source. Remove it before installing '{source.Key}'.",
+                        pluginId,
+                        path: pluginDir));
                     continue;
                 }
 
                 timer.Restart();
-                ReplacePluginDirectory(source.PluginRoot, pluginDir, markerText);
+                var marker = BuildMarker(source);
+                fingerprintMs += timer.Elapsed.TotalMilliseconds;
+                fingerprintCount++;
+                if (installedMarker == marker)
+                    continue;
+
+                timer.Restart();
+                ReplacePluginDirectory(source.PluginRoot, pluginDir, marker.Format());
                 replaceMs += timer.Elapsed.TotalMilliseconds;
                 replaceCount++;
             }
@@ -154,12 +164,12 @@ public sealed class BuiltInPluginDeployer(
             }
         }
 
-        foreach (var missing in (pending ?? []).OrderBy(id => id, StringComparer.Ordinal))
+        foreach (var missing in (pending ?? []).OrderBy(key => key, StringComparer.Ordinal))
         {
             diagnostics.Add(PluginDiagnostic.Warning(
                 "BuiltInPluginNotFound",
                 $"Built-in plugin '{missing}' was not found.",
-                missing));
+                PluginIds.IdFromKey(missing)));
         }
 
         logger?.LogInformation(
@@ -249,7 +259,10 @@ public sealed class BuiltInPluginDeployer(
         }
     }
 
-    private static string BuildMarkerText(string sourceRoot)
+    private static ManagedPluginMarker BuildMarker(BuiltInPluginSource source) =>
+        new(BuildFingerprint(source.PluginRoot), source.MarketplaceName);
+
+    private static string BuildFingerprint(string sourceRoot)
     {
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         foreach (var sourceFile in Directory.GetFiles(sourceRoot, "*", SearchOption.AllDirectories)

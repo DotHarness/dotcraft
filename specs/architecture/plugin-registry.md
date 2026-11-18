@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.12.1 |
+| **Version** | 0.13.0 |
 | **Status** | Draft |
-| **Date** | 2026-11-16 |
+| **Date** | 2026-11-18 |
 
 Purpose: define the product and process contract for DotCraft plugin marketplaces. A marketplace lets DotCraft discover installable external integration plugins without bundling every integration in the DotCraft Desktop release package, and lets users and organizations add their own plugin sources.
 
@@ -132,7 +132,7 @@ Rules:
 3. If a configured entry already matches the same kind, source, reference, and sparse paths, and its root still contains a valid marketplace document, report the marketplace as already added and do not fetch.
 4. For a local source, validate the directory in place and read the marketplace name from it.
 5. For a git source, fetch into a staging directory, validate the marketplace document, and read the marketplace name from it.
-6. Reject a marketplace whose name is already configured from a different repository or directory. The existing marketplace must be removed first. Re-adding the same repository or directory at another reference or sparse path set re-points the existing marketplace instead of failing.
+6. Reject a marketplace named `dotcraft-bundled`, which bundled plugin keys reserve, or whose name is already configured from a different repository or directory. The existing marketplace must be removed first. Re-adding the same repository or directory at another reference or sparse path set re-points the existing marketplace instead of failing.
 7. For a git source, atomically replace the installed root for that name with the staged content.
 8. Record the entry in user-global configuration, including the resolved source, reference, sparse paths, the update timestamp, and the resolved revision when the source kind provides one.
 9. Refresh plugin discovery so the marketplace plugins appear as installable catalog entries.
@@ -202,8 +202,10 @@ Each configured source contributes at most one diagnostic per discovery pass. A 
 
 ## 8. Precedence
 
-Source precedence and duplicate plugin identity follow [Plugin Architecture](plugin-architecture.md).
-Marketplaces participate in configured source order. `Plugins.DisableDefaultPluginRegistry` disables
+Source precedence and plugin keys follow [Plugin Architecture](plugin-architecture.md#27-plugin-keys).
+Each marketplace lists its own entries under `<id>@<marketplace>`, so two marketplaces offering the
+same plugin id never hide each other. Discovery skips a configured source whose marketplace name is
+`dotcraft-bundled` with a warning, because bundled plugin keys reserve it. Marketplaces participate in configured source order. `Plugins.DisableDefaultPluginRegistry` disables
 the host-provided default source for private or organization-only deployments.
 
 ## 9. Plugin Install Lifecycle
@@ -214,11 +216,12 @@ Installing a marketplace plugin must:
 
 - resolve the marketplace entry to a marketplace-local plugin directory;
 - validate the plugin manifest id against the marketplace entry name;
+- reject the install when the plugin id is already installed from another plugin key or by a user-owned plugin;
 - copy the plugin directory to the user-global root at `<craft-home>/plugins/<pluginName>`;
-- write a managed marker for DotCraft-owned refresh/removal behavior;
+- write a managed marker recording the marketplace it came from, for DotCraft-owned refresh/removal behavior;
 - refresh plugin-contributed skills, apps, MCP/LSP servers, and Desktop module metadata through the normal plugin runtime.
 
-User-owned plugins without a managed marker are never overwritten by marketplace install or refresh.
+User-owned plugins without a managed marker are never overwritten by marketplace install or refresh. Refresh updates a managed install only from the marketplace recorded in its marker, so another marketplace offering the same plugin id never replaces it.
 
 ## 10. Security and Trust Boundaries
 

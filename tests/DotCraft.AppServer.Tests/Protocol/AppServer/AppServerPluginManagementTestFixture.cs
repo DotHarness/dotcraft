@@ -245,10 +245,7 @@ public sealed partial class AppServerPluginManagementTests : IDisposable
     private static async Task<System.Text.Json.JsonElement> ReadBrowserRuntimeAsync(AppServerTestHarness harness)
     {
         var result = await ReadPluginListResultAsync(harness);
-        var plugin = Assert.Single(
-            result.GetProperty("plugins").EnumerateArray(),
-            item => item.GetProperty("id").GetString() == "browser");
-        return plugin.GetProperty("dotnetRuntime");
+        return FindPlugin(result, "browser").GetProperty("dotnetRuntime");
     }
 
     private static async Task<long> ReadListRevisionAsync(AppServerTestHarness harness) =>
