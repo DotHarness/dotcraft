@@ -261,7 +261,9 @@ internal sealed class ThreadObservationState
             return;
         _turn.Status = _pending.Values.Any(request => request.Type == ItemType.ApprovalRequest)
             ? TurnStatus.WaitingApproval
-            : _pending.Values.Any(request => request.IsBlocking) ? TurnStatus.WaitingInput : TurnStatus.Running;
+            : _pending.Values.Any(request => request.Type == ItemType.UserInputRequest)
+                ? TurnStatus.WaitingInput
+                : TurnStatus.Running;
     }
 
     private static IReadOnlyList<QueuedTurnInput> CopyQueue(IReadOnlyList<QueuedTurnInput> inputs) =>
