@@ -104,7 +104,7 @@ Settings has a **Worktrees** page with two tabs.
 
 ### 6.1 General
 
-The current worktree settings (branch prefix and the worktree list with removal) move here from Settings › Source control. They apply to the foreground Git workspace.
+General shows the branch prefix and worktree list with removal for the foreground Git workspace. It uses the workspace's known source-control state when reopened. A loading placeholder appears only after a short wait for unknown data, without replacing settings that are already available. The list shows an empty state only after a successful load confirms there are no worktrees.
 
 ### 6.2 Environments
 

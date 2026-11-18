@@ -8,6 +8,7 @@ import { useConfirmDialog } from '../../../ui/ConfirmDialog'
 import { Button } from '../../../ui/Button'
 import { Input } from '../../../ui/Input'
 import { ScriptOutput } from '../../../worktreeCreation/ScriptOutput'
+import { WorktreeLoadingRow } from './WorktreeLoadingRow'
 import { removeAnyway, removeWorktree, type WorktreeRemovalOutcome } from './worktreeRemoval'
 import styles from './WorktreeSettingsGroup.module.css'
 
@@ -25,13 +26,13 @@ function prefixError(value: string): boolean {
   return value.length === 0 || /\s/.test(value) || value.endsWith('/') || value.startsWith('/')
 }
 
-export function WorktreeSettingsGroup({ workspacePath }: { workspacePath?: string }): JSX.Element {
+export function WorktreeSettingsGroup(): JSX.Element {
   const t = useT()
   const confirm = useConfirmDialog()
   const prefix = useConfigSetting('Worktrees.BranchPrefix', (error) => t('settings.worktrees.saveFailed', { error }))
   const savedPrefix = typeof prefix.value === 'string' ? prefix.value : 'dotcraft'
   const [prefixDraft, setPrefixDraft] = useState(savedPrefix)
-  const [worktrees, setWorktrees] = useState<WorktreeStatusWire[]>([])
+  const [worktrees, setWorktrees] = useState<WorktreeStatusWire[] | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [removingPath, setRemovingPath] = useState<string | null>(null)
   const [cleanupFailure, setCleanupFailure] = useState<Extract<WorktreeRemovalOutcome, { kind: 'cleanupFailed' }> | null>(null)
@@ -47,9 +48,7 @@ export function WorktreeSettingsGroup({ workspacePath }: { workspacePath?: strin
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : String(err))
     }
-    // workspacePath only re-triggers a reload when the foreground workspace changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspacePath])
+  }, [])
 
   useEffect(() => { void reload() }, [reload])
 
@@ -113,9 +112,10 @@ export function WorktreeSettingsGroup({ workspacePath }: { workspacePath?: strin
         }
       />
       {loadError && <SettingsEmptyRow tone="error">{loadError}</SettingsEmptyRow>}
-      {worktrees.length === 0 && !loadError ? (
+      {worktrees === null && loadError === null && <WorktreeLoadingRow />}
+      {worktrees?.length === 0 && loadError === null ? (
         <SettingsEmptyRow>{t('settings.worktrees.empty')}</SettingsEmptyRow>
-      ) : worktrees.map((worktree) => {
+      ) : worktrees?.map((worktree) => {
         const owner = worktree.threadId ? threads.find((thread) => thread.id === worktree.threadId) : undefined
         const inUse = owner != null && owner.status !== 'archived'
         const details = [

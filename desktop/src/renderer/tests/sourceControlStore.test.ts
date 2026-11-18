@@ -16,6 +16,7 @@ describe('sourceControlStore', () => {
     }
     useSourceControlStore.setState({
       workspacePath: null,
+      bindingStatus: 'loading',
       effectiveProvider: null,
       status: null,
       perforceChangelist: null
@@ -64,6 +65,30 @@ describe('sourceControlStore', () => {
     useConnectionStore.getState().setStatus({ status: 'connected' })
     await flush()
     expect(sendRequest).toHaveBeenCalledWith('sourceControl/get', {}, 20_000)
+    expect(useSourceControlStore.getState().effectiveProvider).toBe('git')
+  })
+
+  it('keeps the last binding when a background refresh fails', async () => {
+    sendRequest.mockResolvedValueOnce({ effectiveProvider: 'git', status: 'connected' })
+    useSourceControlStore.getState().ensure('A', true)
+    await flush()
+
+    sendRequest.mockRejectedValueOnce(new Error('Disconnected'))
+    useConnectionStore.getState().setStatus({ status: 'connected' })
+    await flush()
+
+    expect(useSourceControlStore.getState().effectiveProvider).toBe('git')
+  })
+
+  it('retries a failed cold load when the workspace is requested again', async () => {
+    sendRequest.mockRejectedValueOnce(new Error('Disconnected'))
+    useSourceControlStore.getState().ensure('A', true)
+    await flush()
+
+    sendRequest.mockResolvedValueOnce({ effectiveProvider: 'git' })
+    useSourceControlStore.getState().ensure('A', true)
+    await flush()
+
     expect(useSourceControlStore.getState().effectiveProvider).toBe('git')
   })
 

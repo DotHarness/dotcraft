@@ -10,6 +10,7 @@ import { normalizeConfigChangedPayload } from '../utils/configChanged'
  */
 interface SourceControlState {
   workspacePath: string | null
+  bindingStatus: 'loading' | 'ready' | 'error'
   effectiveProvider: string | null
   status: string | null
   perforceChangelist: boolean | null
@@ -49,21 +50,23 @@ function ensureSubscriptions(): void {
 
 export const useSourceControlStore = create<SourceControlState>((set, get) => ({
   workspacePath: null,
+  bindingStatus: 'loading',
   effectiveProvider: null,
   status: null,
   perforceChangelist: null,
   ensure: (workspacePath, capable) => {
     if (!capable || !workspacePath) {
       if (get().workspacePath !== null) {
-        set({ workspacePath: null, effectiveProvider: null, status: null, perforceChangelist: null })
+        ++refreshToken
+        set({ workspacePath: null, bindingStatus: 'loading', effectiveProvider: null, status: null, perforceChangelist: null })
       }
       return
     }
     ensureSubscriptions()
-    if (get().workspacePath === workspacePath) return
-    // Set the target path optimistically so consumers do not flash the previous workspace's
-    // provider while the new binding loads.
-    set({ workspacePath, effectiveProvider: null, status: null, perforceChangelist: null })
+    const current = get()
+    if (current.workspacePath === workspacePath && current.bindingStatus !== 'error') return
+    // Clear the previous workspace's provider while the new binding loads.
+    set({ workspacePath, bindingStatus: 'loading', effectiveProvider: null, status: null, perforceChangelist: null })
     void get().refresh(workspacePath, capable)
   },
   refresh: async (workspacePath, capable) => {
@@ -82,13 +85,14 @@ export const useSourceControlStore = create<SourceControlState>((set, get) => ({
       if (token !== refreshToken) return
       set({
         workspacePath,
+        bindingStatus: 'ready',
         effectiveProvider: snap?.effectiveProvider ?? null,
         status: snap?.status ?? null,
         perforceChangelist: snap?.capabilities?.perforceChangelist ?? null
       })
     } catch {
-      if (token !== refreshToken) return
-      set({ effectiveProvider: null, status: null, perforceChangelist: null })
+      if (token !== refreshToken || get().bindingStatus === 'ready') return
+      set({ bindingStatus: 'error' })
     }
   }
 }))
