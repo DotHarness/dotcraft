@@ -256,12 +256,12 @@ public sealed class ProviderManagementTests : IDisposable
         var response = AssertSingleResult(await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5)));
         Assert.Equal("ok", response.RootElement.GetProperty("result").GetProperty("status").GetString());
 
-        var workspace = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(_workspaceCraftPath, "config.json")));
-        Assert.Equal("anthropic-main", workspace.RootElement.GetProperty("ProviderId").GetString());
-        Assert.Equal("claude-sonnet-4-5", workspace.RootElement.GetProperty("ProviderPreferences").GetProperty("anthropic-main").GetProperty("Model").GetString());
-        Assert.Equal("dark", workspace.RootElement.GetProperty("Theme").GetString());
-
         var personal = JsonDocument.Parse(await File.ReadAllTextAsync(harness.Monitor.Current.GlobalConfigPath!));
+        Assert.Equal("anthropic-main", personal.RootElement.GetProperty("ProviderId").GetString());
+        Assert.Equal("claude-sonnet-4-5", personal.RootElement.GetProperty("ProviderPreferences").GetProperty("anthropic-main").GetProperty("Model").GetString());
+        var workspace = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(_workspaceCraftPath, "config.json")));
+        Assert.Equal("dark", workspace.RootElement.GetProperty("Theme").GetString());
+        Assert.False(workspace.RootElement.TryGetProperty("ProviderId", out _));
         var provider = personal.RootElement.GetProperty("Providers").GetProperty("anthropic-main");
         Assert.Equal("old-key", provider.GetProperty("ApiKey").GetString());
         Assert.False(provider.TryGetProperty("EndPoint", out _));
@@ -335,6 +335,8 @@ public sealed class ProviderManagementTests : IDisposable
         var path = harness.Monitor.Current.GlobalConfigPath!;
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         await File.WriteAllTextAsync(path, json);
+        if (harness.Configuration is { } configuration)
+            await configuration.ReloadUserLayerAsync();
     }
 
     private static async Task<(string Endpoint, Task ServerTask)> StartSingleJsonResponseServerAsync(string json)

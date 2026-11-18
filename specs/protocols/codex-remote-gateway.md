@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.13.0 |
+| Version | 0.13.1 |
 | Status | Living |
 | Date | 2026-11-18 |
 | Parent specs | [AppServer protocol](appserver-protocol.md), [Runtime boundaries](../architecture/runtime-module-boundaries.md) |
@@ -101,7 +101,7 @@ Agent/Plan map to DotCraft agent/plan independently of permissions. Normal summa
 
 Non-null top-level sandbox, sandboxPolicy or permissions selections override the config-layer sandbox_mode and default_permissions defaults. Top-level sandbox and permissions are mutually exclusive, as are turn-level sandboxPolicy and permissions. An explicit approval policy takes precedence over a profile's default.
 
-Normal core client parameters receive explicit mappings. Unsupported tier, non-none summary, schema or other extensions are reported honestly rather than ignored. Compatible configuration writes change only defined settings; Codex config objects are not copied into DotCraft configuration files. Config/read publishes a virtual project layer under <codexHome>/projects/<projectId>/config.toml with the actual source workspace-layer version. A write's filePath routes back to that authorized workspace, then maps to its source workspace layer; the host-default virtual config path selects the first workspace.
+Normal core client parameters receive explicit mappings. Unsupported tier, non-none summary, schema or other extensions are reported honestly rather than ignored. Compatible configuration writes change only defined settings; Codex config objects are not copied into DotCraft configuration files. Config/read publishes a virtual project layer under <codexHome>/projects/<projectId>/config.toml with the actual source user-layer version. A write's filePath routes back to that authorized workspace, then writes its source user layer, so a setting changed from a phone applies to every workspace as it does from Desktop; the host-default virtual config path selects the first workspace.
 
 ## 7. Interactive requests
 

@@ -937,17 +937,17 @@ public sealed partial class AppConfig
     public sealed class SubAgentConfig
     {
         /// <summary>
-        /// Workspace-scoped SubAgent profile names disabled for prompt exposure and execution.
+        /// SubAgent profile names disabled for prompt exposure and execution.
         /// The protected default profile remains enabled even if listed here.
         /// </summary>
-        [ConfigField(Hint = "JSON array of SubAgent profile names to disable for this workspace", Reload = ReloadBehavior.Hot, HasReload = true)]
+        [ConfigField(Hint = "JSON array of SubAgent profile names to disable", Reload = ReloadBehavior.Hot, HasReload = true)]
         public List<string> DisabledProfiles { get; set; } = [];
 
         /// <summary>
-        /// Whether external CLI subagents may resume previously saved external sessions for this workspace.
+        /// Whether external CLI subagents may resume previously saved external sessions.
         /// When disabled, DotCraft always launches a fresh external CLI session.
         /// </summary>
-        [ConfigField(Hint = "Reuse saved external CLI sessions for supported SubAgent profiles in this workspace", Reload = ReloadBehavior.Hot, HasReload = true)]
+        [ConfigField(Hint = "Reuse saved external CLI sessions for supported SubAgent profiles", Reload = ReloadBehavior.Hot, HasReload = true)]
         public bool EnableExternalCliSessionResume { get; set; }
 
         /// <summary>

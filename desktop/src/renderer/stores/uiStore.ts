@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { ComposerFileAttachment, ImageAttachment, InputPart, ThreadMode } from '../types/conversation'
 import type { ComposerDraftSegment } from '../types/composerDraft'
-import type { ApprovalPolicyWire, ThreadConfigurationWire } from '../types/thread'
+import type { ThreadConfigurationWire } from '../types/thread'
 import type { InferenceSpeedWire, ReasoningEffortWire, ReasoningOutputWire } from './modelCatalogStore'
 import { normalizeSettingsTab, type SettingsTab } from '../types/settings'
 import type { AppNavigationLocation } from './appNavigationStore'
@@ -68,7 +68,6 @@ export interface WelcomeDraft {
     output: ReasoningOutputWire
   }
   speed?: InferenceSpeedWire
-  approvalPolicy?: Extract<ApprovalPolicyWire, 'default' | 'prompt' | 'autoApprove'>
   updatedAt: number
 }
 

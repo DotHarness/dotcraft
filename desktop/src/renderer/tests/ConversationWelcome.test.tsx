@@ -16,6 +16,7 @@ import { useToastStore } from '../stores/toastStore'
 import { useAppBindingStore } from '../stores/appBindingStore'
 import { useConversationStore } from '../stores/conversationStore'
 import { useComposerDraftStore } from '../stores/composerDraftStore'
+import { useComposerPreferencesStore } from '../stores/composerPreferencesStore'
 import { useVoiceStore } from '../voice/voiceStore'
 import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
 import { installDesktopApiMock } from './desktopApiMock'
@@ -33,6 +34,7 @@ const readLocalFile = vi.fn()
 const statLocalFile = vi.fn()
 const getPathForFile = vi.fn((file: File) => file.name === 'notes.txt' ? 'C:\\temp\\notes.txt' : '')
 const settingsGet = vi.fn()
+const settingsSet = vi.fn()
 const shellOpenExternal = vi.fn()
 const shellOpenAppHandoff = vi.fn()
 const shellGetProtocolHandlerName = vi.fn()
@@ -84,6 +86,7 @@ describe('ConversationWelcome composer', () => {
 
     useConnectionStore.getState().reset()
     useConfigStore.getState().reset()
+    useComposerPreferencesStore.setState({ newChatApprovalPolicy: null })
     serverConfig = {
       ProviderId: '',
       ProviderPreferences: {},
@@ -228,7 +231,8 @@ describe('ConversationWelcome composer', () => {
     readConfig.mockImplementation(async () => ({ config: structuredClone(serverConfig), origins: {} }))
     installDesktopApiMock({
         settings: {
-          get: settingsGet
+          get: settingsGet,
+          set: settingsSet
         },
         appServer: {
           sendRequest: (method: string, ...rest: unknown[]) => method === 'config/read'
@@ -462,6 +466,7 @@ describe('ConversationWelcome composer', () => {
     expect(start?.[1]).toEqual(expect.objectContaining({
       config: expect.objectContaining({ approvalPolicy: 'autoApprove' })
     }))
+    expect(settingsSet).toHaveBeenCalledWith({ newChatApprovalPolicy: 'autoApprove' })
   })
 
   it('returns the submission to the welcome composer when thread creation fails', async () => {

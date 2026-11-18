@@ -49,7 +49,7 @@ public sealed class SubAgentProfileManagementTests : IDisposable
 
         await harness.ExecuteRequestAsync(BuildUpsertRequest(harness, "codex-cli", timeout: 600));
         AppServerTestHarness.AssertIsSuccessResponse((await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5)))[0]);
-        var root = JsonNode.Parse(await File.ReadAllTextAsync(Path.Combine(_workspaceCraftPath, "config.json")))!.AsObject();
+        var root = JsonNode.Parse(await File.ReadAllTextAsync(harness.Monitor.Current.GlobalConfigPath!))!.AsObject();
         Assert.Equal(600, root["SubAgentProfiles"]!["codex-cli"]!["Timeout"]?.GetValue<int>());
         var overridden = Profiles(await ListAsync(harness))["codex-cli"];
         Assert.True(overridden.GetProperty("isBuiltIn").GetBoolean());
@@ -104,7 +104,7 @@ public sealed class SubAgentProfileManagementTests : IDisposable
         var sent = await harness.Transport.WaitAndDrainAsync(1, TimeSpan.FromSeconds(5));
         AppServerTestHarness.AssertIsSuccessResponse(sent[0]);
 
-        var json = await File.ReadAllTextAsync(Path.Combine(_workspaceCraftPath, "config.json"));
+        var json = await File.ReadAllTextAsync(harness.Monitor.Current.GlobalConfigPath!);
         Assert.Contains("\"DisabledProfiles\"", json, StringComparison.Ordinal);
         Assert.Contains("\"cursor-cli\"", json, StringComparison.Ordinal);
         Assert.DoesNotContain("\"native\"", json, StringComparison.Ordinal);
@@ -118,7 +118,8 @@ public sealed class SubAgentProfileManagementTests : IDisposable
     {
         using var harness = new AppServerTestHarness(workspaceCraftPath: _workspaceCraftPath);
         await harness.InitializeAsync();
-        var configPath = Path.Combine(_workspaceCraftPath, "config.json");
+        var configPath = harness.Monitor.Current.GlobalConfigPath!;
+        Directory.CreateDirectory(Path.GetDirectoryName(configPath)!);
         await File.WriteAllTextAsync(configPath, "{\"SubAgent\":{\"CustomSettings\":{\"keep\":true}}}");
 
         var settings = await UpdateSettingsAsync(harness, new

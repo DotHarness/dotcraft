@@ -66,7 +66,7 @@ internal sealed class SubAgentRequestHandler(
         if (!hasResumeEnabled && !hasProviderPreferences)
             throw AppServerErrors.InvalidParams("At least one of 'externalCliSessionResumeEnabled' or 'providerPreferences' is required.");
 
-        var state = SubAgentProfilesPersistence.LoadWorkspaceState(workspaceCraftPath!);
+        var state = SubAgentProfilesPersistence.LoadState(UserConfigPath);
         var nextResumeEnabled = hasResumeEnabled
             ? p.ExternalCliSessionResumeEnabled.Value!.Value
             : state.EnableExternalCliSessionResume;
@@ -76,8 +76,7 @@ internal sealed class SubAgentRequestHandler(
             : state.ProviderPreferences;
         if (hasProviderPreferences)
         {
-            var currentConfig = appConfigMonitor?.Current ?? AppConfig.Load(
-                Path.Combine(workspaceCraftPath!, "config.json"));
+            var currentConfig = appConfigMonitor?.Current ?? runtimeConfig.LoadMergedConfig();
             foreach (var (providerId, preference) in nextProviderPreferences)
             {
                 if (preference.ProviderId != null && !currentConfig.Providers.ContainsKey(preference.ProviderId))
@@ -98,8 +97,8 @@ internal sealed class SubAgentRequestHandler(
             }
         }
 
-        SubAgentProfilesPersistence.SaveWorkspaceState(
-            workspaceCraftPath!,
+        SubAgentProfilesPersistence.SaveState(
+            UserConfigPath,
             state.DisabledProfiles,
             nextResumeEnabled,
             state.Profiles,
@@ -134,10 +133,11 @@ internal sealed class SubAgentRequestHandler(
         if (string.Equals(name, SubAgentCoordinator.DefaultProfileName, StringComparison.OrdinalIgnoreCase) && !enabled)
             throw AppServerErrors.SubAgentProfileProtected($"'{SubAgentCoordinator.DefaultProfileName}' cannot be disabled.");
 
-        var state = SubAgentProfilesPersistence.LoadWorkspaceState(workspaceCraftPath!);
+        var state = SubAgentProfilesPersistence.LoadState(UserConfigPath);
+        var effective = SubAgentProfilesPersistence.FromConfig(runtimeConfig.LoadMergedConfig());
         var registry = Catalog.CreateRegistry(
-            state.Profiles,
-            disabledProfiles: state.DisabledProfiles);
+            effective.Profiles,
+            disabledProfiles: effective.DisabledProfiles);
         if (!registry.TryGet(name, out _))
             throw AppServerErrors.SubAgentProfileNotFound(name);
 
@@ -147,8 +147,8 @@ internal sealed class SubAgentRequestHandler(
         else if (!disabled.Contains(name, StringComparer.OrdinalIgnoreCase))
             disabled.Add(name);
 
-        SubAgentProfilesPersistence.SaveWorkspaceState(
-            workspaceCraftPath!,
+        SubAgentProfilesPersistence.SaveState(
+            UserConfigPath,
             disabled,
             state.EnableExternalCliSessionResume,
             state.Profiles,
@@ -181,7 +181,7 @@ internal sealed class SubAgentRequestHandler(
             SubAgentContractMapper.Read(p.Definition) ?? new Contract.SubAgentProfileWrite());
         ValidateSubAgentProfileWire(profile);
 
-        var state = SubAgentProfilesPersistence.LoadWorkspaceState(workspaceCraftPath!);
+        var state = SubAgentProfilesPersistence.LoadState(UserConfigPath);
         var profiles = state.Profiles.Select(existing => existing.Clone()).ToList();
         var existingIndex = profiles.FindIndex(existing => string.Equals(existing.Name, name, StringComparison.OrdinalIgnoreCase));
         if (existingIndex >= 0)
@@ -189,8 +189,8 @@ internal sealed class SubAgentRequestHandler(
         else
             profiles.Add(profile);
 
-        SubAgentProfilesPersistence.SaveWorkspaceState(
-            workspaceCraftPath!,
+        SubAgentProfilesPersistence.SaveState(
+            UserConfigPath,
             state.DisabledProfiles,
             state.EnableExternalCliSessionResume,
             profiles,
@@ -218,24 +218,24 @@ internal sealed class SubAgentRequestHandler(
         if (string.IsNullOrWhiteSpace(name))
             throw AppServerErrors.InvalidParams("'name' is required.");
 
-        var state = SubAgentProfilesPersistence.LoadWorkspaceState(workspaceCraftPath!);
-        var workspaceProfiles = state.Profiles.Select(profile => profile.Clone()).ToList();
-        var existingIndex = workspaceProfiles.FindIndex(profile => string.Equals(profile.Name, name, StringComparison.OrdinalIgnoreCase));
+        var state = SubAgentProfilesPersistence.LoadState(UserConfigPath);
+        var profiles = state.Profiles.Select(profile => profile.Clone()).ToList();
+        var existingIndex = profiles.FindIndex(profile => string.Equals(profile.Name, name, StringComparison.OrdinalIgnoreCase));
         if (existingIndex < 0)
             throw AppServerErrors.SubAgentProfileNotFound(name);
 
-        workspaceProfiles.RemoveAt(existingIndex);
+        profiles.RemoveAt(existingIndex);
         var disabled = state.DisabledProfiles.ToList();
         var isBuiltIn = Catalog.BuiltInProfiles
             .Any(profile => string.Equals(profile.Name, name, StringComparison.OrdinalIgnoreCase));
         if (!isBuiltIn)
             disabled.RemoveAll(item => string.Equals(item, name, StringComparison.OrdinalIgnoreCase));
 
-        SubAgentProfilesPersistence.SaveWorkspaceState(
-            workspaceCraftPath!,
+        SubAgentProfilesPersistence.SaveState(
+            UserConfigPath,
             disabled,
             state.EnableExternalCliSessionResume,
-            workspaceProfiles,
+            profiles,
             state.ProviderPreferences);
         runtimeConfig.RefreshCurrentSubAgentConfig();
         runtimeConfig.InvalidateThreadAgents();
@@ -320,9 +320,11 @@ internal sealed class SubAgentRequestHandler(
         return AppServerTypedResult<Contract.SubAgentControlResult>.FromResult(SubAgentContractMapper.ToContract(result));
     }
 
+    private string UserConfigPath => appConfigMonitor?.Current.GlobalConfigPath!;
+
     private void EnsureSubAgentManagementAvailable()
     {
-        if (string.IsNullOrWhiteSpace(workspaceCraftPath))
+        if (string.IsNullOrWhiteSpace(workspaceCraftPath) || string.IsNullOrWhiteSpace(appConfigMonitor?.Current.GlobalConfigPath))
             throw AppServerErrors.MethodNotFound("subagent/profiles/*");
     }
 
@@ -393,8 +395,8 @@ internal sealed class SubAgentRequestHandler(
 
     private Contract.SubAgentProfileListResult BuildSubAgentProfileListResult()
     {
-        var state = SubAgentProfilesPersistence.LoadWorkspaceState(workspaceCraftPath!);
-        var workspaceOverrideNames = state.Profiles
+        var state = SubAgentProfilesPersistence.FromConfig(runtimeConfig.LoadMergedConfig());
+        var userOverrideNames = SubAgentProfilesPersistence.LoadState(UserConfigPath).Profiles
             .Select(profile => profile.Name)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var catalog = Catalog;
@@ -416,7 +418,7 @@ internal sealed class SubAgentRequestHandler(
                     Name = profile.Name,
                     IsBuiltIn = registry.IsBuiltInProfile(profile.Name),
                     IsTemplate = registry.IsTemplateProfile(profile.Name),
-                    HasWorkspaceOverride = workspaceOverrideNames.Contains(profile.Name),
+                    HasWorkspaceOverride = userOverrideNames.Contains(profile.Name),
                     IsDefault = string.Equals(profile.Name, SubAgentCoordinator.DefaultProfileName, StringComparison.OrdinalIgnoreCase),
                     Enabled = registry.IsEnabled(profile.Name),
                     Definition = SubAgentContractMapper.ToContract(profile),
@@ -461,7 +463,7 @@ internal sealed class SubAgentRequestHandler(
             string? resolvedBinary = null;
             var hiddenReasons = new List<string>();
             if (!enabled)
-                hiddenReasons.Add("disabled by workspace configuration");
+                hiddenReasons.Add("disabled by configuration");
 
             if (!runtimeRegistered)
                 hiddenReasons.Add("runtime not registered");

@@ -3,6 +3,7 @@ import { Ban, Check } from 'lucide-react'
 import type { ClientRequestMethods } from '@dotcraft/sdk/contracts'
 
 import { useT } from '../../../contexts/LocaleContext'
+import { projectLabel, useWorkspaceProjectChoices } from '../../conversation/workspaceProjectMenu'
 import type { MessageKey } from '../../../../shared/locales'
 import { normalizeConfigChangedPayload } from '../../../utils/configChanged'
 import { SettingsPanelShell } from '../SettingsPanelShell'
@@ -164,6 +165,10 @@ interface SourceControlPanelProps {
 
 export function SourceControlPanel({ workspacePath }: SourceControlPanelProps): JSX.Element {
   const t = useT()
+  const projectChoices = useWorkspaceProjectChoices(workspacePath ?? '')
+  const projectName = projectChoices.foregroundIsChat
+    ? t('chatsRail.title')
+    : projectChoices.selectedProject ? projectLabel(projectChoices.selectedProject) : workspacePath ?? ''
 
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -364,7 +369,7 @@ export function SourceControlPanel({ workspacePath }: SourceControlPanelProps): 
   return (
     <SettingsPanelShell
       title={t('settings.sourceControl.title')}
-      description={t('settings.sourceControl.description')}
+      description={t('settings.sourceControl.description', { project: projectName })}
     >
       {loading && (
         <SettingsGroup>

@@ -21,7 +21,6 @@ export function stageAutomationCreationInWelcome(prompt: string): void {
     images: [],
     files: [],
     mode: existing?.mode ?? 'agent',
-    model: existing?.model || 'Default',
-    approvalPolicy: existing?.approvalPolicy ?? 'default'
+    model: existing?.model || 'Default'
   })
 }

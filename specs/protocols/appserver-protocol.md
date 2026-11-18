@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.13.0 |
+| **Version** | 0.13.1 |
 | **Status** | Living |
 | **Date** | 2026-11-18 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
@@ -1790,7 +1790,7 @@ Params: none. Result `{ channels }`: only channels configured for status reporti
 
 These methods list and probe model providers and discover models. `provider/list` and `provider/test` are gated by `capabilities.providerManagement`; `model/list` by `capabilities.modelCatalogManagement`; provider edits by `capabilities.workspaceConfigManagement`.
 
-Provider records are personal configuration under `Providers`, created, edited, and deleted only through configuration writes in the user layer ([Section 25.4](#254-configuration-writes)); workspace configuration only selects a provider id and model id. A configuration write that changes `Providers` emits `config/changed` whose `regions` include `Providers` and the domain tag `providers`.
+Provider records are personal configuration under `Providers`, created, edited, and deleted only through configuration writes in the user layer ([Section 25.4](#254-configuration-writes)). The workspace layer may override which provider and model are selected but never defines providers. A configuration write that changes `Providers` emits `config/changed` whose `regions` include `Providers` and the domain tag `providers`.
 
 With a remote [model service](../architecture/model-service.md), provider records come from that service, carry `managedBy: "modelService"` and `isAuthenticated`, and expose no upstream credentials. Listing, testing an existing provider, model selection, and authentication status and usage remain available; draft testing and provider login/logout return InvalidRequest naming the management location, and writes under `Providers` fail with `configValidationError`.
 
@@ -2206,7 +2206,7 @@ Uploads and exports are held for the requesting connection for at most one hour 
 
 ### 24.1 Scope
 
-A server-authoritative read/write path for workspace SubAgent profile configuration. Gated by `capabilities.subAgentManagement` (otherwise `-32601`). Successful mutations emit `config/changed` with `source` set to the method name and `regions: ["subagent"]`.
+A server-authoritative read/write path for SubAgent profile configuration. Profiles, enablement, and SubAgent settings are personal: reads report the effective configuration (user layer overlaid by the workspace layer), and mutations write the user layer. Gated by `capabilities.subAgentManagement` (otherwise `-32601`). Successful mutations emit `config/changed` with `source` set to the method name and `regions: ["subagent"]`.
 
 ### 24.2 `SubAgentProfileWrite` Wire DTO
 
@@ -2214,14 +2214,14 @@ A server-authoritative read/write path for workspace SubAgent profile configurat
 
 ### 24.3 `SubAgentProfileEntry` Wire DTO
 
-- `definition`: the effective definition after built-in and workspace-override resolution. `builtInDefaults`: present only for built-in profiles.
+- `definition`: the effective definition after built-in and configured-override resolution. `builtInDefaults`: present only for built-in profiles.
 - `isBuiltIn`, `isTemplate`, `isDefault`, `enabled`.
-- `hasWorkspaceOverride`: the workspace currently persists `SubAgentProfiles.<name>`.
+- `hasWorkspaceOverride`: the user layer persists `SubAgentProfiles.<name>`, so `subagent/profiles/remove` can remove it.
 - `diagnostic`: `enabled`, `binaryResolved`, `hiddenFromPrompt` (effective prompt visibility after enablement, templates, runtime registration, binary resolution, and validation), optional `hiddenReason`, `warnings`.
 
 ### 24.4 `subagent/profiles/list`
 
-Result `{ defaultName, settings, profiles }`: built-in profiles plus workspace custom profiles.
+Result `{ defaultName, settings, profiles }`: built-in profiles plus configured custom profiles from either layer.
 
 - `settings.externalCliSessionResumeEnabled`: whether external CLI profiles that support resume may reuse saved external session ids.
 - `settings.providerPreferences`: complete native SubAgent model selections keyed by the parent's provider id; a missing entry inherits the parent thread's complete preference. Each record carries `model`, `reasoning`, `speed`, and an optional `providerId` naming the provider the SubAgent runs on, which defaults to the key.
@@ -2230,7 +2230,7 @@ Result `{ defaultName, settings, profiles }`: built-in profiles plus workspace c
 
 Params: `externalCliSessionResumeEnabled`, `providerPreferences`, or both (at least one required).
 
-- `providerPreferences` replaces the whole workspace map (`{}` clears it). Each record is normalized as a unit against its target provider; an unconfigured `providerId` or an invalid model, reasoning, or speed rejects the request without writing.
+- `providerPreferences` replaces the whole user-layer map (`{}` clears it). Each record is normalized as a unit against its target provider; an unconfigured `providerId` or an invalid model, reasoning, or speed rejects the request without writing.
 - The resume toggle affects only profiles whose effective definition supports resume. Changing these settings never deletes saved external session ids.
 
 ### 24.6 `subagent/profiles/setEnabled`
@@ -2239,17 +2239,17 @@ Params `name`, `enabled`. Returns the updated `SubAgentProfileEntry`. `native` i
 
 ### 24.7 `subagent/profiles/upsert`
 
-Params `name`, `definition`. A built-in name creates or replaces a workspace override; any other name creates or replaces a custom workspace profile. The workspace persists the full expanded definition.
+Params `name`, `definition`. A built-in name creates or replaces a user-layer override, and any other name creates or replaces a custom user-layer profile. The user layer persists the full expanded definition.
 
 ### 24.8 `subagent/profiles/remove`
 
-Params `name`. Result `{ removed }`. A built-in name removes only its workspace override, restoring defaults (failing when there is none); a custom name removes the profile.
+Params `name`. Result `{ removed }`. A built-in name removes only its user-layer override, restoring defaults (failing when there is none), and a custom name removes the user-layer profile. A profile defined only in the workspace layer is not removable.
 
 ### 24.9 Error Codes
 
 | Code | Constant | When |
 |------|----------|------|
-| `-32083` | `SubAgentProfileNotFound` | Profile or workspace override missing. |
+| `-32083` | `SubAgentProfileNotFound` | Profile or user-layer override missing. |
 | `-32084` | `SubAgentProfileValidationFailed` | Invalid or incompatible with runtime rules. |
 | `-32085` | `SubAgentProfileProtected` | Targets a protected profile such as `native`. |
 
@@ -2333,14 +2333,14 @@ Write one key path to one layer.
 - `keyPath`: dot-joined on-disk property names from the root (for example `Tools.CodeMode.Mode`); a path inside an object-valued field such as `ProviderPreferences.openai` is accepted. Segments containing `.`, `"`, or `\` are double-quoted with `\` escaping (for example `ProviderPreferences."openai.personal"`).
 - `value`: `null` removes the key and prunes emptied parents. A `"***"` string, as the value or a nested object member, keeps the stored value at that path; a `"***"` array element is written literally.
 - `mergeStrategy`: `replace`, or `upsert` to deep-merge an object into the existing object. Unknown values return `-32602`.
-- `filePath`: a layer `file` from `config/read`. Omitted targets the workspace layer, or the user layer for key paths under `Providers`.
+- `filePath`: a layer `file` from `config/read`. Omitted targets the user layer, and the workspace layer is written only when named.
 - `expectedVersion`: the write fails unless the target layer still has this version.
 
 **Result**: `status` (`ok`, or `okOverridden` when a higher-precedence layer still determines an edited field's value), the target layer's new `version` and `filePath`, and with `okOverridden` an `overriddenMetadata` (`message`, `overridingLayer`, masked `effectiveValue`).
 
 #### `config/batchWrite`
 
-Apply ordered `edits` (`{ keyPath, value, mergeStrategy }`) to one layer atomically, with `filePath` and `expectedVersion` as above. Omitted `filePath` targets the user layer when every edit is under `Providers`; a batch mixing `Providers` with other keys must name the user layer or fails with `configValidationError`. Result as `config/value/write`.
+Apply ordered `edits` (`{ keyPath, value, mergeStrategy }`) to one layer atomically, with `filePath` and `expectedVersion` as above, including the user-layer default. Result as `config/value/write`.
 
 #### Write Semantics
 
@@ -2349,12 +2349,13 @@ Apply ordered `edits` (`{ keyPath, value, mergeStrategy }`) to one layer atomica
 - Sensitive values are write-only: `"***"` keeps the stored value, `null` removes it, anything else replaces it. No result, error, or notification contains a sensitive value.
 - Unrelated content of the target file is preserved.
 - A write that changes at least one effective value emits `config/changed` with `source` set to the method name and `regions` listing the changed key paths; a write that changes nothing emits nothing.
+- A user-layer change made by another workspace's server or by hand is applied before the server handles its next request or Turn, and emits `config/changed` with `source: "config/reload"` and the changed key paths, plus `subagent` when SubAgent settings or profiles changed ([Configuration §5.3.1](../architecture/configuration.md#531-user-layer-changes-from-elsewhere)).
 
 #### Providers
 
 `Providers` maps a provider id to an object with `DisplayName`, `Protocol`, `ApiKey`, `AuthMethod`, `BackendId`, `BackendSettings`, `EndPoint`, `NetworkTimeoutSeconds`, `MaxOutputTokens`, `StreamMaxRetries`, `StreamIdleTimeoutMs`, `SupportsImageGeneration`, and `SupportsFreeformTools`. Writing `Providers.<id>` or `Providers.<id>.<Field>` creates or edits a provider; writing `null` to `Providers.<id>` deletes it. Ids compare case-insensitively. To edit without touching the key, clients send the masked `"***"` back or omit it from an `upsert`.
 
-- Provider edits persist to the user layer; naming another layer fails with `configValidationError`, as does any edit under `Providers` while a remote model service manages providers.
+- Provider edits persist to the user layer. Naming the workspace layer fails with `configValidationError`, as does any edit under `Providers` while a remote model service manages providers.
 - Each changed entry needs an id that is non-empty without `/`, `\`, or `:`; a `Protocol` of `openai-chat-completions`, `openai-responses`, or `anthropic`; an absolute-URI `EndPoint` when non-empty; positive `NetworkTimeoutSeconds`, `MaxOutputTokens`, and `StreamIdleTimeoutMs`; `StreamMaxRetries` from 0 to 100; and an `AuthMethod` of `apiKey` or `chatgptOAuth` (which requires an OpenAI protocol). An entry with a `BackendId` needs an object `BackendSettings` and positive limits; its backend validates protocol and method.
 - After editing `ProviderId` or `Providers`, a non-empty effective `ProviderId` must name a defined (or service-managed) provider; deleting or selecting an unavailable provider fails with `configValidationError`.
 - Omitted fields are resolved at apply time as `provider/list` reports them; defaults are not written to the file.

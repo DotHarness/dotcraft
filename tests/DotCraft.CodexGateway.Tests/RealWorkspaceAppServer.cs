@@ -62,8 +62,8 @@ internal sealed class RealWorkspaceAppServer : IAsyncDisposable
         {
             models = new Dictionary<string, object> { [GatewayTestModel.ModelId] = new { contextWindow = 8_000_000 } }
         }));
-        File.WriteAllText(_config.GlobalConfigPath, "{}");
-        File.WriteAllText(_config.WorkspaceConfigPath, JsonSerializer.Serialize(_config));
+        File.WriteAllText(_config.GlobalConfigPath, JsonSerializer.Serialize(_config));
+        File.WriteAllText(_config.WorkspaceConfigPath, "{}");
         var memory = new MemoryStore(CraftPath);
         var skills = new SkillsLoader(CraftPath);
         var approvals = new SessionScopedApprovalService(new AutoApproveApprovalService());

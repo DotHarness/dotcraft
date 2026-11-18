@@ -4,14 +4,12 @@ import { ArrowLeft } from 'lucide-react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useUIStore } from '../../stores/uiStore'
-import { useWorkspaceProjectsStore } from '../../stores/workspaceProjectsStore'
 import { isSessionImportAvailable } from '../../utils/sessionImport'
 import {
   resolveDesktopPluginLabel,
   useDesktopPluginRegistry
 } from '../../plugins/desktopPluginRegistry'
 import { resolveDesktopPluginIcon } from '../desktopPlugins/DesktopPluginIcon'
-import { projectLabel, useWorkspaceProjectChoices } from '../conversation/workspaceProjectMenu'
 import { SettingsSearchField } from '../settings/SettingsSearchField'
 import {
   buildSettingsSearchEntries,
@@ -19,7 +17,6 @@ import {
   revealSettingsLabel,
   type SettingsSearchEntry
 } from '../settings/settingsSearch'
-import { SettingsWorkspacePicker } from '../settings/SettingsWorkspacePicker'
 import { buildSettingsTabs, type SettingsTabGroup } from '../settings/settingsTabs'
 import { prefetchSettingsPanel } from '../settings/coreSettingsPanels'
 import {
@@ -61,7 +58,6 @@ export function SettingsSidebar(): JSX.Element {
     buildSettingsSearchEntries(tabs, t, { subAgentEnabled: capabilities?.subAgentManagement === true }),
     query
   )
-  const workspaceName = useForegroundWorkspaceName()
 
   const selectResult = (entry: SettingsSearchEntry): void => {
     setActiveSettingsTab(entry.tab)
@@ -115,10 +111,7 @@ export function SettingsSidebar(): JSX.Element {
             <div style={noResultsStyle}>{t('settings.search.noResults')}</div>
           ) : results.map((entry, index) => {
             const ResultIcon = entry.icon
-            const description = [
-              entry.label === entry.panelLabel ? null : entry.panelLabel,
-              entry.group === 'workspace' ? workspaceName : null
-            ].filter(Boolean).join(' · ')
+            const description = entry.label === entry.panelLabel ? null : entry.panelLabel
             return (
               <button
                 key={entry.id}
@@ -150,7 +143,6 @@ export function SettingsSidebar(): JSX.Element {
                   {settingsGroupLabel(tab.group, t)}
                 </div>
               )}
-              {showGroupLabel && tab.group === 'workspace' && <SettingsWorkspacePicker />}
               <button
                 className="dotcraft-sidebar-nav-button dotcraft-sidebar-row-radius"
                 type="button"
@@ -174,22 +166,14 @@ export function SettingsSidebar(): JSX.Element {
   )
 }
 
-function useForegroundWorkspaceName(): string {
-  const t = useT()
-  const workspacePath = useWorkspaceProjectsStore((s) => s.foregroundWorkspacePath)
-  const choices = useWorkspaceProjectChoices(workspacePath)
-  if (choices.foregroundIsChat) return t('chatsRail.title')
-  return choices.selectedProject ? projectLabel(choices.selectedProject) : ''
-}
-
 function settingsGroupLabel(group: SettingsTabGroup, t: ReturnType<typeof useT>): string {
   switch (group) {
     case 'personal':
       return t('settings.sidebar.group.personal')
     case 'integrations':
       return t('settings.sidebar.group.integrations')
-    case 'workspace':
-      return t('settings.sidebar.group.workspace')
+    case 'coding':
+      return t('settings.sidebar.group.coding')
   }
 }
 

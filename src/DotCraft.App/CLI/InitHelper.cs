@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using DotCraft.Configuration;
+using DotCraft.Persistence.Upgrades;
 using DotCraft.Text;
 using Spectre.Console;
 
@@ -378,6 +379,7 @@ public static class InitHelper
     internal static int RunSetup(string craftPath, WorkspaceSetupRequest request, string globalConfigPath)
     {
         EnsureWorkspaceStructure(craftPath);
+        WorkspaceConfigUpgrade.Apply(craftPath, globalConfigPath);
 
         if (request.SaveToUserConfig && request.PreferExistingUserConfig)
             throw new InvalidOperationException("SaveToUserConfig and PreferExistingUserConfig cannot both be enabled.");

@@ -57,7 +57,7 @@ public sealed class ConfigurationServiceProviderTests
     }
 
     [Fact]
-    public async Task Write_MixedBatchWithoutFilePath_IsRejectedUntilItNamesTheUserLayer()
+    public async Task Write_MixedBatchWithoutFilePath_TargetsTheUserLayer()
     {
         using var fixture = Create();
         ConfigEdit[] edits =
@@ -66,16 +66,12 @@ public sealed class ConfigurationServiceProviderTests
             ConfigurationServiceFixture.Edit("ProviderId", "\"p1\"")
         ];
 
-        var error = await Assert.ThrowsAsync<ConfigWriteException>(() => fixture.Service.WriteAsync(edits, null, null, "test"));
-        Assert.Equal(ConfigWriteErrorCode.ConfigValidationError, error.Code);
-        Assert.False(File.Exists(fixture.UserPath));
-        Assert.False(File.Exists(fixture.WorkspacePath));
-
-        await fixture.Service.WriteAsync(edits, fixture.UserPath, null, "test");
+        await fixture.Service.WriteAsync(edits, null, null, "test");
 
         var user = ConfigurationServiceFixture.ReadFile(fixture.UserPath);
         Assert.Equal("p1", user["ProviderId"]!.GetValue<string>());
         Assert.NotNull(user["Providers"]!["p1"]);
+        Assert.False(File.Exists(fixture.WorkspacePath));
     }
 
     [Fact]
@@ -214,7 +210,7 @@ public sealed class ConfigurationServiceProviderTests
         Assert.Equal(before, File.ReadAllBytes(fixture.UserPath));
 
         await fixture.WriteAsync("ProviderId", "\"managed\"");
-        await fixture.WriteAsync("InstantInterruptEnabled", "false");
+        await fixture.WriteAsync("InstantInterruptEnabled", "false", filePath: fixture.WorkspacePath);
 
         Assert.Same(managed, Assert.Single(fixture.Monitor.Current.Providers).Value);
         Assert.Equal("managed", fixture.Monitor.Current.ProviderId);
@@ -243,7 +239,7 @@ public sealed class ConfigurationServiceProviderTests
         var managed = ManageRemotely(fixture);
         ConfigurationServiceFixture.WriteFile(fixture.WorkspacePath, """{ "InstantInterruptEnabled": "yes" }""");
 
-        await fixture.WriteAsync("InstantInterruptEnabled", "false");
+        await fixture.WriteAsync("InstantInterruptEnabled", "false", filePath: fixture.WorkspacePath);
 
         Assert.Same(managed, Assert.Single(fixture.Monitor.Current.Providers).Value);
     }

@@ -1619,6 +1619,7 @@ const api = {
       showThinkingContent?: boolean
       followUpQueueMode?: FollowUpQueueMode
       newTaskPrompt?: NewTaskPromptMode
+      newChatApprovalPolicy?: 'prompt' | 'autoApprove'
       projectsSectionCollapsed?: boolean
       pinnedSectionCollapsed?: boolean
       chatsSectionCollapsed?: boolean
@@ -1712,6 +1713,7 @@ const api = {
       showThinkingContent?: boolean
       followUpQueueMode?: FollowUpQueueMode
       newTaskPrompt?: NewTaskPromptMode
+      newChatApprovalPolicy?: 'prompt' | 'autoApprove'
       projectsSectionCollapsed?: boolean
       pinnedSectionCollapsed?: boolean
       chatsSectionCollapsed?: boolean

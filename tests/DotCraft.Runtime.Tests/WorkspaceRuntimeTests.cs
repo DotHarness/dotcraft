@@ -230,6 +230,47 @@ public sealed class WorkspaceRuntimeTests
     }
 
     [Fact]
+    public async Task UserConfigurationWrittenElsewhere_IsAppliedAndAnnouncedBeforeTheNextRequest()
+    {
+        var root = NewTemporaryPath();
+        var config = CreateConfig();
+        config.GlobalConfigPath = Path.Combine(root, "home", ".craft", "config.json");
+        var builder = Host.CreateApplicationBuilder();
+        builder.Services.AddOpenAIModelProvider();
+        builder.Services.AddDotCraftRuntime(new DotCraftRuntimeOptions
+        {
+            Config = config,
+            WorkspacePath = root,
+            DataPath = Path.Combine(root, ".craft")
+        });
+        builder.Services.AddSingleton<IConfigSchemaProvider>(new TestConfigSchemaProvider()).AddSingleton<IConfigDescriptorRegistry>(new TestConfigSchemaProvider());
+
+        using (var host = builder.Build())
+        {
+            await host.StartAsync();
+            var monitor = host.Services.GetRequiredService<IAppConfigMonitor>();
+            var changes = new List<AppConfigChangedEventArgs>();
+            monitor.Changed += (_, change) => changes.Add(change);
+
+            SubAgentProfilesPersistence.SaveState(
+                config.GlobalConfigPath,
+                [],
+                enableExternalCliSessionResume: false,
+                [new SubAgentProfile { Name = "reviewer", Runtime = "cli-oneshot", Bin = "reviewer" }]);
+            foreach (var refresher in host.Services.GetServices<ISessionRuntimeRefresher>())
+                await refresher.RefreshAsync(CancellationToken.None);
+
+            Assert.Contains(monitor.Current.SubAgentProfiles, profile => profile.Name == "reviewer");
+            var change = Assert.Single(changes, change => change.Source == ConfigurationService.ConfigReloadSource);
+            Assert.Contains(ConfigChangeRegions.SubAgent, change.Regions);
+
+            await host.StopAsync();
+        }
+
+        Directory.Delete(root, recursive: true);
+    }
+
+    [Fact]
     public async Task ASuggestionReplacement_RegisteredAfterAConsumerCaptured_IsObservedByIt()
     {
         var root = NewTemporaryPath();

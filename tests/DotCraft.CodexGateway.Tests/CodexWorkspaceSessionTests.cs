@@ -31,7 +31,9 @@ public sealed class CodexWorkspaceSessionTests
                     new { keyPath = "model_reasoning_effort", value = "high", mergeStrategy = "replace" }
                 }
             }), default);
-            var edit = fixture.Transport.Requests.Single(r => r.Method == "config/batchWrite").Parameters.GetProperty("edits");
+            var write = fixture.Transport.Requests.Single(r => r.Method == "config/batchWrite").Parameters;
+            Assert.False(write.TryGetProperty("filePath", out _));
+            var edit = write.GetProperty("edits");
             Assert.Contains(edit.EnumerateArray(), entry => entry.GetProperty("keyPath").GetString() == "ProviderPreferences.provider.model");
             Assert.DoesNotContain("dotcraft/", edit.GetRawText());
 
@@ -204,7 +206,11 @@ public sealed class CodexWorkspaceSessionTests
             object result = method switch
             {
                 "initialize" => new { serverInfo = new { name = "fixture", version = "1", protocolVersion = "1" }, capabilities = new { threadManagement = true } },
-                "config/read" => new { config = new { ProviderId = "provider", ProviderPreferences = new { provider = new { model = "real-model", reasoning = new { effort = "high" } } } } },
+                "config/read" => new
+                {
+                    config = new { ProviderId = "provider", ProviderPreferences = new { provider = new { model = "real-model", reasoning = new { effort = "high" } } } },
+                    layers = new[] { new { name = new { type = "user", file = Path.Combine(Path.GetTempPath(), ".craft", "config.json") }, version = "v1", config = new { } } }
+                },
                 "provider/list" => new { providers = new[] { new { id = "provider" } } },
                 "model/list" => new { success = true, models = new[] { new { id = "real-model", displayName = "Real model", inputModalities = new[] { "text" }, speed = new { supportedModes = new[] { "standard", "fast" } }, reasoning = new { defaultEffort = "high", supportedEfforts = new[] { new { effort = "high", description = "High" } } } } } },
                 "thread/list" => new { data = new[] { new

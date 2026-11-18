@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.12.2 |
+| **Version** | 0.13.1 |
 | **Status** | Living |
 | **Date** | 2026-11-18 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
@@ -308,7 +308,7 @@ The starting point names the foreground project and lets the user switch project
 ### 5.2 Start a New Conversation
 
 1. User chooses to create a thread.
-2. Client calls `thread/start` or `worktree/createAndStart` with the complete initial thread configuration, including the selected mode and model snapshot. It includes `approvalPolicy` only for an explicit per-thread override; omission preserves workspace inheritance.
+2. Client calls `thread/start` or `worktree/createAndStart` with the complete initial thread configuration, including the selected mode and model snapshot. It includes `approvalPolicy` only for an explicit choice, and omission preserves configuration inheritance. The approval choice made on Welcome is a Desktop preference: it persists across projects and restarts, applies to every new conversation until changed, and never writes configuration. Changing Default permissions in Settings writes `Permissions.DefaultApprovalPolicy` and clears that preference, so new conversations follow the setting again. Changing approval inside a conversation changes only that conversation.
 3. Desktop clears the composer and opens the conversation surface immediately, showing the submitted message and a creating state. That placeholder is client-only: it never becomes a thread id, never appears in the thread list, and is not subject to the restore pipeline in [5.3.1](#531-desktop-thread-restore-pipeline).
 4. When creation succeeds, the thread becomes active and Desktop submits the staged first message after the thread is restored, without patching thread configuration in between. If the user opened another thread meanwhile, Desktop leaves them there and still starts the message on the created thread. Anything typed into the creating state's composer is carried to the created thread as a draft.
 5. If creation fails, Desktop returns the user to the originating surface with the submitted content restored and reports the failure. No thread is left behind.
@@ -879,10 +879,10 @@ Every result opens by automation id and run id. Follow-ups locate the exact turn
 ### 6.5 Model Selection
 
 - With the model catalog capability, the client offers model selection from server-provided values; without it, or when it fails, conversation remains usable and manual model entry stays available (including on `EndpointNotSupported`).
-- Welcome catalog requests are scoped to the workspace provider; existing-thread requests are scoped to `thread.configuration.providerId` and do not follow workspace changes.
+- Welcome catalog requests are scoped to the configured provider; existing-thread requests are scoped to `thread.configuration.providerId` and do not follow workspace changes.
 - One combined picker exposes provider, model, reasoning, and speed with consistent keyboard and menu behavior in Composer, Settings, and Setup. Settings and Setup omit provider choice because the surrounding workflow owns it.
-- Welcome atomically persists `providerId` and the complete provider-keyed `providerPreferences` map, then sends the selected mode/model/reasoning/speed/context snapshot (and any explicit approval override) in `thread/start` or `worktree/createAndStart`.
-- Existing threads expose no Default. A provider or preference change sends one full `thread/config/update`, never a workspace configuration write, and updates local state only on success. A provider with no remembered model gets its first listed model; if listing is unavailable, the thread is unchanged and the user is directed to provider settings.
+- Welcome atomically persists `ProviderId` and the selected provider's `ProviderPreferences.<id>` entry in the user layer, so the choice applies to every workspace, then sends the selected mode/model/reasoning/speed/context snapshot (and any explicit approval override) in `thread/start` or `worktree/createAndStart`.
+- Existing threads expose no Default. A provider or preference change sends one full `thread/config/update`, never a configuration write, and updates local state only on success. A provider with no remembered model gets its first listed model; if listing is unavailable, the thread is unchanged and the user is directed to provider settings.
 - Successful provider, model, reasoning, and speed changes are reflected in the picker without success toasts. Failed changes retain error feedback.
 - Missing or deleted providers remain visible as missing thread state until the user migrates the thread.
 
@@ -900,14 +900,15 @@ Every result opens by automation id and run id. Follow-ups locate the exact turn
 
 - Desktop follows the three-tier model: live-apply, subsystem-restart, and process-restart fields. Actions are group-scoped (Apply, Restart, Apply & Restart); there is no page-level Save.
 - Configuration controls require `capabilities.workspaceConfigManagement`. Desktop reads effective configuration with `config/read` and writes key paths with `config/value/write` or `config/batchWrite`, for local and remote connections alike; it never reads configuration files. Controls apply optimistically and restore the previous value with an error on failure.
+- Settings apply to every workspace: Desktop writes the user layer and never the workspace layer. A write answered with `okOverridden` keeps the control on the effective value and tells the user that the project's `.craft/config.json` sets it. New MCP servers are added in the user scope, and a server the project defines is edited and removed in the workspace scope. Per-project data stays with its project: Source control edits the foreground project's binding and names that project, and Worktrees › Environments lists every project.
 - Edit races: live-apply fields keep local in-flight edits when the echo of the same change arrives; process-restart edits stay local until applied or discarded.
 
 **Providers and models** (when `providerManagement` is available)
 
 - Personal providers, including [model backend](../architecture/model-backend-plugins.md) instances, are listed together with `provider/list` and created, edited, tested (`provider/test`, with no hidden chat requests), and deleted from Settings. An instance whose backend is unavailable stays listed with that problem and keeps its configuration.
 - The provider editor writes `Providers.<id>` in the user layer with `config/batchWrite`: an untouched API key is sent as `***` or omitted, delete writes `null`, and per-provider toggles write `Providers.<id>.<Field>`. It rejects ids that already exist and passes the layer's `expectedVersion` to avoid overwriting concurrent edits. `openai` is an ordinary provider id; the server rejects deleting the selected provider.
-- Provider credentials and endpoints are personal; workspace saves write `ProviderId` and the selected provider's `ProviderPreferences.<id>` entry. Each preference holds model, reasoning, and speed, and a workspace record atomically overrides the personal one for that provider.
-- The page has two tabs: **Models** holds the workspace main and Subagent models, Subagent model choices, image generation, and web search; **Providers** holds the provider list, where a row also selects the workspace provider, and the New provider action. The provider editor replaces both tabs while open.
+- Provider credentials, endpoints, `ProviderId`, and `ProviderPreferences.<id>` are saved in the user layer. Each preference holds model, reasoning, and speed. A hand-authored workspace record overrides the personal one for that provider.
+- The page has two tabs: **Models** holds the main and Subagent models, Subagent model choices, image generation, and web search; **Providers** holds the provider list, where a row also selects the default provider, and the New provider action. The provider editor replaces both tabs while open.
 - Main and Subagent model settings use the shared picker, each preceded by a provider choice. Subagent can inherit (removing its record for the selected main provider) or be customized starting from the main preference; a customized Subagent model chooses its provider before its model, and a notice with a way to set the provider up follows it when that provider is missing or signed out.
 - Subagent model choices edit `SubAgent.Models` as an ordered list of provider and model pairs, added from a provider and model choice and removed per row. A row whose provider is missing or signed out carries a warning status indicator naming that trouble.
 - Unsupported model listing remains recoverable with manual entry.
@@ -943,7 +944,7 @@ Every result opens by automation id and run id. Follow-ups locate the exact turn
 **Personalization and memory**
 
 - A personal Pet tab configures the default companion ([§6.13](#613-desktop-pet)).
-- A workspace Personalization tab groups Conversation, Skills, and Memory settings by available capability; empty groups are hidden.
+- A Personalization tab groups Conversation, Skills, and Memory settings by available capability; empty groups are hidden.
 - The Memory group holds memory enablement (`memoryEnabled`), automatic extraction of missed memories (`Memory.AutoExtract`), Dreams when `capabilities.dreams = true`, and delete-all when `capabilities.memoryManagement = true` (`memory/reset` after confirmation). Memory toggles affect new sessions only ([Memory](../features/memory.md#7-memory-switches)). While memory is disabled, dependent settings show disabled with their stored values and an explanation.
 - Dreams controls are hidden without `capabilities.dreams`. Entering Personalization or the Dreams page loads `dreams/status`, refreshed after saves and on `config/changed` for `memory` or `Memory`/`Dreams` keys. Manual runs call `dreams/run`, disable while running, and poll status. Run history uses `dreams/list` and opens Dashboard review links at `dashboardUrl#dreams/run/<runId>`; Desktop shows no memory diffs. See [Dreams](../features/dreams.md#10-desktop-ux-contract).
 
