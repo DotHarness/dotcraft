@@ -273,8 +273,10 @@ DotCraft does not silently retry as Standard.
 
 OpenAI Responses estimates use the response `service_tier`, falling back to the actual request tier.
 `priority` and `fast` multiply all token costs by 2, or 2.5 for the exact model ID `gpt-5.5`;
-`flex` multiplies them by 0.5. Other or missing tiers, including `ultrafast`, use 1. ChatGPT OAuth/Codex preserves a
-requested `priority` or `flex` when the response echoes `default`; its `fast` response tier uses 1.
+`flex` multiplies them by 0.5. `ultrafast` multiplies them by 6 for `gpt-6.2-astra`,
+`gpt-6.2-sol`, `gpt-6-astra`, and `gpt-6.1-sol`; other or missing tiers use 1. ChatGPT OAuth/Codex
+preserves a requested `priority`, `flex`, or `ultrafast` when the response echoes `default`; its
+`fast` response tier uses 1.
 The provider resolves this adjustment for both runtime and model-service requests. Reported amounts,
 including zero, always take precedence and are never multiplied. Other protocols, including
 Anthropic Fast, retain base-price estimation without inferred multipliers.

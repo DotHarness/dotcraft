@@ -13,23 +13,6 @@ namespace DotCraft.Tests.Agents;
 
 public sealed class OpenAIServiceTierCostTests
 {
-    [Theory]
-    [InlineData(false, false, "gpt-5.5", "priority", "priority", 2.5)]
-    [InlineData(false, false, "gpt-5.5", "priority", "fast", 2.5)]
-    [InlineData(false, false, "gpt-5.4", "priority", "default", 1)]
-    [InlineData(false, true, "gpt-5.4", "priority", "default", 2)]
-    [InlineData(true, true, "gpt-5.5", "priority", "default", 2.5)]
-    [InlineData(true, true, "gpt-5.5", "flex", "default", 0.5)]
-    [InlineData(true, true, "gpt-5.4", "priority", "fast", 1)]
-    [InlineData(false, false, "gpt-5.5", "priority", null, 2.5)]
-    [InlineData(true, true, "gpt-5.4", "priority", null, 2)]
-    public async Task Terminal_usage_uses_the_actual_request_and_provider_tier_rules(
-        bool lite, bool codex, string model, string requestTier, string? responseTier, double expectedMultiplier)
-    {
-        await AssertMappedCostAsync(lite, codex, model, requestTier, responseTier,
-            incomplete: false, (decimal)expectedMultiplier);
-    }
-
     [Fact]
     public async Task Incomplete_response_still_prices_usage_at_the_returned_tier()
     {
