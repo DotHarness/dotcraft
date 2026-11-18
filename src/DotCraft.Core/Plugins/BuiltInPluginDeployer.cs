@@ -45,27 +45,24 @@ public sealed class BuiltInPluginDeployer(
                 continue;
 
             var targetRoot = Path.Combine(pluginsPath, source.Manifest.Id);
-            ManagedPluginMarker? marker;
             try
             {
-                marker = ManagedPluginMarker.Read(targetRoot);
+                var marker = ManagedPluginMarker.Read(targetRoot);
+                if (marker == null || !PluginIds.KeysEqual(PluginIds.Key(source.Manifest.Id, marker.MarketplaceName), source.Key))
+                    continue;
+
+                var installed = PluginManifestParser.Load(targetRoot);
+                diagnostics.AddRange(installed.Diagnostics);
+                if (installed.Manifest == null || installed.Manifest.Dotnet != null || source.Manifest.Dotnet != null)
+                    continue;
+
+                if (marker != BuildMarker(source))
+                    pending.Add(source.Key);
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
             {
                 diagnostics.Add(DeploymentFailure(source.Manifest.Id, targetRoot, "check", exception));
-                continue;
             }
-
-            if (marker == null || !PluginIds.KeysEqual(PluginIds.Key(source.Manifest.Id, marker.MarketplaceName), source.Key))
-                continue;
-
-            var installed = PluginManifestParser.Load(targetRoot);
-            diagnostics.AddRange(installed.Diagnostics);
-            if (installed.Manifest == null || installed.Manifest.Dotnet != null || source.Manifest.Dotnet != null)
-                continue;
-
-            if (marker != BuildMarker(source))
-                pending.Add(source.Key);
         }
 
         return pending;
