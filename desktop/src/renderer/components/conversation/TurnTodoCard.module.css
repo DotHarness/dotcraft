@@ -1,7 +1,7 @@
 .checklist {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 6px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -104,7 +104,7 @@
 
 .card {
   min-width: 0;
-  padding: 10px 12px;
+  padding: 16px;
   border: 1px solid var(--border-default);
   border-radius: 8px;
   background: var(--bg-primary);
