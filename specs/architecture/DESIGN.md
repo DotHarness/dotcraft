@@ -157,7 +157,11 @@ On Windows, the main window uses native caption controls in a 36px title-bar
 overlay. Navigation and menus may use the remaining title-bar area but must
 reserve the overlay's safe area. The overlay is transparent and its symbols follow
 the active theme. When the top-level menus no longer fit, they collapse to one
-entry that opens the same application menu. Linux uses custom caption controls;
+entry that opens the same application menu. On Windows and Linux the title-bar
+menus render as app menus over the native application menu. A top-level menu
+answers hover with a neutral fill and opens on press. While one is open, hovering
+another switches to it, and the arrow keys move between them. Choosing a command
+returns focus to where it was before the menu opened. Linux uses custom caption controls;
 macOS keeps its native traffic lights. While the sidebar is collapsed, macOS shows
 a 36px title strip with the sidebar toggle after the traffic lights.
 

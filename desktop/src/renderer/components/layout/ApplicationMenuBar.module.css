@@ -1,0 +1,44 @@
+.menus {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 2px;
+  margin-left: 6px;
+  -webkit-app-region: no-drag;
+}
+
+.menus[data-collapsed] {
+  position: absolute;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--type-ui-size);
+  line-height: var(--type-ui-line-height);
+  font-weight: var(--type-ui-weight);
+  white-space: nowrap;
+  cursor: default;
+  transition: background-color 100ms ease, color 100ms ease;
+}
+
+.trigger:hover,
+.trigger:focus-visible {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  outline: none;
+}
+
+.trigger[data-open] {
+  background: var(--bg-hover-strong);
+  color: var(--text-primary);
+}

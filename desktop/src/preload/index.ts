@@ -94,7 +94,7 @@ import {
   TITLE_BAR_OVERLAY_HEIGHT,
   TITLE_BAR_OVERLAY_RIGHT_RESERVE
 } from '../shared/titleBarOverlay'
-import type { TopLevelMenuId } from '../shared/locales/types'
+import type { ApplicationMenuSnapshot } from '../shared/applicationMenu'
 import type { PetSettings } from '../shared/pet'
 import type { SidebarThreadSortMode } from '../shared/sidebarThreadOrder'
 import type { SidebarSection } from '../shared/sidebarSections'
@@ -495,11 +495,11 @@ const api = {
   titleBarOverlayRightReserve: TITLE_BAR_OVERLAY_RIGHT_RESERVE,
 
   menu: {
-    popupTopLevel(menuId: TopLevelMenuId, x: number, y: number): Promise<void> {
-      return ipcRenderer.invoke('menu:popup-top-level', { menuId, x, y })
+    getApplicationMenu(): Promise<ApplicationMenuSnapshot> {
+      return ipcRenderer.invoke('menu:get-application-menu')
     },
-    popupAll(x: number, y: number): Promise<void> {
-      return ipcRenderer.invoke('menu:popup-all', { x, y })
+    invokeItem(commandId: number): Promise<void> {
+      return ipcRenderer.invoke('menu:invoke-item', commandId)
     }
   },
 

@@ -390,7 +390,8 @@ function installApi(
       },
       oratorio: undefined,
       menu: {
-        popupTopLevel: vi.fn().mockResolvedValue(undefined)
+        getApplicationMenu: vi.fn().mockResolvedValue({ file: [], edit: [], view: [], window: [], help: [] }),
+        invokeItem: vi.fn().mockResolvedValue(undefined)
       }
     })
   return {

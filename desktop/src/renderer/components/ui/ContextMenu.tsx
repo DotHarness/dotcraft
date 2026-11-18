@@ -12,6 +12,8 @@ export interface ContextMenuItem {
   icon?: ReactNode
   /** Content aligned to the trailing edge, such as a selected-state check. */
   trailing?: ReactNode
+  /** Keyboard shortcut shown dimmed at the trailing edge. */
+  shortcut?: string
   selection?: 'radio' | 'checkbox'
   checked?: boolean
   /** Native tooltip describing what the item does (shown on hover). */
@@ -80,13 +82,23 @@ interface ContextMenuProps {
   zIndex?: number
   width?: number
   autoFocus?: boolean
+  /** Presses this accepts leave the menu open, such as on the trigger that toggles it. */
+  ignoreOutsidePress?: (event: MouseEvent) => boolean
 }
 
 interface SubmenuAnchor {
   top: number
 }
 
-export function ContextMenu({ items, position, onClose, zIndex, width = 200, autoFocus = false }: ContextMenuProps): JSX.Element {
+export function ContextMenu({
+  items,
+  position,
+  onClose,
+  zIndex,
+  width = 200,
+  autoFocus = false,
+  ignoreOutsidePress
+}: ContextMenuProps): JSX.Element {
   const menuRef = useRef<HTMLDivElement>(null)
   const submenuRef = useRef<HTMLDivElement>(null)
   const layerDepth = useContext(LayerContext)
@@ -132,7 +144,7 @@ export function ContextMenu({ items, position, onClose, zIndex, width = 200, aut
 
   useEffect(() => {
     function handleMouseDown(e: MouseEvent): void {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node) && !ignoreOutsidePress?.(e)) {
         cancelMenuAim()
         onClose()
       }
@@ -153,7 +165,7 @@ export function ContextMenu({ items, position, onClose, zIndex, width = 200, aut
       document.removeEventListener('mousedown', handleMouseDown)
       document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [cancelMenuAim, onClose])
+  }, [cancelMenuAim, ignoreOutsidePress, onClose])
 
   useEffect(() => {
     if (autoFocus) moveMenuFocus(menuRef.current, 'Home')
@@ -346,6 +358,7 @@ export function ContextMenu({ items, position, onClose, zIndex, width = 200, aut
               </span>
             )}
             {item.label}
+            {item.shortcut ? <MenuItemShortcut>{item.shortcut}</MenuItemShortcut> : null}
             {trailing ? <MenuItemTrailing>{trailing}</MenuItemTrailing> : null}
             {item.submenu && (
               <ChevronRight
@@ -467,6 +480,7 @@ export function ContextMenu({ items, position, onClose, zIndex, width = 200, aut
                   </span>
                 )}
                 {item.label}
+                {item.shortcut ? <MenuItemShortcut>{item.shortcut}</MenuItemShortcut> : null}
                 {trailing ? <MenuItemTrailing>{trailing}</MenuItemTrailing> : null}
               </button>
             )
@@ -482,6 +496,24 @@ export function ContextMenu({ items, position, onClose, zIndex, width = 200, aut
   )
 
   return createPortal(<LayerBoundary>{menu}</LayerBoundary>, document.body) as JSX.Element
+}
+
+function MenuItemShortcut({ children }: { children: string }): JSX.Element {
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        marginLeft: 'auto',
+        paddingLeft: 16,
+        flexShrink: 0,
+        color: 'var(--text-dimmed)',
+        fontSize: 'var(--type-secondary-size)',
+        whiteSpace: 'nowrap'
+      }}
+    >
+      {children}
+    </span>
+  )
 }
 
 function MenuItemTrailing({ children }: { children: ReactNode }): JSX.Element {

@@ -1,29 +1,20 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react'
-import { Download, Menu, Minus, Square, X } from 'lucide-react'
+import { Download, Minus, Square, X } from 'lucide-react'
 import { Spinner } from '../ui/Spinner'
 
 import { TITLE_BAR_OVERLAY_HEIGHT } from '../../../shared/titleBarOverlay'
-import { TOP_LEVEL_MENU_IDS, type TopLevelMenuId } from '../../../shared/locales'
 import type { AppUpdateState } from '../../../shared/appUpdate'
 import { useT } from '../../contexts/LocaleContext'
 import { useWindowMaximized } from '../../hooks/useWindowMaximized'
 import { IconButton } from '../ui/IconButton'
 import { AppUpdateDialog } from '../update/AppUpdateDialog'
 import { AppNavigationControls } from './AppNavigationControls'
+import { ApplicationMenuBar } from './ApplicationMenuBar'
 import { SidebarToggleButton } from './SidebarToggleButton'
 import css from './CustomMenuBar.module.css'
 
 const dragRegion: CSSProperties = { WebkitAppRegion: 'drag' }
 const noDrag: CSSProperties = { WebkitAppRegion: 'no-drag' }
-
-const MENU_LABEL_KEY: Record<TopLevelMenuId, 'menu.file' | 'menu.edit' | 'menu.view' | 'menu.window' | 'menu.help'> =
-  {
-    file: 'menu.file',
-    edit: 'menu.edit',
-    view: 'menu.view',
-    window: 'menu.window',
-    help: 'menu.help'
-  }
 
 export function CustomMenuBar(): JSX.Element {
   const t = useT()
@@ -133,51 +124,7 @@ export function CustomMenuBar(): JSX.Element {
         )}
       </div>
 
-      <div
-        ref={menusRef}
-        className={css.menus}
-        data-collapsed={isWindows && collapsedMenus || undefined}
-        aria-hidden={isWindows && collapsedMenus || undefined}
-        inert={isWindows && collapsedMenus}
-      >
-        {TOP_LEVEL_MENU_IDS.map((menuId) => (
-          <button
-            key={menuId}
-            type="button"
-            style={menuButtonStyle}
-            onMouseDown={(e) => {
-              e.preventDefault()
-              popupTopLevelMenu(menuId, e.currentTarget)
-            }}
-            onKeyDown={(e) => {
-              if (!isMenuOpenKey(e.key)) return
-              e.preventDefault()
-              popupTopLevelMenu(menuId, e.currentTarget)
-            }}
-          >
-            {t(MENU_LABEL_KEY[menuId])}
-          </button>
-        ))}
-      </div>
-
-      {isWindows && collapsedMenus && (
-        <button
-          type="button"
-          className={css.narrowMenu}
-          onMouseDown={(event) => {
-            event.preventDefault()
-            popupAllMenus(event.currentTarget)
-          }}
-          onKeyDown={(event) => {
-            if (!isMenuOpenKey(event.key)) return
-            event.preventDefault()
-            popupAllMenus(event.currentTarget)
-          }}
-        >
-          <Menu size={15} aria-hidden="true" />
-          {t('menu.all')}
-        </button>
-      )}
+      <ApplicationMenuBar menusRef={menusRef} collapsed={isWindows && collapsedMenus} />
 
       <div style={{ flex: 1, alignSelf: 'stretch' }} />
 
@@ -250,20 +197,6 @@ function isInteractiveTitleBarTarget(target: EventTarget | null): boolean {
   return target.closest('button,a,input,textarea,select,[role="button"]') !== null
 }
 
-function isMenuOpenKey(key: string): boolean {
-  return key === 'Enter' || key === ' ' || key === 'ArrowDown'
-}
-
-function popupTopLevelMenu(menuId: TopLevelMenuId, trigger: HTMLElement): void {
-  const rect = trigger.getBoundingClientRect()
-  void window.api.menu.popupTopLevel(menuId, rect.left, rect.bottom)
-}
-
-function popupAllMenus(trigger: HTMLElement): void {
-  const rect = trigger.getBoundingClientRect()
-  void window.api.menu.popupAll(rect.left, rect.bottom)
-}
-
 function WindowControlButton({
   label,
   danger = false,
@@ -332,18 +265,4 @@ const updateBadgeStyle: CSSProperties = {
   borderRadius: 999,
   background: 'var(--accent)',
   boxShadow: '0 0 0 2px color-mix(in srgb, var(--text-primary) 8%, transparent)'
-}
-
-const menuButtonStyle: CSSProperties = {
-  ...noDrag,
-  marginRight: 2,
-  padding: '2px 6px',
-  border: 'none',
-  borderRadius: 4,
-  background: 'transparent',
-  color: 'inherit',
-  fontSize: 'var(--type-ui-size)',
-  lineHeight: 'var(--type-ui-line-height)',
-  fontWeight: 'var(--type-ui-weight)',
-  cursor: 'default'
 }

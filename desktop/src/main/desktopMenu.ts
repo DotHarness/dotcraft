@@ -1,5 +1,6 @@
-import { BrowserWindow, dialog, ipcMain, Menu, shell, type MenuItemConstructorOptions } from 'electron'
-import { normalizeLocale, translate, type AppLocale, type TopLevelMenuId } from '../shared/locales'
+import { BrowserWindow, dialog, ipcMain, Menu, shell, type MenuItem, type MenuItemConstructorOptions } from 'electron'
+import type { ApplicationMenuEntry, ApplicationMenuSnapshot } from '../shared/applicationMenu'
+import { normalizeLocale, translate, TOP_LEVEL_MENU_IDS, type AppLocale } from '../shared/locales'
 import type { DesktopApplicationServices } from './desktopApplicationServices'
 import { getGitHubIdentity } from './githubProfile'
 import { openExternalHttpUrl } from './ipcBridge'
@@ -101,6 +102,43 @@ export function refreshDesktopMenu(services: DesktopApplicationServices): void {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
 }
 
+function readApplicationMenu(): ApplicationMenuSnapshot {
+  const items = Menu.getApplicationMenu()?.items ?? []
+  return Object.fromEntries(
+    TOP_LEVEL_MENU_IDS.map((id) => [id, readMenuEntries(items.find((item) => item.id === id)?.submenu?.items ?? [])])
+  ) as ApplicationMenuSnapshot
+}
+
+function readMenuEntries(items: MenuItem[]): ApplicationMenuEntry[] {
+  return items.flatMap((item): ApplicationMenuEntry[] => {
+    if (!item.visible || item.type === 'submenu') return []
+    if (item.type === 'separator') return [{ type: 'separator' }]
+    return [{
+      type: 'item',
+      commandId: item.commandId,
+      label: item.label,
+      enabled: item.enabled,
+      accelerator: item.accelerator ? formatAccelerator(item.accelerator) : undefined
+    }]
+  })
+}
+
+function formatAccelerator(accelerator: string): string {
+  return accelerator
+    .split('+')
+    .map((part) => /^(CommandOrControl|CmdOrCtrl|Control)$/i.test(part) ? 'Ctrl' : part)
+    .join('+')
+}
+
+function findMenuItem(menu: Menu | null, commandId: number): MenuItem | null {
+  for (const item of menu?.items ?? []) {
+    if (item.commandId === commandId) return item
+    const nested = findMenuItem(item.submenu ?? null, commandId)
+    if (nested) return nested
+  }
+  return null
+}
+
 async function checkForUpdates(services: DesktopApplicationServices, locale: AppLocale): Promise<void> {
   const win = services.focusedWindow()?.mainWindow
   const state = await services.getAppUpdateService().checkForUpdates()
@@ -117,20 +155,12 @@ async function checkForUpdates(services: DesktopApplicationServices, locale: App
 }
 
 export function registerDesktopApplicationIpc(services: DesktopApplicationServices): void {
-  ipcMain.handle(
-    'menu:popup-top-level',
-    (event, payload: { menuId: TopLevelMenuId; x: number; y: number }) => {
-      const owner = BrowserWindow.fromWebContents(event.sender)
-      if (!owner || !services.windowFor(owner)) return
-      Menu.getApplicationMenu()
-        ?.items.find((item) => item.id === payload.menuId)
-        ?.submenu?.popup({ window: owner, x: Math.round(payload.x), y: Math.round(payload.y) })
-    }
-  )
-  ipcMain.handle('menu:popup-all', (event, payload: { x: number; y: number }) => {
+  ipcMain.handle('menu:get-application-menu', () => readApplicationMenu())
+  ipcMain.handle('menu:invoke-item', (event, commandId: number) => {
     const owner = BrowserWindow.fromWebContents(event.sender)
-    if (owner && services.windowFor(owner))
-      Menu.getApplicationMenu()?.popup({ window: owner, x: Math.round(payload.x), y: Math.round(payload.y) })
+    if (!owner || !services.windowFor(owner)) return
+    const item = findMenuItem(Menu.getApplicationMenu(), commandId)
+    if (item?.enabled) item.click(undefined, owner, event.sender)
   })
   ipcMain.handle('app:whats-new-get-releases', () => services.getWhatsNewCatalog().getReleases())
   ipcMain.handle('app:whats-new-get-media-states', (_event, versions: string[]) =>
