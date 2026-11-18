@@ -3,7 +3,8 @@ import { Zap } from 'lucide-react'
 import styles from './ProviderModelSummary.module.css'
 import { useT } from '../../contexts/LocaleContext'
 import type { MessageKey } from '../../../shared/locales'
-import type { ModelPreference, ModelPreferenceReasoningEffort } from '../../../shared/modelPreference'
+import type { ModelPreference, ModelPreferenceReasoningEffort, ModelPreferenceSpeed } from '../../../shared/modelPreference'
+import { UltrafastIcon } from '../conversation/ModelPickerSpeed'
 
 interface ProviderModelSummaryProps {
   main: ModelPreference | null
@@ -26,12 +27,18 @@ export function ProviderModelSummary({ main, mainLabel }: ProviderModelSummaryPr
   const reasoningLabel = (preference: ModelPreference): string | null =>
     preference.reasoning.enabled ? t(reasoningLabelKeys[preference.reasoning.effort]) : null
 
-  const clause = (label: string, value: string, fast: boolean): JSX.Element => (
+  const clause = (label: string, value: string, speed: ModelPreferenceSpeed): JSX.Element => (
     <span className={styles.clause}>
       <span>{label}</span>
-      {fast && (
-        <span role="img" aria-label={t('composer.speed.fast')} className={styles.fast}>
-          <Zap aria-hidden size={11} strokeWidth={2.4} fill="currentColor" />
+      {speed !== 'standard' && (
+        <span
+          role="img"
+          aria-label={t(speed === 'ultrafast' ? 'composer.speed.ultrafast' : 'composer.speed.fast')}
+          className={styles.fast}
+        >
+          {speed === 'ultrafast'
+            ? <UltrafastIcon size={11} strokeWidth={2.4} />
+            : <Zap aria-hidden size={11} strokeWidth={2.4} fill="currentColor" />}
         </span>
       )}
       <span className={styles.value}>{value}</span>
@@ -44,7 +51,7 @@ export function ProviderModelSummary({ main, mainLabel }: ProviderModelSummaryPr
       preference.model,
       reasoningLabel(preference),
     ].filter(Boolean).join(' · '),
-    preference.speed === 'fast'
+    preference.speed
   )
 
   return (

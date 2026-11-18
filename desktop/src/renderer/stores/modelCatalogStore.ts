@@ -5,7 +5,7 @@ import { requestWorkspaceResource, workspaceResourceKey, type WorkspaceResourceS
 export type ModelCatalogStatus = 'idle' | 'loading' | 'ready' | 'error'
 export type ReasoningEffortWire = 'low' | 'medium' | 'high' | 'extraHigh' | 'max' | 'ultra'
 export type ReasoningOutputWire = 'none' | 'summary' | 'full'
-export type InferenceSpeedWire = 'standard' | 'fast'
+export type InferenceSpeedWire = 'standard' | 'fast' | 'ultrafast'
 
 export interface ModelSpeedCapability {
   supportedModes: InferenceSpeedWire[]
@@ -108,7 +108,7 @@ const initialState: ModelCatalogState = {
 
 const effortValues = new Set<ReasoningEffortWire>(['low', 'medium', 'high', 'extraHigh', 'max', 'ultra'])
 const outputValues = new Set<ReasoningOutputWire>(['none', 'summary', 'full'])
-const speedValues = new Set<InferenceSpeedWire>(['standard', 'fast'])
+const speedValues = new Set<InferenceSpeedWire>(['standard', 'fast', 'ultrafast'])
 
 function parseSpeedCapability(value: unknown): ModelSpeedCapability | null {
   if (!value || typeof value !== 'object') return null
@@ -118,7 +118,7 @@ function parseSpeedCapability(value: unknown): ModelSpeedCapability | null {
   const supportedModes = rawModes.filter(
     (item): item is InferenceSpeedWire => typeof item === 'string' && speedValues.has(item as InferenceSpeedWire)
   )
-  if (!supportedModes.includes('fast')) return null
+  if (!supportedModes.some((mode) => mode !== 'standard')) return null
   const rawDefault = typed.defaultMode ?? typed.DefaultMode
   return {
     supportedModes,

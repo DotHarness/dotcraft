@@ -223,6 +223,28 @@ describe('modelCatalogStore', () => {
     ])
   })
 
+  it('keeps speed capabilities that advertise only Ultrafast and drops Standard-only ones', async () => {
+    appServerListModels.mockResolvedValueOnce({
+      success: true,
+      models: [
+        { id: 'astra', speed: { supportedModes: ['standard', 'fast', 'ultrafast'], defaultMode: 'standard' } },
+        { id: 'sol', speed: { supportedModes: ['standard', 'ultrafast'], defaultMode: 'standard' } },
+        { id: 'plain', speed: { supportedModes: ['standard'], defaultMode: 'standard' } }
+      ]
+    })
+
+    await useModelCatalogStore.getState().loadIfNeeded()
+
+    const speeds = Object.fromEntries(
+      useModelCatalogStore.getState().getCatalog().models.map((model) => [model.id, model.speed])
+    )
+    expect(speeds).toEqual({
+      astra: { supportedModes: ['standard', 'fast', 'ultrafast'], defaultMode: 'standard' },
+      sol: { supportedModes: ['standard', 'ultrafast'], defaultMode: 'standard' },
+      plain: null
+    })
+  })
+
   it('keeps a non-blank displayName from model/list', async () => {
     appServerListModels.mockResolvedValueOnce({
       success: true,

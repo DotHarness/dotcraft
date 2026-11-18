@@ -97,6 +97,7 @@ import { registerComposerVoiceTarget } from '../../voice/composerDraftBridge'
 import { isVoiceProcessingForThread, shouldUseCompactVoiceFooter, useVoiceStore } from '../../voice/voiceStore'
 import { resolveWorkspaceProviderFromConfig } from '../../utils/workspaceCoreConfig'
 import { toComposerMascotReasoningEffort } from './composerMascotEffectState'
+import { effectiveSpeed } from './modelSpeed'
 import { useComposerProvider } from './useComposerProvider'
 
 interface ConversationWelcomeProps {
@@ -1000,11 +1001,9 @@ function ConversationWelcomeCore({
     void sendFromWelcome()
   }, [sendFromWelcome, voiceRecording])
 
-  const mascotSpeed = speedValue === 'fast' && modelCatalog.some(
-    (model) => model.id === modelName && model.speed?.supportedModes.includes('fast') === true
-  )
-    ? 'fast'
-    : 'standard'
+  const mascotSpeed = effectiveSpeed(modelCatalog.find((model) => model.id === modelName)?.speed, speedValue) === 'standard'
+    ? 'standard'
+    : 'fast'
 
   return (
     <div

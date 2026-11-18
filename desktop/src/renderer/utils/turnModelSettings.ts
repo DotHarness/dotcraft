@@ -2,6 +2,7 @@ import type { TurnStartParams } from '@dotcraft/sdk/contracts'
 import type { ThreadConfigurationWire } from '../types/thread'
 import { useThreadStore } from '../stores/threadStore'
 import { readReasoningObject } from '../components/conversation/modelReasoning'
+import { MODEL_PREFERENCE_SPEEDS } from '../../shared/modelPreference'
 
 export type TurnModelSettings = Pick<TurnStartParams, 'providerId' | 'model' | 'reasoning' | 'speed'>
 
@@ -14,7 +15,7 @@ export function modelSettingsFromConfiguration(config?: ThreadConfigurationWire 
     ...(typeof providerId === 'string' && providerId.trim() ? { providerId } : {}),
     ...(typeof model === 'string' && model.trim() && model !== 'Default' ? { model } : {}),
     ...(reasoning ? { reasoning: { ...reasoning } } : {}),
-    ...(speed === 'standard' || speed === 'fast' ? { speed } : {})
+    ...(speed && MODEL_PREFERENCE_SPEEDS.includes(speed) ? { speed } : {})
   }
 }
 

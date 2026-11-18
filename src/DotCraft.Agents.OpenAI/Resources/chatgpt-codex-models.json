@@ -4,67 +4,144 @@
       "slug": "gpt-6.2-sol",
       "visibility": "list",
       "priority": 1,
-      "use_responses_lite": true
+      "use_responses_lite": true,
+      "service_tiers": [
+        {
+          "id": "priority",
+          "name": "Fast",
+          "description": "2x speed, increased usage"
+        }
+      ]
     },
     {
       "slug": "gpt-6.2-astra",
       "visibility": "list",
       "priority": 2,
-      "use_responses_lite": true
+      "use_responses_lite": true,
+      "service_tiers": [
+        {
+          "id": "priority",
+          "name": "Fast",
+          "description": "2x speed, increased usage"
+        }
+      ]
     },
     {
       "slug": "gpt-6.1-terra",
       "visibility": "list",
       "priority": 3,
-      "use_responses_lite": true
+      "use_responses_lite": true,
+      "service_tiers": [
+        {
+          "id": "priority",
+          "name": "Fast",
+          "description": "1.5x speed"
+        }
+      ]
     },
     {
       "slug": "gpt-6.1-sol",
       "visibility": "list",
       "priority": 4,
-      "use_responses_lite": true
+      "use_responses_lite": true,
+      "service_tiers": [
+        {
+          "id": "priority",
+          "name": "Fast",
+          "description": "2x speed, increased usage"
+        }
+      ]
     },
     {
       "slug": "gpt-6-astra",
       "visibility": "list",
       "priority": 5,
-      "use_responses_lite": true
+      "use_responses_lite": true,
+      "service_tiers": [
+        {
+          "id": "priority",
+          "name": "Fast",
+          "description": "2x speed, increased usage"
+        }
+      ]
     },
     {
       "slug": "gpt-6-sol",
       "visibility": "list",
       "priority": 6,
-      "use_responses_lite": true
+      "use_responses_lite": true,
+      "service_tiers": [
+        {
+          "id": "priority",
+          "name": "Fast",
+          "description": "1.5x speed"
+        }
+      ]
     },
     {
       "slug": "gpt-6-luna",
       "visibility": "list",
       "priority": 7,
-      "use_responses_lite": true
+      "use_responses_lite": true,
+      "service_tiers": [
+        {
+          "id": "priority",
+          "name": "Fast",
+          "description": "1.5x speed"
+        }
+      ]
     },
     {
       "slug": "gpt-5.6-sol",
       "visibility": "list",
       "priority": 8,
-      "use_responses_lite": true
+      "use_responses_lite": true,
+      "service_tiers": [
+        {
+          "id": "priority",
+          "name": "Fast",
+          "description": "1.5x speed, increased usage"
+        }
+      ]
     },
     {
       "slug": "gpt-5.6-terra",
       "visibility": "list",
       "priority": 9,
-      "use_responses_lite": true
+      "use_responses_lite": true,
+      "service_tiers": [
+        {
+          "id": "priority",
+          "name": "Fast",
+          "description": "1.5x speed, increased usage"
+        }
+      ]
     },
     {
       "slug": "gpt-5.6-luna",
       "visibility": "list",
       "priority": 10,
-      "use_responses_lite": true
+      "use_responses_lite": true,
+      "service_tiers": [
+        {
+          "id": "priority",
+          "name": "Fast",
+          "description": "1.5x speed, increased usage"
+        }
+      ]
     },
     {
       "slug": "gpt-5.5",
       "visibility": "list",
       "priority": 13,
-      "use_responses_lite": false
+      "use_responses_lite": false,
+      "service_tiers": [
+        {
+          "id": "priority",
+          "name": "Fast",
+          "description": "1.5x speed, increased usage"
+        }
+      ]
     }
   ]
 }

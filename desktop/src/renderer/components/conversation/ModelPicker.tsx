@@ -1,4 +1,4 @@
-import { MainMenuRow, OptionRow, ellipsisStyle, submenuStyle, MODEL_MENU_WIDTH, PROVIDER_MENU_WIDTH, type SecondaryMenu } from './ModelPickerMenu'
+import { MainMenuRow, OptionRow, ellipsisStyle, submenuStyle, submenuWidth, type SecondaryMenu } from './ModelPickerMenu'
 import {
   useEffect,
   useId,
@@ -11,7 +11,7 @@ import {
   type MouseEvent as ReactMouseEvent
 } from 'react'
 import { createPortal } from 'react-dom'
-import { Bot, ChevronDown, ChevronLeft, ChevronRight, RotateCcw, Zap } from 'lucide-react'
+import { Bot, ChevronDown, ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useMenuAim } from '../../hooks/useMenuAim'
 import type { InferenceSpeedWire, ModelCatalogItem, ReasoningEffortWire } from '../../stores/modelCatalogStore'
@@ -26,6 +26,8 @@ import { EffortSlider } from './EffortSlider'
 import { ComposerOverlapBand, useComposerOverlapBandHeight } from './useComposerOverlapBand'
 import css from './ModelPicker.module.css'
 import { ModelCatalogNotice } from './ModelCatalogNotice'
+import { acceleratedSpeeds, effectiveSpeed } from './modelSpeed'
+import { SpeedControl, SpeedFlyout, SpeedIcon, speedFlyoutStyle } from './ModelPickerSpeed'
 
 export type ReasoningQuickValue = 'default' | 'off' | ReasoningEffortWire
 
@@ -93,6 +95,7 @@ export function ModelPicker({
   const [secondary, setSecondary] = useState<SecondaryMenu | null>(null)
   const [secondaryTop, setSecondaryTop] = useState(6)
   const [secondaryOpensLeft, setSecondaryOpensLeft] = useState(false)
+  const [speedFlyoutLeft, setSpeedFlyoutLeft] = useState(0)
   const [popupShiftX, setPopupShiftX] = useState(0)
   const [submenuShiftY, setSubmenuShiftY] = useState(0)
   const [submenuMaxHeight, setSubmenuMaxHeight] = useState(MAX_SUBMENU_HEIGHT)
@@ -118,7 +121,10 @@ export function ModelPicker({
   const activeModel = modelCatalog.find((model) => model.id === modelName)
   const capability = activeModel?.reasoning ?? null
   const speedCapability = activeModel?.speed ?? null
-  const speedVisible = speedCapability?.supportedModes.includes('fast') === true
+  const advertisedSpeeds = acceleratedSpeeds(speedCapability)
+  const speedVisible = advertisedSpeeds.length > 0
+  const activeSpeed = effectiveSpeed(speedCapability, speedValue)
+  const speedChoices: InferenceSpeedWire[] = ['standard', ...advertisedSpeeds]
   const providerVisible = Boolean(providerId && providerOptions.length > 0 && onProviderChange)
   const providerOffset = providerVisible ? 1 : 0
   const effectiveReasoning: EffectiveReasoningValue = reasoningValue === 'default'
@@ -223,6 +229,16 @@ export function ModelPicker({
       buttons[Math.max(0, Math.min(buttons.length - 1, index))]?.focus()
     }
 
+    const closeSecondary = (): void => {
+      cancelMenuAim()
+      setSecondary(null)
+      setPopupShiftX(0)
+      requestAnimationFrame(() => {
+        if (view === 'panel') popupRef.current?.querySelector<HTMLElement>('[data-submenu="speed"]')?.focus()
+        else focusButton(mainButtons(), mainHighlight)
+      })
+    }
+
     const handlePointerDown = (event: MouseEvent): void => {
       const target = event.target as Node
       // The portaled popup is not inside wrapRef, so both refs count as "inside".
@@ -235,25 +251,13 @@ export function ModelPicker({
       if (event.key === 'Escape') {
         event.preventDefault()
         if (secondary) {
-          cancelMenuAim()
-          setSecondary(null)
-          setPopupShiftX(0)
-          requestAnimationFrame(() => focusButton(mainButtons(), mainHighlight))
-        } else if (view === 'menu') {
+          closeSecondary()
+        } else if (view !== 'panel') {
           showPanel()
         } else {
           cancelMenuAim()
           setOpen(false)
         }
-        return
-      }
-
-      if (view === 'panel') {
-        // The scale and the panel's buttons answer their own keys; from the trigger an arrow steps in.
-        if (!event.key.startsWith('Arrow') || popupRef.current?.contains(document.activeElement)) return
-        event.preventDefault()
-        const popup = popupRef.current
-        ;(popup?.querySelector<HTMLElement>('input[type="range"]') ?? popup?.querySelector<HTMLElement>('[data-panel-model]'))?.focus()
         return
       }
 
@@ -280,11 +284,17 @@ export function ModelPicker({
           focusButton(buttons, buttons.length - 1)
         } else if (event.key === 'ArrowLeft') {
           event.preventDefault()
-          cancelMenuAim()
-          setSecondary(null)
-          setPopupShiftX(0)
-          requestAnimationFrame(() => focusButton(mainButtons(), mainHighlight))
+          closeSecondary()
         }
+        return
+      }
+
+      if (view === 'panel') {
+        // The scale and the panel's buttons answer their own keys; from the trigger an arrow steps in.
+        if (!event.key.startsWith('Arrow') || popupRef.current?.contains(document.activeElement)) return
+        event.preventDefault()
+        const popup = popupRef.current
+        ;(popup?.querySelector<HTMLElement>('input[type="range"]') ?? popup?.querySelector<HTMLElement>('[data-panel-model]'))?.focus()
         return
       }
 
@@ -402,7 +412,16 @@ export function ModelPicker({
 
   const openSecondary = (kind: SecondaryMenu, row: HTMLButtonElement): void => {
     const popupRect = popupRef.current?.getBoundingClientRect()
-    const secondaryWidth = kind === 'provider' ? PROVIDER_MENU_WIDTH : MODEL_MENU_WIDTH
+    if (kind === 'speed' && popupRect) {
+      const rowRect = row.getBoundingClientRect()
+      setSecondary(kind)
+      setSecondaryTop(rowRect.top - popupRect.top - 4)
+      setSpeedFlyoutLeft(rowRect.right - popupRect.left + 4)
+      setSecondaryOpensLeft(false)
+      setSubmenuHighlight(0)
+      return
+    }
+    const secondaryWidth = submenuWidth(kind)
     let shouldOpenLeft = false
     let nextShiftX = 0
     if (popupRect) {
@@ -469,6 +488,24 @@ export function ModelPicker({
     setMainHighlight(index)
     setSecondary(null)
     setPopupShiftX(0)
+  }
+
+  const openSpeedFlyout = (button: HTMLButtonElement): void => {
+    cancelMenuAim()
+    openSecondary('speed', button)
+    const selected = Math.max(0, speedChoices.indexOf(activeSpeed))
+    setSubmenuHighlight(selected)
+    requestAnimationFrame(() => {
+      submenuRef.current?.querySelectorAll<HTMLButtonElement>('[data-submenu-option]')[selected]?.focus()
+    })
+  }
+
+  const closeSpeedFlyoutOnPointer = (event: ReactMouseEvent<HTMLElement>): void => {
+    if (secondary !== 'speed' || (event.target as Element).closest('[data-submenu="speed"]')) return
+    guardMenuAim(event, () => {
+      setSecondary(null)
+      setPopupShiftX(0)
+    })
   }
 
   const closePicker = (): void => {
@@ -549,13 +586,13 @@ export function ModelPicker({
             <span className={css.loadingLabel} style={ellipsisStyle}>{t('composer.modelListLoading')}</span>
           ) : (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap' }}>
-              {speedVisible && speedValue === 'fast' && (
-                <Zap
+              {activeSpeed !== 'standard' && (
+                <SpeedIcon
+                  speed={activeSpeed}
+                  active
                   className={css.speedIcon}
-                  aria-hidden
                   size={12}
                   strokeWidth={2.4}
-                  fill="currentColor"
                   style={{
                     flexShrink: 0,
                     color: disabled && triggerVariant === 'composer' ? 'var(--composer-footer-muted)' : 'var(--composer-footer-highlight)'
@@ -663,18 +700,16 @@ export function ModelPicker({
           )}
 
           <div hidden={view !== 'panel'} inert={view !== 'panel'}>
-            <div className="model-picker-panel">
+            <div className="model-picker-panel" onMouseMove={closeSpeedFlyoutOnPointer}>
               <div className="model-picker-head">
                 {speedVisible ? (
-                  <IconButton
-                    size={32}
-                    className="model-picker-fast"
-                    aria-pressed={speedValue === 'fast'}
-                    label={t('composer.speed.fast')}
-                    tooltipLabel={t('composer.speed.fast')}
-                    tooltipPlacement="top"
-                    onClick={() => onSpeedChange?.(speedValue === 'fast' ? 'standard' : 'fast')}
-                    icon={<Zap aria-hidden size={16} fill={speedValue === 'fast' ? 'currentColor' : 'none'} />}
+                  <SpeedControl
+                    advertised={advertisedSpeeds}
+                    active={activeSpeed}
+                    flyoutOpen={secondary === 'speed'}
+                    onChange={(speed) => onSpeedChange?.(speed)}
+                    onFlyoutHover={(event) => handleSecondaryPointer('speed', 0, event)}
+                    onFlyoutOpen={openSpeedFlyout}
                   />
                 ) : (
                   <span className="model-picker-slot" />
@@ -709,12 +744,29 @@ export function ModelPicker({
                   stops={effortStops}
                   value={effectiveReasoning}
                   ariaLabel={t('composer.reasoning.heading')}
-                  fast={speedVisible && speedValue === 'fast'}
+                  fast={activeSpeed !== 'standard'}
                   onChange={(value) => onReasoningChange?.(value)}
                 />
               )}
             </div>
           </div>
+          {view === 'panel' && secondary === 'speed' && (
+            <SpeedFlyout
+              ref={submenuRef}
+              style={speedFlyoutStyle(secondaryTop + submenuShiftY, speedFlyoutLeft, submenuMaxHeight)}
+              choices={speedChoices}
+              active={activeSpeed}
+              highlight={submenuHighlight}
+              onPointer={cancelMenuAim}
+              onHighlight={setSubmenuHighlight}
+              onSelect={(speed) => {
+                onSpeedChange?.(speed)
+                setSecondary(null)
+                setPopupShiftX(0)
+                requestAnimationFrame(() => popupRef.current?.querySelector<HTMLElement>('[data-submenu="speed"]')?.focus())
+              }}
+            />
+          )}
           {view === 'menu' && (
             <div role="menu" aria-label={t('composer.modelHeading')}>
               <button

@@ -8,7 +8,8 @@ namespace DotCraft.Configuration;
 public enum InferenceSpeed
 {
     Standard,
-    Fast
+    Fast,
+    Ultrafast
 }
 
 internal sealed class InferenceSpeedJsonConverter : JsonConverter<InferenceSpeed>
@@ -16,16 +17,24 @@ internal sealed class InferenceSpeedJsonConverter : JsonConverter<InferenceSpeed
     public override InferenceSpeed Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
         if (reader.TokenType != JsonTokenType.String)
-            throw new JsonException("Inference speed must be 'standard' or 'fast'.");
+            throw new JsonException(InvalidMessage);
 
         return reader.GetString()?.Trim().ToLowerInvariant() switch
         {
             "standard" => InferenceSpeed.Standard,
             "fast" => InferenceSpeed.Fast,
-            _ => throw new JsonException("Inference speed must be 'standard' or 'fast'.")
+            "ultrafast" => InferenceSpeed.Ultrafast,
+            _ => throw new JsonException(InvalidMessage)
         };
     }
 
     public override void Write(Utf8JsonWriter writer, InferenceSpeed value, JsonSerializerOptions options) =>
-        writer.WriteStringValue(value == InferenceSpeed.Fast ? "fast" : "standard");
+        writer.WriteStringValue(value switch
+        {
+            InferenceSpeed.Fast => "fast",
+            InferenceSpeed.Ultrafast => "ultrafast",
+            _ => "standard"
+        });
+
+    private const string InvalidMessage = "Inference speed must be 'standard', 'fast', or 'ultrafast'.";
 }

@@ -110,17 +110,21 @@ public static class ProviderContractMapper
         };
     }
 
-    public static Contract.ModelSpeedCapability? MapSpeedCapability(
+    private static Contract.ModelSpeedCapability? MapSpeedCapability(
         AppConfig config,
         string? protocol,
-        string? model) =>
-        ModelCatalog.SupportsFast(config, protocol, model)
+        ModelCatalogEntry model)
+    {
+        var modes = model.SpeedModes
+            ?? (ModelCatalog.SupportsFast(config, protocol, model.Id) ? ["standard", "fast"] : null);
+        return modes?.Any(mode => mode != "standard") == true
             ? new Contract.ModelSpeedCapability
             {
-                SupportedModes = new Protocol.Optional<IReadOnlyList<string>>(["standard", "fast"]),
+                SupportedModes = new Protocol.Optional<IReadOnlyList<string>>(modes),
                 DefaultMode = "standard"
             }
             : null;
+    }
 
     public static Contract.ModelCatalogItem[] BuildModelCatalogItems(
         AppConfig config,
@@ -145,7 +149,7 @@ public static class ProviderContractMapper
             Reasoning = MapReasoningCapability(
                 ModelThinkingAdapterResolver.ResolveReasoningCapability(config, providerId, protocol, endpoint, model),
                 includeUltra),
-            Speed = backend ? null : MapSpeedCapability(config, protocol, model.Id),
+            Speed = backend ? null : MapSpeedCapability(config, protocol, model),
             ContextWindow = model.ContextWindow ?? ModelCatalog.Resolve(config, model.Id),
             MaxOutputTokens = model.MaxOutputTokens is { } max ? max : default(Protocol.Optional<int>),
             SupportedProtocols = model.SupportedProtocols is { } protocols ? new(protocols) : default,

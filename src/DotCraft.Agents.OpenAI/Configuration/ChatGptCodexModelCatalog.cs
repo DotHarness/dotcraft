@@ -11,7 +11,9 @@ internal static class ChatGptCodexModelCatalog
     private const string BuiltInResourceName = "DotCraft.Resources.chatgpt-codex-models.json";
     private const string CacheFileName = "model-catalog-cache.json";
     private const string ClientVersion = "0.169.1";
-    private const int CacheVersion = 3;
+    private const string PriorityTier = "priority";
+    private const string UltrafastTier = "ultrafast";
+    private const int CacheVersion = 4;
     private static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes(5);
     private static readonly JsonSerializerOptions CacheJsonOptions = new(JsonSerializerDefaults.Web)
     {
@@ -25,6 +27,12 @@ internal static class ChatGptCodexModelCatalog
         EffectiveModelRuntime runtime,
         string? accountId) =>
         ResolveModel(runtime, accountId)?.UseResponsesLite ?? false;
+
+    internal static bool AdvertisesServiceTier(
+        EffectiveModelRuntime runtime,
+        string? accountId,
+        string tier) =>
+        ResolveModel(runtime, accountId)?.ServiceTiers.Contains(tier) == true;
 
     private static CodexModelInfo? ResolveModel(EffectiveModelRuntime runtime, string? accountId)
     {
@@ -105,9 +113,20 @@ internal static class ChatGptCodexModelCatalog
             {
                 Id = model.Slug.Trim(),
                 OwnedBy = "openai-chatgpt",
-                CreatedAt = DateTimeOffset.UnixEpoch
+                CreatedAt = DateTimeOffset.UnixEpoch,
+                SpeedModes = ToSpeedModes(model.ServiceTiers)
             })
             .ToList();
+    }
+
+    private static List<string> ToSpeedModes(IReadOnlyCollection<string> serviceTiers)
+    {
+        List<string> modes = ["standard"];
+        if (serviceTiers.Contains(PriorityTier))
+            modes.Add("fast");
+        if (serviceTiers.Contains(UltrafastTier))
+            modes.Add("ultrafast");
+        return modes;
     }
 
     private static bool HasVisibleModels(IReadOnlyList<CodexModelInfo> models) =>
@@ -179,7 +198,8 @@ internal static class ChatGptCodexModelCatalog
                 Slug = slug,
                 Visibility = ReadString(modelElement, "visibility") ?? string.Empty,
                 Priority = ReadInt(modelElement, "priority") ?? int.MaxValue,
-                UseResponsesLite = ReadBoolean(modelElement, "use_responses_lite")
+                UseResponsesLite = ReadBoolean(modelElement, "use_responses_lite"),
+                ServiceTiers = ReadServiceTiers(modelElement)
             });
         }
 
@@ -202,6 +222,16 @@ internal static class ChatGptCodexModelCatalog
         return null;
     }
 
+    private static List<string> ReadServiceTiers(JsonElement element)
+    {
+        if (!element.TryGetProperty("service_tiers", out var tiers) || tiers.ValueKind != JsonValueKind.Array)
+            return [];
+        return tiers.EnumerateArray()
+            .Select(tier => tier.ValueKind == JsonValueKind.Object ? ReadString(tier, "id") : null)
+            .OfType<string>()
+            .ToList();
+    }
+
     private static bool ReadBoolean(JsonElement element, string name) =>
         element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.True;
 
@@ -214,6 +244,8 @@ internal static class ChatGptCodexModelCatalog
         public int Priority { get; set; } = int.MaxValue;
 
         public bool UseResponsesLite { get; set; }
+
+        public List<string> ServiceTiers { get; set; } = [];
     }
 
     private sealed class ModelCatalogCache

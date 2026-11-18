@@ -1,6 +1,7 @@
 import { findProviderPreference, readProviderPreferences, type ModelPreference } from '../../../shared/modelPreference'
 import type { InferenceSpeedWire, ModelCatalogItem } from '../../stores/modelCatalogStore'
 import { DEFAULT_REASONING_CONFIG, readReasoningObject, type ResolvedReasoningConfig } from './modelReasoning'
+import { readInferenceSpeed } from './modelSpeed'
 
 export function setCaseInsensitiveField(target: Record<string, unknown>, key: string, value: unknown): void {
   const existingKey = Object.keys(target).find(candidate => candidate.toLowerCase() === key.toLowerCase())
@@ -25,7 +26,7 @@ export function applyPreferenceToThreadConfig(config: Record<string, unknown>, p
 
 export function readThreadSpeed(config: Record<string, unknown>): InferenceSpeedWire {
   const key = Object.keys(config).find(candidate => candidate.toLowerCase() === 'speed')
-  return key && config[key] === 'fast' ? 'fast' : 'standard'
+  return readInferenceSpeed(key ? config[key] : null)
 }
 
 export function applyModelCompatibility(config: Record<string, unknown>, model: ModelCatalogItem | null): void {

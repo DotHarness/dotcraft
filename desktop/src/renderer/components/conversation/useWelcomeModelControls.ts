@@ -11,6 +11,7 @@ import { providerPreferenceEdit, resolveWorkspaceProviderFromConfig } from '../.
 import { buildReasoningPayload, DEFAULT_REASONING_CONFIG, readReasoningObject } from './modelReasoning'
 import { createCatalogDefaultPreference, normalizePreferenceForModel } from './PreferenceModelPicker'
 import type { ReasoningQuickValue } from './ModelPicker'
+import { readInferenceSpeed } from './modelSpeed'
 
 type Selection = { providerId: string; preference: ModelPreference }
 
@@ -26,7 +27,7 @@ function draftSelection(draft: WelcomeDraft | null): Selection {
     preference: {
       model: draft?.model || 'Default',
       reasoning: readReasoningObject(draft?.reasoning) ?? DEFAULT_REASONING_CONFIG,
-      speed: draft?.speed === 'fast' ? 'fast' : 'standard'
+      speed: readInferenceSpeed(draft?.speed)
     }
   }
 }

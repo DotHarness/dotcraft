@@ -180,6 +180,15 @@ function createDraftWithProviderPreference(): ProfileDraft {
   }
 }
 
+describe('profile speed', () => {
+  it('round-trips an Ultrafast provider preference', () => {
+    const draft = createDraftWithProviderPreference()
+    draft.providerPreference!.speed = 'ultrafast'
+
+    expect(parseProfile(toMarkdown(draft)).providerPreference?.speed).toBe('ultrafast')
+  })
+})
+
 describe('canonical profile names', () => {
   it('round-trips names that need YAML quoting and normalizes them without changing case', () => {
     for (const name of ['Night Shift', '夜班助手', '报告: "本周" / #1', 'true', "Agent's notes"]) {

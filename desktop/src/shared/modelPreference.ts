@@ -1,6 +1,7 @@
 export type ModelPreferenceReasoningEffort = 'low' | 'medium' | 'high' | 'extraHigh' | 'max' | 'ultra'
 export type ModelPreferenceReasoningOutput = 'none' | 'summary' | 'full'
-export type ModelPreferenceSpeed = 'standard' | 'fast'
+export const MODEL_PREFERENCE_SPEEDS = ['standard', 'fast', 'ultrafast'] as const
+export type ModelPreferenceSpeed = (typeof MODEL_PREFERENCE_SPEEDS)[number]
 
 export interface ModelPreference {
   model: string
@@ -58,7 +59,7 @@ export function readModelPreference(value: unknown): ModelPreference | null {
     'output',
     ['none', 'summary', 'full'] as const
   ) ?? 'full'
-  const speed = readEnum(record, 'speed', ['standard', 'fast'] as const) ?? 'standard'
+  const speed = readEnum(record, 'speed', MODEL_PREFERENCE_SPEEDS) ?? 'standard'
   return {
     model,
     reasoning: { enabled, effort, output },

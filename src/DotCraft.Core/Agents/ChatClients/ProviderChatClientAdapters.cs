@@ -18,9 +18,7 @@ internal static class ProviderChatClientAdapters
             CreatePipelineOptions(
                 runtime,
                 reasoningConfig ?? config.Reasoning,
-                runtime.BackendId is null && ModelCatalog.SupportsFast(config, runtime.Protocol, runtime.Model)
-                    ? config.Speed
-                    : InferenceSpeed.Standard,
+                ResolveRequestSpeed(config, runtime, config.Speed),
                 config.PromptCaching));
     }
 
@@ -43,9 +41,7 @@ internal static class ProviderChatClientAdapters
             CreatePipelineOptions(
                 runtime,
                 reasoningConfig ?? config.Reasoning,
-                runtime.BackendId is null && ModelCatalog.SupportsFast(config, runtime.Protocol, runtime.Model)
-                    ? speed
-                    : InferenceSpeed.Standard,
+                ResolveRequestSpeed(config, runtime, speed),
                 promptCaching)));
     }
 
@@ -92,6 +88,21 @@ internal static class ProviderChatClientAdapters
         var normalized = NormalizeProtocolOrNull(protocol);
         if (normalized != null && !ModelProviderProtocols.IsOpenAIResponses(normalized))
             builder.Use(innerClient => new FlatToolIdentityChatClient(innerClient));
+    }
+
+    private static InferenceSpeed ResolveRequestSpeed(
+        AppConfig config,
+        EffectiveModelRuntime runtime,
+        InferenceSpeed speed)
+    {
+        if (speed == InferenceSpeed.Standard || runtime.BackendId is not null)
+            return InferenceSpeed.Standard;
+        // ChatGPT tiers come from the account catalog, which the provider checks per request.
+        if (runtime.IsChatGptOAuth)
+            return speed;
+        return speed == InferenceSpeed.Fast && ModelCatalog.SupportsFast(config, runtime.Protocol, runtime.Model)
+            ? InferenceSpeed.Fast
+            : InferenceSpeed.Standard;
     }
 
     private static ProviderPipelineOptions CreatePipelineOptions(

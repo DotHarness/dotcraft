@@ -36,4 +36,17 @@ describe('resolveComposerMascotEffectState', () => {
       speedValue: 'fast',
     })).toEqual({ reasoningEffort: 'extraHigh', speed: 'standard' })
   })
+
+  it('shows Ultrafast as the fast mascot only when the model advertises it', () => {
+    const ultrafast: ModelCatalogItem = { ...MODEL, speed: { supportedModes: ['standard', 'ultrafast'], defaultMode: 'standard' } }
+    const resolve = (model: ModelCatalogItem) => resolveComposerMascotEffectState({
+      modelName: model.id,
+      modelCatalog: [model],
+      reasoningValue: 'medium',
+      speedValue: 'ultrafast',
+    }).speed
+
+    expect(resolve(ultrafast)).toBe('fast')
+    expect(resolve(MODEL)).toBe('standard')
+  })
 })

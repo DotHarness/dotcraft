@@ -184,7 +184,7 @@ export interface ThreadConfigurationWire {
 
 export type ReasoningEffortWire = 'low' | 'medium' | 'high' | 'extraHigh' | 'max' | 'ultra'
 export type ReasoningOutputWire = 'none' | 'summary' | 'full'
-export type InferenceSpeedWire = 'standard' | 'fast'
+export type InferenceSpeedWire = 'standard' | 'fast' | 'ultrafast'
 
 export interface ReasoningConfigurationWire {
   enabled?: boolean

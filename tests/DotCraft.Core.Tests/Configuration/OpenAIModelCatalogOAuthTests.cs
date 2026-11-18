@@ -1,9 +1,16 @@
+using System.ClientModel.Primitives;
 using System.Net;
+using System.Runtime.CompilerServices;
 using System.Text;
+using System.Text.Json;
 using DotCraft.Agents;
 using DotCraft.Auth.OpenAI;
 using DotCraft.Configuration;
+using Microsoft.Extensions.AI;
+using OpenAI.Responses;
 using Xunit;
+
+#pragma warning disable OPENAI001
 
 namespace DotCraft.Tests.Configuration;
 
@@ -139,6 +146,31 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
     }
 
     [Fact]
+    public async Task ChatGptOAuthAdvertisesAndSendsOnlyAccountServiceTiers()
+    {
+        var handler = new RecordingHandler((HttpStatusCode.OK, """
+            {
+              "models": [
+                { "slug": "sol", "visibility": "list", "priority": 1, "service_tiers": [{ "id": "priority" }, { "id": "ultrafast" }] },
+                { "slug": "astra", "visibility": "list", "priority": 2, "service_tiers": [{ "id": "priority" }] },
+                { "slug": "plain", "visibility": "list", "priority": 3 }
+              ]
+            }
+            """));
+        var provider = new OpenAIClientProvider(new FakeOpenAIAuthService(), handler);
+
+        var result = await ((IModelCatalogProvider)provider).FetchModelsAsync(Runtime(), CancellationToken.None);
+
+        Assert.Equal(
+            [["standard", "fast", "ultrafast"], ["standard", "fast"], ["standard"]],
+            result.Models.Select(model => model.SpeedModes));
+        Assert.Equal("ultrafast", RequestedServiceTier("sol", "Ultrafast"));
+        Assert.Null(RequestedServiceTier("astra", "Ultrafast"));
+        Assert.Equal("priority", RequestedServiceTier("astra", "Fast"));
+        Assert.Null(RequestedServiceTier("plain", "Fast"));
+    }
+
+    [Fact]
     public async Task RuntimeResolution_KeepsLiteDisabledForAllModels()
     {
         var handler = new RecordingHandler((HttpStatusCode.OK, """
@@ -170,6 +202,19 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
     {
         if (Directory.Exists(_tempRoot))
             Directory.Delete(_tempRoot, recursive: true);
+    }
+
+    private string? RequestedServiceTier(string model, string speed)
+    {
+        using var client = new OpenAIFastModeChatClient(new NoopChatClient());
+        using var scope = ProviderPipelineOptionsScope.Push(
+            new ProviderPipelineOptions(Runtime(model: model), null, null, false, speed, false, null));
+        var factory = client.PrepareOptions(new ChatOptions())?.RawRepresentationFactory;
+        if (factory is null)
+            return null;
+        var raw = Assert.IsType<CreateResponseOptions>(factory(client));
+        using var json = JsonDocument.Parse(ModelReaderWriter.Write(raw).ToString());
+        return json.RootElement.GetProperty("service_tier").GetString();
     }
 
     private AppConfig Config() => new()
@@ -249,6 +294,28 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
         }
 
         public string? GetAccountId() => accountId;
+    }
+
+    private sealed class NoopChatClient : IChatClient
+    {
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            await Task.CompletedTask;
+            yield break;
+        }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose() { }
     }
 
     private sealed class RecordingHandler(params (HttpStatusCode Status, string Body)[] responses) : HttpMessageHandler
