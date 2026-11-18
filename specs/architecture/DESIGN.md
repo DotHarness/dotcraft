@@ -1310,7 +1310,8 @@ and state already say.
 
 The transcript uses the Conversation type scale. Icon actions on its rows take the
 transcript row footprint, and framed actions on its cards use `outlineGhost` (see
-Buttons).
+Buttons). The inline to-do card keeps a thin neutral outline and no fill, so it
+shows the same background as the surrounding transcript.
 
 ### Floating transcript controls
 
