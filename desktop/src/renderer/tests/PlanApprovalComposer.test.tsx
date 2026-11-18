@@ -1,7 +1,12 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import './setupPluginRuntime'
+import type { DesktopPluginHost } from '@dotcraft/plugin'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { PlanApprovalComposer } from '../components/conversation/PlanApprovalComposer'
+import { TurnStatusSeat } from '../components/conversation/TurnStatusSeat'
+import { TodoCard } from '../../bundled-plugins/todo-list/src/TodoCard'
+import { clearDesktopPluginRegistry, registerDesktopPluginSurface } from '../plugins/desktopPluginRegistry'
 import { useConnectionStore } from '../stores/connectionStore'
 import { getThreadConversation, useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
@@ -9,11 +14,17 @@ import { useUIStore } from '../stores/uiStore'
 import { openThreadState, releaseThreadState } from '../stores/threadState'
 import { applyThreadNotification } from '../stores/threadNotifications'
 import { installDesktopApiMock } from './desktopApiMock'
+import { streamingToolCallStarted } from './testToolPresentation'
 
 const appServerSendRequest = vi.fn()
 
+function LatestTurnStatus(): JSX.Element | null {
+  const turn = useConversationStore((state) => state.turns.at(-1))
+  return turn ? <TurnStatusSeat turn={turn} running={turn.status === 'running'} /> : null
+}
+
 function renderWithLocale(node: JSX.Element): void {
-  render(<LocaleProvider>{node}</LocaleProvider>)
+  render(<LocaleProvider>{node}<LatestTurnStatus /></LocaleProvider>)
 }
 
 function notifyMode(mode: 'agent' | 'plan'): void {
@@ -26,8 +37,9 @@ function notifyMode(mode: 'agent' | 'plan'): void {
 
 function deferred() {
   let resolve!: (value: unknown) => void
-  const promise = new Promise((res) => { resolve = res })
-  return { promise, resolve }
+  let reject!: (error: Error) => void
+  const promise = new Promise((res, rej) => { resolve = res; reject = rej })
+  return { promise, resolve, reject }
 }
 
 describe('PlanApprovalComposer', () => {
@@ -39,7 +51,16 @@ describe('PlanApprovalComposer', () => {
     useThreadStore.getState().reset()
     openThreadState('thread-1')
     useUIStore.setState({ planApprovalDismissed: {} })
-    useConversationStore.setState({ threadMode: 'plan', turnStatus: 'idle' })
+    useConversationStore.setState({
+      threadMode: 'plan', turnStatus: 'idle',
+      plan: {
+        title: 'Plan', content: 'Ship it', overview: '',
+        todos: [{ id: 'todo-1', content: 'Ship it', status: 'pending' }]
+      }
+    })
+    registerDesktopPluginSurface(
+      'todo-list', { environment: { locale: 'en' } } as DesktopPluginHost, 'conversation.turn.status', 'add', TodoCard
+    )
     useThreadStore.setState({
       activeThreadId: 'thread-1',
       threadList: [{
@@ -60,7 +81,9 @@ describe('PlanApprovalComposer', () => {
     })
   })
 
-  it('accepts the plan with one execution-mode input request and waits for confirmed mode', async () => {
+  afterEach(() => act(clearDesktopPluginRegistry))
+
+  it('shows the approved tasks before the execution turn is confirmed and keeps them on confirmation', async () => {
     const response = deferred()
     appServerSendRequest.mockReturnValueOnce(response.promise)
     renderWithLocale(
@@ -74,6 +97,15 @@ describe('PlanApprovalComposer', () => {
     }))
     expect(useConversationStore.getState().threadMode).toBe('plan')
     expect(useUIStore.getState().planApprovalDismissed['turn-1']).not.toBe(true)
+    expect(screen.getByRole('region', { name: 'To-dos, 0 of 1 done' })).toBeInTheDocument()
+
+    const clientUserMessageId = appServerSendRequest.mock.calls[0][1].clientUserMessageId
+    act(() => useConversationStore.getState().onTurnStarted({
+      id: 'turn-server-1', threadId: 'thread-1', status: 'running',
+      items: [{ id: 'message-server-1', type: 'userMessage', text: 'Implement the plan.', clientUserMessageId }]
+    }))
+    expect(screen.getByRole('region', { name: 'To-dos, 0 of 1 done' })).toBeInTheDocument()
+
     await act(async () => {
       notifyMode('agent')
       response.resolve({ turn: { id: 'turn-server-1' } })
@@ -89,19 +121,47 @@ describe('PlanApprovalComposer', () => {
     ])
   })
 
-  it('keeps the plan available after rejected admission and allows retry', async () => {
-    appServerSendRequest.mockRejectedValueOnce(new Error('turn rejected'))
+  it('rolls back the execution checklist after rejected admission and allows retry', async () => {
+    const response = deferred()
+    appServerSendRequest.mockReturnValueOnce(response.promise)
     renderWithLocale(
       <PlanApprovalComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" turnId="turn-1" />
     )
     fireEvent.click(screen.getByRole('button', { name: /Yes, implement this plan/ }))
-    await waitFor(() => expect(useConversationStore.getState().turns).toEqual([]))
+    expect(screen.getByRole('region', { name: 'To-dos, 0 of 1 done' })).toBeInTheDocument()
+
+    await act(async () => { response.reject(new Error('turn rejected')) })
+    expect(screen.queryByRole('region', { name: /To-dos/ })).not.toBeInTheDocument()
+    expect(useConversationStore.getState().turns).toEqual([])
     expect(useConversationStore.getState().threadMode).toBe('plan')
     expect(useUIStore.getState().planApprovalDismissed['turn-1']).not.toBe(true)
 
     fireEvent.click(screen.getByRole('button', { name: /Yes, implement this plan/ }))
     await waitFor(() => expect(useUIStore.getState().planApprovalDismissed['turn-1']).toBe(true))
     expect(appServerSendRequest.mock.calls.map(([method]) => method)).toEqual(['turn/start', 'turn/start'])
+  })
+
+  it('keeps the completed checklist on the updating turn but not on an ordinary follow-up', () => {
+    const turn = { id: 'turn-todos', threadId: 'thread-1', status: 'running', items: [] }
+    const conversation = useConversationStore.getState()
+    conversation.onTurnStarted(turn)
+    renderWithLocale(<></>)
+
+    act(() => {
+      conversation.onItemStarted(streamingToolCallStarted(turn.id, 'todo-write', 'TodoWrite', 'todo-call'))
+      conversation.onPlanUpdated({ title: '', todos: [{ id: 'todo-1', content: 'Ship it', status: 'completed' }] })
+      conversation.onItemCompleted({
+        turnId: turn.id,
+        item: { id: 'todo-result', type: 'toolResult', payload: { callId: 'todo-call', success: true, result: 'Plan updated' } }
+      })
+    })
+    expect(screen.getByRole('region', { name: 'To-dos, 1 of 1 done' })).toBeInTheDocument()
+
+    act(() => conversation.onTurnCompleted({ ...turn, status: 'completed' }))
+    expect(screen.queryByRole('region', { name: /To-dos/ })).not.toBeInTheDocument()
+
+    act(() => conversation.onTurnStarted({ ...turn, id: 'turn-follow-up' }))
+    expect(screen.queryByRole('region', { name: /To-dos/ })).not.toBeInTheDocument()
   })
 
   it('does not submit a stale plan after the selected thread changes', () => {

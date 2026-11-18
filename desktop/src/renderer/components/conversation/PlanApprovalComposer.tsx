@@ -88,6 +88,7 @@ export function PlanApprovalComposer({
         attachmentFallbackThreadName: t('toast.attachmentMessage'),
         renameThreadFromText: false,
         mode: 'agent',
+        implementsPlan: true,
         throwOnStartError: true
       })
       if (useThreadStore.getState().activeThreadId === threadId) dismissPlanApproval(turnId)

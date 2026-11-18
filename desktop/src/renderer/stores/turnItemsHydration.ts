@@ -66,6 +66,7 @@ export function mergeRestoredTurns(
     const incomingLive = turn.status === 'running' || turn.status === 'waitingApproval' || turn.status === 'waitingInput'
     return {
       ...turn,
+      ...(previous.implementsPlan && { implementsPlan: true }),
       ...(terminal && incomingLive ? {
         status: previous.status,
         completedAt: previous.completedAt,

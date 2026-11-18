@@ -1,76 +1,41 @@
 import '../../../renderer/tests/setupPluginRuntime'
-import { act, render, screen, waitFor } from '@testing-library/react'
-import type { DesktopPluginHost, DesktopPluginTurnStatusContext } from '@dotcraft/plugin'
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { startPlanFeed } from './planFeed'
+import { render, screen } from '@testing-library/react'
+import type { DesktopPluginHost, DesktopPluginTurnPlan, DesktopPluginTurnStatusContext } from '@dotcraft/plugin'
+import { expect, it } from 'vitest'
 import { TodoCard } from './TodoCard'
 
-type Todo = { content: string; status: string }
-type Listener = (params: unknown) => void
+const host = { environment: { locale: 'en' } } as DesktopPluginHost
 
-const working: Todo[] = [{ content: 'Read the spec', status: 'completed' }, { content: 'Ship it', status: 'in_progress' }]
-const finished: Todo[] = [{ content: 'Read the spec', status: 'completed' }, { content: 'Ship it', status: 'completed' }]
-
-let stopFeed: (() => void) | null = null
-
-function fixtureHost(plan: { title?: string; todos: Todo[] } | null) {
-  const listeners = new Set<Listener>()
-  const host = {
-    environment: { locale: 'en' },
-    appServer: {
-      request: vi.fn(async () => ({ thread: { plan } })),
-      onNotification: (_method: string, listener: Listener) => {
-        listeners.add(listener)
-        return () => listeners.delete(listener)
-      }
-    }
-  } as unknown as DesktopPluginHost
-  stopFeed = startPlanFeed(host)
-  return { host, notify: (params: unknown) => listeners.forEach((listener) => listener(params)) }
+function card(status: DesktopPluginTurnStatusContext['status'], plan: DesktopPluginTurnPlan) {
+  return <TodoCard host={host} context={{ workspacePath: null, threadId: 'thread', turnId: 'turn', status, plan }} />
 }
 
-function context(status: DesktopPluginTurnStatusContext['status']): DesktopPluginTurnStatusContext {
-  return { workspacePath: null, threadId: 'thread', turnId: 'turn', status }
-}
+it('keeps the last active step visible after cancellation but hides it after success', () => {
+  const plan: DesktopPluginTurnPlan = {
+    title: '',
+    implementsPlan: false,
+    updatedTodos: true,
+    todos: [{ id: 'one', content: 'Apply the change', status: 'in_progress' }]
+  }
+  const { rerender } = render(card('cancelled', plan))
+  expect(screen.getByRole('region')).toBeInTheDocument()
 
-afterEach(() => {
-  stopFeed?.()
-  stopFeed = null
+  rerender(card('completed', plan))
+  expect(screen.queryByRole('region')).not.toBeInTheDocument()
+
+  rerender(card('completed', {
+    ...plan,
+    todos: [...plan.todos, { id: 'two', content: 'Update docs', status: 'pending' }]
+  }))
+  expect(screen.getByRole('region')).toBeInTheDocument()
 })
 
-describe('to-do list card', () => {
-  it('restores the thread list and follows plan updates while the turn runs', async () => {
-    const { host, notify } = fixtureHost({ todos: working })
-    render(<TodoCard host={host} context={context('running')} />)
-    expect(await screen.findByRole('region', { name: 'To-dos, 1 of 2 done' })).toBeInTheDocument()
-
-    act(() => notify({ threadId: 'thread', todos: finished }))
-    expect(screen.getByRole('region', { name: 'To-dos, 2 of 2 done' })).toBeInTheDocument()
-  })
-
-  it('stays after a stopped turn only while steps remain', async () => {
-    const { host, notify } = fixtureHost({ todos: working })
-    render(<TodoCard host={host} context={context('cancelled')} />)
-    expect(await screen.findByRole('region')).toBeInTheDocument()
-
-    act(() => notify({ threadId: 'thread', todos: finished }))
-    expect(screen.queryByRole('region')).not.toBeInTheDocument()
-  })
-
-  it('counts a last step left in progress as done when the turn completes', async () => {
-    const { host, notify } = fixtureHost({ todos: working })
-    render(<TodoCard host={host} context={context('completed')} />)
-    await waitFor(() => expect(host.appServer.request).toHaveBeenCalled())
-    expect(screen.queryByRole('region')).not.toBeInTheDocument()
-
-    act(() => notify({ threadId: 'thread', todos: [...working, { content: 'Write docs', status: 'pending' }] }))
-    expect(screen.getByRole('region')).toBeInTheDocument()
-  })
-
-  it('leaves an unstarted plan to its plan card', async () => {
-    const { host } = fixtureHost({ title: 'Plan', todos: [{ content: 'Read the spec', status: 'pending' }] })
-    render(<TodoCard host={host} context={context('running')} />)
-    await waitFor(() => expect(host.appServer.request).toHaveBeenCalled())
-    expect(screen.queryByRole('region')).not.toBeInTheDocument()
-  })
+it('does not show a proposed plan as execution progress', () => {
+  render(card('running', {
+    title: 'Plan',
+    implementsPlan: false,
+    updatedTodos: false,
+    todos: [{ id: 'one', content: 'Apply the change', status: 'pending' }]
+  }))
+  expect(screen.queryByRole('region')).not.toBeInTheDocument()
 })

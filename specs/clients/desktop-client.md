@@ -4,7 +4,7 @@
 |-------|-------|
 | **Version** | 0.12.2 |
 | **Status** | Living |
-| **Date** | 2026-11-17 |
+| **Date** | 2026-11-18 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
 | **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Hub Architecture](../architecture/hub-architecture.md), [Device Gateway](../protocols/device-gateway.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Goal Design](../features/goal.md), [Session Import](../features/session-import.md), [Desktop DESIGN.md](../architecture/DESIGN.md) |
 
@@ -432,6 +432,8 @@ When a native product surface opens a Thread, it supplies the Thread id and cano
 
 - Plan updates stay associated with the active thread and reflect the latest complete snapshot. While `CreatePlan` arguments stream, the plan surface renders a live draft that is replaced by the snapshot on `plan/updated`. Plan overviews render Markdown. A to-do list without a plan is labeled as progress. Plan updates and `CreatePlan` drafts refresh the plan surface without opening or switching the detail panel.
 - Plan confirmation uses current Plan mode, the latest completed Turn's successful `CreatePlan`, its matching plan, and local consumption state. Pending approvals/questions take precedence. The choice survives navigation until consumed or superseded. Acceptance confirms the scoped Agent-mode change before sending the implementation instruction, following [Thread Restoration](../features/thread-restoration.md#55-plan-implementation-choice).
+- The optional To-do List shows the saved tasks as pending when the approved Plan's execution turn appears, before the first progress update. If execution fails to start, the checklist is hidden and the Plan remains available for approval. Proposed tasks stay in the Plan card until approved.
+- A completed checklist stays visible during the turn that updated it but does not reappear on a later turn that has not updated it. Unfinished tasks carried over from another turn do not show as running until the current turn updates them or starts executing their approved Plan.
 - The active composer mode follows explicit configuration metadata from `thread/updated`, thread reads, and thread restoration, including changes made by another client. Metadata without a mode does not reset it. Synchronization preserves drafts and dismissed plan confirmations; local optimistic mode requests and their callbacks remain scoped to the originating workspace and thread. When explicit mode changes arrive during a pending request, its success reconciles the latest observed mode instead of overwriting it; unchanged pre-request metadata does not undo a successful optimistic change. Plan acceptance does not start implementation if a newer observed mode supersedes the requested Agent mode.
 
 **Discussion board**

@@ -4,7 +4,7 @@
 | --- | --- |
 | Version | 0.12.2 |
 | Status | Living |
-| Date | 2026-11-16 |
+| Date | 2026-11-18 |
 | Parent Specs | [Plugin Architecture](plugin-architecture.md), [Tool Architecture](tools-architecture.md) |
 
 ## Overview
@@ -268,8 +268,24 @@ interface DesktopPluginTurnStatusContext {
   readonly threadId: string
   readonly turnId: string
   readonly status: "running" | "completed" | "failed" | "cancelled"
+  readonly plan: DesktopPluginTurnPlan | null
+}
+
+interface DesktopPluginTurnPlan {
+  readonly title: string
+  readonly todos: readonly DesktopPluginPlanTodo[]
+  readonly implementsPlan: boolean
+  readonly updatedTodos: boolean
+}
+
+interface DesktopPluginPlanTodo {
+  readonly id: string
+  readonly content: string
+  readonly status: "pending" | "in_progress" | "completed" | "cancelled"
 }
 ```
+
+The plan is the thread's saved snapshot. `implementsPlan` identifies the execution turn started by accepting the Plan in Desktop. `updatedTodos` identifies a turn that successfully updated the checklist.
 
 The seat stays mounted after the turn ends, so a contribution decides from how the turn ended whether its status still applies. Content renders in the reading column with the transcript's spacing, and an empty contribution takes no space.
 
