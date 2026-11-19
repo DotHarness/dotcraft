@@ -178,6 +178,8 @@ A durable snapshot of user input waiting to become a future Turn.
 - `ReadyAfterTurnId` (nullable) — active Turn when queued.
 - `TriggerKind`, `TriggerLabel`, `TriggerRefId`, `TriggerStatus` (nullable) — present when the input was synthesized by a server mechanism rather than typed by a human (Section 4.2, UserMessage). `TriggerStatus` is set only on task notifications.
 
+Automatic queue drain leaves inputs queued while a plan awaits confirmation. The user can still explicitly start a queued input.
+
 A queued input that starts a Turn copies its trigger metadata and id into the `UserMessage` payload; promoted guidance preserves the same metadata. Before guidance is admitted, a client may set it back to `"queued"` without changing payload, metadata, or position. Admission atomically persists the guidance `UserMessage` and removes the queued input; after that it is not retractable.
 
 ##### Task notifications

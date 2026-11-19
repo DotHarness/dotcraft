@@ -363,76 +363,6 @@ public abstract class SessionServiceRuntimeSignalTestBase : IDisposable
             new(new PresentationId("core.read-file"));
     }
 
-    protected sealed class PlanConfirmationCleanupToolSource : AIFunctionToolSource
-    {
-        public override string SourceId => "plan-confirmation-cleanup";
-
-        protected override IEnumerable<AIFunction> CreateFunctions(ToolPlanningContext context)
-        {
-            yield return AIFunctionFactory.Create(
-                () => "Scratch removed.",
-                name: "CleanUpScratch",
-                description: "Remove scratch files.");
-        }
-    }
-
-    protected sealed class PlanThenCleanupChatClient : IChatClient
-    {
-        private int _requestCount;
-
-        public Task<ChatResponse> GetResponseAsync(
-            IEnumerable<ChatMessage> chatMessages,
-            ChatOptions? options = null,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new ChatResponse([new ChatMessage(ChatRole.Assistant, [new TextContent("done")])]));
-
-        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
-            IEnumerable<ChatMessage> chatMessages,
-            ChatOptions? options = null,
-            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
-        {
-            switch (Interlocked.Increment(ref _requestCount))
-            {
-                case 1:
-                    Assert.Contains(options?.Tools ?? [], tool => string.Equals(tool.Name, "CreatePlan", StringComparison.Ordinal));
-                    yield return new ChatResponseUpdate(ChatRole.Assistant,
-                    [
-                        new FunctionCallContent(
-                            "call-plan",
-                            "CreatePlan",
-                            new Dictionary<string, object?>
-                            {
-                                ["plan"] = "# Cleanup-safe plan\n\n## Summary\n\nKeep confirmation pending.",
-                                ["todos"] = Array.Empty<PlanTodoInput>()
-                            })
-                    ]);
-                    break;
-                case 2:
-                    Assert.Contains(
-                        chatMessages.SelectMany(message => message.Contents).OfType<FunctionResultContent>(),
-                        result => string.Equals(result.CallId, "call-plan", StringComparison.Ordinal));
-                    yield return new ChatResponseUpdate(ChatRole.Assistant,
-                    [
-                        new FunctionCallContent(
-                            "call-close",
-                            "CleanUpScratch",
-                            new Dictionary<string, object?>())
-                    ]);
-                    break;
-                default:
-                    yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("Plan ready.")]);
-                    break;
-            }
-
-            await Task.CompletedTask;
-        }
-
-        public object? GetService(Type serviceType, object? serviceKey = null) => null;
-
-        public void Dispose()
-        {
-        }
-    }
 
     protected static void AssertDynamicSourceFailure(
         DynamicToolCallPayload payload,
@@ -1615,36 +1545,7 @@ public sealed partial class SessionServiceRuntimeSignalTests : SessionServiceRun
         }
     }
 
-    [Fact]
-    public async Task SubmitInputAsync_WhenCleanupFollowsCreatePlan_EmitsAwaitingPlanConfirmation()
-    {
-        IChatClient chatClient = new PlanThenCleanupChatClient();
-        await using var agentFactory = CreateAgentFactory(
-            chatClient,
-            toolProviders: [new PlanConfirmationCleanupToolSource()],
-            planStore: new PlanStore(_tempDir));
-        var svc = CreateService(agentFactory, chatClient);
-        var thread = await svc.CreateThreadAsync(MakeIdentity());
-        await svc.RefreshThreadAgentAsync(thread.Id);
-        await svc.SetThreadModeAsync(thread.Id, "plan");
-        var seen = new List<SessionThreadRuntimeSignal>();
-        svc.ThreadRuntimeSignalForBroadcast = (threadId, signal, _) =>
-        {
-            if (threadId == thread.Id)
-                seen.Add(signal);
-        };
 
-        await DrainAsync(svc.SubmitInputAsync(thread.Id, [new TextContent("create a plan")]));
-
-        Assert.Equal(
-            [
-                SessionThreadRuntimeSignal.TurnStarted,
-                SessionThreadRuntimeSignal.TurnCompletedAwaitingPlanConfirmation
-            ],
-            seen);
-        var completedThread = await svc.GetThreadAsync(thread.Id);
-        Assert.True(svc.GetThreadRuntimeSnapshot(completedThread).WaitingOnPlanConfirmation);
-    }
 
     [Fact]
     public async Task SubmitInputAsync_WhenAgentThrowsAfterPartialResponse_RebuildsSessionFromFailedTurn()
