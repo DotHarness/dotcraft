@@ -107,7 +107,12 @@ export type {
   ButtonVariant,
   CatalogFilterGroup,
   CatalogFilterOption,
+  CatalogPageBreadcrumb,
+  CatalogPageBreadcrumbSegment,
+  CatalogPageEditableText,
   CatalogPageFilters,
+  CatalogPageTab,
+  CatalogPageTabs,
   CatalogPageProps,
   CatalogPageSearch,
   CatalogSectionProps,
@@ -146,6 +151,8 @@ export type {
   SettingsGroupProps,
   SettingsPanelShellProps,
   SettingsRowProps,
+  SummaryRowProps,
+  SummarySectionProps,
   TextareaProps,
 } from "./ui.js";
 
@@ -184,3 +191,5 @@ export const SplitButton = ui.SplitButton;
 export const CatalogPage = ui.CatalogPage;
 export const CatalogToolbarButton = ui.CatalogToolbarButton;
 export const CatalogSection = ui.CatalogSection;
+export const SummarySection = ui.SummarySection;
+export const SummaryRow = ui.SummaryRow;

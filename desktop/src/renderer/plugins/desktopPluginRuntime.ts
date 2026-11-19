@@ -12,6 +12,7 @@ import { DesktopPluginUserAvatar } from '../components/desktopPlugins/DesktopPlu
 import { DesktopPluginMenu } from '../components/desktopPlugins/DesktopPluginMenu'
 import { DesktopPluginSegmentedControl } from '../components/desktopPlugins/DesktopPluginSegmentedControl'
 import { DesktopPluginSplitButton } from '../components/desktopPlugins/DesktopPluginSplitButton'
+import { DesktopPluginSummaryRow, DesktopPluginSummarySection } from '../components/desktopPlugins/DesktopPluginSummary'
 import { DesktopPluginSurface } from '../components/desktopPlugins/DesktopPluginSurface'
 import { SettingsBreadcrumb } from '../components/settings/SettingsBreadcrumb'
 import { SettingsGroup, SettingsRow } from '../components/settings/SettingsGroup'
@@ -77,6 +78,8 @@ export function startDesktopPluginRuntime(): () => void {
       CatalogPage: DesktopPluginCatalogPage,
       CatalogToolbarButton: CatalogToolbarIconButton,
       CatalogSection,
+      SummarySection: DesktopPluginSummarySection,
+      SummaryRow: DesktopPluginSummaryRow,
       PluginSurface: DesktopPluginSurface
     }
   })

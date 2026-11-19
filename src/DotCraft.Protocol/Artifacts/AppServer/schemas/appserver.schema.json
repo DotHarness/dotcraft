@@ -10202,10 +10202,62 @@
       },
       "additionalProperties": true
     },
+    "MemoryListStoresResult": {
+      "title": "MemoryListStoresResult",
+      "type": "object",
+      "properties": {
+        "stores": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MemoryStoreInfo"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
     "MemoryResetResult": {
       "title": "MemoryResetResult",
       "type": "object",
       "properties": {},
+      "additionalProperties": true
+    },
+    "MemoryStoreInfo": {
+      "title": "MemoryStoreInfo",
+      "type": "object",
+      "properties": {
+        "displayName": {
+          "type": "string"
+        },
+        "id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "scope": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "writable": {
+          "type": "boolean"
+        }
+      },
       "additionalProperties": true
     },
     "ModelCatalogItem": {

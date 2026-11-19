@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using DotCraft.Memory;
 using DotCraft.Sessions;
 
 namespace DotCraft.Dreams;
@@ -45,7 +46,8 @@ public sealed record DreamsRunInput(
     string CandidateDirectory,
     string Manifest,
     IReadOnlyList<DreamsThreadInput> Threads,
-    string? Instructions);
+    string? Instructions,
+    MemoryPolicy Policy);
 
 public sealed record DreamsRunDiagnostics(
     IReadOnlyList<string> EvidenceThreadIds,

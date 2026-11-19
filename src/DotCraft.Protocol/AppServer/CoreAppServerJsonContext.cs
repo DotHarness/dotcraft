@@ -179,7 +179,9 @@ namespace DotCraft.Protocol;
 [JsonSerializable(typeof(AppServer.McpTestResult))]
 [JsonSerializable(typeof(AppServer.McpUpsertParams))]
 [JsonSerializable(typeof(AppServer.McpUpsertResult))]
+[JsonSerializable(typeof(AppServer.MemoryListStoresResult))]
 [JsonSerializable(typeof(AppServer.MemoryResetResult))]
+[JsonSerializable(typeof(AppServer.MemoryStoreInfo))]
 [JsonSerializable(typeof(AppServer.ModelCatalogItem))]
 
 [JsonSerializable(typeof(AppServer.ModelListParams))]

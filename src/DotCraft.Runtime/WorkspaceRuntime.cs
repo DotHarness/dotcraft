@@ -37,6 +37,7 @@ public sealed partial class WorkspaceRuntime : IAsyncDisposable
         ISessionService sessionService,
         ICommitMessageSuggester commitMessageSuggestService,
         DreamsService dreamsService,
+        MemoryManagementService memoryManagement,
         DotNetExtensionRuntimeManager pluginRuntime,
         IReadOnlyList<ConfigSchemaSection> configSchema,
         IContextPageManager contextPageManager,
@@ -52,6 +53,8 @@ public sealed partial class WorkspaceRuntime : IAsyncDisposable
         public ICommitMessageSuggester CommitMessageSuggestService { get; } = commitMessageSuggestService;
 
         public DreamsService DreamsService { get; } = dreamsService;
+
+        public MemoryManagementService MemoryManagement { get; } = memoryManagement;
 
         public IAsyncDisposable? IdleThreadUnloading { get; } = idleThreadUnloading;
 
@@ -126,6 +129,8 @@ public sealed partial class WorkspaceRuntime : IAsyncDisposable
 
 
     public DreamsService DreamsService => EnsureStarted().DreamsService;
+
+    public MemoryManagementService MemoryManagement => EnsureStarted().MemoryManagement;
 
 
     public IReadOnlyList<ConfigSchemaSection> ConfigSchema => EnsureStarted().ConfigSchema;

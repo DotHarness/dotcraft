@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "memory-studio",
+  "version": "0.13.1",
+  "displayName": "Memory Studio",
+  "description": "Browse and edit what DotCraft remembers, and tailor what it saves.",
+  "capabilities": ["desktop"],
+  "desktop": {
+    "description": "Adds a Memory view, a Memory section in the thread Summary, and a Remember action on replies.",
+    "entry": "./desktop/dist/index.mjs",
+    "styles": ["./desktop/dist/index.css"]
+  },
+  "interface": {
+    "displayName": "Memory Studio",
+    "shortDescription": "Browse, edit, and tune memory",
+    "longDescription": "Memory Studio lists the memories in each store, edits them with their index kept in step, tailors the memory policy from presets with a preview before it applies, and reviews Dreams consolidation runs.",
+    "developerName": "DotHarness",
+    "category": "Productivity",
+    "capabilities": ["Desktop", "Memory"],
+    "defaultPrompt": "What do you remember about how I like to work?",
+    "logo": "./assets/memory-studio.svg",
+    "composerIcon": "./assets/memory-studio.svg"
+  }
+}

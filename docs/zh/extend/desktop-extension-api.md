@@ -118,6 +118,8 @@ DotCraft 的正式 surface 覆盖 application、Composer 与当前会话。Compo
 | **`conversation.aside.leading`** | 会话阅读列 leading 一侧的座位。 |
 | **`conversation.aside.trailing`** | 会话阅读列 trailing 一侧的座位。 |
 | **`conversation.turn.status`** | 最后一个可见轮次内的座位：轮次有回复后位于回复的操作行上方，此前紧贴工作行上方。 |
+| **`summary.sources`** | thread 摘要「来源」分区中的行，位于自带来源之后。 |
+| **`summary.sections`** | thread 摘要中的分区，位于来源之后、上下文与环境之前。 |
 
 当区域范围过大时，可以直接定位这些 Core 控件：
 
@@ -241,6 +243,28 @@ host.ui.add("conversation.turn.status", BuildStatus);
 ```
 
 `context.runningTasks.count` 是工作行显示的后台任务数：轮次运行时计入所有运行中的任务，轮次结束后只计 Agent 和 Workflow，`open()` 会打开列出这些任务的 Summary。要在自己的内容里显示这个数，请在显示期间调用 `claim()`，不再显示时调用它返回的 dispose 函数。只要还有 claim，工作行就不再显示这个数。
+
+### 在摘要中添加分区
+
+`summary.sections` 会在摘要显示 thread 的任何位置挂载，无论摘要固定在会话旁还是以弹出层显示，并接收 thread context。请用 `SummarySection` 与 `SummaryRow` 构建分区，使其与摘要自带的分区一致，没有内容可显示时返回 `null`。带 `onClick` 的行是按钮：
+
+```tsx
+function NotesSection({ context }: DesktopPluginSurfaceProps<"summary.sections">) {
+  const notes = useNotes(context.threadId);
+  if (notes.length === 0) return null;
+  return (
+    <SummarySection title="Notes">
+      {notes.map((note) => (
+        <SummaryRow key={note.id} leading={<NotebookPen size={16} />} label={note.title} onClick={() => openNote(note.id)} />
+      ))}
+    </SummarySection>
+  );
+}
+
+host.ui.add("summary.sections", NotesSection);
+```
+
+如果这些行是 thread 用到的资料，请改为添加到 `summary.sources`。它在相同位置挂载，直接接收 `SummaryRow`，无需 `SummarySection`。「来源」分区在没有任何行时保持隐藏。
 
 ### 替换 Composer mascot
 
@@ -678,6 +702,7 @@ if (!result.isError) showItems(result.structuredContent);
 | **展示** | `Spinner`、`Skeleton`、`ActionTooltip`、`ModalHeader`、`InlineDiff`、`Markdown`、`AgentAvatar`、`UserAvatar` |
 | **Settings 布局** | `SettingsPanelShell`、`SettingsBreadcrumb`、`SettingsGroup`、`SettingsRow` |
 | **目录页布局** | `CatalogPage`、`CatalogSection`、`CatalogToolbarButton` |
+| **摘要布局** | `SummarySection`、`SummaryRow` |
 | **模态层** | `LayerBoundary` |
 | **工具记录** | `ToolDisclosure`、`RunningShimmer` |
 
@@ -685,7 +710,7 @@ if (!result.isError) showItems(result.structuredContent);
 
 `LayerBoundary` 接收 `active?`、`blocksNativeViews?` 和 `children`。用它包裹插件自己的模态框或影院画面，可抑制下层悬浮内容，并按需隐藏原生视图。内容自行绘制空状态时，使用 `SettingsGroup framed={false}` 避免嵌套边框。`host.ui.showToast` 除消息与操作外，还接受 `description` 和 React `icon`。
 
-`CatalogPage` 让主视图使用与 Desktop 的插件页、智能体页相同的页面框架：传入 `title`，可选传入顶栏 `actions`（刷新这类仅图标的命令用 `CatalogToolbarButton`，主要操作用 `Button` 或 `SplitButton`），可选传入 `search` 与 `filters`，再用 `CatalogSection` 把各组内容作为 children 渲染。每个筛选组都把不筛选的选项放在第一位。
+`CatalogPage` 让主视图使用与 Desktop 的插件页、智能体页相同的页面框架：传入 `title`，可选传入顶栏 `actions`（刷新这类仅图标的命令用 `CatalogToolbarButton`，主要操作用 `Button` 或 `SplitButton`），可选传入 `search` 与 `filters`，再用 `CatalogSection` 把各组内容作为 children 渲染。每个筛选组都把不筛选的选项放在第一位。要在同级视图之间切换，传入 `tabs: { value, items, onValueChange }`，它们显示在顶栏左侧，和 Desktop 中插件与技能的切换一致。从另一页进入的页面（如设置页或详情页）改为传入 `breadcrumb: { parentLabel, currentLabel, onBack }`，中间还有页面时再加 `trail: [{ label, onClick }]`，它会取代标签页，和插件 › 管理一致。编辑单条记录的页面可以传入 `titleEditor` 与 `descriptionEditor`（`{ value, placeholder, ariaLabel, onValueChange }`），让名称和一行描述直接作为标题和副标题原地编辑，并可通过 `meta` 在其下方放置标签等控件。
 
 `AgentAvatar` 绘制 Desktop 为某个 agent 显示的角色。把 SubAgent 的 `nickname` 作为 `name` 传入，可选传入 `size` 与 `animated`，你的插件就会画出与 Subagents 标签页相同的角色。该组件由 Desktop 提供，不要自行打包 avatar 包。
 

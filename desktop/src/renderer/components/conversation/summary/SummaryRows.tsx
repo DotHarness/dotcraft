@@ -63,15 +63,18 @@ export function Row({
 export function Section({
   title,
   actions,
+  hideWhenEmpty,
   children
 }: {
   title?: string
   actions?: ReactNode
+  /** Hides the section while its rows render nothing, for rows contributed by plugins. */
+  hideWhenEmpty?: boolean
   children: ReactNode
 }): JSX.Element {
   const heading = title ? <h3 className="conversation-summary-section__title">{title}</h3> : null
   return (
-    <section className="conversation-summary-section" aria-label={title}>
+    <section className="conversation-summary-section" aria-label={title} data-hide-empty={hideWhenEmpty || undefined}>
       {actions ? (
         <div className="conversation-summary-section__header">
           {heading}

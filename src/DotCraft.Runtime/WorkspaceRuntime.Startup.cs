@@ -203,18 +203,21 @@ public sealed partial class WorkspaceRuntime
                         Paths.WorkspacePath,
                         loggerFactory?.CreateLogger<CommitMessageSuggestService>(),
                         () => _appConfigMonitor.Current.SourceControl);
+                var memoryExtractionRunner = new MemoryExtractionRunner(
+                    sessionService,
+                    contributionRegistry,
+                    MemoryStore,
+                    Paths.Data.RootPath,
+                    traceCollector,
+                    loggerFactory?.CreateLogger<MemoryExtractionRunner>(),
+                    () => MemoryPolicy.From(Config.Memory));
                 var memoryExtraction = new MemoryExtractionScheduler(
                     sessionService.GetThreadAsync,
                     (thread, ct) => sessionService.ReadThreadTurnsAsync(
                         thread.Id, ThreadHistorySortDirection.Descending, ct: ct),
-                    new MemoryExtractionRunner(
-                        sessionService,
-                        contributionRegistry,
-                        MemoryStore,
-                        Paths.Data.RootPath,
-                        traceCollector,
-                        loggerFactory?.CreateLogger<MemoryExtractionRunner>()),
-                    loggerFactory?.CreateLogger<MemoryExtractionScheduler>());
+                    memoryExtractionRunner,
+                    loggerFactory?.CreateLogger<MemoryExtractionScheduler>(),
+                    () => Config.Memory.ExtractionInterval);
                 _contributionScope.RegisterSessionContributions(
                     commitMessageSuggestService,
                     memoryExtraction);
@@ -272,6 +275,7 @@ public sealed partial class WorkspaceRuntime
                     sessionService,
                     commitMessageSuggest,
                     dreamsService,
+                    new MemoryManagementService(Paths, MemoryStore),
                     pluginRuntime,
                     configSchema,
                     contextPageManager,

@@ -5,7 +5,7 @@ using YamlDotNet.RepresentationModel;
 
 namespace DotCraft.Memory;
 
-/// <summary>One memory file. <see cref="Type"/> is null when the frontmatter is missing or names no known type.</summary>
+/// <summary>One memory file. <see cref="Type"/> is null when the frontmatter is missing or names a type the policy does not declare.</summary>
 public sealed record MemoryFileInfo(string FileName, string? Type, string? Description, DateTimeOffset LastModified);
 
 public static class MemoryFiles
@@ -14,13 +14,14 @@ public static class MemoryFiles
 
     private const int MaxFrontmatterLines = 50;
 
-    private static readonly HashSet<string> Types = new(StringComparer.Ordinal) { "user", "feedback", "project", "reference" };
-
     /// <summary>The store's memory files, newest first: every top-level Markdown file except the index.</summary>
-    public static IReadOnlyList<MemoryFileInfo> List(string storeDirectory)
+    /// <param name="types">The declared type names; the default policy's when null.</param>
+    public static IReadOnlyList<MemoryFileInfo> List(string storeDirectory, IReadOnlySet<string>? types = null)
     {
         if (!Directory.Exists(storeDirectory))
             return [];
+
+        var declared = types ?? MemoryPolicy.Default.TypeNames;
 
         return new DirectoryInfo(storeDirectory)
             .EnumerateFiles()
@@ -29,10 +30,14 @@ public static class MemoryFiles
             .OrderByDescending(static file => file.LastWriteTimeUtc)
             .ThenBy(static file => file.Name, StringComparer.Ordinal)
             .Take(MaxListed)
-            .Select(static file =>
+            .Select(file =>
             {
                 var (type, description) = ReadFrontmatter(file.FullName);
-                return new MemoryFileInfo(file.Name, type, description, new DateTimeOffset(file.LastWriteTimeUtc));
+                return new MemoryFileInfo(
+                    file.Name,
+                    type != null && declared.Contains(type) ? type : null,
+                    description,
+                    new DateTimeOffset(file.LastWriteTimeUtc));
             })
             .ToArray();
     }
@@ -88,7 +93,7 @@ public static class MemoryFiles
                 return default;
 
             var type = Child(root, "metadata") is YamlMappingNode metadata ? Scalar(metadata, "type") : null;
-            return (type != null && Types.Contains(type) ? type : null, Scalar(root, "description"));
+            return (type, Scalar(root, "description"));
         }
         catch (YamlException)
         {

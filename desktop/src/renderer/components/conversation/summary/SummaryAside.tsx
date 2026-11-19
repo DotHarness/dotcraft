@@ -51,7 +51,7 @@ export function SummaryAside({
         }
       }}
     >
-      <SummaryPanel key={context.threadId} services={services} threadId={context.threadId} workspacePath={context.workspacePath} variant="pinned" />
+      <SummaryPanel key={context.threadId} services={services} threadId={context.threadId} workspacePath={context.workspacePath} busy={context.busy} variant="pinned" />
     </aside>
   )
 }

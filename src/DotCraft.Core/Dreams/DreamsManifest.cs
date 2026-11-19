@@ -16,7 +16,7 @@ internal static class DreamsManifest
         IReadOnlyList<DreamsThreadInput> threads)
     {
         var index = MemoryIndex.Load(artifacts.BaselineDirectory(state.Id));
-        var manifest = Build(state, lastConsolidatedAt, files, index, threads);
+        var manifest = Build(state.Id, state.Scope, lastConsolidatedAt, files, index, threads);
         Directory.CreateDirectory(artifacts.InputDirectory(state.Id));
         File.WriteAllText(artifacts.ManifestPath(state.Id), manifest, Encoding.UTF8);
         var input = new
@@ -37,7 +37,8 @@ internal static class DreamsManifest
     }
 
     private static string Build(
-        DreamsRunState state,
+        string runId,
+        string? scope,
         DateTimeOffset? lastConsolidatedAt,
         IReadOnlyList<MemoryFileInfo> files,
         MemoryIndex index,
@@ -46,8 +47,8 @@ internal static class DreamsManifest
         var sb = new StringBuilder();
         sb.AppendLine("# Dream run manifest")
             .AppendLine()
-            .Append("- Run: ").AppendLine(state.Id)
-            .Append("- Store: ").AppendLine(state.Scope == null ? "the workspace store" : $"the own store of scope `{state.Scope}`")
+            .Append("- Run: ").AppendLine(runId)
+            .Append("- Store: ").AppendLine(scope == null ? "the workspace store" : $"the own store of scope `{scope}`")
             .Append("- Last consolidated: ").AppendLine(lastConsolidatedAt is { } last ? FormatTime(last) : "never")
             .AppendLine()
             .AppendLine("## Memory files")

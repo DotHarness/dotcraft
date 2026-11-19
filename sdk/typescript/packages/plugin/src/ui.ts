@@ -282,8 +282,48 @@ export interface CatalogPageFilters {
   readonly groups: readonly CatalogFilterGroup[];
 }
 
+export interface CatalogPageTab<T extends string = string> {
+  readonly value: T;
+  readonly label: string;
+}
+
+export interface CatalogPageTabs<T extends string = string> {
+  readonly value: T;
+  readonly items: readonly CatalogPageTab<T>[];
+  readonly onValueChange: (value: T) => void;
+}
+
+export interface CatalogPageBreadcrumbSegment {
+  readonly label: string;
+  readonly onClick: () => void;
+}
+
+export interface CatalogPageBreadcrumb {
+  readonly parentLabel: string;
+  readonly currentLabel: string;
+  readonly onBack: () => void;
+  /** Pages between the parent and the current one, outermost first. */
+  readonly trail?: readonly CatalogPageBreadcrumbSegment[];
+}
+
+export interface CatalogPageEditableText {
+  readonly value: string;
+  readonly placeholder: string;
+  readonly ariaLabel: string;
+  readonly onValueChange: (value: string) => void;
+  readonly invalid?: boolean;
+  readonly readOnly?: boolean;
+}
+
 export interface CatalogPageProps {
   readonly title: string;
+  readonly titleEditor?: CatalogPageEditableText;
+  readonly descriptionEditor?: CatalogPageEditableText;
+  /** Controls under the title, such as a record's tags. */
+  readonly meta?: ReactNode;
+  readonly tabs?: CatalogPageTabs;
+  /** Takes the place of `tabs`. */
+  readonly breadcrumb?: CatalogPageBreadcrumb;
   readonly actions?: ReactNode;
   readonly search?: CatalogPageSearch;
   readonly filters?: CatalogPageFilters;
@@ -293,6 +333,21 @@ export interface CatalogPageProps {
 export interface CatalogSectionProps {
   readonly title: string;
   readonly children: ReactNode;
+}
+
+export interface SummarySectionProps {
+  readonly title: string;
+  readonly actions?: ReactNode;
+  readonly children: ReactNode;
+}
+
+export interface SummaryRowProps {
+  readonly leading: ReactNode;
+  readonly label: string;
+  readonly meta?: ReactNode;
+  readonly title?: string;
+  /** Makes the row a button. */
+  readonly onClick?: () => void;
 }
 
 export interface PluginSurfaceProps<Surface extends string = string> {
@@ -367,4 +422,6 @@ export interface DesktopPluginUiComponents {
   readonly CatalogPage: ComponentType<CatalogPageProps>;
   readonly CatalogToolbarButton: ComponentType<CatalogToolbarButtonProps>;
   readonly CatalogSection: ComponentType<CatalogSectionProps>;
+  readonly SummarySection: ComponentType<SummarySectionProps>;
+  readonly SummaryRow: ComponentType<SummaryRowProps>;
 }

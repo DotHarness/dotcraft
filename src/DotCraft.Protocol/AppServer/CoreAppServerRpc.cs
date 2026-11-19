@@ -111,6 +111,9 @@ public static partial class AppServerRpc
 
     public static readonly RpcRequest<McpServerStatusListParams, McpServerStatusListResult> McpServerStatusList = new("mcpServerStatus/list", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);
 
+    public static readonly RpcRequest<global::DotCraft.Protocol.RpcEmpty, MemoryListStoresResult> MemoryListStores = new("memory/listStores", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);
+
+
     public static readonly RpcRequest<global::DotCraft.Protocol.RpcEmpty, MemoryResetResult> MemoryReset = new("memory/reset", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);
 
     public static readonly RpcRequest<ModelListParams, ModelListResult> ModelList = new("model/list", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "modelCatalogManagement", errors: CommonErrors);

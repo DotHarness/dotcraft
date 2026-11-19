@@ -1,0 +1,71 @@
+.stack {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+}
+
+.qualifier {
+  margin-left: 6px;
+  color: var(--text-dimmed);
+  font-size: var(--type-hint-size);
+  font-weight: 400;
+  line-height: var(--type-hint-line-height);
+}
+
+
+.editor {
+  display: grid;
+  gap: 8px;
+}
+
+.interval {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-primary);
+  font-size: var(--type-ui-size);
+}
+
+.issue {
+  color: var(--error-text);
+  font-size: var(--type-secondary-size);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.types {
+  display: grid;
+  gap: 6px;
+}
+
+.typeRow {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.35fr) minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+
+
+
+
+@media (max-width: 640px) {
+  .typeRow {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .typeRow > :nth-child(2) {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}

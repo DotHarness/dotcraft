@@ -9,11 +9,10 @@ namespace DotCraft.Memory.Extraction;
 /// <summary>Decides after each completed Turn whether memory extraction runs, keeping each Thread's cursor and cadence in process.</summary>
 public sealed class MemoryExtractionScheduler : ITurnLifecycleContributor, IThreadLifecycleContributor, IDisposable
 {
-    internal const int Cadence = 7;
-
     private readonly Func<string, CancellationToken, Task<SessionThread>> _loadThread;
     private readonly Func<SessionThread, CancellationToken, IAsyncEnumerable<SessionTurn>> _readTurnsNewestFirst;
     private readonly IMemoryExtractionRunner _runner;
+    private readonly Func<int> _interval;
     private readonly ILogger? _logger;
     private readonly Channel<Signal> _signals = Channel.CreateUnbounded<Signal>(new UnboundedChannelOptions { SingleReader = true });
     private readonly Dictionary<string, ThreadState> _threads = new(StringComparer.Ordinal);
@@ -26,11 +25,13 @@ public sealed class MemoryExtractionScheduler : ITurnLifecycleContributor, IThre
         Func<string, CancellationToken, Task<SessionThread>> loadThread,
         Func<SessionThread, CancellationToken, IAsyncEnumerable<SessionTurn>> readTurnsNewestFirst,
         IMemoryExtractionRunner runner,
-        ILogger? logger = null)
+        ILogger? logger = null,
+        Func<int>? interval = null)
     {
         _loadThread = loadThread;
         _readTurnsNewestFirst = readTurnsNewestFirst;
         _runner = runner;
+        _interval = interval ?? (static () => MemoryPolicyDefaults.ExtractionInterval);
         _logger = logger;
         _idle.SetResult();
         _ = Task.Run(ProcessAsync);
@@ -39,7 +40,7 @@ public sealed class MemoryExtractionScheduler : ITurnLifecycleContributor, IThre
     public Task OnTurnEndedAsync(TurnLifecycleContext context, CancellationToken cancellationToken = default)
     {
         if (context.Status == TurnStatus.Completed)
-            Post(new TurnCompleted(context.ThreadId, context.TurnId));
+            Post(new TurnCompleted(context.ThreadId, context.TurnId, _interval()));
         return Task.CompletedTask;
     }
 
@@ -79,7 +80,7 @@ public sealed class MemoryExtractionScheduler : ITurnLifecycleContributor, IThre
                 switch (signal)
                 {
                     case TurnCompleted completed:
-                        await EvaluateAsync(completed.ThreadId, completed.TurnId).ConfigureAwait(false);
+                        await EvaluateAsync(completed.ThreadId, completed.TurnId, completed.Interval).ConfigureAwait(false);
                         break;
                     case RunFinished finished:
                         Finish(finished);
@@ -100,7 +101,7 @@ public sealed class MemoryExtractionScheduler : ITurnLifecycleContributor, IThre
         }
     }
 
-    private async Task EvaluateAsync(string threadId, string turnId)
+    private async Task EvaluateAsync(string threadId, string turnId, int interval)
     {
         var thread = await _loadThread(threadId, _lifetime.Token).ConfigureAwait(false);
         if (!IsEligible(thread))
@@ -129,7 +130,7 @@ public sealed class MemoryExtractionScheduler : ITurnLifecycleContributor, IThre
             return;
         }
 
-        if (++state.Count < Cadence)
+        if (++state.Count < interval)
             return;
         state.Count = 0;
         if (state.Running)
@@ -248,7 +249,7 @@ public sealed class MemoryExtractionScheduler : ITurnLifecycleContributor, IThre
 
     private abstract record Signal(string ThreadId);
 
-    private sealed record TurnCompleted(string ThreadId, string TurnId) : Signal(ThreadId);
+    private sealed record TurnCompleted(string ThreadId, string TurnId, int Interval) : Signal(ThreadId);
 
     private sealed record RunFinished(string ThreadId, string? StartCursor, string? Through) : Signal(ThreadId);
 

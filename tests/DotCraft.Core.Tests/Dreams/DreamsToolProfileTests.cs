@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using DotCraft.Configuration;
 using DotCraft.Dreams;
+using DotCraft.Memory;
 using DotCraft.Security;
 using DotCraft.Sessions;
 using DotCraft.Tools;
@@ -119,7 +120,8 @@ public sealed class DreamsToolProfileTests : IDisposable
             _candidate,
             "manifest",
             threadIds.Select(id => new DreamsThreadInput(id, null, "desktop", ThreadStatus.Active, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow)).ToArray(),
-            null));
+            null,
+            MemoryPolicy.Default));
         return await new EffectiveToolSnapshotBuilder().BuildAsync(
             [new DreamsToolSource(_registry, new AppConfig(), new PathBlacklist([]))],
             new ToolPlanningContext(ThreadId, null, _workspace.WorkspacePath, _workspace.CraftPath, "agent", DreamsConstants.ToolProfileName, [], 1));

@@ -105,6 +105,7 @@ export function SummaryHeaderAction({ context }: { context: DesktopPluginThreadS
                 services={desktopSummaryServices}
                 threadId={context.threadId}
                 workspacePath={context.workspacePath}
+                busy={context.busy}
                 variant="popover"
               />
             </div>,

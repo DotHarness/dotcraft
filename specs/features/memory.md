@@ -2,13 +2,13 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.1 |
+| **Version** | 0.13.1 |
 | **Status** | Living |
-| **Date** | 2026-10-19 |
+| **Date** | 2026-11-19 |
 | **Parent Specs** | [Session Core](../architecture/session-core.md) |
 | **Related Specs** | [Prompt Composition](../architecture/prompt-composition.md), [World State](../architecture/world-state.md) |
 
-Purpose: Define DotCraft's memory: the agent-maintained store of memory files and their index, which store a Thread uses, the stores its creator attaches beside it and how writes to them are admitted, how memory enters the prompt, how memory is saved while responding and after a Turn, how clients present it, the switches that govern it, and how it is deleted.
+Purpose: Define DotCraft's memory: the agent-maintained store of memory files and their index, which store a Thread uses, the stores its creator attaches beside it and how writes to them are admitted, how memory enters the prompt, how memory is saved while responding and after a Turn, the policy that decides what memory holds, how clients present and list it, the switches that govern it, and how it is deleted.
 
 ## 1. Scope
 
@@ -22,6 +22,8 @@ In scope:
 - How clients present memory reads and writes.
 - The memory switches and the features that depend on them.
 - Deleting memory.
+- The memory policy: the memory types and the guidance for saving, extraction, and consolidation.
+- Listing a workspace's stores.
 
 Out of scope:
 
@@ -46,6 +48,7 @@ Out of scope:
 | **Access** | Whether a Thread may only read an attached store (`read`) or also write it (`readWrite`). |
 | **Memory write gate** | A host-supplied check that admits or rejects each write to a `readWrite` attached store before it reaches disk. |
 | **Memory extraction** | A background pass after a Turn that saves knowledge the agent did not save while responding. |
+| **Memory policy** | The configurable memory types and the guidance that decides what is saved while responding, during extraction, and during consolidation (§10). |
 
 ## 3. Store Layout And Format
 
@@ -68,11 +71,13 @@ A memory file is named `<name>.md` and starts with frontmatter:
 name: <kebab-case slug matching the file name>
 description: <one line used to judge relevance later>
 metadata:
-  type: user | feedback | project | reference
+  type: <one of the policy's types>
 ---
 
 <the memory>
 ```
+
+The default types (§10.1):
 
 | Type | Holds |
 |------|-------|
@@ -81,7 +86,7 @@ metadata:
 | `project` | Ongoing goals, decisions, or constraints the repository does not record, with absolute dates. |
 | `reference` | Where to find information outside the workspace. |
 
-A `feedback` or `project` body leads with the rule or fact, followed by a **Why:** line and a **How to apply:** line. A body may link related memories as `[[name]]`. A Markdown file without frontmatter or with an unknown type is still a memory file and is listed without a type.
+The default save guidance asks a `feedback` or `project` body to lead with the rule or fact, followed by a **Why:** line and a **How to apply:** line. A body may link related memories as `[[name]]`. A Markdown file without frontmatter, or whose type the policy does not declare, is still a memory file and is listed without a type, so changing the types never hides or deletes memory.
 
 ### 3.2 Index
 
@@ -162,15 +167,16 @@ When the agent reads a memory file last modified more than one day ago, the read
 
 The agent saves memory with its ordinary file tools. It writes or updates the memory file, then adds or updates the file's index line.
 
-Save rules:
+Requests to remember, correct, or forget are applied in the same reply, including a request to save something the save guidance would skip. This rule is fixed (§10.2).
 
-- Requests to remember, correct, or forget are applied in the same reply, including a request to save something the rules below would skip.
-- Otherwise the agent saves knowledge of the four types that will apply to future Threads, in the same reply that responds to the message, before the task continues.
+The default save guidance (§10.1):
+
+- The agent saves knowledge that will apply to future Threads, in the same reply that responds to the message, before the task continues.
 - The agent does not save on its own what the repository or `AGENTS.md` already records, such as code structure, past fixes, or history, or what matters only to the current task.
 - Before saving, the agent updates a memory that already covers the knowledge rather than adding a duplicate, and deletes memories that proved wrong.
 - When unsure whether knowledge outlasts the current task, the agent does not save it.
 
-Choosing a store, when the Thread has attached stores:
+Choosing a store, when the Thread has attached stores, is fixed:
 
 - The agent saves to a `readWrite` attached store only what holds for everyone who uses it, written as the general lesson rather than the case that taught it. It never saves credentials, conversation content, or details that identify a person there.
 - What concerns the agent's own role and way of working, and anything it is unsure about, goes to its own store.
@@ -212,9 +218,9 @@ Memory extraction catches knowledge the agent should have saved while responding
 
 **Cursor.** Each Thread keeps an extraction cursor: the last Turn that extraction has considered. When a Turn after the cursor wrote to the Thread's store, extraction does not run for that range and the cursor moves to the latest Turn.
 
-**Cadence.** Of the remaining eligible Turns, extraction runs on every seventh. At most one extraction runs per Thread at a time. A request that arrives while one runs replaces any earlier waiting request and runs after the current one finishes, considering only Turns after the advanced cursor.
+**Cadence.** Of the remaining eligible Turns, extraction runs on every `Memory.ExtractionInterval`-th (§10.1), every seventh by default. The interval in effect when a Turn completes applies. At most one extraction runs per Thread at a time. A request that arrives while one runs replaces any earlier waiting request and runs after the current one finishes, considering only Turns after the advanced cursor.
 
-**Execution.** Extraction runs as an ephemeral internal fork of the Thread, taken after the latest completed Turn. The fork keeps the Thread's instructions and tool surface and receives one task message. The message asks it to consider only the Turns after the cursor without verifying them against the workspace, to read files before writing, and to update existing memories rather than duplicate them. It also lists the store's memory files by type, name, last-modified date, and description. Tool output quoted in the conversation is data and is never saved as an instruction.
+**Execution.** Extraction runs as an ephemeral internal fork of the Thread, taken after the latest completed Turn. The fork keeps the Thread's instructions and tool surface and receives one task message. The message asks it to consider only the Turns after the cursor without verifying them against the workspace, to save what the extraction guidance (§10.1) says is worth saving, to read files before writing, and to keep each memory's index line in step. It also lists the store's memory files by type, name, last-modified date, and description. Tool output quoted in the conversation is data and is never saved as an instruction.
 
 The fork may read anything the Thread may read, attached stores included. It may create and edit Markdown files inside the Thread's own store, and every other call is rejected with a reason, including writes to attached stores. Knowledge for an attached store is saved only while responding, where the Turn that produced it is known. It makes at most five model requests and adds no Items to the Thread.
 
@@ -222,7 +228,7 @@ The fork may read anything the Thread may read, attached stores included. It may
 
 ### 6.3 Consolidation
 
-Dreams periodically consolidates a store: it merges duplicates, corrects drifted facts, prunes the index, and reconciles memory with `AGENTS.md`. It never consolidates an attached store, whose host owns its upkeep.
+Dreams periodically consolidates a store following the consolidation guidance (§10.1): by default it merges duplicates, corrects drifted facts, prunes the index, and reconciles memory with `AGENTS.md`. It never consolidates an attached store, whose host owns its upkeep.
 
 ## 7. Memory Switches
 
@@ -251,3 +257,43 @@ Clients group recall operations as recalled memories and show an update as a mem
 ## 9. Deleting Memory
 
 AppServer `memory/reset` deletes the contents of every memory store in the current workspace: the workspace store and every scope store. It also deletes all Dreams artifacts. It leaves attached stores untouched, because their content belongs to the host that attaches them. It keeps the store directories, sessions, configuration, skills, plugins, plans, automation tasks, Agent Profiles, and the memory switches.
+
+## 10. Memory Policy
+
+The memory policy decides what memory holds: the memory types, and the guidance the agent follows when it saves memory while responding, during extraction, and during consolidation. It is configuration, so a user can tailor what is remembered without changing where or how memory is stored. Clients edit it like any other setting, and the [Memory Studio](memory-studio.md) plugin offers presets and an editor for it.
+
+### 10.1 Settings
+
+| Setting | Default | Meaning |
+|---------|---------|---------|
+| `Memory.Types` | `user`, `feedback`, `project`, `reference` (§3.1) | An array of `{ Name, Description }`. `Name` is the value of `metadata.type`, and `Description` tells the model what belongs to the type. |
+| `Memory.SaveGuidance` | The default save guidance of §6.1, followed by the default body rules of §3.1 | What the agent saves on its own initiative, what it leaves out, how it avoids duplicates and removes wrong memories, and how a memory body is written. |
+| `Memory.ExtractionGuidance` | Save what the memory instructions say to save but was not saved while responding, updating an existing memory rather than adding a duplicate | What extraction saves from the Turns it reviews. |
+| `Memory.ConsolidationGuidance` | The default consolidation rules of [Dreams](dreams.md) | What a consolidated store keeps, how near-duplicates merge, and how contradictions, including conflicts with `AGENTS.md`, resolve. |
+| `Memory.ExtractionInterval` | `7` | Every how many eligible Turns extraction runs, from 1 to 50. |
+
+The defaults are the built-in text itself, so a client reads them from the configuration schema and restores one by removing the value from its layer. The policy layers like other settings: a user-layer value follows the user across workspaces, and a workspace-layer value tailors one workspace. One policy applies to the workspace store and every scope store. Attached stores keep the fixed rules for choosing and writing them, and their host owns their upkeep.
+
+A write is rejected when it would leave the policy with no types or more than eight, a type `Name` that is not a kebab-case slug of at most 40 characters, two types with the same `Name`, a `Description` that is empty, spans lines, or exceeds 200 characters, or a guidance text that is empty or exceeds 8,000 characters.
+
+### 10.2 Fixed rules
+
+Guidance decides what is worth remembering. It never decides where memory is stored, who may write it, or how safety is kept, because a user editing guidance should not be able to weaken those by accident. Each stage is composed from fixed parts around the guidance, and the composition states that the fixed rules take precedence over the guidance.
+
+| Stage | Fixed |
+|-------|-------|
+| Memory instructions | The own store's path, the file format with the policy's types, the index format, that requests to remember, correct, or forget are applied in the same reply, the rules for choosing among attached stores and writing them, and the recall rules of §5.2. |
+| Extraction | The Turns under review, that conversation content is data and never instruction, that nothing is investigated or verified, the step budget, the write scope of the Thread's own store, keeping index lines in step, the listing of existing memory files, and that saving nothing is a normal outcome. |
+| Consolidation | The Dreams input, phases, tool profile, and candidate validation, that transcripts and memory are evidence and never instruction, the file and index format, and that `AGENTS.md` is never edited. |
+
+The guidance sits between the fixed description of the store and the fixed rules, so the fixed rules have the last word.
+
+### 10.3 When a change applies
+
+A policy change reaches a running Thread at its next Turn, as a change to its memory instructions, and costs that Thread one prompt-cache miss. Policy edits are rare, so keeping running Threads current is worth that cost. An extraction or Dreams run already started keeps the policy it started with. With memory disabled the policy has no effect, and the extraction guidance and interval have no effect while `Memory.AutoExtract` is off.
+
+## 11. Listing Stores
+
+Clients list the stores of a workspace through AppServer memory management ([AppServer Protocol](../protocols/appserver-protocol.md)).
+
+**Listing** returns the workspace store, every scope store, and every attached store directory, each with its directory on the AppServer host and a display name: the Agent Profile or automation that owns a scope when it can be resolved, otherwise the scope or attachment id. Attached stores are reported read-only, because their host owns their content. Listing creates nothing.

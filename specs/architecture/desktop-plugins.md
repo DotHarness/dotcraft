@@ -4,7 +4,7 @@
 | --- | --- |
 | Version | 0.13.1 |
 | Status | Living |
-| Date | 2026-11-18 |
+| Date | 2026-11-19 |
 | Parent Specs | [Plugin Architecture](plugin-architecture.md), [Tool Architecture](tools-architecture.md) |
 
 ## Overview
@@ -110,12 +110,14 @@ names are stable independently of internal component props.
 
 A plugin main view that browses or manages a collection uses the Host catalog frame:
 
-- `CatalogPage` takes `{ title, actions?, search?, filters?, children }` and renders the top band with `actions`, a pinned header with `title` and a search row, and a scrolling body centred on the catalog column. `search` is `{ value, placeholder, onValueChange }`. `filters` is `{ ariaLabel, groups }`, each group `{ label, icon?, value, options, onValueChange }` with options `{ value, label }`; the first option is the unfiltered choice. The band has no navigation slot for plugins.
+- `CatalogPage` takes `{ title, tabs?, breadcrumb?, actions?, search?, filters?, children }` and renders the top band with `actions`, a pinned header with `title` and a search row, and a scrolling body centred on the catalog column. `search` is `{ value, placeholder, onValueChange }`. `filters` is `{ ariaLabel, groups }`, each group `{ label, icon?, value, options, onValueChange }` with options `{ value, label }`; the first option is the unfiltered choice. `tabs` is `{ value, items, onValueChange }` with items `{ value, label }`. It fills the band's navigation slot with the same top-bar tabs Desktop uses to switch Plugins and Skills. `breadcrumb` is `{ parentLabel, currentLabel, onBack, trail? }`, with `trail` segments `{ label, onClick }` for the pages between, outermost first. It takes the navigation slot instead of `tabs` for a page reached from another, like Plugins › Manage. `titleEditor` and `descriptionEditor`, each `{ value, placeholder, ariaLabel, onValueChange, invalid?, readOnly? }`, make the hero title and a one-line subtitle under it editable in place, frameless, for a page that edits one record. `meta` holds controls centred under them, such as the record's tags.
 - `CatalogSection` titles one body group with `{ title, children }`.
 - `CatalogToolbarButton` is an icon-only band action, `{ icon, label, onClick }`, whose label is also its tooltip.
 - `SplitButton` is a principal action with alternatives: `{ label, onClick, items, menuLabel, icon?, variant?, disabled?, ariaLabel? }`, where `variant` is `primary` or `secondary` and `items` follow `Menu` items.
 
 Rows and tables inside a group remain plugin code built from theme tokens.
+
+`SummarySection` (`{ title, actions?, children }`) and `SummaryRow` (`{ leading, label, meta?, title?, onClick? }`) render a Summary section and its rows with Core's presentation. A row with `onClick` is a button.
 
 `AgentAvatar` (`{ name, size?, animated? }`) renders the avatar Core shows for an agent nickname,
 so a plugin and Core draw the same character for the same agent. `UserAvatar` (`{ size? }`) renders
@@ -206,6 +208,8 @@ The Core surfaces are:
 | `thread.header.actions` | The action group in the active thread header, between the overflow menu and the Detail Panel toggle. Empty by default. |
 | `conversation.aside.leading` | A seat beside the leading edge of the conversation reading column. Empty by default. |
 | `conversation.aside.trailing` | A seat beside the trailing edge of the conversation reading column, for panels that accompany the conversation. Core supplies the pinned Summary card. |
+| `summary.sources` | Additive rows inside a thread's Summary Sources section, after Core's sources. Empty by default. |
+| `summary.sections` | Additive sections inside a thread's Summary, after its sources and before its context and environment sections. Empty by default. |
 | `conversation.turn.status` | A seat inside the last visible turn, for status that belongs to the conversation's current work: above the reply's actions once the turn has a reply, otherwise directly above its working line. Empty by default. |
 
 `app.background`, `app.overlay`, and `app.status` share the application context. The overlay paints over the shell without consuming the single `app` wrapper. Overlay, status, and aside seats are click-through (`pointer-events: none`, inherited); a contribution opts back in on its own interactive elements.
@@ -224,7 +228,7 @@ On the new-chat Welcome screen, `composer` covers the complete pre-thread experi
 
 The SDK's `PluginSurface` component declares and renders a plugin-owned surface from its `name` and typed `context`. Core or another plugin may target it with `add`, `replace`, or `wrap` regardless of activation order; registrations render whenever it is mounted. Plugin-qualified names are recommended but not enforced.
 
-Core surface names are closed. The Host warns about unknown names rooted at `app`, `composer`, `thread`, or `conversation` but still stores the registration. Plugin-owned names remain open.
+Core surface names are closed. The Host warns about unknown names rooted at `app`, `composer`, `thread`, `conversation`, or `summary` but still stores the registration. Plugin-owned names remain open.
 
 ### Thread and conversation surfaces
 
@@ -301,6 +305,8 @@ The plan is the thread's saved snapshot. `implementsPlan` identifies the executi
 `runningTasks.count` is the thread's running background task count that the turn's working line shows: every running task while the turn runs, and only Agents and Workflows after it ends, and `open` shows the Summary that lists them. A contribution that shows the count itself calls `claim` and disposes the handle when it stops. While any claim is live, the working line omits the count.
 
 The seat stays mounted after the turn ends, so a contribution decides from how the turn ended whether its status still applies. Content renders in the reading column with the transcript's spacing, and an empty contribution takes no space.
+
+`summary.sections` mounts wherever the Summary shows a thread, pinned or as a popover, once the Summary has loaded, and receives the thread surface context. A contribution builds its section from the UI kit's `SummarySection` and `SummaryRow`, so it matches Core's sections, and renders nothing when it has nothing to show. `summary.sources` mounts in the same places and renders `SummaryRow`s alone. The Sources section is hidden while neither Core nor any contribution has a row.
 
 ## Convenience contributions
 
