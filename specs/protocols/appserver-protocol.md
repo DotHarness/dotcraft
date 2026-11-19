@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.13.1 |
+| **Version** | 0.13.2 |
 | **Status** | Living |
-| **Date** | 2026-11-19 |
+| **Date** | 2026-11-20 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
 | **Related Specs** | [Plugin Architecture](../architecture/plugin-architecture.md), [.NET Extension Runtime](../architecture/dotnet-extensions.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md) |
 
@@ -708,7 +708,7 @@ The user message's display text is built from text, file, command, and skill par
 
 Queued inputs carry `nativeInputParts`, `materializedInputParts`, `displayText`, optional `sender`, `status` (`queued` or `guidancePending`), `createdAt`, and `readyAfterTurnId` (the active turn when queued). Trigger fields mark input synthesized by a server or app mechanism:
 
-- `triggerKind`: for example `goal`, `automation`, `app`, `team`, `sideChat` (a message a side chat sent its source; `triggerRefId` is the side chat id), `subagentFollowupTask`, `subagentMailbox`, `subagentInput`, or a task notification kind `terminal`, `subagent`, or `workflow` (a model-facing notice that a background task ended; `triggerRefId` is the task id; clients do not present it as user input).
+- `triggerKind`: for example `goal`, `automation`, `app`, `team`, `sideChat` (a message a side chat sent its source; `triggerRefId` is the side chat id), `subagentFollowupTask`, `subagentMailbox`, `subagentInput`, or a task notification kind `terminal`, `subagent`, `workflow`, or `thread` (a model-facing notice that a background task or a reported thread ended; `triggerRefId` is the task or thread id; clients do not present it as user input).
 - `triggerLabel`, `triggerRefId`: display label and stable source id for click-through or audit.
 - `triggerStatus` (task notifications only): the terminal's final status or `waitingForInput` for a stall; the child Turn status for `subagent`; the run status for `workflow`.
 
@@ -769,6 +769,15 @@ Start one queued input as a new Turn now. Params `threadId`, optional `queuedInp
 
 - Fails with `-32012` while a Turn or blocking maintenance is active, leaving the queue unchanged, and with not-found for an unknown `queuedInputId`.
 - A queue paused because the latest Turn was cancelled resumes: after this Turn completes, the rest of the queue starts in order. `thread/read` reports the pause as `runtime.queuePaused`.
+
+### 5.2.7 `turn/notify`
+
+Deliver a report about another thread to this thread as a task notification. A client uses it to tell a thread how a chat it started went, when that chat lives in another workspace and Session Core cannot observe it. Params `threadId`, `notificationId`, `label`, `refId`, `status`, `summary`, and optional `project` and `result`. Result: `{ queued }`.
+
+- `status` is `completed`, `failed`, `stopped`, or `waitingForInput`. `label` names the reported thread, `refId` is its id, `project` names its workspace, and `result` is its final agent message, at most 2,000 characters.
+- The input is a task notification with `triggerKind = "thread"` and follows the task notification envelope, delivery, and wake policy of [Background Tasks §5](../architecture/background-tasks.md#5-notifications). It is never presented or admitted as user input.
+- `notificationId` makes delivery idempotent per thread: a notification whose id is already queued, admitted, or consumed in history is not queued again, and the result reports `queued = false`.
+- A thread that is not Active, including an archived one, keeps the notification queued for its next Turn, as for any task notification. Fails with not-found for an unknown thread and with invalid params for a missing field.
 
 ### 5.3 `workspace/commitMessage/suggest`
 
@@ -855,7 +864,7 @@ Canonical payload schemas are in [Session Core, Section 4.2](../architecture/ses
 
 | `item.type` | Wire-specific notes |
 |-------------|---------------------|
-| `userMessage` | `text` is a display field. `nativeInputParts` is authoritative for history rendering; `materializedInputParts` is the exact model snapshot. `deliveryMode` is `normal`, `queued`, `guidance`, or `subagentMailbox`. `sentAsGoal` marks goal submission. Trigger fields (`triggerKind` — `automation`, `goal`, `app`, `mcpApp`, `workflow`, `sideChat`, `subagentFollowupTask`, `subagentMailbox`, `subagentInput`, `terminal`, `subagent` — plus `triggerLabel`, `triggerRefId`, `triggerStatus`) mark synthesized input. Task notifications and `subagentMailbox` items are model-visible and must not render as user bubbles. SubAgent `triggerRefId` values are agent paths, not thread ids, and name the sender for `subagentMailbox`. |
+| `userMessage` | `text` is a display field. `nativeInputParts` is authoritative for history rendering; `materializedInputParts` is the exact model snapshot. `deliveryMode` is `normal`, `queued`, `guidance`, or `subagentMailbox`. `sentAsGoal` marks goal submission. Trigger fields (`triggerKind` — `automation`, `goal`, `app`, `mcpApp`, `workflow`, `sideChat`, `subagentFollowupTask`, `subagentMailbox`, `subagentInput`, `terminal`, `subagent`, `thread` — plus `triggerLabel`, `triggerRefId`, `triggerStatus`) mark synthesized input. Task notifications and `subagentMailbox` items are model-visible and must not render as user bubbles. SubAgent `triggerRefId` values are agent paths, not thread ids, and name the sender for `subagentMailbox`. |
 | `agentMessage` | Text streams through `item/agentMessage/delta`. Optional source-owned `phase` is commentary, partial_answer or final_answer; unknown streaming phase is absent, and terminal Item completion resolves the role once. `deliveryMode = "async"` marks a model-initiated message during a running Turn: delivered immediately, does not complete the Turn, excluded from final-text aggregation, not restored into model-visible history. Trigger kind does not imply async delivery. |
 | `reasoningContent` | Text streams through `item/reasoning/delta`. |
 | `toolCall` | Optional canonical `namespace`, local `toolName`, required `providerFlatName`, `arguments`, `callId`, plus optional definition and source provenance. Argument construction may stream through `item/toolCall/argumentsDelta`. |

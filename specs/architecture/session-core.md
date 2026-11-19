@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.13.1 |
+| **Version** | 0.13.2 |
 | **Status** | Living |
-| **Date** | 2026-11-18 |
+| **Date** | 2026-11-20 |
 
 Purpose: Define the **server-managed** session model (Thread / Turn / Item), including lifecycle, persistence, event semantics, approval semantics, and adapter boundaries.
 
@@ -180,7 +180,7 @@ A queued input that starts a Turn copies its trigger metadata and id into the `U
 
 ##### Task notifications
 
-A task notification is a queued input with `triggerKind` `terminal`, `subagent`, or `workflow`, created by Session Core when a background task ends or a shell task stalls. Its envelope, wake policy, admission, and delivery follow [Background Tasks §5](background-tasks.md#5-notifications).
+A task notification is a queued input with `triggerKind` `terminal`, `subagent`, or `workflow`, created by Session Core when a background task ends or a shell task stalls, or `thread`, created when a client reports another thread through `turn/notify`. Its envelope, wake policy, admission, and delivery follow [Background Tasks §5](background-tasks.md#5-notifications).
 
 Queued-input materialization is local-only. Inline `image` parts (base64 data URLs) are decoded without network access; `localImage` parts are read from their persisted paths. Rebuilding model history from an input snapshot (forks, interruption, a Turn without stored model history) reads `localImage` files the same way; an unreadable file becomes the text `[localImage:<path>]`. Session Core never dereferences HTTP(S) image URLs when starting a queued Turn or admitting guidance; such a part becomes a text notice that remote image URLs are not supported, and the remaining parts continue.
 
@@ -277,7 +277,7 @@ Fields: `text`, `nativeInputParts`, `materializedInputParts`, sender fields (`se
 - Typed `contextRef` native parts keep source snapshots and owned image references; their materialized parts contain the model-facing expansion.
 - `clientUserMessageId` correlates a client submission with its persisted message through queued and guidance delivery. It is not an idempotency key.
 - `deliveryMode` is `"normal"` (or absent) for a direct Turn start, `"queued"` for a queued input that became a Turn, and `"guidance"` for input appended to an active Turn. `queuedInputId` names the queue record that produced the message.
-- Trigger fields are set when input is synthesized by a server mechanism and absent for real user input. `triggerKind` values: `automation`, `goal` (label `Goal continuation`, ref = goal id), `app`, `mcpApp`, `team`, `subagentFollowupTask` (a parent starts or queues work for a child), `subagentInput` (direct or resumable external input), `subagentMailbox` (mailbox drain; when every drained message has one sender, `triggerRefId` is that sender's agent path, not necessarily a navigable thread id, and `triggerLabel` is its nickname, both absent otherwise), and the task notification kinds `terminal`, `subagent`, `workflow` (label = task label, ref = task id, `triggerStatus` = final status; see [Task notifications](#task-notifications)). Mailbox drains and task notifications are model-visible notifications that clients do not present as user input.
+- Trigger fields are set when input is synthesized by a server mechanism and absent for real user input. `triggerKind` values: `automation`, `goal` (label `Goal continuation`, ref = goal id), `app`, `mcpApp`, `team`, `subagentFollowupTask` (a parent starts or queues work for a child), `subagentInput` (direct or resumable external input), `subagentMailbox` (mailbox drain; when every drained message has one sender, `triggerRefId` is that sender's agent path, not necessarily a navigable thread id, and `triggerLabel` is its nickname, both absent otherwise), and the task notification kinds `terminal`, `subagent`, `workflow` (label = task label, ref = task id, `triggerStatus` = final status; see [Task notifications](#task-notifications)), and `thread` (a client's report about another thread through `turn/notify`; label = that thread's title, ref = its id). Mailbox drains and task notifications are model-visible notifications that clients do not present as user input.
 
 #### AgentMessage
 
