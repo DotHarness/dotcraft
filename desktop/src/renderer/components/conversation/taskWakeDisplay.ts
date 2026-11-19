@@ -1,4 +1,4 @@
-import { Bot, SquareTerminal, Workflow } from 'lucide-react'
+import { Bot, MessageSquareText, SquareTerminal, Workflow } from 'lucide-react'
 import { translate } from '../../../shared/locales'
 import type { AppLocale } from '../../../shared/locales/types'
 import { subAgentEndingOutcome } from '../../utils/subAgentEndingDisplay'
@@ -7,7 +7,8 @@ import type { TaskWake, TaskWakeKind } from './turnActivityModel'
 export const TASK_WAKE_ICONS: Record<TaskWakeKind, typeof SquareTerminal> = {
   terminal: SquareTerminal,
   subagent: Bot,
-  workflow: Workflow
+  workflow: Workflow,
+  thread: MessageSquareText
 }
 
 export const TASK_WAKE_COPY: Record<TaskWakeKind, { param: string; show: string; started: string; generic: string; statuses: Record<string, string> }> = {
@@ -45,6 +46,18 @@ export const TASK_WAKE_COPY: Record<TaskWakeKind, { param: string; show: string;
       cancelled: 'conversation.workflowFailed',
       interrupted: 'conversation.workflowFailed',
       stopped: 'conversation.workflowStopped'
+    }
+  },
+  thread: {
+    param: 'name',
+    show: 'conversation.showChat',
+    started: 'conversation.startedByChat',
+    generic: 'conversation.startedByChatGeneric',
+    statuses: {
+      completed: 'conversation.chatFinished',
+      failed: 'conversation.chatFailed',
+      stopped: 'conversation.chatStopped',
+      waitingForInput: 'conversation.chatWaitingForInput'
     }
   }
 }

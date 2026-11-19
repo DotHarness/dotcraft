@@ -1,4 +1,6 @@
 import type { WorkspaceProjectSummary } from '../../../shared/workspaceProjects'
+import { normalizeWorkspaceProjectKey } from '../../../shared/workspaceProjectKey'
+import { useWorkspaceProjectsStore } from '../../stores/workspaceProjectsStore'
 import { useSshMachinesStore } from '../../stores/sshMachinesStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { addToast } from '../../stores/toastStore'
@@ -44,6 +46,25 @@ export async function openProjectThread(project: WorkspaceProjectSummary, thread
     }
     return
   }
+  useUIStore.getState().setActiveMainView('conversation')
+  useThreadStore.getState().setActiveThreadId(threadId)
+}
+
+function findThreadProject(threadId: string, workspacePath?: string): WorkspaceProjectSummary | null {
+  const { projects, chat } = useWorkspaceProjectsStore.getState()
+  const candidates = chat ? [...projects, chat] : projects
+  if (workspacePath) {
+    const key = normalizeWorkspaceProjectKey(workspacePath)
+    return candidates.find((project) =>
+      normalizeWorkspaceProjectKey(project.path) === key || normalizeWorkspaceProjectKey(projectIdentity(project)) === key
+    ) ?? null
+  }
+  return candidates.find((project) => (project.threads ?? []).some((thread) => (thread as { id?: unknown }).id === threadId)) ?? null
+}
+
+export async function openThread(threadId: string, workspacePath?: string): Promise<void> {
+  const project = findThreadProject(threadId, workspacePath)
+  if (project) return openProjectThread(project, threadId)
   useUIStore.getState().setActiveMainView('conversation')
   useThreadStore.getState().setActiveThreadId(threadId)
 }

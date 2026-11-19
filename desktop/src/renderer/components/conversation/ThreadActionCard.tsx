@@ -2,10 +2,10 @@ import { memo, type CSSProperties } from 'react'
 import { MessageSquarePlus, MessageSquareText } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useThreadStore } from '../../stores/threadStore'
-import { useUIStore } from '../../stores/uiStore'
 import type { ThreadToolAction } from '../../utils/threadToolDisplay'
 import { Button } from '../ui/Button'
 import { RunningShimmer } from '../ui/RunningShimmer'
+import { openThread } from '../sidebar/projectConnectionActions'
 
 interface ThreadActionCardProps {
   action: ThreadToolAction
@@ -25,8 +25,7 @@ export const ThreadActionCard = memo(function ThreadActionCard({ action }: Threa
   const subtitle = action.queued ? t('threadActionCard.queuedSubtitle') : name
 
   function openChat(): void {
-    useThreadStore.getState().setActiveThreadId(action.threadId)
-    useUIStore.getState().setActiveMainView('conversation')
+    void openThread(action.threadId, action.workspacePath)
   }
 
   return (

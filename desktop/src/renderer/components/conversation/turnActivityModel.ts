@@ -29,7 +29,7 @@ export function getTurnActivityState(turn: ConversationTurn, items: Conversation
   }
 }
 
-export type TaskWakeKind = 'terminal' | 'subagent' | 'workflow'
+export type TaskWakeKind = 'terminal' | 'subagent' | 'workflow' | 'thread'
 
 export interface TaskWake {
   kind: TaskWakeKind

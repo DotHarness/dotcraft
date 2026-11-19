@@ -1,9 +1,9 @@
 import type { ConversationItem, QueuedTurnInput } from '../types/conversation'
 
-/** Notifications that a background command, subagent, or workflow ended are for the model only. */
+/** Notifications that a background command, subagent, workflow, or reported chat ended are for the model only. */
 export function isBackgroundTaskNotice(input: Pick<ConversationItem, 'triggerKind' | 'triggerStatus'>): boolean {
   return input.triggerKind === 'terminal' || input.triggerKind === 'subagent'
-    || (input.triggerKind === 'workflow' && !!input.triggerStatus)
+    || ((input.triggerKind === 'workflow' || input.triggerKind === 'thread') && !!input.triggerStatus)
 }
 
 export function isMidTurnTaskNotice(item: ConversationItem): boolean {

@@ -65,4 +65,10 @@ describe('turn activity lifecycle', () => {
     expect(getTaskWake({ ...turn, items: [workflow] })).toEqual({ kind: 'workflow', label: 'review-change', status: 'stopped', taskId: 'run_1' })
     expect(getTaskWake({ ...turn, items: [{ ...workflow, triggerStatus: undefined }] })).toBeNull()
   })
+
+  it('reads a report about another chat, but not the first message of a spawned chat', () => {
+    const report: ConversationItem = { id: 'report', type: 'userMessage', status: 'completed', deliveryMode: 'queued', triggerKind: 'thread', triggerLabel: 'Fix the build', triggerRefId: 'thread-child', triggerStatus: 'waitingForInput', text: 'Chat Fix the build needs you', createdAt: start }
+    expect(getTaskWake({ ...turn, items: [report] })).toEqual({ kind: 'thread', label: 'Fix the build', status: 'waitingForInput', taskId: 'thread-child' })
+    expect(getTaskWake({ ...turn, items: [{ ...report, triggerStatus: undefined }] })).toBeNull()
+  })
 })

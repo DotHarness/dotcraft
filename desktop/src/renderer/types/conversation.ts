@@ -215,9 +215,9 @@ export interface ConversationItem {
   approvalState?: ApprovalState
   /**
    * Set on a userMessage that was synthesized rather than typed by a human;
-   * mirrors `UserMessagePayload.TriggerKind` on the server. The `thread` kind is
-   * the exception — it is synthesized client-side for the first user message of a
-   * thread spawned by another thread (see thread.source.spawnedFromThreadId).
+   * mirrors `UserMessagePayload.TriggerKind` on the server. A `thread` kind with a
+   * `triggerStatus` is a server report about another chat; without one it is
+   * synthesized client-side for the first message of a spawned thread.
    */
   triggerKind?:
     | 'automation'
@@ -764,7 +764,7 @@ function noticeText(
 
 function normalizeTriggerKind(
   value: unknown
-): Exclude<ConversationItem['triggerKind'], 'thread'> | undefined {
+): ConversationItem['triggerKind'] | undefined {
   if (typeof value !== 'string') return undefined
   const normalized = value.trim().toLowerCase()
   if (normalized === 'sidechat') return 'sideChat'
@@ -777,7 +777,8 @@ function normalizeTriggerKind(
     normalized === 'app' ||
     normalized === 'workflow' ||
     normalized === 'terminal' ||
-    normalized === 'subagent'
+    normalized === 'subagent' ||
+    normalized === 'thread'
   ) {
     return normalized
   }

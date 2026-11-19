@@ -10,6 +10,7 @@ import type { AppLocale } from '../../../shared/locales/types'
 import type { ConversationItem } from '../../types/conversation'
 import { findSideChat, showSideChatOfThread } from '../../utils/sideChat'
 import { ActionTooltip } from '../ui/ActionTooltip'
+import { openThread } from '../sidebar/projectConnectionActions'
 
 type TriggerKind = NonNullable<ConversationItem['triggerKind']>
 
@@ -107,10 +108,7 @@ export function MessageOriginLine({
           return
         }
         if (kind === 'thread') {
-          if (refId) {
-            useThreadStore.getState().setActiveThreadId(refId)
-            setActiveMainView('conversation')
-          }
+          if (refId) void openThread(refId)
           return
         }
         if (kind === 'workflow' && refId && activeThreadId) {
