@@ -64,7 +64,7 @@ export async function createChildThread(connection: ThreadTaskConnection, spec: 
   }
   const options = spec.options ?? {}
   const workspace = connection.getProjectWorkspace?.()
-  const config: JsonObject = { ...workspace, developerInstructions: TASK_LIST_INSTRUCTIONS }
+  const config: JsonObject = { developerInstructions: TASK_LIST_INSTRUCTIONS }
   const model = options.model ?? spec.defaults.model
   if (model) {
     config.model = model
@@ -78,6 +78,7 @@ export async function createChildThread(connection: ThreadTaskConnection, spec: 
   const params: JsonObject = {
     identity: desktopIdentity(connection.workspacePath),
     historyMode: 'server',
+    ...workspace,
     ...(spec.title ? { displayName: spec.title } : {})
   }
 

@@ -1201,15 +1201,8 @@ internal sealed partial class CoreTestableSessionService : ISessionService, IThr
         return JsonSerializer.Deserialize<ThreadConfiguration>(json, SessionJsonOptions.Default);
     }
 
-    private static string ResolveEffectiveWorkspacePath(SessionThread thread)
-    {
-        var executionOverride = thread.Configuration?.ExecutionWorkspaceOverride;
-        if (!string.IsNullOrWhiteSpace(executionOverride))
-            return executionOverride;
-
-        var workspaceOverride = thread.Configuration?.WorkspaceOverride;
-        return string.IsNullOrWhiteSpace(workspaceOverride) ? thread.WorkspacePath : workspaceOverride;
-    }
+    private static string ResolveEffectiveWorkspacePath(SessionThread thread) =>
+        ThreadWorkspaceResolver.Resolve(thread).Cwd;
 
     private static List<SessionTurn> CloneForkTurns(SessionThread source, ThreadForkPoint? forkPoint, DateTimeOffset now)
     {

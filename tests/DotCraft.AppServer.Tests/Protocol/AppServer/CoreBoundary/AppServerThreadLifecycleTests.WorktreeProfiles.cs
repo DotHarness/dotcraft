@@ -9,19 +9,24 @@ namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 public sealed partial class AppServerThreadLifecycleTests
 {
     [Fact]
-    public async Task WorktreeCreateAndStart_WithAgentProfile_AppliesTheResolvedProfile()
+    public async Task WorktreeCreateAndStart_WithAgentProfileAndWorkspaceRoots_UsesTheRequestedRepository()
     {
         using var craft = new TempCraftDirectory();
         var craftPath = craft.Path;
         using var harness = new CoreAppServerTestHarness(workspaceCraftPath: craftPath);
         await harness.InitializeAsync();
-        InitializeGitWorkspace(harness.Identity.WorkspacePath);
+        var stateWorkspace = harness.Identity.WorkspacePath;
+        var primary = Path.Combine(stateWorkspace, "primary");
+        var secondary = Directory.CreateDirectory(Path.Combine(stateWorkspace, "secondary")).FullName;
+        InitializeGitWorkspace(primary);
         await UpsertWorkspaceProfileAsync(harness, "Night Shift", "memory: own\npermissions:\n  approvalPolicy: autoApprove");
 
         await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.WorktreeCreateAndStart, new
         {
-            identity = new { channelName = "appserver", userId = "test_user", workspacePath = harness.Identity.WorkspacePath },
+            identity = new { channelName = "appserver", userId = "test_user", workspacePath = stateWorkspace },
             config = new { agentProfileId = "Night Shift" },
+            cwd = primary,
+            runtimeWorkspaceRoots = new[] { primary, secondary },
             branchName = "dotcraft/profile-start",
             copyDirtyChanges = false
         }));
@@ -34,7 +39,13 @@ public sealed partial class AppServerThreadLifecycleTests
             var thread = result.GetProperty("thread");
             var worktree = result.GetProperty("worktree");
             threadId = thread.GetProperty("id").GetString()!;
-            Assert.Equal(worktree.GetProperty("path").GetString(), thread.GetProperty("effectiveWorkspacePath").GetString());
+            var checkout = worktree.GetProperty("path").GetString()!;
+            Assert.Equal(primary, worktree.GetProperty("sourceWorkspacePath").GetString());
+            Assert.Equal(stateWorkspace, thread.GetProperty("workspacePath").GetString());
+            Assert.Equal(checkout, thread.GetProperty("cwd").GetString());
+            Assert.Equal(
+                [checkout, secondary],
+                thread.GetProperty("runtimeWorkspaceRoots").EnumerateArray().Select(root => root.GetString()!).ToArray());
             Assert.Equal("dotcraft/profile-start", worktree.GetProperty("branchName").GetString());
         }
 
@@ -45,6 +56,7 @@ public sealed partial class AppServerThreadLifecycleTests
         }
 
         var configuration = (await harness.Service.GetThreadAsync(threadId)).Configuration!;
+        Assert.Equal(primary, configuration.Cwd);
         Assert.Equal("Night Shift", configuration.AgentProfileId);
         Assert.Equal("workspace", configuration.AgentProfileSource);
         Assert.Equal(ApprovalPolicy.AutoApprove, configuration.ApprovalPolicy);

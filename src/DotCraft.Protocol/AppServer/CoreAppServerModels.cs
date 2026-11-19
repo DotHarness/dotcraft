@@ -6858,6 +6858,10 @@ public sealed class WorktreeCreateAndStartParams : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool?> CopyDirtyChanges { get; init; }
 
+    [JsonPropertyName("cwd")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> Cwd { get; init; }
+
     [JsonPropertyName("displayName")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> DisplayName { get; init; }
@@ -6885,6 +6889,10 @@ public sealed class WorktreeCreateAndStartParams : ExtensibleJsonObject
     [JsonPropertyName("path")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> Path { get; init; }
+
+    [JsonPropertyName("runtimeWorkspaceRoots")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>?> RuntimeWorkspaceRoots { get; init; }
 
 }
 
