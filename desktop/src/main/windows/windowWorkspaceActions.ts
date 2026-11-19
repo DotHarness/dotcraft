@@ -67,7 +67,8 @@ export async function switchForegroundWorkspace(
   if (isChat) ensureDefaultChatWorkspace()
   ctx.recordForegroundWorkspace(newPath, !existingProjectOnly)
   ctx.emitWorkspaceProjects()
-  await ctx.connectToAppServer(newPath)
+  const connected = await ctx.connectToAppServer(newPath)
+  if (existingProjectOnly && !connected) return false
   if (ctx.mainWindow && !ctx.mainWindow.isDestroyed()) {
     const loc = normalizeLocale(ctx.settings.locale)
     ctx.mainWindow.setTitle(

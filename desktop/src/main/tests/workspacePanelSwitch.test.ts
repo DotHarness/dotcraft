@@ -21,7 +21,7 @@ function fixture() {
     currentWorkspacePath: '/a', settings: { locale: 'en' },
     app: { persistWindowSettings: vi.fn() },
     recordForegroundWorkspace: vi.fn(), emitWorkspaceProjects: vi.fn(),
-    connectToAppServer: vi.fn(async () => {}), workspaceTitleName: () => 'B',
+    connectToAppServer: vi.fn(async () => true), workspaceTitleName: () => 'B',
     teardownRuntime: vi.fn(async () => {}), deviceOpenGeneration: 0,
     clearPendingDeviceOpenRetry: vi.fn(), demoteDeviceProject: vi.fn(() => false),
     closeActiveRemoteForwards: vi.fn(), reregisterIpcForWorkspace: vi.fn(),
@@ -74,6 +74,26 @@ describe('panel resources on foreground workspace changes', () => {
     expect(ctx.connectToAppServer).toHaveBeenCalledExactlyOnceWith('/newer')
   })
 
+  it('does not finish a history switch superseded while its AppServer is connecting', async () => {
+    const ctx = fixture()
+    const started = Promise.withResolvers<void>()
+    const connection = Promise.withResolvers<boolean>()
+    Object.assign(ctx.app, { localProjects: { refresh: async () => true, has: () => true } })
+    ctx.connectToAppServer = vi.fn(async (path: string) => {
+      if (path !== '/history') return true
+      started.resolve()
+      return connection.promise
+    })
+
+    const history = switchForegroundWorkspace(ctx, '/history', undefined, { existingProjectOnly: true })
+    await started.promise
+    await switchForegroundWorkspace(ctx, '/newer')
+    connection.resolve(false)
+
+    expect(await history).toBe(false)
+    expect(ctx.mainWindow!.setTitle).toHaveBeenCalledTimes(1)
+  })
+
   it.each(['/registered', '/chats'])('switches to %s without registering it in existing-only mode', async path => {
     const ctx = fixture()
     const open = vi.fn()
@@ -82,7 +102,7 @@ describe('panel resources on foreground workspace changes', () => {
     } })
     ctx.recordForegroundWorkspace = (workspacePath, addProject) => recordForegroundWorkspace(ctx, workspacePath, addProject)
 
-    await switchForegroundWorkspace(ctx, path, undefined, { existingProjectOnly: true })
+    await expect(switchForegroundWorkspace(ctx, path, undefined, { existingProjectOnly: true })).resolves.toBeUndefined()
 
     expect(ctx.connectToAppServer).toHaveBeenCalledExactlyOnceWith(path)
     expect(open).not.toHaveBeenCalled()
