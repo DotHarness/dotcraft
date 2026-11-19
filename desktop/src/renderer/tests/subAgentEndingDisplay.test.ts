@@ -38,10 +38,10 @@ describe('subagent ending display', () => {
     const lookup = { sourceThreadId: parent, childrenByParent: useSubAgentStore.getState().childrenByParent, threadList: [] }
     const items = children.map(child => notice(child.childThreadId, child.agentPath))
     const entries = () => subAgentEndingEntries(items, lookup, false, 'Agent').map(entry => ({ id: entry.id, child: entry.childThreadId }))
-    ownTerminal('a')
+    useThreadStore.getState().applyRuntimeSnapshot('a', { hasBackgroundWork: true }, { isDesktopOrigin: false })
     expect(entries()).toEqual([{ id: 'b', child: 'b' }])
     expect(subAgentEndingEntries([items[0]], lookup, false, 'Agent')).toEqual([])
-    ownTerminal('unrelated')
+    useThreadStore.getState().applyRuntimeSnapshot('a', { hasBackgroundWork: false }, { isDesktopOrigin: false })
     expect(entries()).toEqual([{ id: 'a', child: 'a' }, { id: 'b', child: 'b' }])
     useThreadStore.getState().applyRuntimeSnapshot('a', { running: true }, { isDesktopOrigin: false })
     expect(entries()).toEqual([{ id: 'b', child: 'b' }])
@@ -49,17 +49,12 @@ describe('subagent ending display', () => {
     expect(entries()).toEqual([{ id: 'a', child: 'a' }, { id: 'b', child: 'b' }])
   })
 
-  it('suppresses successful completion for paused workflows and working descendants', () => {
-    useSubAgentTaskActivity.setState({ tasksByThread: new Map([[child.childThreadId, {
-      terminals: [], workflows: [{ runId: 'run-paused', name: 'Review', paused: true, startedAt: null }]
-    }]]) })
+  it('suppresses successful completion only while the child has background work, which shells do not count as', () => {
+    ownTerminal()
+    expect(subAgentEndingOutcome('completed', child)).toBe('finished')
+    useThreadStore.getState().applyRuntimeSnapshot(child.childThreadId, { hasBackgroundWork: true }, { isDesktopOrigin: false })
     expect(subAgentEndingOutcome('completed', child)).toBeNull()
-    useSubAgentTaskActivity.setState({ tasksByThread: new Map() })
-    const descendant = makeSubAgent({ childThreadId: 'grandchild', parentThreadId: child.childThreadId })
-    useSubAgentStore.setState({ childrenByParent: new Map([[parent, [child]], [child.childThreadId, [descendant]]]) })
-    useThreadStore.getState().applyRuntimeSnapshot(descendant.childThreadId, { running: true }, { isDesktopOrigin: false })
-    expect(subAgentEndingOutcome('completed', child)).toBeNull()
-    useThreadStore.getState().applyRuntimeSnapshot(descendant.childThreadId, { running: false }, { isDesktopOrigin: false })
+    useThreadStore.getState().applyRuntimeSnapshot(child.childThreadId, { hasBackgroundWork: false }, { isDesktopOrigin: false })
     expect(subAgentEndingOutcome('completed', child)).toBe('finished')
   })
 
