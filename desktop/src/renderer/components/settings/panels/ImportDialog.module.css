@@ -7,8 +7,13 @@
   border-top: 1px solid var(--border-default);
 }
 
-.nested {
+.nested,
+.projectItems {
   padding-bottom: 6px;
+}
+
+.projectItems {
+  margin-inline-start: 22px;
 }
 
 .option {
@@ -52,6 +57,9 @@
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+}
+
+label.optionText {
   cursor: pointer;
 }
 

@@ -17,11 +17,12 @@ const SCOPES: readonly SyncScope[] = ['user', 'workspace']
 
 interface ImportSyncDialogProps {
   selection: ImportSelection
+  local?: boolean
   onSave: (value: ImportSelection) => Promise<void>
   onClose: () => void
 }
 
-export function ImportSyncDialog({ selection, onSave, onClose }: ImportSyncDialogProps): JSX.Element {
+export function ImportSyncDialog({ selection, local, onSave, onClose }: ImportSyncDialogProps): JSX.Element {
   const t = useT()
   const id = useId()
   const listId = useId()
@@ -93,7 +94,7 @@ export function ImportSyncDialog({ selection, onSave, onClose }: ImportSyncDialo
         {SCOPES.map(scope => {
           const categories = SETUP_CATEGORIES.filter(category => scope === 'user' || category !== 'plugins')
           const picked = value.all ? categories.length : categories.filter(category => value[scope].includes(category)).length
-          const label = t(`settings.import.setup.${scope}`)
+          const label = t(local && scope === 'workspace' ? 'settings.import.local.projectSetup' : `settings.import.setup.${scope}`)
           const open = expanded.has(scope)
           const nestedId = `${listId}-${scope}`
           return (

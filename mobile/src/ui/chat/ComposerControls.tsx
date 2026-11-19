@@ -1,12 +1,12 @@
 import type { ModelCatalogItem } from '@dotcraft/sdk/contracts'
 import { useEffect, useState, type ReactNode } from 'react'
-import { Pressable, StyleSheet, Switch, Text, View } from 'react-native'
+import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { useComputerLink } from '../../app-state/SessionContext'
 import type { ProjectModels } from '../../core/state'
-import type { ApprovalPolicy, ChatControls, ReasoningValue, Speed } from '../../core/threadConfig'
+import { effectiveSpeed, supportedSpeeds, type ApprovalPolicy, type ChatControls, type ReasoningValue, type Speed } from '../../core/threadConfig'
 import { useI18n, type I18n } from '../../i18n'
 import type { MessageId } from '../../i18n/messages/en'
-import { Icon, type IconName } from '../icons'
+import { Icon, UltrafastGlyph, type IconName } from '../icons'
 import { PhoneButton, Spinner, Txt } from '../parts'
 import { SheetHeader, SheetLayer } from '../Sheet'
 import { type, useTheme } from '../theme'
@@ -62,7 +62,8 @@ function OptionRow({
   return (
     <Pressable
       accessibilityRole="radio"
-      accessibilityState={{ checked: selected, disabled }}
+      aria-checked={selected}
+      aria-disabled={disabled}
       disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => [styles.option, pressed && { backgroundColor: colors.bgTertiary }, disabled && styles.disabled]}
@@ -85,7 +86,7 @@ function OptionRow({
   )
 }
 
-type Section = 'provider' | 'model' | 'reasoning'
+type Section = 'provider' | 'model' | 'reasoning' | 'speed'
 
 function ExpandRow({
   label,
@@ -107,7 +108,7 @@ function ExpandRow({
         accessibilityRole="button"
         accessibilityLabel={label}
         accessibilityValue={{ text: value }}
-        accessibilityState={{ expanded }}
+        aria-expanded={expanded}
         onPress={onPress}
         style={({ pressed }) => [styles.option, pressed && { backgroundColor: colors.bgTertiary }]}
       >
@@ -235,7 +236,8 @@ function ModelSheet({
   const catalog = viewing ? models.catalogs[viewing] : undefined
   const current = catalogItem(models, controls.providerId, controls.model)
   const reasoning = current?.reasoning
-  const fast = current?.speed?.supportedModes?.includes('fast') === true
+  const speeds = supportedSpeeds(current)
+  const speed = effectiveSpeed(controls.speed, speeds)
 
   useEffect(() => {
     if (visible && viewing && !models.catalogs[viewing]) void session.loadModels(projectId, viewing).catch(() => undefined)
@@ -321,30 +323,26 @@ function ModelSheet({
             })}
           </ExpandRow>
         ) : null}
-        {fast ? <FastRow value={controls.speed === 'fast'} disabled={busy} onChange={(on) => void apply({ kind: 'speed', speed: on ? 'fast' : 'standard' })} /> : null}
+        {speeds.length > 1 ? (
+          <ExpandRow
+            label={t('speed.heading')}
+            value={t(`speed.${speed}`)}
+            expanded={open === 'speed'}
+            onPress={() => toggle('speed')}
+          >
+            {speeds.map((option) => (
+              <OptionRow
+                key={option}
+                label={t(`speed.${option}`)}
+                selected={option === speed}
+                disabled={busy}
+                onPress={() => void choose({ kind: 'speed', speed: option })}
+              />
+            ))}
+          </ExpandRow>
+        ) : null}
       </View>
     </SheetLayer>
-  )
-}
-
-function FastRow({ value, disabled, onChange }: { value: boolean; disabled: boolean; onChange: (on: boolean) => void }) {
-  const { t } = useI18n()
-  const { colors } = useTheme()
-  return (
-    <View style={styles.fast}>
-      <Icon name="zap" size={18} color={colors.textSecondary} fill={value ? colors.textSecondary : 'none'} />
-      <View style={styles.optionText}>
-        <Txt style={styles.optionLabel}>{t('speed.fast')}</Txt>
-      </View>
-      <Switch
-        accessibilityLabel={t('speed.fast')}
-        value={value}
-        disabled={disabled}
-        onValueChange={onChange}
-        trackColor={{ true: colors.accent, false: colors.sendDisabled }}
-        thumbColor="#ffffff"
-      />
-    </View>
   )
 }
 
@@ -366,9 +364,10 @@ export function ComposerControls({
   const auto = controls.approvalPolicy === 'autoApprove'
   const policyLabel = t(auto ? 'approval.fullAccess.label' : 'approval.prompt.label')
   const current = catalogItem(models, controls.providerId, controls.model)
-  const fast = controls.speed === 'fast' && current?.speed?.supportedModes?.includes('fast') === true
+  const speed = effectiveSpeed(controls.speed, supportedSpeeds(current))
   const effort = controls.reasoning === 'default' ? current?.reasoning?.defaultEffort : controls.reasoning
   const modelLabel = controls.model ?? t('model.title')
+  const modelAccessibilityLabel = controls.model ? `${t('model.title')}: ${controls.model}` : modelLabel
   return (
     <>
       <Pressable
@@ -383,11 +382,12 @@ export function ComposerControls({
       {models.canListModels ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={controls.model ? `${t('model.title')}: ${controls.model}` : t('model.title')}
+          accessibilityLabel={speed === 'standard' ? modelAccessibilityLabel : `${modelAccessibilityLabel}, ${t(`speed.${speed}`)}`}
           onPress={() => setSheet('model')}
           style={({ pressed }) => [styles.chip, pressed && { backgroundColor: colors.roundFill }]}
         >
-          {fast ? <Icon name="zap" size={14} color={colors.textPrimary} fill={colors.textPrimary} strokeWidth={1.5} /> : null}
+          {speed === 'fast' ? <Icon name="zap" size={14} color={colors.textPrimary} fill={colors.textPrimary} strokeWidth={1.5} /> : null}
+          {speed === 'ultrafast' ? <UltrafastGlyph size={14} color={colors.textPrimary} strokeWidth={1.5} /> : null}
           <Text numberOfLines={1} style={[type.body, styles.chipModel, { color: colors.textPrimary }]}>
             {modelLabel}
           </Text>
@@ -434,7 +434,6 @@ const styles = StyleSheet.create({
   rowLabel: { flexShrink: 0 },
   rowValue: { flex: 1, minWidth: 0, textAlign: 'right' },
   choices: { marginLeft: 8, paddingLeft: 4, borderLeftWidth: 1 },
-  fast: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 48, paddingHorizontal: 8 },
   decision: { gap: 8, marginTop: 4 },
   disabled: { opacity: 0.45 },
 })

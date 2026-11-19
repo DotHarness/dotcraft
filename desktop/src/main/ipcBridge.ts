@@ -34,6 +34,7 @@ import { registerGitHandlers } from './ipcGit'
 import { cancelWindowServerRequests } from './ipcServerRequests'
 import { registerViewerBrowserHandlers } from './ipcViewerBrowser'
 import { registerThreadPanelStateHandlers } from './threadPanelStateIpc'
+import { registerLocalImportHandlers } from './localImportIpc'
 import { registerWindowHandlers } from './ipcWindow'
 import { registerWorkspaceHandlers } from './ipcWorkspace'
 import { registerWorkspaceFileHandlers } from './ipcWorkspaceFiles'
@@ -135,6 +136,7 @@ export function registerIpcHandlers(
   const hubCallbacks = callbacks
   if (hubCallbacks.getHubClient) {
     const getHubClient = hubCallbacks.getHubClient
+    if (hubCallbacks.localImportAvailable) registerLocalImportHandlers(context, getHubClient)
     registerSatellitesHandlers({
       handleSafe,
       getHubClient,

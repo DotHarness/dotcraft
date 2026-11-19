@@ -1322,7 +1322,7 @@ The `agent-import` module, gated by `capabilities.extensions.agentImport`, impor
 | Method | Kind | Semantics |
 |--------|------|-----------|
 | `import/detect` | request | Optional `sources`; read-only. Returns source availability, candidate `items`, and importable counts. |
-| `import/run` | request | `sources`, `items` (source, sourceId, fingerprint), `selection`, optional `offered` categories; returns `importId`. |
+| `import/run` | request | `sources`, `items` (source, sourceId, fingerprint), `selection`, optional `offered` categories. An explicitly empty `offered` executes without updating sync preferences. Returns `importId`. |
 | `import/settings/get` | request | Sync state, sources, selection, interval, last sync, workspace opt-out, and whether imports exist. |
 | `import/settings/set` | request | Optional `syncEnabled`, `sources`, `selection`; omitted fields keep their values. |
 | `import/history/list` | request | Recent `imports` and actionable `attention` outcomes. |

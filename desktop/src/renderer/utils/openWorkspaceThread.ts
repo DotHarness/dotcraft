@@ -6,7 +6,7 @@ export interface OpenWorkspaceThreadOptions {
   workspacePath?: string
   foregroundWorkspacePath: string
   includeArchived?: boolean
-  switchWorkspace(path: string): Promise<void>
+  switchWorkspace(path: string): Promise<void | false>
   setPending(payload: PendingProjectThreadOpenInput): PendingProjectThreadOpen | null
   clearPending(projectKey: string, threadId: string, expectedRequestId: number): void
   activateThread(threadId: string): Promise<void>
@@ -22,11 +22,11 @@ export async function openWorkspaceThread(options: OpenWorkspaceThreadOptions): 
       ...(options.includeArchived ? { includeArchived: true } : {})
     })
     if (!request) return
+    let switched = false
     try {
-      await options.switchWorkspace(targetWorkspace)
-    } catch (error) {
-      options.clearPending(projectKey, options.threadId, request.requestId)
-      throw error
+      switched = (await options.switchWorkspace(targetWorkspace)) !== false
+    } finally {
+      if (!switched) options.clearPending(projectKey, options.threadId, request.requestId)
     }
     return
   }

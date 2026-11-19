@@ -4,12 +4,15 @@ import type { DesktopWindowRuntime } from '../windows/windowRuntime'
 const calls = vi.hoisted(() => ({ destroy: vi.fn(), invalidate: vi.fn(), revoke: vi.fn() }))
 vi.mock('../viewerBrowser', () => ({ viewerBrowserManager: { destroyAllTabs: calls.destroy } }))
 vi.mock('../windowFileAccess', () => ({ invalidateForegroundFileAccess: calls.invalidate, revokeAllWindowFileAccess: calls.revoke }))
-vi.mock('../defaultChatWorkspace', () => ({ isDefaultChatWorkspace: () => false, ensureDefaultChatWorkspace: vi.fn() }))
+vi.mock('../defaultChatWorkspace', () => ({
+  isDefaultChatWorkspace: (path: string) => path === '/chats', ensureDefaultChatWorkspace: vi.fn()
+}))
 vi.mock('../DesktopAppServerClient', () => ({ DesktopAppServerClient: {} }))
 vi.mock('../ripgrepRuntime', () => ({ resolveDotCraftRuntimeTools: vi.fn() }))
 vi.mock('../settings', () => ({ forgetLocalProject: vi.fn(), saveLocalProjectDetails: vi.fn() }))
 vi.mock('../workspaceSetup', () => ({ listSetupModels: vi.fn(), loginSetupProvider: vi.fn(), runWorkspaceSetup: vi.fn() }))
 
+import { recordForegroundWorkspace } from '../windows/windowSecondaryConnections'
 import { buildCallbacks, clearWorkspaceSelection, switchForegroundWorkspace } from '../windows/windowWorkspaceActions'
 
 function fixture() {
@@ -18,7 +21,7 @@ function fixture() {
     currentWorkspacePath: '/a', settings: { locale: 'en' },
     app: { persistWindowSettings: vi.fn() },
     recordForegroundWorkspace: vi.fn(), emitWorkspaceProjects: vi.fn(),
-    connectToAppServer: vi.fn(async () => {}), workspaceTitleName: () => 'B',
+    connectToAppServer: vi.fn(async () => true), workspaceTitleName: () => 'B',
     teardownRuntime: vi.fn(async () => {}), deviceOpenGeneration: 0,
     clearPendingDeviceOpenRetry: vi.fn(), demoteDeviceProject: vi.fn(() => false),
     closeActiveRemoteForwards: vi.fn(), reregisterIpcForWorkspace: vi.fn(),
@@ -36,6 +39,73 @@ describe('panel resources on foreground workspace changes', () => {
     expect(calls.destroy).not.toHaveBeenCalled()
     expect(ctx.teardownRuntime).not.toHaveBeenCalled()
     expect(ctx.connectToAppServer).toHaveBeenCalledExactlyOnceWith('/b')
+  })
+
+  it('rejects an existing-only switch if the refreshed project list no longer includes the destination', async () => {
+    const ctx = fixture()
+    const paths = new Set(['/removed'])
+    Object.assign(ctx.app, {
+      localProjects: {
+        refresh: vi.fn(async () => {
+          paths.delete('/removed')
+          return true
+        }),
+        has: (path: string) => paths.has(path)
+      }
+    })
+
+    await expect(switchForegroundWorkspace(ctx, '/removed', undefined, { existingProjectOnly: true })).rejects.toThrow()
+    expect(calls.invalidate).not.toHaveBeenCalled()
+    expect(ctx.recordForegroundWorkspace).not.toHaveBeenCalled()
+    expect(ctx.connectToAppServer).not.toHaveBeenCalled()
+  })
+
+  it('discards a history switch still refreshing when a newer workspace switch starts', async () => {
+    const ctx = fixture()
+    const refresh = Promise.withResolvers<boolean>()
+    Object.assign(ctx.app, { localProjects: { refresh: () => refresh.promise, has: () => true } })
+
+    const history = switchForegroundWorkspace(ctx, '/history', undefined, { existingProjectOnly: true })
+    await switchForegroundWorkspace(ctx, '/newer')
+    refresh.resolve(true)
+
+    expect(await history).toBe(false)
+    expect(ctx.recordForegroundWorkspace).toHaveBeenCalledExactlyOnceWith('/newer', true)
+    expect(ctx.connectToAppServer).toHaveBeenCalledExactlyOnceWith('/newer')
+  })
+
+  it('does not finish a history switch superseded while its AppServer is connecting', async () => {
+    const ctx = fixture()
+    const started = Promise.withResolvers<void>()
+    const connection = Promise.withResolvers<boolean>()
+    Object.assign(ctx.app, { localProjects: { refresh: async () => true, has: () => true } })
+    ctx.connectToAppServer = vi.fn(async (path: string) => {
+      if (path !== '/history') return true
+      started.resolve()
+      return connection.promise
+    })
+
+    const history = switchForegroundWorkspace(ctx, '/history', undefined, { existingProjectOnly: true })
+    await started.promise
+    await switchForegroundWorkspace(ctx, '/newer')
+    connection.resolve(false)
+
+    expect(await history).toBe(false)
+    expect(ctx.mainWindow!.setTitle).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(['/registered', '/chats'])('switches to %s without registering it in existing-only mode', async path => {
+    const ctx = fixture()
+    const open = vi.fn()
+    Object.assign(ctx.app, { localProjects: {
+      refresh: vi.fn(async () => true), has: (path: string) => path === '/registered', open
+    } })
+    ctx.recordForegroundWorkspace = (workspacePath, addProject) => recordForegroundWorkspace(ctx, workspacePath, addProject)
+
+    await expect(switchForegroundWorkspace(ctx, path, undefined, { existingProjectOnly: true })).resolves.toBeUndefined()
+
+    expect(ctx.connectToAppServer).toHaveBeenCalledExactlyOnceWith(path)
+    expect(open).not.toHaveBeenCalled()
   })
 
   it('promotes a retained remote by connection key without initializing its path locally', async () => {

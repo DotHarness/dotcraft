@@ -486,11 +486,12 @@ const PROVIDERS: FakeProvider[] = [
         id: 'atlas-2',
         isDefault: true,
         reasoning: { supportsDisable: true, supportedEfforts: EFFORTS, defaultEffort: 'high', supportedOutputs: ['none', 'summary', 'full'], defaultOutput: 'full' },
-        speed: { supportedModes: ['standard', 'fast'], defaultMode: 'standard' },
+        speed: { supportedModes: ['standard', 'fast', 'ultrafast'], defaultMode: 'standard' },
       },
       {
         id: 'atlas-2-mini',
         reasoning: { supportsDisable: false, supportedEfforts: EFFORTS.slice(0, 3), defaultEffort: 'medium', supportedOutputs: ['full'], defaultOutput: 'full' },
+        speed: { supportedModes: ['standard', 'fast'], defaultMode: 'standard' },
       },
       { id: 'atlas-1' },
     ],

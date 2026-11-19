@@ -156,6 +156,7 @@ const ArchivedThreadsSettingsView = coreSettingsPanels.archivedThreads
 interface SettingsViewProps {
   workspacePath?: string
   identityWorkspacePath?: string
+  localImport?: boolean
   onThreadListRefreshRequested?: () => void
   workspaceConfigChange?: ConfigChangedPayload | null
   workspaceConfigChangeSeq?: number
@@ -218,6 +219,7 @@ function normalizeBrowserUseDomainInput(input: string): string | null {
 export function SettingsView({
   workspacePath,
   identityWorkspacePath,
+  localImport = false,
   onThreadListRefreshRequested,
   workspaceConfigChange = null,
   workspaceConfigChangeSeq = 0,
@@ -341,7 +343,7 @@ export function SettingsView({
   const modelCatalogManagementEnabled = capabilities?.modelCatalogManagement === true
   const memoryManagementEnabled = capabilities?.memoryManagement === true
   const dreamsCapabilityEnabled = capabilities?.dreams === true
-  const sessionImportEnabled = isSessionImportAvailable(capabilities)
+  const sessionImportEnabled = localImport || isSessionImportAvailable(capabilities)
   const configManagementEnabled = capabilities?.workspaceConfigManagement === true
   const resourceScope = useSettingsResourceScope(configManagementEnabled)
   const { providers, providersManagedRemotely, providersLoading, providersReady, providerError, providerBackends, reloadProviders } =
@@ -2009,7 +2011,7 @@ export function SettingsView({
             )}
 
             {activeSettingsTab === 'import' && sessionImportEnabled && (
-              <ImportPanel workspacePath={identityWorkspacePath || workspacePath} />
+              <ImportPanel local={localImport} workspacePath={identityWorkspacePath || workspacePath} />
             )}
 
             {activeSettingsTab === 'archivedThreads' && (

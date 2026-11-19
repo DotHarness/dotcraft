@@ -36,12 +36,10 @@ internal sealed class CodexSessionSource(string root) : ISessionImportSource
                 continue;
             }
 
-            if (meta is not { IsUserSession: true }
-                || scope.ExternalCliSessionIds.Contains(meta.Id)
-                || WorkspacePathMatcher.ResolveMemberCwd(meta.Cwd, scope.WorkspaceRoot) is not { } memberCwd)
-            {
+            if (meta is not { IsUserSession: true } || scope.ExternalCliSessionIds.Contains(meta.Id))
                 continue;
-            }
+            var memberCwd = scope.HostProjects is not null ? meta.Cwd ?? "" : WorkspacePathMatcher.ResolveMemberCwd(meta.Cwd, scope.WorkspaceRoot);
+            if (memberCwd is null) continue;
 
             var candidate = new SessionImportCandidateFile(meta.Id, path, modifiedAt, memberCwd);
             if (!byThread.TryGetValue(meta.Id, out var existing) || IsNewerRollout(candidate, existing))

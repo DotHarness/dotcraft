@@ -41,6 +41,7 @@ public sealed class HubHostTests : IDisposable
 
         Assert.Equal(HttpStatusCode.Unauthorized, (await http.GetAsync($"{info.ApiBaseUrl}/v1/appservers", cts.Token)).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await http.GetAsync($"{info.ApiBaseUrl}/v1/projects", cts.Token)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await http.GetAsync($"{info.ApiBaseUrl}/v1/local-import/state", cts.Token)).StatusCode);
         Assert.Equal(
             HttpStatusCode.Unauthorized,
             (await http.PostAsJsonAsync($"{info.ApiBaseUrl}/v1/projects/open", new { path = _userProfile }, cts.Token)).StatusCode);

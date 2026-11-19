@@ -110,24 +110,48 @@ public sealed class SessionImportSettingsTests : IDisposable
         Assert.Equal(new[] { "skills", "mcp" }, implicitOffer.User);
     }
 
-    private static async Task RunAsync(SessionImportService service, ImportSelection selection, ImportSelection? offered = null)
+    [Fact]
+    public async Task AQueuedDestinationExecutesWithoutRestoringChangedSyncPreferences()
     {
-        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        void Complete(ImportCompletedNotification _) => completion.TrySetResult();
+        var secondWorkspace = _temp.CreateDirectory("second");
+        var original = new ImportSelection { Sessions = true, Workspace = ["skills"] };
+        var first = CreateService();
+        var second = CreateService(secondWorkspace);
+        first.UpdateSettings(true, [SessionImportSources.ClaudeCode, SessionImportSources.Codex], original);
+
+        await RunAsync(first, original, new ImportSelection());
+        first.UpdateSettings(null, [SessionImportSources.Codex], new ImportSelection { Sessions = true });
+        _source.Put("second-chat", 1, "fingerprint", secondWorkspace, DateTimeOffset.UtcNow);
+        var result = await RunAsync(second, original, new ImportSelection(),
+            [new ImportItemReference { Source = SessionImportSources.ClaudeCode, SourceId = "second-chat", Fingerprint = "fingerprint" }]);
+
+        Assert.Equal("imported", Assert.Single(result.Outcomes).Status);
+        var saved = second.GetSettings();
+        Assert.Equal([SessionImportSources.Codex], saved.Sources);
+        Assert.Empty(saved.Selection.Workspace);
+    }
+
+    private static async Task<ImportCompletedNotification> RunAsync(SessionImportService service, ImportSelection selection,
+        ImportSelection? offered = null, IReadOnlyList<ImportItemReference>? items = null)
+    {
+        var completion = new TaskCompletionSource<ImportCompletedNotification>(TaskCreationOptions.RunContinuationsAsynchronously);
+        void Complete(ImportCompletedNotification notification) => completion.TrySetResult(notification);
         service.Completed += Complete;
         try
         {
-            service.Run([SessionImportSources.ClaudeCode], selection, [], offered);
-            await completion.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            service.Run([SessionImportSources.ClaudeCode], selection, items ?? [], offered);
+            return await completion.Task.WaitAsync(TimeSpan.FromSeconds(10));
         }
         finally { service.Completed -= Complete; }
     }
 
-    private SessionImportService CreateService()
+    private SessionImportService CreateService(string? workspace = null)
     {
+        workspace ??= _workspace;
+        var data = Path.Combine(workspace, ".craft");
         var service = new SessionImportService(
-            new SessionImportServiceOptions(_workspace, _craft, new SessionImportConfig()),
-            new SessionImportSettingsStore(_userConfig, Path.Combine(_craft, "config.json")),
+            new SessionImportServiceOptions(workspace, data, new SessionImportConfig()),
+            new SessionImportSettingsStore(_userConfig, Path.Combine(data, "config.json")),
             [_source]);
         service.SetSessionService(_sessions);
         return service;

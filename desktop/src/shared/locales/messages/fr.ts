@@ -1,6 +1,17 @@
 import type { MessageId } from './en'
 
 export const MESSAGES_FR = {
+  "settings.import.local.description": "Importez les projets, discussions et réglages d’autres applications d’IA présentes sur cet ordinateur.",
+  "settings.import.local.syncDescription": "Gardez à jour le contenu sélectionné de vos applications sans ajouter de nouveaux projets.",
+  "settings.import.local.projectSetup": "Configuration des projets",
+  "settings.import.local.dialogDescription": "Choisissez quoi importer dans DotCraft et consultez sa destination.",
+  "settings.import.local.addProject": "Sera ajouté aux projets · {{path}}",
+  "settings.import.local.chatsDestination": "Sera ajouté aux discussions récentes",
+  "settings.import.local.disabled": "L’importation est désactivée sur cet ordinateur.",
+  "settings.import.local.openFailed": "Impossible d’ouvrir l’élément importé : {{error}}",
+  "settings.import.local.showInstructions": "Afficher le fichier d’instructions",
+  "settings.import.reason.import_project_unavailable": "Le dossier d’origine du projet est introuvable ou n’a pas pu être identifié.",
+  "settings.import.reason.import_project_disabled": "L’importation est désactivée pour ce projet.",
   'workspace.config.loadFailed': "Impossible de charger les paramètres de l’espace de travail.",
   "settings.import.setup.user": "Outils et configuration",
   "settings.import.setup.userHint": "Disponible dans tous vos projets",

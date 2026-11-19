@@ -37,6 +37,8 @@ public sealed class HubHost : IDotCraftHost
     private SatelliteConnectionManager? _satellites;
     private MobileGateway? _mobile;
     private CodexGateway? _codexRemote;
+    private HubLocalImport? _localImport;
+    private Task? _importSchedule;
     private int _cleanupStarted;
     private Task? _optionalListenersTask;
 
@@ -118,9 +120,13 @@ public sealed class HubHost : IDotCraftHost
                 _loggerFactory);
             _codexRemote = new CodexGateway(
                 _paths, _projects, _eventBus, _loggerFactory.CreateLogger<CodexGateway>(), _dotcraftBin);
-            _app = BuildApp(apiBaseUrl, token, startedAt, binaryPath, _registry, _serviceRegistry, _eventBus);
+            var importConnection = new HubLocalImportConnection(_registry);
+            _localImport = new HubLocalImport(_paths, _projects, _eventBus, importConnection.RunAsync,
+                _registry.RunningWorkspaces, _loggerFactory.CreateLogger<HubLocalImport>(), _shutdownCts.Token);
+            _app = BuildApp(apiBaseUrl, token, startedAt, binaryPath, _registry, _serviceRegistry, _eventBus, importConnection);
             _app.Urls.Add(apiBaseUrl);
             await _app.StartAsync(cancellationToken);
+            _importSchedule = Task.Run(_localImport.ScheduleAsync);
             _optionalListenersTask = Task.Run(() => InitializeOptionalListenersAsync(_shutdownCts.Token));
             _eventBus.Publish("hub.started", data: new { apiBaseUrl, pid = Environment.ProcessId });
 
@@ -208,7 +214,8 @@ public sealed class HubHost : IDotCraftHost
     private static bool RequiresRunningHub(PathString path) =>
         path == "/v1/appservers/ensure" || path == "/v1/appservers/restart"
         || path == "/v1/services/ensure" || path == "/v1/services/restart"
-        || path == "/v1/codex-remote/enable" || path == "/v1/codex-remote/pairings";
+        || path == "/v1/codex-remote/enable" || path == "/v1/codex-remote/pairings"
+        || path.StartsWithSegments("/v1/local-import");
 
     private static IResult StoppingResult() => Results.Json(
         new HubErrorResponse(new HubError("hubStopping", "DotCraft Hub is stopping.", null)),
@@ -235,7 +242,8 @@ public sealed class HubHost : IDotCraftHost
         string? binaryPath,
         ManagedAppServerRegistry registry,
         ManagedLocalServiceRegistry serviceRegistry,
-        HubEventBus events)
+        HubEventBus events,
+        HubLocalImportConnection importConnection)
     {
         var builder = WebApplication.CreateBuilder();
         builder.Logging.ClearProviders();
@@ -408,6 +416,8 @@ public sealed class HubHost : IDotCraftHost
             events,
             request => Unauthorized(request, token),
             ProtectedAsync);
+        HubLocalImportApi.Map(app, _localImport!, importConnection, _paths.DefaultChatWorkspacePath,
+            request => Unauthorized(request, token), ProtectedAsync);
         HubMobileApi.Map(
             app,
             _mobile!,
@@ -608,6 +618,14 @@ public sealed class HubHost : IDotCraftHost
             await _codexRemote.DisposeAsync();
             _codexRemote = null;
         }
+
+        if (_importSchedule is not null)
+        {
+            try { await _importSchedule; }
+            catch (OperationCanceledException) when (_shutdownCts.IsCancellationRequested) { }
+        }
+        if (_localImport is not null)
+            await _localImport.StopAsync();
 
         var registry = _registry;
         var serviceRegistry = _serviceRegistry;

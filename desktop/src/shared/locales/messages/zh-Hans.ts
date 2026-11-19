@@ -1,6 +1,17 @@
 import type { MessageId } from './en'
 
 export const MESSAGES_ZH_HANS = {
+  "settings.import.local.description": "从本机的其他 AI 应用导入项目、聊天和配置。",
+  "settings.import.local.syncDescription": "同步所选应用中的内容，不会自动添加项目。",
+  "settings.import.local.projectSetup": "项目配置",
+  "settings.import.local.dialogDescription": "选择要导入 DotCraft 的内容，并查看它们会保存在哪里。",
+  "settings.import.local.addProject": "将添加到项目列表 · {{path}}",
+  "settings.import.local.chatsDestination": "导入到最近聊天",
+  "settings.import.local.disabled": "本机已禁用导入功能。",
+  "settings.import.local.openFailed": "无法打开已导入的内容：{{error}}",
+  "settings.import.local.showInstructions": "显示指令文件",
+  "settings.import.reason.import_project_unavailable": "原项目文件夹不存在，或无法确定其位置。",
+  "settings.import.reason.import_project_disabled": "此项目已关闭导入。",
   'workspace.config.loadFailed': "无法加载工作区设置。",
   "settings.import.setup.user": "工具与设置",
   "settings.import.setup.userHint": "在你的所有项目中可用",

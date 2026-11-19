@@ -1,6 +1,7 @@
 import { app, dialog } from 'electron'
 import { existsSync, promises as fs } from 'fs'
 import * as path from 'path'
+import type { WorkspaceSwitchOptions } from '../shared/workspaceProjects'
 import type {
   WorkspaceSetupModelListRequest,
   WorkspaceSetupRequest,
@@ -43,9 +44,9 @@ export function registerWorkspaceHandlers(context: WindowIpcContext): void {
     return { path: target, gitInitialized }
   })
 
-  handleSafe('workspace:switch', async (_event, newPath: string, connectionKey?: string) => {
-    await callbacks.onSwitchWorkspace(newPath, connectionKey)
-  })
+  handleSafe('workspace:switch', (_event, newPath: string, connectionKey?: string, options?: WorkspaceSwitchOptions) =>
+    callbacks.onSwitchWorkspace(newPath, connectionKey, options)
+  )
 
   handleSafe('workspace:clear-selection', async () => {
     await callbacks.onClearWorkspaceSelection()

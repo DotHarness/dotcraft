@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import type { FakeComputer } from '../demo/fakeComputer'
 import { createStudio } from '../demo/seed'
 import { createHarness, waitFor, type Harness } from '../test/harness'
-import { changesWorkspaceApproval, controlsOf, workspaceApprovalOf } from './threadConfig'
+import { changesWorkspaceApproval, controlsOf, effectiveSpeed, supportedSpeeds, workspaceApprovalOf } from './threadConfig'
 
 const harnesses: Harness[] = []
 
@@ -27,6 +27,20 @@ describe('approval policy shown for a chat', () => {
     expect(changesWorkspaceApproval(['Permissions.DefaultApprovalPolicy'])).toBe(true)
     expect(changesWorkspaceApproval(['Permissions'])).toBe(true)
     expect(changesWorkspaceApproval(['Permissions.SomethingElse', 'providers'])).toBe(false)
+  })
+})
+
+describe('speed shown for a chat', () => {
+  it.each([
+    { advertised: ['standard', 'fast', 'ultrafast'], choices: ['standard', 'fast', 'ultrafast'], active: 'ultrafast' },
+    { advertised: ['standard', 'ultrafast'], choices: ['standard', 'ultrafast'], active: 'ultrafast' },
+    { advertised: ['standard', 'fast'], choices: ['standard', 'fast'], active: 'standard' },
+  ])('reflects the catalog capability $advertised', ({ advertised, choices, active }) => {
+    const model = { id: 'atlas', speed: { supportedModes: advertised, defaultMode: 'standard' } }
+    const modes = supportedSpeeds(model)
+    const controls = controlsOf({ speed: 'ultrafast' }, 'prompt')
+    expect(modes).toEqual(choices)
+    expect(effectiveSpeed(controls.speed, modes)).toBe(active)
   })
 })
 

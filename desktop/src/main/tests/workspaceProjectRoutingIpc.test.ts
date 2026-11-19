@@ -12,7 +12,7 @@ describe('workspace project action routing', () => {
     const handlers = new Map<string, Parameters<WindowIpcContext['handleSafe']>[1]>()
     const archiveThreadInWorkspace = vi.fn().mockResolvedValue(undefined)
     const onDisconnectRemoteProject = vi.fn().mockResolvedValue(undefined)
-    const onSwitchWorkspace = vi.fn().mockResolvedValue(undefined)
+    const onSwitchWorkspace = vi.fn().mockResolvedValueOnce(undefined).mockResolvedValueOnce(false)
     registerWorkspaceHandlers({
       handleSafe: (channel: string, handler: Parameters<WindowIpcContext['handleSafe']>[1]) => { handlers.set(channel, handler) },
       callbacks: { archiveThreadInWorkspace, onDisconnectRemoteProject, onSwitchWorkspace }
@@ -23,9 +23,11 @@ describe('workspace project action routing', () => {
     await handlers.get('workspace:archive-thread')!(event, { workspacePath: '/same/path', threadId: 'shared-id', connectionKey: key })
     await handlers.get('workspace:disconnect-remote')!(event, key)
     await handlers.get('workspace:switch')!(event, '/same/path', key)
+    await expect(handlers.get('workspace:switch')!(event, '/registered', undefined, { existingProjectOnly: true })).resolves.toBe(false)
 
     expect(archiveThreadInWorkspace).toHaveBeenCalledWith('/same/path', 'shared-id', key)
     expect(onDisconnectRemoteProject).toHaveBeenCalledWith(key)
-    expect(onSwitchWorkspace).toHaveBeenCalledWith('/same/path', key)
+    expect(onSwitchWorkspace).toHaveBeenNthCalledWith(1, '/same/path', key, undefined)
+    expect(onSwitchWorkspace).toHaveBeenNthCalledWith(2, '/registered', undefined, { existingProjectOnly: true })
   })
 })

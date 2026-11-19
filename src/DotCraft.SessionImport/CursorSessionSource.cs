@@ -35,12 +35,14 @@ internal sealed class CursorSessionSource(string root) : ISessionImportSource
             ct.ThrowIfCancellationRequested();
             var project = projectByPath[path];
             if (!cwdByProject.TryGetValue(project, out var cwd))
-                cwdByProject[project] = cwd = WorkspacePathMatcher.ResolveCursorProjectCwd(project, workspaceRoot);
+                cwdByProject[project] = cwd = scope.HostProjects is { } roots
+                    ? WorkspacePathMatcher.ResolveHostCursorProjectCwd(project, roots)
+                    : WorkspacePathMatcher.ResolveCursorProjectCwd(project, workspaceRoot);
             var sessionId = Path.GetFileNameWithoutExtension(path);
-            if (cwd is null || scope.ExternalCliSessionIds.Contains(sessionId) || !seen.Add(sessionId))
+            if ((cwd is null && scope.HostProjects is null) || scope.ExternalCliSessionIds.Contains(sessionId) || !seen.Add(sessionId))
                 continue;
 
-            candidates.Add(new SessionImportCandidateFile(sessionId, path, modifiedAt, cwd));
+            candidates.Add(new SessionImportCandidateFile(sessionId, path, modifiedAt, cwd ?? "") { ProjectUnresolved = cwd is null });
         }
 
         return candidates;

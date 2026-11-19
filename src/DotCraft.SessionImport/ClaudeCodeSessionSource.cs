@@ -36,7 +36,8 @@ internal sealed class ClaudeCodeSessionSource(string root) : ISessionImportSourc
                 continue;
             }
 
-            if (WorkspacePathMatcher.ResolveMemberCwd(cwd, scope.WorkspaceRoot) is { } memberCwd)
+            var memberCwd = scope.HostProjects is not null ? cwd : WorkspacePathMatcher.ResolveMemberCwd(cwd, scope.WorkspaceRoot);
+            if (!string.IsNullOrWhiteSpace(memberCwd))
                 candidates.Add(new SessionImportCandidateFile(Path.GetFileNameWithoutExtension(path), path, modifiedAt, memberCwd));
         }
 

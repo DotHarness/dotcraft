@@ -67,6 +67,7 @@ import type {
   MobileStatusResult
 } from '../shared/mobile'
 import type { CodexRemoteApi, CodexRemoteEvent } from '../shared/codexRemote'
+import type { LocalImportApi } from '../shared/localImport'
 import type {
   AddFolderFailureCode,
   PairedComputer,
@@ -205,7 +206,7 @@ import type {
   WorkspaceStatusPayload
 } from '../shared/workspaceSetup'
 export type * from '../shared/workspaceSetup'
-import type { WorkspaceProjectsPayload } from '../shared/workspaceProjects'
+import type { WorkspaceProjectsPayload, WorkspaceSwitchOptions } from '../shared/workspaceProjects'
 import type { OpenInTargetRequest, OpenTargetInfo, OpenTargetPreferences } from '../shared/openTargets'
 export type { OpenInTargetRequest, OpenTargetInfo, OpenTargetPreferences } from '../shared/openTargets'
 import type {
@@ -489,6 +490,13 @@ let satellitesSubscriptionCount = 0
 let mobileSubscriptionCount = 0
 let codexRemoteSubscriptionCount = 0
 
+const localImports: LocalImportApi = {
+  detect: () => ipcRenderer.invoke('local-import:detect'),
+  getState: () => ipcRenderer.invoke('local-import:state'),
+  run: (params) => ipcRenderer.invoke('local-import:run', params),
+  setSettings: (params) => ipcRenderer.invoke('local-import:settings', params)
+}
+
 const api = {
   desktopPet,
   themes,
@@ -516,6 +524,8 @@ const api = {
       return ipcRenderer.invoke('menu:invoke-item', commandId)
     }
   },
+
+  imports: localImports,
 
   visualization: {
     copyImage(rect: VisualizationCaptureRect): Promise<VisualizationCaptureResult> {
@@ -1029,8 +1039,8 @@ const api = {
       return webUtils.getPathForFile(file)
     },
 
-    switch(newPath: string, connectionKey?: string): Promise<void> {
-      return ipcRenderer.invoke('workspace:switch', newPath, connectionKey)
+    switch(newPath: string, connectionKey?: string, options?: WorkspaceSwitchOptions): Promise<void | false> {
+      return ipcRenderer.invoke('workspace:switch', newPath, connectionKey, options)
     },
 
     clearSelection(): Promise<void> {

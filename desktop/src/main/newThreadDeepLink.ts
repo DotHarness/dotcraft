@@ -5,7 +5,7 @@ import type { NewThreadDeepLink } from '../shared/desktopDeepLink'
 export interface NewThreadDeepLinkHost {
   canOpenLocalProject(): boolean
   isForegroundWorkspace(path: string): boolean
-  switchWorkspace(path: string): Promise<void>
+  switchWorkspace(path: string): Promise<unknown>
   openNewChat(prompt: string | undefined): void
 }
 

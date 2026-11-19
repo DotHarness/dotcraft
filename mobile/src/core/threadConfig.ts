@@ -1,7 +1,9 @@
 import type { ModelCatalogItem, ReasoningConfig, ThreadConfiguration } from '@dotcraft/sdk/contracts'
 
+const SPEEDS = ['standard', 'fast', 'ultrafast'] as const
+
 export type ApprovalPolicy = 'prompt' | 'autoApprove'
-export type Speed = 'standard' | 'fast'
+export type Speed = (typeof SPEEDS)[number]
 export type ReasoningValue = 'default' | 'off' | string
 
 export interface ChatControls {
@@ -41,13 +43,22 @@ export function changesWorkspaceApproval(regions: readonly string[] | null | und
   return (regions ?? []).some((region) => region === APPROVAL_DEFAULT_KEY || APPROVAL_DEFAULT_KEY.startsWith(`${region}.`))
 }
 
+export function supportedSpeeds(model: ModelCatalogItem | undefined): Speed[] {
+  return SPEEDS.filter((speed) => speed === 'standard' || model?.speed?.supportedModes?.includes(speed))
+}
+
+export function effectiveSpeed(speed: Speed, choices: readonly Speed[]): Speed {
+  return choices.includes(speed) ? speed : 'standard'
+}
+
 export function controlsOf(config: ThreadConfiguration | null | undefined, workspaceApproval: ApprovalPolicy): ChatControls {
   const reasoning = reasoningOf(config?.reasoning)
+  const speed = config?.speed
   return {
     providerId: config?.providerId || null,
     model: config?.model || null,
     reasoning: reasoning ? (reasoning.enabled ? reasoning.effort : 'off') : 'default',
-    speed: config?.speed === 'fast' ? 'fast' : 'standard',
+    speed: speed === 'fast' || speed === 'ultrafast' ? speed : 'standard',
     approvalPolicy: config?.approvalPolicy === 'autoApprove' || config?.approvalPolicy === 'prompt' ? config.approvalPolicy : workspaceApproval,
   }
 }

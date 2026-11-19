@@ -1,10 +1,13 @@
-import Svg, { Circle, Line, Path, Rect } from 'react-native-svg'
+import { useId } from 'react'
+import Svg, { Circle, Defs, Line, Mask, Path, Rect } from 'react-native-svg'
 
 type Shape =
   | ['path', { d: string }]
   | ['rect', { width: number; height: number; x: number; y: number; rx: number }]
   | ['circle', { cx: number; cy: number; r: number }]
   | ['line', { x1: number; x2: number; y1: number; y2: number }]
+
+const ZAP_PATH = 'M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z'
 
 const ICONS = {
   chevronLeft: [['path', { d: 'm15 18-6-6 6-6' }]],
@@ -193,12 +196,7 @@ const ICONS = {
     ['circle', { cx: 9, cy: 9, r: 2 }],
     ['path', { d: 'm21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21' }],
   ],
-  zap: [
-    [
-      'path',
-      { d: 'M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z' },
-    ],
-  ],
+  zap: [['path', { d: ZAP_PATH }]],
   hand: [
     ['path', { d: 'M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2' }],
     ['path', { d: 'M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2' }],
@@ -345,6 +343,26 @@ export function Icon({
             return <Line key={index} {...attributes} />
         }
       })}
+    </Svg>
+  )
+}
+
+export function UltrafastGlyph({ size, color, strokeWidth }: { size: number; color: string; strokeWidth: number }) {
+  const mask = useId()
+  const scale = 0.7
+  const front = `translate(-1.2 6.6) scale(${scale})`
+  const back = `translate(7.2 0.4) scale(${scale})`
+  const gap = 1.2
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" style={{ flexShrink: 0 }} fill={color} stroke={color} strokeWidth={strokeWidth / scale} strokeLinecap="round" strokeLinejoin="round">
+      <Defs>
+        <Mask id={mask} maskUnits="userSpaceOnUse" x={0} y={0} width={24} height={24}>
+          <Rect width={24} height={24} fill="white" stroke="none" />
+          <Path d={ZAP_PATH} transform={front} fill="black" stroke="black" strokeWidth={(strokeWidth + gap * 2) / scale} />
+        </Mask>
+      </Defs>
+      <Path d={ZAP_PATH} transform={back} mask={`url(#${mask})`} />
+      <Path d={ZAP_PATH} transform={front} />
     </Svg>
   )
 }

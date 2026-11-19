@@ -17,6 +17,18 @@ describe('openWorkspaceThread', () => {
     expect(activateThread).not.toHaveBeenCalled()
   })
 
+  it('clears the pending chat when its workspace switch is superseded', async () => {
+    const clearPending = vi.fn()
+    await openWorkspaceThread({
+      threadId: 'thread-2', workspacePath: '/two', foregroundWorkspacePath: '/one',
+      switchWorkspace: async () => false,
+      setPending: vi.fn().mockReturnValue({ requestId: 4 }),
+      clearPending, activateThread: vi.fn()
+    })
+
+    expect(clearPending).toHaveBeenCalledExactlyOnceWith('/two', 'thread-2', 4)
+  })
+
   it('selects immediately inside the foreground Workspace', async () => {
     const activateThread = vi.fn()
     await openWorkspaceThread({

@@ -11,7 +11,11 @@ import { isRemoteProjectKey } from '../../shared/workspaceProjectKey'
 import { useConnectionStore } from '../stores/connectionStore'
 import type { ThreadSummary } from '../types/thread'
 
-export async function openThread(threadId: string, workspacePath?: string, options: { includeArchived?: boolean } = {}): Promise<void> {
+export async function openThread(
+  threadId: string,
+  workspacePath?: string,
+  options: { includeArchived?: boolean; switchWorkspace?: (path: string) => Promise<void | false> } = {}
+): Promise<void> {
   const foreground = useWorkspaceProjectsStore.getState()
   const foregroundWorkspacePath = isRemoteProjectKey(foreground.foregroundProjectId) ? '' : foreground.foregroundWorkspacePath
   await openWorkspaceThread({
@@ -19,7 +23,7 @@ export async function openThread(threadId: string, workspacePath?: string, optio
     workspacePath,
     foregroundWorkspacePath,
     includeArchived: options.includeArchived,
-    switchWorkspace: (nextPath) => window.api.workspace.switch(nextPath),
+    switchWorkspace: options.switchWorkspace ?? (nextPath => window.api.workspace.switch(nextPath)),
     setPending: (payload) => useUIStore.getState().setPendingProjectThreadOpen(payload),
     clearPending: (projectKey, pendingThreadId, requestId) =>
       useUIStore.getState().clearPendingProjectThreadOpen(projectKey, pendingThreadId, requestId),

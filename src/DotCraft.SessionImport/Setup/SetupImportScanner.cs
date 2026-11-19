@@ -12,11 +12,11 @@ namespace DotCraft.SessionImport;
 
 internal sealed class SetupImportScanner(SetupImportPaths paths)
 {
-    public IReadOnlyList<SetupImportItem> Scan(string source)
+    public IReadOnlyList<SetupImportItem> Scan(string source, string? scopeFilter = null)
     {
         var result = new List<SetupImportItem>();
         if (!paths.SourceRoots.TryGetValue(source, out var home)) return result;
-        foreach (var scope in new[] { "user", "workspace" })
+        foreach (var scope in scopeFilter is null ? new[] { "user", "workspace" } : [scopeFilter])
         {
             var root = scope == "user" ? home : Path.Combine(paths.Workspace, source switch { "claude-code" => ".claude", "codex" => ".codex", _ => ".cursor" });
             foreach (var category in ImportCategories.Setup)

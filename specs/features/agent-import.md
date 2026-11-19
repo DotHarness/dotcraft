@@ -4,7 +4,7 @@
 |---|---|
 | Version | 0.9.1 |
 | Status | Living |
-| Date | 2026-10-19 |
+| Date | 2026-11-19 |
 
 Sources: Claude Code, Codex, and Cursor on the AppServer host.
 
@@ -12,12 +12,29 @@ Sources: Claude Code, Codex, and Cursor on the AppServer host.
 
 The import module owns detection, conversion, atomic installation, history, and scheduled passes.
 Session conversion and continuation belong to the session import feature. Configuration uses
-the `AgentImport` section exclusively. Desktop presents user-scoped tools and setup, current-project
-configuration, and chat sessions as separate selectable groups. Import never creates another workspace.
+the `AgentImport` section exclusively. AppServer import requests remain scoped to the connected
+workspace. Local Desktop uses a host-wide import operation instead.
 
 User files go to the configured user data directory; workspace files go to the workspace data
 directory. Project instructions go to the workspace root. Source files are read-only. Detection
-does not change source files, destination files, or session ledger checkpoints.
+does not register projects, start their runtimes, or change source files, destination files, or session ledger checkpoints.
+
+## Local discovery and destinations
+
+Local Desktop discovers supported source stores on this computer without using the foreground
+project or a remote connection. Personal setup is considered once. Project paths are compared using
+the local project's canonical directory identity, not display names. Content can be attributed to a
+registered project, an existing source directory not yet registered, or ordinary chats when the
+source identifies no project. An unavailable or ambiguous source directory is not a destination.
+
+Project registration is part of confirmed manual import only. The preview distinguishes projects
+that will be added from registered projects, and users may omit them. A selection that gains the
+need to register a project requires a new preview. Registration reuses an existing directory
+without moving its files. Setup for a project root explicitly identified by the source is discovered
+at that exact root, even under a registered parent. Adding a project during a batch does not change
+the accepted destination of other selected items. A failure in one destination does not block
+selected items in others. Sync respects project opt-outs and never registers projects or starts
+stopped project runtimes in the background.
 
 ## Content
 
@@ -65,9 +82,11 @@ Sync defaults off. `Sources` starts empty; an accepted manual import adds its so
 not run without a source. Selection distinguishes user and workspace categories and sessions; an
 explicit all-categories choice includes future categories. A manual import merges into `Selection`:
 categories and sessions the run `offered` take the run's choice, others keep their saved value, and a
-saved all-categories choice is unchanged. An omitted `offered` equals the run's selection. Pausing retains selection. Startup catches up; an unopened
-workspace catches up when next started. Global passes coordinate through a process lock and shared
-last-check time.
+saved all-categories choice is unchanged. An omitted `offered` equals the run's selection. When
+`offered` is explicitly empty, the run executes without saving the source or category choices.
+Sync consumes saved preferences without writing them back. Changes affect future passes and pausing
+retains selection. Startup catches up and an unopened workspace catches up when next started.
+Global passes coordinate through a process lock and shared last-check time.
 
 Setup sync only fills missing destinations, never updates or deletes installed content. Deleting a
 destination permits later reimport while that category remains selected. History and needs-attention entries link to the existing management surfaces and chats.

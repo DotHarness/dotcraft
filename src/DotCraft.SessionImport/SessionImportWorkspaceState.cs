@@ -6,7 +6,7 @@ namespace DotCraft.SessionImport;
 
 internal sealed class SessionImportWorkspaceState
 {
-    private const string ExternalCliSessionsMetadataKey = "dotcraft.externalCliSessions";
+    internal const string ExternalCliSessionsMetadataKey = "dotcraft.externalCliSessions";
 
     private SessionImportWorkspaceState(IReadOnlyList<ThreadSummary> summaries)
     {
@@ -69,10 +69,11 @@ internal sealed class SessionImportWorkspaceState
         return document;
     }
 
-    private static IEnumerable<string> ReadExternalCliSessionIds(IReadOnlyDictionary<string, string> metadata)
+    private static IEnumerable<string> ReadExternalCliSessionIds(IReadOnlyDictionary<string, string> metadata) =>
+        metadata.TryGetValue(ExternalCliSessionsMetadataKey, out var raw) ? ReadExternalCliSessionIds(raw) : [];
+
+    internal static IEnumerable<string> ReadExternalCliSessionIds(string raw)
     {
-        if (!metadata.TryGetValue(ExternalCliSessionsMetadataKey, out var raw))
-            return [];
         try
         {
             return JsonSerializer.Deserialize<ExternalCliSession[]>(raw, JsonSerializerOptions.Web)?

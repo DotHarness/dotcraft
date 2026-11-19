@@ -707,7 +707,8 @@ The `extensions.agentImport` capability enables `import/detect`, `import/run`, `
 `import/settings/set`, and `import/history/list`. Detection returns scoped candidates with fingerprints.
 Submit the selected source ids, item references, and category selection to `import/run`, plus an
 optional `offered` selection naming the categories your UI presented. The saved sync selection takes
-the new choice only for offered categories. Progress and completion arrive through `import/progress`
+the new choice only for offered categories. To run without saving sources or category preferences,
+pass an explicitly empty `offered`. Progress and completion arrive through `import/progress`
 and `import/completed`. Import is additive and reads sources
 on the AppServer host. History includes a separate list of currently actionable items.
 

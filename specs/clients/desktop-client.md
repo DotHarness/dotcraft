@@ -4,7 +4,7 @@
 |-------|-------|
 | **Version** | 0.13.2 |
 | **Status** | Living |
-| **Date** | 2026-11-18 |
+| **Date** | 2026-11-20 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
 | **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Hub Architecture](../architecture/hub-architecture.md), [Device Gateway](../protocols/device-gateway.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Goal Design](../features/goal.md), [Session Import](../features/session-import.md), [Desktop DESIGN.md](../architecture/DESIGN.md) |
 
@@ -953,14 +953,15 @@ Every result opens by automation id and run id. Follow-ups locate the exact turn
 
 #### 6.7.1 Agent Import
 
-When `capabilities.extensions.agentImport` is present, Settings shows an Import tab for the current workspace. [Agent import](../features/agent-import.md) defines detection, conversion, scope, and synchronization.
+Personal › Import in a local Desktop window covers this computer regardless of the foreground
+project. A remote-only window exposes import only when its connection advertises
+`capabilities.extensions.agentImport`. [Agent import](../features/agent-import.md) owns the scope and destination rules.
 
-- Opening the tab loads settings, candidates, and history; detection can be refreshed. Sources show importable counts; existing or unsupported entries stay inspectable. Import is disabled while a pass runs.
-- The import dialog separates host-wide tools and setup, current project configuration, and chat sessions, supports partial selection, and explains where content applies, never showing configuration secrets.
-- Confirming submits the selected item identities, fingerprints, and categories, plus the categories offered, to `import/run`. `import/progress` updates progress; completion refreshes candidates, settings, and history. `import_busy` shows the running pass instead.
-- Keep-in-sync applies immediately and can be paused without losing imported content or selections; a workspace opt-out disables it. After the first import the synced categories can be customized (at least one required, optionally including future categories), affecting future syncs only.
-- History shows one entry per pass with per-item status, a localized reason, and a link to imported content. Outstanding setup (hook trust, missing MCP environment variables, plugin review) is listed with a direct action. A sync pass that changed nothing stays silent.
-- Imported threads arrive through `thread/started` and show their source app; imported history never makes them unread.
+- Opening the tab loads settings, candidates, and history. Detection can be refreshed. Sources show importable counts. A local source can open the selection dialog only when it has importable items.
+- The local dialog separates personal tools and setup, projects, and chats. It shows items with known destinations, identifies projects that will be added, supports partial selection, and never shows configuration secrets.
+- One confirmation starts one import. Progress and results cover the whole selection, including partial failures, and do not change when the foreground project changes.
+- Keep-in-sync can be paused without clearing selections. After the first import, the selected sync categories can be customized for future passes.
+- Each history entry links to its actual destination and identifies items that need attention. Opening a history entry never registers a project. Newer navigation supersedes a pending history open without changing the newer selection. A sync pass that changed nothing stays silent. Imported history never makes chats unread.
 
 #### 6.7.2 Computer Use
 
