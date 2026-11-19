@@ -190,8 +190,6 @@ public sealed partial class GitHubWriteService(
             ["name"] = CheckRunName,
             ["status"] = "completed",
             ["conclusion"] = "neutral",
-            ["title"] = "Oratorio review completed",
-            ["summary"] = "Oratorio completed the review analysis. Merge control has returned to GitHub branch protection and repository collaborators.",
             ["runId"] = run.RunId
         };
         var checkRunId = await FindLatestReviewGateCheckRunIdAsync(run.ItemId, run.RoundId, headSha, ct);
@@ -296,14 +294,26 @@ public sealed partial class GitHubWriteService(
             throw OratorioApiException.Conflict("invalidTransition", "Only failed source writes can be retried.", new Dictionary<string, object?> { ["status"] = write.Status });
         }
 
+        if (IsReviewGateAnalysisUpdate(write) && !await IsCurrentReviewGateAsync(write, ct))
+        {
+            throw OratorioApiException.Conflict("staleReviewGateUpdate", "The review status is no longer current for this GitHub check.");
+        }
+
         write.Status = SourceWriteStatus.Pending;
         write.ErrorCode = null;
         write.ErrorMessage = null;
         write.UpdatedAt = clock.UtcNow;
         AddTimeline(write, TimelineEventKind.SourceWriteQueued, "Retrying GitHub write", null);
         await TryExecuteAsync(write, ct);
-        await ReconcileReviewDraftPublishAsync(write, ct);
-        await db.SaveChangesAsync(ct);
+        if (await ReconcileReviewDraftPublishAsync(write, ct))
+        {
+            await SaveReviewPublicationAndUpdateCheckAsync(write, ct);
+        }
+        else
+        {
+            await db.SaveChangesAsync(ct);
+        }
+
         return write.ItemId;
     }
 
@@ -476,6 +486,12 @@ public sealed partial class GitHubWriteService(
                 _ => throw new InvalidOperationException($"Unsupported source write kind: {write.Kind}")
             };
 
+            if (response is null)
+            {
+                MarkFailed(write, "staleReviewGateUpdate", "The review status is no longer current for this GitHub check.");
+                return;
+            }
+
             write.Status = SourceWriteStatus.Succeeded;
             write.ExternalId = response.ExternalId;
             write.ExternalUrl = response.ExternalUrl;
@@ -485,6 +501,10 @@ public sealed partial class GitHubWriteService(
             write.CompletedAt = clock.UtcNow;
             write.UpdatedAt = write.CompletedAt.Value;
             AddTimeline(write, TimelineEventKind.SourceWriteSucceeded, "GitHub write succeeded", write.ExternalUrl);
+        }
+        catch (OperationCanceledException) when (write.Kind == SourceWriteKind.CheckRun && !ct.IsCancellationRequested)
+        {
+            MarkFailed(write, "githubCheckWriteTimedOut", "The GitHub check write timed out.");
         }
         catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or JsonException)
         {
@@ -510,23 +530,29 @@ public sealed partial class GitHubWriteService(
 
     private async Task<GitHubWriteResponse> ExecuteReviewThreadResolutionAsync(GitHubRepositoryRef repository, OratorioSourceWriteLog write, CancellationToken ct)
     {
-        var threadId = ReadString(write.RequestJson, "threadId");
-        var resolved = ReadBool(write.RequestJson, "resolved");
-        var replyBody = ReadOptionalString(write.RequestJson, "replyBody");
-        var replyMarker = ReadOptionalString(write.RequestJson, "replyMarker");
+        using var request = JsonDocument.Parse(write.RequestJson);
+        var payload = request.RootElement;
+        var threadId = ReadRequiredString(payload, "threadId");
+        var resolved = payload.GetProperty("resolved").GetBoolean();
         GitHubWriteResponse? replyResponse = null;
         var replySkipped = false;
 
-        if (resolved && !string.IsNullOrWhiteSpace(replyBody))
+        if (payload.TryGetProperty("rootCommentId", out var root))
         {
-            if (!string.IsNullOrWhiteSpace(replyMarker) &&
-                await ReviewThreadContainsMarkerAsync(repository, write.Number!.Value, threadId, replyMarker, ct))
+            var rootCommentId = root.GetInt64();
+            var replyBody = ReadRequiredString(payload, "replyBody");
+            var replyMarker = ReadRequiredString(payload, "replyMarker");
+            var number = write.Number!.Value;
+            if (write.AttemptCount > 1)
             {
-                replySkipped = true;
+                var comments = await client.ListPullRequestReviewCommentsAsync(repository, number, ct);
+                replySkipped = comments.Any(comment =>
+                    comment.InReplyToId == rootCommentId && comment.Body.Contains(replyMarker, StringComparison.Ordinal));
             }
-            else
+
+            if (!replySkipped)
             {
-                replyResponse = await client.CreatePullRequestReviewThreadReplyAsync(repository, threadId, replyBody, ct);
+                replyResponse = await client.CreatePullRequestReviewCommentReplyAsync(repository, number, rootCommentId, replyBody, ct);
             }
         }
 
@@ -547,19 +573,6 @@ public sealed partial class GitHubWriteService(
             }, JsonOptions));
     }
 
-    private async Task<bool> ReviewThreadContainsMarkerAsync(
-        GitHubRepositoryRef repository,
-        int number,
-        string threadId,
-        string replyMarker,
-        CancellationToken ct)
-    {
-        var threads = await client.ListPullRequestReviewThreadsAsync(repository, number, ct);
-        return threads.Any(thread =>
-            string.Equals(thread.Id, threadId, StringComparison.Ordinal) &&
-            thread.CommentBodies.Any(body => body.Contains(replyMarker, StringComparison.Ordinal)));
-    }
-
     private static object ToAuditResponse(GitHubWriteResponse response) =>
         new
         {
@@ -568,32 +581,17 @@ public sealed partial class GitHubWriteService(
             response.ResponseJson
         };
 
-    private async Task<GitHubWriteResponse> ExecuteCheckRunAsync(GitHubRepositoryRef repository, OratorioSourceWriteLog write, CancellationToken ct)
-    {
-        var status = ReadOptionalString(write.RequestJson, "status") ?? "completed";
-        var conclusion = ReadOptionalString(write.RequestJson, "conclusion");
-        var title = ReadOptionalString(write.RequestJson, "title") ?? "Oratorio review";
-        var summary = ReadString(write.RequestJson, "summary");
-        var checkRunId = ReadOptionalString(write.RequestJson, "checkRunId");
-        if (!string.IsNullOrWhiteSpace(checkRunId))
-        {
-            return await client.UpdateCheckRunAsync(repository, checkRunId, status, conclusion, title, summary, ct);
-        }
-
-        return await client.CreateCheckRunAsync(repository, CheckRunName, write.HeadSha!, status, conclusion, title, summary, ct);
-    }
-
-    private async Task ReconcileReviewDraftPublishAsync(OratorioSourceWriteLog write, CancellationToken ct)
+    private async Task<bool> ReconcileReviewDraftPublishAsync(OratorioSourceWriteLog write, CancellationToken ct)
     {
         if (write.Intent != "reviewDraftPublish")
         {
-            return;
+            return false;
         }
 
         var draft = await db.ReviewDrafts.FirstOrDefaultAsync(x => x.SourceWriteId == write.WriteId, ct);
         if (draft is null)
         {
-            return;
+            return false;
         }
 
         var now = write.CompletedAt ?? clock.UtcNow;
@@ -608,6 +606,7 @@ public sealed partial class GitHubWriteService(
         }
 
         draft.UpdatedAt = now;
+        return write.Status == SourceWriteStatus.Succeeded;
     }
 
     private void MarkFailed(OratorioSourceWriteLog write, string code, string message)
@@ -662,7 +661,7 @@ public sealed partial class GitHubWriteService(
                 x.RoundId == roundId &&
                 x.Source == "github" &&
                 x.Kind == SourceWriteKind.CheckRun &&
-                x.Intent == ReviewGateStartIntent &&
+                (x.Intent == ReviewGateStartIntent || x.Intent == ReviewGateCompleteIntent) &&
                 x.Status == SourceWriteStatus.Succeeded &&
                 x.HeadSha == headSha &&
                 x.ExternalId != null)
@@ -703,13 +702,6 @@ public sealed partial class GitHubWriteService(
 
     private static string ReadString(string json, string propertyName) =>
         ReadOptionalString(json, propertyName) ?? throw new JsonException($"Missing required property '{propertyName}'.");
-
-    private static bool ReadBool(string json, string propertyName)
-    {
-        using var document = JsonDocument.Parse(json);
-        return document.RootElement.TryGetProperty(propertyName, out var value) &&
-            value.ValueKind is JsonValueKind.True or JsonValueKind.False && value.GetBoolean();
-    }
 
     private static IReadOnlyList<GitHubPullRequestReviewCommentWrite> ReadReviewComments(string json)
     {

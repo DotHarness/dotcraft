@@ -9,12 +9,6 @@ using DotCraft.Oratorio.Realtime;
 
 namespace DotCraft.Oratorio.Services;
 
-/// <summary>
-/// Resolves and reopens published review findings (design spec §5.7). Shared by the
-/// <c>ResolveReviewFinding</c> dynamic tool (review runs and discussion turns) and the
-/// operator resolve/reopen API. When the finding maps to a known source review thread, it also
-/// enqueues and executes a <c>ResolveReviewThread</c> write through provider write controls.
-/// </summary>
 public sealed class ReviewFindingResolutionService(
     OratorioDbContext db,
     IClock clock,
@@ -50,7 +44,6 @@ public sealed class ReviewFindingResolutionService(
         return ToResponse(comment);
     }
 
-    /// <summary>Operator resolve via API. Returns the owning item id so the caller can reload detail.</summary>
     public async Task<string> ResolveByOperatorAsync(string draftId, string findingId, string resolutionKind, string? note, CancellationToken ct)
     {
         var comment = await LoadResolvableByDraftAsync(draftId, findingId, ct);
@@ -58,7 +51,6 @@ public sealed class ReviewFindingResolutionService(
         return comment.Draft!.ItemId;
     }
 
-    /// <summary>Operator reopen via API. Returns the owning item id so the caller can reload detail.</summary>
     public async Task<string> ReopenByOperatorAsync(string draftId, string findingId, CancellationToken ct)
     {
         var comment = await LoadResolvableByDraftAsync(draftId, findingId, ct);
@@ -133,11 +125,6 @@ public sealed class ReviewFindingResolutionService(
         boardEvents.PublishTaskUpdated(item, now);
     }
 
-    /// <summary>
-    /// Propagates resolution to the source review thread (design spec §5.7, Step C). No-op unless
-    /// the finding has a captured remote thread id. Provider write settings decide whether the
-    /// queued source write succeeds or records a retryable failure.
-    /// </summary>
     private async Task<bool> EnqueueRemoteResolveAsync(OratorioReviewDraftComment comment, bool resolved, DateTimeOffset now, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(comment.RemoteThreadId))
@@ -264,10 +251,12 @@ public sealed class ReviewFindingResolutionService(
         };
         if (resolved &&
             string.Equals(source, "github", StringComparison.OrdinalIgnoreCase) &&
+            comment.RemoteRootCommentId is { } rootCommentId &&
             comment.ResolutionKind is { } kind &&
             !string.IsNullOrWhiteSpace(comment.ResolutionNote))
         {
             var marker = $"oratorio-resolution:{writeId}";
+            request["rootCommentId"] = rootCommentId;
             request["replyMarker"] = marker;
             request["replyBody"] = BuildResolutionReplyBody(kind, comment.ResolutionNote, marker);
         }

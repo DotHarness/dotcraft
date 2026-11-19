@@ -118,7 +118,6 @@ public sealed class ReviewDraftService(
             ?? throw OratorioApiException.Conflict("reviewDraftNotFound", "The requested review draft does not exist.", new Dictionary<string, object?> { ["draftId"] = draftId });
 
         await PublishLoadedDraftAsync(draft, enforceAutoPublishGates: false, ct);
-        await db.SaveChangesAsync(ct);
         return await items.GetItemDetailByIdAsync(draft.ItemId, ct);
     }
 
@@ -151,7 +150,6 @@ public sealed class ReviewDraftService(
         }
 
         await PublishLoadedDraftAsync(draft, enforceAutoPublishGates: true, ct);
-        await db.SaveChangesAsync(ct);
     }
 
     private async Task PublishLoadedDraftAsync(OratorioReviewDraft draft, bool enforceAutoPublishGates, CancellationToken ct)
@@ -162,6 +160,7 @@ public sealed class ReviewDraftService(
             throw OratorioApiException.Conflict("invalidReviewDraftBinding", "The review draft does not have a valid source target.");
         }
 
+        var retrying = draft.Status == ReviewDraftStatus.PublishFailed;
         var now = clock.UtcNow;
         var write = await CreatePublishWriteAsync(draft, now, ct);
         var sourceActor = SourceActor(draft.Item.Source);
@@ -173,6 +172,7 @@ public sealed class ReviewDraftService(
         {
             draft.Status = ReviewDraftStatus.PublishFailed;
             AddTimeline(draft.Item, draft.Round, null, TimelineEventKind.SourceWriteFailed, $"{sourceActor} review draft publish failed", write.ErrorMessage, now);
+            await db.SaveChangesAsync(ct);
             return;
         }
 
@@ -182,10 +182,8 @@ public sealed class ReviewDraftService(
         if (blocked is not null)
         {
             MarkPublishFailed(draft, write, blocked.Value.Code, blocked.Value.Message);
-            return;
         }
-
-        if (draft.Item.Source == "gitlab")
+        else if (draft.Item.Source == "gitlab")
         {
             await gitLabWrites.ExecuteAsync(write, ct);
         }
@@ -195,6 +193,17 @@ public sealed class ReviewDraftService(
         }
 
         ApplyWriteResultToDraft(draft, write);
+
+        if (write.Source == "github" &&
+            ((enforceAutoPublishGates && write.Status == SourceWriteStatus.Failed) ||
+                (retrying && write.Status == SourceWriteStatus.Succeeded)))
+        {
+            await gitHubWrites.SaveReviewPublicationAndUpdateCheckAsync(write, ct);
+        }
+        else
+        {
+            await db.SaveChangesAsync(ct);
+        }
     }
 
     private async Task<OratorioSourceWriteLog> CreatePublishWriteAsync(OratorioReviewDraft draft, DateTimeOffset now, CancellationToken ct)

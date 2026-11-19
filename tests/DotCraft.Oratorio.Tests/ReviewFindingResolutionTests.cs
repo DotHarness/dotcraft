@@ -15,6 +15,7 @@ namespace DotCraft.Oratorio.Tests;
 
 public sealed class ReviewFindingResolutionTests
 {
+    private const long RootCommentId = 5_000_000_001L;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) }
@@ -172,8 +173,10 @@ public sealed class ReviewFindingResolutionTests
         Assert.Equal(1, await verifyDb.SourceWriteLogs.CountAsync(x => x.Kind == SourceWriteKind.ResolveReviewThread && x.Intent == "reviewFindingResolve"));
     }
 
-    [Fact]
-    public async Task Resolve_WithNote_PostsGitHubThreadReplyBeforeResolving()
+    [Theory]
+    [InlineData(RootCommentId)]
+    [InlineData(null)]
+    public async Task Resolve_WithNote_ResolvesThreadAndRepliesWhenRootIsKnown(long? rootCommentId)
     {
         var fakeGitHub = new FakeGitHubApiClient();
         await using var app = new TestOratorioApp(services =>
@@ -184,22 +187,24 @@ public sealed class ReviewFindingResolutionTests
         var client = app.CreateClient();
         var (draftId, commentId, _, _) = await SeedPublishedFindingAsync(app, client, "task:resolve-reply");
         const string threadId = "thread-42-0";
-        await AttachRemoteThreadAsync(app, draftId, commentId, threadId);
+        await AttachRemoteThreadAsync(app, draftId, commentId, threadId, rootCommentId);
 
         await PostAsync<ItemDetailResponse>(
             client,
             $"/api/v1/review-drafts/{draftId}/comments/{commentId}/resolve",
             new ResolveReviewFindingOperatorRequest("fixed", "Addressed in follow-up commit."));
 
-        var reply = Assert.Single(fakeGitHub.ReviewThreadReplies);
-        Assert.Equal(threadId, reply.ThreadId);
-        Assert.Contains("Oratorio resolved this finding as **fixed**.", reply.Body, StringComparison.Ordinal);
-        Assert.Contains("Reason: Addressed in follow-up commit.", reply.Body, StringComparison.Ordinal);
-        Assert.Contains("<!-- oratorio-resolution:", reply.Body, StringComparison.Ordinal);
         Assert.Contains(fakeGitHub.ReviewThreadResolutions, x => x.ThreadId == threadId && x.Resolved);
-        Assert.True(
-            fakeGitHub.WriteOperations.IndexOf($"reply:{threadId}") <
-            fakeGitHub.WriteOperations.IndexOf($"resolve:{threadId}:True"));
+        if (rootCommentId is null)
+        {
+            Assert.Empty(fakeGitHub.ReviewCommentReplies);
+            return;
+        }
+
+        var reply = Assert.Single(fakeGitHub.ReviewCommentReplies);
+        Assert.Equal(42, reply.Number);
+        Assert.Equal(rootCommentId.Value, reply.InReplyToId);
+        Assert.Contains("Reason: Addressed in follow-up commit.", reply.Body, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -214,7 +219,7 @@ public sealed class ReviewFindingResolutionTests
         var client = app.CreateClient();
         var (draftId, commentId, _, _) = await SeedPublishedFindingAsync(app, client, "task:resolve-no-reply");
         const string threadId = "thread-42-0";
-        await AttachRemoteThreadAsync(app, draftId, commentId, threadId);
+        await AttachRemoteThreadAsync(app, draftId, commentId, threadId, rootCommentId: RootCommentId);
 
         await PostAsync<ItemDetailResponse>(
             client,
@@ -225,15 +230,15 @@ public sealed class ReviewFindingResolutionTests
             $"/api/v1/review-drafts/{draftId}/comments/{commentId}/reopen",
             new { });
 
-        Assert.Empty(fakeGitHub.ReviewThreadReplies);
+        Assert.Empty(fakeGitHub.ReviewCommentReplies);
         Assert.Contains(fakeGitHub.ReviewThreadResolutions, x => x.ThreadId == threadId && x.Resolved);
         Assert.Contains(fakeGitHub.ReviewThreadResolutions, x => x.ThreadId == threadId && !x.Resolved);
     }
 
     [Fact]
-    public async Task RetryResolveWrite_WhenReplyMarkerAlreadyExists_SkipsDuplicateReply()
+    public async Task RetryResolveWrite_WhenReplyResponseWasLost_SkipsDuplicateReply()
     {
-        var fakeGitHub = new FakeGitHubApiClient();
+        var fakeGitHub = new FakeGitHubApiClient { LoseNextReviewCommentReplyResponseCount = 1 };
         await using var app = new TestOratorioApp(services =>
         {
             services.RemoveAll<IGitHubApiClient>();
@@ -242,73 +247,23 @@ public sealed class ReviewFindingResolutionTests
         var client = app.CreateClient();
         var (draftId, commentId, _, _) = await SeedPublishedFindingAsync(app, client, "task:resolve-retry-dedupe");
         const string threadId = "thread-42-0";
-        const string marker = "oratorio-resolution:retry-write";
-        await AttachRemoteThreadAsync(app, draftId, commentId, threadId);
-        fakeGitHub.PullRequestReviews.Add(new GitHubPullRequestReviewWrite(
-            new GitHubRepositoryRef("example-owner", "oratorio"),
-            42,
-            "COMMENT",
-            "Summary",
-            "head-sha",
-            [new GitHubPullRequestReviewCommentWrite("README.md", "Original finding body", 1, "RIGHT", null, null)]));
-        fakeGitHub.ReviewThreadReplies.Add(new GitHubReviewThreadReplyWrite(
-            new GitHubRepositoryRef("example-owner", "oratorio"),
-            threadId,
-            $"Already posted.\n\n<!-- {marker} -->"));
+        await AttachRemoteThreadAsync(app, draftId, commentId, threadId, rootCommentId: RootCommentId);
 
-        string writeId;
-        using (var scope = app.Services.CreateScope())
-        {
-            var db = scope.ServiceProvider.GetRequiredService<OratorioDbContext>();
-            var draft = await db.ReviewDrafts.FirstAsync(x => x.DraftId == draftId);
-            var now = DateTimeOffset.UtcNow;
-            var write = new OratorioSourceWriteLog
-            {
-                ItemId = draft.ItemId,
-                RoundId = draft.RoundId,
-                Source = "github",
-                Kind = SourceWriteKind.ResolveReviewThread,
-                Intent = "reviewFindingResolve",
-                Status = SourceWriteStatus.Failed,
-                Repository = "example-owner/oratorio",
-                Number = 42,
-                HeadSha = "head-sha",
-                RequestJson = JsonSerializer.Serialize(new
-                {
-                    threadId,
-                    resolved = true,
-                    replyBody = $"Oratorio resolved this finding as **fixed**.\n\nReason: Addressed.\n\n<!-- {marker} -->",
-                    replyMarker = marker
-                }, JsonOptions),
-                ErrorCode = "githubWriteFailed",
-                ErrorMessage = "Synthetic partial failure.",
-                CreatedAt = now,
-                UpdatedAt = now,
-                CompletedAt = now
-            };
-            db.SourceWriteLogs.Add(write);
-            var comment = await db.ReviewDraftComments.FirstAsync(x => x.DraftCommentId == commentId);
-            comment.RemoteResolveWriteId = write.WriteId;
-            await db.SaveChangesAsync();
-            writeId = write.WriteId;
-        }
+        var detail = await PostAsync<ItemDetailResponse>(
+            client,
+            $"/api/v1/review-drafts/{draftId}/comments/{commentId}/resolve",
+            new ResolveReviewFindingOperatorRequest("fixed", "Addressed in follow-up commit."));
 
-        using (var retryScope = app.Services.CreateScope())
-        {
-            var service = retryScope.ServiceProvider.GetRequiredService<GitHubWriteService>();
-            await service.RetryAsync(writeId, CancellationToken.None);
-        }
+        var failed = Assert.Single(detail.SourceWrites, write => write.Kind == SourceWriteKind.ResolveReviewThread);
+        Assert.Equal(SourceWriteStatus.Failed, failed.Status);
+        Assert.Single(fakeGitHub.ReviewCommentReplies);
+        Assert.Empty(fakeGitHub.ReviewThreadResolutions);
 
-        var reply = Assert.Single(fakeGitHub.ReviewThreadReplies);
-        Assert.Contains(marker, reply.Body, StringComparison.Ordinal);
+        var retried = await PostAsync<ItemDetailResponse>(client, $"/api/v1/source-writes/{failed.WriteId}/retry", new { });
+
+        Assert.Equal(SourceWriteStatus.Succeeded, Assert.Single(retried.SourceWrites, write => write.WriteId == failed.WriteId).Status);
+        Assert.Single(fakeGitHub.ReviewCommentReplies);
         Assert.Contains(fakeGitHub.ReviewThreadResolutions, x => x.ThreadId == threadId && x.Resolved);
-        Assert.DoesNotContain(fakeGitHub.WriteOperations, op => op == $"reply:{threadId}");
-
-        using var verifyScope = app.Services.CreateScope();
-        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<OratorioDbContext>();
-        var storedWrite = await verifyDb.SourceWriteLogs.AsNoTracking().FirstAsync(x => x.WriteId == writeId);
-        Assert.Equal(SourceWriteStatus.Succeeded, storedWrite.Status);
-        Assert.Contains("\"replySkipped\":true", storedWrite.ResponseJson, StringComparison.Ordinal);
     }
 
     private static Task<(string DraftId, string CommentId, string ItemId, string RunId)> SeedPublishedFindingAsync(
@@ -354,10 +309,10 @@ public sealed class ReviewFindingResolutionTests
         {
             DraftId = draft.DraftId,
             Severity = "YELLOW",
-            Title = "Preserve the removed workspace sample redirect",
-            Body = "The redirect removal changes the published sample URL and may leave existing readers without a working path.",
-            Path = "docs/.vitepress/config.mts",
-            Line = 241,
+            Title = "Handle an empty input",
+            Body = "An empty input leaves the result unset.",
+            Path = "example.txt",
+            Line = 3,
             Side = "RIGHT",
             CommentOnlyReason = "investigateOnly",
             Status = ReviewDraftCommentStatus.Accepted
@@ -368,7 +323,7 @@ public sealed class ReviewFindingResolutionTests
         return (draft.DraftId, comment.DraftCommentId, item.ItemId, run.RunId);
     }
 
-    private static async Task AttachRemoteThreadAsync(TestOratorioApp app, string draftId, string commentId, string threadId)
+    private static async Task AttachRemoteThreadAsync(TestOratorioApp app, string draftId, string commentId, string threadId, long? rootCommentId)
     {
         using var scope = app.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OratorioDbContext>();
@@ -395,6 +350,7 @@ public sealed class ReviewFindingResolutionTests
         db.SourceWriteLogs.Add(publishWrite);
         draft.SourceWriteId = publishWrite.WriteId;
         comment.RemoteThreadId = threadId;
+        comment.RemoteRootCommentId = rootCommentId;
         await db.SaveChangesAsync();
     }
 

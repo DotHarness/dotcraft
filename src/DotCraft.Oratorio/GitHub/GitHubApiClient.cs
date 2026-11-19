@@ -26,7 +26,6 @@ public interface IGitHubApiClient
     Task<GitHubWriteResponse> CreatePullRequestReviewCommentReplyAsync(GitHubRepositoryRef repository, int number, long commentId, string body, CancellationToken ct);
     Task<GitHubWriteResponse> CreatePullRequestReviewAsync(GitHubRepositoryRef repository, int number, string @event, string body, string? commitId, CancellationToken ct);
     Task<GitHubWriteResponse> CreatePullRequestReviewAsync(GitHubRepositoryRef repository, int number, string @event, string body, string? commitId, IReadOnlyList<GitHubPullRequestReviewCommentWrite> comments, CancellationToken ct);
-    Task<GitHubWriteResponse> CreatePullRequestReviewThreadReplyAsync(GitHubRepositoryRef repository, string threadId, string body, CancellationToken ct);
     Task<GitHubWriteResponse> CreateCheckRunAsync(
         GitHubRepositoryRef repository,
         string name,
@@ -232,27 +231,6 @@ public sealed class GitHubApiClient(
         }
 
         return SendJsonAsync(HttpMethod.Post, $"/repos/{repository.Owner}/{repository.Name}/pulls/{number}/reviews", payload, repository, ct);
-    }
-
-    public async Task<GitHubWriteResponse> CreatePullRequestReviewThreadReplyAsync(GitHubRepositoryRef repository, string threadId, string body, CancellationToken ct)
-    {
-        const string mutation = """
-            mutation($threadId:ID!,$body:String!){
-              addPullRequestReviewThreadReply(input:{pullRequestReviewThreadId:$threadId,body:$body}){
-                comment{ id }
-              }
-            }
-            """;
-        var variables = new Dictionary<string, object?>
-        {
-            ["threadId"] = threadId,
-            ["body"] = body
-        };
-        using var document = await SendGraphQlAsync(repository, mutation, variables, ct);
-        var comment = document.RootElement
-            .GetProperty("data").GetProperty("addPullRequestReviewThreadReply").GetProperty("comment");
-        var id = comment.GetProperty("id").GetString() ?? Guid.NewGuid().ToString("n");
-        return new GitHubWriteResponse(id, null, document.RootElement.GetRawText());
     }
 
     public Task<GitHubWriteResponse> CreateCheckRunAsync(
