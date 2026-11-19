@@ -41,10 +41,34 @@ describe('waiting question recovery', () => {
     expect(new ThreadTaskStore(filePath).snapshot(THREAD).question).toBeUndefined()
   })
 
-  it.each(['running', 'completed'])('retains an unanswered question from its own %s turn', async (status) => {
+  it('keeps a staged question hidden across restart until its turn completes', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'question-recovery-'))
+    directories.push(directory)
+    const filePath = join(directory, 'tasks.json')
+    service(new ThreadTaskStore(filePath)).stageQuestion(THREAD, QUESTION.turnId, QUESTION.callId)
+
+    const store = new ThreadTaskStore(filePath)
+    const notifyWrapUpQuestion = vi.fn()
+    const tasks = new DesktopThreadTasks({ store, getNewTaskPrompt: () => 'ask', notifyWrapUpQuestion })
+    const request = vi.fn().mockResolvedValue({ data: [{ id: QUESTION.turnId, status: 'running' }] })
+
+    await tasks.reconcileQuestion(connection(request), THREAD)
+
+    expect(tasks.snapshot(THREAD).question).toBeUndefined()
+    expect(notifyWrapUpQuestion).not.toHaveBeenCalled()
+
+    request.mockResolvedValue({ data: [{ id: QUESTION.turnId, status: 'completed' }] })
+    await tasks.reconcileQuestion(connection(request), THREAD)
+    await tasks.reconcileQuestion(connection(request), THREAD)
+
+    expect(new ThreadTaskStore(filePath).snapshot(THREAD).question).toEqual(QUESTION)
+    expect(notifyWrapUpQuestion).toHaveBeenCalledTimes(1)
+  })
+
+  it('retains an unanswered question from its own completed turn', async () => {
     const store = new ThreadTaskStore(null)
     store.setQuestion(THREAD, QUESTION)
-    const request = vi.fn().mockResolvedValue({ data: [{ id: QUESTION.turnId, status }] })
+    const request = vi.fn().mockResolvedValue({ data: [{ id: QUESTION.turnId, status: 'completed' }] })
 
     await service(store).reconcileQuestion(connection(request), THREAD)
 

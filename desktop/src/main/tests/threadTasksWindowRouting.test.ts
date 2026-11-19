@@ -42,7 +42,8 @@ describe('window-owned thread task requests', () => {
   it('reconciles waiting state before returning the IPC snapshot', async () => {
     const tasks = sharedTasks()
     const window = owner(5, '/workspace', tasks)
-    tasks.waitForQuestion(window.connection, 'thread', 'turn-1', 'call-1')
+    tasks.stageQuestion('thread', 'turn-1', 'call-1')
+    tasks.handleNotification('turn/completed', { threadId: 'thread', turnId: 'turn-1' })
     window.request.mockResolvedValueOnce({ data: [{ id: 'turn-2', status: 'completed' }] } as never)
 
     await expect(window.invoke('threadTasks:list', 'thread')).resolves.toEqual({ threadId: 'thread', tasks: [] })

@@ -29,9 +29,13 @@ export interface AddedThreadTask {
   others: ThreadTask[]
 }
 
+interface StoredThreadQuestion extends ThreadWaitingQuestion {
+  pending?: true
+}
+
 interface ThreadEntry {
   tasks: ThreadTask[]
-  question?: ThreadWaitingQuestion
+  question?: StoredThreadQuestion
   dismissedQuestionCallIds?: string[]
 }
 
@@ -58,16 +62,25 @@ export class ThreadTaskStore {
     return {
       threadId,
       tasks: entry ? entry.tasks.map((task) => ({ ...task })) : [],
-      ...(entry?.question ? { question: { ...entry.question } } : {}),
+      ...(entry?.question && !entry.question.pending ? { question: { ...entry.question } } : {}),
       ...(entry?.dismissedQuestionCallIds?.length ? { dismissedQuestionCallIds: [...entry.dismissedQuestionCallIds] } : {})
     }
   }
 
-  setQuestion(threadId: string, question: ThreadWaitingQuestion | undefined): void {
+  getQuestion(threadId: string): Readonly<StoredThreadQuestion> | undefined {
+    return this.threads.get(threadId)?.question
+  }
+
+  setQuestion(threadId: string, question: StoredThreadQuestion | undefined): void {
     const entry = this.threads.get(threadId)
-    if (!question && !entry?.question) return
+    const previous = entry?.question
+    if (!question && !previous) return
     this.threads.set(threadId, { ...entry, tasks: entry?.tasks ?? [], question })
-    this.changed(threadId)
+    if ((previous && !previous.pending) || (question && !question.pending)) {
+      this.changed(threadId)
+    } else {
+      this.save()
+    }
   }
 
   dismissQuestion(threadId: string, callId: string): void {

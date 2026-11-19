@@ -123,6 +123,25 @@ describe('local Recents with a remote foreground', () => {
     ])
   })
 
+  it('publishes a staged question when a mounted secondary chat completed while disconnected', async () => {
+    const { ctx, store, tasks } = fixture()
+    const entry = ctx.createSecondaryWorkspaceConnection('/workspace', 'ws://fixture/ws')
+    const client = entry.client as unknown as Client
+    client.emit('ready', initialized)
+    entry.threads = [{ id: 'waiting-thread' }]
+    tasks.stageQuestion('waiting-thread', 'turn-1', 'call-1')
+    client.emit('close')
+    const changed = new Promise<void>((resolve) => store.onChanged((snapshot) => {
+      if (snapshot.threadId === 'waiting-thread' && snapshot.question) resolve()
+    }))
+    client.sendRequest.mockResolvedValue({ data: [{ id: 'turn-1', status: 'completed' }] } as never)
+
+    client.emit('reconnected', initialized)
+    await changed
+
+    expect(tasks.snapshot('waiting-thread').question).toEqual({ turnId: 'turn-1', callId: 'call-1' })
+  })
+
   it('ensures and loads local Chats on remote startup without taking over the foreground', async () => {
     const { ctx, hub, localCreated } = fixture()
     await ctx.connectViaWebSocket(host.chatPath, 'ws://127.0.0.1:2345/ws', {

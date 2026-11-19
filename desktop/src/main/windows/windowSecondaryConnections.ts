@@ -248,12 +248,12 @@ export function createSecondaryWorkspaceConnection(
   ctx.emitWorkspaceProjects()
 
   client.onNotification((method, params) => {
-    if (!ctx.runtimeIsStopping() && ctx.workspaceConnections.get(entry.key) === entry) {
+    const current = !ctx.runtimeIsStopping() && ctx.workspaceConnections.get(entry.key) === entry
+    if (current) {
       const turn = readBrowserTurnNotification(method, params)
       const ownsThread = turn && ownsWorkspaceNodeReplThread(entry, turn.threadId)
       handleWorkspaceThreadPanelDeletion(entry, method, params, ctx.mainWindow)
       handleWorkspaceNodeReplNotification(entry, method, params)
-      ctx.getThreadTasks().handleNotification(method, params)
       if (ownsThread) {
         if (turn.terminal) computerUseManager.handleTurnEnded(turn.threadId, turn.turnId)
         browserUseManagers.handleTurnNotification(method, params, entry.localWorkspacePath ?? entry.workspacePath)
@@ -271,14 +271,16 @@ export function createSecondaryWorkspaceConnection(
       client,
       role: entry.role
     }, params)
-    if (foreground == null) return
     if (foreground && method === 'provider/auth/usage/updated') refreshVoiceChatGptAvailability()
 
-    ctx.applyWorkspaceThreadNotification(entry, method, params)
-    if (ctx.mainWindow && !ctx.mainWindow.isDestroyed()) {
-      broadcastNotification(ctx.mainWindow, method, params, ctx.settings, workspacePath, foreground,
-        client.connectionId ? { connectionKey: entry.key, connectionId: client.connectionId } : undefined)
+    if (foreground != null) {
+      ctx.applyWorkspaceThreadNotification(entry, method, params)
+      if (ctx.mainWindow && !ctx.mainWindow.isDestroyed()) {
+        broadcastNotification(ctx.mainWindow, method, params, ctx.settings, workspacePath, foreground,
+          client.connectionId ? { connectionKey: entry.key, connectionId: client.connectionId } : undefined)
+      }
     }
+    if (current) ctx.getThreadTasks().handleNotification(method, params, ctx.mainWindow?.webContents.id)
   })
 
   client.onServerRequest(async (method, params, requestId, signal) => {

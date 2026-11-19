@@ -17,7 +17,7 @@ export const TurnNextStep = memo(function TurnNextStep({ turnId }: { turnId: str
   const workspacePath = useConversationStore((s) => s.workspacePath)
   const [busy, setBusy] = useState(false)
   const [replied, setReplied] = useState(false)
-  const step = turn && latest ? turnNextStep(turn.items) : null
+  const step = turn?.status === 'completed' && latest ? turnNextStep(turn.items) : null
   const snapshot = useThreadTasks(step ? turn?.threadId ?? '' : '')
   if (!turn || !step || replied || snapshot?.dismissedQuestionCallIds?.includes(step.callId)) return null
 

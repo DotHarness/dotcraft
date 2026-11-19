@@ -88,7 +88,7 @@ export async function wrapUpTool(
     return result('Not shown: the user is on the phone, which has no next-step box. Ask your question in your closing message.', false, [])
   }
   if (tasks && threadId) {
-    if (wrapUp.blocked && call.callId) tasks.waitForQuestion(connection, threadId, call.turnId, call.callId)
+    if (wrapUp.blocked && call.turnId && call.callId) tasks.stageQuestion(threadId, call.turnId, call.callId)
     else tasks.clearQuestion(threadId)
   }
   return result('Shown in the next-step box. Write your closing message now, in full, as the last thing you say this turn. The box asks your question, so do not ask it again.', true, wrapUp.advice)

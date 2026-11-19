@@ -103,7 +103,6 @@ export async function connectViaWebSocket(
     const ownsThread = turn && ownsWorkspaceNodeReplThread(entry, turn.threadId)
     handleWorkspaceThreadPanelDeletion(entry, method, params, ctx.mainWindow)
     handleWorkspaceNodeReplNotification(entry, method, params)
-    ctx.getThreadTasks().handleNotification(method, params)
     if (ownsThread) {
       if (turn.terminal) computerUseManager.handleTurnEnded(turn.threadId, turn.turnId)
       browserUseManagers.handleTurnNotification(method, params, entry.localWorkspacePath ?? entry.workspacePath)
@@ -121,14 +120,14 @@ export async function connectViaWebSocket(
       client,
       role: entry.role
     }, params)
-    if (foreground == null) return
     if (foreground && method === 'provider/auth/usage/updated') refreshVoiceChatGptAvailability()
 
-    if (ctx.mainWindow && !ctx.mainWindow.isDestroyed()) {
+    if (foreground != null && ctx.mainWindow && !ctx.mainWindow.isDestroyed()) {
       ctx.applyWorkspaceThreadNotification(entry, method, params)
       broadcastNotification(ctx.mainWindow, method, params, ctx.settings, entry.workspacePath, foreground,
         client.connectionId ? { connectionKey: entry.key, connectionId: client.connectionId } : undefined)
     }
+    ctx.getThreadTasks().handleNotification(method, params, win.webContents.id)
   })
 
   client.onServerRequest(async (method, params, requestId, signal) => {

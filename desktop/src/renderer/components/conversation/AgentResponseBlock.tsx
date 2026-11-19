@@ -311,7 +311,8 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
     waitingForAnswer: pendingUserInput != null
   })
   const lastFinalAgentMessageIndex = activity.finalIndex
-  const completesResponse = !isRunning && turn.status === 'completed' && lastFinalAgentMessageIndex >= 0
+  const turnCompleted = !isRunning && turn.status === 'completed'
+  const completesResponse = turnCompleted && lastFinalAgentMessageIndex >= 0
   const footerAgentMessageId =
     completesResponse && !embedded ? renderableItems[lastFinalAgentMessageIndex]?.id : null
   const completionOf = (turnId: string): ReactNode =>
@@ -435,6 +436,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
       )}
 
       {turnCompletionContent && !footerAgentMessageId && turnCompletionContent}
+      {turnCompleted && !completesResponse && !readOnly && embedded?.completion !== false && <TurnNextStep turnId={turn.id} />}
 
       {showsStatusSeat && !footerAgentMessageId && <TurnStatusSeat turn={turn} running={isRunning} />}
 

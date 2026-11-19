@@ -20,6 +20,7 @@ export interface Harness {
   store: ThreadTaskStore
   tasks: DesktopThreadTasks
   notifyOffer: ReturnType<typeof vi.fn>
+  notifyWrapUpQuestion: ReturnType<typeof vi.fn>
   setMode: (mode: NewTaskPromptMode) => void
   call: (args: Record<string, unknown>, turnId?: string, tool?: string) => Promise<DynamicToolCallResult | undefined>
   composerTurn: (turnId: string, overrides?: { originChannel?: string; triggerKind?: string }) => void
@@ -41,13 +42,15 @@ export function createHarness(options: { handler?: Handler; filePath?: string | 
   const store = new ThreadTaskStore(options.filePath ?? null, options.now)
   let mode: NewTaskPromptMode = 'ask'
   const notifyOffer = vi.fn()
-  const tasks = new DesktopThreadTasks({ store, getNewTaskPrompt: () => mode, notifyOffer })
+  const notifyWrapUpQuestion = vi.fn()
+  const tasks = new DesktopThreadTasks({ store, getNewTaskPrompt: () => mode, notifyOffer, notifyWrapUpQuestion })
   return {
     client,
     calls: () => sendRequest.mock.calls.map((call) => [call[0], call[1]] as [string, unknown]),
     store,
     tasks,
     notifyOffer,
+    notifyWrapUpQuestion,
     setMode: (next) => { mode = next },
     call: (args, turnId = 'turn-1', tool = 'CreateThread') => handleDesktopRuntimeThreadToolCall(client, {
       namespace: DESKTOP_CONVERSATION_TOOL_NAMESPACE,

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.13.1 |
+| **Version** | 0.13.2 |
 | **Status** | Living |
 | **Date** | 2026-11-18 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
@@ -749,13 +749,13 @@ Desktop exposes a client-owned thread-management profile as Runtime Dynamic Tool
 - The call returns at once and never waits for the user. The agent calls it once, when the turn's work is done and before its closing message. A later successful call in the same Turn replaces the earlier one.
 - The box is rebuilt from the persisted `WrapUp` tool item, so it survives a reload and shows in every Desktop window.
 - The phone has no box. When the phone sent the Turn (`originChannel` is `dotcraft-mobile`), the result tells the agent its question was not shown, so it asks in its closing message, and Desktop shows no box for that call either.
-- The `WrapUp` tool row is not rendered. When its Turn completes, a call with `ask` shows the next-step box after the Turn's final reply: the recap, the question, and the buttons, the first one primary. A call without `ask` shows no box. An interrupted or failed Turn shows no box.
+- The `WrapUp` tool row is not rendered. When its Turn completes, a call with `ask` shows the next-step box after the Turn's final reply, or at the end of the Turn if there is no final reply. It shows the recap, the question, and the buttons, the first one primary. A call without `ask` shows no box. An interrupted or failed Turn shows no box.
 - Only the thread's latest Turn shows its box. Once the user sends another message, by a button or the composer, the box is gone and does not return in history. The Turn's final reply keeps the substance.
 - A button sends its label as the user's message through the normal composer path, leaving any draft in the composer untouched. The box hides as soon as the button is clicked and comes back with an error toast only if the message could not be sent.
 - A `blocked` box has no close button: the user answers it with a button or the composer.
 - Closing a box hides that box without sending a message or changing the composer draft. Dismissal is persisted in Desktop's per-user state and shared across its windows. It clears the waiting indicator only for that box, preserves unrelated proposals and newer questions, and does not hide a later Wrap Up.
-- A `blocked` box is recorded per thread in Desktop's per-user state, beside the thread's proposals, so the sidebar knows about it for chats that are not loaded and after a restart. While recorded, the chat shows the user-input waiting indicator and notifies like a waiting offer. A later successful `WrapUp` replaces that record too: a call without a shown blocked box clears it, while a failed call leaves it unchanged. The record also clears when the thread's next Turn starts, or when the box's own Turn fails or is cancelled.
-- On loading waiting state and after reconnecting, Desktop reconciles recorded questions with the server's latest Turn metadata, including chats whose sidebar rows stayed mounted while disconnected. A newer Turn or a failed or cancelled question Turn clears the record; normal completion of the question Turn does not. An unavailable server leaves it unchanged, and a delayed reconciliation must not clear a question that replaced the one it checked.
+- A `blocked` box is recorded per thread in Desktop's per-user state. It counts as waiting for input only once its Turn completes successfully, when the box can be shown. At that point the sidebar shows the waiting indicator even for unloaded chats, and Desktop notifies like a waiting offer. A later successful `WrapUp` replaces the record, including clearing it if there is no shown blocked box. A failed call leaves it unchanged. Starting a newer Turn or failing or cancelling the question's Turn clears the record.
+- On loading waiting state and after reconnecting, Desktop reconciles recorded questions with the server's latest Turn metadata, including chats whose sidebar rows stayed mounted while disconnected. A running Turn leaves its question unpublished. A newer Turn or a failed or cancelled question Turn clears the record without publishing it. An unavailable server leaves the record unchanged, and a delayed reconciliation does not affect a replacement question.
 
 **Who can see the card**
 

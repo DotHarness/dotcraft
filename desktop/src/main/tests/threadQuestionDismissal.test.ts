@@ -30,13 +30,18 @@ function service(store = new ThreadTaskStore(null)): DesktopThreadTasks {
 
 const connection: ThreadTaskConnection = { workspacePath: '/workspace', request: vi.fn() }
 
+function publishQuestion(tasks: DesktopThreadTasks, turnId: string, callId: string): void {
+  tasks.stageQuestion('thread', turnId, callId)
+  tasks.handleNotification('turn/completed', { threadId: 'thread', turnId })
+}
+
 describe('Wrap Up dismissal', () => {
   it('persists boxes without waiting state and retains their dismissal through question updates and restart', () => {
     const path = filePath()
     const tasks = service(new ThreadTaskStore(path))
     tasks.dismissQuestion('thread', 'non-blocking-call')
     tasks.dismissQuestion('thread', 'non-blocking-call')
-    tasks.waitForQuestion(connection, 'thread', 'turn-2', 'new-call')
+    publishQuestion(tasks, 'turn-2', 'new-call')
     tasks.clearQuestion('thread')
 
     expect(new ThreadTaskStore(path).snapshot('thread')).toEqual({
@@ -47,13 +52,13 @@ describe('Wrap Up dismissal', () => {
   it('clears only the matching waiting question and leaves proposals and later questions intact', () => {
     const tasks = service()
     const proposal = tasks.propose({ threadId: 'thread', workspacePath: '/workspace', title: 'Other work', prompt: 'Review', defaults: {} }).task
-    tasks.waitForQuestion(connection, 'thread', 'turn-1', 'call-1')
+    publishQuestion(tasks, 'turn-1', 'call-1')
 
     tasks.dismissQuestion('thread', 'call-1')
     expect(tasks.snapshot('thread').question).toBeUndefined()
     expect(tasks.snapshot('thread').tasks).toEqual([proposal])
 
-    tasks.waitForQuestion(connection, 'thread', 'turn-2', 'call-2')
+    publishQuestion(tasks, 'turn-2', 'call-2')
     tasks.dismissQuestion('thread', 'older-unblocked-call')
     expect(tasks.snapshot('thread')).toMatchObject({
       question: { turnId: 'turn-2', callId: 'call-2' },
@@ -67,7 +72,7 @@ describe('Wrap Up dismissal', () => {
     const second = { isDestroyed: () => false, webContents: { send: vi.fn() } }
     windows.push(first, second)
     const tasks = createDesktopThreadTasks({ filePath: path, getNewTaskPrompt: () => 'ask', notifyOffer: vi.fn(), notifyWrapUpQuestion: vi.fn() })
-    tasks.waitForQuestion(connection, 'thread', 'turn-1', 'call-1')
+    publishQuestion(tasks, 'turn-1', 'call-1')
     first.webContents.send.mockClear()
     second.webContents.send.mockClear()
 
