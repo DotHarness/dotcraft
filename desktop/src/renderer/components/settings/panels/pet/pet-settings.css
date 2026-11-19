@@ -3,10 +3,11 @@
 .pet-settings-look { display: grid; grid-template-columns: 232px minmax(0, 1fr); align-items: center; gap: 24px; }
 .pet-settings-dial { position: relative; width: 232px; height: 232px; }
 .pet-settings-ring { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-.pet-settings-ring path { cursor: pointer; opacity: .72; outline: none; transition: opacity 120ms ease; }
-.pet-settings-ring path:hover, .pet-settings-ring path:focus-visible, .pet-settings-ring-segment[data-selected='true'] path { opacity: 1; }
-.pet-settings-ring path:focus-visible { stroke: var(--accent); stroke-width: 2; }
-.pet-settings-ring-mark { fill: #fff; pointer-events: none; }
+.pet-settings-ring-segment path { opacity: .72; outline: none; pointer-events: none; transition: d var(--duration-fast) var(--ease-standard), opacity var(--duration-fast) ease; }
+.pet-settings-ring-segment[data-target='true'] path, .pet-settings-ring-segment path:focus-visible, .pet-settings-ring-segment[data-selected='true'] path { opacity: 1; }
+.pet-settings-ring-segment path:focus-visible { stroke: var(--accent); stroke-width: 2; }
+.pet-settings-ring-mark { fill: #fff; pointer-events: none; transition: transform var(--duration-fast) var(--ease-standard); }
+.pet-settings-ring-band { fill: transparent; cursor: pointer; }
 .pet-settings-figure { position: absolute; top: 44px; left: 44px; z-index: 1; display: flex; align-items: center; justify-content: center; width: 144px; height: 144px; padding: 0; border: 0; border-radius: 50%; background: transparent; cursor: pointer; }
 .pet-settings-figure:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .pet-settings-dial-label { position: absolute; left: 50%; bottom: 4px; transform: translateX(-50%); color: var(--text-primary); font-size: var(--type-secondary-size); line-height: var(--type-secondary-line-height); white-space: nowrap; }

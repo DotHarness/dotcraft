@@ -551,6 +551,12 @@ overshooting curve; the bookmark dot travels with the line end. While scrubbing,
 markers follow the pointer without a transition. Reduced motion removes the
 transition, not the state.
 
+The Pet colour dial grows only its target: the segment at the pointer's angle
+grows 12px inward and 3px outward over `--duration-fast` on `--ease-standard`,
+and hands the swell to the next segment as the pointer moves around the ring.
+Its thirteen wide segments need no neighbour falloff, which would blur which one
+is targeted. Reduced motion removes the transition, not the state.
+
 ### Mode toggles
 
 A mode toggle may reveal its label when it turns on. The control keeps its height
@@ -2099,10 +2105,14 @@ while letting the collection's own colour show.
 - The dial is a 232px open ring around the 120px companion: thirteen colour
   segments over 300° with the gap at the bottom, Original first at the lower left
   and the twelve role palettes clockwise, each in its mid body tone at 72%
-  opacity. Pointer, focus, and the selected segment go to full opacity; the
-  selected segment pops 5px outward with a 3px white dot. The current colour's name
-  sits in the gap in `--type-secondary`. With customization off the group is
-  hidden.
+  opacity. The whole band between the companion and 14px beyond the ring, gaps
+  included, targets the segment at the pointer's angle, so choosing a colour needs
+  only the direction, not precise aim. The target grows toward the companion
+  ([Rail magnification](#rail-magnification)) and previews on the companion and
+  in the gap label, with no native tooltip. Target, focus, and the selected
+  segment go to full opacity, and the selected segment pops 5px outward with a
+  3px white dot. The current colour's name sits in the gap in `--type-secondary`.
+  With customization off the group is hidden.
 - Rarity is chrome, never paint on the companion. On a bag tile it is a radial glow
   behind the art in the rarity colour, growing with the tier (uncommon 22%, rare
   30%, epic 38%, legendary 46%; common none), plus from rare up a 1px inset frame at
