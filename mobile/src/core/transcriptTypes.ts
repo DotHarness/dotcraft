@@ -1,4 +1,5 @@
 import type { ToolGroupLabel } from './toolGroups'
+import type { TodoCard } from './todoCard'
 import type { TurnChanges } from './turnChanges'
 import type { ImageSource, UserSegment } from './userSegments'
 
@@ -120,6 +121,7 @@ export type TranscriptEntry =
       at: string
       copy: boolean
       changes: TurnChanges[]
+      todos?: TodoCard
     }
   | {
       kind: 'thinking'
@@ -168,6 +170,7 @@ export type TranscriptEntry =
   | { kind: 'image'; id: string; status: 'inProgress' | 'completed' | 'failed'; uri: string | null; dropped: boolean; error?: string }
   | { kind: 'plan'; id: string; title: string; overview: string; todos: PlanTodo[]; content: string }
   | { kind: 'changes'; id: string; changes: TurnChanges }
+  | { kind: 'todos'; id: string; card: TodoCard }
   | { kind: 'divider'; id: string; divider: DividerKind; host?: string; channel?: string; target?: string }
   | { kind: 'threadAction'; id: string; action: ThreadAction }
 

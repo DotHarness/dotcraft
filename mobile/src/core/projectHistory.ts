@@ -10,6 +10,7 @@ export const OPENING_TURNS_PAGE = {
   itemsView: 'summary',
   summaryTools: [
     { name: 'CreatePlan' },
+    { name: 'TodoWrite' },
     { name: 'Workflow' },
     { name: 'Automation' },
     { name: 'CreateThread', namespace: 'desktop_conversation' },

@@ -119,7 +119,7 @@ describe('plan confirmation', () => {
     const turnId = 'revised-plan'
     const createdAt = '2026-11-07T00:00:00Z'
     const plan = '# Revised plan\n\nShip it.'
-    next = computerReducer(next, { type: 'currentPlan', key, content: 'Ship it.' })
+    next = computerReducer(next, { type: 'currentPlan', key, content: 'Ship it.', todoPlan: null })
     next = computerReducer(next, { type: 'history', key, event: { kind: 'turn', turn: {
       id: turnId, threadId: next.chats[key].threadId, status: 'completed', startedAt: createdAt,
       items: [

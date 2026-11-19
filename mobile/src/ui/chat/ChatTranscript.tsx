@@ -4,6 +4,8 @@ import { useComputerLink, useComputerSelector } from '../../app-state/SessionCon
 import type { Decision } from '../../core/decisions'
 import { shallowEqual } from '../../core/selection'
 import { computerStatus, isReachable, NO_SIGNALS, projectById, type ComputerState } from '../../core/state'
+import { isComplete } from '../../core/history'
+import { todoCard, withTodoCard } from '../../core/todoCard'
 import { createTranscriptProjector } from '../../core/transcript'
 import { createWorkingSubagentSelector } from '../../core/taskTree'
 import type { ChangesProjector } from '../../core/turnChanges'
@@ -76,6 +78,8 @@ export const ChatTranscript = memo(function ChatTranscript({
       const detail = state.details[chatKey]
       return {
         history: detail?.history,
+        todoPlan: detail?.todoPlan,
+        planInput: detail?.planInput,
         loading: detail?.loading,
         loadingOlder: detail?.loadingOlder,
         workspacePath: detail?.effectiveWorkspacePath ?? null,
@@ -109,7 +113,13 @@ export const ChatTranscript = memo(function ChatTranscript({
         : [],
     [slice.history, slice.workspacePath, slice.signals?.stopped, slice.spawnedFrom, workingAgentPaths, projector],
   )
-  const lines = useKeptWorkingLine(transcript, chatKey)
+  const card = useMemo(() => {
+    const turn = slice.history?.turns.at(-1)
+    const items = turn ? slice.history!.items.filter((item) => item.turnId === turn.id) : []
+    return todoCard(slice.todoPlan, turn, items, !!turn && !isComplete(turn), slice.planInput)
+  }, [slice.history, slice.todoPlan, slice.planInput])
+  const kept = useKeptWorkingLine(transcript, chatKey)
+  const lines = useMemo(() => withTodoCard(kept, card), [kept, card])
   const shownLines = useMemo(
     () => (decision ? lines.map((entry) => (entry.kind === 'thinking' ? { ...entry, working: false } : entry)) : lines),
     [lines, decision],

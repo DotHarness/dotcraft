@@ -4,6 +4,7 @@ import { contextUsageOf } from './contextUsage'
 import { historyFromTurns, restoreEchoes, type ChatHistory } from './history'
 import { OPENING_TURNS_PAGE, readTurnPage, turnPage } from './projectHistory'
 import type { ChatDetail } from './state'
+import { todoPlanOf } from './todoCard'
 
 export async function restoreChat(
   client: DotCraftWireClient,
@@ -51,6 +52,7 @@ export async function restoreChat(
       loading: true, history,
       currentPlanTurnId: restored.currentState?.planTurnId ?? null,
       currentPlan: thread.plan?.content ?? null,
+      todoPlan: todoPlanOf(thread.plan),
       profileName: name,
       config: thread.configuration ?? null,
       workspacePath: thread.workspacePath || null,

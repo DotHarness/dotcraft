@@ -39,6 +39,7 @@ import type { PinnedSockets, SocketEnd } from './sockets'
 import { applyChange, changesWorkspaceApproval, workspaceApprovalOf, type ConfigChange } from './threadConfig'
 import { chatKey, NO_SIGNALS, type ChatSignals, type ChatSummary, type ComputerAction, type ComputerState, type PendingRequest, type ProjectModels } from './state'
 import type { Store } from './store'
+import { todoPlanOf } from './todoCard'
 
 const PHONE_IDENTITY = { channelName: 'dotcraft-desktop', userId: 'local' }
 
@@ -89,7 +90,7 @@ function titleFrom(text: string): string | null {
   return words ? words.charAt(0).toUpperCase() + words.slice(1) : null
 }
 
-function newId(): string {
+export function newId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
 }
 
@@ -282,11 +283,11 @@ export class ProjectConnection {
       if (thread.configuration && this.subscribed.has(thread.id)) {
         this.modeChanges.set(thread.id, (this.modeChanges.get(thread.id) ?? 0) + 1)
         this.store.dispatch({ type: 'chatConfig', key: this.key(thread.id), config: thread.configuration })
-        this.store.dispatch({ type: 'currentPlan', key: this.key(thread.id), content: thread.plan?.content ?? null })
+        this.store.dispatch({ type: 'currentPlan', key: this.key(thread.id), content: thread.plan?.content ?? null, todoPlan: todoPlanOf(thread.plan) })
       }
     })
-    on('plan/updated', ({ threadId, content }) => {
-      if (threadId) this.store.dispatch({ type: 'currentPlan', key: this.key(threadId), content: content ?? null })
+    on('plan/updated', (plan) => {
+      if (plan.threadId) this.store.dispatch({ type: 'currentPlan', key: this.key(plan.threadId), content: plan.content ?? null, todoPlan: todoPlanOf(plan) })
     })
     on('thread/readState/changed', ({ threadId, readState }) => this.applyReadState(threadId, readState))
     on('thread/renamed', ({ threadId, displayName }) => {
@@ -580,7 +581,7 @@ export class ProjectConnection {
     return key
   }
 
-  async send(threadId: string, draft: MessageDraft): Promise<void> {
+  async send(threadId: string, draft: MessageDraft, clientUserMessageId = newId()): Promise<void> {
     await this.syncChat(threadId)
     const client = this.requireClient()
     if (!this.subscribed.has(threadId)) throw new Error('The chat is read-only.')
@@ -589,12 +590,12 @@ export class ProjectConnection {
     const input = inputParts(draft, files, photos)
     const shown = inputParts(draft, files)
     try {
-      await this.submit(client, threadId, input, shown, this.store.getState().chats[this.key(threadId)]?.runtime ?? null)
+      await this.submit(client, threadId, input, shown, this.store.getState().chats[this.key(threadId)]?.runtime ?? null, clientUserMessageId)
     } catch (error) {
       if (!(error instanceof JsonRpcError) || error.rpcCode !== ERR_TURN_IN_PROGRESS) throw error
       const { thread } = await client.request('thread/read', { threadId })
       this.patch(threadId, { runtime: thread.runtime })
-      await this.submit(client, threadId, input, shown, thread.runtime)
+      await this.submit(client, threadId, input, shown, thread.runtime, clientUserMessageId)
     }
   }
 
@@ -635,11 +636,11 @@ export class ProjectConnection {
     input: InputPart[],
     shown: InputPart[],
     runtime: ThreadRuntimeState | null,
+    clientUserMessageId: string,
   ): Promise<void> {
     if (this.client !== client || !this.subscribed.has(threadId) || this.store.getState().details[this.key(threadId)]?.loading) throw new NotConnectedError()
     const key = this.key(threadId)
     const method = followUpMethod(runtime)
-    const clientUserMessageId = newId()
     const echo = { clientId: clientUserMessageId, text: visibleText(input), parts: shown, added: method !== 'start' }
     this.store.dispatch({ type: 'echo', key, echo })
     try {

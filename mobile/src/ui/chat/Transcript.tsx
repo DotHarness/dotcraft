@@ -28,6 +28,7 @@ import { CopyButton } from './CopyButton'
 import { ImageThumb, SentImage } from './Images'
 import { Markdown } from './Markdown'
 import { PlanCard } from './PlanCard'
+import { TodoCard } from './TodoCard'
 import type { DesktopToolVerb } from '../../core/transcriptTypes'
 import { FailureLine, OriginLine, SentAsGoal, SystemDivider, ThreadActionCard, ThreadLinksContext } from './TimelineMarkers'
 import { TurnWork } from './TurnWork'
@@ -610,6 +611,11 @@ export const TranscriptLine = memo(function TranscriptLine({
               <TurnChangesCard changes={changes} />
             </View>
           ))}
+          {entry.todos ? (
+            <View style={styles.changes}>
+              <TodoCard card={entry.todos} />
+            </View>
+          ) : null}
           {entry.copy ? <CopyButton text={copyableAssistantText(entry.text)} label={t('chat.copy')} style={styles.copy} /> : null}
         </View>
       )
@@ -646,6 +652,8 @@ export const TranscriptLine = memo(function TranscriptLine({
       return <PlanCard entry={entry} workspacePath={workspacePath} />
     case 'changes':
       return <TurnChangesCard changes={entry.changes} />
+    case 'todos':
+      return <TodoCard card={entry.card} />
     case 'divider':
       return <SystemDivider entry={entry} />
     case 'threadAction':

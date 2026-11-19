@@ -4,7 +4,7 @@ import type { BackgroundTask } from './backgroundTasks'
 import { plainMessage, type MessageDraft } from './draft'
 import { implementationTurn } from './decisions'
 import { GatewayClient, GatewayUnreachableError, isUnauthorized } from '@dotcraft/sdk/gateway'
-import { NotConnectedError, ProjectConnection, ProjectNotRunningError, type ApprovalDecision, type CompactionResult } from './projectConnection'
+import { newId, NotConnectedError, ProjectConnection, ProjectNotRunningError, type ApprovalDecision, type CompactionResult } from './projectConnection'
 import type { PinnedSockets, SocketEnd, SocketHandle } from './sockets'
 import { projectById, type Action, type ComputerAction, type ComputerState, type MobileState, type PendingRequest } from './state'
 import type { Store } from './store'
@@ -438,7 +438,9 @@ export class ComputerLink {
     await connection.setMode(threadId, 'agent')
     if (this.connections.get(projectId) !== connection || this.focusedChat !== focus || !this.views.has(key)) return
     if (this.state.details[key]?.config?.mode !== 'agent' || this.state.details[key]?.history.turns.at(-1)?.id !== plan) return
-    await connection.send(threadId, plainMessage('Implement the plan.'))
+    const input = newId()
+    this.store.dispatch({ type: 'planInput', key, clientId: input })
+    await connection.send(threadId, plainMessage('Implement the plan.'), input)
   }
 
   async loadUsage(projectId: string, providerId: string | null): Promise<void> {

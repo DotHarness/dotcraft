@@ -1,6 +1,7 @@
 import { isComplete, type HistoryItem } from './history'
 import { parsePlanMarkdown } from './planMarkdown'
-import type { DesktopToolVerb, PlanTodo, ToolCategory, ToolDetail, ToolEntry, ToolIcon, ToolVerb, TranscriptEntry } from './transcriptTypes'
+import { todoStatus } from './todoCard'
+import type { DesktopToolVerb, ToolCategory, ToolDetail, ToolEntry, ToolIcon, ToolVerb, TranscriptEntry } from './transcriptTypes'
 
 const CATEGORIES: Record<string, ToolCategory> = {
   'core.read-file': 'explore',
@@ -10,14 +11,10 @@ const CATEGORIES: Record<string, ToolCategory> = {
   'core.web': 'web',
 }
 
-function todoStatus(value: unknown): PlanTodo['status'] {
-  return value === 'in_progress' || value === 'completed' || value === 'cancelled' ? value : 'pending'
-}
-
 type ToolKind =
   | 'read' | 'grep' | 'find' | 'explore' | 'edit' | 'shell' | 'writeStdin'
   | 'webSearch' | 'webFetch' | 'skillView' | 'requestUserInput' | 'createPlan'
-  | 'subagentSpawn' | 'subagentMessage' | 'subagentList' | 'taskStop'
+  | 'subagentSpawn' | 'subagentMessage' | 'subagentList' | 'taskStop' | 'todo'
 
 type TaskKind = 'shell' | 'agent' | 'workflow'
 
@@ -306,6 +303,8 @@ function toolKind(item: HistoryItem, result: HistoryItem | undefined): ToolKind 
       return 'requestUserInput'
     case 'core.create-plan':
       return 'createPlan'
+    case 'core.todo':
+      return 'todo'
     case 'core.subagent':
       return operation === 'spawn' ? 'subagentSpawn' : operation === 'sendMessage' ? 'subagentMessage' : operation === 'list' ? 'subagentList' : null
     case 'core.task':
@@ -351,7 +350,7 @@ export function toolEntry(
   const toolName = str(item.payload.toolName)
   result = item.type === 'toolCall' ? result : item
   const kind = toolKind(item, result)
-  if (!toolName || kind === 'requestUserInput' || isCodeModeWrapper(item) || isHiddenCoordinationTool(item, result)) return null
+  if (!toolName || kind === 'requestUserInput' || kind === 'todo' || isCodeModeWrapper(item) || isHiddenCoordinationTool(item, result)) return null
   const id = entryId(item)
   const desktopTool = desktopToolOf(item, args(item.payload))
   const input = item.type === 'toolCall' ? args(item.payload) : {}

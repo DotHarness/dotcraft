@@ -18,6 +18,7 @@ import {
 } from './history'
 import type { PairingOffer } from '@dotcraft/sdk/gateway'
 import type { ApprovalPolicy } from './threadConfig'
+import type { TodoPlan } from './todoCard'
 
 export interface ComputerRecord {
   id: string
@@ -61,6 +62,9 @@ export interface ChatDetail {
   loadingOlder?: boolean
   currentPlanTurnId?: string | null
   currentPlan?: string | null
+  todoPlan?: TodoPlan | null
+  /** The input this phone sent to implement the plan. */
+  planInput?: string | null
   history: ChatHistory
   profileName: string | null
   config: ThreadConfiguration | null
@@ -194,7 +198,8 @@ export type ComputerAction =
       key: string
       loading?: boolean
       currentPlanTurnId?: string | null
-  currentPlan?: string | null
+      currentPlan?: string | null
+      todoPlan?: TodoPlan | null
       history: ChatHistory
       profileName: string | null
       config: ThreadConfiguration | null
@@ -203,7 +208,8 @@ export type ComputerAction =
       context: ContextUsage | null
     }
   | { type: 'chatConfig'; key: string; config: ThreadConfiguration }
-  | { type: 'currentPlan'; key: string; content: string | null }
+  | { type: 'currentPlan'; key: string; content: string | null; todoPlan: TodoPlan | null }
+  | { type: 'planInput'; key: string; clientId: string }
   | { type: 'context'; key: string; update: ContextUpdate }
   | {
       type: 'capabilities'
@@ -419,6 +425,8 @@ export function computerReducer(state: ComputerState, action: ComputerAction): C
             loading: action.loading ?? false,
             currentPlanTurnId: action.currentPlanTurnId ?? null,
             currentPlan: action.currentPlan ?? null,
+            todoPlan: action.todoPlan ?? null,
+            planInput: state.details[action.key]?.planInput ?? null,
             history: action.history,
             profileName: action.profileName,
             config: action.config,
@@ -440,7 +448,11 @@ export function computerReducer(state: ComputerState, action: ComputerAction): C
       return patchDetail(state, action.key, (history) => replaceTurnItems(history, action.turnId, action.items, action.nextCursor))
     case 'currentPlan': {
       const detail = state.details[action.key]
-      return detail ? { ...state, details: { ...state.details, [action.key]: { ...detail, currentPlan: action.content, currentPlanTurnId: null } } } : state
+      return detail ? { ...state, details: { ...state.details, [action.key]: { ...detail, currentPlan: action.content, todoPlan: action.todoPlan, currentPlanTurnId: null } } } : state
+    }
+    case 'planInput': {
+      const detail = state.details[action.key]
+      return detail ? { ...state, details: { ...state.details, [action.key]: { ...detail, planInput: action.clientId } } } : state
     }
     case 'chatConfig': {
       const detail = state.details[action.key]
