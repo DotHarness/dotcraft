@@ -11,7 +11,8 @@ export function applyThreadTurnRuntime(
 ): void {
   if (!threadId) return
   const threads = useThreadStore.getState()
-  const previous = threads.runtimeSnapshots.get(threadId)
+  const summary = threads.threadList.find(thread => thread.id === threadId)
+  const previous = threads.runtimeSnapshots.get(threadId) ?? summary?.runtime
   if (!running && previous?.running && previous.activeTurnId && previous.activeTurnId !== turn.id) return
   const conversation = getThreadConversation(threadId)?.getState()
   const source = !running && conversation?.threadMode === 'plan' && conversation.plan
@@ -24,10 +25,11 @@ export function applyThreadTurnRuntime(
     busy: running,
     waitingOnApproval: false,
     waitingOnInput: false,
-    waitingOnPlanConfirmation
+    waitingOnPlanConfirmation,
+    hasBackgroundWork: previous?.hasBackgroundWork
   })
   threads.applyRuntimeSnapshot(threadId, runtime, {
-    isDesktopOrigin: (threads.threadList.find(thread => thread.id === threadId)?.originChannel
+    isDesktopOrigin: (summary?.originChannel
       ?? getThreadConnection(threadId)?.originChannel)?.toLowerCase() === 'dotcraft-desktop'
   })
 }

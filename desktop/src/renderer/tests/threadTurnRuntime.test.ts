@@ -34,6 +34,18 @@ describe('live turn runtime', () => {
     expect(useThreadStore.getState().runtimeSnapshots.get('thread')?.waitingOnPlanConfirmation).toBe(false)
   })
 
+  it('keeps background work reported before the turn completed', () => {
+    createThreadConversation('thread')
+    applyThreadTurnRuntime('thread', { id: 'turn' }, true)
+    useThreadStore.getState().applyRuntimeSnapshot('thread', {
+      running: false, activeTurnId: null, activeTurnStartedAt: null, busy: false,
+      waitingOnApproval: false, waitingOnInput: false, waitingOnPlanConfirmation: false,
+      maintenanceKind: null, hasBackgroundWork: true
+    }, { isDesktopOrigin: true })
+    applyThreadTurnRuntime('thread', { id: 'turn' }, false)
+    expect(useThreadStore.getState().runtimeSnapshots.get('thread')).toMatchObject({ running: false, hasBackgroundWork: true })
+  })
+
   it('does not clear a newer running turn with a previous turn terminal update', () => {
     createThreadConversation('thread')
     applyThreadTurnRuntime('thread', { id: 'new' }, true)
