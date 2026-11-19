@@ -12680,6 +12680,24 @@
       "variants": []
     },
     {
+      "id": "core.MemoryListStoresResult",
+      "name": "MemoryListStoresResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/MemoryListStoresResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "stores",
+          "type": "array<core.MemoryStoreInfo>",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.MemoryResetResult",
       "name": "MemoryResetResult",
       "module": "core",
@@ -12687,6 +12705,59 @@
       "schema": "schemas/core/MemoryResetResult.schema.json",
       "additionalProperties": true,
       "fields": [],
+      "variants": []
+    },
+    {
+      "id": "core.MemoryStoreInfo",
+      "name": "MemoryStoreInfo",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/MemoryStoreInfo.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "displayName",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "id",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "kind",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "path",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "scope",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "writable",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
       "variants": []
     },
     {
@@ -32992,6 +33063,26 @@
       "direction": "clientToServer",
       "paramsType": "core.McpServerStatusListParams",
       "resultType": "core.McpServerStatusListResult",
+      "module": "core",
+      "capability": null,
+      "scope": "connection",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "memory/listStores",
+      "descriptorMember": "MemoryListStores",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.RpcEmpty",
+      "resultType": "core.MemoryListStoresResult",
       "module": "core",
       "capability": null,
       "scope": "connection",

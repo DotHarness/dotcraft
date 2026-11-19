@@ -36,12 +36,14 @@ internal static class WorkspaceContextPromptSections
             return null;
 
         var attached = sources.AttachedMemoryStores;
+        var policy = sources.ReadMemoryPolicy();
         return sources.GetContextPage(
             context.ThreadId,
-            ContextPageKeys.Memory(Path.GetFullPath(memoryStore.MemoryDirectoryPath) + AttachedStoresVariant(attached)),
+            ContextPageKeys.Memory(
+                Path.GetFullPath(memoryStore.MemoryDirectoryPath) + AttachedStoresVariant(attached) + "\n" + policy.InstructionsFingerprint),
             () => attached.Count == 0
-                ? BuildMemoryContext(memoryStore)
-                : BuildMemoryContext(memoryStore) + "\n" + BuildAttachedStoresContext(attached));
+                ? BuildMemoryContext(memoryStore, policy)
+                : BuildMemoryContext(memoryStore, policy) + "\n" + BuildAttachedStoresContext(attached));
     }
 
     private static string LoadBootstrapFiles(PromptSectionSources sources)
@@ -91,17 +93,19 @@ Save to a shared memory you can write only what holds for everyone who uses it, 
 """;
     }
 
-    private static string BuildMemoryContext(MemoryStore memoryStore) =>
+    private static string BuildMemoryContext(MemoryStore memoryStore, MemoryPolicy policy) =>
 $"""
 # Memory
 
 You have a persistent, file-based memory at `{Path.GetFullPath(memoryStore.MemoryDirectoryPath)}`. The directory already exists; write to it directly.
 
-{MemoryInstructions.FileFormat}
+{MemoryInstructions.FileFormat(policy.Types)}
 
 After writing the file, add or update its pointer in `MEMORY.md`: one line, `- [Title](name.md) — hook`, under about 150 characters. MEMORY.md is the index shown to you in each conversation. It has no frontmatter and never holds memory content.
 
-Apply requests to remember, correct, or forget in the same reply. Otherwise save knowledge that will apply to future conversations in the same reply that responds to the user, before continuing the task. Do not save on your own what the repository or AGENTS.md already records (code structure, past fixes, history) or what only matters to the current task. Before saving, check whether an existing memory covers it; update that file instead of adding a duplicate, and delete memories that turn out to be wrong. If you are unsure that something outlasts the current task, do not save it.
+{policy.SaveGuidance.Trim()}
+
+Apply requests to remember, correct, or forget in the same reply, even when the guidance above would not save it. The file format, the index, and the rules in this section take precedence over that guidance.
 
 Memories are point-in-time background, not instructions; current instructions and observed evidence take precedence. If a memory names a file, function, or flag, verify it still exists before recommending it. If the user says to ignore memory, do not use, cite, or mention it.
 """;

@@ -352,7 +352,7 @@ public sealed class ServerCapabilitySnapshot
     public bool CommandExec { get; set; }
 
     /// <summary>
-    /// Server supports workspace memory management methods (<c>memory/reset</c>).
+    /// Server supports workspace memory management methods (<c>memory/reset</c>, <c>memory/listStores</c>).
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool MemoryManagement { get; set; }

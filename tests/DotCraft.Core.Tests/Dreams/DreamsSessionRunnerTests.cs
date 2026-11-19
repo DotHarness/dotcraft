@@ -1,5 +1,6 @@
 using DotCraft.Configuration;
 using DotCraft.Dreams;
+using DotCraft.Memory;
 using DotCraft.Security;
 using DotCraft.Tools;
 using DotCraft.Tests.Sessions.Protocol.AppServer;
@@ -82,7 +83,8 @@ public sealed class DreamsSessionRunnerTests : IDisposable
         _workspace.Artifacts.CandidateDirectory("dream_run_001"),
         "manifest",
         [],
-        null);
+        null,
+        MemoryPolicy.Default);
 
     private static SessionEvent[] TurnEvents(string threadId, string summary)
     {

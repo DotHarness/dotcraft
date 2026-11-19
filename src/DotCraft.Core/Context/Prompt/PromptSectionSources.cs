@@ -14,6 +14,9 @@ internal sealed class PromptSectionSources
 
     internal IReadOnlyList<AttachedMemoryStore> AttachedMemoryStores { get; init; } = [];
 
+    /// <summary>Reads the memory policy at build time, so a policy change reaches the next prompt.</summary>
+    internal Func<MemoryPolicy> ReadMemoryPolicy { get; init; } = static () => MemoryPolicy.Default;
+
     internal required SkillsLoader SkillsLoader { get; init; }
 
     /// <summary>Gets the normalized DotCraft data directory path.</summary>

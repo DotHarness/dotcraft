@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using DotCraft.Contributions;
 using DotCraft.Memory.Extraction;
 using DotCraft.Sessions;
+using DotCraft.Memory;
 using Xunit;
 
 namespace DotCraft.Tests.Memory.Extraction;
@@ -30,7 +31,7 @@ public sealed class MemoryExtractionSchedulerTests : IDisposable
         AddTurn(thread);
         AddTurn(thread);
 
-        for (var i = 0; i < MemoryExtractionScheduler.Cadence - 1; i++)
+        for (var i = 0; i < MemoryPolicyDefaults.ExtractionInterval - 1; i++)
             await CompleteTurnAsync(thread);
         Assert.Empty(_runner.Calls);
 
@@ -47,7 +48,7 @@ public sealed class MemoryExtractionSchedulerTests : IDisposable
         for (var i = 0; i < 3; i++)
             await CompleteTurnAsync(thread);
         await CompleteTurnAsync(thread, MemoryWrite.Succeeded);
-        for (var i = 0; i < MemoryExtractionScheduler.Cadence - 4; i++)
+        for (var i = 0; i < MemoryPolicyDefaults.ExtractionInterval - 4; i++)
             await CompleteTurnAsync(thread);
         Assert.Empty(_runner.Calls);
 
@@ -57,10 +58,40 @@ public sealed class MemoryExtractionSchedulerTests : IDisposable
 
         var failedWrite = AddThread();
         await CompleteTurnAsync(failedWrite, MemoryWrite.Failed);
-        for (var i = 0; i < MemoryExtractionScheduler.Cadence - 1; i++)
+        for (var i = 0; i < MemoryPolicyDefaults.ExtractionInterval - 1; i++)
             await CompleteTurnAsync(failedWrite);
 
         Assert.Equal([(thread.Id, "turn_004"), (failedWrite.Id, (string?)null)], _runner.Calls);
+    }
+
+    [Fact]
+    public async Task ReadsTheConfiguredIntervalWhenEachTurnCompletes()
+    {
+        var interval = 2;
+        using var scheduler = new MemoryExtractionScheduler(
+            (threadId, _) => Task.FromResult(_threads[threadId]),
+            (thread, _) => Enumerable.Reverse(thread.Turns).ToArray().ToAsyncEnumerable(),
+            _runner,
+            interval: () => interval);
+        var thread = AddThread();
+        async Task CompleteAsync()
+        {
+            var turn = AddTurn(thread);
+            await scheduler.OnTurnEndedAsync(new TurnLifecycleContext(thread.Id, turn.Id) { Status = TurnStatus.Completed });
+            await scheduler.WhenIdleAsync();
+        }
+
+        await CompleteAsync();
+        Assert.Empty(_runner.Calls);
+        await CompleteAsync();
+        Assert.Single(_runner.Calls);
+
+        interval = 3;
+        await CompleteAsync();
+        await CompleteAsync();
+        Assert.Single(_runner.Calls);
+        await CompleteAsync();
+        Assert.Equal(2, _runner.Calls.Count);
     }
 
     public static TheoryData<string> IneligibleThreads => new()
@@ -76,7 +107,7 @@ public sealed class MemoryExtractionSchedulerTests : IDisposable
     public async Task IneligibleThreads_NeverRunExtraction(string kind)
     {
         var thread = AddThread(kind);
-        for (var i = 0; i < MemoryExtractionScheduler.Cadence * 2; i++)
+        for (var i = 0; i < MemoryPolicyDefaults.ExtractionInterval * 2; i++)
             await CompleteTurnAsync(thread);
 
         Assert.Empty(_runner.Calls);
@@ -86,7 +117,7 @@ public sealed class MemoryExtractionSchedulerTests : IDisposable
     public async Task UnsuccessfulTurns_AreNotCounted()
     {
         var thread = AddThread();
-        for (var i = 0; i < MemoryExtractionScheduler.Cadence - 1; i++)
+        for (var i = 0; i < MemoryPolicyDefaults.ExtractionInterval - 1; i++)
             await CompleteTurnAsync(thread);
         foreach (var status in new[] { TurnStatus.Failed, TurnStatus.Cancelled })
         {
@@ -112,11 +143,11 @@ public sealed class MemoryExtractionSchedulerTests : IDisposable
             return thread.Turns[call == 0 ? 6 : ^1].Id;
         };
 
-        for (var i = 0; i < MemoryExtractionScheduler.Cadence - 1; i++)
+        for (var i = 0; i < MemoryPolicyDefaults.ExtractionInterval - 1; i++)
             await CompleteTurnAsync(thread);
         await PostCompletedTurnsAsync(thread, 1);
         await WaitForCallsAsync(1);
-        await PostCompletedTurnsAsync(thread, MemoryExtractionScheduler.Cadence * 2);
+        await PostCompletedTurnsAsync(thread, MemoryPolicyDefaults.ExtractionInterval * 2);
         Assert.Single(_runner.Calls);
 
         release.SetResult();
@@ -136,7 +167,7 @@ public sealed class MemoryExtractionSchedulerTests : IDisposable
             _ => Task.FromResult<string?>(thread.Turns[^1].Id)
         };
 
-        for (var i = 0; i < MemoryExtractionScheduler.Cadence * 4; i++)
+        for (var i = 0; i < MemoryPolicyDefaults.ExtractionInterval * 4; i++)
             await CompleteTurnAsync(thread);
 
         Assert.Equal(

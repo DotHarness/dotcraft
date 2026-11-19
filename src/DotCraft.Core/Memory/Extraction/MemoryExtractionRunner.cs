@@ -20,7 +20,8 @@ public sealed class MemoryExtractionRunner(
     MemoryStore workspaceStore,
     string dataPath,
     IModelRuntimeDiagnostics? diagnostics = null,
-    ILogger? logger = null) : IMemoryExtractionRunner
+    ILogger? logger = null,
+    Func<MemoryPolicy>? policy = null) : IMemoryExtractionRunner
 {
     private static readonly TimeSpan RunTimeout = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan CleanupTimeout = TimeSpan.FromSeconds(30);
@@ -31,22 +32,46 @@ public sealed class MemoryExtractionRunner(
         if (parent.Turns.LastOrDefault() is not { Status: TurnStatus.Completed } forkPoint || forkPoint.Id == cursorTurnId)
             return null;
 
-        var turnsSinceCursor = 0;
+        var turnsSinceCursor = await CountTurnsAsync(threadId, cursorTurnId, cancellationToken).ConfigureAwait(false);
+        var store = MemoryScopes.ForThread(parent.Configuration, workspaceStore, dataPath);
+        var current = policy?.Invoke() ?? MemoryPolicy.Default;
+        var run = await ExtractAsync(parent, forkPoint, turnsSinceCursor, store.MemoryDirectoryPath, current, cancellationToken)
+            .ConfigureAwait(false);
+        if (run is not { } completed)
+            return null;
+
+        RecordOutcome(parent.Id, forkPoint.Id, completed.ForkId, completed.Outcome, completed.Turn);
+        return completed.Outcome == "completed" ? forkPoint.Id : null;
+    }
+
+    private async Task<int> CountTurnsAsync(string threadId, string? cursorTurnId, CancellationToken cancellationToken)
+    {
+        var count = 0;
         await foreach (var turn in sessions
                            .ReadThreadTurnsAsync(threadId, ThreadHistorySortDirection.Descending, includeItems: false, cancellationToken)
                            .ConfigureAwait(false))
         {
             if (turn.Id == cursorTurnId)
                 break;
-            turnsSinceCursor++;
+            count++;
         }
 
-        var store = MemoryScopes.ForThread(parent.Configuration, workspaceStore, dataPath);
+        return count;
+    }
+
+    private async Task<ExtractionRun?> ExtractAsync(
+        SessionThread parent,
+        SessionTurn forkPoint,
+        int turnCount,
+        string storeDirectory,
+        MemoryPolicy current,
+        CancellationToken cancellationToken)
+    {
         SessionThread fork;
         try
         {
             fork = await sessions.ForkThreadAsync(
-                threadId,
+                parent.Id,
                 new ThreadForkOptions
                 {
                     Ephemeral = true,
@@ -57,19 +82,19 @@ public sealed class MemoryExtractionRunner(
         }
         catch (ArgumentException)
         {
-            logger?.LogDebug("Skipped memory extraction for thread {ThreadId}: Turn {TurnId} is no longer the latest completed Turn.", threadId, forkPoint.Id);
+            logger?.LogDebug("Skipped memory extraction for thread {ThreadId}: Turn {TurnId} is no longer the latest completed Turn.", parent.Id, forkPoint.Id);
             return null;
         }
 
         try
         {
-            var (outcome, turn) = await RunForkAsync(
-                fork.Id,
-                MemoryExtractionPrompt.Build(turnsSinceCursor, store.MemoryDirectoryPath, MemoryFiles.List(store.MemoryDirectoryPath)),
-                store.MemoryDirectoryPath,
-                cancellationToken).ConfigureAwait(false);
-            RecordOutcome(parent.Id, forkPoint.Id, fork.Id, outcome, turn);
-            return outcome == "completed" ? forkPoint.Id : null;
+            var message = MemoryExtractionPrompt.Build(
+                turnCount,
+                storeDirectory,
+                MemoryFiles.List(storeDirectory, current.TypeNames),
+                current.ExtractionGuidance);
+            var (outcome, turn) = await RunForkAsync(fork.Id, message, storeDirectory, cancellationToken).ConfigureAwait(false);
+            return new ExtractionRun(fork.Id, outcome, turn);
         }
         finally
         {
@@ -160,4 +185,6 @@ public sealed class MemoryExtractionRunner(
             logger?.LogWarning(ex, "Failed to delete memory extraction fork {ThreadId}.", forkId);
         }
     }
+
+    private sealed record ExtractionRun(string ForkId, string Outcome, SessionTurn? Turn);
 }

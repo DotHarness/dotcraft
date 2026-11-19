@@ -146,7 +146,9 @@ const CORE_SURFACES: ReadonlySet<string> = new Set<keyof DesktopPluginSurfaceCon
   'thread.header.actions',
   'conversation.aside.leading',
   'conversation.aside.trailing',
-  'conversation.turn.status'
+  'conversation.turn.status',
+  'summary.sources',
+  'summary.sections'
 ])
 
 export function registerDesktopPluginSurface<S extends string>(
@@ -201,8 +203,8 @@ export function registerDesktopPluginSurface<S extends string>(
   }
 }
 
-/** Only the `app` and `composer` roots are Core's to close; a plugin-declared name may legally be unmounted. */
-const CORE_SURFACE_ROOTS: ReadonlySet<string> = new Set(['app', 'composer', 'thread', 'conversation'])
+/** Only these roots are Core's to close; a plugin-declared name may legally be unmounted. */
+const CORE_SURFACE_ROOTS: ReadonlySet<string> = new Set(['app', 'composer', 'thread', 'conversation', 'summary'])
 
 function reportUnknownCoreSurface(pluginId: string, surface: string): void {
   const root = surface.split('.')[0]

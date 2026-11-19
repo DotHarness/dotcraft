@@ -30,6 +30,7 @@ import { DesktopPluginUserAvatar } from '../components/desktopPlugins/DesktopPlu
 import { DesktopPluginMenu } from '../components/desktopPlugins/DesktopPluginMenu'
 import { DesktopPluginSegmentedControl } from '../components/desktopPlugins/DesktopPluginSegmentedControl'
 import { DesktopPluginSplitButton } from '../components/desktopPlugins/DesktopPluginSplitButton'
+import { DesktopPluginSummaryRow, DesktopPluginSummarySection } from '../components/desktopPlugins/DesktopPluginSummary'
 
 installDesktopPluginRuntime({
   react: React as Parameters<typeof installDesktopPluginRuntime>[0]['react'],
@@ -64,6 +65,8 @@ installDesktopPluginRuntime({
     SplitButton: DesktopPluginSplitButton,
     CatalogPage: DesktopPluginCatalogPage,
     CatalogToolbarButton: CatalogToolbarIconButton,
-    CatalogSection
+    CatalogSection,
+    SummarySection: DesktopPluginSummarySection,
+    SummaryRow: DesktopPluginSummaryRow
   }
 })

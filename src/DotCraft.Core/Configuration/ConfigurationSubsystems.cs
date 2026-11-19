@@ -1,6 +1,7 @@
 using DotCraft.Context;
 using DotCraft.Dreams;
 using DotCraft.Lsp;
+using DotCraft.Memory;
 using DotCraft.Sessions;
 using DotCraft.Skills;
 
@@ -44,6 +45,13 @@ public static class ConfigurationSubsystems
 
         configuration.RegisterValidator("Dreams.Interval", candidate =>
             candidate.Dreams.Interval > TimeSpan.Zero ? null : "'Dreams.Interval' must be a positive duration.");
+        configuration.RegisterValidator("Memory.Types", candidate => MemoryPolicyRules.ValidateTypes(candidate.Memory.Types));
+        configuration.RegisterValidator("Memory.SaveGuidance", candidate =>
+            MemoryPolicyRules.ValidateGuidance("Memory.SaveGuidance", candidate.Memory.SaveGuidance));
+        configuration.RegisterValidator("Memory.ExtractionGuidance", candidate =>
+            MemoryPolicyRules.ValidateGuidance("Memory.ExtractionGuidance", candidate.Memory.ExtractionGuidance));
+        configuration.RegisterValidator("Memory.ConsolidationGuidance", candidate =>
+            MemoryPolicyRules.ValidateGuidance("Memory.ConsolidationGuidance", candidate.Memory.ConsolidationGuidance));
         configuration.RegisterValidator("ProviderPreferences", candidate =>
             ValidateProviderPreferences(monitor.Current, candidate));
         configuration.RegisterValidator(ProviderConfiguration.KeyPath, (previous, candidate) =>

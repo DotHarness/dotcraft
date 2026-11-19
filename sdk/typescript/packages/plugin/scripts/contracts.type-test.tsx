@@ -13,6 +13,8 @@ import {
   Markdown,
   UserAvatar,
   Menu,
+  SummaryRow,
+  SummarySection,
   type DesktopPluginActivate,
   type DesktopPluginHost,
   type DesktopPluginLocale,
@@ -274,6 +276,12 @@ void (
     <CatalogSection title="Recent">{null}</CatalogSection>
   </CatalogPage>
 );
+
+host.ui.add("summary.sections", ({ context }) => (
+  <SummarySection title="Notes">
+    <SummaryRow leading={null} label={context.threadId} meta={context.busy ? "Working" : undefined} onClick={() => undefined} />
+  </SummarySection>
+));
 
 // @ts-expect-error Split button items run through onSelect, as Menu items do.
 void <SplitButton label="Add" menuLabel="More" onClick={() => undefined} items={[{ label: "Clone", onClick: () => undefined }]} />;

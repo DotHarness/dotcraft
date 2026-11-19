@@ -23,7 +23,8 @@ public sealed class PromptBuilder(
     IContributionView? contributions = null,
     ThreadSkillsPolicy? skillsPolicy = null,
     IReadOnlyList<AttachedMemoryStore>? attachedMemoryStores = null,
-    string? commitAttribution = null)
+    string? commitAttribution = null,
+    Func<MemoryPolicy>? memoryPolicy = null)
 {
     private readonly ILogger<PromptBuilder> _logger = logger ?? NullLogger<PromptBuilder>.Instance;
 
@@ -33,6 +34,7 @@ public sealed class PromptBuilder(
     {
         MemoryStore = memoryStore,
         AttachedMemoryStores = memoryStore is null ? [] : attachedMemoryStores ?? [],
+        ReadMemoryPolicy = memoryPolicy ?? (static () => MemoryPolicy.Default),
         SkillsLoader = skillsLoader,
         CraftPath = Path.GetFullPath(craftPath),
         WorkspacePath = Path.GetFullPath(workspacePath),

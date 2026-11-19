@@ -1,0 +1,167 @@
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: var(--type-ui-size);
+  line-height: var(--type-ui-line-height);
+}
+
+.notice[data-tone='warning'] {
+  background: var(--warning-bg);
+  color: var(--warning-text);
+}
+
+.notice[data-tone='error'] {
+  background: var(--error-bg);
+  color: var(--error-text);
+}
+
+.noticeBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.noticeAction {
+  flex: none;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  max-width: 160px;
+  padding: 0 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+  font-size: var(--type-secondary-size);
+  line-height: 18px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.badge[data-tone='warning'] {
+  background: var(--warning-bg);
+  color: var(--warning-text);
+}
+
+.badge[data-tone='success'] {
+  background: var(--success-bg);
+  color: var(--success-text);
+}
+
+.badge[data-tone='info'] {
+  background: var(--info-bg);
+  color: var(--info-text);
+}
+
+.badge[data-tone='error'] {
+  background: var(--error-bg);
+  color: var(--error-text);
+}
+
+.indicator {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--text-dimmed);
+}
+
+.dot[data-tone='warning'] {
+  background: var(--warning);
+}
+
+.dot[data-tone='error'] {
+  background: var(--error);
+}
+
+.dot[data-tone='info'] {
+  background: var(--info);
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-line-height);
+  white-space: nowrap;
+}
+
+.statusText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.empty {
+  padding: 32px 0;
+  color: var(--text-dimmed);
+  font-size: var(--type-ui-size);
+  text-align: center;
+}
+
+.emptyTitle {
+  margin-bottom: 4px;
+  color: var(--text-secondary);
+  font-weight: var(--type-ui-emphasis-weight);
+}
+
+.diffList {
+  display: grid;
+  gap: 12px;
+}
+
+.diffFile {
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+}
+
+.diffHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  color: var(--text-primary);
+  font-size: var(--type-ui-size);
+}
+
+.diffName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diffText {
+  max-height: 320px;
+  margin: 0;
+  padding: 10px 12px;
+  overflow: auto;
+  border-top: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-prose-line-height);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

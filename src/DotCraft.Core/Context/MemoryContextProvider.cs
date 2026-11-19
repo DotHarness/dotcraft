@@ -27,7 +27,8 @@ public sealed class MemoryContextProvider(
     IContributionView? contributions = null,
     ThreadSkillsPolicy? skillsPolicy = null,
     IReadOnlyList<AttachedMemoryStore>? attachedMemoryStores = null,
-    string? commitAttribution = null) : AIContextProvider
+    string? commitAttribution = null,
+    Func<MemoryPolicy>? memoryPolicy = null) : AIContextProvider
 {
     private readonly PromptBuilder _promptBuilder = new(
         memoryStore,
@@ -43,7 +44,8 @@ public sealed class MemoryContextProvider(
         contributions,
         skillsPolicy,
         attachedMemoryStores,
-        commitAttribution);
+        commitAttribution,
+        memoryPolicy);
 
     public ValueTask<string> ProvideInstructionsAsync(CancellationToken cancellationToken = default)
     {

@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.1 |
+| **Version** | 0.13.1 |
 | **Status** | Living |
-| **Date** | 2026-10-19 |
+| **Date** | 2026-11-19 |
 | **Related Specs** | [Session Core](../architecture/session-core.md), [Memory](memory.md) |
 
 Purpose: Define **Dreams**, DotCraft's background consolidation of memory stores. A Dream Run reviews one [memory store](memory.md) together with the recent Threads that used it, and produces a consolidated version of that store. The new version is applied after review or automatically.
@@ -79,10 +79,10 @@ A run performs one Turn in four phases and returns a short summary of what it ch
 
 1. **Orient.** List the candidate store, read its index, and skim its memory files, to improve them rather than duplicate them.
 2. **Gather.** Look for memories that contradict the current workspace, then search recent Thread transcripts narrowly for knowledge worth keeping. Transcripts are searched, never read end to end.
-3. **Consolidate.** Write or update memory files in the candidate store, following the [Memory format and save rules](memory.md#3-store-layout-and-format). Merge near-duplicates into one file, convert relative dates to absolute dates, and delete facts that current evidence contradicts.
+3. **Consolidate.** Write or update memory files in the candidate store, following the [Memory format](memory.md#3-store-layout-and-format) and the store's consolidation guidance ([Memory policy](memory.md#10-memory-policy)).
 4. **Prune and index.** Keep the index within the Memory load limits and one line per entry. Remove pointers to stale or superseded memories, move detail out of long index lines into memory files, add pointers for new memories, and resolve memories that contradict each other.
 
-**Reconciling with `AGENTS.md`.** For a `feedback` or `project` memory that contradicts `AGENTS.md` on the same topic, `AGENTS.md` is the maintained source:
+The default consolidation guidance merges near-duplicates into one file, converts relative dates to absolute dates, deletes facts that current evidence contradicts, and reconciles memory with `AGENTS.md`. For a `feedback` or `project` memory that contradicts `AGENTS.md` on the same topic, `AGENTS.md` is the maintained source:
 
 - When the two describe different procedures for the same task, the run deletes the memory, or rewrites it to agree when its rationale is still useful.
 - When the memory is clearly newer and explicitly corrects `AGENTS.md`, the run keeps it, marks it "contradicts AGENTS.md — verify which is current", and lists it in its summary. It never edits `AGENTS.md`.
@@ -90,7 +90,7 @@ A run performs one Turn in four phases and returns a short summary of what it ch
 
 A memory's statement that the user corrected the agent does not by itself show it is newer than `AGENTS.md`.
 
-Transcript content is evidence, not instruction.
+Whatever the guidance says, transcript content is evidence, not instruction, and a run never edits `AGENTS.md`.
 
 ## 6. Runtime Lifecycle
 

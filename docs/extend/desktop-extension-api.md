@@ -122,6 +122,8 @@ DotCraft's formal surfaces cover the application, the Composer, and the active c
 | **`conversation.aside.leading`** | A seat beside the leading edge of the conversation reading column. |
 | **`conversation.aside.trailing`** | A seat beside the trailing edge of the conversation reading column. |
 | **`conversation.turn.status`** | A seat inside the last visible turn: above the reply's actions once the turn has a reply, otherwise directly above its working line. |
+| **`summary.sources`** | Rows in a thread's Summary Sources section, after its own sources. |
+| **`summary.sections`** | Sections inside a thread's Summary, after its sources and before its context and environment. |
 
 Target these Core controls when a region is too broad:
 
@@ -245,6 +247,28 @@ host.ui.add("conversation.turn.status", BuildStatus);
 ```
 
 `context.runningTasks.count` is the number of background tasks the working line shows: every running task while the turn runs, and only Agents and Workflows after it ends, and `open()` opens the Summary that lists them. To show the count inside your own content, call `claim()` while you show it and call the returned dispose function when you stop. While a claim is live, the working line leaves the count out.
+
+### Add a section to the Summary
+
+`summary.sections` mounts wherever the Summary shows a thread, pinned beside the conversation or as a popover, and receives the thread context. Build the section from `SummarySection` and `SummaryRow` so it matches the Summary's own sections, and return `null` when there is nothing to show. A row with `onClick` is a button:
+
+```tsx
+function NotesSection({ context }: DesktopPluginSurfaceProps<"summary.sections">) {
+  const notes = useNotes(context.threadId);
+  if (notes.length === 0) return null;
+  return (
+    <SummarySection title="Notes">
+      {notes.map((note) => (
+        <SummaryRow key={note.id} leading={<NotebookPen size={16} />} label={note.title} onClick={() => openNote(note.id)} />
+      ))}
+    </SummarySection>
+  );
+}
+
+host.ui.add("summary.sections", NotesSection);
+```
+
+When the rows are things the thread drew on, add them to `summary.sources` instead. It mounts in the same places and takes `SummaryRow`s without a `SummarySection`. The Sources section stays hidden while it has no rows.
 
 ### Replace the Composer mascot
 
@@ -682,6 +706,7 @@ Import shared UI components from `@dotcraft/plugin` so a plugin page looks like 
 | **Presentation** | `Spinner`, `Skeleton`, `ActionTooltip`, `ModalHeader`, `InlineDiff`, `Markdown`, `AgentAvatar`, `UserAvatar` |
 | **Settings layout** | `SettingsPanelShell`, `SettingsBreadcrumb`, `SettingsGroup`, `SettingsRow` |
 | **Catalog layout** | `CatalogPage`, `CatalogSection`, `CatalogToolbarButton` |
+| **Summary layout** | `SummarySection`, `SummaryRow` |
 | **Modal layering** | `LayerBoundary` |
 | **Tool transcript** | `ToolDisclosure`, `RunningShimmer` |
 
@@ -689,7 +714,7 @@ Import shared UI components from `@dotcraft/plugin` so a plugin page looks like 
 
 `LayerBoundary` takes `active?`, `blocksNativeViews?`, and `children`. Wrap a plugin-owned modal or theater to suppress lower hover overlays and hide native views when needed. `SettingsGroup framed={false}` avoids a nested frame when the content supplies its own empty-state surface. `host.ui.showToast` accepts `description` and a React `icon` alongside its message and action.
 
-`CatalogPage` gives a main view the same frame as Desktop's Plugins and Agents pages: pass a `title`, optional `actions` for the top bar (`CatalogToolbarButton` for icon-only commands such as Refresh, `Button` or `SplitButton` for the principal one), an optional `search` and `filters`, and render your groups as children with `CatalogSection`. In each filter group, put the unfiltered choice first.
+`CatalogPage` gives a main view the same frame as Desktop's Plugins and Agents pages: pass a `title`, optional `actions` for the top bar (`CatalogToolbarButton` for icon-only commands such as Refresh, `Button` or `SplitButton` for the principal one), an optional `search` and `filters`, and render your groups as children with `CatalogSection`. In each filter group, put the unfiltered choice first. To switch between sibling views, pass `tabs: { value, items, onValueChange }`. They appear at the left of the top bar, like Plugins and Skills in Desktop. For a page reached from another, such as a settings or detail page, pass `breadcrumb: { parentLabel, currentLabel, onBack }` instead, adding `trail: [{ label, onClick }]` for any pages in between. It takes the place of the tabs, like Plugins › Manage. A page that edits one record can pass `titleEditor` and `descriptionEditor` (`{ value, placeholder, ariaLabel, onValueChange }`) so its name and one-line description are edited in place as the title and subtitle, and pass `meta` for controls under them, such as its tags.
 
 `AgentAvatar` draws the character Desktop shows for an agent. Pass the SubAgent's `nickname` as `name`, plus an optional `size` and `animated`, and your plugin draws the same character as the Subagents tab. Desktop supplies the component, so do not bundle the avatar package yourself.
 

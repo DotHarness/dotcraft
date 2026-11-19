@@ -2381,8 +2381,44 @@ public sealed class McpUpsertResult : ExtensibleJsonObject
 
 }
 
+public sealed class MemoryListStoresResult : ExtensibleJsonObject
+{
+    [JsonPropertyName("stores")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<MemoryStoreInfo>> Stores { get; init; }
+
+}
+
 public sealed class MemoryResetResult : ExtensibleJsonObject
 {
+}
+
+public sealed class MemoryStoreInfo : ExtensibleJsonObject
+{
+    [JsonPropertyName("displayName")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> DisplayName { get; init; }
+
+    [JsonPropertyName("id")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> Id { get; init; }
+
+    [JsonPropertyName("kind")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Kind { get; init; }
+
+    [JsonPropertyName("path")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Path { get; init; }
+
+    [JsonPropertyName("scope")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> Scope { get; init; }
+
+    [JsonPropertyName("writable")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool> Writable { get; init; }
+
 }
 
 public sealed partial class ModelCatalogItem : ExtensibleJsonObject

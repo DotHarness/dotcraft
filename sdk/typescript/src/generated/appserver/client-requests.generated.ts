@@ -111,6 +111,7 @@ export interface ClientRequestMethods {
   "mcpServer/resource/read": { params: Models.McpServerResourceReadParams; result: Models.McpServerResourceReadResult };
   "mcpServer/tool/call": { params: Models.McpServerToolCallParams; result: Models.McpServerToolCallResult };
   "mcpServerStatus/list": { params: Models.McpServerStatusListParams; result: Models.McpServerStatusListResult };
+  "memory/listStores": { params: Models.RpcEmpty; result: Models.MemoryListStoresResult };
   "memory/reset": { params: Models.RpcEmpty; result: Models.MemoryResetResult };
   "model/list": { params: Models.ModelListParams; result: Models.ModelListResult };
   "plugin/config/get": { params: Models.PluginConfigGetParams; result: Models.PluginConfigSnapshot };

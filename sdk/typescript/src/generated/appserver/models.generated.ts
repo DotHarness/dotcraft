@@ -2590,7 +2590,22 @@ export interface McpUpsertResult {
   [key: string]: unknown;
 }
 
+export interface MemoryListStoresResult {
+  stores?: MemoryStoreInfo[];
+  [key: string]: unknown;
+}
+
 export interface MemoryResetResult {
+  [key: string]: unknown;
+}
+
+export interface MemoryStoreInfo {
+  displayName?: string;
+  id?: string | null;
+  kind?: string;
+  path?: string;
+  scope?: string | null;
+  writable?: boolean;
   [key: string]: unknown;
 }
 

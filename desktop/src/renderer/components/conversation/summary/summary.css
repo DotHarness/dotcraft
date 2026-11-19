@@ -497,3 +497,7 @@ li[data-on-demand] > .conversation-summary-context__row .conversation-summary-co
   font-size: var(--type-secondary-size);
   line-height: var(--type-secondary-line-height);
 }
+
+.conversation-summary-section[data-hide-empty]:not(:has(.conversation-summary-rows > li)) {
+  display: none;
+}

@@ -344,7 +344,8 @@ public sealed partial class DreamsService : IAsyncDisposable
         DateTimeOffset? since,
         IReadOnlyList<DreamsThreadInput> threads)
     {
-        var files = MemoryFiles.List(store.Directory);
+        var policy = MemoryPolicy.From(_config.Memory);
+        var files = MemoryFiles.List(store.Directory, policy.TypeNames);
         var snapshot = DreamsStoreFiles.Read(store.Directory);
         DreamsStoreFiles.Write(_artifacts.BaselineDirectory(state.Id), snapshot);
         DreamsStoreFiles.Write(_artifacts.CandidateDirectory(state.Id), snapshot);
@@ -359,7 +360,8 @@ public sealed partial class DreamsService : IAsyncDisposable
             _artifacts.CandidateDirectory(state.Id),
             manifest,
             threads,
-            state.Instructions);
+            state.Instructions,
+            policy);
     }
 
     private void Review(

@@ -9,11 +9,10 @@ namespace DotCraft.Memory.Extraction;
 /// <summary>Decides after each completed Turn whether memory extraction runs, keeping each Thread's cursor and cadence in process.</summary>
 public sealed class MemoryExtractionScheduler : ITurnLifecycleContributor, IThreadLifecycleContributor, IDisposable
 {
-    internal const int Cadence = 7;
-
     private readonly Func<string, CancellationToken, Task<SessionThread>> _loadThread;
     private readonly Func<SessionThread, CancellationToken, IAsyncEnumerable<SessionTurn>> _readTurnsNewestFirst;
     private readonly IMemoryExtractionRunner _runner;
+    private readonly Func<int> _interval;
     private readonly ILogger? _logger;
     private readonly Channel<Signal> _signals = Channel.CreateUnbounded<Signal>(new UnboundedChannelOptions { SingleReader = true });
     private readonly Dictionary<string, ThreadState> _threads = new(StringComparer.Ordinal);
@@ -26,11 +25,13 @@ public sealed class MemoryExtractionScheduler : ITurnLifecycleContributor, IThre
         Func<string, CancellationToken, Task<SessionThread>> loadThread,
         Func<SessionThread, CancellationToken, IAsyncEnumerable<SessionTurn>> readTurnsNewestFirst,
         IMemoryExtractionRunner runner,
-        ILogger? logger = null)
+        ILogger? logger = null,
+        Func<int>? interval = null)
     {
         _loadThread = loadThread;
         _readTurnsNewestFirst = readTurnsNewestFirst;
         _runner = runner;
+        _interval = interval ?? (static () => MemoryPolicyDefaults.ExtractionInterval);
         _logger = logger;
         _idle.SetResult();
         _ = Task.Run(ProcessAsync);
@@ -129,7 +130,7 @@ public sealed class MemoryExtractionScheduler : ITurnLifecycleContributor, IThre
             return;
         }
 
-        if (++state.Count < Cadence)
+        if (++state.Count < _interval())
             return;
         state.Count = 0;
         if (state.Running)

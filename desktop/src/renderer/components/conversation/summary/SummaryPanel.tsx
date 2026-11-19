@@ -1,8 +1,11 @@
+import type { DesktopPluginThreadSurfaceContext } from '@dotcraft/plugin'
 import { Box, ChevronUp, Clock, FileText, Globe, Lightbulb, Link, Server } from 'lucide-react'
-import { useEffect, useMemo, useState, type JSX } from 'react'
+import { useEffect, useMemo, useState, type JSX, type ReactNode } from 'react'
 import { useLocale, useT } from '../../../contexts/LocaleContext'
 import { useSkillIconUrl } from '../../../utils/skillIcon'
 import { RobotAvatar } from '../../agents/RobotAvatar'
+import { DesktopPluginSurface } from '../../desktopPlugins/DesktopPluginSurface'
+import { useDesktopPluginRegistry } from '../../../plugins/desktopPluginRegistry'
 import { BackgroundTasksSection } from './BackgroundTasksSection'
 import { ContextSection } from './ContextSection'
 import { EnvironmentSection } from './EnvironmentSection'
@@ -109,10 +112,11 @@ function SourceIcon({ services, source }: { services: SummaryServices; source: S
   return <Glyph {...GLYPH} />
 }
 
-function SourceRows({ services, sources, webSearch }: {
+function SourceRows({ services, sources, webSearch, contributed }: {
   services: SummaryServices
   sources: readonly Source[]
   webSearch: boolean
+  contributed: ReactNode
 }): JSX.Element {
   const t = useT()
   const [expanded, setExpanded] = useState(false)
@@ -140,6 +144,7 @@ function SourceRows({ services, sources, webSearch }: {
           />
         )
       })}
+      {contributed}
       {rows.length > SOURCE_LIMIT ? (
         <Row
           leading={expanded ? <ChevronUp {...GLYPH} /> : <Link {...GLYPH} />}
@@ -157,11 +162,13 @@ export function SummaryPanel({
   services,
   threadId,
   workspacePath,
+  busy,
   variant
 }: {
   services: SummaryServices
   threadId: string
   workspacePath: string | null
+  busy: boolean
   variant: 'pinned' | 'popover'
 }): JSX.Element | null {
   const state = useSummaryState(services, threadId)
@@ -173,6 +180,11 @@ export function SummaryPanel({
   const turnDiffs = state?.turnDiffs
   const changes = useMemo(() => changeTotals(items ?? [], turnDiffs), [items, turnDiffs])
   const workflowCalls = useMemo(() => workflowCallIds(items ?? []), [items])
+  const pluginContext = useMemo<DesktopPluginThreadSurfaceContext>(
+    () => ({ workspacePath, threadId, busy }),
+    [workspacePath, threadId, busy]
+  )
+  const pluginSources = useDesktopPluginRegistry((registry) => registry.surfaces.some((surface) => surface.surface === 'summary.sources'))
   const header = (
     <header className="conversation-summary__header">{workspaceName(workspacePath) ?? t('summary.panelLabel')}</header>
   )
@@ -227,11 +239,18 @@ export function SummaryPanel({
         </Section>
       ) : null}
 
-      {sources.length > 0 || webSearch ? (
-        <Section title={t('summary.sources')}>
-          <SourceRows services={services} sources={sources} webSearch={webSearch} />
+      {sources.length > 0 || webSearch || pluginSources ? (
+        <Section title={t('summary.sources')} hideWhenEmpty={sources.length === 0 && !webSearch}>
+          <SourceRows
+            services={services}
+            sources={sources}
+            webSearch={webSearch}
+            contributed={<DesktopPluginSurface name="summary.sources" context={pluginContext} />}
+          />
         </Section>
       ) : null}
+
+      <DesktopPluginSurface name="summary.sections" context={pluginContext} />
 
       <ContextSection services={services} threadId={threadId} />
       <EnvironmentSection

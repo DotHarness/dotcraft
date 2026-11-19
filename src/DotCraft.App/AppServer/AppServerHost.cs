@@ -258,6 +258,7 @@ public sealed partial class AppServerHost(
                 BackgroundTerminalService = _services.GetService<IBackgroundTerminalService>(),
                 ContextPageManager = runtime.ContextPageManager,
                 DreamsService = runtime.DreamsService,
+                MemoryManagement = runtime.MemoryManagement,
                 AppBindingService = _services.GetService<AppBindingService>(),
                 ThreadOriginPresentationProviders = _services.GetServices<IThreadOriginPresentationProvider>().ToArray(),
                 PlanStore = runtime.PlanStore,

@@ -701,7 +701,8 @@ public sealed class AgentFactory : IAsyncDisposable
                 contributions: ctx.Contributions,
                 skillsPolicy: promptInputs.SkillsPolicy,
                 attachedMemoryStores: ctx.MemoryStores?.Attached,
-                commitAttribution: ctx.Config.CommitAttribution);
+                commitAttribution: ctx.Config.CommitAttribution,
+                memoryPolicy: () => MemoryPolicy.From(ctx.Config.Memory));
         }
 
         // Caller-supplied instructions run with no context pipeline at all, contributions included.

@@ -58,7 +58,7 @@ public sealed class MemoryExtractionEndToEndTests : IDisposable
         await using var harness = await Harness.StartAsync(this, chat, remote);
         remote.Connect(harness.Thread.Id);
 
-        for (var i = 1; i < MemoryExtractionScheduler.Cadence; i++)
+        for (var i = 1; i < MemoryPolicyDefaults.ExtractionInterval; i++)
             await harness.SubmitAsync($"Request {i}");
         Assert.Empty(chat.ExtractionRequests);
         await harness.SubmitAsync("From now on, run only the focused tests.");
@@ -103,7 +103,7 @@ public sealed class MemoryExtractionEndToEndTests : IDisposable
             repeatCalls: true);
         await using var harness = await Harness.StartAsync(this, chat);
 
-        for (var i = 1; i <= MemoryExtractionScheduler.Cadence; i++)
+        for (var i = 1; i <= MemoryPolicyDefaults.ExtractionInterval; i++)
             await harness.SubmitAsync($"Request {i}");
         await harness.Scheduler.WhenIdleAsync();
 

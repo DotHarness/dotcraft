@@ -4,7 +4,7 @@
 |-------|-------|
 | **Version** | 0.13.1 |
 | **Status** | Living |
-| **Date** | 2026-11-18 |
+| **Date** | 2026-11-19 |
 
 Purpose: Define how DotCraft configuration fields are declared, layered, read, written, applied at runtime, and exposed to AppServer clients.
 
@@ -122,6 +122,7 @@ The workspace runtime registers these subsystem handlers:
 Semantic rules registered by the runtime:
 
 - `Dreams.Interval` must be positive.
+- The memory policy fields (`Memory.Types`, `Memory.SaveGuidance`, `Memory.ExtractionGuidance`, `Memory.ConsolidationGuidance`) follow the rules of [Memory](../features/memory.md#101-settings).
 - Each `ProviderPreferences` entry the write changes must name a model, and when its provider and model resolve, its reasoning selection must be supported by that model. The write never rewrites a preference; a preference that becomes unsupported later, for example after a catalog change, is normalized when a thread captures it.
 - `SubAgent.Models` holds at most eight entries, each with a non-empty `ProviderId` and `Model`, no two equal case-insensitively, and each entry the write adds names a provider defined in the candidate configuration or managed by the remote model service. Entries whose provider is later removed stay stored and are skipped at use ([SubAgents §5](../features/subagents.md#5-context-and-fork-modes)).
 - The provider rules of §5.5.

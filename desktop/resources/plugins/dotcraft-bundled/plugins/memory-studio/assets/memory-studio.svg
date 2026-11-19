@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-labelledby="title">
+  <title id="title">Memory Studio</title>
+  <defs>
+    <linearGradient id="memory-ground" x1="0" y1="0" x2="0" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3b1f4f"/>
+      <stop offset="1" stop-color="#5a2d6e"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#memory-ground)"/>
+  <rect x="17" y="14" width="30" height="36" rx="5" fill="none" stroke="#f7f1fb" stroke-width="4"/>
+  <path d="M24 25h16M24 32h16M24 39h9" stroke="#f7f1fb" stroke-opacity=".5" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="44" cy="44" r="7" fill="#ff9f6b"/>
+  <path d="M44 40.5v7M40.5 44h7" stroke="#3b1f4f" stroke-width="2.6" stroke-linecap="round"/>
+</svg>

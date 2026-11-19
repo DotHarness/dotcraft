@@ -206,6 +206,8 @@ export interface DesktopPluginSurfaceContextMap {
   readonly "thread.header.actions": DesktopPluginThreadSurfaceContext;
   readonly "conversation.aside.leading": DesktopPluginConversationAsideContext;
   readonly "conversation.aside.trailing": DesktopPluginConversationAsideContext;
+  readonly "summary.sources": DesktopPluginThreadSurfaceContext;
+  readonly "summary.sections": DesktopPluginThreadSurfaceContext;
   readonly "conversation.turn.status": DesktopPluginTurnStatusContext;
 }
 

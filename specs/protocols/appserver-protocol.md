@@ -207,7 +207,7 @@ The surface id is the channel of every Turn the connection starts, enqueues, or 
 | `sourceControlManagement` | `sourceControl/*` and provider extensions advertised by `sourceControl/get.capabilities`. |
 | `fileSystem` | `fs/*` ([Section 25B](#25b-file-system-methods)). |
 | `commandExec` | `command/exec` ([Section 25C](#25c-command-execution-methods)). |
-| `memoryManagement` | `memory/reset`. |
+| `memoryManagement` | `memory/reset`, `memory/listStores`. |
 | `dreams` | `dreams/*`. |
 | `mcpManagement` | `mcp/list`, `mcp/get`, `mcp/upsert`, `mcp/remove`. |
 | `mcpStatus` | `mcp/test`. |
@@ -2509,7 +2509,7 @@ Rules:
 
 ## 26. Memory Management Methods
 
-A server-authoritative path for destructive workspace memory maintenance. Gated by `capabilities.memoryManagement` (otherwise `-32601`).
+Server-authoritative workspace memory maintenance: deleting memory and listing stores ([Memory](../features/memory.md)). Gated by `capabilities.memoryManagement` (otherwise `-32601`).
 
 ### 26.1 `memory/reset`
 
@@ -2517,6 +2517,17 @@ Params none. Result `{}`. Clears the contents of every memory store of the works
 
 - Sessions, thread history, skills, plugins, automations, Agent Profiles, and configuration are untouched; `Memory.Enabled` and `Memory.AutoExtract` are preserved, so later threads may save memory again.
 - Success emits `config/changed` with `source: "memory/reset"` and `regions: ["memory"]`.
+
+### 26.2 `memory/listStores`
+
+Params none. Result `{ stores }`, each store `{ kind, scope?, id?, path, displayName, writable }`:
+
+- `kind` is `workspace`, `scope`, or `attached`. `scope` is set for a `scope` store and `id` for an `attached` store.
+- `path` is the store directory on the AppServer host. A directory may not exist yet.
+- `displayName` is the owning Agent Profile or automation name when resolvable, otherwise the scope or attachment id.
+- `writable` is `false` for an `attached` store.
+
+The workspace store comes first, then scope stores and attached stores, each ordered by scope or id.
 
 ## 27. Dreams Management Methods
 

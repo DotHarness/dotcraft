@@ -8,8 +8,13 @@ Workspace memory, Dreams, and how skills load. For the concepts, read [Memory & 
 |-------|-------------|---------|
 | `Memory.Enabled` | Lets new chats use and maintain memory. `Memory.AutoExtract` and Dreams also require it | `true` |
 | `Memory.AutoExtract` | Every few replies, a new memory-enabled chat is checked for anything worth remembering that was not saved | `false` |
+| `Memory.Types` | Kinds of memory, each a `Name` and a one-line `Description` of what belongs to it. One to eight | `user`, `feedback`, `project`, `reference` |
+| `Memory.SaveGuidance` | What the agent saves on its own while replying, and how it writes a memory | Built-in guidance |
+| `Memory.ExtractionGuidance` | What the automatic check saves from recent replies | Built-in guidance |
+| `Memory.ConsolidationGuidance` | What Dreams keeps when it tidies memory, and how it merges and resolves contradictions | Built-in guidance |
+| `Memory.ExtractionInterval` | Every how many replies the automatic check runs, from 1 to 50 | `7` |
 
-Both switches apply to chats created after the change.
+The two switches apply to chats created after the change. The other settings apply from the next reply in every chat. Removing one of them restores the built-in default. The Memory Studio plugin offers presets for them and lets you preview a change before saving it.
 
 ## Dreams
 
