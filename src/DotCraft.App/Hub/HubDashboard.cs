@@ -68,11 +68,11 @@ internal static class HubDashboard
         app.MapDashBoardFrontend(WorkspacePrefix + "/{id}/");
         app.MapGet(Root + "/api/workspaces", () => Results.Json(new
         {
-            workspaces = WorkspacePaths().Select(path => new
+            workspaces = WorkspaceLabels(WorkspacePaths(), chat).Select(workspace => new
             {
-                id = WorkspaceId(path),
-                name = ManagedAppServerRegistry.WorkspaceComparer.Equals(path, chat) ? "Chat" : Path.GetFileName(path),
-                state = registry.GetDashboardWorkspace(path).State
+                id = workspace.Id,
+                name = workspace.Label,
+                state = registry.GetDashboardWorkspace(workspace.Path).State
             })
         }, HubJson.Options));
         app.MapMethods(WorkspacePrefix + "/{id}/{**resource}",
@@ -107,6 +107,44 @@ internal static class HubDashboard
                 .Concat(registry.DashboardWorkspacePaths())
                 .Distinct(ManagedAppServerRegistry.WorkspaceComparer);
     }
+
+    private static IEnumerable<(string Path, string Id, string Label)> WorkspaceLabels(IEnumerable<string> paths, string chat)
+    {
+        var workspaces = paths.Select(path => (
+            Path: path,
+            Id: WorkspaceId(path),
+            Name: ManagedAppServerRegistry.WorkspaceComparer.Equals(path, chat) ? "Chat" : Path.GetFileName(path))).ToArray();
+        var byName = workspaces.ToLookup(workspace => workspace.Name, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var workspace in workspaces)
+        {
+            var peers = byName[workspace.Name];
+            var label = peers.Count() == 1
+                ? workspace.Name
+                : $"{workspace.Name} · {ParentSuffix(workspace.Path, workspace.Id, peers
+                    .Where(peer => peer.Id != workspace.Id).Select(peer => peer.Path))}";
+            yield return (workspace.Path, workspace.Id, label);
+        }
+    }
+
+    private static string ParentSuffix(string path, string id, IEnumerable<string> peers)
+    {
+        var parts = ParentParts(path);
+        var others = peers.Select(ParentParts).ToArray();
+        for (var depth = 1; depth <= parts.Length; depth++)
+        {
+            var suffix = string.Join('/', parts.TakeLast(depth));
+            if (!others.Any(other => string.Equals(suffix, string.Join('/', other.TakeLast(depth)), StringComparison.OrdinalIgnoreCase)))
+                return suffix;
+        }
+
+        return id[..8];
+    }
+
+    private static string[] ParentParts(string path) =>
+        Path.GetDirectoryName(path) is { } parent
+            ? parent[Path.GetPathRoot(parent)!.Length..].Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries)
+            : [];
 
     private static bool TryGetUpstreamPath(string? resource, string method, out string path)
     {

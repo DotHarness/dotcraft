@@ -89,7 +89,7 @@ export function openMenu(anchor, items, { align = 'left' } = {}) {
   mount(anchor, menu, index => items[index].onSelect(), align, 200);
 }
 
-export function selectHtml({ id, value, options, ariaLabel, appearance = 'field', change, width, iconName, placeholder, menuWidth, className, disabled }) {
+export function selectHtml({ id, value, options, ariaLabel, appearance = 'field', action = 'open-select', change, width, iconName, placeholder, menuWidth, className, disabled }) {
   const current = options.find(option => option.value === value) ?? (placeholder ? null : options[0]);
   return `<button type="button" class="dc-settings-select${className ? ` ${esc(className)}` : ''}" role="combobox"${attrs({
     id,
@@ -98,7 +98,7 @@ export function selectHtml({ id, value, options, ariaLabel, appearance = 'field'
     'aria-haspopup': 'listbox',
     'aria-expanded': 'false',
     'data-appearance': appearance,
-    'data-action': 'open-select',
+    'data-action': action,
     'data-change': change,
     'data-options': JSON.stringify(options),
     'data-menu-width': menuWidth,
@@ -108,12 +108,12 @@ export function selectHtml({ id, value, options, ariaLabel, appearance = 'field'
   })}>${iconName ? `<span class="dc-settings-select__icon">${icon(iconName, 15, 1.8)}</span>` : ''}<span class="dc-settings-select__value">${esc(current?.label ?? placeholder ?? '')}</span><span class="dc-settings-select__chevron">${icon('chevronDown', 15, 1.8)}</span></button>`;
 }
 
-function openSelect(trigger) {
+export function openSelect(trigger, refresh) {
   if (open?.anchor === trigger) {
     close();
     return;
   }
-  const options = JSON.parse(trigger.dataset.options || '[]');
+  let options = refresh ? [{ label: 'Loading…', disabled: true }] : JSON.parse(trigger.dataset.options || '[]');
   const menu = document.createElement('div');
   menu.className = 'dc-settings-select-menu';
   menu.setAttribute('role', 'listbox');
@@ -121,18 +121,23 @@ function openSelect(trigger) {
   const width = Math.min(Math.max(trigger.offsetWidth, Number(trigger.dataset.menuWidth) || 160), innerWidth - VIEWPORT_INSET * 2);
   menu.style.width = `${width}px`;
   menu.style.maxHeight = '280px';
-  menu.innerHTML = options.map((option, index) => {
-    const selected = option.value === trigger.value;
-    return `<button type="button" class="dc-settings-select-option"${attrs({
-      role: 'option',
-      'aria-selected': String(selected),
-      'data-menu-index': index,
-      'data-active': selected
-    })}><span class="dc-settings-select-option__label">${esc(option.label)}</span><span class="dc-settings-select-option__check" aria-hidden="true">${selected ? icon('check', 15, 1.8) : ''}</span></button>`;
-  }).join('');
+  const render = () => {
+    menu.innerHTML = options.map((option, index) => {
+      const selected = option.value === trigger.value;
+      return `<button type="button" class="dc-settings-select-option"${attrs({
+        role: 'option',
+        'aria-selected': String(selected),
+        'data-menu-index': index,
+        'data-active': selected,
+        disabled: option.disabled,
+        title: option.title
+      })}><span class="dc-settings-select-option__label">${esc(option.label)}</span><span class="dc-settings-select-option__check" aria-hidden="true">${selected ? icon('check', 15, 1.8) : ''}</span></button>`;
+    }).join('');
+  };
+  render();
   menu.addEventListener('mouseover', event => {
     const item = event.target.closest('[data-menu-index]');
-    if (!item) return;
+    if (!item || item.disabled) return;
     menu.querySelectorAll('[data-active]').forEach(el => el.removeAttribute('data-active'));
     item.setAttribute('data-active', '');
   });
@@ -144,8 +149,22 @@ function openSelect(trigger) {
     trigger.querySelector('.dc-settings-select__value').textContent = option.label;
     trigger.dispatchEvent(new Event('change', { bubbles: true }));
   }, 'select', width);
-  const selected = menu.querySelector('[aria-selected="true"]');
-  if (selected) menu.scrollTop = selected.offsetTop - (menu.clientHeight - selected.offsetHeight) / 2;
+  const revealSelected = () => {
+    const selected = menu.querySelector('[aria-selected="true"]');
+    if (selected) menu.scrollTop = selected.offsetTop - (menu.clientHeight - selected.offsetHeight) / 2;
+  };
+  revealSelected();
+
+  return refresh?.(nextOptions => {
+    if (open?.menu !== menu) return false;
+    options = nextOptions;
+    render();
+    place(menu, trigger, 'select', width);
+    const item = menu.querySelector('[aria-selected="true"]') ?? menu.querySelector('[data-menu-index]:not(:disabled)');
+    if (document.activeElement === trigger) item?.focus({ preventScroll: true });
+    revealSelected();
+    return true;
+  });
 }
 
 onAction('click', { 'open-select': el => openSelect(el) });

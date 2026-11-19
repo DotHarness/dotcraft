@@ -160,6 +160,25 @@ public sealed class HubDashboardTests : IDisposable
         }
     }
 
+    [Fact]
+    public async Task WorkspaceList_DisambiguatesDuplicateNamesWithRelativePathSuffixes()
+    {
+        var paths = HubPaths.Resolve(_profile);
+        var projects = new ProjectRegistry(paths);
+        foreach (var path in new[] { "left/shared/repo", "right/shared/repo", "sandbox/Chat", "unique" })
+            projects.Open(Directory.CreateDirectory(Path.Combine(_profile, path)).FullName);
+        Directory.CreateDirectory(paths.DefaultChatWorkspacePath);
+
+        await using var hub = await MobileHubFixture.StartAsync(_profile, SatelliteHubFixture.GetAvailablePort());
+        var result = await hub.JsonAsync(HttpMethod.Get, "/dashboard/api/workspaces");
+        var names = result.GetProperty("workspaces").EnumerateArray()
+            .Select(workspace => workspace.GetProperty("name").GetString())
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(["Chat · sandbox", "Chat · workspaces", "repo · left/shared", "repo · right/shared", "unique"], names);
+    }
+
     private string CreateWorkspace(string name, string password, int dashboardPort)
     {
         var workspace = Path.Combine(_profile, name);
