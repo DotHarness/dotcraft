@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
+using System.Threading.Channels;
 using DotCraft.CLI;
 using DotCraft.Configuration;
 using DotCraft.Processes;
@@ -146,43 +147,6 @@ public sealed partial class DynamicWorkflowServiceTests
     }
 
     [Fact]
-    public async Task SuccessfulWorker_JoinsIssuedCallsEvenWithoutAwaitInScript()
-    {
-        var (service, _, proxy) = CreateCompletionService();
-        var admitted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        proxy.InputHandler = WaitForRelease;
-        await service.StartAsync();
-        try
-        {
-            var acknowledged = ObserveNotificationAck(service, proxy, 1);
-            var started = await service.StartInlineAsync(CompletionRequest("agent('wait'); return { ok: true };"));
-            await admitted.Task.WaitAsync(TimeSpan.FromSeconds(5));
-            Assert.Equal(DynamicWorkflowStatuses.Running, (await service.GetRunAsync(started.RunId))?.Status);
-            release.TrySetResult();
-            await acknowledged.WaitAsync(TimeSpan.FromSeconds(5));
-            Assert.Equal(DynamicWorkflowStatuses.Succeeded, (await service.GetRunAsync(started.RunId))?.Status);
-        }
-        finally
-        {
-            release.TrySetResult();
-            await service.StopAsync();
-        }
-
-        async IAsyncEnumerable<SessionEvent> WaitForRelease(string id, [EnumeratorCancellation] CancellationToken ct)
-        {
-            yield return new SessionEvent { EventType = SessionEventType.TurnStarted };
-            admitted.TrySetResult();
-            await release.Task.WaitAsync(ct);
-            yield return new SessionEvent
-            {
-                EventType = SessionEventType.TurnCompleted,
-                Payload = new SessionTurn { Id = "turn_child", ThreadId = id, Status = TurnStatus.Completed }
-            };
-        }
-    }
-
-    [Fact]
     public async Task ResumeFromReplayedRun_ReusesTheCompletedPrefixAcrossGenerations()
     {
         var (service, store, proxy) = CreateCompletionService();
@@ -210,44 +174,50 @@ public sealed partial class DynamicWorkflowServiceTests
         finally { await service.StopAsync(); }
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task FailedChild_CleansOnlyConfirmedCleanWorktree(bool dirty)
+    [Fact]
+    public async Task FailedChildren_RemoveCleanWorktreeAndRetainDirtyWorktree()
     {
         var (service, _, proxy) = CreateCompletionService();
-        proxy.InputHandler = FailAfterAdmission;
+        proxy.InputHandler = (_, _) => FailAfterAdmission();
         proxy.WorktreeStatusHandler = child => new ThreadWorktreeStatus
         {
             ThreadId = child.Id, Path = child.Worktree!.Path, BranchName = child.Worktree.BranchName,
-            Exists = true, IsGitWorktree = true, HasUncommittedChanges = dirty
+            Exists = true, IsGitWorktree = true,
+            HasUncommittedChanges = child.Source.SubAgent?.AgentNickname == "dirty"
+        };
+        var stateChanges = Channel.CreateUnbounded<string>();
+        service.RunChanged += change =>
+        {
+            if (change.Reason == "state") stateChanges.Writer.TryWrite(change.RunId);
         };
         await service.StartAsync();
         try
         {
-            var acknowledged = ObserveNotificationAck(service, proxy, 1);
-            var started = await service.StartInlineAsync(CompletionRequest(
-                "await agent('inspect', { isolation: 'worktree' }); return { ok: true };"));
-            await acknowledged.WaitAsync(TimeSpan.FromSeconds(5));
-            Assert.Equal(DynamicWorkflowStatuses.Succeeded, (await service.GetRunAsync(started.RunId))?.Status);
-            var child = Assert.Single(proxy.Children).Value;
-            if (dirty)
+            await service.StartInlineAsync(CompletionRequest("""
+                await agent('inspect', { label: 'dirty', isolation: 'worktree' });
+                await agent('inspect', { label: 'clean', isolation: 'worktree' });
+                return { ok: true };
+                """));
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            DynamicWorkflowRun? completed;
+            do
             {
-                Assert.Empty(proxy.RemovedWorktrees);
-            }
-            else
-            {
-                Assert.Equal(child.Id, Assert.Single(proxy.RemovedWorktrees));
-            }
+                var runId = await stateChanges.Reader.ReadAsync(timeout.Token);
+                completed = await service.GetRunAsync(runId, timeout.Token);
+            } while (completed?.Status == DynamicWorkflowStatuses.Running);
+
+            Assert.Equal(DynamicWorkflowStatuses.Succeeded, completed?.Status);
+            var clean = Assert.Single(proxy.Children.Values, child => child.Source.SubAgent?.AgentNickname == "clean");
+            var dirty = Assert.Single(proxy.Children.Values, child => child.Source.SubAgent?.AgentNickname == "dirty");
+            Assert.Equal(clean.Id, Assert.Single(proxy.RemovedWorktrees));
+            Assert.NotNull(dirty.Worktree);
         }
         finally { await service.StopAsync(); }
 
-        static async IAsyncEnumerable<SessionEvent> FailAfterAdmission(
-            string id, [EnumeratorCancellation] CancellationToken ct)
+        static async IAsyncEnumerable<SessionEvent> FailAfterAdmission()
         {
             yield return new SessionEvent { EventType = SessionEventType.TurnStarted };
-            await Task.Yield();
-            throw new InvalidOperationException("child failed");
+            await Task.FromException(new InvalidOperationException("child failed"));
         }
     }
 

@@ -66,10 +66,27 @@ internal sealed class SatelliteScenario : IAsyncDisposable
         var peer = await runtime.AcceptInviteAsync(
             new RemoteToolJoinDecision(RemoteToolHostRuntime.ParseInvite(invite.Url), workspacePath, RemoteToolAuthorization.FullAccess));
 
-        var running = runtime.RunAsync();
+        var connected = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        void OnPeerConnected(object? sender, RemoteToolPeer connectedPeer)
+        {
+            if (connectedPeer.PeerId == peer.PeerId)
+                connected.TrySetResult();
+        }
+
+        // The Hub can still report the invitation socket as online before the serving connection sends its hello.
+        runtime.PeerConnected += OnPeerConnected;
+        Task running;
+        try
+        {
+            running = runtime.RunAsync();
+            await connected.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        }
+        finally
+        {
+            runtime.PeerConnected -= OnPeerConnected;
+        }
+
         var directory = new HubRemoteToolHostDirectory(new FixedHubEndpointProvider(hub.ApiBaseUrl, hub.Token));
-        await SatelliteBridgeEndToEndTests.WaitUntilAsync(async () =>
-            (await hub.GetAsync<HubSatelliteResponse[]>("/v1/satellites")).Any(item => item.Online));
 
         return new SatelliteScenario(
             hub,

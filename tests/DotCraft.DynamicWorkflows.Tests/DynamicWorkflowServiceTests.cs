@@ -16,7 +16,7 @@ public sealed partial class DynamicWorkflowServiceTests : IDisposable
     private readonly string _root = Path.Combine(Path.GetTempPath(), "dotcraft-workflow-service-tests", Guid.NewGuid().ToString("N"));
 
     [Fact]
-    public async Task StartInline_RunsAgentPersistsTerminalStateAndQueuesOnce()
+    public async Task StartInline_JoinsUnawaitedAgentPersistsTerminalStateAndQueuesOnce()
     {
         _ = typeof(CommandLineArgs).Assembly;
         var store = new DynamicWorkflowStore(Path.Combine(_root, ".craft"));
@@ -66,7 +66,7 @@ public sealed partial class DynamicWorkflowServiceTests : IDisposable
                 ParentTurnId = "turn_001",
                 Script = """
                     export const meta = { name: 'service', description: 'Service test' };
-                    await agent('inspect code', { agentType: 'reviewer', model: 'invocation-model', effort: 'low' });
+                    agent('inspect code', { agentType: 'reviewer', model: 'invocation-model', effort: 'low' });
                     return { ok: true };
                     """,
                 Args = new JsonObject()
@@ -101,9 +101,14 @@ public sealed partial class DynamicWorkflowServiceTests : IDisposable
             var requested = Assert.Single(journal, entry => entry["type"]?.GetValue<string>() == "agent.requested");
             Assert.Equal("invocation-model", requested["payload"]?["model"]?.GetValue<string>());
             Assert.Equal("low", requested["payload"]?["effort"]?.GetValue<string>());
-            var agentCompleted = Assert.Single(journal, entry => entry["type"]?.GetValue<string>() == "agent.completed");
-            Assert.Equal("invocation-model", agentCompleted["payload"]?["effectiveModel"]?.GetValue<string>());
-            Assert.Equal("Low", agentCompleted["payload"]?["effectiveEffort"]?.GetValue<string>());
+            Assert.Collection(journal.Where(entry => entry["type"]?.GetValue<string>() is "agent.completed" or "run.succeeded"),
+                entry =>
+                {
+                    Assert.Equal("agent.completed", entry["type"]?.GetValue<string>());
+                    Assert.Equal("invocation-model", entry["payload"]?["effectiveModel"]?.GetValue<string>());
+                    Assert.Equal("Low", entry["payload"]?["effectiveEffort"]?.GetValue<string>());
+                },
+                entry => Assert.Equal("run.succeeded", entry["type"]?.GetValue<string>()));
 
             await service.OnThreadDeletingAsync(proxy.Thread);
             Assert.False(Directory.Exists(store.GetRunDirectory(started.RunId)));
