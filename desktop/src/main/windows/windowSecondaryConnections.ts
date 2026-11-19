@@ -475,8 +475,12 @@ export async function refreshSecondaryWorkspaceConnections(ctx: DesktopWindowRun
     allowedKeys.add(candidate.key)
     if (!protectedEntry && !needed) idleCount += 1
     if (candidate.endpoint && !protectedEntry) {
+      const previous = candidate.entry
+      if (previous?.role === 'secondary' && !previous.connected && previous.wsUrl !== candidate.endpoint) {
+        ctx.disposeWorkspaceConnection(previous)
+      }
       const entry = ctx.createSecondaryWorkspaceConnection(candidate.workspacePath, candidate.endpoint)
-      if (!candidate.entry) entry.lastUsedAt = candidate.lastUsedAt
+      if (entry !== previous) entry.lastUsedAt = candidate.lastUsedAt
     }
   }
 
