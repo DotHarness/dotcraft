@@ -207,6 +207,14 @@
   white-space: nowrap;
 }
 
+.dc-settings-select__icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+}
+
+.dc-settings-select[data-placeholder] .dc-settings-select__value { color: var(--text-secondary); }
+
 .dc-settings-select__chevron {
   display: inline-flex;
   color: var(--text-secondary);

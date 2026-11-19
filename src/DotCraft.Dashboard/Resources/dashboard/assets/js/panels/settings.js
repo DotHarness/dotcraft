@@ -12,6 +12,10 @@ let loaded = false;
 let baseline = '';
 let dirty = false;
 
+export function hasUnsavedSettings() {
+  return dirty;
+}
+
 const panel = () => panelElement('settings');
 const form = () => panel().querySelector('.dash-settings');
 

@@ -158,6 +158,7 @@ Hub 是同一操作系统用户下的本地协调器，不是跨用户安全边�
 
 - `state`: 取值为 `stopped`、`starting`、`running`、`stopping` 或 `exited`。
 - `endpoints.appServerWebSocket`: 客户端连接 AppServer Protocol 时应使用的 URL。
+- `endpoints.dashboard`: 启用 Dashboard 时，返回该工作区的共享 Dashboard URL。
 - `serviceStatus`: `dashboard` 和运行时辅助服务的状态。
 - `startedByHub`: 当前进程是否由此 Hub 管理。
 

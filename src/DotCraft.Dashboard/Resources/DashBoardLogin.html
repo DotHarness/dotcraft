@@ -79,12 +79,16 @@ body {
     <span class="dc-button__spinner" aria-hidden="true" hidden><svg class="dc-spinner" width="14" height="14" viewBox="0 0 24 24" fill="none"><circle class="dc-spinner__track" cx="12" cy="12" r="7" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="7" stroke="currentColor" stroke-width="2" stroke-dasharray="33 44"/></svg></span>
     <span class="dc-button__label">Sign in</span>
   </button>
+  <a class="dc-button" data-variant="ghost" href="/dashboard/" id="allWorkspaces" hidden>Choose another workspace</a>
 </form>
 <script>
 const form = document.getElementById('loginForm');
 const username = document.getElementById('username');
 const password = document.getElementById('password');
 const submit = document.getElementById('loginButton');
+const loginPath = window.location.pathname;
+const returnPath = loginPath.replace(/\/login\/?$/i, '/');
+document.getElementById('allWorkspaces').hidden = returnPath.toLowerCase() === '/dashboard/';
 
 function showError(message) {
   document.getElementById('loginErrorText').textContent = message;
@@ -108,13 +112,13 @@ form.addEventListener('submit', async event => {
   showError('');
   setBusy(true);
   try {
-    const res = await fetch('/dashboard/login', {
+    const res = await fetch(loginPath, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: username.value, password: password.value })
     });
     if (res.ok) {
-      window.location.href = '/dashboard/';
+      window.location.replace(returnPath + window.location.hash);
       return;
     }
     showError(res.status === 401 ? 'That username and password don’t match.' : 'Sign-in didn’t work. Try again.');

@@ -1,5 +1,8 @@
 using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
 
 namespace DotCraft.DashBoard;
 
@@ -15,11 +18,27 @@ public static partial class DashBoardFrontend
     private static string? _cachedHtml;
     private static string? _cachedLoginHtml;
 
-    public static string GetHtml() => _cachedHtml ??= LoadText("dashboard/index.html");
+    public static void MapDashBoardFrontend(this IEndpointRouteBuilder endpoints, string? workspaceRoute = null)
+    {
+        var html = _cachedHtml ??= LoadText("dashboard/index.html");
+        if (workspaceRoute is not null)
+        {
+            html = html.Replace("<body>", "<body data-dashboard-shared>", StringComparison.Ordinal);
+            endpoints.MapGet(workspaceRoute, Page);
+        }
 
-    public static string GetLoginHtml() => _cachedLoginHtml ??= InlineAssets(LoadText("DotCraft.Resources.DashBoardLogin.html"));
+        endpoints.MapGet("/dashboard/", Page);
+        endpoints.MapGet("/dashboard/assets/{**path}", (string path) =>
+            TryGetAsset(path, out var content, out var contentType)
+                ? Results.Bytes(content, contentType)
+                : Results.NotFound());
 
-    public static bool TryGetAsset(string path, out byte[] content, out string contentType)
+        IResult Page() => Results.Content(html, "text/html; charset=utf-8");
+    }
+
+    internal static string GetLoginHtml() => _cachedLoginHtml ??= InlineAssets(LoadText("DotCraft.Resources.DashBoardLogin.html"));
+
+    private static bool TryGetAsset(string path, out byte[] content, out string contentType)
     {
         contentType = Path.GetExtension(path) switch
         {

@@ -5,7 +5,6 @@ using DotCraft.CLI;
 using DotCraft.Common;
 using DotCraft.Configuration;
 using DotCraft.Context;
-using DotCraft.DashBoard;
 using DotCraft.Dreams;
 using DotCraft.ExternalChannel;
 using DotCraft.Hosting;
@@ -41,7 +40,6 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
     private readonly object _channelsLock = new();
 
     private ISessionService? _sessionService;
-    private DreamsService? _dreamsService;
     private PathBlacklist? _pathBlacklist;
 
     private WebHostPool? _pool;
@@ -85,12 +83,12 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
         var traceStore = sp.GetService<TraceStore>();
         var native = CollectNativeChannels(sp, config, registry);
         var hasExternal = ExternalChannelManager.HasEnabledChannels(config);
-        var wantDashboard = config.DashBoard.Enabled && traceStore != null;
+        var wantDashboard = !ManagedAppServerEnvironment.IsManaged && config.DashBoard.Enabled && traceStore != null;
 
         if (native.Count == 0 && !hasExternal && !wantDashboard)
             return null;
 
-        ValidateAppServerPortConflict(config, native);
+        ValidateAppServerPortConflict(config, native, wantDashboard);
 
         var router = sp.GetRequiredService<MessageRouter>();
         var extReg = sp.GetRequiredService<ExternalChannelRegistry>();
@@ -117,7 +115,8 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
     /// <summary>
     /// Ensures DashBoard / native HTTP channels do not bind the same (host, port) as the AppServer WebSocket listener.
     /// </summary>
-    private static void ValidateAppServerPortConflict(AppConfig config, IReadOnlyList<IChannelService> nativeChannels)
+    private static void ValidateAppServerPortConflict(
+        AppConfig config, IReadOnlyList<IChannelService> nativeChannels, bool wantDashboard)
     {
         var appServer = config.GetSection<AppServerConfig>("AppServer");
         if (appServer.Mode is not (AppServerMode.WebSocket or AppServerMode.StdioAndWebSocket))
@@ -126,7 +125,7 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
         var wsPort = appServer.WebSocket.Port;
         var wsHost = NormalizeHost(appServer.WebSocket.Host);
 
-        if (config.DashBoard.Enabled && config.DashBoard.Port == wsPort
+        if (wantDashboard && config.DashBoard.Port == wsPort
             && NormalizeHost(config.DashBoard.Host) == wsHost)
         {
             throw new InvalidOperationException(
@@ -169,8 +168,7 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
         foreach (var wc in _nativeChannels.OfType<IWebHostingChannel>())
             _pool.Register(wc);
 
-        var dashboardEnabled = _config.DashBoard.Enabled && traceStore != null;
-        if (dashboardEnabled)
+        if (!ManagedAppServerEnvironment.IsManaged && _config.DashBoard.Enabled && traceStore != null)
         {
             var dashHost = _config.DashBoard.Host;
             var dashPort = _config.DashBoard.Port;
@@ -181,6 +179,7 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
                            wc.ListenPort == dashPort);
 
             var dashBuilder = _pool.GetOrCreateBuilder("http", dashHost, dashPort);
+            AppServerDashboard.ConfigureServices(dashBuilder.Services, _sp);
             if (dashStandalone)
                 dashBuilder.Logging.ClearProviders();
         }
@@ -199,10 +198,7 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
             throw new InvalidOperationException("Call BuildPoolThroughBuildAll first.");
 
         var traceStore = _sp.GetService<TraceStore>();
-        var tokenUsageStore = _sp.GetService<UsageStatisticsStore>();
-        var orchestratorProviders = _sp.GetServices<IOrchestratorSnapshotProvider>().ToList();
         _sessionService = sessionService;
-        _dreamsService = dreamsService;
         _pathBlacklist = _sp.GetRequiredService<PathBlacklist>();
 
         if (ExternalChannelManager.HasEnabledChannels(_config))
@@ -252,24 +248,11 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
 
         _pool.ConfigureApps();
 
-        var dashboardEnabled = _config.DashBoard.Enabled && traceStore != null;
-        if (dashboardEnabled && traceStore != null)
+        if (!ManagedAppServerEnvironment.IsManaged && _config.DashBoard.Enabled && traceStore != null)
         {
-            var capturedOrchestrators = orchestratorProviders.Count > 0 ? orchestratorProviders : null;
             var dashApp = _pool.GetApp("http", _config.DashBoard.Host, _config.DashBoard.Port);
-            dashApp.MapDashBoardAuth(_config);
-            dashApp.UseDashBoardAuth(_config);
-            var capturedSvc = sessionService;
-            var persistence = _sp.GetRequiredService<SessionPersistenceService>();
-            dashApp.MapDashBoard(traceStore, _paths, tokenUsageStore,
-                orchestratorProviders: capturedOrchestrators,
-                configSchema: ConfigSchemaRegistrations.GetConfigSchema(),
-                persistence: persistence,
-                deleteThreadAsync: (threadId, cancellationToken) => capturedSvc.DeleteThreadPermanentlyAsync(threadId, cancellationToken),
-                sessionHandler: new DelegateDashBoardSessionHandler(id => capturedSvc.DeleteThreadPermanentlyAsync(id)),
-                refreshTraceFromDiskBeforeRead: true,
-                dreamsService: _dreamsService,
-                configuration: _sp.GetRequiredService<WorkspaceRuntime>().Configuration);
+            AppServerDashboard.MapWorkspace(
+                dashApp, _sp.GetRequiredService<WorkspaceRuntime>(), traceStore, sessionService, dreamsService);
 
             var baseUrl = $"http://{_config.DashBoard.Host}:{_config.DashBoard.Port}";
             DashBoardUrl = $"{baseUrl}/dashboard";

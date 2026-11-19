@@ -6,6 +6,7 @@ public sealed partial class ManagedAppServerRegistry
         IReadOnlyDictionary<string, string?> Environment,
         IReadOnlyDictionary<string, string> ResponseEndpoints,
         IReadOnlyDictionary<string, HubServiceStatus> ServiceStatus,
+        DashboardTarget? DashboardTarget,
         string? TypeScriptNodeBin,
         bool TypeScriptNodeRunAsNode,
         string? TypeScriptModulesDir,
@@ -29,6 +30,8 @@ public sealed partial class ManagedAppServerRegistry
         public string State { get; set; } = HubAppServerStates.Stopped;
 
         public IManagedAppServerProcess? Process { get; set; }
+
+        public DashboardTarget? DashboardTarget { get; set; }
 
         public bool AdoptedExternalLock { get; set; }
 

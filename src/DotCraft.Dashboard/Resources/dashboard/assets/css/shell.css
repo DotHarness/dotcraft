@@ -120,6 +120,15 @@
   color: var(--text-secondary);
 }
 
+.dash-workspace__select {
+  gap: 6px;
+  min-width: 0;
+  max-width: min(100%, 320px);
+  min-height: var(--toolbar-control-height);
+  margin-left: -8px;
+  padding: 0 6px 0 8px;
+}
+
 .dash-topbar__actions {
   display: inline-flex;
   flex: 0 0 auto;

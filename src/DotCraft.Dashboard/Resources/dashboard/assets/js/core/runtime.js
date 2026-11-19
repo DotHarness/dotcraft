@@ -1,44 +1,30 @@
 import { onAction } from './actions.js';
-import { fetchJson } from './api.js';
-import { capability, state } from './state.js';
+import { fetchApi, redirectToLogin } from './api.js';
+import { state } from './state.js';
+import { dashboardPath } from './workspace-route.js';
 
 export async function loadRuntime() {
-  const data = await fetchJson('/runtime');
-  if (data) {
-    state.runtime = {
-      readOnly: data.readOnly === true,
-      workspacePath: data.workspacePath || '',
-      capabilities: {
-        settings: data.capabilities?.settings !== false,
-        dreams: data.capabilities?.dreams !== false,
-        automations: data.capabilities?.automations !== false,
-        sessionDeletion: data.capabilities?.sessionDeletion !== false
-      }
-    };
-  }
-  const workspace = document.getElementById('workspacePath');
-  workspace.textContent = state.runtime.workspacePath;
-  workspace.parentElement.title = state.runtime.workspacePath;
-  document.getElementById('readOnlyMode').hidden = !state.runtime.readOnly;
-}
-
-export async function showLogoutWhenAuthEnabled() {
-  if (!capability('settings')) return;
-  const res = await fetch('/dashboard/api/config/edit', { credentials: 'same-origin' }).catch(() => null);
-  if (res?.status === 401) {
-    window.location.href = '/dashboard/login';
-    return;
-  }
+  const res = await fetchApi('/runtime').catch(() => null);
+  if (res?.status === 401) return 'sign-in';
   const data = res?.ok ? await res.json().catch(() => null) : null;
-  document.getElementById('logoutButton').hidden = !data?.authEnabled;
+  if (!data) return 'unavailable';
+
+  const { readOnly, workspacePath, capabilities, authEnabled } = data;
+  state.runtime = { readOnly, workspacePath, capabilities };
+  const workspace = document.getElementById('workspacePath');
+  workspace.textContent = workspacePath;
+  workspace.parentElement.title = workspacePath;
+  document.getElementById('readOnlyMode').hidden = !readOnly;
+  document.getElementById('logoutButton').hidden = !authEnabled;
+  return 'ready';
 }
 
 onAction('click', {
   logout: async () => {
     try {
-      await fetch('/dashboard/logout', { method: 'POST', credentials: 'same-origin' });
+      await fetch(`${dashboardPath()}/logout`, { method: 'POST' });
     } finally {
-      window.location.href = '/dashboard/login';
+      redirectToLogin();
     }
   }
 });
