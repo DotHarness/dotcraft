@@ -45,6 +45,25 @@ it('opens a linked chat in its project even when that chat is not in the sidebar
   expect(useThreadStore.getState().activeThreadId).toBe('parent')
 })
 
+it('does not replace a newer project navigation when a linked chat lookup returns late', async () => {
+  const lookup = deferred<string>()
+  const switchProject = vi.fn().mockResolvedValue(undefined)
+  installDesktopApiMock({ workspace: { switch: switchProject }, threadTasks: { linkedWorkspace: () => lookup.promise } })
+  const [older, newer] = ['/local/older', '/local/newer'].map((path): WorkspaceProjectSummary => ({
+    ...project, projectId: path, kind: 'local', path, remote: undefined
+  }))
+  useWorkspaceProjectsStore.setState({ projects: [older, newer] })
+  useThreadStore.getState().setActiveThreadId('parent')
+
+  const opening = openThread('old-report')
+  await openProjectThread(newer, 'new-chat')
+  lookup.resolve(older.path)
+  await opening
+
+  expect(switchProject.mock.calls).toEqual([[newer.path]])
+  expect(useUIStore.getState().pendingProjectThreadOpen?.threadId).toBe('new-chat')
+})
+
 describe('device project connection actions', () => {
   it('opens a background thread only after the owning project list loads, even when another device has the same path and thread id', async () => {
     const openProject = vi.fn().mockResolvedValue({ ok: true, value: null })
