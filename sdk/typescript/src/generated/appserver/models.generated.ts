@@ -5414,6 +5414,20 @@ export interface TurnQueueUpdateResult {
   [key: string]: unknown;
 }
 
+export interface TurnStartOrEnqueueParams {
+  input: InputPart[];
+  model?: string | null;
+  reasoning?: ReasoningConfig | null;
+  threadId: string;
+  [key: string]: unknown;
+}
+
+export interface TurnStartOrEnqueueResult {
+  queuedInput?: QueuedTurnInput | null;
+  turn?: SessionTurn | null;
+  [key: string]: unknown;
+}
+
 export interface TurnStartParams {
   approvalPolicy?: string | null;
   clientUserMessageId?: string | null;

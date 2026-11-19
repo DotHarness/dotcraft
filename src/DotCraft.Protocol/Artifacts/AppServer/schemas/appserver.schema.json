@@ -22046,6 +22046,73 @@
       },
       "additionalProperties": true
     },
+    "TurnStartOrEnqueueParams": {
+      "title": "TurnStartOrEnqueueParams",
+      "type": "object",
+      "properties": {
+        "input": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/InputPart"
+          }
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reasoning": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasoningConfig"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "input",
+        "threadId"
+      ]
+    },
+    "TurnStartOrEnqueueResult": {
+      "title": "TurnStartOrEnqueueResult",
+      "type": "object",
+      "properties": {
+        "queuedInput": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/QueuedTurnInput"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "turn": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SessionTurn"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
     "TurnStartParams": {
       "title": "TurnStartParams",
       "type": "object",

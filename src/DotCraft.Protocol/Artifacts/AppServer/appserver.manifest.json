@@ -26867,6 +26867,70 @@
       "variants": []
     },
     {
+      "id": "core.TurnStartOrEnqueueParams",
+      "name": "TurnStartOrEnqueueParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/TurnStartOrEnqueueParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "input",
+          "type": "array<core.InputPart>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "model",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "reasoning",
+          "type": "core.ReasoningConfig",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.TurnStartOrEnqueueResult",
+      "name": "TurnStartOrEnqueueResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/TurnStartOrEnqueueResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "queuedInput",
+          "type": "core.QueuedTurnInput",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "turn",
+          "type": "core.SessionTurn",
+          "required": false,
+          "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.TurnStartParams",
       "name": "TurnStartParams",
       "module": "core",
@@ -35811,6 +35875,28 @@
         "InvalidParams",
         "InvalidRequest",
         "MethodNotFound"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "turn/startOrEnqueue",
+      "descriptorMember": "TurnStartOrEnqueue",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.TurnStartOrEnqueueParams",
+      "resultType": "core.TurnStartOrEnqueueResult",
+      "module": "core",
+      "capability": "threadManagement",
+      "scope": "thread",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound",
+        "ThreadNotActive",
+        "ThreadNotFound"
       ],
       "since": "1",
       "specRef": "specs/protocols/appserver-protocol.md",

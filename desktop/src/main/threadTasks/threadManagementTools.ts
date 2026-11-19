@@ -80,7 +80,7 @@ export async function handleThreadManagementTool(
   const client = requestClient(target)
   switch (tool) {
     case 'SendMessageToThread':
-      return withWorkspace(await sendMessageToThreadTool(client, threadId.value, args, target.workspacePath), target.workspacePath)
+      return withWorkspace(await sendMessageToThreadTool(client, threadId.value, args), target.workspacePath)
     case 'SetThreadTitle':
       return withWorkspace(await setThreadTitleTool(client, threadId.value, args), target.workspacePath)
     case 'SetThreadArchived':
@@ -163,8 +163,7 @@ function threadListResult(threads: JsonObject[], totalMatched: number, nextCurso
 async function sendMessageToThreadTool(
   client: AppServerRequestClient,
   threadId: string,
-  args: Record<string, unknown>,
-  workspacePath: string
+  args: Record<string, unknown>
 ): Promise<DynamicToolCallResult> {
   const prompt = requiredNonEmptyString(args, 'prompt')
   if (prompt.ok === false) return prompt.error
@@ -172,7 +171,7 @@ async function sendMessageToThreadTool(
   if (model?.ok === false) return model.error
   const reasoningEffort = optionalReasoningEffort(args, 'reasoningEffort')
   if (reasoningEffort?.ok === false) return reasoningEffort.error
-  return await submitThreadMessage(client, threadId, prompt.value, model?.value, reasoningEffort?.value, workspacePath)
+  return submitThreadMessage(client, threadId, prompt.value, model?.value, reasoningEffort?.value)
 }
 
 async function setThreadTitleTool(

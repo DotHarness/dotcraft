@@ -22,6 +22,7 @@ internal sealed class TurnRequestHandler(
     public void RegisterMethods(AppServerMethodTable table)
     {
         table.Map(Contract.AppServerRpc.TurnStart, HandleTurnStartAsync);
+        table.Map(Contract.AppServerRpc.TurnStartOrEnqueue, HandleTurnStartOrEnqueueAsync);
         table.Map(Contract.AppServerRpc.TurnEnqueue, HandleTurnEnqueueAsync);
         table.Map(Contract.AppServerRpc.TurnNotify, HandleTurnNotifyAsync);
         table.Map(Contract.AppServerRpc.TurnSteer, HandleTurnSteerAsync);
@@ -109,25 +110,60 @@ internal sealed class TurnRequestHandler(
                 settings);
 
             var events = admission.Started
-                ? WithNonInteractiveFallback(admission.Events ?? throw new InvalidOperationException("A started Turn requires an execution stream."))
+                ? admission.Events ?? throw new InvalidOperationException("A started Turn requires an execution stream.")
                 : null;
-            try
+            await WriteAdmissionResponseAsync(msg.Id, new Contract.TurnStartResult
             {
-                await responseWriter.WriteResponseAsync(
-                    msg.Id,
-                    new Contract.TurnStartResult
-                    {
-                        Turn = AppServerContractMapper.ToContract(
-                            admission.Turn.ToWire(includeItems: false) with { Items = [] })
-                    }, ct);
-            }
-            catch (OperationCanceledException) { }
-            catch (Exception ex) when (AppServerEventDispatcher.IsTransportUnavailableException(ex)) { }
-            finally
+                Turn = AppServerContractMapper.ToContract(admission.Turn.ToWire(includeItems: false) with { Items = [] })
+            }, events, ct);
+        }
+    }
+
+    private async Task<AppServerTypedResult<Contract.TurnStartOrEnqueueResult>> HandleTurnStartOrEnqueueAsync(
+        AppServerTypedRequest<Contract.TurnStartOrEnqueueParams> request,
+        CancellationToken ct)
+    {
+        var p = request.Params;
+        var reasoning = TurnSettingsContractMapper.ToDomain(p.Reasoning);
+        var input = await PrepareTurnInputAsync(TurnContractMapper.ToDomain(p.Input), ct);
+        RecordSkillReferences(p.ThreadId, input.NativeInputParts);
+
+        using var channelScope = ChannelSessionScope.Set(await ResolveChannelSessionAsync(null, p.ThreadId));
+        await sessionService.EnsureThreadLoadedAsync(p.ThreadId, ct);
+        await connection.RunThreadNotificationAsync(p.ThreadId, async _ =>
+        {
+            var admission = await sessionService.StartOrEnqueueTurnAsync(p.ThreadId, input.Content,
+                CancellationToken.None, new SessionInputSnapshot
+                {
+                    NativeInputParts = input.NativeInputParts,
+                    MaterializedInputParts = input.MaterializedInputParts,
+                    DisplayText = input.DisplayText
+                }, p.Model, reasoning);
+
+            await WriteAdmissionResponseAsync(request.Message.Id, new Contract.TurnStartOrEnqueueResult
             {
-                if (events is not null)
-                    _ = DrainTurnEventsAsync(events.GetAsyncEnumerator(CancellationToken.None));
-            }
+                Turn = admission.Turn is { } turn
+                    ? AppServerContractMapper.ToContract(turn.ToWire(includeItems: false) with { Items = [] })
+                    : null,
+                QueuedInput = admission.QueuedInput is { } queued ? TurnContractMapper.ToContract(queued) : null
+            }, admission.Events, ct);
+        }, ct);
+        return AppServerTypedResult<Contract.TurnStartOrEnqueueResult>.Written;
+    }
+
+    private async Task WriteAdmissionResponseAsync(
+        JsonElement? requestId, object result, IAsyncEnumerable<SessionEvent>? events, CancellationToken ct)
+    {
+        try
+        {
+            await responseWriter.WriteResponseAsync(requestId, result, ct);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex) when (AppServerEventDispatcher.IsTransportUnavailableException(ex)) { }
+        finally
+        {
+            if (events is not null)
+                _ = DrainTurnEventsAsync(WithNonInteractiveFallback(events).GetAsyncEnumerator(CancellationToken.None));
         }
     }
 

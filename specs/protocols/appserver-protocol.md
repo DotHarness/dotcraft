@@ -779,6 +779,14 @@ Deliver a report about another thread to this thread as a task notification. A c
 - `notificationId` makes delivery idempotent per thread: a notification whose id is already queued, admitted, or consumed in history is not queued again, and the result reports `queued = false`.
 - A thread that is not Active, including an archived one, keeps the notification queued for its next Turn, as for any task notification. Fails with not-found for an unknown thread and with invalid params for a missing field.
 
+### 5.2.8 `turn/startOrEnqueue`
+
+Admit a follow-up without steering an existing Turn. Params `threadId`, non-empty `input`, and optional `model` and `reasoning` with the sparse-setting semantics of [`turn/start`](#51-turnstart).
+
+- The server uses [start-or-enqueue admission](../architecture/session-core.md#34-turn-execution-ownership). The result contains exactly one of `turn` (the initial new Turn, with empty `items`) or `queuedInput` (the persisted FIFO input).
+- This request does not attach the connection. A started Turn follows the response ordering and execution ownership of `turn/start`. An enqueued input publishes the usual queue update and follows existing queue drain, pause, and resume rules.
+- An unknown thread returns `-32010`. A non-Active thread returns `-32011`. Client-managed history, empty input, and invalid model settings return invalid params before accepting input.
+
 ### 5.3 `workspace/commitMessage/suggest`
 
 Suggest a source-control summary from the source thread's recent conversation plus provider change context for the given paths. The server runs an internal hidden ephemeral thread (dedicated identity, commit-suggest-only tool), so it does not contend with the source thread and clients receive no notifications for it.

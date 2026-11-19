@@ -211,6 +211,7 @@ export interface ClientRequestMethods {
   "turn/queue/start": { params: Models.TurnQueueStartParams; result: Models.TurnQueueStartResponse };
   "turn/queue/update": { params: Models.TurnQueueUpdateParams; result: Models.TurnQueueUpdateResult };
   "turn/start": { params: Models.TurnStartParams; result: Models.TurnStartResult };
+  "turn/startOrEnqueue": { params: Models.TurnStartOrEnqueueParams; result: Models.TurnStartOrEnqueueResult };
   "turn/steer": { params: Models.TurnSteerParams; result: Models.TurnSteerResult };
   "usage/history": { params: Models.UsageHistoryParams; result: Models.UsageHistoryResult };
   "usage/summary": { params: Models.UsageSummaryParams; result: Models.UsageSummaryResult };

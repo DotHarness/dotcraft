@@ -86,6 +86,10 @@ public static partial class AppServerRpc
     public static readonly RpcRequest<TurnStartParams, TurnStartResult> TurnStart =
         new("turn/start", RpcDirection.ClientToServer, "1", Spec, capability: "threadManagement", scope: "thread", errors: CommonErrors);
 
+    public static readonly RpcRequest<TurnStartOrEnqueueParams, TurnStartOrEnqueueResult> TurnStartOrEnqueue =
+        new("turn/startOrEnqueue", RpcDirection.ClientToServer, "1", Spec, capability: "threadManagement", scope: "thread",
+            errors: [.. CommonErrors, "ThreadNotFound", "ThreadNotActive"]);
+
     /// <summary>turn/enqueue request.</summary>
     public static readonly RpcRequest<TurnEnqueueParams, TurnEnqueueResult> TurnEnqueue =
         new("turn/enqueue", RpcDirection.ClientToServer, "1", Spec, capability: "threadManagement", scope: "thread", errors: CommonErrors);

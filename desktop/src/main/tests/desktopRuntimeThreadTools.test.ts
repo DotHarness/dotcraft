@@ -409,11 +409,9 @@ describe('desktop runtime thread tools', () => {
     expect(turnCall?.[1]).not.toHaveProperty('cwd')
   })
 
-  it('starts a follow-up with the requested model and saves reasoning for future turns', async () => {
+  it('reports a started follow-up from one admission request with model and reasoning', async () => {
     const client = createClient(async (method) => {
-      if (method === 'thread/read') return { thread: { id: 'thread-1', status: 'active' } }
-      if (method === 'thread/config/update') return {}
-      if (method === 'turn/start') return { turn: { id: 'turn-new' } }
+      if (method === 'turn/startOrEnqueue') return { turn: { id: 'turn-new' } }
       throw new Error(`unexpected ${method}`)
     })
 
@@ -433,24 +431,18 @@ describe('desktop runtime thread tools', () => {
       turn: { id: 'turn-new' }
     }))
     expect(vi.mocked(client.sendRequest).mock.calls.map(([method, params]) => [method, params])).toEqual([
-      ['thread/read', { threadId: 'thread-1' }],
-      ['thread/config/update', { threadId: 'thread-1', config: { reasoning: { enabled: true, effort: 'ultra', output: 'full' } } }],
-      ['turn/start', expect.objectContaining({ threadId: 'thread-1', input: [{ type: 'text', text: 'follow up' }], model: 'model-b' })]
+      ['turn/startOrEnqueue', {
+        threadId: 'thread-1',
+        input: [{ type: 'text', text: 'follow up' }],
+        model: 'model-b',
+        reasoning: { enabled: true, effort: 'ultra' }
+      }]
     ])
   })
 
-  it('reports a busy thread when the target does not support enqueue', async () => {
+  it('does not fall back to steering on a target that lacks follow-up admission', async () => {
     const client = createClient(async (method) => {
-      if (method === 'thread/read') {
-        return {
-          thread: {
-            id: 'thread-1',
-            status: 'active',
-            runtime: { busy: true, maintenanceKind: 'compacting' }
-          }
-        }
-      }
-      if (method === 'turn/enqueue') throw Object.assign(new Error('Method not found'), { rpcCode: -32601 })
+      if (method === 'turn/startOrEnqueue') throw Object.assign(new Error('Method not found'), { rpcCode: -32601 })
       throw new Error(`unexpected ${method}`)
     })
 
@@ -460,8 +452,8 @@ describe('desktop runtime thread tools', () => {
       arguments: { threadId: 'thread-1', prompt: 'follow up' }
     }, 'F:\\examples\\workspace')
 
-    expect(result).toEqual(expect.objectContaining({ success: false, errorCode: 'ThreadBusy' }))
-    expect(vi.mocked(client.sendRequest).mock.calls.map((call) => call[0])).toEqual(['thread/read', 'turn/enqueue'])
+    expect(result).toMatchObject({ success: false, errorCode: 'ThreadManagementUnavailable' })
+    expect(vi.mocked(client.sendRequest).mock.calls.map(([method]) => method)).toEqual(['turn/startOrEnqueue'])
   })
 
   it('rejects empty model selections and ignores other namespaces without requests', async () => {

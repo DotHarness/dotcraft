@@ -254,6 +254,15 @@ public interface ISessionService
         SessionInputSnapshot? inputSnapshot = null,
         TurnSettingsOverrides? settings = null);
 
+    Task<TurnStartOrEnqueueAdmission> StartOrEnqueueTurnAsync(
+        string threadId,
+        IList<AIContent> content,
+        CancellationToken ct = default,
+        SessionInputSnapshot? inputSnapshot = null,
+        string? model = null,
+        TurnReasoningOverrides? reasoning = null) =>
+        throw new NotSupportedException("Start-or-enqueue admission is not supported by this session service.");
+
     IAsyncEnumerable<SessionEvent> SubmitInputAsync(
         string threadId,
         IList<AIContent> content,

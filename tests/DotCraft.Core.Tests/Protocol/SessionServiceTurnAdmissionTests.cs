@@ -97,6 +97,63 @@ public sealed partial class SessionServiceTurnAdmissionTests
     }
 
     [Fact]
+    public async Task FollowupAfterAnotherTurnStarts_QueuesWithoutSteeringThatTurn()
+    {
+        await using var h = new AdmissionHarness(blockRequests: true);
+        var thread = await h.CreateThreadAsync(new ThreadConfiguration
+        {
+            Reasoning = new() { Enabled = false, Output = ReasoningOutput.Summary }
+        });
+        var first = await h.Service.StartOrSteerTurnAsync(thread.Id, [new TextContent("first")]);
+        var drain = DrainAsync(first.Events!);
+        await h.Provider.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        try
+        {
+            var followup = await h.Service.StartOrEnqueueTurnAsync(thread.Id, [new TextContent("follow up")],
+                model: "future-model", reasoning: new() { Enabled = true, Effort = ModelReasoningEffort.High });
+
+            Assert.Null(followup.Turn);
+            Assert.Null(followup.Events);
+            var queued = Assert.Single(thread.QueuedInputs);
+            Assert.Equal(followup.QueuedInput?.Id, queued.Id);
+            Assert.Equal("queued", queued.Status);
+            Assert.Equal(first.Turn.Id, queued.ReadyAfterTurnId);
+            Assert.Equal("initial-model", Assert.Single(h.Provider.Requests).Model);
+            var saved = await h.Store.LoadThreadAsync(thread.Id);
+            Assert.Equal("future-model", saved!.Configuration!.Model);
+            Assert.True(saved.Configuration.Reasoning!.Enabled);
+            Assert.Equal(ModelReasoningEffort.High, saved.Configuration.Reasoning.Effort);
+            Assert.Equal(ReasoningOutput.Summary, saved.Configuration.Reasoning.Output);
+        }
+        finally { h.Provider.Release.TrySetResult(); }
+
+        var events = await drain.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.DoesNotContain(events, e => e.ItemPayload?.AsUserMessage?.Text == "follow up");
+    }
+
+    [Fact]
+    public async Task FollowupAfterPriorQueueDrain_StartsItsOwnTurn()
+    {
+        await using var h = new AdmissionHarness();
+        var thread = await h.CreateThreadAsync();
+        var first = await h.Service.StartOrSteerTurnAsync(thread.Id, [new TextContent("first")]);
+        await DrainAsync(first.Events!);
+        await h.Service.TryStartNextQueuedTurnAsync(thread.Id);
+
+        var followup = await h.Service.StartOrEnqueueTurnAsync(thread.Id, [new TextContent("follow up")],
+            model: "followup-model");
+
+        Assert.Null(followup.QueuedInput);
+        Assert.NotNull(followup.Turn);
+        Assert.NotEqual(first.Turn.Id, followup.Turn.Id);
+        Assert.Empty(thread.QueuedInputs);
+        var events = await DrainAsync(followup.Events!);
+        Assert.Contains(events, e => e.ItemPayload?.AsUserMessage?.Text == "follow up");
+        Assert.Equal("followup-model", h.Provider.Requests.Last().Model);
+    }
+
+    [Fact]
     public async Task EmptyActiveInput_RejectsWithoutApplyingSettings()
     {
         await using var h = new AdmissionHarness(blockRequests: true);

@@ -31,9 +31,8 @@ function fixture() {
       case 'thread/list': return { data: [{ id: child.threadId }], nextCursor: 'next', totalMatched: 2 }
       case 'thread/searchOccurrences': return { data: [{ occurrence: 'library' }] }
       case 'turn/start': return { turn: { id: 'turn-1' } }
-      case 'turn/enqueue': return { queuedInput: { id: 'queued-1' } }
-      case 'turn/interrupt':
-      case 'thread/config/update': return {}
+      case 'turn/startOrEnqueue': return { queuedInput: { id: 'queued-1' } }
+      case 'turn/interrupt': return {}
       default: throw new Error(`Unexpected request: ${method}`)
     }
   })
@@ -164,13 +163,14 @@ describe('cross-project Desktop thread tools', () => {
   it('queues a follow-up to a busy linked chat and changes reasoning without taking over its binding', async () => {
     const { call, target, links } = fixture()
     links.link(parent, child)
-    target.mockResolvedValueOnce({ thread: { runtime: { busy: true, waitingOnApproval: true }, configuration: { reasoning: { output: 'summary' }, model: 'model-1' } } })
     expect(await call('SendMessageToThread', { threadId: child.threadId, prompt: 'Also cover the retry', reasoningEffort: 'high' }))
       .toMatchObject({ success: true, structuredContent: { queued: true, queuedInput: { id: 'queued-1' }, workspacePath: library.path } })
     expect(target.mock.calls).toEqual([
-      ['thread/read', { threadId: child.threadId }],
-      ['thread/config/update', { threadId: child.threadId, config: { model: 'model-1', reasoning: { enabled: true, effort: 'high', output: 'summary' } } }],
-      ['turn/enqueue', { threadId: child.threadId, input: [{ type: 'text', text: 'Also cover the retry' }] }]
+      ['turn/startOrEnqueue', {
+        threadId: child.threadId,
+        input: [{ type: 'text', text: 'Also cover the retry' }],
+        reasoning: { enabled: true, effort: 'high' }
+      }]
     ])
   })
 })
