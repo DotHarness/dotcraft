@@ -179,8 +179,10 @@ export function LocalImportPanel(): JSX.Element {
 
 async function openLocalImportOutcome(outcome: LocalImportOutcome): Promise<void> {
   const { chat, foregroundProjectId } = useWorkspaceProjectsStore.getState()
+  const switchWorkspace = (path: string): Promise<void> =>
+    window.api.workspace.switch(path, undefined, { existingProjectOnly: true })
   if (outcome.threadId) {
-    await openThread(outcome.threadId, outcome.projectPath || chat?.path, { includeArchived: true })
+    await openThread(outcome.threadId, outcome.projectPath || chat?.path, { includeArchived: true, switchWorkspace })
     return
   }
   if (outcome.category === 'instructions' && outcome.targetPath) {
@@ -188,7 +190,7 @@ async function openLocalImportOutcome(outcome: LocalImportOutcome): Promise<void
     return
   }
   const target = outcome.projectPath || (isRemoteProjectKey(foregroundProjectId) ? chat?.path : null)
-  if (target && !sameWorkspaceProjectKey(target, foregroundProjectId)) await window.api.workspace.switch(target)
+  if (target && !sameWorkspaceProjectKey(target, foregroundProjectId)) await switchWorkspace(target)
   openOutcome(outcome)
 }
 

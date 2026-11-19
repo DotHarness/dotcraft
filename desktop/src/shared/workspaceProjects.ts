@@ -2,6 +2,10 @@ export type WorkspaceProjectState = 'foreground' | 'secondary' | 'cold' | 'conne
 export type WorkspaceProjectKind = 'local' | 'remote' | 'chat'
 export type WorkspaceRemoteProjectSource = 'servers' | 'ssh' | 'device' | 'manual' | 'cli'
 
+export interface WorkspaceSwitchOptions {
+  existingProjectOnly?: boolean
+}
+
 export interface WorkspaceRemoteProjectMetadata {
   source: WorkspaceRemoteProjectSource
   displayPath?: string

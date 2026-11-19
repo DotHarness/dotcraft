@@ -141,8 +141,33 @@ describe('local Import', () => {
     expect(within(failedRow).queryByRole('button')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /^Chats\b/i }))
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Open chat.*Imported chat/i })) })
-    expect(switchProject).toHaveBeenCalledExactlyOnceWith('C:/projects/Project A')
+    expect(switchProject).toHaveBeenCalledExactlyOnceWith('C:/projects/Project A', undefined, { existingProjectOnly: true })
     expect(useUIStore.getState().pendingProjectThreadOpen).toEqual(expect.objectContaining({ threadId: 'open-this-chat' }))
+  })
+
+  it('keeps history open when the project for a settings outcome has been removed', async () => {
+    const path = 'C:/projects/Removed'
+    const switchProject = vi.fn().mockRejectedValue(new Error('Project is no longer available.'))
+    useUIStore.getState().setActiveSettingsTab('import')
+    installDesktopApiMock({
+      imports: { detect: async () => ({ sources: [] }), getState: async () => state({
+        imports: [{
+          importId: 'finished', trigger: 'manual', completedAt: now, startedAt: now, outcomes: [{
+            category: 'mcp', scope: 'workspace', source: 'claude-code', sourceId: 'mcp-item', status: 'imported',
+            targetPath: '', title: 'Tool server', projectName: 'Removed', projectPath: path
+          }]
+        }]
+      }) },
+      workspace: { switch: switchProject }
+    })
+    render(panel('C:/projects/Foreground'))
+
+    fireEvent.click(await screen.findByRole('button', { name: 'MCP servers' }))
+    const action = screen.getByRole('button', { name: /Open MCP settings.*Tool server/i })
+    await act(async () => { fireEvent.click(action) })
+
+    expect(switchProject).toHaveBeenCalledExactlyOnceWith(path, undefined, { existingProjectOnly: true })
+    expect(useUIStore.getState().activeSettingsTab).toBe('import')
   })
 
   it('keeps a remote-only window scoped to the connected server', async () => {

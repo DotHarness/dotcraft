@@ -79,8 +79,9 @@ working directory set to that subfolder. When the folder no longer exists the ca
 
 ### 3.3 Window and limits
 
-Per source, detection considers files modified within `MaxSessionAgeDays` (default 30), takes the
-newest `MaxSessionsPerSource` (default 50) by modification time, and only then applies membership and
+Per source and destination, preview and execution use the destination's effective
+`MaxSessionAgeDays` (default 30) and `MaxSessionsPerSource` (default 50). Detection considers files
+within the window, takes the newest files up to the limit, and only then applies membership and
 validation. Sessions already recorded in the ledger with an unchanged modification time are skipped
 before parsing; when the time changed but the content hash did not, the next import pass refreshes the
 recorded time. Sessions that produce no import turn

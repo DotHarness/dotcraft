@@ -5,7 +5,7 @@ import { normalizeLocale, type AppLocale } from '../shared/locales'
 import { type ConnectionSettingsDraft } from '../shared/remoteConnection'
 import type { SshMachine } from '../shared/sshMachines'
 import type { UserInputAutoResolutionState } from '../shared/userInputAutoResolution'
-import type { WorkspaceProjectsPayload } from '../shared/workspaceProjects'
+import type { WorkspaceProjectsPayload, WorkspaceSwitchOptions } from '../shared/workspaceProjects'
 import type { UsageStatisticsConnection } from '../shared/usageStatistics'
 import type {
   WorkspaceSetupModelListRequest,
@@ -26,7 +26,7 @@ export interface ResolvedBinaryRequest {
   binaryPath?: string
 }
 export interface IpcHandlerCallbacks {
-  onSwitchWorkspace: (newPath: string, connectionKey?: string) => Promise<void>
+  onSwitchWorkspace: (newPath: string, connectionKey?: string, options?: WorkspaceSwitchOptions) => Promise<void>
   onOpenDesktopLink: (url: string) => Promise<void>
   onClearWorkspaceSelection: () => Promise<void>
   onRunWorkspaceSetup: (request: WorkspaceSetupRequest) => Promise<void>

@@ -961,7 +961,7 @@ project. A remote-only window exposes import only when its connection advertises
 - The local dialog separates personal tools and setup, projects, and chats. It shows items with known destinations, identifies projects that will be added, supports partial selection, and never shows configuration secrets.
 - One confirmation starts one import. Progress and results cover the whole selection, including partial failures, and do not change when the foreground project changes.
 - Keep-in-sync can be paused without clearing selections. After the first import, the selected sync categories can be customized for future passes.
-- Each history entry links to its actual destination and identifies items that need attention. A sync pass that changed nothing stays silent. Imported history never makes chats unread.
+- Each history entry links to its actual destination and identifies items that need attention. Opening a history entry never registers a project. A sync pass that changed nothing stays silent. Imported history never makes chats unread.
 
 #### 6.7.2 Computer Use
 

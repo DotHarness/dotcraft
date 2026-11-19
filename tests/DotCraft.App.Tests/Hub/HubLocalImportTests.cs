@@ -17,14 +17,14 @@ public sealed class HubLocalImportTests : IDisposable
         var paths = HubPaths.Resolve(_profile);
         var registry = new ProjectRegistry(paths);
         var existing = Project("existing");
-        var incoming = Project("incoming");
+        var incoming = Directory.CreateDirectory(Path.Combine(existing, "child")).FullName;
         var omitted = Project("omitted");
         registry.Open(existing);
         var items = new[] {
-            Chat("existing", existing, "project"),
-            Chat("incoming", incoming, "newProject"),
-            Chat("omitted", omitted, "newProject"),
-            Chat("ordinary", paths.DefaultChatWorkspacePath, "chats")
+            Item("existing", existing, "project"),
+            Item("incoming", incoming, "newProject", "skills"),
+            Item("omitted", omitted, "newProject"),
+            Item("ordinary", paths.DefaultChatWorkspacePath, "chats")
         };
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -39,7 +39,7 @@ public sealed class HubLocalImportTests : IDisposable
 
             var selected = Assert.Single(request.Items);
             progress(1);
-            return Completed(selected);
+            return Completed(selected, path == incoming ? "skills" : "sessions");
         });
 
         await imports.DetectAsync(default);
@@ -47,11 +47,13 @@ public sealed class HubLocalImportTests : IDisposable
         Assert.False(Directory.Exists(Path.Combine(incoming, ".craft")));
         Assert.False(Directory.Exists(paths.DefaultChatWorkspacePath));
 
-        var request = Request("existing", "incoming", "ordinary");
+        var selection = new ImportSelection { Sessions = true, Workspace = ["skills"] };
+        var request = Request("incoming", "existing", "ordinary") with { Selection = selection, Offered = selection };
         var run = imports.Run(request);
         try
         {
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.DoesNotContain(registry.List(), project => project.Path == incoming);
             Assert.Equal(run, imports.GetState().Running?.ImportId);
             Assert.Equal("import_busy", Assert.Throws<HubProtocolException>(() => imports.Run(request)).Code);
         }
@@ -66,7 +68,7 @@ public sealed class HubLocalImportTests : IDisposable
         Assert.Equal(run, batch.ImportId);
         var outcomes = batch.Outcomes.ToDictionary(outcome => outcome.SourceId);
         Assert.Equal("failed", outcomes["existing"].Status);
-        Assert.Equal((incoming, "thread_incoming"), (outcomes["incoming"].ProjectPath, outcomes["incoming"].ThreadId));
+        Assert.Equal((incoming, "imported"), (outcomes["incoming"].ProjectPath, outcomes["incoming"].Status));
         Assert.Equal(paths.DefaultChatWorkspacePath, outcomes["ordinary"].ProjectPath);
         Assert.Contains(registry.List(), project => project.Path == incoming);
         Assert.DoesNotContain(registry.List(), project => project.Path == omitted);
@@ -89,8 +91,8 @@ public sealed class HubLocalImportTests : IDisposable
         File.WriteAllText(Path.Combine(craft.FullName, "config.json"), """{"AgentImport":{"SyncEnabled":false}}""");
         var items = new[]
         {
-            Chat("ready", ready, "project"), Chat("opt-out", optedOut, "project"),
-            Chat("incoming", incoming, "newProject"), Chat("stopped", stopped, "project")
+            Item("ready", ready, "project"), Item("opt-out", optedOut, "project"),
+            Item("incoming", incoming, "newProject"), Item("stopped", stopped, "project")
         };
         var called = new List<(string Path, bool StartIfMissing)>();
         var imports = Create(paths, registry, items, (path, request, startIfMissing, _, _) =>
@@ -121,7 +123,7 @@ public sealed class HubLocalImportTests : IDisposable
         var paths = HubPaths.Resolve(_profile);
         var registry = new ProjectRegistry(paths);
         var incoming = Project("incoming");
-        var imports = Create(paths, registry, [Chat("incoming", incoming, "newProject")],
+        var imports = Create(paths, registry, [Item("incoming", incoming, "newProject")],
             (_, _, _, _, _) => throw new InvalidOperationException("A stale destination should not be started."));
 
         imports.Run(Request("incoming") with { Items = [new("incoming", "outdated")] });
@@ -142,21 +144,21 @@ public sealed class HubLocalImportTests : IDisposable
         new("codex", keys.Select(key => new HubLocalImportReference(key, "fingerprint")).ToArray(),
             new() { Sessions = true }, new() { Sessions = true });
 
-    private static LocalImportItem Chat(string id, string path, string destination) =>
+    private static LocalImportItem Item(string id, string path, string destination, string category = "sessions") =>
         new(id, new ImportCandidate
         {
-            Source = "codex", SourceId = id, SourcePath = "session.jsonl", Title = id, Cwd = path,
+            Source = "codex", SourceId = id, SourcePath = "source", Title = id, Cwd = path, Category = category,
             UpdatedAt = DateTimeOffset.UtcNow, TurnCount = 1, State = "new", Fingerprint = "fingerprint"
         }, path, Path.GetFileName(path), destination);
 
-    private static ImportCompletedNotification Completed(ImportItemReference selected) => new()
+    private static ImportCompletedNotification Completed(ImportItemReference selected, string category = "sessions") => new()
     {
         ImportId = "import_" + selected.SourceId, Trigger = "manual",
         StartedAt = DateTimeOffset.UtcNow, CompletedAt = DateTimeOffset.UtcNow,
         Outcomes = [new ImportOutcome
         {
-            Source = selected.Source, SourceId = selected.SourceId, Status = "imported",
-            ThreadId = Optional<string>.FromValue("thread_" + selected.SourceId)
+            Source = selected.Source, SourceId = selected.SourceId, Status = "imported", Category = category,
+            ThreadId = category == "sessions" ? Optional<string>.FromValue("thread_" + selected.SourceId) : default
         }]
     };
 

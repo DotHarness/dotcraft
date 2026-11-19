@@ -23,9 +23,11 @@ describe('workspace project action routing', () => {
     await handlers.get('workspace:archive-thread')!(event, { workspacePath: '/same/path', threadId: 'shared-id', connectionKey: key })
     await handlers.get('workspace:disconnect-remote')!(event, key)
     await handlers.get('workspace:switch')!(event, '/same/path', key)
+    await handlers.get('workspace:switch')!(event, '/registered', undefined, { existingProjectOnly: true })
 
     expect(archiveThreadInWorkspace).toHaveBeenCalledWith('/same/path', 'shared-id', key)
     expect(onDisconnectRemoteProject).toHaveBeenCalledWith(key)
-    expect(onSwitchWorkspace).toHaveBeenCalledWith('/same/path', key)
+    expect(onSwitchWorkspace).toHaveBeenNthCalledWith(1, '/same/path', key, undefined)
+    expect(onSwitchWorkspace).toHaveBeenNthCalledWith(2, '/registered', undefined, { existingProjectOnly: true })
   })
 })

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DotCraft.Configuration;
 using DotCraft.Protocol.AppServer;
 using DotCraft.Sessions;
 using SessionThread = DotCraft.Sessions.SessionThread;
@@ -89,9 +90,6 @@ public sealed class LocalImportDiscoveryTests : IDisposable
         var chat = Assert.Single(before.Single(source => source.Source == "codex").Items);
 
         Register(newProject);
-        var after = await Discovery().DetectAsync([newProject]);
-        Assert.Equal(newcomer.Key, Assert.Single(after.Single(source => source.Source == "claude-code").Items).Key);
-
         var projectService = ScopedService(newProject);
         await RunAsync(projectService.Service, newcomer);
         Assert.Equal(newProject, Assert.Single(projectService.Sessions.ImportRequests).Identity.WorkspacePath);
@@ -102,6 +100,88 @@ public sealed class LocalImportDiscoveryTests : IDisposable
         Assert.Equal(_chat, chatRequest.Identity.WorkspacePath);
         Assert.Null(chatRequest.Cwd);
         Assert.All(await Discovery().DetectAsync([newProject]), source => Assert.Equal(0, source.ImportableCount));
+    }
+
+    [Fact]
+    public async Task RemovingAProjectInvalidatesThePreviewKeyWithoutChangingTheSourceReference()
+    {
+        var project = _temp.CreateDirectory("project");
+        Claude("chat", project);
+
+        var registered = Assert.Single((await Discovery().DetectAsync([project]))
+            .Single(source => source.Source == "claude-code").Items);
+        var unregistered = Assert.Single((await Discovery().DetectAsync([]))
+            .Single(source => source.Source == "claude-code").Items);
+
+        Assert.Equal("project", registered.Destination);
+        Assert.Equal((project, "newProject"), (unregistered.ProjectPath, unregistered.Destination));
+        Assert.NotEqual(registered.Key, unregistered.Key);
+        Assert.Equal((registered.Candidate.SourceId, registered.Candidate.Fingerprint),
+            (unregistered.Candidate.SourceId, unregistered.Candidate.Fingerprint));
+    }
+
+    [Fact]
+    public async Task ExplicitNestedProjectOffersItsOwnSetupWithoutReassigningChats()
+    {
+        var parent = _temp.CreateDirectory("repo");
+        var child = _temp.CreateDirectory("repo", "explicit");
+        var incidental = _temp.CreateDirectory("repo", "incidental");
+        Jsonl.Write(Path.Combine(_home, ".claude.json"),
+            new { projects = new Dictionary<string, object> { [child] = new { } } });
+        Skill(Path.Combine(child, ".claude"));
+        Skill(Path.Combine(incidental, ".claude"));
+        Claude("explicit-chat", child);
+        Claude("incidental-chat", incidental);
+
+        var items = (await Discovery().DetectAsync([parent])).Single(source => source.Source == "claude-code").Items;
+
+        var setup = Assert.Single(items, item => item.Candidate.Category == "skills");
+        Assert.Equal((child, "newProject"), (setup.ProjectPath, setup.Destination));
+        var chats = items.Where(item => item.Candidate.Category == "sessions").ToArray();
+        Assert.Equal(["explicit-chat", "incidental-chat"], chats.Select(chat => chat.Candidate.SourceId).Order());
+        Assert.All(chats, chat => Assert.Equal(parent, chat.ProjectPath));
+    }
+
+    [Fact]
+    public async Task PreviewAndScopedDetectionUseEachProjectsEffectiveAgeWindow()
+    {
+        var shortWindow = _temp.CreateDirectory("short-window");
+        var longWindow = _temp.CreateDirectory("long-window");
+        Register(shortWindow, longWindow);
+        Jsonl.WriteText(Path.Combine(_user, "config.json"), """{"AgentImport":{"MaxSessionAgeDays":7}}""");
+        Jsonl.WriteText(Path.Combine(shortWindow, ".craft", "config.json"), """{"AgentImport":{"MaxSessionAgeDays":1}}""");
+        Jsonl.WriteText(Path.Combine(longWindow, ".craft", "config.json"), """{"AgentImport":{"MaxSessionAgeDays":21}}""");
+        var now = DateTimeOffset.UtcNow;
+        Claude("recent", shortWindow, now.AddHours(-1));
+        Claude("too-old", shortWindow, now.AddDays(-3));
+        Claude("historical", longWindow, now.AddDays(-10));
+
+        var items = (await Discovery().DetectAsync([shortWindow, longWindow])).Single(source => source.Source == "claude-code").Items;
+
+        await AssertSessionIdsAsync(items, shortWindow, "recent");
+        await AssertSessionIdsAsync(items, longWindow, "historical");
+    }
+
+    [Fact]
+    public async Task PreviewAndScopedDetectionApplyEachProjectsCountLimitBeforeMembership()
+    {
+        var small = _temp.CreateDirectory("small");
+        var large = _temp.CreateDirectory("large");
+        Register(small, large);
+        Jsonl.WriteText(Path.Combine(_user, "config.json"), """{"AgentImport":{"MaxSessionsPerSource":3}}""");
+        Jsonl.WriteText(Path.Combine(small, ".craft", "config.json"), """{"AgentImport":{"MaxSessionsPerSource":2}}""");
+        Jsonl.WriteText(Path.Combine(large, ".craft", "config.json"), """{"AgentImport":{"MaxSessionsPerSource":5}}""");
+        var now = DateTimeOffset.UtcNow;
+        Claude("large-new", large, now.AddHours(-1));
+        Claude("small-new", small, now.AddHours(-2));
+        Claude("small-before-membership", small, now.AddHours(-3));
+        Claude("large-older", large, now.AddHours(-4));
+        Claude("large-oldest", large, now.AddHours(-5));
+
+        var items = (await Discovery().DetectAsync([small, large])).Single(source => source.Source == "claude-code").Items;
+
+        await AssertSessionIdsAsync(items, small, "small-new");
+        await AssertSessionIdsAsync(items, large, "large-new", "large-older", "large-oldest");
     }
 
     [Fact]
@@ -210,12 +290,23 @@ public sealed class LocalImportDiscoveryTests : IDisposable
 
     private LocalImportDiscovery Discovery() => new(_user, _chat, _home, _sources, _roots);
 
+    private async Task AssertSessionIdsAsync(IEnumerable<LocalImportItem> items, string path, params string[] expected)
+    {
+        Assert.Equal(expected.Order(), items.Where(item => item.ProjectPath == path)
+            .Select(item => item.Candidate.SourceId).Order());
+        var scoped = await ScopedService(path).Service.DetectAsync(["claude-code"]);
+        Assert.Equal(expected.Order(), Assert.Single(scoped).Items.Select(item => item.SourceId).Order());
+    }
+
     private (SessionImportService Service, FakeSessionService Sessions) ScopedService(string path)
     {
         Directory.CreateDirectory(path);
         var data = Path.Combine(path, ".craft");
-        var settings = new SessionImportSettingsStore(Path.Combine(_user, "config.json"), Path.Combine(data, "config.json"));
-        var service = new SessionImportService(new SessionImportServiceOptions(path, data, new SessionImportConfig())
+        var userConfig = Path.Combine(_user, "config.json");
+        var workspaceConfig = Path.Combine(data, "config.json");
+        var settings = new SessionImportSettingsStore(userConfig, workspaceConfig);
+        var config = AppConfig.LoadWithGlobalFallback(workspaceConfig, userConfig).GetSection<SessionImportConfig>("AgentImport");
+        var service = new SessionImportService(new SessionImportServiceOptions(path, data, config)
         {
             LocalHost = new LocalImportHostOptions(_catalog, _chat, _home, _roots, null)
         }, settings, _sources);

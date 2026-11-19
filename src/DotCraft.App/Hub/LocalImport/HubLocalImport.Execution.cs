@@ -19,19 +19,21 @@ internal sealed partial class HubLocalImport
                 .SelectMany(source => source.Items).ToDictionary(item => item.Key, StringComparer.Ordinal);
             var chosen = SelectItems(detected, selection, manual, syncTargets, outcomes);
             var total = chosen.Count + outcomes.Count;
-            var groups = chosen.GroupBy(DestinationPath, ManagedAppServerRegistry.WorkspaceComparer).ToArray();
-            var failed = manual is null ? null : PrepareProjects(groups, outcomes);
+            var groups = chosen.GroupBy(DestinationPath, ManagedAppServerRegistry.WorkspaceComparer)
+                .OrderBy(group => group.Any(item => item.Destination == "newProject"));
             var completed = outcomes.Count;
             Report(id, sources[0], completed, total);
             foreach (var group in groups)
             {
                 _stopping.ThrowIfCancellationRequested();
-                if (failed?.Contains(group.Key) == true)
-                    continue;
                 var targetSources = group.Select(item => item.Candidate.Source).Distinct(StringComparer.Ordinal).ToArray();
                 var count = group.Count();
+                var preparing = manual is not null;
                 try
                 {
+                    if (preparing)
+                        PrepareDestination(group.Key, group.Any(item => item.Destination == "newProject"));
+                    preparing = false;
                     var batch = await _runTarget(group.Key, new ImportRunParams
                     {
                         Sources = targetSources,
@@ -51,7 +53,8 @@ internal sealed partial class HubLocalImport
                 catch (Exception ex) when (ex is not OperationCanceledException || !_stopping.IsCancellationRequested)
                 {
                     _logger.LogWarning(ex, "Import failed for destination {ProjectPath}", group.Key);
-                    outcomes.AddRange(group.Select(item => Failed(item, "import_pass_failed")));
+                    var error = preparing ? "import_project_unavailable" : "import_pass_failed";
+                    outcomes.AddRange(group.Select(item => Failed(item, error)));
                 }
                 completed += count;
                 Report(id, targetSources[0], completed, total);
@@ -129,38 +132,27 @@ internal sealed partial class HubLocalImport
         }
     }
 
-    private HashSet<string> PrepareProjects(IGrouping<string, LocalImportItem>[] groups, List<HubLocalImportOutcome> outcomes)
+    private void PrepareDestination(string path, bool register)
     {
-        var failed = new HashSet<string>(ManagedAppServerRegistry.WorkspaceComparer);
-        foreach (var group in groups)
+        if (ManagedAppServerRegistry.WorkspaceComparer.Equals(path, _paths.DefaultChatWorkspacePath))
         {
-            try
-            {
-                _stopping.ThrowIfCancellationRequested();
-                if (ManagedAppServerRegistry.WorkspaceComparer.Equals(group.Key, _paths.DefaultChatWorkspacePath))
-                    DefaultChatWorkspace.Ensure(_paths);
-                else if (group.Any(item => item.Destination == "newProject"))
-                {
-                    var configPath = ConfigPath(group.Key);
-                    AtomicConfigDocument.WithLock(configPath, () =>
-                    {
-                        if (!Directory.Exists(group.Key))
-                            throw new DirectoryNotFoundException();
-                        if (!File.Exists(configPath))
-                            AtomicConfigDocument.Write(configPath, "{}" + Environment.NewLine);
-                    });
-                    _projects.Open(group.Key);
-                    _events.Publish("projects.changed");
-                }
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                _logger.LogWarning(ex, "Unable to prepare import destination {ProjectPath}", group.Key);
-                failed.Add(group.Key);
-                outcomes.AddRange(group.Select(item => Failed(item, "import_project_unavailable")));
-            }
+            DefaultChatWorkspace.Ensure(_paths);
+            return;
         }
-        return failed;
+
+        if (!register)
+            return;
+
+        var configPath = ConfigPath(path);
+        AtomicConfigDocument.WithLock(configPath, () =>
+        {
+            if (!Directory.Exists(path))
+                throw new DirectoryNotFoundException();
+            if (!File.Exists(configPath))
+                AtomicConfigDocument.Write(configPath, "{}" + Environment.NewLine);
+        });
+        _projects.Open(path);
+        _events.Publish("projects.changed");
     }
 
     private string DestinationPath(LocalImportItem item) => item.ProjectPath ?? _paths.DefaultChatWorkspacePath;

@@ -44,10 +44,14 @@ public sealed partial class SessionImportService
                 _options.WorkspacePath, _options.CraftDataPath, ledger);
             if (routing.IsKnownWorkspace(_options.WorkspacePath))
             {
-                var scan = new Lazy<Task<LocalImportHostScan>>(() => LocalImportHostScan.DiscoverAsync(
-                    _sources, routing, _options.WorkspacePath, LocalImportConfiguration.ReadLimits(_settingsStore.UserDataPath),
-                    LocalImportConfiguration.ReadSourceProjectPaths(local.SourceRoots, local.CursorWorkspaceStorage),
-                    workspace.ExternalCliSessionIds, ct));
+                var scan = new Lazy<Task<LocalImportHostScan>>(() =>
+                {
+                    var excluded = new HashSet<string>(scope.ExternalCliSessionIds, StringComparer.OrdinalIgnoreCase);
+                    routing.CollectExternalCliSessions(excluded, ct);
+                    return LocalImportHostScan.DiscoverAsync(
+                        _sources, routing, scope with { ExternalCliSessionIds = excluded },
+                        LocalImportConfiguration.ReadSourceProjectPaths(local.SourceRoots, local.CursorWorkspaceStorage), ct);
+                });
                 context.Host = (routing, scan);
             }
         }

@@ -206,7 +206,7 @@ import type {
   WorkspaceStatusPayload
 } from '../shared/workspaceSetup'
 export type * from '../shared/workspaceSetup'
-import type { WorkspaceProjectsPayload } from '../shared/workspaceProjects'
+import type { WorkspaceProjectsPayload, WorkspaceSwitchOptions } from '../shared/workspaceProjects'
 import type { OpenInTargetRequest, OpenTargetInfo, OpenTargetPreferences } from '../shared/openTargets'
 export type { OpenInTargetRequest, OpenTargetInfo, OpenTargetPreferences } from '../shared/openTargets'
 import type {
@@ -1039,8 +1039,8 @@ const api = {
       return webUtils.getPathForFile(file)
     },
 
-    switch(newPath: string, connectionKey?: string): Promise<void> {
-      return ipcRenderer.invoke('workspace:switch', newPath, connectionKey)
+    switch(newPath: string, connectionKey?: string, options?: WorkspaceSwitchOptions): Promise<void> {
+      return ipcRenderer.invoke('workspace:switch', newPath, connectionKey, options)
     },
 
     clearSelection(): Promise<void> {

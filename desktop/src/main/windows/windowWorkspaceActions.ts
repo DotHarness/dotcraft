@@ -1,5 +1,6 @@
 import { normalizeLocale, translate } from '../../shared/locales'
 import { stopBeforeArchive } from '../../shared/stopBeforeArchive'
+import type { WorkspaceSwitchOptions } from '../../shared/workspaceProjects'
 import type { WorkspaceSetupModelListRequest, WorkspaceSetupRequest } from '../../shared/workspaceSetup'
 import { ensureDefaultChatWorkspace, isDefaultChatWorkspace } from '../defaultChatWorkspace'
 import { DesktopAppServerClient } from '../DesktopAppServerClient'
@@ -27,7 +28,19 @@ export async function removeLocalProject(ctx: DesktopWindowRuntime, workspacePat
   ctx.emitWorkspaceProjects()
 }
 
-export async function switchForegroundWorkspace(ctx: DesktopWindowRuntime, newPath: string, connectionKey?: string): Promise<void> {
+export async function switchForegroundWorkspace(
+  ctx: DesktopWindowRuntime,
+  newPath: string,
+  connectionKey?: string,
+  { existingProjectOnly = false }: WorkspaceSwitchOptions = {}
+): Promise<void> {
+  const isChat = !connectionKey && isDefaultChatWorkspace(newPath)
+  if (existingProjectOnly && !isChat) {
+    const projects = ctx.app.localProjects
+    if (!await projects.refresh() || !projects.has(newPath)) {
+      throw new Error('The destination project is no longer available in Projects.')
+    }
+  }
   if (ctx.mainWindow) invalidateForegroundFileAccess(ctx.mainWindow.webContents.id)
   ctx.deviceOpenGeneration += 1
   if (connectionKey) {
@@ -49,8 +62,8 @@ export async function switchForegroundWorkspace(ctx: DesktopWindowRuntime, newPa
     ctx.previousLocalForegroundWorkspacePath = null
   }
 
-  if (isDefaultChatWorkspace(newPath)) ensureDefaultChatWorkspace()
-  ctx.recordForegroundWorkspace(newPath, true)
+  if (isChat) ensureDefaultChatWorkspace()
+  ctx.recordForegroundWorkspace(newPath, !existingProjectOnly)
   ctx.emitWorkspaceProjects()
   await ctx.connectToAppServer(newPath)
   if (ctx.mainWindow && !ctx.mainWindow.isDestroyed()) {

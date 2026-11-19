@@ -50,7 +50,14 @@ internal sealed class LocalImportRouting
             state.CollectExternalCliSessions(ids, ct);
     }
 
-    public LocalImportRoute ResolveDirectory(string? sourceCwd, bool unresolved = false)
+    public LocalImportRoute ResolveDirectory(string? sourceCwd, bool unresolved = false) =>
+        ResolveDirectory(sourceCwd, unresolved, exactProjectRoot: false);
+
+    public string? ResolveExplicitProjectRoot(string sourceRoot) =>
+        ResolveDirectory(sourceRoot, unresolved: false, exactProjectRoot: true) is { Destination: "newProject" } route
+            ? route.ProjectPath : null;
+
+    private LocalImportRoute ResolveDirectory(string? sourceCwd, bool unresolved, bool exactProjectRoot)
     {
         if (unresolved) return LocalImportRoute.Unavailable;
         if (string.IsNullOrWhiteSpace(sourceCwd)) return Chats();
@@ -60,8 +67,9 @@ internal sealed class LocalImportRouting
         if (IsChat(cwd)) return Chats();
         if (_userDirectory != null && WorkspacePathMatcher.IsWithin(cwd, _userDirectory))
             return LocalImportRoute.Unavailable;
-        var owner = _registered.Keys.Where(root => WorkspacePathMatcher.IsWithin(cwd, root))
-            .OrderByDescending(root => root.Length).FirstOrDefault();
+        var owner = exactProjectRoot
+            ? (_registered.ContainsKey(cwd) ? cwd : null)
+            : _registered.Keys.Where(root => WorkspacePathMatcher.IsWithin(cwd, root)).OrderByDescending(root => root.Length).FirstOrDefault();
         if (owner != null)
             return new LocalImportRoute(_registered[owner], "project",
                 WorkspacePathMatcher.Normalize(Path.Combine(_registered[owner], Path.GetRelativePath(owner, cwd)))!);

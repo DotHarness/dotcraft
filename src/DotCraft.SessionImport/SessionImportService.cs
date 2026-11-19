@@ -114,8 +114,11 @@ public sealed partial class SessionImportService : ISessionServiceConsumer
         {
             if (_activePass is not null)
                 throw new SessionImportException(SessionImportErrorCodes.Busy, "An import is already running in this workspace.");
-            var saved = _settingsStore.ReadUserSettings();
-            UpdateSettings(null, saved.Sources.Union(sources).ToArray(), ImportCategories.Merge(saved.Selection, offered ?? selection, selection));
+            if (offered is null or { All: true } or { Sessions: true } or { User.Count: > 0 } or { Workspace.Count: > 0 })
+            {
+                var saved = _settingsStore.ReadUserSettings();
+                UpdateSettings(null, saved.Sources.Union(sources).ToArray(), ImportCategories.Merge(saved.Selection, offered ?? selection, selection));
+            }
             _activePass = StartPassLoop(request);
         }
 

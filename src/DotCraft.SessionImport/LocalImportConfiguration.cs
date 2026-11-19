@@ -13,9 +13,16 @@ internal sealed record LocalImportHostOptions(
 
 internal static class LocalImportConfiguration
 {
-    public static SessionImportConfig ReadLimits(string dataPath)
+    public static SessionImportConfig ReadLimits(string dataPath, SessionImportConfig? defaults = null)
     {
         var limits = new SessionImportConfig();
+        if (defaults != null)
+        {
+            limits.Enabled = defaults.Enabled;
+            limits.MaxSessionAgeDays = defaults.MaxSessionAgeDays;
+            limits.MaxSessionsPerSource = defaults.MaxSessionsPerSource;
+        }
+
         if (ReadSection(Path.Combine(dataPath, "config.json"), "AgentImport") is not JsonObject section)
             return limits;
 
