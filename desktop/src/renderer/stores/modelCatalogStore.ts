@@ -205,7 +205,7 @@ export function parseModelCatalogItems(payload: unknown): ModelCatalogItem[] {
       contextWindow: parseContextWindow(model.contextWindow ?? model.ContextWindow)
     })
   }
-  return Array.from(byId.values()).sort((a, b) => a.id.localeCompare(b.id))
+  return Array.from(byId.values()).sort((a, b) => b.id.localeCompare(a.id, undefined, { numeric: true }))
 }
 
 function parseEffectiveProviderId(payload: unknown, requestedProviderId: string | null): string | null {

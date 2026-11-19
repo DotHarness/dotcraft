@@ -63,6 +63,8 @@ type View = 'panel' | 'menu'
 const MAIN_MENU_WIDTH = 282
 const MAX_SUBMENU_HEIGHT = 320
 const VIEWPORT_PADDING = 8
+const MODEL_ROW = 1
+const PROVIDER_ROW = 2
 
 export function ModelPicker({
   providerId,
@@ -126,7 +128,6 @@ export function ModelPicker({
   const activeSpeed = effectiveSpeed(speedCapability, speedValue)
   const speedChoices: InferenceSpeedWire[] = ['standard', ...advertisedSpeeds]
   const providerVisible = Boolean(providerId && providerOptions.length > 0 && onProviderChange)
-  const providerOffset = providerVisible ? 1 : 0
   const effectiveReasoning: EffectiveReasoningValue = reasoningValue === 'default'
     ? capability?.defaultEffort ?? 'medium'
     : reasoningValue
@@ -195,11 +196,11 @@ export function ModelPicker({
   }
 
   const showMenu = (): void => {
-    setMainHighlight(providerOffset + 1)
+    setMainHighlight(MODEL_ROW)
     setView('menu')
     requestAnimationFrame(() => {
       const rows = popupRef.current?.querySelectorAll<HTMLButtonElement>('[data-main-action]')
-      rows?.[providerOffset + 1]?.focus()
+      rows?.[MODEL_ROW]?.focus()
     })
   }
 
@@ -783,33 +784,33 @@ export function ModelPicker({
                 {t('composer.modelMenu.back')}
               </button>
 
+              <MainMenuRow
+                label={t('composer.modelHeading')}
+                value={modelLabel}
+                highlighted={mainHighlight === MODEL_ROW || secondary === 'model'}
+                submenu="model"
+                onHover={(event) => handleSecondaryPointer('model', MODEL_ROW, event)}
+                onClick={(event) => {
+                  cancelMenuAim()
+                  setMainHighlight(MODEL_ROW)
+                  openSecondary('model', event.currentTarget)
+                }}
+              />
+
               {providerVisible && (
                 <MainMenuRow
                   label={t('composer.providerHeading')}
                   value={providerOptions.find((provider) => provider.id === providerId)?.displayName ?? providerId ?? ''}
-                  highlighted={mainHighlight === 1 || secondary === 'provider'}
+                  highlighted={mainHighlight === PROVIDER_ROW || secondary === 'provider'}
                   submenu="provider"
-                  onHover={(event) => handleSecondaryPointer('provider', 1, event)}
+                  onHover={(event) => handleSecondaryPointer('provider', PROVIDER_ROW, event)}
                   onClick={(event) => {
                     cancelMenuAim()
-                    setMainHighlight(1)
+                    setMainHighlight(PROVIDER_ROW)
                     openSecondary('provider', event.currentTarget)
                   }}
                 />
               )}
-
-              <MainMenuRow
-                label={t('composer.modelHeading')}
-                value={modelLabel}
-                highlighted={mainHighlight === providerOffset + 1 || secondary === 'model'}
-                submenu="model"
-                onHover={(event) => handleSecondaryPointer('model', providerOffset + 1, event)}
-                onClick={(event) => {
-                  cancelMenuAim()
-                  setMainHighlight(providerOffset + 1)
-                  openSecondary('model', event.currentTarget)
-                }}
-              />
               {secondary && (
                 <div
                   ref={submenuRef}

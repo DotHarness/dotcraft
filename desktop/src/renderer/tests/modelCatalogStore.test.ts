@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useModelCatalogStore } from '../stores/modelCatalogStore'
+import { parseModelCatalogItems, useModelCatalogStore } from '../stores/modelCatalogStore'
 import { installDesktopApiMock } from './desktopApiMock'
 import { workspaceResourceKey } from '../stores/workspaceResourceScope'
 
@@ -243,6 +243,14 @@ describe('modelCatalogStore', () => {
       sol: { supportedModes: ['standard', 'ultrafast'], defaultMode: 'standard' },
       plain: null
     })
+  })
+
+  it('lists the newest models first', () => {
+    const ids = ['gpt-5.6-sol', 'gpt-6.2-sol', 'gpt-6-sol', 'gpt-6.10-sol', 'gpt-6.1-sol', 'gpt-6.9-sol']
+    const models = parseModelCatalogItems({ success: true, models: ids.map((id) => ({ id })) })
+    expect(models.map((model) => model.id)).toEqual([
+      'gpt-6.10-sol', 'gpt-6.9-sol', 'gpt-6.2-sol', 'gpt-6.1-sol', 'gpt-6-sol', 'gpt-5.6-sol'
+    ])
   })
 
   it('keeps a non-blank displayName from model/list', async () => {
