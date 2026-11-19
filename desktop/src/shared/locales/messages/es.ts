@@ -979,7 +979,7 @@ export const MESSAGES_ES = {
   'pet.item.candy-necklace.name': "Collar de caramelos",
   'pet.item.candy-necklace.feature': "Hilera de cuentas de caramelo pastel con una cuenta rosa más grande delante",
   'pet.item.sheriff-star.name': "Estrella de sheriff",
-  'pet.item.sheriff-star.feature': "Placa dorada de seis puntas con bolitas; destella",
+  'pet.item.sheriff-star.feature': "Placa dorada de seis puntas con bolitas que destella",
   'pet.item.sticky-note.name': "Nota adhesiva",
   'pet.item.sticky-note.feature': "Nota cuadrada amarilla con una esquina levantada",
   'pet.item.bell-collar.name': "Collar con cascabel",

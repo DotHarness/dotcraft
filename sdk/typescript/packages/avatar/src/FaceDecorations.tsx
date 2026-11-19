@@ -4,16 +4,18 @@ import { itemOf } from './items.js'
 import type { Faceplate } from './MascotRig.js'
 import { Detail, Glow, Silhouette as S, useClipId } from './DecorationShapes.js'
 
-const heartLens = 'c-31-11-52-22-52-34 0-10 15-16 29-16 10 0 19 3 23 8 4-5 13-8 23-8 14 0 29 6 29 16 0 12-21 23-52 34Z'
 const snorkelTube = 'M792 458V372q0-30 28-40'
 const mark = 'var(--dca-held-mark, #3161f7)'
-const melon = (x: number, rx: number, ry: number) => `M${x - rx} 414h${rx * 2}a${rx} ${ry} 0 0 1-${rx * 2} 0Z`
-function star(cx: number, cy: number) {
-  return `M${Array.from({ length: 10 }, (_, i) => {
-    const angle = (i * 36 - 90) * Math.PI / 180, r = i % 2 ? .52 : 1
-    return `${(cx + 46 * r * Math.cos(angle)).toFixed(1)} ${(cy + 27 * r * Math.sin(angle)).toFixed(1)}`
-  }).join('L')}Z`
-}
+const plaster = 'M734 390h132a20 20 0 0 1 0 40H734a20 20 0 0 1 0-40Z'
+const heart = 'M800 456C772 436 738 412 738 378A31 31 0 0 1 800 378A31 31 0 0 1 862 378C862 412 828 436 800 456Z'
+const candy = ['#f2a0b4', '#f6d365', '#8fd6b4', '#b9a4f0']
+const beads = Array.from({ length: 7 }, (_, i) => {
+  const t = i / 6
+  return { x: 392 + 240 * t, y: 806 + 80 * t * (1 - t), r: i === 3 ? 30 : 23, fill: i === 3 ? '#f06a92' : candy[i % 4] }
+})
+const sheriffPoint = (r: number, i: number) => [512 + r * Math.cos((i * 30 - 90) * Math.PI / 180), 836 + r * Math.sin((i * 30 - 90) * Math.PI / 180)]
+const sheriff = `M${Array.from({ length: 12 }, (_, i) => sheriffPoint(i % 2 ? 38 : 68, i).map(v => v.toFixed(1)).join(' ')).join('L')}Z`
+const sheriffTips = Array.from({ length: 6 }, (_, i) => sheriffPoint(68, i * 2))
 const rosettePoint = (r: number, i: number) => `${(512 + r * Math.cos(i * Math.PI / 5)).toFixed(1)} ${(834 + r * Math.sin(i * Math.PI / 5)).toFixed(1)}`
 const rosette = `M${rosettePoint(40, 0)}${Array.from({ length: 10 }, (_, i) => `A13 13 0 0 1 ${rosettePoint(40, i + 1)}`).join('')}Z`
 const pleats = Array.from({ length: 10 }, (_, i) => `M${rosettePoint(30, i)}L${rosettePoint(42, i)}`).join('')
@@ -21,22 +23,6 @@ const crystal = 'M512 814c12 14 26 28 26 40a26 26 0 0 1-52 0c0-12 14-26 26-40Z'
 
 export function FaceDecoration({ id }: { id: FaceId }) {
   switch (id) {
-    case 'forehead-goggles': return <g strokeLinejoin="round">
-      <path d="M374 419h109v46H374Zm167 0h109v46H541Z" fill="#a2c5d1" stroke="#8b7568" strokeWidth="14" />
-      <path d="M483 442q29 20 58 0" stroke="#8b7568" strokeWidth="11" fill="none" />
-      <path d="m389 429 18 21m149-21 18 21" stroke="#e0eff1" strokeWidth="8" />
-    </g>
-    case 'shades': return <>
-      <rect x="372" y="416" width="116" height="44" rx="16" fill="#2b2f3a" stroke="#fff" strokeWidth="12" paintOrder="stroke fill" />
-      <rect x="536" y="416" width="116" height="44" rx="16" fill="#2b2f3a" stroke="#fff" strokeWidth="12" paintOrder="stroke fill" />
-      <path d="M488 432h48" stroke="#2b2f3a" strokeWidth="12" strokeLinecap="round" />
-      <path d="M386 428h44M550 428h44" stroke="#6b7280" strokeWidth="10" strokeLinecap="round" />
-    </>
-    case 'heart-glasses': return <>
-      <S d={`M430 462${heartLens}M594 462${heartLens}`} fill="#c9577a" stroke={12} />
-      <path d="M482 426h60" stroke="#c9577a" strokeWidth="12" strokeLinecap="round" />
-      <path d="M396 430q2-9 12-11M560 430q2-9 12-11" stroke="#f2a0b4" strokeWidth="9" strokeLinecap="round" fill="none" />
-    </>
     case 'headlamp': return <>
       <path d="M300 436h424" stroke="#3c4658" strokeWidth="20" strokeLinecap="round" />
       <S d="M448 416h128a16 16 0 0 1 16 16v8a16 16 0 0 1-16 16H448a16 16 0 0 1-16-16v-8a16 16 0 0 1 16-16ZM484 436a28 28 0 1 1 56 0a28 28 0 1 1-56 0Z" fill="#3c4658" stroke={12} />
@@ -71,21 +57,39 @@ export function FaceDecoration({ id }: { id: FaceId }) {
       <path d="M712 420 752 398v44Z" fill="#e0ad84" />
       <path d="M860 398h14a14 14 0 0 1 14 14v16a14 14 0 0 1-14 14h-14Z" fill="#f2a0b4" />
     </g>
-    case 'watermelon-glasses': return <>
-      <path d="M488 424q24-8 48 0" stroke="#4fae6a" strokeWidth="12" strokeLinecap="round" fill="none" />
-      <S d={melon(430, 58, 48) + melon(594, 58, 48)} fill="#4fae6a" stroke={12} />
-      <path d={melon(430, 50, 34) + melon(594, 50, 34)} fill="#eaf7d9" />
-      <path d={melon(430, 46, 29) + melon(594, 46, 29)} fill="#e8654f" />
-      <Detail><g fill="#2b2f3a">
-        <ellipse cx="410" cy="424" rx="4" ry="6" /><ellipse cx="432" cy="433" rx="4" ry="6" /><ellipse cx="454" cy="424" rx="4" ry="6" />
-        <ellipse cx="574" cy="424" rx="4" ry="6" /><ellipse cx="596" cy="433" rx="4" ry="6" /><ellipse cx="618" cy="424" rx="4" ry="6" />
-      </g></Detail>
+    case 'band-aid': return <g className="dca-part-temple">
+      {[-32, 32].map(angle => <path key={angle} d={plaster} transform={`rotate(${angle} 800 410)`} stroke="#fff" strokeWidth="24" strokeLinejoin="round" />)}
+      <path d={plaster} transform="rotate(-32 800 410)" fill="#d4955f" />
+      <g transform="rotate(32 800 410)">
+        <path d={plaster} fill="#e9b17f" />
+        <rect x="778" y="398" width="44" height="24" rx="6" fill="#f7d7b5" />
+        <Detail><g fill="#c98653"><circle cx="752" cy="404" r="4" /><circle cx="764" cy="416" r="4" /><circle cx="836" cy="404" r="4" /><circle cx="848" cy="416" r="4" /></g></Detail>
+      </g>
+    </g>
+    case 'usb-stick': return <g className="dca-part-temple" transform="translate(-16 16) rotate(-45 776 410)">
+      <S d="M748 394h56v32h-56a6 6 0 0 1-6-6v-20a6 6 0 0 1 6-6ZM800 380h96a18 18 0 0 1 18 18v24a18 18 0 0 1-18 18h-96Z" fill="#3c4658" stroke={12} />
+      <path d="M748 394h52v32h-52a6 6 0 0 1-6-6v-20a6 6 0 0 1 6-6Z" fill="#c9d2dc" />
+      <Detail><path d="M756 404h12M778 404h12" stroke="#6b7280" strokeWidth="8" strokeLinecap="round" /></Detail>
+      <rect x="800" y="380" width="14" height="60" fill="#2b2f3a" />
+      <circle className="dca-fx-pulse" cx="886" cy="410" r="8" fill="#5fd3a6" />
+    </g>
+    case 'heart-clip': return <g className="dca-part-temple" transform="translate(-22 20) rotate(16 800 410)">
+      <rect x="716" y="404" width="96" height="16" rx="8" fill="#a7b1c0" stroke="#fff" strokeWidth="10" paintOrder="stroke fill" />
+      <S d={heart} fill="#f06a92" stroke={12} />
+      <Detail><path d="M760 372q5-15 20-15" stroke="#ffc2d3" strokeWidth="8" strokeLinecap="round" fill="none" /></Detail>
+    </g>
+    case 'candy-necklace': return <>
+      <path d="M392 806q120 40 240 0" stroke="#fff" strokeWidth="18" strokeLinecap="round" fill="none" />
+      {beads.map(({ x, y, r }) => <circle key={`o${x}`} cx={x} cy={y} r={r + 7} fill="#fff" />)}
+      {beads.map(({ x, y, r, fill }) => <circle key={x} cx={x} cy={y} r={r} fill={fill} />)}
+      <Detail>{beads.map(({ x, y, r }) => <circle key={x} cx={x - r * .35} cy={y - r * .35} r={r * .28} fill="#fff" opacity=".7" />)}</Detail>
     </>
-    case 'star-glasses': return <>
-      <path d="M484 430h56" stroke="#e09a00" strokeWidth="12" strokeLinecap="round" />
-      <S d={star(440, 438) + star(584, 438)} fill="#ffd970" stroke={12} />
-      <path d={star(440, 438) + star(584, 438)} stroke="#e09a00" strokeWidth="7" strokeLinejoin="round" />
-      <path className="dca-fx dca-fx-sparkle-solo" d="M596 424l4 8 8 4-8 4-4 8-4-8-8-4 8-4Z" fill="#fff" />
+    case 'sheriff-star': return <>
+      <S d={sheriff} fill="#f6b500" stroke={14} />
+      {sheriffTips.map(([x, y]) => <circle key={x} cx={x} cy={y} r="13" fill="#f6b500" stroke="#fff" strokeWidth="10" paintOrder="stroke fill" />)}
+      <path d={sheriff} fill="#f6b500" />
+      <circle cx="512" cy="836" r="24" fill="#ffd970" stroke="#e09a00" strokeWidth="7" />
+      <path className="dca-fx dca-fx-sparkle-solo" d="M556 780l6 14 14 6-14 6-6 14-6-14-14-6 14-6Z" fill="#fff" />
     </>
     case 'sticky-note': return <g className="dca-part-temple" transform="rotate(12 796 416)">
       <S d="M752 372h88v60l-28 28h-60Z" fill="#f6d365" stroke={14} />

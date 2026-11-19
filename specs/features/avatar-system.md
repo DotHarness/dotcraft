@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.2 |
+| **Version** | 0.9.3 |
 | **Status** | Draft |
-| **Date** | 2026-11-04 |
+| **Date** | 2026-11-19 |
 | **Related Specs** | [Agent Profiles](agent-profiles.md), [Desktop DESIGN.md](../architecture/DESIGN.md) |
 
 Purpose: define the shared `@dotcraft/avatar` system: the equipment slots an avatar exposes, the item
@@ -124,7 +124,7 @@ Series groups the catalog and has no sampling authority.
 Two items conflict when they share at least one zone. Zones are the only compatibility mechanism.
 
 - Brimmed hats occupy `top` and `brow`; novelty head objects occupy `top` only.
-- Brow-band items such as goggles occupy `brow`.
+- Brow-band items such as the headlamp occupy `brow`.
 - Rim items occupy `rim`. The rim has exactly two mount sites: the chin run below the screen
   (primary) and the screen-right temple (secondary). The side runs merge with the arms and the
   screen-left temple is where held props rise, so neither is a mount site.
@@ -252,8 +252,9 @@ All of this is gated on `data-effects="live"`.
   Nothing floats beside the body. Objects made for people are adapted to the robot's geometry.
 - Detail layers hide at compact size; the silhouette always renders.
 - Head items rest on the body's upper edge and stay clear of both arms.
-- Brow items stay inside the brow band and never enter the screen. Only objects with a strong
-  silhouette such as goggles qualify.
+- Brow items stay inside the brow band and never enter the screen. The band is too shallow for an
+  object to read inside it at standard size, so a brow item needs a strap across the full brow or a
+  part that leaves the band, such as the snorkel's tube. Glasses do not qualify.
 - Rim items mount at one of the two rim sites and must still read at standard size, usually by
   overhanging the outline. Temple items stow in poses where an arm or prop crosses the site.
 - Faceplates fill the screen inside a white frame and draw four expression variants. Cutouts and

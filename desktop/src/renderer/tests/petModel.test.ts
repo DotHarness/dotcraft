@@ -64,22 +64,22 @@ describe('pet exchange', () => {
 
 describe('pet outfit', () => {
   it('follows zone rules and only wears what the bag holds', () => {
-    const owned = settings({ bag: { beanie: 1, 'forehead-goggles': 1 } })
+    const owned = settings({ bag: { beanie: 1, headlamp: 1 } })
     expect(wearItem(owned, 'wizard-hat')).toBe(owned)
-    const goggles = wearItem(owned, 'forehead-goggles')
-    const beanie = wearItem(goggles, 'beanie')
+    const lamp = wearItem(owned, 'headlamp')
+    const beanie = wearItem(lamp, 'beanie')
     expect(beanie.outfit).toMatchObject({ head: 'beanie', face: 'none' })
   })
 
   it('drops unknown or conflicting persisted items and keeps the paint while customization is off', () => {
     const raw = settings({
       palette: 4,
-      bag: { beanie: 1, 'forehead-goggles': 1, 'not-an-item': 3 } as PetSettings['bag'],
-      outfit: { head: 'beanie', face: 'forehead-goggles', hand: 'beanie', back: 'none', skin: 'none' } as PetSettings['outfit'],
+      bag: { beanie: 1, headlamp: 1, 'not-an-item': 3 } as PetSettings['bag'],
+      outfit: { head: 'beanie', face: 'headlamp', hand: 'beanie', back: 'none', skin: 'none' } as PetSettings['outfit'],
       drops: { runtimeMs: 0, tokens: 0, found: 1, last: 'not-an-item' as never }
     })
     const clean = sanitizePetSettings(raw)
-    expect(clean.bag).toEqual({ beanie: 1, 'forehead-goggles': 1 })
+    expect(clean.bag).toEqual({ beanie: 1, headlamp: 1 })
     expect(clean.outfit).toEqual({ head: 'beanie', face: 'none', hand: 'none', back: 'none', skin: 'none' })
     expect(clean.drops.last).toBeNull()
     expect(appearanceOf(clean)).toMatchObject({ palette: 4, head: 'beanie' })

@@ -979,7 +979,7 @@ export const MESSAGES_DE = {
   'pet.item.candy-necklace.name': "Bonbonkette",
   'pet.item.candy-necklace.feature': "Kette aus Pastell-Bonbonperlen mit einer größeren rosa Perle vorn",
   'pet.item.sheriff-star.name': "Sheriffstern",
-  'pet.item.sheriff-star.feature': "Goldener sechszackiger Stern mit Kugelspitzen; er funkelt",
+  'pet.item.sheriff-star.feature': "Goldener sechszackiger Stern mit Kugelspitzen, der funkelt",
   'pet.item.sticky-note.name': "Haftnotiz",
   'pet.item.sticky-note.feature': "Gelber quadratischer Zettel mit einer eingerollten Ecke",
   'pet.item.bell-collar.name': "Glöckchenhalsband",

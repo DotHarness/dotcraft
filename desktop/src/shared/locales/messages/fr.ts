@@ -979,7 +979,7 @@ export const MESSAGES_FR = {
   'pet.item.candy-necklace.name': "Collier de bonbons",
   'pet.item.candy-necklace.feature': "Rang de perles pastel en bonbon, une plus grosse perle rose devant",
   'pet.item.sheriff-star.name': "Étoile de shérif",
-  'pet.item.sheriff-star.feature': "Insigne doré à six branches aux pointes en boule ; il scintille",
+  'pet.item.sheriff-star.feature': "Insigne doré à six branches aux pointes en boule, qui scintille",
   'pet.item.sticky-note.name': "Note adhésive",
   'pet.item.sticky-note.feature': "Note carrée jaune avec un coin retroussé",
   'pet.item.bell-collar.name': "Collier à grelot",

@@ -963,7 +963,7 @@ export const MESSAGES_EN = {
   'pet.item.candy-necklace.name': "Candy necklace",
   'pet.item.candy-necklace.feature': "String of pastel candy beads with a bigger pink bead in front",
   'pet.item.sheriff-star.name': "Sheriff star",
-  'pet.item.sheriff-star.feature': "Gold six-point badge with ball tips; it glints",
+  'pet.item.sheriff-star.feature': "Gold six-point badge with ball tips that glints",
   'pet.item.sticky-note.name': "Sticky note",
   'pet.item.sticky-note.feature': "Yellow square note with one curled corner",
   'pet.item.bell-collar.name': "Bell collar",
