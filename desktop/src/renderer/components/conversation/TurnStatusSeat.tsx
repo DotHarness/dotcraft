@@ -3,6 +3,7 @@ import { useMemo, type JSX } from 'react'
 import { DesktopPluginSurface } from '../desktopPlugins/DesktopPluginSurface'
 import { useConversationThread } from './conversationAside/ConversationAside'
 import { useConversationStore } from '../../stores/conversationStore'
+import { useThreadStore } from '../../stores/threadStore'
 import type { ConversationTurn } from '../../types/conversation'
 import { resolveToolKind } from '../../utils/toolKind'
 import { readPlanApprovalInput } from '../../utils/planApprovalInput'
@@ -25,14 +26,16 @@ export function TurnStatusSeat({ turn, running, inReply = false }: { turn: Conve
   const implementsPlan = inputId != null && inputId === readPlanApprovalInput(threadId)
   const updatedTodos = turn.items.some((item) =>
     item.type === 'toolCall' && item.success === true && resolveToolKind(item) === 'todoWrite')
-  const taskCount = useRunningTaskCount(desktopSummaryServices, threadId)
+  const taskCount = useRunningTaskCount(desktopSummaryServices, threadId, status === 'running')
+  const backgroundWork = useThreadStore((state) => state.runtimeSnapshots.get(threadId)?.hasBackgroundWork === true)
+  const settled = status !== 'running' && !backgroundWork
   const context = useMemo<DesktopPluginTurnStatusContext>(
     () => ({
-      workspacePath, threadId, turnId, status,
+      workspacePath, threadId, turnId, status, settled,
       plan: snapshot && { title: snapshot.title, todos: snapshot.todos, implementsPlan, updatedTodos },
       runningTasks: { count: taskCount, open: () => setSummaryShown(true), claim: () => claimTurnTasks(turnId) }
     }),
-    [workspacePath, threadId, turnId, status, snapshot, implementsPlan, updatedTodos, taskCount]
+    [workspacePath, threadId, turnId, status, settled, snapshot, implementsPlan, updatedTodos, taskCount]
   )
   const content = <>
     <TurnTodoCard threadId={threadId} turnId={turnId} status={status} plan={context.plan} />

@@ -38,7 +38,7 @@ function createHost(ids: string[]) {
 
 function Tasks({ services }: { services: SummaryServices }) {
   const state = useSummaryState(services, 'thread-1')
-  const count = useRunningTaskCount(services, 'thread-1')
+  const count = useRunningTaskCount(services, 'thread-1', true)
   return <>
     <output aria-label="Running tasks">{count}</output>
     <BackgroundTasksSection services={services} threadId="thread-1" terminals={state?.terminals ?? []}

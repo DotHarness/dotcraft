@@ -121,6 +121,20 @@ public sealed class SessionServiceThreadReadStateTests : IDisposable
     }
 
     [Fact]
+    public async Task TurnEndingWithBackgroundWork_IsNotANewResult()
+    {
+        var work = new RunningWork();
+        var (service, published) = CreateService(ScriptedChatClient.Reply("waiting on agents"), backgroundTaskKinds: [work]);
+        var thread = await service.CreateThreadAsync(Identity());
+        work.OwnerThreadId = thread.Id;
+
+        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("work")]));
+
+        Assert.Null((await service.GetThreadReadStateAsync(thread))?.FirstUnread);
+        Assert.Empty(published);
+    }
+
+    [Fact]
     public async Task ColdLoadCancellationAndImport_LeaveReceiptsUnchanged()
     {
         var interruptedId = await SeedInterruptedThreadAsync();
@@ -274,7 +288,8 @@ public sealed class SessionServiceThreadReadStateTests : IDisposable
 
     private (SessionService Service, List<(string ThreadId, ThreadReadState State)> Published) CreateService(
         IChatClient chatClient,
-        Action<AppConfig>? configure = null)
+        Action<AppConfig>? configure = null,
+        IEnumerable<IBackgroundTaskKind>? backgroundTaskKinds = null)
     {
         var config = AppConfigTestFactory.CreateOpenAI();
         configure?.Invoke(config);
@@ -294,7 +309,8 @@ public sealed class SessionServiceThreadReadStateTests : IDisposable
             agentFactory,
             chatClient.AsAIAgent(),
             new SessionPersistenceService(new ThreadStore(CraftPath)),
-            new SessionGate());
+            new SessionGate(),
+            backgroundTaskKinds: backgroundTaskKinds);
         var published = new List<(string ThreadId, ThreadReadState State)>();
         service.ThreadReadStateChangedForBroadcast = (threadId, state) =>
         {
@@ -433,5 +449,22 @@ public sealed class SessionServiceThreadReadStateTests : IDisposable
             hanging.TrySetResult();
             await Task.Delay(Timeout.Infinite, ct);
         }
+    }
+
+    private sealed class RunningWork : IBackgroundTaskKind
+    {
+        public string? OwnerThreadId { get; set; }
+
+        public string Kind => "test";
+
+        public Task<BackgroundTask?> FindAsync(BackgroundTaskCaller caller, string taskId, CancellationToken ct) =>
+            Task.FromResult<BackgroundTask?>(null);
+
+        public Task<IReadOnlyList<BackgroundTask>> ListAsync(BackgroundTaskCaller caller, CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<BackgroundTask>>([]);
+
+        public Task StopAsync(BackgroundTask task, CancellationToken ct) => Task.CompletedTask;
+
+        public IEnumerable<string> RunningOwnerThreadIds() => OwnerThreadId is null ? [] : [OwnerThreadId];
     }
 }

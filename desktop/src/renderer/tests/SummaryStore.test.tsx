@@ -71,7 +71,7 @@ describe('Summary feed cache', () => {
     const { services, request } = createHost()
     let terminals = [{ sessionId: 'npx', threadId: 'thread-1', turnId: 't1', status: 'running', isBackground: true }]
     request.mockImplementation(async (method) => method === 'terminal/list' ? { terminals } : {})
-    const badge = renderHook(() => useRunningTaskCount(services, 'thread-1'))
+    const badge = renderHook(() => useRunningTaskCount(services, 'thread-1', true))
     const first = renderHook(() => useSummaryState(services, 'thread-1'))
     await settle()
     expect(badge.result.current).toBe(1)
@@ -81,6 +81,21 @@ describe('Summary feed cache', () => {
     await settle()
     expect(second.result.current!.terminals).toEqual([])
     expect(badge.result.current).toBe(0)
+  })
+
+  it('counts running shells only while the turn runs', async () => {
+    const { services, request } = createHost()
+    request.mockImplementation(async (method) => {
+      if (method === 'terminal/list') return {
+        terminals: [{ sessionId: 'dev-server', threadId: 'thread-1', turnId: 't1', status: 'running', isBackground: true }]
+      }
+      return {}
+    })
+    const running = renderHook(() => useRunningTaskCount(services, 'thread-1', true))
+    const ended = renderHook(() => useRunningTaskCount(services, 'thread-1', false))
+    await settle()
+    expect(running.result.current).toBe(1)
+    expect(ended.result.current).toBe(0)
   })
 
   it('keeps worktree updates live and isolates cached threads by the Main-owned connection key', async () => {
@@ -110,7 +125,7 @@ describe('Summary feed cache', () => {
     first.unmount()
     const cached = renderHook(() => ({
       state: useSummaryState(services, 'thread-1'),
-      count: useRunningTaskCount(services, 'thread-1')
+      count: useRunningTaskCount(services, 'thread-1', true)
     }))
     expect(cached.result.current.state!.ready).toBe(true)
     await settle()

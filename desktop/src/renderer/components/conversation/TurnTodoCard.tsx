@@ -55,9 +55,9 @@ export function TurnTodoCard({ threadId, turnId, status, plan }: {
   plan: TurnTodoPlan | null
 }): JSX.Element | null {
   const t = useT()
-  const taskCount = useRunningTaskCount(desktopSummaryServices, threadId)
+  const taskCount = useRunningTaskCount(desktopSummaryServices, threadId, false)
   const shown = plan != null && showsTodoCard(plan, status)
-  const showsTasks = shown && taskCount > 0
+  const showsTasks = shown && status !== 'running' && taskCount > 0
   useEffect(() => (showsTasks ? claimTurnTasks(turnId) : undefined), [showsTasks, turnId])
   if (!shown) return null
 
@@ -80,8 +80,7 @@ function TodoChecklist({ todos, live, tasksLabel }: {
 }): JSX.Element {
   const t = useT()
   const [unfolded, setUnfolded] = useState(false)
-  const prefix = unfolded ? 0 : foldedPrefix(todos, FOLD_AFTER)
-  const folded = tasksLabel && prefix === todos.length ? prefix - 1 : prefix
+  const folded = unfolded ? 0 : foldedPrefix(todos, FOLD_AFTER)
   const visible = todos.slice(folded)
   const tasksAnchor = (visible.find((todo) => todo.status === 'in_progress') ?? visible.at(-1))?.id
 

@@ -224,8 +224,9 @@ as a development server never keeps a Thread working. Session Core reports this 
 runtime's `hasBackgroundWork` ([AppServer Protocol](../protocols/appserver-protocol.md#threadstatuschanged))
 and republishes the runtime of the owner Thread and each of its ancestors whenever it changes.
 
-A Turn that completes while its Thread has background work has not finished the user's task. The
-Turn that the last task notification starts finishes it.
+A Turn that completes while its Thread has background work has not finished the user's task: it does
+not mark the Thread unread or request a Hub turn notification. The Turn that the last task
+notification starts finishes it.
 
 ## 6. Clients
 

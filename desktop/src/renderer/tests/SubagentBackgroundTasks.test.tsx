@@ -38,7 +38,7 @@ function Tasks() {
 }
 
 function Count() {
-  const count = useRunningTaskCount(services, 'root')
+  const count = useRunningTaskCount(services, 'root', true)
   return <output aria-label="Task count">{count}</output>
 }
 

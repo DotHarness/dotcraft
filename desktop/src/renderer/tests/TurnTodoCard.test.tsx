@@ -70,9 +70,9 @@ it('takes the running task count from the working line while it shows it', () =>
   expect(screen.queryByRole('button')).not.toBeInTheDocument()
 })
 
-it('keeps the running task count visible when every finished step folds away', () => {
+it('leaves the running task count to the working line while the turn runs', () => {
   taskCount.value = 1
-  const todos = Array.from({ length: 7 }, (_, index) => ({ id: `step-${index}`, content: `Step ${index}`, status: 'completed' as const }))
-  render(card('running', { ...PLAN, todos }))
-  expect(screen.getByRole('button', { name: '1 running task' })).toBeInTheDocument()
+  render(card('running', { ...PLAN, updatedTodos: true }))
+  expect(screen.getByRole('status', { name: 'Claimed' })).toHaveTextContent('false')
+  expect(screen.queryByRole('button', { name: '1 running task' })).not.toBeInTheDocument()
 })

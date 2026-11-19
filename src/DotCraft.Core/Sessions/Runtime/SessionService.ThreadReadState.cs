@@ -50,7 +50,7 @@ public sealed partial class SessionService
 
     private async Task RecordTurnResultReadStateAsync(SessionThread thread, SessionTurn turn)
     {
-        if (!IsNewResult(thread, turn))
+        if (!IsNewResult(thread, turn) || HasBackgroundWork(thread.Id))
             return;
 
         try

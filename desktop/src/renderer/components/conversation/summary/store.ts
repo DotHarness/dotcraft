@@ -85,7 +85,7 @@ export function useSummaryState(services: SummaryServices, threadId: string): Su
   return state
 }
 
-export function useRunningTaskCount(services: SummaryServices, threadId: string | null): number {
+export function useRunningTaskCount(services: SummaryServices, threadId: string | null, turnRunning: boolean): number {
   const scope = useSummaryScope(services)
   useEffect(() => {
     if (!threadId) return
@@ -93,5 +93,6 @@ export function useRunningTaskCount(services: SummaryServices, threadId: string 
     void tasks.ensure()
     return tasks.release
   }, [services, threadId, scope])
-  return useSubAgentTaskTree(threadId).count
+  const { count, delegates } = useSubAgentTaskTree(threadId)
+  return turnRunning ? count : delegates
 }

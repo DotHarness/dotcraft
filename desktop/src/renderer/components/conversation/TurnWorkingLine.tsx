@@ -26,7 +26,7 @@ export function TurnWorkingLine({ turnId, working, label, keepSpace, afterTool, 
   const [faded, setFaded] = useState(!working)
   if (working && !engaged) setEngaged(true)
   if (working && faded) setFaded(false)
-  const tasks = useRunningTaskCount(desktopSummaryServices, tasksThreadId)
+  const tasks = useRunningTaskCount(desktopSummaryServices, tasksThreadId, working)
   const tasksClaimed = useTurnTasksClaimed(turnId)
 
   const current: ShownLabel | null = label == null ? null

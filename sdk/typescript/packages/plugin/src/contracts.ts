@@ -159,6 +159,8 @@ export interface DesktopPluginTurnStatusContext {
   readonly turnId: string;
   /** The seat stays mounted after the turn ends, so this also tells how it ended. */
   readonly status: "running" | "completed" | "failed" | "cancelled";
+  /** The turn has ended and no Agent or Workflow it started is still running. */
+  readonly settled: boolean;
   readonly plan: DesktopPluginTurnPlan | null;
   readonly runningTasks: DesktopPluginTurnRunningTasks;
 }

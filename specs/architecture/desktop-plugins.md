@@ -268,6 +268,7 @@ interface DesktopPluginTurnStatusContext {
   readonly threadId: string
   readonly turnId: string
   readonly status: "running" | "completed" | "failed" | "cancelled"
+  readonly settled: boolean
   readonly plan: DesktopPluginTurnPlan | null
   readonly runningTasks: DesktopPluginTurnRunningTasks
 }
@@ -295,7 +296,9 @@ interface DesktopPluginPlanTodo {
 
 The plan is the thread's saved snapshot. `implementsPlan` identifies the execution turn started by accepting the Plan in Desktop. `updatedTodos` identifies a turn that successfully updated the checklist.
 
-`runningTasks.count` is the thread's running background task count that the turn's working line shows, and `open` shows the Summary that lists them. A contribution that shows the count itself calls `claim` and disposes the handle when it stops. While any claim is live, the working line omits the count.
+`settled` is true once the turn has ended and no Agent or Workflow it started is still running, so a contribution announces the user's task as done only when it is settled.
+
+`runningTasks.count` is the thread's running background task count that the turn's working line shows: every running task while the turn runs, and only Agents and Workflows after it ends, and `open` shows the Summary that lists them. A contribution that shows the count itself calls `claim` and disposes the handle when it stops. While any claim is live, the working line omits the count.
 
 The seat stays mounted after the turn ends, so a contribution decides from how the turn ended whether its status still applies. Content renders in the reading column with the transcript's spacing, and an empty contribution takes no space.
 
