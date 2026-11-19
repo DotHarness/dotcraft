@@ -867,33 +867,6 @@ public sealed class GitHubSourceApiTests
     }
 
     [Fact]
-    public async Task GitHubApiClient_CreatePullRequestReviewThreadReply_UsesGraphQlMutation()
-    {
-        var handler = new CapturingHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
-        {
-            Content = new StringContent(
-                """{"data":{"addPullRequestReviewThreadReply":{"comment":{"id":"PRRC_reply"}}}}""",
-                Encoding.UTF8,
-                "application/json")
-        });
-        var client = CreateGitHubApiClient(handler);
-
-        var response = await client.CreatePullRequestReviewThreadReplyAsync(
-            new GitHubRepositoryRef("dotcraft", "oratorio"),
-            "PRRT_thread",
-            "Resolved because the follow-up commit addressed it.",
-            CancellationToken.None);
-
-        Assert.Equal("PRRC_reply", response.ExternalId);
-        Assert.Equal("/graphql", handler.LastRequestUri?.AbsolutePath);
-        using var document = JsonDocument.Parse(handler.LastRequestBody!);
-        Assert.Contains("addPullRequestReviewThreadReply", document.RootElement.GetProperty("query").GetString(), StringComparison.Ordinal);
-        var variables = document.RootElement.GetProperty("variables");
-        Assert.Equal("PRRT_thread", variables.GetProperty("threadId").GetString());
-        Assert.Equal("Resolved because the follow-up commit addressed it.", variables.GetProperty("body").GetString());
-    }
-
-    [Fact]
     public async Task GitHubApiClient_RepositoryCommentScan_ReadsNewestFirstAcrossAllPages()
     {
         const int total = 1050;

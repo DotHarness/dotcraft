@@ -296,6 +296,11 @@ public sealed partial class GitHubWriteService(
             throw OratorioApiException.Conflict("invalidTransition", "Only failed source writes can be retried.", new Dictionary<string, object?> { ["status"] = write.Status });
         }
 
+        if (!await CanRetryReviewGatePublicationAsync(write, ct))
+        {
+            throw OratorioApiException.Conflict("staleReviewGatePublication", "The review publication status is no longer current for this GitHub check.");
+        }
+
         write.Status = SourceWriteStatus.Pending;
         write.ErrorCode = null;
         write.ErrorMessage = null;
@@ -510,23 +515,29 @@ public sealed partial class GitHubWriteService(
 
     private async Task<GitHubWriteResponse> ExecuteReviewThreadResolutionAsync(GitHubRepositoryRef repository, OratorioSourceWriteLog write, CancellationToken ct)
     {
-        var threadId = ReadString(write.RequestJson, "threadId");
-        var resolved = ReadBool(write.RequestJson, "resolved");
-        var replyBody = ReadOptionalString(write.RequestJson, "replyBody");
-        var replyMarker = ReadOptionalString(write.RequestJson, "replyMarker");
+        using var request = JsonDocument.Parse(write.RequestJson);
+        var payload = request.RootElement;
+        var threadId = ReadRequiredString(payload, "threadId");
+        var resolved = payload.GetProperty("resolved").GetBoolean();
         GitHubWriteResponse? replyResponse = null;
         var replySkipped = false;
 
-        if (resolved && !string.IsNullOrWhiteSpace(replyBody))
+        if (payload.TryGetProperty("rootCommentId", out var root))
         {
-            if (!string.IsNullOrWhiteSpace(replyMarker) &&
-                await ReviewThreadContainsMarkerAsync(repository, write.Number!.Value, threadId, replyMarker, ct))
+            var rootCommentId = root.GetInt64();
+            var replyBody = ReadRequiredString(payload, "replyBody");
+            var replyMarker = ReadRequiredString(payload, "replyMarker");
+            var number = write.Number!.Value;
+            if (write.AttemptCount > 1)
             {
-                replySkipped = true;
+                var comments = await client.ListPullRequestReviewCommentsAsync(repository, number, ct);
+                replySkipped = comments.Any(comment =>
+                    comment.InReplyToId == rootCommentId && comment.Body.Contains(replyMarker, StringComparison.Ordinal));
             }
-            else
+
+            if (!replySkipped)
             {
-                replyResponse = await client.CreatePullRequestReviewThreadReplyAsync(repository, threadId, replyBody, ct);
+                replyResponse = await client.CreatePullRequestReviewCommentReplyAsync(repository, number, rootCommentId, replyBody, ct);
             }
         }
 
@@ -545,19 +556,6 @@ public sealed partial class GitHubWriteService(
                 reply = replyResponse is null ? null : ToAuditResponse(replyResponse),
                 resolve = ToAuditResponse(resolveResponse)
             }, JsonOptions));
-    }
-
-    private async Task<bool> ReviewThreadContainsMarkerAsync(
-        GitHubRepositoryRef repository,
-        int number,
-        string threadId,
-        string replyMarker,
-        CancellationToken ct)
-    {
-        var threads = await client.ListPullRequestReviewThreadsAsync(repository, number, ct);
-        return threads.Any(thread =>
-            string.Equals(thread.Id, threadId, StringComparison.Ordinal) &&
-            thread.CommentBodies.Any(body => body.Contains(replyMarker, StringComparison.Ordinal)));
     }
 
     private static object ToAuditResponse(GitHubWriteResponse response) =>
@@ -601,6 +599,7 @@ public sealed partial class GitHubWriteService(
         {
             draft.Status = ReviewDraftStatus.Published;
             draft.PublishedAt = now;
+            await RecordReviewGatePublicationAsync(write, automatic: false, ct);
         }
         else if (write.Status == SourceWriteStatus.Failed)
         {
@@ -703,13 +702,6 @@ public sealed partial class GitHubWriteService(
 
     private static string ReadString(string json, string propertyName) =>
         ReadOptionalString(json, propertyName) ?? throw new JsonException($"Missing required property '{propertyName}'.");
-
-    private static bool ReadBool(string json, string propertyName)
-    {
-        using var document = JsonDocument.Parse(json);
-        return document.RootElement.TryGetProperty(propertyName, out var value) &&
-            value.ValueKind is JsonValueKind.True or JsonValueKind.False && value.GetBoolean();
-    }
 
     private static IReadOnlyList<GitHubPullRequestReviewCommentWrite> ReadReviewComments(string json)
     {

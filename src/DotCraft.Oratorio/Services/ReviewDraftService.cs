@@ -182,10 +182,8 @@ public sealed class ReviewDraftService(
         if (blocked is not null)
         {
             MarkPublishFailed(draft, write, blocked.Value.Code, blocked.Value.Message);
-            return;
         }
-
-        if (draft.Item.Source == "gitlab")
+        else if (draft.Item.Source == "gitlab")
         {
             await gitLabWrites.ExecuteAsync(write, ct);
         }
@@ -195,6 +193,7 @@ public sealed class ReviewDraftService(
         }
 
         ApplyWriteResultToDraft(draft, write);
+        await gitHubWrites.RecordReviewGatePublicationAsync(write, enforceAutoPublishGates, ct);
     }
 
     private async Task<OratorioSourceWriteLog> CreatePublishWriteAsync(OratorioReviewDraft draft, DateTimeOffset now, CancellationToken ct)

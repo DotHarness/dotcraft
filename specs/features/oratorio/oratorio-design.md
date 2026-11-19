@@ -2,9 +2,9 @@
 
 | Field | Value  |
 | ----- | ------ |
-| Version      | 0.9.9    |
+| Version      | 0.10.0    |
 | Status       | Living |
-| Date         | 2026-10-30        |
+| Date         | 2026-11-19        |
 | Parent Specs | [Automations Lifecycle](../automations-lifecycle.md) |
 
 Oratorio is DotCraft's built-in agent project management product. It runs as
@@ -173,13 +173,15 @@ Required lifecycle behavior:
   operator. Delivery reuses the same branch and review target (§6.2).
 - Every GitHub pull request review round — first dispatch, Re-review, Auto
   Review and retry alike — drives one `oratorio/review` check run for the head
-  commit under review. Oratorio marks it in progress when the round is queued
-  and completes it as neutral when the review run succeeds, leaving merge
-  ownership with the repository's collaborators. A later Oratorio approval,
-  requested changes, rejection, cancellation or terminal run failure updates
-  the same check to success, action required or failure. The check is a merge
-  gate only when the repository requires it through branch protection or
-  rulesets.
+  commit under review. Oratorio marks it in progress when the round is queued.
+  When analysis succeeds, the check completes as neutral. It reports a blocked
+  or failed automatic publication separately from the successful analysis, and
+  a successful publication retry clears that notice for the current round.
+  Publication outcomes do not change merge ownership or overwrite a later
+  decision. A later Oratorio approval, requested changes, rejection,
+  cancellation or terminal run failure updates the same check to success,
+  action required or failure. The check is a merge gate only when the
+  repository requires it through branch protection or rulesets.
 - **Archive** is available for any non-active item and preserves all history;
   **Reopen** returns an archived item to Discovered.
 - Rejected and archived items are closed history. They project to the Cancelled
@@ -378,9 +380,8 @@ Decision writes:
 | Issue | Approve, Request changes or Reject | Issue comment only |
 | Local task | Any decision | No GitHub write |
 
-Inline comments use GitHub's line-based diff anchors rather than deprecated
-diff positions. Oratorio renders concrete suggestions as GitHub suggestion
-blocks inside the comment.
+Inline comments use GitHub's line-based diff anchors. Oratorio renders
+concrete suggestions as GitHub suggestion blocks inside the comment.
 
 Oratorio never merges. A GitHub approving review is written only for an
 explicit operator approval. Commits, branch pushes and pull request creation
@@ -817,8 +818,10 @@ discussion created for it. When a mapped finding is resolved or reopened,
 Oratorio queues a source write that resolves or un-resolves that thread through
 the usual audit and retry path. Provider mirroring:
 
-- only toggles the thread's resolved flag and never changes review decision,
-  approval, merge, close or branch protection;
+- toggles the thread's resolved flag and, for a GitHub resolution with a note
+  and a known root comment, publishes the note as a reply without starting a
+  pending review. Mirroring never changes review decision, approval, merge,
+  close or branch protection;
 - applies only to changes Oratorio published to; without a known thread (for
   example a skipped finding) resolution stays internal and the operator sees
   that the provider thread was not resolved;
