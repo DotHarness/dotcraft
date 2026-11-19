@@ -17,9 +17,7 @@ public sealed partial class ManagedAppServerRegistry
         var endpoints = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var status = new Dictionary<string, HubServiceStatus>(StringComparer.OrdinalIgnoreCase);
         var environment = new Dictionary<string, string?>(StringComparer.Ordinal);
-        var usedPorts = new HashSet<int>();
-
-        var wsPort = AllocateUniquePort(usedPorts);
+        var wsPort = HubPortAllocator.AllocateLoopbackPort();
         var wsHost = "127.0.0.1";
         var wsToken = CreateToken();
         var wsProbeUrl = $"ws://{wsHost}:{wsPort}/ws";
@@ -36,19 +34,22 @@ public sealed partial class ManagedAppServerRegistry
 
         _events.Publish("port.allocated", canonicalWorkspacePath, new { service = "appServerWebSocket", port = wsPort });
 
-        if (config.DashBoard.Enabled && config.Tracing.Enabled)
+        DashboardTarget? dashboardTarget = null;
+        var dashboardEnabled = config.DashBoard.Enabled && config.Tracing.Enabled;
+        if (dashboardEnabled && HubDashboard.IsLoopback(_hubApiBaseUrl))
         {
-            var port = AllocateUniquePort(usedPorts);
-            var url = $"http://127.0.0.1:{port}/dashboard";
+            var url = _hubApiBaseUrl.TrimEnd('/') + HubDashboard.WorkspacePath(HubDashboard.WorkspaceId(canonicalWorkspacePath));
             endpoints["dashboard"] = url;
             status["dashboard"] = new HubServiceStatus("allocated", url);
-            environment[ManagedAppServerEnvironment.DashboardHost] = "127.0.0.1";
-            environment[ManagedAppServerEnvironment.DashboardPort] = port.ToString();
-            _events.Publish("port.allocated", canonicalWorkspacePath, new { service = "dashboard", port });
+            dashboardTarget = new DashboardTarget(new Uri($"http://{wsHost}:{wsPort}"), wsToken);
+            environment[ManagedAppServerEnvironment.DashboardUrlVariable] = url;
         }
         else
         {
-            status["dashboard"] = new HubServiceStatus("disabled", Reason: "Dashboard or tracing is disabled.");
+            var reason = dashboardEnabled
+                ? "Shared Dashboard requires a loopback Hub listener."
+                : "Dashboard or tracing is disabled.";
+            status["dashboard"] = new HubServiceStatus("disabled", Reason: reason);
         }
 
         AddRuntimeTools(runtimeTools, environment, status);
@@ -57,6 +58,7 @@ public sealed partial class ManagedAppServerRegistry
             environment,
             endpoints,
             status,
+            dashboardTarget,
             NormalizeOptionalPath(runtimeTools?.NodeBin),
             runtimeTools?.NodeRunAsNode == true,
             NormalizeOptionalPath(runtimeTools?.ModulesDir),

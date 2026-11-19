@@ -215,7 +215,7 @@ public sealed class HubHost : IDotCraftHost
         path == "/v1/appservers/ensure" || path == "/v1/appservers/restart"
         || path == "/v1/services/ensure" || path == "/v1/services/restart"
         || path == "/v1/codex-remote/enable" || path == "/v1/codex-remote/pairings"
-        || path.StartsWithSegments("/v1/local-import");
+        || path.StartsWithSegments("/v1/local-import") || path.StartsWithSegments("/dashboard");
 
     private static IResult StoppingResult() => Results.Json(
         new HubErrorResponse(new HubError("hubStopping", "DotCraft Hub is stopping.", null)),
@@ -416,6 +416,7 @@ public sealed class HubHost : IDotCraftHost
             events,
             request => Unauthorized(request, token),
             ProtectedAsync);
+        HubDashboard.Map(app, apiBaseUrl, _projects!, registry, _paths.DefaultChatWorkspacePath);
         HubLocalImportApi.Map(app, _localImport!, importConnection, _paths.DefaultChatWorkspacePath,
             request => Unauthorized(request, token), ProtectedAsync);
         HubMobileApi.Map(

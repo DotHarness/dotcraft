@@ -1,5 +1,5 @@
 import { onAction } from '../core/actions.js';
-import { fetchJson } from '../core/api.js';
+import { fetchApi, fetchJson } from '../core/api.js';
 import { formatCount, formatDateTime, formatUntil } from '../core/format.js';
 import { emptyState, esc, iconButton, loadingPanel, panelHeader, statGrid, statusLabel, statTile } from '../core/html.js';
 import { applyNavState, panelElement, registerPanel } from '../core/navigation.js';
@@ -64,7 +64,7 @@ export async function probeAutomations() {
 
 async function refreshAutomations(poll = false) {
   if (!loaded) panelElement('automations').innerHTML = loadingPanel();
-  if (poll) await fetch('/dashboard/api/orchestrators/automations/refresh', { method: 'POST', credentials: 'same-origin' }).catch(() => null);
+  if (poll) await fetchApi('/orchestrators/automations/refresh', { method: 'POST' }).catch(() => null);
   const data = await fetchJson(STATE_URL);
   loaded = true;
   renderAutomations(data ?? {});

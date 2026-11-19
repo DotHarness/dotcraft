@@ -98,7 +98,12 @@ public sealed partial class AppServerHost(
                 BuildWebSocketEndpoint(appServerConfig.WebSocket.Host, appServerConfig.WebSocket.Port, appServerConfig.WebSocket.Token);
         }
 
-        if (runtime.Config.DashBoard.Enabled && runtime.Config.Tracing.Enabled)
+        if (ManagedAppServerEnvironment.IsManaged)
+        {
+            if (ManagedAppServerEnvironment.GetDashboardUrl(runtime.Config) is { } url)
+                endpoints["dashboard"] = url.AbsoluteUri;
+        }
+        else if (runtime.Config.DashBoard.Enabled && runtime.Config.Tracing.Enabled)
         {
             endpoints["dashboard"] =
                 $"http://{runtime.Config.DashBoard.Host}:{runtime.Config.DashBoard.Port}/dashboard";
@@ -223,7 +228,9 @@ public sealed partial class AppServerHost(
                 HostWorkspacePath = runtime.Paths.WorkspacePath,
                 AutomationsHandler = _services.GetService<IAutomationsRequestHandler>(),
                 CommitMessageSuggest = runtime.CommitMessageSuggestService,
-                DashboardUrl = _appServerFeature?.DashboardUrl,
+                DashboardUrl = ManagedAppServerEnvironment.IsManaged
+                    ? ManagedAppServerEnvironment.GetDashboardUrl(runtime.Config)?.AbsoluteUri
+                    : _appServerFeature?.DashboardUrl,
                 WireAcpExtensionProxy = WireAcpExtensionProxy,
                 WireNodeReplProxy = WireNodeReplProxy,
                 WireDynamicToolProxy = WireDynamicToolProxy,

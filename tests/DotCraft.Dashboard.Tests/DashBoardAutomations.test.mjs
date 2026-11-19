@@ -9,6 +9,7 @@ globalThis.document = {
   querySelectorAll: () => [],
   addEventListener: (type, listener) => { (listeners[type] ??= []).push(listener); },
 };
+globalThis.location = { pathname: '/dashboard/' };
 globalThis.fetch = async () => ({ ok: false, status: 404, json: async () => null });
 
 const assets = '../../src/DotCraft.Dashboard/Resources/dashboard/assets/js/';

@@ -2,7 +2,7 @@
 
 Dashboard API is intended for the debugging UI and internal tools. For everyday troubleshooting the Dashboard pages are enough — see [Observability](../../self-hosting/observability). This page is for building an integration or debugging the frontend.
 
-Every route lives under `/dashboard/`, and the page itself is `GET /dashboard/`.
+Standalone Dashboard serves the page at `/dashboard/`. For the shared Dashboard, use the workspace URL in [Hub's `endpoints.dashboard`](./hub) as the base for `api/…` routes, for example `/dashboard/workspaces/{workspaceId}/api/runtime`.
 
 ## Standalone read-only viewer
 

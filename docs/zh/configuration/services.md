@@ -15,7 +15,9 @@ ACP、Dashboard 和 AppServer 的开关与监听地址，以及运行日志。Ap
 | `AppServer.WebSocket.Port` | WebSocket 监听端口 | `9100` |
 | `AppServer.WebSocket.Token` | 远程 WebSocket 客户端需要使用的 token | 空 |
 
-Dashboard 示例：
+`DashBoard.Host` 和 `DashBoard.Port` 只用于配置独立 Dashboard。
+
+独立 Dashboard 示例：
 
 ```json
 {

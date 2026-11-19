@@ -4,7 +4,7 @@
 |-------|-------|
 | **Version** | 0.13.1 |
 | **Status** | Living |
-| **Date** | 2026-11-18 |
+| **Date** | 2026-11-20 |
 
 Purpose: Define DotCraft Hub as a local coordinator that discovers, starts, reuses, monitors, and stops workspace-bound AppServer processes and a small set of product-owned local services, without changing the AppServer Protocol or the per-workspace runtime model. Hub is also the rendezvous point for paired Remote Tool Hosts and the gateway for paired devices; in both roles it relays connections as opaque byte streams.
 
@@ -28,14 +28,14 @@ Hub acts like a local container manager:
 4. **Use stdio for supervision, WebSocket for sharing.** Hub supervises managed AppServers over stdio; local clients share them over WebSocket.
 5. **Keep Hub local and single-user.** The Hub Local API binds to loopback with same-user trust. A client on another machine reaches it only through an SSH local forward authenticated as the same OS user (§9.1). Hub may open two separate, opt-in LAN listeners: the satellite listener (Remote Tool Host pairing and transport only) and the device gateway (device pairing and relay only). Each has its own route table; no `/v1/*` endpoint is reachable from either.
 6. **Keep standalone AppServer valid.** `dotcraft app-server` remains available for explicit remote hosting, CI, bots, and debugging.
-7. **Keep UI ownership in Desktop.** Hub is headless; tray and OS notifications belong to Desktop.
+7. **Keep native UI ownership in Desktop.** Hub has no native UI; tray and OS notifications belong to Desktop.
 8. **Keep product services closed and explicit.** Hub may supervise product-owned services registered by DotCraft composition; it is not a native-process extension point for plugins.
 
 ## 3. Architecture
 
 ```text
 dotcraft hub
-  - Hub Local API on loopback
+  - Hub Local API and shared Dashboard on loopback
   - workspace registry
   - AppServer supervisor
   - in-memory product service supervisor
@@ -73,7 +73,7 @@ A Hub-managed AppServer is a normal `dotcraft app-server` process launched with:
 
 - working directory = workspace root;
 - mode `StdioAndWebSocket`, WebSocket on loopback;
-- WebSocket port and token, and Dashboard ports when enabled, allocated by Hub;
+- WebSocket port and token allocated by Hub;
 - runtime overrides injected ephemerally, never rewriting `.craft/config.json`;
 - the stdio supervisor connection kept open for readiness and graceful shutdown.
 
@@ -356,7 +356,7 @@ A client may connect to multiple managed AppServers at once. These are client co
 
 ## 11. Port and Endpoint Management
 
-Managed endpoints bind to loopback. Hub allocates ports for the AppServer WebSocket and, when enabled, the Dashboard.
+Managed endpoints bind to loopback. Hub allocates a port for each AppServer WebSocket.
 
 The satellite listener and the device gateway are the only endpoints that bind a non-loopback address. Each uses a fixed configured port that paired peers store — `Hub.SatellitePort` (default `47600`) and `Hub.MobilePort` (default `47610`) — and neither falls back to another port when its own is taken. The relay binds nothing on the computer: Hub dials out and reaches the gateway over loopback.
 
@@ -367,6 +367,16 @@ Local clients, never a remote client (§9.1), may pass runtime tool hints — bu
 Hub serializes the complete read, merge, and save of shared runtime tool hints across concurrent workspace ensure and restart requests, preserving updates to distinct fields.
 
 Hub does not rewrite user-configured ports for channels, webhook modules, or other integrations unless a service explicitly participates in Hub-managed runtime overrides.
+
+### 11.1. Shared Dashboard
+
+Hub serves one browser Dashboard on its existing loopback listener. It serves the page and assets at `/dashboard/` and lists workspaces known to Hub through the project and AppServer registries, including the default Chat workspace when present. The list shows which workspaces are available without starting any AppServer. The Dashboard queries one workspace at a time and does not aggregate data across workspaces.
+
+A managed AppServer with Dashboard and tracing enabled reports its workspace's Hub Dashboard URL in the Hub service endpoints and the existing AppServer `initialize.dashboardUrl` field. Dashboard links select a workspace with `/dashboard/workspaces/{workspaceId}/`. Selecting another workspace changes that URL in the same tab. Session, Trace, Settings, usage, and other workspace views, including live streams and writes, are scoped to that identifier. A stopped workspace is unavailable to the live Dashboard.
+
+Hub forwards workspace Dashboard requests only to that running managed AppServer's existing loopback listener. The AppServer serves the internal Dashboard API without opening a Dashboard listener. It keeps exclusive ownership of its runtime, data, and writes. Hub authenticates upstream requests with the managed AppServer credential, which is never returned to the browser. The browser's existing optional Dashboard login remains workspace-scoped. Its cookie is limited to the workspace's Dashboard path. The Hub management API does not accept this cookie.
+
+The standalone AppServer Dashboard and the standalone read-only Dashboard command are independent of Hub and keep their configured listeners.
 
 ## 12. Security Model
 

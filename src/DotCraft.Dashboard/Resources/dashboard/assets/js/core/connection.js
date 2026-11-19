@@ -1,5 +1,5 @@
 import { onAction } from './actions.js';
-import { API } from './api.js';
+import { apiUrl } from './api.js';
 import { button, errorNotice } from './html.js';
 
 const RETRY_MS = 3000;
@@ -24,7 +24,7 @@ function renderNotice(reconnecting) {
 function connect() {
   clearTimeout(retryTimer);
   source?.close();
-  source = new EventSource(API + '/events/stream');
+  source = new EventSource(apiUrl('/events/stream'));
   source.onopen = () => {
     if (!lost) return;
     lost = false;
@@ -51,6 +51,16 @@ function connect() {
 
 export function connectLiveEvents(onEvent, onReconnect) {
   handlers = { onEvent, onReconnect };
+  window.addEventListener('pagehide', () => {
+    clearTimeout(retryTimer);
+    source?.close();
+    source = null;
+  });
+  window.addEventListener('pageshow', event => {
+    if (!event.persisted) return;
+    lost = true;
+    connect();
+  });
   connect();
 }
 

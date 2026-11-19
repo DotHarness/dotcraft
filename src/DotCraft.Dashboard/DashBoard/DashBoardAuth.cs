@@ -12,7 +12,8 @@ namespace DotCraft.DashBoard;
 
 public static class DashBoardAuth
 {
-    private const string CookieName = "dotcraft_dashboard_session";
+    public const string WorkspaceCookieName = "dotcraft_dashboard_workspace_session";
+    private const string StandaloneCookieName = "dotcraft_dashboard_session";
     private const string LoginPath = "/dashboard/login";
 
     private static readonly HashSet<string> PublicPaths =
@@ -43,10 +44,11 @@ public static class DashBoardAuth
     /// Registers the auth middleware that protects all /dashboard/ routes.
     /// Must be called before MapDashBoard.
     /// </summary>
-    public static void UseDashBoardAuth(this IApplicationBuilder app, AppConfig config)
+    public static void UseDashBoardAuth(this IApplicationBuilder app, AppConfig config, string publicPath = "/dashboard")
     {
         if (!IsEnabled(config)) return;
 
+        var cookieName = GetCookieName(publicPath);
         var logger = app.ApplicationServices.GetService<ILoggerFactory>()?.CreateLogger("DashBoard.Auth");
 
         app.Use(async (ctx, next) =>
@@ -64,7 +66,7 @@ public static class DashBoardAuth
                 return;
             }
 
-            if (ctx.Request.Cookies.TryGetValue(CookieName, out var cookie) && IsTokenValid(cookie))
+            if (ctx.Request.Cookies.TryGetValue(cookieName, out var cookie) && IsTokenValid(cookie))
             {
                 await next();
                 return;
@@ -79,7 +81,7 @@ public static class DashBoardAuth
                 return;
             }
 
-            ctx.Response.Redirect(LoginPath);
+            ctx.Response.Redirect($"{publicPath}/login");
         });
     }
 
@@ -87,10 +89,11 @@ public static class DashBoardAuth
     /// Maps login/logout endpoints. Must be called before MapDashBoard so that
     /// the login page route takes precedence.
     /// </summary>
-    public static void MapDashBoardAuth(this IApplicationBuilder app, AppConfig config)
+    public static void MapDashBoardAuth(this IApplicationBuilder app, AppConfig config, string publicPath = "/dashboard")
     {
         if (!IsEnabled(config)) return;
 
+        var cookieName = GetCookieName(publicPath);
         var logger = app.ApplicationServices.GetService<ILoggerFactory>()?.CreateLogger("DashBoard.Auth");
 
         app.Use(async (ctx, next) =>
@@ -101,9 +104,9 @@ public static class DashBoardAuth
             if (path.TrimEnd('/').Equals("/dashboard/login", StringComparison.OrdinalIgnoreCase)
                 && ctx.Request.Method == "GET")
             {
-                if (ctx.Request.Cookies.TryGetValue(CookieName, out var c) && IsTokenValid(c))
+                if (ctx.Request.Cookies.TryGetValue(cookieName, out var c) && IsTokenValid(c))
                 {
-                    ctx.Response.Redirect("/dashboard/");
+                    ctx.Response.Redirect($"{publicPath}/");
                     return;
                 }
 
@@ -134,11 +137,11 @@ public static class DashBoardAuth
                     && body.Password == config.DashBoard.Password)
                 {
                     var token = IssueToken();
-                    ctx.Response.Cookies.Append(CookieName, token, new CookieOptions
+                    ctx.Response.Cookies.Append(cookieName, token, new CookieOptions
                     {
                         HttpOnly = true,
                         SameSite = SameSiteMode.Strict,
-                        Path = "/dashboard",
+                        Path = publicPath,
                         MaxAge = TimeSpan.FromDays(7)
                     });
                     ctx.Response.ContentType = "application/json";
@@ -157,10 +160,10 @@ public static class DashBoardAuth
             if (path.TrimEnd('/').Equals("/dashboard/logout", StringComparison.OrdinalIgnoreCase)
                 && ctx.Request.Method == "POST")
             {
-                if (ctx.Request.Cookies.TryGetValue(CookieName, out var token))
+                if (ctx.Request.Cookies.TryGetValue(cookieName, out var token))
                     RevokedTokens.TryAdd(token, 0);
 
-                ctx.Response.Cookies.Delete(CookieName, new CookieOptions { Path = "/dashboard" });
+                ctx.Response.Cookies.Delete(cookieName, new CookieOptions { Path = publicPath });
                 ctx.Response.ContentType = "application/json";
                 await ctx.Response.WriteAsync("""{"ok":true}""");
                 return;
@@ -169,6 +172,9 @@ public static class DashBoardAuth
             await next();
         });
     }
+
+    private static string GetCookieName(string publicPath) =>
+        publicPath == "/dashboard" ? StandaloneCookieName : WorkspaceCookieName;
 
     private static bool IsApiRequest(string path) =>
         path.StartsWith("/dashboard/api", StringComparison.OrdinalIgnoreCase);

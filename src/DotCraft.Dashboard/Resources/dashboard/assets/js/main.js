@@ -3,14 +3,15 @@ import { connectLiveEvents } from './core/connection.js';
 import { icon } from './core/html.js';
 import { initHoverCards } from './core/hovercard.js';
 import { applyNavState, switchPanel } from './core/navigation.js';
-import { loadRuntime, showLogoutWhenAuthEnabled } from './core/runtime.js';
+import { loadRuntime } from './core/runtime.js';
 import { state } from './core/state.js';
 import { initTheme } from './core/theme.js';
 import { initTooltips } from './core/tooltip.js';
+import { initWorkspacePicker, showRuntimeUnavailable } from './core/workspace-picker.js';
 import { probeAutomations } from './panels/automations.js';
 import { handleDreamsHash, probeDreams } from './panels/dreams.js';
 import { refreshOverviewSoon } from './panels/overview.js';
-import './panels/settings.js';
+import { hasUnsavedSettings } from './panels/settings.js';
 import { handleLiveTraceEvent } from './panels/sessions.js';
 import './panels/usage.js';
 
@@ -26,13 +27,20 @@ async function init() {
   initTheme();
   initTooltips();
   initHoverCards();
-  await loadRuntime();
+  if (!(await initWorkspacePicker(hasUnsavedSettings))) return;
+  const runtime = await loadRuntime();
+  if (runtime === 'sign-in') return;
+  if (runtime === 'unavailable') {
+    showRuntimeUnavailable();
+    return;
+  }
+
   await Promise.all([probeDreams(), probeAutomations()]);
   applyNavState();
+  document.querySelectorAll('.dash-nav').forEach(nav => { nav.hidden = false; });
   switchPanel('overview');
   handleDreamsHash();
   window.addEventListener('hashchange', handleDreamsHash);
-  showLogoutWhenAuthEnabled();
   connectLiveEvents(event => {
     handleLiveTraceEvent(event);
     refreshOverviewSoon();

@@ -47,7 +47,9 @@ public static class DashBoardMiddleware
         bool refreshTraceFromDiskBeforeRead = false,
         DreamsService? dreamsService = null,
         DashBoardRuntimeOptions? runtimeOptions = null,
-        ConfigurationService? configuration = null)
+        ConfigurationService? configuration = null,
+        bool authEnabled = false,
+        bool includeFrontend = true)
     {
         var logger = endpoints.ServiceProvider.GetService<ILoggerFactory>()?.CreateLogger("DashBoard");
         var runtime = runtimeOptions ?? DashBoardRuntimeOptions.Interactive();
@@ -90,22 +92,15 @@ public static class DashBoardMiddleware
         if (automationsAvailable)
             MapOrchestratorEndpoints(endpoints, capturedOrchestrators);
 
-        endpoints.MapGet("/dashboard/", ctx =>
-        {
-            ctx.Response.ContentType = "text/html; charset=utf-8";
-            return ctx.Response.WriteAsync(DashBoardFrontend.GetHtml());
-        });
-
-        endpoints.MapGet("/dashboard/assets/{**path}", (string path) =>
-            DashBoardFrontend.TryGetAsset(path, out var content, out var contentType)
-                ? Results.Bytes(content, contentType)
-                : Results.NotFound());
+        if (includeFrontend)
+            endpoints.MapDashBoardFrontend();
 
         endpoints.MapGet("/dashboard/api/runtime", () => Results.Json(new
         {
             mode = runtime.Mode,
             readOnly = runtime.ReadOnly,
             workspacePath = paths.WorkspacePath,
+            authEnabled,
             capabilities = runtimeCapabilities
         }, JsonOptions));
 
@@ -413,24 +408,24 @@ public static class DashBoardMiddleware
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(
                 ctx.RequestAborted, lifetime.ApplicationStopping);
             var cancellationToken = cts.Token;
-            var reader = traceStore.SseReader;
+            var reader = traceStore.SubscribeToLiveEvents(cancellationToken);
 
             logger?.LogDebug("Dashboard SSE client connected");
             try
             {
+                await ctx.Response.WriteAsync(": connected\n\n", cancellationToken);
                 await foreach (var evt in reader.ReadAllAsync(cancellationToken))
                 {
                     var json = JsonSerializer.Serialize(evt, JsonOptions);
                     await ctx.Response.WriteAsync($"data: {json}\n\n", cancellationToken);
-                    await ctx.Response.Body.FlushAsync(cancellationToken);
                 }
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
-                // Client disconnected or server shutting down
             }
             finally
             {
+                cts.Cancel();
                 logger?.LogDebug("Dashboard SSE client disconnected");
             }
         });

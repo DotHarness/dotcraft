@@ -104,8 +104,13 @@ public sealed partial class AppServerHost
         var builder = WebApplication.CreateBuilder();
         builder.Logging.ClearProviders();
         builder.Logging.AddProvider(new NonOwningLoggerProvider(_loggerFactory));
+        var dashboardUrl = ManagedAppServerEnvironment.GetDashboardUrl(runtime.Config);
+        if (dashboardUrl is not null)
+            AppServerDashboard.ConfigureServices(builder.Services, _services);
 
         var app = builder.Build();
+        if (dashboardUrl is not null && !string.IsNullOrEmpty(wsConfig.Token))
+            AppServerDashboard.MapManaged(app, runtime, dashboardUrl.AbsolutePath.TrimEnd('/'), wsConfig.Token);
         app.UseWebSockets(new WebSocketOptions
         {
             KeepAliveInterval = TimeSpan.FromSeconds(30)

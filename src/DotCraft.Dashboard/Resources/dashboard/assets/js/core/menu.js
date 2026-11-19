@@ -89,9 +89,9 @@ export function openMenu(anchor, items, { align = 'left' } = {}) {
   mount(anchor, menu, index => items[index].onSelect(), align, 200);
 }
 
-export function selectHtml({ id, value, options, ariaLabel, appearance = 'field', change, width }) {
-  const current = options.find(option => option.value === value) ?? options[0];
-  return `<button type="button" class="dc-settings-select" role="combobox"${attrs({
+export function selectHtml({ id, value, options, ariaLabel, appearance = 'field', change, width, iconName, placeholder, menuWidth, className, disabled }) {
+  const current = options.find(option => option.value === value) ?? (placeholder ? null : options[0]);
+  return `<button type="button" class="dc-settings-select${className ? ` ${esc(className)}` : ''}" role="combobox"${attrs({
     id,
     value: current?.value ?? '',
     'aria-label': ariaLabel,
@@ -101,8 +101,11 @@ export function selectHtml({ id, value, options, ariaLabel, appearance = 'field'
     'data-action': 'open-select',
     'data-change': change,
     'data-options': JSON.stringify(options),
+    'data-menu-width': menuWidth,
+    'data-placeholder': current ? undefined : true,
+    disabled,
     style: width ? `min-width:${width}px` : undefined
-  })}><span class="dc-settings-select__value">${esc(current?.label ?? '')}</span><span class="dc-settings-select__chevron">${icon('chevronDown', 15, 1.8)}</span></button>`;
+  })}>${iconName ? `<span class="dc-settings-select__icon">${icon(iconName, 15, 1.8)}</span>` : ''}<span class="dc-settings-select__value">${esc(current?.label ?? placeholder ?? '')}</span><span class="dc-settings-select__chevron">${icon('chevronDown', 15, 1.8)}</span></button>`;
 }
 
 function openSelect(trigger) {
@@ -115,7 +118,7 @@ function openSelect(trigger) {
   menu.className = 'dc-settings-select-menu';
   menu.setAttribute('role', 'listbox');
   menu.setAttribute('aria-label', trigger.getAttribute('aria-label') || '');
-  const width = Math.min(Math.max(trigger.offsetWidth, 160), innerWidth - VIEWPORT_INSET * 2);
+  const width = Math.min(Math.max(trigger.offsetWidth, Number(trigger.dataset.menuWidth) || 160), innerWidth - VIEWPORT_INSET * 2);
   menu.style.width = `${width}px`;
   menu.style.maxHeight = '280px';
   menu.innerHTML = options.map((option, index) => {
@@ -137,6 +140,7 @@ function openSelect(trigger) {
     const option = options[index];
     if (option.value === trigger.value) return;
     trigger.value = option.value;
+    trigger.removeAttribute('data-placeholder');
     trigger.querySelector('.dc-settings-select__value').textContent = option.label;
     trigger.dispatchEvent(new Event('change', { bubbles: true }));
   }, 'select', width);

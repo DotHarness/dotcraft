@@ -2,7 +2,7 @@
 
 Dashboard API 面向调试界面和内部工具。日常排查用 Dashboard 页面就够了，用法见[可观测性](../../self-hosting/observability)。本页写给需要自建集成或调试前端的人。
 
-所有路由都挂在 `/dashboard/` 下，页面本身是 `GET /dashboard/`。
+独立 Dashboard 的页面地址是 `/dashboard/`。共享 Dashboard 的 `api/…` 路由以 [Hub 返回的 `endpoints.dashboard`](./hub) 为基址，例如 `/dashboard/workspaces/{workspaceId}/api/runtime`.
 
 ## 独立只读查看器
 

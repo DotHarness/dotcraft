@@ -6,22 +6,15 @@ The DotCraft Dashboard is a web page for seeing what the agent actually did. Ses
 
 ## Open the Dashboard
 
-Dashboard is enabled by default — field names and JSON examples live in [Entry points and services](../configuration/services). In Desktop, choose **View → Open Dashboard** or press **Ctrl+Shift+D** (**⌘⇧D** on macOS) to inspect the current workspace. The tray also offers a Dashboard entry for each workspace.
+In Desktop, choose **View → Open Dashboard** or press **Ctrl+Shift+D** (**⌘⇧D** on macOS). You can also open Dashboard from the tray. Use the selector at the top to switch between running local workspaces.
 
-To open a standalone viewer:
+To browse saved traces in a standalone viewer, run:
 
 ```bash
 dotcraft dashboard
 ```
 
-The default address is `http://127.0.0.1:8080/dashboard`. The landing page gives you a runtime summary, entry-point status, and recent activity. Send one conversation from the CLI, Desktop, or any other entry point and the data shows up.
-
-`dotcraft dashboard` reads what has already been persisted. To watch automations and external channels live, let AppServer host the Dashboard.
-
-Dashboard listens on localhost by default. Point it at an external address and anyone on the same network can open it.
-
-> [!CAUTION]
-> Dashboard shows prompts, project instructions and their source paths, tool arguments, and tool results. Confirm your network boundary and authentication before exposing it publicly.
+Open `http://127.0.0.1:8080/dashboard`. For live diagnostics on a self-hosted server, see [Server Deployment](./server-deployment).
 
 ## What each page answers
 

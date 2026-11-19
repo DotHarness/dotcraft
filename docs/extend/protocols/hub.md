@@ -158,6 +158,7 @@ Important fields:
 
 - `state`: one of `stopped`, `starting`, `running`, `stopping`, `exited`.
 - `endpoints.appServerWebSocket`: the URL your client should use for AppServer Protocol.
+- `endpoints.dashboard`: the workspace URL on the shared Dashboard, when enabled.
 - `serviceStatus`: optional service state for `dashboard` and runtime helpers.
 - `startedByHub`: whether the current process is managed by this Hub.
 

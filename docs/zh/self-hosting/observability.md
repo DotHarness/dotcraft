@@ -6,22 +6,15 @@ DotCraft 的 Dashboard 是一个网页，用来看清 Agent 刚才到底做了�
 
 ## 打开 Dashboard
 
-Dashboard 默认开启，相关字段名和 JSON 示例见[入口与服务](../configuration/services)。在 Desktop 中，选择**视图 → 打开 Dashboard**，或按 **Ctrl+Shift+D**（macOS 上是 **⌘⇧D**），即可查看当前工作区。托盘也为每个工作区提供 Dashboard 入口。
+在 Desktop 中，选择 **视图 → 打开 Dashboard**，或按 **Ctrl+Shift+D**（macOS 上是 **⌘⇧D**）。也可以从托盘打开。用页面顶部的选择器切换正在运行的本地工作区。
 
-启动独立查看器：
+要在独立查看器中查看已保存的 trace，运行：
 
 ```bash
 dotcraft dashboard
 ```
 
-默认地址是 `http://127.0.0.1:8080/dashboard`。首页给出运行摘要、各入口状态和近期活动。从 CLI、Desktop 或任何一个入口发起一次对话，数据随即出现。
-
-`dotcraft dashboard` 读的是已经落盘的记录。想看正在运行的自动化和外部渠道状态，就让 AppServer 托管 Dashboard。
-
-Dashboard 默认只监听本机。改成监听外部地址后，同一网络里的人都能打开它。
-
-> [!CAUTION]
-> Dashboard 会展示 prompt、项目指令及其来源路径、工具参数和工具结果。暴露到公网前，请先确认网络边界与认证策略。
+打开 `http://127.0.0.1:8080/dashboard`。要在自托管服务器上查看实时诊断，见[服务器部署](./server-deployment)。
 
 ## 每一页回答什么问题
 

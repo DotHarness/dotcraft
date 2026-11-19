@@ -21,13 +21,7 @@ public sealed class TraceStore
     private readonly TraceSessionBindingStore? _bindingStore;
     private readonly object _diskMutationLock = new();
     private readonly ConcurrentDictionary<string, TraceSession> _sessions = new();
-    private readonly Channel<TraceEvent> _sseChannel = Channel.CreateBounded<TraceEvent>(
-        new BoundedChannelOptions(1000)
-        {
-            FullMode = BoundedChannelFullMode.DropOldest,
-            SingleReader = false,
-            SingleWriter = false
-        });
+    private readonly TraceEventStream _liveEvents = new();
     private int _persistInFlight;
     private const int DefaultEventPageLimit = 1000;
     private const int MaxEventPageLimit = 1000;
@@ -117,7 +111,7 @@ public sealed class TraceStore
     {
         var binding = _bindingStore?.GetOrCreateBinding(evt.SessionKey, evt.Timestamp);
         _statistics?.RecordActivity(evt, binding?.RootThreadId);
-        ApplyEvent(evt, writeToSse: true);
+        ApplyEvent(evt);
 
         // After application, so a sink observes exactly the event the store accepted.
         _sinkDispatcher?.Publish(evt);
@@ -346,7 +340,8 @@ public sealed class TraceStore
         }
     }
 
-    public ChannelReader<TraceEvent> SseReader => _sseChannel.Reader;
+    public ChannelReader<TraceEvent> SubscribeToLiveEvents(CancellationToken cancellationToken) =>
+        _liveEvents.Subscribe(cancellationToken);
 
     public void BindThreadMainSession(string threadId, DateTimeOffset? createdAt = null)
         => _bindingStore?.BindThreadMain(threadId, createdAt);
@@ -590,7 +585,7 @@ public sealed class TraceStore
         };
     }
 
-    private void ApplyEvent(TraceEvent evt, bool writeToSse)
+    private void ApplyEvent(TraceEvent evt)
     {
         var session = GetOrAddSessionForEvent(evt);
 
@@ -605,8 +600,7 @@ public sealed class TraceStore
 
         AddInMemoryEvent(session, evt);
 
-        if (writeToSse)
-            _sseChannel.Writer.TryWrite(evt);
+        _liveEvents.Publish(evt);
     }
 
     private void ApplyEventToSession(TraceSession session, TraceEvent evt)

@@ -50,7 +50,8 @@ internal static class DashboardCliHost
             paths,
             stores.UsageStatisticsStore,
             refreshTraceFromDiskBeforeRead: true,
-            runtimeOptions: DashBoardRuntimeOptions.ReadOnlyViewer());
+            runtimeOptions: DashBoardRuntimeOptions.ReadOnlyViewer(),
+            authEnabled: DashBoardAuth.IsEnabled(config));
 
         var baseUrl = $"http://{config.DashBoard.Host}:{config.DashBoard.Port}";
         var dashboardUrl = $"{baseUrl}/dashboard";

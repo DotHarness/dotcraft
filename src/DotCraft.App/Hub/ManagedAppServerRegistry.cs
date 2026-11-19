@@ -144,6 +144,7 @@ public sealed partial class ManagedAppServerRegistry : IAsyncDisposable
                 VerifyManagedLock(craftPath, process.ProcessId, canonical);
 
                 process.OnCrashed += () => OnProcessCrashed(entry);
+                entry.DashboardTarget = plan.DashboardTarget;
                 entry.Process = process;
                 startedProcess = null;
                 entry.State = HubAppServerStates.Running;
@@ -619,21 +620,6 @@ public sealed partial class ManagedAppServerRegistry : IAsyncDisposable
 
     internal static string CanonicalizeWorkspacePath(string path) =>
         new DirectoryInfo(Path.GetFullPath(path)).FullName.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-
-    private static int AllocateUniquePort(HashSet<int> usedPorts)
-    {
-        for (var attempt = 0; attempt < 32; attempt++)
-        {
-            var port = HubPortAllocator.AllocateLoopbackPort();
-            if (usedPorts.Add(port))
-                return port;
-        }
-
-        throw new HubProtocolException(
-            "portUnavailable",
-            "Hub could not allocate a required local port.",
-            StatusCodes.Status500InternalServerError);
-    }
 
     private static string CreateToken()
     {

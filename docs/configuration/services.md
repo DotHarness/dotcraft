@@ -15,7 +15,9 @@ Switches and listen addresses for ACP, Dashboard, and AppServer, plus operationa
 | `AppServer.WebSocket.Port` | WebSocket listen port | `9100` |
 | `AppServer.WebSocket.Token` | Token required by remote WebSocket clients | Empty |
 
-Dashboard example:
+`DashBoard.Host` and `DashBoard.Port` configure standalone Dashboard only.
+
+Standalone Dashboard example:
 
 ```json
 {

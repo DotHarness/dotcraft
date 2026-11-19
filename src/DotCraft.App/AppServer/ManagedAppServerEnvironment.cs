@@ -14,8 +14,8 @@ public static class ManagedAppServerEnvironment
     public const string WebSocketHost = "DOTCRAFT_MANAGED_APPSERVER_WS_HOST";
     public const string WebSocketPort = "DOTCRAFT_MANAGED_APPSERVER_WS_PORT";
     public const string WebSocketToken = "DOTCRAFT_MANAGED_APPSERVER_WS_TOKEN";
-    public const string DashboardHost = "DOTCRAFT_MANAGED_DASHBOARD_HOST";
-    public const string DashboardPort = "DOTCRAFT_MANAGED_DASHBOARD_PORT";
+    public const string DashboardUrlVariable = "DOTCRAFT_MANAGED_DASHBOARD_URL";
+    internal const string DashboardWorkspacePrefix = "/dashboard/workspaces";
 
     /// <summary>
     /// Returns whether the current AppServer process was launched by Hub.
@@ -45,21 +45,21 @@ public static class ManagedAppServerEnvironment
                 Token = wsToken
             }
         });
-
-        ApplyDashboard(config);
     }
 
-    private static void ApplyDashboard(AppConfig config)
+    internal static Uri? GetDashboardUrl(AppConfig config)
     {
-        var host = GetString(DashboardHost);
-        var port = GetPort(DashboardPort);
-        if (host is null && port is null)
-            return;
+        if (!IsManaged || !config.DashBoard.Enabled || !config.Tracing.Enabled
+            || !Uri.TryCreate(GetString(DashboardUrlVariable), UriKind.Absolute, out var url)
+            || url.Scheme != Uri.UriSchemeHttp || !url.IsLoopback
+            || url.UserInfo.Length != 0 || url.Query.Length != 0 || url.Fragment.Length != 0)
+            return null;
 
-        if (host is not null)
-            config.DashBoard.Host = host;
-        if (port is not null)
-            config.DashBoard.Port = port.Value;
+        const string prefix = DashboardWorkspacePrefix + "/";
+        var path = url.AbsolutePath;
+        return path.Length == prefix.Length + 33 && path[^1] == '/'
+            && path.StartsWith(prefix, StringComparison.Ordinal)
+            && path.AsSpan(prefix.Length, 32).IndexOfAnyExcept("0123456789abcdef") < 0 ? url : null;
     }
 
     private static string? GetString(string name)
