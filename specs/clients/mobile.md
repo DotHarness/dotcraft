@@ -170,6 +170,12 @@ resting frame while focused or typing, and the caret is the focus cue. No field 
   the rest from the provider's preference. Models and their options come from `model/list`, never
   from app rules, and each control is hidden when the server lacks its capability. The phone never
   changes a chat's Agent Profile.
+- In the Model sheet, **Speed** uses the same expandable single-choice row as reasoning effort.
+  It offers Standard and only the accelerated modes the current model advertises (Fast and/or
+  Ultrafast). Hide the row when the model offers no accelerated mode. Show Standard when the chat's
+  configured speed is unavailable for that model. A successful selection collapses the row without
+  closing the sheet. The composer model chip shows one bolt for active Fast and two for active
+  Ultrafast.
 - **Photo** picks images, scales each to at most 2048 px on its longer side, and re-encodes it as
   JPEG. Before sending, the phone writes each photo to
   `<project>/.craft/attachments/images/<id>.jpg` with `fs/createDirectory` and `fs/writeFile` and

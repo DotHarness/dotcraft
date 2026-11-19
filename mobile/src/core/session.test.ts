@@ -328,17 +328,16 @@ describe('turn control', () => {
     const key = keyOf(await online(harness), 'Explain the release script')
     harness.link().openChat(key)
     await waitFor(() => harness.state().details[key]?.loading === false)
-    await harness.link().updateConfig(key, { kind: 'approval', policy: 'autoApprove' })
+    await harness.link().updateConfig(key, { kind: 'speed', speed: 'ultrafast' })
     const update = computer.calls.find((call) => call.method === 'thread/config/update')!
     expect(update.params.config).toEqual({
       providerId: 'studio',
       model: 'atlas-2',
       reasoning: { enabled: true, effort: 'high', output: 'full' },
-      speed: 'standard',
+      speed: 'ultrafast',
       agentProfileId: null,
-      approvalPolicy: 'autoApprove',
     })
-    expect(harness.state().details[key].config?.approvalPolicy).toBe('autoApprove')
+    expect(harness.state().details[key].config?.speed).toBe('ultrafast')
   })
 
   it('names the chosen model for a new chat and passes only the other controls that changed', async () => {
@@ -346,9 +345,9 @@ describe('turn control', () => {
     const harness = setup([computer])
     const state = await online(harness)
     const project = state.projects.find((entry) => entry.name === 'dotcraft')!
-    const controls = { providerId: 'studio', model: 'atlas-2', reasoning: 'high', speed: 'fast', approvalPolicy: 'prompt' } as const
+    const controls = { providerId: 'studio', model: 'atlas-2', reasoning: 'high', speed: 'ultrafast', approvalPolicy: 'prompt' } as const
     await harness.link().newChat(project.id, 'tidy the release script', startConfig({ touched: { speed: true }, controls }))
-    expect(computer.calls.find((call) => call.method === 'thread/start')!.params.config).toEqual({ providerId: 'studio', model: 'atlas-2', speed: 'fast' })
+    expect(computer.calls.find((call) => call.method === 'thread/start')!.params.config).toEqual({ providerId: 'studio', model: 'atlas-2', speed: 'ultrafast' })
   })
 
   it('starts a new chat on the model chosen for the switched provider', async () => {
