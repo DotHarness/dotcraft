@@ -145,16 +145,18 @@ describe('local Import', () => {
     expect(useUIStore.getState().pendingProjectThreadOpen).toEqual(expect.objectContaining({ threadId: 'open-this-chat' }))
   })
 
-  it('keeps history open when the project for a settings outcome has been removed', async () => {
-    const path = 'C:/projects/Removed'
-    const switchProject = vi.fn().mockRejectedValue(new Error('Project is no longer available.'))
+  it.each(['unavailable', 'superseded'])('keeps history open when switching for a settings outcome is %s', async reason => {
+    const path = 'C:/projects/Target'
+    const switchProject = reason === 'superseded'
+      ? vi.fn().mockResolvedValue(false)
+      : vi.fn().mockRejectedValue(new Error('Project is no longer available.'))
     useUIStore.getState().setActiveSettingsTab('import')
     installDesktopApiMock({
       imports: { detect: async () => ({ sources: [] }), getState: async () => state({
         imports: [{
           importId: 'finished', trigger: 'manual', completedAt: now, startedAt: now, outcomes: [{
             category: 'mcp', scope: 'workspace', source: 'claude-code', sourceId: 'mcp-item', status: 'imported',
-            targetPath: '', title: 'Tool server', projectName: 'Removed', projectPath: path
+            targetPath: '', title: 'Tool server', projectName: 'Target', projectPath: path
           }]
         }]
       }) },

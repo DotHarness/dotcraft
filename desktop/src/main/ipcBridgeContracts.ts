@@ -26,7 +26,7 @@ export interface ResolvedBinaryRequest {
   binaryPath?: string
 }
 export interface IpcHandlerCallbacks {
-  onSwitchWorkspace: (newPath: string, connectionKey?: string, options?: WorkspaceSwitchOptions) => Promise<void>
+  onSwitchWorkspace: (newPath: string, connectionKey?: string, options?: WorkspaceSwitchOptions) => Promise<void | false>
   onOpenDesktopLink: (url: string) => Promise<void>
   onClearWorkspaceSelection: () => Promise<void>
   onRunWorkspaceSetup: (request: WorkspaceSetupRequest) => Promise<void>

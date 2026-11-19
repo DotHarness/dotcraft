@@ -33,16 +33,18 @@ export async function switchForegroundWorkspace(
   newPath: string,
   connectionKey?: string,
   { existingProjectOnly = false }: WorkspaceSwitchOptions = {}
-): Promise<void> {
+): Promise<void | false> {
+  const generation = ++ctx.deviceOpenGeneration
   const isChat = !connectionKey && isDefaultChatWorkspace(newPath)
   if (existingProjectOnly && !isChat) {
     const projects = ctx.app.localProjects
-    if (!await projects.refresh() || !projects.has(newPath)) {
+    const refreshed = await projects.refresh()
+    if (generation !== ctx.deviceOpenGeneration) return false
+    if (!refreshed || !projects.has(newPath)) {
       throw new Error('The destination project is no longer available in Projects.')
     }
   }
   if (ctx.mainWindow) invalidateForegroundFileAccess(ctx.mainWindow.webContents.id)
-  ctx.deviceOpenGeneration += 1
   if (connectionKey) {
     const entry = ctx.workspaceConnections.get(connectionKey)
     if (!entry?.initializeResult) throw new Error('Workspace connection is not available.')

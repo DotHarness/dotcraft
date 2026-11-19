@@ -60,6 +60,20 @@ describe('panel resources on foreground workspace changes', () => {
     expect(ctx.connectToAppServer).not.toHaveBeenCalled()
   })
 
+  it('discards a history switch still refreshing when a newer workspace switch starts', async () => {
+    const ctx = fixture()
+    const refresh = Promise.withResolvers<boolean>()
+    Object.assign(ctx.app, { localProjects: { refresh: () => refresh.promise, has: () => true } })
+
+    const history = switchForegroundWorkspace(ctx, '/history', undefined, { existingProjectOnly: true })
+    await switchForegroundWorkspace(ctx, '/newer')
+    refresh.resolve(true)
+
+    expect(await history).toBe(false)
+    expect(ctx.recordForegroundWorkspace).toHaveBeenCalledExactlyOnceWith('/newer', true)
+    expect(ctx.connectToAppServer).toHaveBeenCalledExactlyOnceWith('/newer')
+  })
+
   it.each(['/registered', '/chats'])('switches to %s without registering it in existing-only mode', async path => {
     const ctx = fixture()
     const open = vi.fn()

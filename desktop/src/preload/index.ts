@@ -1039,7 +1039,7 @@ const api = {
       return webUtils.getPathForFile(file)
     },
 
-    switch(newPath: string, connectionKey?: string, options?: WorkspaceSwitchOptions): Promise<void> {
+    switch(newPath: string, connectionKey?: string, options?: WorkspaceSwitchOptions): Promise<void | false> {
       return ipcRenderer.invoke('workspace:switch', newPath, connectionKey, options)
     },
 

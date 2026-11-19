@@ -14,7 +14,7 @@ import type { ThreadSummary } from '../types/thread'
 export async function openThread(
   threadId: string,
   workspacePath?: string,
-  options: { includeArchived?: boolean; switchWorkspace?: (path: string) => Promise<void> } = {}
+  options: { includeArchived?: boolean; switchWorkspace?: (path: string) => Promise<void | false> } = {}
 ): Promise<void> {
   const foreground = useWorkspaceProjectsStore.getState()
   const foregroundWorkspacePath = isRemoteProjectKey(foreground.foregroundProjectId) ? '' : foreground.foregroundWorkspacePath

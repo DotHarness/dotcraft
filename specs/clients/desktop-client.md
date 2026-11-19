@@ -4,7 +4,7 @@
 |-------|-------|
 | **Version** | 0.13.2 |
 | **Status** | Living |
-| **Date** | 2026-11-19 |
+| **Date** | 2026-11-20 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
 | **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Hub Architecture](../architecture/hub-architecture.md), [Device Gateway](../protocols/device-gateway.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Goal Design](../features/goal.md), [Session Import](../features/session-import.md), [Desktop DESIGN.md](../architecture/DESIGN.md) |
 
@@ -961,7 +961,7 @@ project. A remote-only window exposes import only when its connection advertises
 - The local dialog separates personal tools and setup, projects, and chats. It shows items with known destinations, identifies projects that will be added, supports partial selection, and never shows configuration secrets.
 - One confirmation starts one import. Progress and results cover the whole selection, including partial failures, and do not change when the foreground project changes.
 - Keep-in-sync can be paused without clearing selections. After the first import, the selected sync categories can be customized for future passes.
-- Each history entry links to its actual destination and identifies items that need attention. Opening a history entry never registers a project. A sync pass that changed nothing stays silent. Imported history never makes chats unread.
+- Each history entry links to its actual destination and identifies items that need attention. Opening a history entry never registers a project. Newer navigation supersedes a pending history open without changing the newer selection. A sync pass that changed nothing stays silent. Imported history never makes chats unread.
 
 #### 6.7.2 Computer Use
 
