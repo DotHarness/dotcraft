@@ -9,14 +9,13 @@ export interface TurnPiece {
   wake: TaskWake | null
   /** The ending row that names a subagent wake in place of the generic line. */
   wakeEntry: TranscriptEntry | null
-  /** Completed without a reply, so a notification may continue it. */
-  open: boolean
+  completed: boolean
   replied: boolean
   changes: TurnChanges | null
 }
 
 function continues(previous: TurnPiece | undefined, piece: TurnPiece): boolean {
-  return !!previous?.open && piece.wake !== null && !piece.entries.some((entry) => entry.kind === 'user' && !entry.added)
+  return !!previous?.completed && piece.wake !== null && !piece.entries.some((entry) => entry.kind === 'user' && !entry.added)
 }
 
 function elapsed(activity: ActivityEntry | undefined): number {
@@ -39,9 +38,11 @@ function work(piece: TurnPiece, first: boolean, lifted: boolean): TranscriptEntr
   const body = [...(activity?.children ?? []), ...rest]
   return [
     ...(first ? [] : wakeLine(piece)),
-    ...(lifted
-      ? body.flatMap((entry): TranscriptEntry[] => entry.kind === 'changes' ? [] : entry.kind === 'assistant' && entry.changes.length > 0 ? [{ ...entry, changes: [] }] : [entry])
-      : body),
+    ...body.flatMap((entry): TranscriptEntry[] => {
+      if (entry.kind === 'changes') return lifted ? [] : [entry]
+      if (entry.kind !== 'assistant') return [entry]
+      return [{ ...entry, copy: false, changes: lifted ? [] : entry.changes }]
+    }),
     ...(activity?.pendingTurnId !== undefined ? [{ kind: 'turnWork' as const, id: `turn-work-${piece.turnId}`, turnId: activity.pendingTurnId }] : []),
   ]
 }

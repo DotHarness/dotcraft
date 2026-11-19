@@ -21,14 +21,22 @@ describe('response placement', () => {
     const asked = turn('asked', [prompt, tool], 0, 10)
     const mailed = turn('mailed', [mailbox, tool], 20, 5)
     const answered = turn('answered', [commandEnded, tool, reply], 30, 8)
-    const later = turn('later', [commandEnded, tool], 60, 4)
 
-    const placements = placeResponses([asked, mailed, answered, later], all)
+    const placements = placeResponses([asked, mailed, answered], all)
 
     expect(placements.get('asked')).toEqual({ leading: [], absorbed: true })
     expect(placements.get('mailed')).toEqual({ leading: [], absorbed: true })
     expect(placements.get('answered')).toEqual({ leading: [asked, mailed], absorbed: false })
-    expect(placements.get('later')).toEqual({ leading: [], absorbed: false })
+  })
+
+  it('continues a response whose earlier turn already replied', () => {
+    const asked = turn('asked', [prompt, tool, reply], 0, 10)
+    const later = turn('later', [commandEnded, tool], 60, 4)
+
+    const placements = placeResponses([asked, later], all)
+
+    expect(placements.get('asked')).toEqual({ leading: [], absorbed: true })
+    expect(placements.get('later')).toEqual({ leading: [asked], absorbed: false })
   })
 
   it('starts a new response at a user message, an unfinished turn, or unloaded history', () => {

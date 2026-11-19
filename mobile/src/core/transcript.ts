@@ -170,7 +170,7 @@ export function createTranscriptProjector(sharedChanges?: ChangesProjector): Tra
         const entries = stabilizeEntries(layoutTurn(chunk.id, turn, body, turn ? !DONE.has(turn.status) : live, turnChanges, wake, heading, wasStopped, summarized), old?.entries ?? [])
         const completed = turn?.status === 'completed'
         const replied = turn?.status !== 'failed' && replyIndex(entries.filter((entry) => entry.kind !== 'thinking'), completed) >= 0
-        const piece: TurnPiece = { turnId: chunk.id, entries, wake, wakeEntry, open: completed && !replied, replied, changes: turnChanges }
+        const piece: TurnPiece = { turnId: chunk.id, entries, wake, wakeEntry, completed, replied, changes: turnChanges }
         const next: TurnProjection = { items: inputs, turn, fallbackOrigin, consumesOrigin: body.some((entry) => entry.kind === 'user'), workingAgentPaths: options.workingAgentPaths, stopped: wasStopped, retry, changes: turnChanges, entries, piece }
         nextCache.set(key, next)
         pieces.push(piece)

@@ -1341,7 +1341,7 @@ and how it ended, or only the subagent when it sent a message; the icon is a qui
 while the timing still toggles the disclosure. The boundary keeps its single row,
 so a woken turn reads as a peer of the turn above it.
 
-A woken turn that continues an unanswered response adds no boundary. A subagent
+A woken turn that continues a response adds no boundary, even when the turn before it replied. A subagent
 ending takes the subagent ending row. A background command or workflow ending
 becomes a line inside the response's process: the same icon and the hover wording as
 visible text. A subagent's message adds no line there: subagents report often while
@@ -1355,7 +1355,8 @@ visible at rest while the timestamp and copy controls stay hover-revealed.
 The assistant answer's action row and completion cards appear below its final
 reply once the turn completes. An unanswered response has no action row or
 completion cards and reserves no footer space. A continued response presents the
-completion cards of its earlier turns after its final reply. Background tasks still running do not suppress the final reply's
+completion cards of its earlier turns after its final reply, and an earlier turn's reply
+reads as part of the process, without an action row. Background tasks still running do not suppress the final reply's
 copy, fork, and timestamp controls.
 
 The Wrap Up next-step card uses the same 8px separation and 12px content inset

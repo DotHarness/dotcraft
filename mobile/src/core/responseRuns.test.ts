@@ -106,10 +106,12 @@ describe('responses spanning turns', () => {
     expect(process(build(ended({ deliveryMode: 'queued', triggerStatus: 'failed' })))).toMatchObject({ kind: 'tool', verb: 'agentInterrupted', subject: 'reviewer' })
   })
 
-  it('starts a new response once the one before it has a reply', () => {
+  it('continues a response whose earlier turn already replied', () => {
     const items = [
       item('t1', 'userMessage', { text: 'Clean up' }),
       ...read('t1', 'r1'),
+      item('t1', 'toolCall', { toolName: 'EditFile', callId: 'e1', arguments: { path: 'a.ts' }, source: { kind: 'CoreNative', sourceId: 'core-native' }, presentation: { presentationId: 'core.file-write', options: { operation: 'edit' } } }),
+      item('t1', 'toolResult', { toolName: 'EditFile', callId: 'e1', result: 'ok', structuredContent: { kind: 'fileChange', changes: [{ path: 'a.ts', kind: 'update', additions: 2, deletions: 1 }] } }),
       item('t1', 'agentMessage', { text: 'Started the build.', phase: 'final' }),
       commandEnded('t2'),
       ...read('t2', 'r2'),
@@ -118,8 +120,11 @@ describe('responses spanning turns', () => {
 
     const transcript = buildTranscript(history(items, [['t1', 0, 10], ['t2', 30, 5]]))
 
-    expect(transcript.map((entry) => entry.kind)).toEqual(['user', 'activity', 'assistant', 'activity', 'assistant'])
-    expect(transcript[3]).toMatchObject({ origin: { task: 'terminal', label: 'npm test' } })
+    expect(transcript.map((entry) => entry.kind)).toEqual(['user', 'activity', 'assistant'])
+    const activity = transcript[1] as Extract<(typeof transcript)[number], { kind: 'activity' }>
+    expect(activity.children.find((entry) => entry.kind === 'assistant')).toMatchObject({ text: 'Started the build.', copy: false, changes: [] })
+    expect(activity.children.filter((entry) => entry.kind === 'wake')).toMatchObject([{ origin: { task: 'terminal', label: 'npm test' } }])
+    expect(transcript[2]).toMatchObject({ text: 'The build passed.', copy: true, changes: [{ turnId: 't1', added: 2, removed: 1 }] })
   })
 
   it('keeps the earlier turns expanded while the response has no reply', () => {
