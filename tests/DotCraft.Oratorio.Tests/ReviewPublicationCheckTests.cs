@@ -5,6 +5,7 @@ using DotCraft.Oratorio.Api;
 using DotCraft.Oratorio.Domain;
 using DotCraft.Oratorio.GitHub;
 using DotCraft.Oratorio.Integrations;
+using DotCraft.Oratorio.Services;
 using static DotCraft.Oratorio.Tests.OratorioApiTestSupport;
 
 namespace DotCraft.Oratorio.Tests;
@@ -14,14 +15,14 @@ public sealed class ReviewPublicationCheckTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task AutoPublicationWithoutReview_ReportsFailureAndClearsNoticeAfterRetry(bool blockedByWarnings)
+    public async Task PublicationRetry_PersistsPublishedReviewBeforeCheckTimeoutAndCanRetryCheck(bool blockedByWarnings)
     {
         var github = new FakeGitHubApiClient { FailNextPullRequestReviewCount = blockedByWarnings ? 0 : 1 };
         await using var app = CreateApp(github, blockedByWarnings);
         var client = app.CreateClient();
         var failed = await RunReviewUntilPublicationFailsAsync(client);
         var draft = Assert.Single(failed.ReviewDrafts);
-        var write = Assert.Single(failed.SourceWrites, write => write.Intent == "reviewDraftPublish");
+        var write = Assert.Single(failed.SourceWrites, write => write.WriteId == draft.SourceWriteId);
 
         Assert.Equal(blockedByWarnings ? "reviewDraftWarnings" : "githubWriteFailed", write.ErrorCode);
         Assert.Empty(github.PullRequestReviews);
@@ -35,9 +36,27 @@ public sealed class ReviewPublicationCheckTests
         var retryPath = blockedByWarnings
             ? $"/api/v1/review-drafts/{draft.DraftId}/publish"
             : $"/api/v1/source-writes/{write.WriteId}/retry";
+        ItemDetailResponse? stateBeforeCheckUpdate = null;
+        github.BeforeCheckRunUpdateAsync = async (_, ct) =>
+        {
+            stateBeforeCheckUpdate = await client.GetFromJsonAsync<ItemDetailResponse>(
+                $"/api/v1/items/id/{failed.Item.ItemId}", JsonOptions, ct);
+            throw new TaskCanceledException("Synthetic GitHub check update timeout.");
+        };
         var published = await PostAsync<ItemDetailResponse>(client, retryPath, new { });
+        github.BeforeCheckRunUpdateAsync = null;
 
-        Assert.Equal(ReviewDraftStatus.Published, Assert.Single(published.ReviewDrafts).Status);
+        var publishedWrite = AssertPublishedWrite(Assert.IsType<ItemDetailResponse>(stateBeforeCheckUpdate));
+        Assert.Equal(publishedWrite.WriteId, AssertPublishedWrite(published).WriteId);
+        Assert.Single(github.PullRequestReviews);
+        var failedCheck = Assert.Single(published.SourceWrites, x =>
+            x.Kind == SourceWriteKind.CheckRun && x.Status == SourceWriteStatus.Failed);
+        Assert.Contains("review not published", check.Title, StringComparison.OrdinalIgnoreCase);
+
+        var recovered = await PostAsync<ItemDetailResponse>(
+            client, $"/api/v1/source-writes/{failedCheck.WriteId}/retry", new { });
+
+        Assert.Equal(SourceWriteStatus.Succeeded, Assert.Single(recovered.SourceWrites, x => x.WriteId == failedCheck.WriteId).Status);
         Assert.Single(github.PullRequestReviews);
         var publishedCheck = Assert.Single(github.CheckRuns);
         Assert.Equal(checkId, publishedCheck.ExternalId);
@@ -46,23 +65,81 @@ public sealed class ReviewPublicationCheckTests
     }
 
     [Fact]
-    public async Task RetryAfterApproval_DoesNotOverwriteDecisionCheck()
+    public async Task ApprovalOverlappingPublicationRetry_LeavesDecisionOnTheSameCheck()
     {
         var github = new FakeGitHubApiClient { FailNextPullRequestReviewCount = 1 };
         await using var app = CreateApp(github);
         var client = app.CreateClient();
         var failed = await RunReviewUntilPublicationFailsAsync(client);
-        var write = Assert.Single(failed.SourceWrites, write => write.Intent == "reviewDraftPublish");
+        var draft = Assert.Single(failed.ReviewDrafts);
+        var checkId = Assert.Single(github.CheckRuns).ExternalId;
+        var publicationUpdateStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releasePublicationUpdate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        github.BeforeCheckRunUpdateAsync = (conclusion, ct) =>
+        {
+            if (conclusion != "neutral")
+            {
+                return Task.CompletedTask;
+            }
+
+            publicationUpdateStarted.TrySetResult();
+            return releasePublicationUpdate.Task.WaitAsync(ct);
+        };
+
+        using var approvalScope = app.Services.CreateScope();
+        var retry = PostAsync<ItemDetailResponse>(client, $"/api/v1/source-writes/{draft.SourceWriteId}/retry", new { });
+        Task<ItemDetailResponse> approval;
+        try
+        {
+            await publicationUpdateStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            approval = approvalScope.ServiceProvider.GetRequiredService<OratorioService>()
+                .ApproveByIdAsync(failed.Item.ItemId, new DecisionRequest("Approved."), CancellationToken.None);
+            var duringUpdate = await client.GetFromJsonAsync<ItemDetailResponse>(
+                $"/api/v1/items/id/{failed.Item.ItemId}", JsonOptions);
+            Assert.Equal(ItemState.Approved, duringUpdate!.Item.State);
+            Assert.Equal("neutral", Assert.Single(github.CheckRuns).Conclusion);
+        }
+        finally
+        {
+            releasePublicationUpdate.TrySetResult();
+        }
+
+        await Task.WhenAll(retry, approval).WaitAsync(TimeSpan.FromSeconds(10));
+
+        var approvedCheck = Assert.Single(github.CheckRuns);
+        Assert.Equal(checkId, approvedCheck.ExternalId);
+        Assert.Equal("success", approvedCheck.Conclusion);
+    }
+
+    [Fact]
+    public async Task FailedCompletionRetry_ReportsCurrentPublicationFailureOnTheExistingCheck()
+    {
+        var github = new FakeGitHubApiClient();
+        github.BeforeCheckRunUpdateAsync = (_, _) =>
+        {
+            github.BeforeCheckRunUpdateAsync = null;
+            return Task.FromException(new HttpRequestException("Synthetic GitHub check update failure."));
+        };
+
+        await using var app = CreateApp(github, blockedByWarnings: true);
+        var client = app.CreateClient();
+        var failed = await RunReviewUntilPublicationFailsAsync(client);
+        var failedCompletion = Assert.Single(failed.SourceWrites, x =>
+            x.Kind == SourceWriteKind.CheckRun && x.Status == SourceWriteStatus.Failed);
         var check = Assert.Single(github.CheckRuns);
+        var checkId = check.ExternalId;
+        Assert.Equal("completed", check.Status);
+        Assert.Contains("review not published", check.Title, StringComparison.OrdinalIgnoreCase);
 
-        await PostAsync<ItemDetailResponse>(client, $"/api/v1/items/id/{failed.Item.ItemId}/approve", new DecisionRequest("Approved."));
-        Assert.Equal("success", check.Conclusion);
+        var retried = await PostAsync<ItemDetailResponse>(
+            client, $"/api/v1/source-writes/{failedCompletion.WriteId}/retry", new { });
 
-        var published = await PostAsync<ItemDetailResponse>(client, $"/api/v1/source-writes/{write.WriteId}/retry", new { });
-
-        Assert.Equal(ReviewDraftStatus.Published, Assert.Single(published.ReviewDrafts).Status);
-        Assert.Equal(ItemState.Approved, published.Item.State);
-        Assert.Equal("success", Assert.Single(github.CheckRuns).Conclusion);
+        Assert.Equal(SourceWriteStatus.Succeeded, Assert.Single(retried.SourceWrites, x => x.WriteId == failedCompletion.WriteId).Status);
+        Assert.Empty(github.PullRequestReviews);
+        check = Assert.Single(github.CheckRuns);
+        Assert.Equal(checkId, check.ExternalId);
+        Assert.Equal("neutral", check.Conclusion);
+        Assert.Contains("review not published", check.Title, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -72,7 +149,7 @@ public sealed class ReviewPublicationCheckTests
         await using var app = CreateApp(github);
         var client = app.CreateClient();
         var failed = await RunReviewUntilPublicationFailsAsync(client);
-        var write = Assert.Single(failed.SourceWrites, write => write.Intent == "reviewDraftPublish");
+        var draft = Assert.Single(failed.ReviewDrafts);
         var checkTitle = Assert.Single(github.CheckRuns).Title;
         var pull = Assert.Single(github.PullRequests);
         github.PullRequests[0] = pull with
@@ -86,11 +163,21 @@ public sealed class ReviewPublicationCheckTests
             Assert.Empty(sync.Errors);
         }
 
-        var published = await PostAsync<ItemDetailResponse>(client, $"/api/v1/source-writes/{write.WriteId}/retry", new { });
+        var published = await PostAsync<ItemDetailResponse>(client, $"/api/v1/source-writes/{draft.SourceWriteId}/retry", new { });
 
         Assert.Equal("def456", published.Item.HeadSha);
         Assert.Equal(ReviewDraftStatus.Published, Assert.Single(published.ReviewDrafts).Status);
         Assert.Equal(checkTitle, Assert.Single(github.CheckRuns).Title);
+    }
+
+    private static SourceWriteDto AssertPublishedWrite(ItemDetailResponse item)
+    {
+        var draft = Assert.Single(item.ReviewDrafts);
+        Assert.Equal(ReviewDraftStatus.Published, draft.Status);
+        var write = Assert.Single(item.SourceWrites, x => x.WriteId == draft.SourceWriteId);
+        Assert.Equal(SourceWriteKind.PullRequestReview, write.Kind);
+        Assert.Equal(SourceWriteStatus.Succeeded, write.Status);
+        return write;
     }
 
     private static TestOratorioApp CreateApp(FakeGitHubApiClient github, bool blockedByWarnings = false)
@@ -118,6 +205,8 @@ public sealed class ReviewPublicationCheckTests
         await PostAsync<ItemDetailResponse>(client, $"/api/v1/items/id/{pr.ItemId}/dispatch",
             new DispatchRequest("appServer", "Review the pull request.", null, null));
         return await WaitForItemByIdAsync(client, pr.ItemId!, item =>
-            item.ReviewDrafts.Any(draft => draft.Status == ReviewDraftStatus.PublishFailed));
+            item.ReviewDrafts.Any(draft => draft.Status == ReviewDraftStatus.PublishFailed) &&
+            item.SourceWrites.Any(write => write.Kind == SourceWriteKind.CheckRun &&
+                write.Intent == "reviewGatePublication" && write.Status != SourceWriteStatus.Pending));
     }
 }

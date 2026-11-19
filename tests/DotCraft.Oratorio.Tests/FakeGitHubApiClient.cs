@@ -155,6 +155,7 @@ internal sealed class FakeGitHubApiClient : IGitHubApiClient
     public int FailNextReactionCount { get; set; }
     public int FailNextWriteCount { get; set; }
     public int FailNextPullRequestReviewCount { get; set; }
+    public Func<string?, CancellationToken, Task>? BeforeCheckRunUpdateAsync { get; set; }
     public int IssueCommentCallCount { get; private set; }
     public int PullRequestReviewCallCount { get; private set; }
     public int PullRequestReviewCommentCallCount { get; private set; }
@@ -549,7 +550,7 @@ index 3333333..4444444 100644
         return Task.FromResult(new GitHubWriteResponse(id, $"https://github.example.test/{repository.FullName}/runs/{300 + CheckRuns.Count - 1}", $$"""{"id":"{{id}}"}"""));
     }
 
-    public Task<GitHubWriteResponse> UpdateCheckRunAsync(
+    public async Task<GitHubWriteResponse> UpdateCheckRunAsync(
         GitHubRepositoryRef repository,
         string checkRunId,
         string status,
@@ -561,12 +562,17 @@ index 3333333..4444444 100644
         MaybeFailWrite();
         var check = CheckRuns.FirstOrDefault(x => x.ExternalId == checkRunId)
             ?? throw new InvalidOperationException($"Unknown check run {checkRunId}.");
+        if (BeforeCheckRunUpdateAsync is { } beforeUpdate)
+        {
+            await beforeUpdate(conclusion, ct);
+        }
+
         check.Status = status;
         check.Conclusion = conclusion;
         check.Title = title;
         check.Summary = summary;
         check.UpdateCount++;
-        return Task.FromResult(new GitHubWriteResponse(checkRunId, $"https://github.example.test/{repository.FullName}/runs/{checkRunId}", $$"""{"id":"{{checkRunId}}"}"""));
+        return new GitHubWriteResponse(checkRunId, $"https://github.example.test/{repository.FullName}/runs/{checkRunId}", $$"""{"id":"{{checkRunId}}"}""");
     }
 
     public List<(string ThreadId, bool Resolved)> ReviewThreadResolutions { get; } = [];

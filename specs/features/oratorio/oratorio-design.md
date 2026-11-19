@@ -177,11 +177,13 @@ Required lifecycle behavior:
   When analysis succeeds, the check completes as neutral. It reports a blocked
   or failed automatic publication separately from the successful analysis, and
   a successful publication retry clears that notice for the current round.
-  Publication outcomes do not change merge ownership or overwrite a later
-  decision. A later Oratorio approval, requested changes, rejection,
-  cancellation or terminal run failure updates the same check to success,
-  action required or failure. The check is a merge gate only when the
-  repository requires it through branch protection or rulesets.
+  Oratorio saves the publication outcome before updating the check. A failed
+  check update is retryable without publishing the review again. Check writes
+  for a round are serialized, and retries report the saved publication outcome
+  without overriding a later operator decision. An Oratorio approval, requested
+  changes, rejection, cancellation or terminal run failure updates the same
+  check to success, action required or failure. The check is a merge gate only
+  when the repository requires it through branch protection or rulesets.
 - **Archive** is available for any non-active item and preserves all history;
   **Reopen** returns an archived item to Discovered.
 - Rejected and archived items are closed history. They project to the Cancelled
