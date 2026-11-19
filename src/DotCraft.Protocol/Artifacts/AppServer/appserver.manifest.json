@@ -26586,6 +26586,101 @@
       "variants": []
     },
     {
+      "id": "core.TurnNotifyParams",
+      "name": "TurnNotifyParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/TurnNotifyParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "label",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "notificationId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "project",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "refId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "result",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "status",
+          "type": "core.TurnNotifyStatus",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "summary",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.TurnNotifyResult",
+      "name": "TurnNotifyResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/TurnNotifyResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "queued",
+          "type": "boolean",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.TurnNotifyStatus",
+      "name": "TurnNotifyStatus",
+      "module": "core",
+      "kind": "enum",
+      "schema": "schemas/core/TurnNotifyStatus.schema.json",
+      "additionalProperties": true,
+      "fields": [],
+      "variants": []
+    },
+    {
       "id": "core.TurnQueueRemoveParams",
       "name": "TurnQueueRemoveParams",
       "module": "core",
@@ -26766,6 +26861,70 @@
           "type": "array<core.QueuedTurnInput>",
           "required": false,
           "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.TurnStartOrEnqueueParams",
+      "name": "TurnStartOrEnqueueParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/TurnStartOrEnqueueParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "input",
+          "type": "array<core.InputPart>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "model",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "reasoning",
+          "type": "core.ReasoningConfig",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.TurnStartOrEnqueueResult",
+      "name": "TurnStartOrEnqueueResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/TurnStartOrEnqueueResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "queuedInput",
+          "type": "core.QueuedTurnInput",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "turn",
+          "type": "core.SessionTurn",
+          "required": false,
+          "nullable": true,
           "const": null
         }
       ],
@@ -35601,6 +35760,27 @@
       "stability": "stable"
     },
     {
+      "name": "turn/notify",
+      "descriptorMember": "TurnNotify",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.TurnNotifyParams",
+      "resultType": "core.TurnNotifyResult",
+      "module": "core",
+      "capability": "threadManagement",
+      "scope": "thread",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound",
+        "ThreadNotFound"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
       "name": "turn/queue/remove",
       "descriptorMember": "TurnQueueRemove",
       "kind": "request",
@@ -35695,6 +35875,28 @@
         "InvalidParams",
         "InvalidRequest",
         "MethodNotFound"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "turn/startOrEnqueue",
+      "descriptorMember": "TurnStartOrEnqueue",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.TurnStartOrEnqueueParams",
+      "resultType": "core.TurnStartOrEnqueueResult",
+      "module": "core",
+      "capability": "threadManagement",
+      "scope": "thread",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound",
+        "ThreadNotActive",
+        "ThreadNotFound"
       ],
       "since": "1",
       "specRef": "specs/protocols/appserver-protocol.md",

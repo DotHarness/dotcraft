@@ -9,7 +9,6 @@ internal static class TurnSettingsContractMapper
 {
     internal static TurnSettingsOverrides ToDomain(Contract.TurnStartParams value)
     {
-        var reasoning = value.Reasoning;
         return new TurnSettingsOverrides
         {
             ProviderId = value.ProviderId,
@@ -19,14 +18,17 @@ internal static class TurnSettingsContractMapper
             Cwd = value.Cwd,
             RuntimeWorkspaceRoots = value.RuntimeWorkspaceRoots,
             Speed = Parse<InferenceSpeed>(value.Speed, "speed"),
-            Reasoning = reasoning is null ? null : new TurnReasoningOverrides
-            {
-                Enabled = reasoning.Enabled.IsSet ? reasoning.Enabled.Value : null,
-                Effort = Parse<ModelReasoningEffort>(reasoning.Effort.IsSet ? reasoning.Effort.Value : null, "reasoning.effort"),
-                Output = Parse<ReasoningOutput>(reasoning.Output.IsSet ? reasoning.Output.Value : null, "reasoning.output")
-            }
+            Reasoning = ToDomain(value.Reasoning)
         };
     }
+
+    internal static TurnReasoningOverrides? ToDomain(Contract.ReasoningConfig? reasoning) =>
+        reasoning is null ? null : new TurnReasoningOverrides
+        {
+            Enabled = reasoning.Enabled.IsSet ? reasoning.Enabled.Value : null,
+            Effort = Parse<ModelReasoningEffort>(reasoning.Effort.IsSet ? reasoning.Effort.Value : null, "reasoning.effort"),
+            Output = Parse<ReasoningOutput>(reasoning.Output.IsSet ? reasoning.Output.Value : null, "reasoning.output")
+        };
 
     private static T? Parse<T>(string? value, string name) where T : struct, Enum
     {

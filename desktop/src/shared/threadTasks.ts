@@ -34,6 +34,8 @@ export interface ThreadTask {
   turnId?: string
   createdAt: string
   childThreadId?: string
+  targetProjectId?: string
+  targetWorkspacePath?: string
   error?: string
 }
 

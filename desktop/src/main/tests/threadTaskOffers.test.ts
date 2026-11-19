@@ -121,16 +121,20 @@ describe('CreateThread offers', () => {
   })
 
   it('keeps an accepted offer when the user sends a message while its chat is being created', async () => {
-    let release: (value: unknown) => void = () => undefined
+    let release!: (value: unknown) => void
+    let onRequested!: () => void
+    const requested = new Promise<void>(resolve => { onRequested = resolve })
     const harness = createHarness({
-      handler: (method) => (method === 'thread/start'
-        ? new Promise((resolve) => { release = resolve })
-        : undefined)
+      handler: (method) => method === 'thread/start' ? new Promise(resolve => {
+        release = resolve
+        onRequested()
+      }) : undefined
     })
     const { result, task } = await pendingOffer(harness)
 
     const answer = harness.tasks.answerOffer({ workspacePath: WORKSPACE, request: harness.client.sendRequest }, PARENT, task.id, { choice: 'newThread' })
-    await vi.waitFor(() => expect(harness.store.get(PARENT, task.id)?.state).toBe('starting'))
+    await requested
+    expect(harness.store.get(PARENT, task.id)?.state).toBe('starting')
     harness.tasks.observeUserRequest('turn/start', { threadId: PARENT })
     release({ thread: { id: 'thread-child-1' } })
 

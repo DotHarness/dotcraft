@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.13.1 |
+| **Version** | 0.13.2 |
 | **Status** | Living |
-| **Date** | 2026-11-18 |
+| **Date** | 2026-11-20 |
 
 Purpose: Define the **server-managed** session model (Thread / Turn / Item), including lifecycle, persistence, event semantics, approval semantics, and adapter boundaries.
 
@@ -59,6 +59,8 @@ Each runtime activation has a generation identity. Delayed completion from an ea
 ### 3.4 Turn Execution Ownership
 
 Start-or-steer admission accepts input and sparse execution settings in one runtime command. Candidate settings are resolved and validated against the latest configuration before accepting input. Idle admission commits defaults and captures the same commit's execution context. Active regular-Turn admission reuses guidance acceptance and then commits subsequent-Turn defaults without replacing the active execution or its owner. An admitted approval-policy override follows the live policy rules in §12.2, including settling pending approvals, without replacing the active agent or tools. Empty guidance, maintenance, and non-steerable execution reject settings and input. Explicit queue admission remains separate. Strict-start execution streams used by internal callers do not silently become guidance.
+
+Start-or-enqueue admission accepts non-empty input for an Active, server-managed thread. It starts a new Turn when idle and otherwise appends a regular FIFO input when a Turn is active, blocking maintenance is underway, or a plan awaits confirmation. The command owner decides the outcome when it admits the input. It never steers a Turn. Sparse model settings are validated against current configuration and committed for the started or future Turns without changing the active Turn. This admission does not resume a paused queue or change its drain rules.
 
 Turn admission captures an immutable execution context: effective configuration, agent, workspace and runtime roots, client capabilities, and request origin. The effective tool snapshot is frozen with the Turn; provider-history identity is derived from the admitted Thread and Turn before the first provider request. Caller-owned input, input snapshots, and client-managed history are copied at admission.
 
@@ -176,11 +178,13 @@ A durable snapshot of user input waiting to become a future Turn.
 - `ReadyAfterTurnId` (nullable) — active Turn when queued.
 - `TriggerKind`, `TriggerLabel`, `TriggerRefId`, `TriggerStatus` (nullable) — present when the input was synthesized by a server mechanism rather than typed by a human (Section 4.2, UserMessage). `TriggerStatus` is set only on task notifications.
 
+Automatic queue drain leaves inputs queued while a plan awaits confirmation. The user can still explicitly start a queued input.
+
 A queued input that starts a Turn copies its trigger metadata and id into the `UserMessage` payload; promoted guidance preserves the same metadata. Before guidance is admitted, a client may set it back to `"queued"` without changing payload, metadata, or position. Admission atomically persists the guidance `UserMessage` and removes the queued input; after that it is not retractable.
 
 ##### Task notifications
 
-A task notification is a queued input with `triggerKind` `terminal`, `subagent`, or `workflow`, created by Session Core when a background task ends or a shell task stalls. Its envelope, wake policy, admission, and delivery follow [Background Tasks §5](background-tasks.md#5-notifications).
+A task notification is a queued input with `triggerKind` `terminal`, `subagent`, or `workflow`, created by Session Core when a background task ends or a shell task stalls, or `thread`, created when a client reports another thread through `turn/notify`. Its envelope, wake policy, admission, and delivery follow [Background Tasks §5](background-tasks.md#5-notifications).
 
 Queued-input materialization is local-only. Inline `image` parts (base64 data URLs) are decoded without network access; `localImage` parts are read from their persisted paths. Rebuilding model history from an input snapshot (forks, interruption, a Turn without stored model history) reads `localImage` files the same way; an unreadable file becomes the text `[localImage:<path>]`. Session Core never dereferences HTTP(S) image URLs when starting a queued Turn or admitting guidance; such a part becomes a text notice that remote image URLs are not supported, and the remaining parts continue.
 
@@ -277,7 +281,7 @@ Fields: `text`, `nativeInputParts`, `materializedInputParts`, sender fields (`se
 - Typed `contextRef` native parts keep source snapshots and owned image references; their materialized parts contain the model-facing expansion.
 - `clientUserMessageId` correlates a client submission with its persisted message through queued and guidance delivery. It is not an idempotency key.
 - `deliveryMode` is `"normal"` (or absent) for a direct Turn start, `"queued"` for a queued input that became a Turn, and `"guidance"` for input appended to an active Turn. `queuedInputId` names the queue record that produced the message.
-- Trigger fields are set when input is synthesized by a server mechanism and absent for real user input. `triggerKind` values: `automation`, `goal` (label `Goal continuation`, ref = goal id), `app`, `mcpApp`, `team`, `subagentFollowupTask` (a parent starts or queues work for a child), `subagentInput` (direct or resumable external input), `subagentMailbox` (mailbox drain; when every drained message has one sender, `triggerRefId` is that sender's agent path, not necessarily a navigable thread id, and `triggerLabel` is its nickname, both absent otherwise), and the task notification kinds `terminal`, `subagent`, `workflow` (label = task label, ref = task id, `triggerStatus` = final status; see [Task notifications](#task-notifications)). Mailbox drains and task notifications are model-visible notifications that clients do not present as user input.
+- Trigger fields are set when input is synthesized by a server mechanism and absent for real user input. `triggerKind` values: `automation`, `goal` (label `Goal continuation`, ref = goal id), `app`, `mcpApp`, `team`, `subagentFollowupTask` (a parent starts or queues work for a child), `subagentInput` (direct or resumable external input), `subagentMailbox` (mailbox drain; when every drained message has one sender, `triggerRefId` is that sender's agent path, not necessarily a navigable thread id, and `triggerLabel` is its nickname, both absent otherwise), and the task notification kinds `terminal`, `subagent`, `workflow` (label = task label, ref = task id, `triggerStatus` = final status; see [Task notifications](#task-notifications)), and `thread` (a client's report about another thread through `turn/notify`; label = that thread's title, ref = its id). Mailbox drains and task notifications are model-visible notifications that clients do not present as user input.
 
 #### AgentMessage
 

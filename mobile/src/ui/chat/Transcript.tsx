@@ -224,6 +224,17 @@ const WAKE_COPY: Record<TaskWakeKind, { icon: IconName; started: MessageId; gene
       stopped: 'wake.workflow.stopped',
     },
   },
+  thread: {
+    icon: 'messageSquareText',
+    started: 'wake.chat',
+    generic: 'wake.chat.generic',
+    statuses: {
+      completed: 'wake.chat.finished',
+      failed: 'wake.chat.failed',
+      stopped: 'wake.chat.stopped',
+      waitingForInput: 'wake.chat.waitingForInput',
+    },
+  },
 }
 
 function wakeText(origin: TaskWake, t: I18n['t']): string {

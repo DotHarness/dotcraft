@@ -26,6 +26,39 @@ public sealed partial class SessionService
             threadId, capturedContent, sender, capturedMessages, capturedInput, capturedSettings, commandCt), ct);
     }
 
+    public Task<TurnStartOrEnqueueAdmission> StartOrEnqueueTurnAsync(
+        string threadId,
+        IList<AIContent> content,
+        CancellationToken ct = default,
+        SessionInputSnapshot? inputSnapshot = null,
+        string? model = null,
+        TurnReasoningOverrides? reasoning = null)
+    {
+        var capturedContent = content.ToList();
+        var capturedInput = CloneInputSnapshot(inputSnapshot);
+        var settings = new TurnSettingsOverrides { Model = model, Reasoning = reasoning };
+        return InvokeThreadCommandAsync(threadId, async commandCt =>
+        {
+            var runtime = GetInputRuntime(threadId);
+            var thread = runtime.Thread;
+            ValidateTurnHistory(thread, messages: null);
+            if (capturedContent.Count == 0 && capturedInput?.MaterializedInputParts is not { Count: > 0 })
+                throw new ArgumentException("Follow-up input must not be empty.", nameof(content));
+
+            var prepared = PrepareTurnSettings(thread, settings, inputMode: null);
+            var state = ThreadSummaryRuntime.FromThread(thread, runtime.Maintenance?.Kind);
+            if (state.Busy || state.WaitingOnPlanConfirmation)
+            {
+                await CommitTurnSettingsAsync(runtime, prepared, commandCt);
+                var queued = await ThreadQueue.EnqueueAsync(threadId, capturedContent, null, commandCt, capturedInput);
+                return new TurnStartOrEnqueueAdmission(QueuedInput: queued);
+            }
+
+            var admission = await StartAdmittedTurnAsync(runtime, capturedContent, null, null, capturedInput, prepared, commandCt);
+            return new TurnStartOrEnqueueAdmission(Turn: admission.Turn, Events: admission.Events);
+        }, ct);
+    }
+
     private async Task<TurnInputAdmission> AdmitTurnInputAsync(
         string threadId,
         IList<AIContent> content,
@@ -35,12 +68,8 @@ public sealed partial class SessionService
         TurnSettingsOverrides? settings,
         CancellationToken ct)
     {
-        if (!_runtimeRegistry.TryGetRuntime(threadId, out var runtime)
-            || _runtimeRegistry.IsPendingPermanentDeletion(threadId))
-            throw new InvalidOperationException($"Thread '{threadId}' cannot accept input in its current runtime.");
+        var runtime = GetInputRuntime(threadId);
         var thread = runtime.Thread;
-        if (thread.Status != ThreadStatus.Active)
-            throw new InvalidOperationException($"Thread '{threadId}' is not Active (current status: {thread.Status}). Cannot submit input.");
         ValidateTurnHistory(thread, messages);
         ThrowIfThreadMaintenanceActive(threadId);
         var prepared = PrepareTurnSettings(thread, settings, inputSnapshot?.Mode);
@@ -62,7 +91,30 @@ public sealed partial class SessionService
             return new(acceptedActive, Started: false);
         }
 
+        return await StartAdmittedTurnAsync(runtime, content, sender, messages, inputSnapshot, prepared, ct);
+    }
+
+    private ThreadRuntime GetInputRuntime(string threadId)
+    {
+        if (!_runtimeRegistry.TryGetRuntime(threadId, out var runtime)
+            || _runtimeRegistry.IsPendingPermanentDeletion(threadId))
+            throw new InvalidOperationException($"Thread '{threadId}' cannot accept input in its current runtime.");
+        if (runtime.Thread.Status != ThreadStatus.Active)
+            throw new InvalidOperationException($"Thread '{threadId}' is not Active (current status: {runtime.Thread.Status}). Cannot submit input.");
+        return runtime;
+    }
+
+    private async Task<TurnInputAdmission> StartAdmittedTurnAsync(
+        ThreadRuntime runtime,
+        IList<AIContent> content,
+        SenderContext? sender,
+        ChatMessage[]? messages,
+        SessionInputSnapshot? inputSnapshot,
+        PreparedTurnSettings? prepared,
+        CancellationToken ct)
+    {
         await CommitTurnSettingsAsync(runtime, prepared, ct);
+        var thread = runtime.Thread;
         var configuration = thread.Configuration is { } current
             ? ThreadConfigurationCloner.Clone(current)
             : new ThreadConfiguration();

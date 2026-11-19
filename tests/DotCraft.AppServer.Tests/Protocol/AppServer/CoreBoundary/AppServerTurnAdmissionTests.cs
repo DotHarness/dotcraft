@@ -40,6 +40,49 @@ public sealed class AppServerTurnAdmissionTests
         Assert.Equal("Run with these settings.", Assert.IsType<TextContent>(Assert.Single(harness.Service.LastSubmittedContent)).Text);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task StartOrEnqueue_ReturnsOnlyTheAdmittedOutcome(bool queued)
+    {
+        using var harness = new AppServerTestHarness();
+        await harness.InitializeAsync();
+        var thread = await harness.Service.CreateThreadAsync(harness.Identity);
+        if (queued)
+        {
+            harness.Service.FollowupAdmissionHandler = id => new Domain.TurnStartOrEnqueueAdmission(
+                QueuedInput: new Domain.QueuedTurnInput
+                {
+                    Id = "queue_007", ThreadId = id, Status = "queued", DisplayText = "follow up",
+                    NativeInputParts = [], MaterializedInputParts = []
+                });
+        }
+        else
+        {
+            harness.Service.EnqueueSubmitEvents(thread.Id, AppServerTestHarness.BuildTurnEventSequence(thread.Id));
+        }
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethodNames.TurnStartOrEnqueue, new
+        {
+            threadId = thread.Id,
+            model = "future-model",
+            reasoning = new { effort = "high" },
+            input = new[] { new { type = "text", text = "follow up" } }
+        }));
+
+        using var response = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(response);
+        var result = response.RootElement.GetProperty("result");
+        Assert.Equal(queued, result.TryGetProperty("queuedInput", out var queuedInput));
+        Assert.Equal(!queued, result.TryGetProperty("turn", out var turn));
+        if (queued)
+            Assert.Equal("queue_007", queuedInput.GetProperty("id").GetString());
+        else
+            Assert.Empty(turn.GetProperty("items").EnumerateArray());
+        Assert.Equal("future-model", harness.Service.LastSubmittedTurnSettings?.Model);
+        Assert.Equal(ModelReasoningEffort.High, harness.Service.LastSubmittedTurnSettings?.Reasoning?.Effort);
+    }
+
     [Fact]
     public async Task Start_RejectsInvalidApprovalPolicyBeforeInputSubmission()
     {

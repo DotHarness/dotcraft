@@ -17,6 +17,7 @@ import { resetDesktopThreadToolBindings } from '../desktopRuntimeThreadTools'
 import { handleWorkspaceNodeReplNotification, ownsWorkspaceNodeReplThread } from './windowNodeReplRequests'
 import { handleWorkspaceThreadPanelDeletion } from './windowThreadPanelDeletion'
 import { recoverThreadQuestions } from './windowThreadQuestionRecovery'
+import { connectLinkedChats, linkedChatsNeedProject, observeLinkedChatNotification, threadToolsHoldConnection } from './windowThreadProjects'
 import { resolveDotCraftRuntimeTools } from '../ripgrepRuntime'
 import { refreshVoiceChatGptAvailability } from '../voice/voiceIpc'
 import { hasRemoteEndpointArg } from '../workspaceArgs'
@@ -29,6 +30,8 @@ import { getWorkspaceStatus } from '../workspaceSetup'
 import { SECONDARY_WORKSPACE_CONNECTION_LIMIT } from './windowConstants'
 import type { DesktopWindowRuntime } from './windowRuntime'
 import type { WorkspaceConnectionEntry } from './windowTypes'
+
+const secondaryRefreshGenerations = new WeakMap<DesktopWindowRuntime, symbol>()
 
 export function getManagedAppServerEndpoint(
   _ctx: DesktopWindowRuntime,
@@ -280,7 +283,10 @@ export function createSecondaryWorkspaceConnection(
           client.connectionId ? { connectionKey: entry.key, connectionId: client.connectionId } : undefined)
       }
     }
-    if (current) ctx.getThreadTasks().handleNotification(method, params, ctx.mainWindow?.webContents.id)
+    if (current) {
+      ctx.getThreadTasks().handleNotification(method, params, ctx.mainWindow?.webContents.id)
+      observeLinkedChatNotification(ctx, entry, method, params)
+    }
   })
 
   client.onServerRequest(async (method, params, requestId, signal) => {
@@ -308,6 +314,7 @@ export function createSecondaryWorkspaceConnection(
     entry.errorMessage = undefined
     entry.initializeResult = result
     recoverThreadQuestions(ctx, entry)
+    connectLinkedChats(ctx, entry)
     ctx.emitWorkspaceProjects()
     if (entry.role === 'foreground' && ctx.mainWindow && !ctx.mainWindow.isDestroyed()) {
       ctx.emitConnectionStatus(ctx.mainWindow, {
@@ -401,15 +408,16 @@ export async function startLocalProjectConnection(
   entry.lastUsedAt = Date.now()
 }
 
-function isIdleSecondary(entry: WorkspaceConnectionEntry): boolean {
+function isIdleSecondary(ctx: DesktopWindowRuntime, entry: WorkspaceConnectionEntry): boolean {
   return entry.role === 'secondary' && entry.kind !== 'chat' &&
     !(entry.kind !== 'remote' && isDefaultChatWorkspace(entry.workspacePath)) &&
-    !entry.client.hasRetainedThreadAttachments
+    !entry.client.hasRetainedThreadAttachments && !threadToolsHoldConnection(ctx, entry) &&
+    !(entry.connecting && linkedChatsNeedProject(ctx, entry.projectId))
 }
 
 export function enforceSecondaryWorkspaceBudget(ctx: DesktopWindowRuntime): void {
   const idle = [...ctx.workspaceConnections.values()]
-    .filter(isIdleSecondary)
+    .filter(entry => isIdleSecondary(ctx, entry))
     .sort((left, right) => right.lastUsedAt - left.lastUsedAt)
   for (const entry of idle.slice(SECONDARY_WORKSPACE_CONNECTION_LIMIT)) {
     ctx.disposeWorkspaceConnection(entry)
@@ -418,21 +426,27 @@ export function enforceSecondaryWorkspaceBudget(ctx: DesktopWindowRuntime): void
 
 export async function refreshSecondaryWorkspaceConnections(ctx: DesktopWindowRuntime): Promise<void> {
   if (ctx.runtimeIsStopping() || hasRemoteEndpointArg(ctx.argv)) return
+  const generation = Symbol()
+  secondaryRefreshGenerations.set(ctx, generation)
+  const isCurrent = () => secondaryRefreshGenerations.get(ctx) === generation &&
+    !ctx.runtimeIsStopping() && !ctx.activeRemoteWorkspace && ctx.resolveConnectionMode(ctx.settings) === 'local'
+
   enforceSecondaryWorkspaceBudget(ctx)
   if (ctx.secondaryRefreshTimer) clearTimeout(ctx.secondaryRefreshTimer)
   ctx.secondaryRefreshTimer = null
   await ctx.ensureDefaultChatConnection()
-  if (ctx.runtimeIsStopping() || ctx.activeRemoteWorkspace || ctx.resolveConnectionMode(ctx.settings) !== 'local') return
+  if (!isCurrent()) return
 
   let liveAppServers: HubAppServerResponse[]
   try {
     liveAppServers = await ctx.app.createHubClient(ctx.settings).listAppServers()
   } catch (error) {
+    if (!isCurrent()) return
     console.warn('[desktop] failed to list Hub appservers for secondary workspaces', error)
     ctx.emitWorkspaceProjects()
     return
   }
-  if (ctx.runtimeIsStopping() || ctx.activeRemoteWorkspace || ctx.resolveConnectionMode(ctx.settings) !== 'local') return
+  if (!isCurrent()) return
 
   const liveByKey = new Map<string, HubAppServerResponse>()
   for (const appServer of liveAppServers) {
@@ -451,7 +465,7 @@ export async function refreshSecondaryWorkspaceConnections(ctx: DesktopWindowRun
       const key = ctx.normalizeWorkspaceConnectionKey(project.path)
       const entry = ctx.workspaceConnections.get(key)
       const endpoint = liveByKey.get(key)?.endpoints?.appServerWebSocket
-      if (!endpoint?.trim() && !entry?.client.hasRetainedThreadAttachments) return []
+      if (!endpoint?.trim() && (!entry || !(entry.client.hasRetainedThreadAttachments || threadToolsHoldConnection(ctx, entry)))) return []
       return [{ key, entry, workspacePath: project.path, endpoint,
         lastUsedAt: entry?.lastUsedAt ?? (project.lastOpenedAt ? Date.parse(project.lastOpenedAt) || 0 : 0) }]
     })
@@ -463,18 +477,23 @@ export async function refreshSecondaryWorkspaceConnections(ctx: DesktopWindowRun
   const allowedKeys = new Set<string>()
   let idleCount = 0
   for (const candidate of ranked) {
-    const protectedEntry = candidate.entry?.client.hasRetainedThreadAttachments
-    if (!protectedEntry && idleCount >= SECONDARY_WORKSPACE_CONNECTION_LIMIT) continue
+    const protectedEntry = candidate.entry && (candidate.entry.client.hasRetainedThreadAttachments || threadToolsHoldConnection(ctx, candidate.entry))
+    const needed = !candidate.entry?.connected && linkedChatsNeedProject(ctx, candidate.key)
+    if (!protectedEntry && !needed && idleCount >= SECONDARY_WORKSPACE_CONNECTION_LIMIT) continue
     allowedKeys.add(candidate.key)
-    if (!protectedEntry) idleCount += 1
+    if (!protectedEntry && !needed) idleCount += 1
     if (candidate.endpoint && !protectedEntry) {
+      const previous = candidate.entry
+      if (previous?.role === 'secondary' && !previous.connected && previous.wsUrl !== candidate.endpoint) {
+        ctx.disposeWorkspaceConnection(previous)
+      }
       const entry = ctx.createSecondaryWorkspaceConnection(candidate.workspacePath, candidate.endpoint)
-      if (!candidate.entry) entry.lastUsedAt = candidate.lastUsedAt
+      if (entry !== previous) entry.lastUsedAt = candidate.lastUsedAt
     }
   }
 
   for (const entry of [...ctx.workspaceConnections.values()]) {
-    if (isIdleSecondary(entry) && !allowedKeys.has(entry.key)) ctx.disposeWorkspaceConnection(entry)
+    if (isIdleSecondary(ctx, entry) && !allowedKeys.has(entry.key)) ctx.disposeWorkspaceConnection(entry)
   }
   ctx.emitWorkspaceProjects()
 }

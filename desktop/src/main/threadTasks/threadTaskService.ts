@@ -13,11 +13,14 @@ import {
   composeBrief,
   createChildThread,
   startChildTurn,
-  type ChildThreadWire,
+  type ChildThreadSpec,
+  type ChildThread,
   type ThreadTaskConnection
 } from './childThreads'
 import type { AddedThreadTask, NewThreadTask, ThreadTaskStore } from './threadTaskStore'
 import { TurnAudienceTracker } from './turnAudience'
+import type { DesktopLinkedChats } from './linkedChats'
+import { callingThread, connectThreadProject, currentThreadProject, resolveThreadProject, ThreadProjectError } from './threadProjects'
 
 export const MAX_AUTO_STARTS = 10
 
@@ -36,8 +39,8 @@ export type DismissOutcome = 'dismissed' | 'alreadyStarted' | 'alreadyDismissed'
 export type ProposalRefusal = 'notFound' | 'notPending' | 'dismissed' | 'expired' | 'starting' | 'briefRequired'
 
 export type ProposalStartOutcome =
-  | { kind: 'started'; task: ThreadTask; thread: ChildThreadWire; turn: JsonObject | null }
-  | { kind: 'failed'; message: string; thread?: ChildThreadWire }
+  | { kind: 'started'; task: ThreadTask; thread: ChildThread; turn: JsonObject | null }
+  | { kind: 'failed'; message: string; thread?: ChildThread; code?: string }
   | { kind: 'refused'; reason: ProposalRefusal }
 
 export interface ProposalBrief {
@@ -50,6 +53,7 @@ export type NewProposal = Omit<NewThreadTask, 'kind'>
 
 export interface ThreadTaskServiceHost {
   store: ThreadTaskStore
+  linkedChats?: DesktopLinkedChats
   getNewTaskPrompt(): NewTaskPromptMode
   notifyOffer?(task: ThreadTask, ownerId?: number): void
   notifyWrapUpQuestion?(threadId: string, turnId: string | undefined, callId: string, ownerId?: number): void
@@ -71,6 +75,22 @@ export class DesktopThreadTasks {
   private readonly autoStarts = new Map<string, number>()
 
   constructor(private readonly host: ThreadTaskServiceHost) {}
+
+  get linkedChats(): DesktopLinkedChats | undefined {
+    return this.host.linkedChats
+  }
+
+  async createLinkedChild(source: ThreadTaskConnection, target: ThreadTaskConnection, spec: ChildThreadSpec): Promise<ChildThread> {
+    const thread = await createChildThread(target, spec)
+    if (spec.callerThreadId) {
+      this.linkedChats?.link(callingThread(source, spec.callerThreadId), {
+        ...callingThread(target, thread.id),
+        projectName: currentThreadProject(target).name,
+        title: thread.displayName || spec.title || thread.id
+      })
+    }
+    return thread
+  }
 
   snapshot(threadId: string): ThreadTasksSnapshot {
     return this.host.store.snapshot(threadId)
@@ -293,9 +313,10 @@ export class DesktopThreadTasks {
   ): Promise<ThreadTaskActionResult> {
     const task = this.host.store.update(threadId, taskId, { state: 'starting', error: undefined })
     if (!task) return { ok: false, error: 'This offer was not found.' }
-    let thread: ChildThreadWire
+    let thread: ChildThread
     try {
-      thread = await createChildThread(connection, {
+      const target = await this.taskTarget(connection, task)
+      thread = await this.createLinkedChild(connection, target, {
         title: task.title,
         callerThreadId: threadId,
         defaults: task.defaults,
@@ -308,7 +329,7 @@ export class DesktopThreadTasks {
       if (!this.waiters.has(taskId)) this.host.store.update(threadId, taskId, { state: 'failed', error: message })
       return { ok: false, error: message }
     }
-    const childThreadId = thread.id as string
+    const childThreadId = thread.id
     if (this.waiters.has(taskId)) {
       this.finish(taskId, 'accepted', { childThreadId }, (resolved) => ({ kind: 'accepted', task: resolved }))
     } else {
@@ -323,20 +344,21 @@ export class DesktopThreadTasks {
     brief: ProposalBrief
   ): Promise<ProposalStartOutcome> {
     const childThreadId = task.childThreadId as string
-    const thread: ChildThreadWire = { id: childThreadId, displayName: task.title }
+    const thread: ChildThread = { id: childThreadId, displayName: task.title, workspacePath: task.targetWorkspacePath ?? connection.workspacePath }
     this.host.store.update(task.threadId, task.id, {
       state: 'starting',
       prompt: brief.prompt,
       background: brief.background
     })
     try {
-      const turn = await startChildTurn(connection, childThreadId, composeBrief(brief.prompt as string, brief.background))
+      const target = await this.taskTarget(connection, task)
+      const turn = await startChildTurn(target, childThreadId, composeBrief(brief.prompt as string, brief.background))
       const started = this.host.store.update(task.threadId, task.id, { state: 'started' }) ?? task
       return { kind: 'started', task: started, thread, turn }
     } catch (error) {
       const message = errorMessage(error)
       this.host.store.update(task.threadId, task.id, { state: 'failed', error: message })
-      return { kind: 'failed', message: `Created chat "${task.title}" (${childThreadId}) but failed to start it: ${message}`, thread }
+      return { kind: 'failed', message: `Created chat "${task.title}" (${childThreadId}) but failed to start it: ${message}`, thread, code: projectErrorCode(error) }
     }
   }
 
@@ -349,9 +371,11 @@ export class DesktopThreadTasks {
     const prompt = brief.prompt ?? task.prompt ?? task.title
     const background = brief.prompt ? brief.background : task.background
     this.host.store.update(task.threadId, task.id, { state: 'starting', error: undefined })
-    let thread: ChildThreadWire
+    let thread: ChildThread
+    let target: ThreadTaskConnection
     try {
-      thread = await createChildThread(connection, {
+      target = await this.taskTarget(connection, task)
+      thread = await this.createLinkedChild(connection, target, {
         title: task.title,
         callerThreadId: task.threadId,
         defaults: task.defaults,
@@ -361,19 +385,23 @@ export class DesktopThreadTasks {
     } catch (error) {
       const message = errorMessage(error)
       this.host.store.update(task.threadId, task.id, { state: 'pending', error: message })
-      return { kind: 'failed', message }
+      return { kind: 'failed', message, code: projectErrorCode(error) }
     }
-    const childThreadId = thread.id as string
+    const childThreadId = thread.id
     this.host.store.update(task.threadId, task.id, { childThreadId, prompt, background })
     try {
-      const turn = await startChildTurn(connection, childThreadId, composeBrief(prompt, background))
+      const turn = await startChildTurn(target, childThreadId, composeBrief(prompt, background))
       const started = this.host.store.update(task.threadId, task.id, { state: 'started' }) ?? task
       return { kind: 'started', task: started, thread, turn }
     } catch (error) {
       const message = errorMessage(error)
       this.host.store.update(task.threadId, task.id, { state: 'failed', error: message })
-      return { kind: 'failed', message: `Created chat "${task.title}" (${childThreadId}) but failed to start it: ${message}`, thread }
+      return { kind: 'failed', message: `Created chat "${task.title}" (${childThreadId}) but failed to start it: ${message}`, thread, code: projectErrorCode(error) }
     }
+  }
+
+  private async taskTarget(connection: ThreadTaskConnection, task: ThreadTask): Promise<ThreadTaskConnection> {
+    return connectThreadProject(connection, await resolveThreadProject(connection, task.targetProjectId))
   }
 
   private abandonTurn(threadId: string, turnId: string): void {
@@ -398,6 +426,10 @@ export class DesktopThreadTasks {
     const task = this.host.store.update(waiter.threadId, taskId, { ...patch, state })
     waiter.resolve(outcome(task ?? { ...waiter.task, ...patch, state }))
   }
+}
+
+function projectErrorCode(error: unknown): string | undefined {
+  return error instanceof ThreadProjectError ? error.code : undefined
 }
 
 function errorMessage(error: unknown): string {

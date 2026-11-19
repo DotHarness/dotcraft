@@ -24,6 +24,7 @@ export interface ThreadToolAction {
   threadId: string
   /** Display name captured in the tool result at action time (may be stale). */
   displayName?: string
+  workspacePath?: string
   /** Whether the target turn started immediately. */
   started: boolean
   /** Whether the message was queued behind a running turn (SendMessageToThread). */
@@ -62,6 +63,7 @@ export function parseThreadToolAction(item: ConversationItem): ThreadToolAction 
       kind: 'created',
       threadId,
       displayName: typeof thread?.displayName === 'string' ? thread.displayName : undefined,
+      workspacePath: typeof thread?.workspacePath === 'string' ? thread.workspacePath : undefined,
       started: data.started === true,
       queued: false
     }
@@ -74,6 +76,7 @@ export function parseThreadToolAction(item: ConversationItem): ThreadToolAction 
       kind: 'messaged',
       threadId,
       displayName: undefined,
+      workspacePath: typeof data.workspacePath === 'string' ? data.workspacePath : undefined,
       started: data.started === true,
       queued: data.queued === true
     }

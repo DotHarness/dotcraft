@@ -11,6 +11,7 @@ import { bindLocalProjectRecovery } from '../localProjectRecovery'
 import { handleWorkspaceNodeReplNotification, ownsWorkspaceNodeReplThread } from './windowNodeReplRequests'
 import { handleWorkspaceThreadPanelDeletion } from './windowThreadPanelDeletion'
 import { recoverThreadQuestions } from './windowThreadQuestionRecovery'
+import { connectLinkedChats, observeLinkedChatNotification } from './windowThreadProjects'
 import { refreshVoiceChatGptAvailability } from '../voice/voiceIpc'
 import {
   canBridgeRendererInteractiveServerRequest,
@@ -128,6 +129,7 @@ export async function connectViaWebSocket(
         client.connectionId ? { connectionKey: entry.key, connectionId: client.connectionId } : undefined)
     }
     ctx.getThreadTasks().handleNotification(method, params, win.webContents.id)
+    observeLinkedChatNotification(ctx, entry, method, params)
   })
 
   client.onServerRequest(async (method, params, requestId, signal) => {
@@ -205,6 +207,7 @@ export async function connectViaWebSocket(
     const firstReady = !connectedOnce
     connectedOnce = true
     recoverThreadQuestions(ctx, entry)
+    connectLinkedChats(ctx, entry)
 
     if (entry.role === 'secondary') {
       ctx.emitWorkspaceProjects()

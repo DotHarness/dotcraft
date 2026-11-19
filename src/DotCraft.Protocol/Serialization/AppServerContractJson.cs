@@ -23,6 +23,7 @@ public static class AppServerContractJson
                 new DefaultJsonTypeInfoResolver())
         };
         options.Converters.Add(new OptionalJsonConverterFactory());
+        options.Converters.Add(new JsonStringEnumConverter<TurnNotifyStatus>(JsonNamingPolicy.CamelCase, allowIntegerValues: false));
         return options;
     }
 }
@@ -58,8 +59,12 @@ public static class AppServerContractJson
 [JsonSerializable(typeof(ThreadTimelineListResult))]
 [JsonSerializable(typeof(TurnStartParams))]
 [JsonSerializable(typeof(TurnStartResult))]
+[JsonSerializable(typeof(TurnStartOrEnqueueParams))]
+[JsonSerializable(typeof(TurnStartOrEnqueueResult))]
 [JsonSerializable(typeof(TurnEnqueueParams))]
 [JsonSerializable(typeof(TurnEnqueueResult))]
+[JsonSerializable(typeof(TurnNotifyParams))]
+[JsonSerializable(typeof(TurnNotifyResult))]
 [JsonSerializable(typeof(TurnSteerParams))]
 [JsonSerializable(typeof(TurnSteerResult))]
 [JsonSerializable(typeof(TurnInterruptParams))]

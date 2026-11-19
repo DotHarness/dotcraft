@@ -254,6 +254,15 @@ public interface ISessionService
         SessionInputSnapshot? inputSnapshot = null,
         TurnSettingsOverrides? settings = null);
 
+    Task<TurnStartOrEnqueueAdmission> StartOrEnqueueTurnAsync(
+        string threadId,
+        IList<AIContent> content,
+        CancellationToken ct = default,
+        SessionInputSnapshot? inputSnapshot = null,
+        string? model = null,
+        TurnReasoningOverrides? reasoning = null) =>
+        throw new NotSupportedException("Start-or-enqueue admission is not supported by this session service.");
+
     IAsyncEnumerable<SessionEvent> SubmitInputAsync(
         string threadId,
         IList<AIContent> content,
@@ -268,6 +277,9 @@ public interface ISessionService
         SenderContext? sender = null,
         CancellationToken ct = default,
         SessionInputSnapshot? inputSnapshot = null);
+
+    Task<bool> NotifyThreadAsync(string threadId, ThreadTaskReport report, CancellationToken ct = default) =>
+        throw new NotSupportedException("Thread notifications are not supported by this session service.");
 
     /// <summary>Adds guidance to the active regular Turn.</summary>
     Task<string> SteerTurnAsync(

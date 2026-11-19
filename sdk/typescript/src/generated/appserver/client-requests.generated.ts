@@ -205,11 +205,13 @@ export interface ClientRequestMethods {
   "tool/list": { params: Models.ToolListParams; result: Models.ToolListResult };
   "turn/enqueue": { params: Models.TurnEnqueueParams; result: Models.TurnEnqueueResult };
   "turn/interrupt": { params: Models.TurnInterruptParams; result: Models.RpcEmpty };
+  "turn/notify": { params: Models.TurnNotifyParams; result: Models.TurnNotifyResult };
   "turn/queue/remove": { params: Models.TurnQueueRemoveParams; result: Models.TurnQueueRemoveResponse };
   "turn/queue/reorder": { params: Models.TurnQueueReorderParams; result: Models.TurnQueueReorderResponse };
   "turn/queue/start": { params: Models.TurnQueueStartParams; result: Models.TurnQueueStartResponse };
   "turn/queue/update": { params: Models.TurnQueueUpdateParams; result: Models.TurnQueueUpdateResult };
   "turn/start": { params: Models.TurnStartParams; result: Models.TurnStartResult };
+  "turn/startOrEnqueue": { params: Models.TurnStartOrEnqueueParams; result: Models.TurnStartOrEnqueueResult };
   "turn/steer": { params: Models.TurnSteerParams; result: Models.TurnSteerResult };
   "usage/history": { params: Models.UsageHistoryParams; result: Models.UsageHistoryResult };
   "usage/summary": { params: Models.UsageSummaryParams; result: Models.UsageSummaryResult };

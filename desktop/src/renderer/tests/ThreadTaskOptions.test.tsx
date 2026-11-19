@@ -64,3 +64,19 @@ it('reads task worktree options from the current primary instead of the state wo
     environmentPath: `${primary}/.craft/environments/setup.json`
   })
 })
+
+it('leaves approval to the target project unless the user picks an override', async () => {
+  installDesktopApiMock({ initialLocale: 'en' })
+  const optionsRef: { current: ThreadTaskOptionsHandle | null } = { current: null }
+  render(
+    <LocaleProvider loadSettings={false}>
+      <ThreadTaskOptions workspacePath="/target" crossProject optionsRef={optionsRef} />
+    </LocaleProvider>
+  )
+
+  expect(await optionsRef.current!.read()).not.toHaveProperty('approvalPolicy')
+  fireEvent.click(screen.getByRole('button', { name: 'Options' }))
+  fireEvent.click(screen.getByTestId('approval-policy-trigger'))
+  fireEvent.click(screen.getByTestId('approval-policy-option-prompt'))
+  expect(await optionsRef.current!.read()).toMatchObject({ approvalPolicy: 'prompt' })
+})

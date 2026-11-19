@@ -47,7 +47,7 @@ export type ToolVerb =
 
 export type ToolIcon = 'terminal' | 'declined' | 'stopped' | 'read' | 'search' | 'folder' | 'edit' | 'web' | 'agent' | 'chat' | 'newChat' | 'archive' | 'dismiss' | 'other'
 
-export type TaskWakeKind = 'terminal' | 'subagent' | 'workflow'
+export type TaskWakeKind = 'terminal' | 'subagent' | 'workflow' | 'thread'
 
 export interface TaskWake {
   task: TaskWakeKind

@@ -373,19 +373,20 @@ public sealed partial class SessionService
                         thread = cachedThread;
 
                     var queue = thread.QueuedInputs.ToList();
-                    if (!explicitStart && ThreadSummaryRuntime.IsQueuePaused(thread))
-                        return null;
                     var notificationsMayWake = explicitStart || owner.MayWakeForTaskNotifications();
                     var queueIndex = queuedInputId is not null
                         ? queue.FindIndex(q => string.Equals(q.Id, queuedInputId, StringComparison.Ordinal))
                         : queue.FindIndex(q => string.Equals(q.Status, "queued", StringComparison.Ordinal)
                             && (notificationsMayWake || !IsTaskNotification(q)));
-                    if (queueIndex < 0
-                        || thread.Turns.Any(t => t.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput)
-                        || (owner._runtimeRegistry.TryGetRuntime(threadId, out var runtime) && runtime.Maintenance != null))
-                    {
+                    if (queueIndex < 0)
                         return null;
-                    }
+
+                    var maintenanceKind = owner._runtimeRegistry.TryGetRuntime(threadId, out var runtime)
+                        ? runtime.Maintenance?.Kind
+                        : null;
+                    var state = ThreadSummaryRuntime.FromThread(thread, maintenanceKind);
+                    if (state.Busy || (!explicitStart && (state.QueuePaused || state.WaitingOnPlanConfirmation)))
+                        return null;
 
                     queued = queue[queueIndex];
                     queue.RemoveAt(queueIndex);

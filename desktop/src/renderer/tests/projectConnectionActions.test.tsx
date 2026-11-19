@@ -1,10 +1,11 @@
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { WorkspaceProjectSummary } from '../../shared/workspaceProjects'
-import { newProjectChat, openProjectThread } from '../components/sidebar/projectConnectionActions'
+import { newProjectChat, openProjectThread, openThread } from '../components/sidebar/projectConnectionActions'
 import { useForegroundThreadList } from '../hooks/useForegroundThreadList'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
+import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
 import { installDesktopApiMock } from './desktopApiMock'
 
 const project: WorkspaceProjectSummary = {
@@ -22,7 +23,45 @@ function deferred<T>() {
 
 beforeEach(() => {
   useThreadStore.getState().reset()
+  useWorkspaceProjectsStore.getState().reset()
   useUIStore.setState({ pendingProjectThreadOpen: null, activeMainView: 'conversation' })
+})
+
+it('opens a linked chat in its project even when that chat is not in the sidebar cache', async () => {
+  const path = '/local/library'
+  const switchProject = vi.fn().mockResolvedValue(undefined)
+  const linkedWorkspace = vi.fn().mockResolvedValue(path)
+  installDesktopApiMock({ workspace: { switch: switchProject }, threadTasks: { linkedWorkspace } })
+  useThreadStore.getState().setActiveThreadId('parent')
+  useWorkspaceProjectsStore.setState({
+    projects: [{ ...project, projectId: path, kind: 'local', path, state: 'stopped', running: false, loaded: false, remote: undefined }]
+  })
+
+  await openThread('linked')
+
+  expect(linkedWorkspace).toHaveBeenCalledWith('parent', 'linked')
+  expect(switchProject).toHaveBeenCalledWith(path)
+  expect(useUIStore.getState().pendingProjectThreadOpen?.threadId).toBe('linked')
+  expect(useThreadStore.getState().activeThreadId).toBe('parent')
+})
+
+it('does not replace a newer project navigation when a linked chat lookup returns late', async () => {
+  const lookup = deferred<string>()
+  const switchProject = vi.fn().mockResolvedValue(undefined)
+  installDesktopApiMock({ workspace: { switch: switchProject }, threadTasks: { linkedWorkspace: () => lookup.promise } })
+  const [older, newer] = ['/local/older', '/local/newer'].map((path): WorkspaceProjectSummary => ({
+    ...project, projectId: path, kind: 'local', path, remote: undefined
+  }))
+  useWorkspaceProjectsStore.setState({ projects: [older, newer] })
+  useThreadStore.getState().setActiveThreadId('parent')
+
+  const opening = openThread('old-report')
+  await openProjectThread(newer, 'new-chat')
+  lookup.resolve(older.path)
+  await opening
+
+  expect(switchProject.mock.calls).toEqual([[newer.path]])
+  expect(useUIStore.getState().pendingProjectThreadOpen?.threadId).toBe('new-chat')
 })
 
 describe('device project connection actions', () => {

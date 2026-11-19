@@ -25,7 +25,8 @@ vi.mock('../threadPanelStateIpc', () => ({ forgetThreadPanelState: vi.fn() }))
 
 import { connectViaWebSocket } from '../windows/windowConnections'
 import { buildDefaultChatSummary, disposeWorkspaceConnection, getWorkspaceProjectsPayload, refreshConnectionThreadList } from '../windows/windowProjects'
-import { createSecondaryWorkspaceConnection, ensureDefaultChatConnection, isHubAppServerLifecycleEvent, isSecondaryProjectEvent, refreshSecondaryWorkspaceConnections, startHubEventSubscription } from '../windows/windowSecondaryConnections'
+import { createSecondaryWorkspaceConnection, ensureDefaultChatConnection, getManagedAppServerEndpoint, isHubAppServerLifecycleEvent, isSecondaryProjectEvent, refreshSecondaryWorkspaceConnections, startHubEventSubscription, startLocalProjectConnection } from '../windows/windowSecondaryConnections'
+import { openThreadProject, threadToolsHoldConnection } from '../windows/windowThreadProjects'
 
 class Client extends EventEmitter {
   hasRetainedThreadAttachments = false
@@ -92,6 +93,47 @@ function fixture() {
 }
 
 beforeEach(() => vi.clearAllMocks())
+
+describe('background project connection for thread tools', () => {
+  const project = { id: '/projects/library', path: '/projects/library', name: 'Library', running: false }
+
+  function projectFixture() {
+    const state = fixture()
+    const { ctx } = state
+    vi.spyOn(ctx.app.localProjects, 'has').mockReturnValue(true)
+    ctx.getManagedAppServerEndpoint = value => getManagedAppServerEndpoint(ctx, value)
+    ctx.startLocalProjectConnection = path => startLocalProjectConnection(ctx, path)
+    return state
+  }
+
+  it('starts through Hub, waits for the new secondary connection, and leaves the foreground untouched', async () => {
+    const { ctx, hub, localCreated } = projectFixture()
+    const foreground = ctx.wireClient
+    const started = openThreadProject(ctx, project)
+    expect(openThreadProject(ctx, project)).toBe(started)
+    const client = await localCreated
+    const entry = ctx.workspaceConnections.get(project.id)!
+    expect(hub.ensureAppServer).toHaveBeenCalledTimes(1)
+    expect(hub.ensureAppServer).toHaveBeenCalledWith(project.path, expect.anything())
+    expect(threadToolsHoldConnection(ctx, entry)).toBe(true)
+    expect(entry.connected).toBe(false)
+    client.emit('ready', initialized)
+    expect(await started).toBe(entry)
+    expect(entry).toMatchObject({ role: 'secondary', connected: true })
+    expect(ctx.wireClient).toBe(foreground)
+    expect(threadToolsHoldConnection(ctx, entry)).toBe(false)
+  })
+
+  it('fails the open when the project disconnects before becoming ready', async () => {
+    const { ctx, localCreated } = projectFixture()
+    const started = openThreadProject(ctx, project)
+    const failed = expect(started).rejects.toThrow()
+    const client = await localCreated
+    await Promise.resolve()
+    client.emit('close')
+    await failed
+  })
+})
 
 describe('local Recents with a remote foreground', () => {
   it.each(['foreground', 'secondary'] as const)('reconciles a mounted chat after its %s connection reconnects', async (role) => {

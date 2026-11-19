@@ -29,6 +29,7 @@ describe('getDesktopToolTargetThreadId', () => {
   it('opens a chat only for operations that act on one the user can visit', () => {
     expect(getDesktopToolTargetThreadId('readChat', { threadId: 'thread-1' })).toBe('thread-1')
     expect(getDesktopToolTargetThreadId('sendMessage', { threadId: 'thread-1' })).toBe('thread-1')
+    expect(getDesktopToolTargetThreadId('stopChat', { threadId: 'thread-1' })).toBe('thread-1')
     expect(getDesktopToolTargetThreadId('readChat', {})).toBeNull()
     expect(getDesktopToolTargetThreadId('renameChat', { threadId: 'thread-1' })).toBeNull()
   })

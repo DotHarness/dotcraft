@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.13.1 |
+| **Version** | 0.13.2 |
 | **Status** | Living |
-| **Date** | 2026-11-18 |
+| **Date** | 2026-11-20 |
 | **Parent Specs** | [Session Core](session-core.md), [Tool Architecture](tools-architecture.md) |
 | **Related Specs** | [Prompt Cache](prompt-cache.md), [Remote Tool Host](remote-tool-host.md) |
 
@@ -182,6 +182,11 @@ ended; the model receives only:
 Trigger fields: `triggerKind` is `terminal`, `subagent`, or `workflow`;
 `triggerLabel` is the task label; `triggerRefId` is the task id; `triggerStatus` is the kind-specific
 final status, or `waitingForInput` for a stall. Clients do not present these inputs as user messages.
+
+A client reports a thread in another workspace through `turn/notify` with `triggerKind = "thread"`.
+Its envelope uses the reported thread's id as `task_id`, the client's `status`, `summary`, and `result`,
+and a `project` element naming the thread's workspace; there is no `output_file`. Delivery and wake
+follow §5.3, and `notificationId` gives it the same once-only identity as a Workflow completion.
 
 ### 5.3 Delivery
 

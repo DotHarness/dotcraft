@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto'
+import type { ThreadProject, ThreadProjectHost } from './threadProjects'
+import type { AppServerRequestClient } from '../desktopRuntimeThreadTools'
 import { STANDALONE_CHAT_INSTRUCTIONS } from '../../shared/chatFolders'
 import { TASK_LIST_INSTRUCTIONS, withTaskListInstructions } from '../../shared/taskListInstructions'
 import type {
@@ -19,15 +21,24 @@ export interface ThreadTaskWorkspace {
 export interface ThreadTaskConnection {
   ownerId?: number
   workspacePath: string
+  client?: AppServerRequestClient
+  project?: ThreadProject
+  projects?: ThreadProjectHost
+  remote?: boolean
   getProjectWorkspace?: () => ThreadTaskWorkspace | undefined
   request<T = unknown>(method: string, params?: unknown, timeoutMs?: number | null): Promise<T>
   createChatFolder?: (firstMessage: string) => Promise<string>
 }
 
-export interface ChildThreadWire {
+interface ChildThreadWire {
   id?: string
   displayName?: string | null
   [key: string]: unknown
+}
+
+export interface ChildThread extends ChildThreadWire {
+  id: string
+  workspacePath: string
 }
 
 export interface ChildThreadSpec {
@@ -58,7 +69,7 @@ export function composeBrief(prompt: string, background?: string): string {
     : prompt
 }
 
-export async function createChildThread(connection: ThreadTaskConnection, spec: ChildThreadSpec): Promise<ChildThreadWire> {
+export async function createChildThread(connection: ThreadTaskConnection, spec: ChildThreadSpec): Promise<ChildThread> {
   if (!connection.workspacePath.trim()) {
     throw new Error('No Desktop workspace is currently open.')
   }
@@ -95,7 +106,7 @@ export async function createChildThread(connection: ThreadTaskConnection, spec: 
       },
       options.environmentPath ? null : WORKTREE_CREATION_TIMEOUT_MS
     )
-    const thread = requireThread(result.thread, 'worktree/createAndStart')
+    const thread = requireThread(result.thread, connection.workspacePath, 'worktree/createAndStart')
     if (result.setup?.status === 'failed') {
       await connection.request('thread/unsubscribe', { threadId: thread.id })
       const tail = result.setup.outputTail?.trim()
@@ -112,7 +123,7 @@ export async function createChildThread(connection: ThreadTaskConnection, spec: 
   }
   params.config = config
   const result = await connection.request<{ thread?: ChildThreadWire }>('thread/start', params)
-  return requireThread(result.thread, 'thread/start')
+  return requireThread(result.thread, connection.workspacePath, 'thread/start')
 }
 
 export async function startChildTurn(
@@ -133,7 +144,7 @@ export async function startChildTurn(
   }
 }
 
-function requireThread(thread: ChildThreadWire | undefined, method: string): ChildThreadWire {
+function requireThread(thread: ChildThreadWire | undefined, workspacePath: string, method: string): ChildThread {
   if (!thread?.id) throw new Error(`${method} did not return a thread id.`)
-  return thread
+  return { ...thread, id: thread.id, workspacePath }
 }

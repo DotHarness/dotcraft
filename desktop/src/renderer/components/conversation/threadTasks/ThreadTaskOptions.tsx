@@ -23,18 +23,19 @@ export interface ThreadTaskOptionsHandle {
 
 interface ThreadTaskOptionsProps {
   workspacePath: string
+  crossProject?: boolean
   optionsRef: { current: ThreadTaskOptionsHandle | null }
   onOpenChange?: (open: boolean) => void
 }
 
-export function ThreadTaskOptions({ workspacePath, optionsRef, onOpenChange }: ThreadTaskOptionsProps): JSX.Element {
+export function ThreadTaskOptions({ workspacePath, crossProject = false, optionsRef, onOpenChange }: ThreadTaskOptionsProps): JSX.Element {
   const t = useT()
   const model = useComposerModelControls({ mode: 'detached' })
   const threadPolicy = useThreadStore((s) => s.activeThread?.configuration?.approvalPolicy)
   const workspaceDefault = resolveConcreteApprovalPolicyFromWorkspaceDefault(useConfigValue('Permissions.DefaultApprovalPolicy'))
   const inheritedApproval = resolveVisibleApprovalPolicy(threadPolicy, workspaceDefault)
   const [chosenApproval, setApproval] = useState<VisibleApprovalPolicy | null>(null)
-  const approval = chosenApproval ?? inheritedApproval
+  const approval = chosenApproval ?? (crossProject ? null : inheritedApproval)
   const {
     sourceWorkspacePath,
     welcomeWorkspaceMode: workLocation, changeWelcomeWorkspaceMode: setWorkLocation,
@@ -55,7 +56,7 @@ export function ThreadTaskOptions({ workspacePath, optionsRef, onOpenChange }: T
       const reasoning = model.reasoningValue
       return {
         workLocation,
-        approvalPolicy: approval,
+        ...(approval ? { approvalPolicy: approval } : {}),
         ...(baseRef ? { baseRef } : {}),
         ...(branchName ? { branchName } : {}),
         ...(environment ? { environmentPath: environment.path } : {}),
@@ -106,7 +107,7 @@ export function ThreadTaskOptions({ workspacePath, optionsRef, onOpenChange }: T
 
   const changed = [
     workLocation === 'worktree' ? t('workspaceFooter.newWorktree') : null,
-    approval !== inheritedApproval
+    approval && (crossProject || approval !== inheritedApproval)
       ? t(approval === 'autoApprove' ? 'composer.approval.fullAccess.label' : 'composer.approval.prompt.label')
       : null,
     modelTouched ? model.modelName : null
@@ -122,7 +123,11 @@ export function ThreadTaskOptions({ workspacePath, optionsRef, onOpenChange }: T
         <div ref={popoverRef} className={`${css.popover} ${css.optionsPopover}`} data-opens-up={opensUp || undefined} role="dialog" aria-label={t('threadTask.options')}>
           <span className={css.optionRow}>
             <span>{t('threadTask.permissions')}</span>
-            <ApprovalPolicyPicker value={approval} onChange={setApproval} />
+            <ApprovalPolicyPicker
+              value={approval ?? 'prompt'}
+              placeholder={approval == null ? t('composer.approval.default.label') : undefined}
+              onChange={setApproval}
+            />
           </span>
           <span className={css.optionRow}>
             <span>{t('threadTask.model')}</span>

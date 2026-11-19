@@ -27,8 +27,11 @@ describe('parseThreadToolAction', () => {
       toolName: 'SendMessageToThread',
       pluginNamespace: 'desktop',
       success: true,
-      structuredResult: { threadId: 'thread-3', started: false, queued: true }
-    }))).toEqual({ kind: 'messaged', threadId: 'thread-3', displayName: undefined, started: false, queued: true })
+      structuredResult: { threadId: 'thread-3', workspacePath: '/project/library', started: false, queued: true }
+    }))).toEqual({
+      kind: 'messaged', threadId: 'thread-3', displayName: undefined,
+      workspacePath: '/project/library', started: false, queued: true
+    })
   })
 
   it('returns null for failed calls, results without a thread id, and unrelated tools', () => {

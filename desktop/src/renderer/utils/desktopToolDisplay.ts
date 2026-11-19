@@ -1,6 +1,8 @@
 import {
   Archive,
   ArchiveRestore,
+  CircleStop,
+  FolderOpen,
   MessageSquarePlus,
   MessageSquareText,
   Pencil,
@@ -18,8 +20,10 @@ import { isDesktopToolNamespace } from './threadToolDisplay'
 export const DESKTOP_TOOL_OPERATIONS = [
   'readChat',
   'listChats',
+  'listProjects',
   'searchChats',
   'sendMessage',
+  'stopChat',
   'createChat',
   'renameChat',
   'archiveChat',
@@ -42,8 +46,10 @@ const OPERATIONS_BY_TOOL: Readonly<Record<string, DesktopToolOperation>> = {
   ListThreadItems: 'readChat',
   ReadThreadItem: 'readChat',
   ListThreads: 'listChats',
+  ListProjects: 'listProjects',
   SearchThreadMessages: 'searchChats',
   SendMessageToThread: 'sendMessage',
+  StopThread: 'stopChat',
   CreateThread: 'createChat',
   SetThreadTitle: 'renameChat',
   SetThreadArchived: 'archiveChat',
@@ -53,13 +59,15 @@ const OPERATIONS_BY_TOOL: Readonly<Record<string, DesktopToolOperation>> = {
   DismissProposal: 'dismissSuggestion'
 }
 
-const OPERATIONS_OPENING_CHAT: ReadonlySet<DesktopToolOperation> = new Set(['readChat', 'sendMessage'])
+const OPERATIONS_OPENING_CHAT: ReadonlySet<DesktopToolOperation> = new Set(['readChat', 'sendMessage', 'stopChat'])
 
 const ICONS: Readonly<Record<DesktopToolOperation, LucideIcon>> = {
   readChat: MessageSquareText,
   listChats: MessageSquareText,
+  listProjects: FolderOpen,
   searchChats: Search,
   sendMessage: MessageSquareText,
+  stopChat: CircleStop,
   createChat: MessageSquarePlus,
   renameChat: Pencil,
   archiveChat: Archive,

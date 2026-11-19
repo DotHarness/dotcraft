@@ -174,6 +174,7 @@ describe('turn layout', () => {
       item('userMessage', { text: 'Subagent reviewer finished', deliveryMode: 'queued', triggerKind: 'subagent', triggerRefId: 'agent-1' }),
       item('userMessage', { text: 'Workflow review finished.', deliveryMode: 'queued', triggerKind: 'workflow', triggerRefId: 'run-1', triggerStatus: 'succeeded' }),
       item('userMessage', { text: 'Run the review workflow', triggerKind: 'workflow', triggerRefId: 'run-2' }),
+      item('userMessage', { text: 'Chat Fix the build finished', deliveryMode: 'queued', triggerKind: 'thread', triggerRefId: 'thread-child', triggerStatus: 'completed' }),
       item('agentMessage', { text: 'All done.', phase: 'final' }),
     ]
     const transcript = buildTranscript(history(items, 'completed'))

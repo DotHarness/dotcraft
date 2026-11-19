@@ -7,6 +7,23 @@ public partial class TestableSessionService
 {
     public TurnSettingsOverrides? LastSubmittedTurnSettings { get; private set; }
     public Func<string, TurnInputAdmission>? TurnAdmissionHandler { get; set; }
+    public Func<string, TurnStartOrEnqueueAdmission>? FollowupAdmissionHandler { get; set; }
+
+    public async Task<TurnStartOrEnqueueAdmission> StartOrEnqueueTurnAsync(
+        string threadId,
+        IList<AIContent> content,
+        CancellationToken ct = default,
+        SessionInputSnapshot? inputSnapshot = null,
+        string? model = null,
+        TurnReasoningOverrides? reasoning = null)
+    {
+        LastSubmittedTurnSettings = new() { Model = model, Reasoning = reasoning };
+        if (FollowupAdmissionHandler is not null)
+            return FollowupAdmissionHandler(threadId);
+        var started = await CannedTurnAdmission.CaptureAsync(
+            SubmitInputAsync(threadId, content, ct: ct, inputSnapshot: inputSnapshot), ct);
+        return new(Turn: started.Turn, Events: started.Events);
+    }
 
     public async Task<TurnInputAdmission> StartOrSteerTurnAsync(
         string threadId,

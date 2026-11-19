@@ -9,6 +9,11 @@ public sealed record TurnInputAdmission(
     bool Started,
     IAsyncEnumerable<SessionEvent>? Events = null);
 
+public sealed record TurnStartOrEnqueueAdmission(
+    SessionTurn? Turn = null,
+    QueuedTurnInput? QueuedInput = null,
+    IAsyncEnumerable<SessionEvent>? Events = null);
+
 public sealed record TurnSettingsOverrides
 {
     public string? ProviderId { get; init; }

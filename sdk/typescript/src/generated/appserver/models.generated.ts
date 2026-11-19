@@ -5349,6 +5349,25 @@ export interface TurnNotification {
   [key: string]: unknown;
 }
 
+export interface TurnNotifyParams {
+  label: string;
+  notificationId: string;
+  project?: string | null;
+  refId: string;
+  result?: string | null;
+  status: TurnNotifyStatus;
+  summary: string;
+  threadId: string;
+  [key: string]: unknown;
+}
+
+export interface TurnNotifyResult {
+  queued: boolean;
+  [key: string]: unknown;
+}
+
+export type TurnNotifyStatus = "completed" | "failed" | "stopped" | "waitingForInput";
+
 export interface TurnQueueRemoveParams {
   queuedInputId?: string;
   threadId?: string;
@@ -5392,6 +5411,20 @@ export interface TurnQueueUpdateParams {
 
 export interface TurnQueueUpdateResult {
   queuedInputs?: QueuedTurnInput[];
+  [key: string]: unknown;
+}
+
+export interface TurnStartOrEnqueueParams {
+  input: InputPart[];
+  model?: string | null;
+  reasoning?: ReasoningConfig | null;
+  threadId: string;
+  [key: string]: unknown;
+}
+
+export interface TurnStartOrEnqueueResult {
+  queuedInput?: QueuedTurnInput | null;
+  turn?: SessionTurn | null;
   [key: string]: unknown;
 }
 

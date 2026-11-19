@@ -14,6 +14,8 @@ export function isThreadTaskId(value: string): boolean {
 export interface NewThreadTask {
   threadId: string
   workspacePath: string
+  targetProjectId?: string
+  targetWorkspacePath?: string
   kind: ThreadTaskKind
   title: string
   prompt?: string
@@ -104,6 +106,7 @@ export class ThreadTaskStore {
       id: `task_${randomBytes(4).toString('hex')}`,
       threadId: input.threadId,
       workspacePath: input.workspacePath,
+      ...(input.targetProjectId ? { targetProjectId: input.targetProjectId, targetWorkspacePath: input.targetWorkspacePath } : {}),
       kind: input.kind,
       state: 'pending',
       title: input.title,
