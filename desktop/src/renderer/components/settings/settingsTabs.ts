@@ -18,6 +18,7 @@ import {
 import type { DesktopPluginIconComponent } from '@dotcraft/plugin'
 
 import type { MessageKey } from '../../../shared/locales'
+import type { ServerCapabilities } from '../../stores/connectionStore'
 import type { SettingsTab } from '../../types/settings'
 import { McpIcon } from './McpIcon'
 import { PetIcon } from './panels/pet/PetIcon'
@@ -38,6 +39,14 @@ export interface SettingsTabOptions {
   mcpEnabled: boolean
   hooksEnabled: boolean
   sessionImportEnabled: boolean
+  personalizationEnabled: boolean
+}
+
+export function isPersonalizationAvailable(capabilities: ServerCapabilities | null | undefined): boolean {
+  return capabilities?.workspaceConfigManagement === true
+    || capabilities?.memoryManagement === true
+    || capabilities?.dreams === true
+    || capabilities?.subAgentManagement === true
 }
 
 export function buildSettingsTabs(t: Translate, options: SettingsTabOptions): SettingsTabDefinition[] {
@@ -51,8 +60,12 @@ export function buildSettingsTabs(t: Translate, options: SettingsTabOptions): Se
     { id: 'profile', label: t('settings.tab.profile'), icon: UserRound, group: 'personal' },
     { id: 'appearance', label: t('settings.tab.appearance'), icon: Palette, group: 'personal' },
     { id: 'archivedThreads', label: t('settings.tab.archivedThreads'), icon: Archive, group: 'personal' },
-    { id: 'voice', label: t('settings.tab.voice'), icon: Mic, group: 'personal' },
-    { id: 'personalization', label: t('settings.tab.personalization'), icon: SlidersHorizontal, group: 'personal' },
+    { id: 'voice', label: t('settings.tab.voice'), icon: Mic, group: 'personal' }
+  )
+  if (options.personalizationEnabled) {
+    tabs.push({ id: 'personalization', label: t('settings.tab.personalization'), icon: SlidersHorizontal, group: 'personal' })
+  }
+  tabs.push(
     { id: 'pet', label: t('settings.tab.pet'), icon: PetIcon, group: 'personal' },
     { id: 'usage', label: t('settings.tab.usage'), icon: BarChart3, group: 'personal' },
     { id: 'llmService', label: t('settings.tab.llmService'), icon: Cpu, group: 'personal' },

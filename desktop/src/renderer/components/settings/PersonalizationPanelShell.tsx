@@ -35,7 +35,7 @@ export function PersonalizationPanelShell({
             ariaLabel={t('settings.tab.personalization')}
             value={segment}
             options={[
-              { value: 'personalization', label: t('settings.tab.general') },
+              { value: 'personalization', label: t('settings.personalization.group.memory') },
               { value: 'subAgents', label: t('settings.tab.subAgents') }
             ]}
             onChange={setActiveSettingsTab}

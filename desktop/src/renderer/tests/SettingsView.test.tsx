@@ -300,7 +300,7 @@ describe('SettingsView', () => {
   it('saves the shared skills toggle and restarts managed AppServer', async () => {
     renderView()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Personalization' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'General' }))
     const toggle = await screen.findByRole('switch', { name: 'Use shared skills' })
     await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'true'))
 
@@ -526,7 +526,7 @@ describe('SettingsView', () => {
     const confirm = vi.fn().mockResolvedValue(true)
     ;(window as Window & { __confirmDialog?: unknown }).__confirmDialog = confirm
 
-    useUIStore.setState({ activeSettingsTab: 'personalization' })
+    useUIStore.setState({ activeSettingsTab: 'general' })
     renderView()
 
     const approvalSelect = await screen.findByRole('combobox', { name: 'Default permissions' }) as HTMLSelectElement
@@ -544,7 +544,7 @@ describe('SettingsView', () => {
     const confirm = vi.fn().mockResolvedValue(false)
     ;(window as Window & { __confirmDialog?: unknown }).__confirmDialog = confirm
 
-    useUIStore.setState({ activeSettingsTab: 'personalization' })
+    useUIStore.setState({ activeSettingsTab: 'general' })
     renderView()
 
     const approvalSelect = await screen.findByRole('combobox', { name: 'Default permissions' }) as HTMLSelectElement

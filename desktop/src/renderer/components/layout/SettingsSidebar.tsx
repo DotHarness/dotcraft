@@ -17,7 +17,7 @@ import {
   revealSettingsLabel,
   type SettingsSearchEntry
 } from '../settings/settingsSearch'
-import { buildSettingsTabs, type SettingsTabGroup } from '../settings/settingsTabs'
+import { buildSettingsTabs, isPersonalizationAvailable, type SettingsTabGroup } from '../settings/settingsTabs'
 import { prefetchSettingsPanel } from '../settings/coreSettingsPanels'
 import {
   SIDEBAR_NAV_BORDER_INACTIVE,
@@ -42,7 +42,8 @@ export function SettingsSidebar(): JSX.Element {
     sourceControlEnabled: capabilities?.sourceControlManagement === true,
     mcpEnabled: capabilities?.mcpManagement === true,
     hooksEnabled: capabilities?.hooksManagement === true,
-    sessionImportEnabled: isSessionImportAvailable(capabilities)
+    sessionImportEnabled: isSessionImportAvailable(capabilities),
+    personalizationEnabled: isPersonalizationAvailable(capabilities)
   })
   const pluginTabs = useDesktopPluginRegistry((state) => state.settingsPages).map((entry) => ({
     id: entry.settingsKey,

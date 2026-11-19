@@ -1847,6 +1847,12 @@ has no workspace picker. Data that only makes sense for one project, such as a
 local environment or a Perforce checkout, stays with its project, and the page
 names the project it edits.
 
+General holds how the app and the agent behave by default: an Agent group carries
+the default approval policy, Code Mode, and shared skills, and prompt suggestions
+sit with the Composer rows. Personalization holds only what the agent learns about
+the user, Memory, with Subagents as its second segment; the page is hidden when
+neither is available.
+
 Search sits directly below Back to app. It is the composed search control without a
 frame: `36px` tall, pill radius, and a `--bg-hover` fill. The field does not take
 focus when Settings opens, and Ctrl/Cmd+F focuses it. Results replace the navigation

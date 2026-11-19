@@ -20,9 +20,7 @@ import {
 } from './providers/providerDraft'
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type JSX } from 'react'
 import {
-  Hand,
   MessageCircle,
-  OctagonAlert,
   Plus,
   Trash2
 } from 'lucide-react'
@@ -41,8 +39,7 @@ import {
   readConfigValue,
   useConfig,
   useConfigSetting,
-  useConfigStore,
-  type ConfigSetting
+  useConfigStore
 } from '../../stores/configStore'
 import { findPluginEntry, usePluginStore } from '../../stores/pluginStore'
 import { useSkillsStore } from '../../stores/skillsStore'
@@ -83,7 +80,8 @@ import { MemorySettingsGroup } from './panels/memory/MemorySettingsGroup'
 import { useDreamsSettings } from './panels/memory/useDreamsSettings'
 import { ImageGenerationSettingsGroup } from './panels/imageGeneration/ImageGenerationSettingsGroup'
 import { WebSearchSettingsGroup } from './panels/webSearch/WebSearchSettingsGroup'
-import { CodeModeSettingsGroup } from './panels/codeMode/CodeModeSettingsGroup'
+import { AgentSettingsGroup } from './panels/agent/AgentSettingsGroup'
+import { PromptSuggestionsRow } from './panels/PromptSuggestionsRow'
 import { InstantInterruptRow } from './panels/instantInterrupt/InstantInterruptRow'
 import { SubAgentDefaultModelField } from './panels/subAgentModels/SubAgentDefaultModelField'
 import { SegmentedControl } from './ui/SegmentedControl'
@@ -171,9 +169,7 @@ interface McpTestResultWire {
   toolCount?: number
 }
 
-type VisibleApprovalPolicy = 'default' | 'autoApprove'
 const SETTINGS_SELECT_WIDTH = '240px'
-const APPROVAL_MENU_MIN_WIDTH = 288
 
 const DEFAULT_WS_HOST = '127.0.0.1'
 const DEFAULT_WS_PORT = 9100
@@ -316,19 +312,12 @@ export function SettingsView({
     () => configLlmKey == null ? null : JSON.parse(configLlmKey) as [string, ModelPreference | null],
     [configLlmKey]
   )
-  const promptSuggestions = useConfigSetting('PromptSuggestions.Enabled', (error) =>
-    t('settings.personalization.promptSuggestionsSaveFailed', { error }))
-  const sharedSkills = useConfigSetting('Skills.IncludeSharedSkills', (error) =>
-    t('settings.personalization.sharedSkillsSaveFailed', { error }))
   const memory = useConfigSetting('Memory.Enabled', (error) =>
     t('settings.personalization.memory.saveFailed', { error }))
   const memoryAutoExtract = useConfigSetting('Memory.AutoExtract', (error) =>
     t('settings.personalization.memory.saveFailed', { error }))
-  const defaultApproval = useConfigSetting('Permissions.DefaultApprovalPolicy', (error) =>
-    t('settings.permissions.saveFailed', { error }))
-  const includeSharedSkills = sharedSkills.value === true
+  const includeSharedSkills = readConfigValue(workspaceConfig, 'Skills.IncludeSharedSkills') === true
   const memoryEnabled = memory.value === true
-  const defaultApprovalPolicy = typeof defaultApproval.value === 'string' ? defaultApproval.value : ''
 
   const mcpEditor = useMcpDraft()
   const { editingServerName, mcpDraft, buildDraftPayload } = mcpEditor
@@ -716,10 +705,6 @@ export function SettingsView({
     }
   }
 
-  async function handleSkillsToggle(setting: ConfigSetting, checked: boolean): Promise<void> {
-    if (await setting.set(checked)) setSkillsRestartPending(true)
-  }
-
   const handleResetMemory = useCallback(
     async (): Promise<void> => {
       if (resettingMemory) return
@@ -784,32 +769,6 @@ export function SettingsView({
     [showInMenuBar, t]
   )
 
-  async function handleDefaultApprovalPolicyChange(nextPolicy: VisibleApprovalPolicy): Promise<boolean> {
-    if (defaultApproval.pending) return false
-    const clearNewChatPolicy = (): void => {
-      void useComposerPreferencesStore.getState().saveNewChatApprovalPolicy(null).catch(() => undefined)
-    }
-    if (nextPolicy === defaultApprovalPolicy) {
-      clearNewChatPolicy()
-      return false
-    }
-
-    if (nextPolicy === 'autoApprove') {
-      const confirmed = await confirm({
-        title: t('settings.permissions.fullAccess.warningTitle'),
-        message: t('settings.permissions.fullAccess.warningBody'),
-        confirmLabel: t('settings.permissions.fullAccess.warningConfirm'),
-        cancelLabel: t('common.cancel'),
-        danger: true
-      })
-      if (!confirmed) return false
-    }
-
-    const saved = await defaultApproval.set(nextPolicy)
-    if (saved) clearNewChatPolicy()
-    return saved
-  }
-
   useSettingsWorkspaceConfigChangeEffects({
     change: workspaceConfigChange,
     changeSeq: workspaceConfigChangeSeq,
@@ -829,12 +788,13 @@ export function SettingsView({
       || (activeSettingsTab === 'sourceControl' && !sourceControlEnabled)
       || (activeSettingsTab === 'hooks' && !hooksEnabled)
       || (activeSettingsTab === 'import' && !sessionImportEnabled)
+      || (activeSettingsTab === 'personalization' && !personalizationAvailable && !subAgentEnabled)
       || (isDesktopPluginSettingsTab(activeSettingsTab) && !activeDesktopPluginSettingsPage)
     const subAgentsUnavailable = activeSettingsTab === 'subAgents' && !subAgentEnabled
     if (!unavailable && !subAgentsUnavailable) return
     runWithoutAppNavigationRecording(() => setActiveSettingsTab(subAgentsUnavailable ? 'personalization' : 'general'))
     replaceCurrentAppNavigationLocation()
-  }, [activeDesktopPluginSettingsPage, activeSettingsTab, hooksEnabled, mcpEnabled, subAgentEnabled, sourceControlEnabled, sessionImportEnabled])
+  }, [activeDesktopPluginSettingsPage, activeSettingsTab, hooksEnabled, mcpEnabled, personalizationAvailable, subAgentEnabled, sourceControlEnabled, sessionImportEnabled])
 
   useEffect(() => {
     if (activeSettingsTab === 'browserUse' && pluginManagementEnabled) {
@@ -1499,7 +1459,13 @@ export function SettingsView({
                   <FollowUpBehaviorRow />
                   <NewTaskBehaviorRow />
                   <InstantInterruptRow />
+                  {configManagementEnabled && <PromptSuggestionsRow />}
                 </SettingsGroup>
+
+                <AgentSettingsGroup
+                  configManagementEnabled={configManagementEnabled}
+                  onSharedSkillsChanged={() => setSkillsRestartPending(true)}
+                />
               </SettingsPanelShell>
               </GeneralPanel>
             )}
@@ -1673,81 +1639,6 @@ export function SettingsView({
             {activeSettingsTab === 'personalization' && (
               <GeneralPanel>
               <PersonalizationPanelShell segment="personalization">
-                {configManagementEnabled && <CodeModeSettingsGroup />}
-
-                <SettingsGroup title={t('settings.group.permissions')}>
-                  <SettingsRow
-                    label={t('settings.permissions.workspaceDefault.label')}
-                    description={t('settings.permissions.workspaceDefault.description')}
-                    htmlFor="settings-default-approval-policy"
-                    control={
-                      <SettingsSelect
-                        id="settings-default-approval-policy"
-                        value={defaultApprovalPolicy}
-                        disabled={defaultApproval.pending}
-                        ariaLabel={t('settings.permissions.workspaceDefault.label')}
-                        onValueChange={(nextPolicy) => {
-                          return handleDefaultApprovalPolicyChange(nextPolicy as VisibleApprovalPolicy)
-                        }}
-                        style={{ width: SETTINGS_SELECT_WIDTH }}
-                        menuMinWidth={APPROVAL_MENU_MIN_WIDTH}
-                        options={[
-                          {
-                            value: 'default',
-                            label: t('settings.permissions.default.label'),
-                            description: t('settings.permissions.default.description'),
-                            icon: <Hand size={15} strokeWidth={1.9} />
-                          },
-                          {
-                            value: 'autoApprove',
-                            label: t('settings.permissions.fullAccess.label'),
-                            description: t('settings.permissions.fullAccess.description'),
-                            icon: <OctagonAlert size={15} strokeWidth={1.9} />
-                          }
-                        ]}
-                      />
-                    }
-                  />
-                </SettingsGroup>
-
-                {configManagementEnabled && (
-                <SettingsGroup
-                  title={t('settings.personalization.group.conversation')}
-                >
-                    <SettingsRow
-                      label={t('settings.personalization.promptSuggestions')}
-                      description={t('settings.personalization.promptSuggestionsHint')}
-                      control={
-                        <PillSwitch
-                          checked={promptSuggestions.value === true}
-                          disabled={promptSuggestions.pending}
-                          aria-label={t('settings.personalization.promptSuggestions')}
-                          onChange={(checked) => { void promptSuggestions.set(checked) }}
-                        />
-                      }
-                    />
-                </SettingsGroup>
-                )}
-                {configManagementEnabled && (
-                  <SettingsGroup
-                    title={t('settings.personalization.group.skills')}
-                  >
-                    <SettingsRow
-                      label={t('settings.personalization.sharedSkills')}
-                      description={t('settings.personalization.sharedSkillsHint')}
-                      control={
-                        <PillSwitch
-                          checked={includeSharedSkills}
-                          disabled={sharedSkills.pending}
-                          aria-label={t('settings.personalization.sharedSkills')}
-                          onChange={(checked) => {
-                            void handleSkillsToggle(sharedSkills, checked)
-                          }}
-                        />
-                      }
-                    />
-                  </SettingsGroup>
-                )}
                 {personalizationAvailable && (
                   <MemorySettingsGroup
                     memoryToggle={configManagementEnabled
