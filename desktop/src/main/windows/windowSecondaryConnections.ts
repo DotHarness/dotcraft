@@ -31,6 +31,8 @@ import { SECONDARY_WORKSPACE_CONNECTION_LIMIT } from './windowConstants'
 import type { DesktopWindowRuntime } from './windowRuntime'
 import type { WorkspaceConnectionEntry } from './windowTypes'
 
+const secondaryRefreshGenerations = new WeakMap<DesktopWindowRuntime, symbol>()
+
 export function getManagedAppServerEndpoint(
   _ctx: DesktopWindowRuntime,
   response: HubAppServerResponse
@@ -424,21 +426,27 @@ export function enforceSecondaryWorkspaceBudget(ctx: DesktopWindowRuntime): void
 
 export async function refreshSecondaryWorkspaceConnections(ctx: DesktopWindowRuntime): Promise<void> {
   if (ctx.runtimeIsStopping() || hasRemoteEndpointArg(ctx.argv)) return
+  const generation = Symbol()
+  secondaryRefreshGenerations.set(ctx, generation)
+  const isCurrent = () => secondaryRefreshGenerations.get(ctx) === generation &&
+    !ctx.runtimeIsStopping() && !ctx.activeRemoteWorkspace && ctx.resolveConnectionMode(ctx.settings) === 'local'
+
   enforceSecondaryWorkspaceBudget(ctx)
   if (ctx.secondaryRefreshTimer) clearTimeout(ctx.secondaryRefreshTimer)
   ctx.secondaryRefreshTimer = null
   await ctx.ensureDefaultChatConnection()
-  if (ctx.runtimeIsStopping() || ctx.activeRemoteWorkspace || ctx.resolveConnectionMode(ctx.settings) !== 'local') return
+  if (!isCurrent()) return
 
   let liveAppServers: HubAppServerResponse[]
   try {
     liveAppServers = await ctx.app.createHubClient(ctx.settings).listAppServers()
   } catch (error) {
+    if (!isCurrent()) return
     console.warn('[desktop] failed to list Hub appservers for secondary workspaces', error)
     ctx.emitWorkspaceProjects()
     return
   }
-  if (ctx.runtimeIsStopping() || ctx.activeRemoteWorkspace || ctx.resolveConnectionMode(ctx.settings) !== 'local') return
+  if (!isCurrent()) return
 
   const liveByKey = new Map<string, HubAppServerResponse>()
   for (const appServer of liveAppServers) {

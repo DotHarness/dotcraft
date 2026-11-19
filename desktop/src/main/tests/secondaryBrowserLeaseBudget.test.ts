@@ -31,14 +31,15 @@ function fixture(count: number) {
   })) as WorkspaceConnectionEntry[]
   const connections = new Map(entries.map(entry => [entry.key, entry]))
   const disposed: string[] = []
+  const listAppServers = vi.fn(async () => entries.map(entry => ({
+    workspacePath: entry.workspacePath, endpoints: { appServerWebSocket: endpointFor(entry.workspacePath) }
+  })))
   const ctx = {
     runtimeIsStopping: () => false, resolveConnectionMode: () => 'local', settings: {},
     ensureDefaultChatConnection: async () => {},
     app: {
       localProjects: { list: () => entries.map(entry => ({ path: entry.workspacePath })) },
-      createHubClient: () => ({ listAppServers: async () => entries.map(entry => ({
-        workspacePath: entry.workspacePath, endpoints: { appServerWebSocket: endpointFor(entry.workspacePath) }
-      })) })
+      createHubClient: () => ({ listAppServers })
     },
     isWorkspaceForeground: () => false, isRunningHubAppServer: () => true,
     normalizeWorkspaceConnectionKey: (path: string) => path,
@@ -53,7 +54,7 @@ function fixture(count: number) {
     disposeWorkspaceConnection: (entry: WorkspaceConnectionEntry) => { disposed.push(entry.key); connections.delete(entry.key) },
     emitWorkspaceProjects: vi.fn()
   } as unknown as DesktopWindowRuntime
-  return { ctx, leases, entries, connections, disposed }
+  return { ctx, leases, entries, connections, disposed, listAppServers }
 }
 
 function addDevice(connections: Map<string, WorkspaceConnectionEntry>, index: number, lastUsedAt: number) {
@@ -67,18 +68,35 @@ function addDevice(connections: Map<string, WorkspaceConnectionEntry>, index: nu
   return entry
 }
 
-it('opens the replacement Hub endpoint for a disconnected project', async () => {
-  const { ctx, entries: [previous], connections, disposed } = fixture(1)
+it('preserves the replacement Hub endpoint when an older snapshot returns during reconnect', async () => {
+  const { ctx, entries: [previous], connections, disposed, listAppServers } = fixture(1)
   previous.connected = false
   previous.wsUrl = 'ws://localhost:4321'
 
-  await refreshSecondaryWorkspaceConnections(ctx)
+  let resolveOlder!: (servers: Awaited<ReturnType<typeof listAppServers>>) => void
+  const olderResponse = new Promise<Awaited<ReturnType<typeof listAppServers>>>(resolve => { resolveOlder = resolve })
+  let markRequested!: () => void
+  const olderRequested = new Promise<void>(resolve => { markRequested = resolve })
+  listAppServers.mockImplementationOnce(() => {
+    markRequested()
+    return olderResponse
+  })
 
-  expect(disposed).toEqual([previous.key])
-  expect(connections.get(previous.key)).toMatchObject({
+  const pendingRefresh = refreshSecondaryWorkspaceConnections(ctx)
+  await olderRequested
+  await refreshSecondaryWorkspaceConnections(ctx)
+  const replacement = connections.get(previous.key)
+  expect(replacement).toMatchObject({
+    connected: false,
     wsUrl: endpointFor(previous.workspacePath),
     lastUsedAt: previous.lastUsedAt
   })
+
+  resolveOlder([{ workspacePath: previous.workspacePath, endpoints: { appServerWebSocket: previous.wsUrl } }])
+  await pendingRefresh
+
+  expect(connections.get(previous.key)).toBe(replacement)
+  expect(disposed).toEqual([previous.key])
 })
 
 describe('secondary browser connection budget', () => {
