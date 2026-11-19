@@ -76,6 +76,7 @@ export function parseThreadToolAction(item: ConversationItem): ThreadToolAction 
       kind: 'messaged',
       threadId,
       displayName: undefined,
+      workspacePath: typeof data.workspacePath === 'string' ? data.workspacePath : undefined,
       started: data.started === true,
       queued: data.queued === true
     }
