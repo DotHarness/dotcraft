@@ -34,6 +34,7 @@ import { isCodeModeExecItem } from '../../utils/codeModeExec'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useUIStore } from '../../stores/uiStore'
 import { useSideChatStore } from '../../stores/sideChatStore'
+import { useThreadStore } from '../../stores/threadStore'
 import { findSideChat } from '../../utils/sideChat'
 import { isSideChatMainMessage } from './SideChatMainMessageRow'
 import { resolveDesktopPluginToolRenderer, useDesktopPluginRegistry } from '../../plugins/desktopPluginRegistry'
@@ -73,7 +74,7 @@ interface AgentResponseBlockProps {
   renderTurnCompletion?: (turnId: string) => ReactNode
   loadTurnItems?: TurnItemsExpansionLoader
   leadingTurns?: readonly ConversationTurn[]
-  embedded?: { open: boolean; expanded: boolean; wakeLine: boolean; completion: boolean }
+  embedded?: { open: boolean; expanded: boolean; wakeLine: boolean }
 }
 
 const NO_TURNS: readonly ConversationTurn[] = []
@@ -116,6 +117,8 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
   const activeItemIdFromStore = useConversationStore((s) => s.activeItemId)
   const showThinkingContent = useUIStore((s) => s.showThinkingContent)
   const hasFileChanges = useTranscriptTurnHasFileChanges(turn.id)
+  const awaitingTasks = useThreadStore((state) =>
+    isLastVisibleTurn && state.runtimeSnapshots.get(turn.threadId)?.hasBackgroundWork === true)
   const activeItemId =
     activeItemIdOverride !== undefined ? activeItemIdOverride : activeItemIdFromStore
   const citationSources = useWebCitationSources(turn, streamingMessage)
@@ -268,7 +271,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
               createdAt={item.createdAt}
               isLastTurn={isLastTurn}
               readOnly={readOnly}
-              showFooter={isFooterMessage}
+              showFooter={isFooterMessage && !awaitingTasks}
               afterContent={isFooterMessage ? <>{turnCompletionContent}{replyStatusSeat}</> : undefined}
             />
           )
@@ -317,7 +320,8 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
     completesResponse && !embedded ? renderableItems[lastFinalAgentMessageIndex]?.id : null
   const completionOf = (turnId: string): ReactNode =>
     renderTurnCompletion ? renderTurnCompletion(turnId) : <TurnCompletionContent turnId={turnId} />
-  const turnCompletionContent = !completesResponse || embedded?.completion === false ? null
+  const turnCompletionContent = !completesResponse || embedded ? null
+    : awaitingTasks ? <TurnNextStep turnId={turn.id} />
     : leadingTurns.length === 0 ? completionOf(turn.id)
       : <>{[...leadingTurns, turn].map((member) => <Fragment key={member.id}>{completionOf(member.id)}</Fragment>)}</>
   const showsStatusSeat = isLastVisibleTurn && !readOnly && !embedded
@@ -335,7 +339,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
     <ResponseLeadingTurn key={leadingTurn.id} turnId={leadingTurn.id}>
       <AgentResponseBlock
         turn={leadingTurn}
-        embedded={{ ...state, wakeLine: index > 0, completion: !completesResponse }}
+        embedded={{ ...state, wakeLine: index > 0 }}
         shellRuntimeScope={shellRuntimeScope}
         readOnly={readOnly}
         renderTurnCompletion={renderTurnCompletion}
@@ -436,7 +440,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
       )}
 
       {turnCompletionContent && !footerAgentMessageId && turnCompletionContent}
-      {turnCompleted && !completesResponse && !readOnly && embedded?.completion !== false && <TurnNextStep turnId={turn.id} />}
+      {turnCompleted && !completesResponse && !readOnly && !embedded && <TurnNextStep turnId={turn.id} />}
 
       {showsStatusSeat && !footerAgentMessageId && <TurnStatusSeat turn={turn} running={isRunning} />}
 

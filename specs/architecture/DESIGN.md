@@ -1359,11 +1359,13 @@ actions, as the same small icon plus label. State is information, so it stays
 visible at rest while the timestamp and copy controls stay hover-revealed.
 
 The assistant answer's action row and completion cards appear below its final
-reply once the turn completes. An unanswered response has no action row or
-completion cards and reserves no footer space. A continued response presents the
-completion cards of its earlier turns after its final reply, and an earlier turn's reply
-reads as part of the process, without an action row. Background tasks still running do not suppress the final reply's
-copy, fork, and timestamp controls.
+reply once the response settles: its last turn has completed and the thread has no
+background work that will continue it. An unanswered response, or an answered one
+still waiting on background work, has no action row or completion cards and reserves
+no footer space, with the running tasks entry below it. A Wrap Up next-step box
+still shows. A continued response presents
+the completion cards of every turn after its final reply, and an earlier turn's reply
+reads as part of the process, without an action row or completion cards.
 
 The Wrap Up next-step card uses the same 8px separation and 12px content inset
 as the adjacent document and file-change cards. Its close icon sits at the top

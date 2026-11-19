@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { AgentResponseBlock } from '../components/conversation/AgentResponseBlock'
 import { useConversationStore } from '../stores/conversationStore'
@@ -34,8 +34,11 @@ const woken: ConversationTurn = {
   ]
 }
 
+const completions = (turnId: string) => <span data-testid={`completion-${turnId}`} />
+
 beforeEach(() => {
   useConversationStore.getState().reset()
+  useThreadStore.setState({ runtimeSnapshots: new Map() })
   useTurnActivityDisclosureStore.setState({ expanded: new Map() })
   installDesktopApiMock({
     settings: { get: async () => ({ locale: 'en' }) },
@@ -61,6 +64,41 @@ describe('AgentResponseBlock responses spanning turns', () => {
     expect(toggles[0]).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByText('waiting for the build').closest('[data-turn-id]')).toHaveAttribute('data-turn-id', 'turn-asked')
     expect(container.querySelectorAll('button[aria-expanded]')).toHaveLength(1)
+  })
+
+  it('holds the answer actions and completion results until background work ends', () => {
+    useThreadStore.getState().applyRuntimeSnapshot('thread-1', { hasBackgroundWork: true }, { isDesktopOrigin: false })
+    render(
+      <LocaleProvider>
+        <AgentResponseBlock turn={woken} isLastTurn isLastVisibleTurn renderTurnCompletion={completions} />
+      </LocaleProvider>
+    )
+
+    expect(screen.queryByTestId('agent-message-footer')).toBeNull()
+    expect(screen.queryByTestId('completion-turn-woken')).toBeNull()
+
+    act(() => {
+      useThreadStore.getState().applyRuntimeSnapshot('thread-1', { hasBackgroundWork: false }, { isDesktopOrigin: false })
+    })
+
+    expect(screen.getByTestId('agent-message-footer')).toBeInTheDocument()
+    expect(screen.getByTestId('completion-turn-woken')).toBeInTheDocument()
+  })
+
+  it('shows no completion results for an answered earlier turn while the response continues', () => {
+    const answered: ConversationTurn = {
+      ...asked,
+      items: [asked.items[0], { ...asked.items[1], phase: 'final', text: 'the build is running' }]
+    }
+    const running: ConversationTurn = { ...woken, status: 'running', completedAt: undefined, items: [woken.items[0]] }
+    render(
+      <LocaleProvider>
+        <AgentResponseBlock turn={running} leadingTurns={[answered]} isRunning isLastTurn isLastVisibleTurn renderTurnCompletion={completions} />
+      </LocaleProvider>
+    )
+
+    expect(screen.getByText('the build is running')).toBeInTheDocument()
+    expect(screen.queryByTestId('completion-turn-asked')).toBeNull()
   })
 
   it('names a subagent that woke a continuing turn with the row its ending shows mid-turn', () => {
