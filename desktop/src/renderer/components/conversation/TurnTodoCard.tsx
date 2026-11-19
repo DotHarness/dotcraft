@@ -1,7 +1,6 @@
 import { ChevronRight, Circle, CircleCheck, CircleDot, CircleX } from 'lucide-react'
 import { useEffect, useState, type JSX } from 'react'
 import { useT } from '../../contexts/LocaleContext'
-import { Spinner } from '../ui/Spinner'
 import { useRunningTaskCount } from './summary/store'
 import { desktopSummaryServices } from './summary/summaryServices'
 import { setSummaryShown } from './summary/view'
@@ -115,9 +114,18 @@ function StatusMark({ status, live }: { status: TurnTodo['status']; live: boolea
     <span className={styles.mark} data-status={status}>
       {status === 'completed' ? <CircleCheck {...ICON} />
         : status === 'cancelled' ? <CircleX {...ICON} />
-          : status === 'in_progress' ? (live ? <Spinner size={13} className={styles.spinner} /> : <CircleDot {...ICON} />)
+          : status === 'in_progress' ? (live ? <TodoSpinner /> : <CircleDot {...ICON} />)
             : <Circle {...ICON} />}
     </span>
+  )
+}
+
+function TodoSpinner(): JSX.Element {
+  return (
+    <svg className={`dc-spinner ${styles.spinner}`} width={ICON.size} height={ICON.size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle className="dc-spinner__track" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={ICON.strokeWidth} />
+      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={ICON.strokeWidth} strokeDasharray="47 63" />
+    </svg>
   )
 }
 

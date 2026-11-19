@@ -37,7 +37,7 @@
 }
 
 .mark .spinner {
-  color: var(--text-dimmed);
+  color: var(--text-secondary);
   animation-duration: 1.6s;
 }
 
