@@ -63,7 +63,13 @@ function findThreadProject(threadId: string, workspacePath?: string): WorkspaceP
 }
 
 export async function openThread(threadId: string, workspacePath?: string): Promise<void> {
-  const project = findThreadProject(threadId, workspacePath)
+  let project = findThreadProject(threadId, workspacePath)
+  const currentThreadId = useThreadStore.getState().activeThreadId
+  if (!project && !workspacePath && currentThreadId && currentThreadId !== threadId) {
+    const linkedWorkspace = await window.api.threadTasks.linkedWorkspace(currentThreadId, threadId).catch(() => null)
+    if (useThreadStore.getState().activeThreadId !== currentThreadId) return
+    if (linkedWorkspace) project = findThreadProject(threadId, linkedWorkspace)
+  }
   if (project) return openProjectThread(project, threadId)
   useUIStore.getState().setActiveMainView('conversation')
   useThreadStore.getState().setActiveThreadId(threadId)

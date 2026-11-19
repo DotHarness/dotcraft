@@ -1,19 +1,21 @@
 import threadCoordination from '../prompts/threadCoordination.md?raw'
 import type { ThreadTask } from '../../shared/threadTasks'
 import { PROPOSAL_EXPIRY_MS } from './threadTaskStore'
+import { PROJECT_PROPERTY } from './threadProjects'
 
 const EXPIRY_DAYS = Math.round(PROPOSAL_EXPIRY_MS / 86_400_000)
 const NO_LONGER_PENDING = 'it was started in its own chat, or the user sent it to this one, which starts none'
 
-export const CREATE_THREAD_DESCRIPTION = `Start a separate DotCraft chat for a task while you stay with the user (when: see "Starting other chats"). \`initiation\` says who wants it: "userAsked" starts it now and returns its id; "offer" is for a task the user named in their latest message (new work here, or "suggest a separate chat for X"): called with a title alone, it shows a "New chat" / "Do it here" card and WAITS for their answer, so it must be the only call in that message (no other tool); the result then tells you to carry on here, or to send the brief with proposalId so the chat starts; "ownInitiative" is for work you propose yourself that the user has not told you to do — something you noticed, or the follow-up your own answer or work turned up (when your reply calls work a follow-up or a separate change, propose it here rather than only saying so, unless it acts on what this chat just found and so stays here); the user sees a card and nothing runs until they start it, by clicking it or by telling you (then call this again with just proposalId).
-"userAsked" and "ownInitiative" both need a \`prompt\` — the brief: the task, the files or area, what done looks like — and the call is refused without it; \`background\` does not stand in for it. Only an "offer" is a title alone.
+export const CREATE_THREAD_DESCRIPTION = `Start a separate DotCraft chat for a task while you stay with the user (when: see "Starting other chats"). \`initiation\` says who wants it: "userAsked" starts it now and returns its id; "offer" is for a task the user named in their latest message (new work here, or "suggest a separate chat for X"): called with a title and an optional project, it shows a "New chat" / "Do it here" card and WAITS for their answer, so it must be the only call in that message (no other tool); the result then tells you to carry on here, or to send the brief with proposalId so the chat starts; "ownInitiative" is for work you propose yourself that the user has not told you to do — something you noticed, or the follow-up your own answer or work turned up (when your reply calls work a follow-up or a separate change, propose it here rather than only saying so, unless it acts on what this chat just found and so stays here); the user sees a card and nothing runs until they start it, by clicking it or by telling you (then call this again with just proposalId).
+"userAsked" and "ownInitiative" both need a \`prompt\` — the brief: the task, the files or area, what done looks like — and the call is refused without it; \`background\` does not stand in for it. An "offer" has no brief until the user accepts.
 The new chat gets your \`prompt\` and \`background\` only, not this conversation.`
 
 export const CREATE_THREAD_PROPERTIES = {
+  project: { ...PROJECT_PROPERTY, description: 'Where to start the new chat: a project id from ListProjects. Omit for this workspace.' },
   initiation: {
     type: 'string',
     enum: ['userAsked', 'offer', 'ownInitiative'],
-    description: '"userAsked": the user asked in words for separate, parallel or background work, such as splitting a task off into its own chat, or told you to start this piece — it starts now. "offer": a task the user named in their latest message (new work for this chat, or one they asked you to suggest as a separate chat) — the user is asked first and the call waits for their answer; send only title with it (the brief follows, with proposalId, if they choose New chat). "ownInitiative": work you propose yourself that the user has not told you to do — something you noticed, or the follow-up your own answer or work turned up; it waits as a proposal card until the user starts it; never for a task the user\'s message tells you to do, nor for the one piece of work that acts on what this chat just found. Required unless proposalId is set.'
+    description: '"userAsked": the user asked in words for separate, parallel or background work, such as splitting a task off into its own chat, or told you to start this piece — it starts now. "offer": a task the user named in their latest message (new work for this chat, or one they asked you to suggest as a separate chat) — the user is asked first and the call waits for their answer; send a title and an optional project, not a brief (the brief follows, with proposalId, if they choose New chat). "ownInitiative": work you propose yourself that the user has not told you to do — something you noticed, or the follow-up your own answer or work turned up; it waits as a proposal card until the user starts it; never for a task the user\'s message tells you to do, nor for the one piece of work that acts on what this chat just found. Required unless proposalId is set.'
   },
   proposalId: {
     type: 'string',
@@ -60,7 +62,7 @@ export const threadTaskText = {
   initiationRequired: 'initiation is required: "offer" (a task from the user\'s latest message — they choose New chat or Do it here), "userAsked" (the user told you to start this chat) or "ownInitiative" (work you propose yourself, such as a follow-up your answer recommends, unless it acts on what this chat just found and so stays here — it waits as a proposal).',
   titleRequired: 'title is required.',
   promptRequired: (initiation: string) =>
-    `prompt is required with initiation "${initiation}": the brief (the task, the files or area, what done looks like); background does not stand in for it. Only an "offer" is a title alone.`,
+    `prompt is required with initiation "${initiation}": the brief (the task, the files or area, what done looks like); background does not stand in for it. An "offer" has no brief until the user accepts.`,
   proposalIdFormat: 'proposalId must be the taskId a CreateThread proposal returned (format: task_xxxxxxxx).',
   proposalExtras: (keys: string[]) =>
     `proposalId starts the proposal exactly as proposed — drop ${keys.join(', ')}. To run it differently, DismissProposal the proposal and call CreateThread with the new details.`,

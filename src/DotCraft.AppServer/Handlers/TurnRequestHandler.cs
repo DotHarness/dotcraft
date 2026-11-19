@@ -23,6 +23,7 @@ internal sealed class TurnRequestHandler(
     {
         table.Map(Contract.AppServerRpc.TurnStart, HandleTurnStartAsync);
         table.Map(Contract.AppServerRpc.TurnEnqueue, HandleTurnEnqueueAsync);
+        table.Map(Contract.AppServerRpc.TurnNotify, HandleTurnNotifyAsync);
         table.Map(Contract.AppServerRpc.TurnSteer, HandleTurnSteerAsync);
         table.Map(Contract.AppServerRpc.TurnQueueRemove, HandleTurnQueueRemoveAsync);
         table.Map(Contract.AppServerRpc.TurnQueueReorder, HandleTurnQueueReorderAsync);
@@ -205,6 +206,38 @@ internal sealed class TurnRequestHandler(
             QueuedInputs = TurnContractMapper.ToContract(thread.QueuedInputs)
         };
         return AppServerTypedResult<Contract.TurnEnqueueResult>.FromResult(result);
+    }
+
+    private async Task<AppServerTypedResult<Contract.TurnNotifyResult>> HandleTurnNotifyAsync(
+        AppServerTypedRequest<Contract.TurnNotifyParams> request, CancellationToken ct)
+    {
+        var p = request.Params;
+        var threadId = RequiredText(p.ThreadId, "threadId");
+        var notificationId = RequiredText(p.NotificationId, "notificationId");
+        var label = RequiredText(p.Label, "label");
+        var refId = RequiredText(p.RefId, "refId");
+        var summary = RequiredText(p.Summary, "summary");
+        if (p.Result?.Length > 2_000)
+            throw AppServerErrors.InvalidParams("'result' must not exceed 2,000 characters.");
+
+        var status = p.Status switch
+        {
+            Contract.TurnNotifyStatus.Completed => BackgroundTaskStatus.Completed,
+            Contract.TurnNotifyStatus.Failed => BackgroundTaskStatus.Failed,
+            Contract.TurnNotifyStatus.Stopped => BackgroundTaskStatus.Stopped,
+            Contract.TurnNotifyStatus.WaitingForInput => BackgroundTaskStatus.WaitingForInput,
+            _ => null
+        };
+        if (status == null || !request.Message.Params!.Value.TryGetProperty("status", out var wireStatus)
+            || !wireStatus.ValueEquals(status))
+            throw AppServerErrors.InvalidParams("'status' must be completed, failed, stopped, or waitingForInput.");
+
+        var queued = await sessionService.NotifyThreadAsync(threadId,
+            new ThreadTaskReport(notificationId, refId, label, status, summary, p.Project, p.Result), ct);
+        return AppServerTypedResult<Contract.TurnNotifyResult>.FromResult(new() { Queued = queued });
+
+        static string RequiredText(string? value, string field) =>
+            string.IsNullOrWhiteSpace(value) ? throw AppServerErrors.InvalidParams($"'{field}' is required.") : value;
     }
 
     private async Task<AppServerTypedResult<Contract.TurnSteerResult>> HandleTurnSteerAsync(

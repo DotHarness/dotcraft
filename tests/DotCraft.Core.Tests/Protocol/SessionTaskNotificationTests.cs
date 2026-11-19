@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using DotCraft.Agents;
 using DotCraft.Configuration;
+using DotCraft.Hooks;
 using DotCraft.Memory;
 using DotCraft.Security;
 using DotCraft.Sessions;
@@ -230,7 +231,9 @@ public sealed partial class SessionTaskNotificationTests : IAsyncLifetime
         Summary = $"{label} ended."
     };
 
-    private async Task<Harness> CreateHarnessAsync(Action<AppConfig>? configure = null, IRolloutWriter? rolloutWriter = null)
+    private async Task<Harness> CreateHarnessAsync(
+        Action<AppConfig>? configure = null, IRolloutWriter? rolloutWriter = null,
+        HookRunner? hookRunner = null, string? threadId = null)
     {
         var client = new NotificationChatClient();
         var config = AppConfigTestFactory.CreateOpenAI();
@@ -253,15 +256,20 @@ public sealed partial class SessionTaskNotificationTests : IAsyncLifetime
             new SessionPersistenceService(rolloutWriter == null
                 ? new ThreadStore(_tempDir)
                 : new ThreadStore(_tempDir, null, null, rolloutWriter)),
-            new SessionGate());
-        var thread = await service.CreateThreadAsync(new SessionIdentity
+            new SessionGate(),
+            hookRunner: hookRunner);
+        if (threadId == null)
         {
-            ChannelName = "test",
-            UserId = "user",
-            WorkspacePath = _tempDir
-        });
-        await service.RefreshThreadAgentAsync(thread.Id);
-        return new Harness(service, client, agentFactory, thread.Id, _tempDir);
+            var thread = await service.CreateThreadAsync(new SessionIdentity
+            {
+                ChannelName = "test",
+                UserId = "user",
+                WorkspacePath = _tempDir
+            });
+            await service.RefreshThreadAgentAsync(thread.Id);
+            threadId = thread.Id;
+        }
+        return new Harness(service, client, agentFactory, threadId, _tempDir);
     }
 
     private static async Task<SubAgentSessionContext> ChildContextAsync(Harness harness, string name, string? nickname = null)

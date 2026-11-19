@@ -938,14 +938,16 @@ public sealed partial class SessionService
                 EnsureHookRewakeHandler();
 
                 var stopHookActive = string.Equals(turnContext.Trigger?.Kind, "hook", StringComparison.Ordinal);
-                var promptHookContext = await RunPromptLifecycleHookAsync(
-                    HookEvent.UserPromptSubmit,
-                    threadId,
-                    turn.Id,
-                    turnContext.Workspace.Cwd,
-                    text,
-                    stopHookActive,
-                    executionCt);
+                var promptHookContext = turnContext.Trigger?.Kind == ThreadReportTriggerKind
+                    ? new HookResult()
+                    : await RunPromptLifecycleHookAsync(
+                        HookEvent.UserPromptSubmit,
+                        threadId,
+                        turn.Id,
+                        turnContext.Workspace.Cwd,
+                        text,
+                        stopHookActive,
+                        executionCt);
                 if (promptHookContext.Blocked)
                 {
                     var errorMsg = $"Prompt blocked by hook: {promptHookContext.BlockReason ?? "no reason given"}";

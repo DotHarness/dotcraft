@@ -13,6 +13,7 @@ import { IconButton } from '../../ui/IconButton'
 import { RunningShimmer } from '../../ui/RunningShimmer'
 import { ShortcutBadge } from '../../ui/ShortcutBadge'
 import { SidebarNavIcon } from '../../sidebar/SidebarNavIcon'
+import { openThread } from '../../sidebar/projectConnectionActions'
 import { MarkdownRenderer } from '../MarkdownRenderer'
 import { ThreadTaskOptions, type ThreadTaskOptionsHandle } from './ThreadTaskOptions'
 import css from './ThreadTaskCard.module.css'
@@ -24,11 +25,6 @@ type T = ReturnType<typeof useT>
 
 function reportFailure(t: T, error: string | undefined): void {
   if (error) addToast(t('threadTask.startFailed', { error }), 'error')
-}
-
-function openChat(threadId: string): void {
-  useThreadStore.getState().setActiveThreadId(threadId)
-  useUIStore.getState().setActiveMainView('conversation')
 }
 
 function Band({ label, meta, children }: { label: string; meta?: ReactNode; children?: ReactNode }): JSX.Element {
@@ -61,7 +57,7 @@ function StartedRow({ task, childThreadId }: { task: ThreadTask; childThreadId: 
   return (
     <div className={`${css.row} ${css.line}`} data-state={task.state}>
       <RunningShimmer active={working} className={css.lineTitle}>{task.title}</RunningShimmer>
-      <Button variant="outlineGhost" size="toolbar" className={css.lineAction} onClick={() => openChat(childThreadId)}>
+      <Button variant="outlineGhost" size="toolbar" className={css.lineAction} onClick={() => { void openThread(childThreadId, task.targetWorkspacePath ?? task.workspacePath) }}>
         {t('threadActionCard.openChat')}
       </Button>
     </div>
@@ -157,7 +153,7 @@ export function ThreadTaskOfferCard({ task }: { task: ThreadTask }): JSX.Element
         <div className={css.row}>
           <span className={css.heading}>{task.title}</span>
           <div className={css.controls}>
-            <ThreadTaskOptions workspacePath={task.workspacePath} optionsRef={options} onOpenChange={setOptionsOpen} />
+            <ThreadTaskOptions workspacePath={task.targetWorkspacePath ?? task.workspacePath} crossProject={Boolean(task.targetProjectId)} optionsRef={options} onOpenChange={setOptionsOpen} />
             <span className={css.buttons}>
               <Button variant="ghost" size="sm" disabled={busy} onClick={() => { void answer('here') }}>
                 {t('threadTask.doItHere')}
@@ -270,7 +266,7 @@ function ProposalRow({ task }: { task: ThreadTask }): JSX.Element {
         />
       </div>
       <div className={css.controls}>
-        <ThreadTaskOptions workspacePath={task.workspacePath} optionsRef={options} />
+        <ThreadTaskOptions workspacePath={task.targetWorkspacePath ?? task.workspacePath} crossProject={Boolean(task.targetProjectId)} optionsRef={options} />
         <span className={css.buttons}>
           <Button variant="ghost" size="sm" disabled={busy} onClick={() => { void doItHere() }}>{t('threadTask.doItHere')}</Button>
           <Button variant="primary" size="sm" disabled={busy} onClick={() => { void start() }}>{t('threadTask.start')}</Button>

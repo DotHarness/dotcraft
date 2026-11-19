@@ -21853,6 +21853,82 @@
         "turn"
       ]
     },
+    "TurnNotifyParams": {
+      "title": "TurnNotifyParams",
+      "type": "object",
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "notificationId": {
+          "type": "string"
+        },
+        "project": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "refId": {
+          "type": "string"
+        },
+        "result": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "$ref": "#/$defs/TurnNotifyStatus"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "label",
+        "notificationId",
+        "refId",
+        "status",
+        "summary",
+        "threadId"
+      ]
+    },
+    "TurnNotifyResult": {
+      "title": "TurnNotifyResult",
+      "type": "object",
+      "properties": {
+        "queued": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "queued"
+      ]
+    },
+    "TurnNotifyStatus": {
+      "title": "TurnNotifyStatus",
+      "type": "string",
+      "enum": [
+        "completed",
+        "failed",
+        "stopped",
+        "waitingForInput"
+      ]
+    },
     "TurnQueueRemoveParams": {
       "title": "TurnQueueRemoveParams",
       "type": "object",

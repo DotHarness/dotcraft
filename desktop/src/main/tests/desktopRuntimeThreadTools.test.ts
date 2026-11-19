@@ -127,10 +127,9 @@ describe('desktop runtime thread tools', () => {
     const [conversation, desktop] = tools
     if (conversation.type !== 'namespace' || desktop.type !== 'namespace') throw new Error('Expected namespace declarations')
     expect(conversation.tools.map((tool) => tool.name)).toEqual(['CreateThread', 'DismissProposal', 'WrapUp'])
-    expect(desktop.tools).toHaveLength(12)
     expect([...conversation.tools, ...desktop.tools].filter((tool) => tool.deferLoading !== true).map((tool) => tool.name)).toEqual(['WrapUp', 'ReadTerminal'])
     expect(desktop.tools.map((tool) => tool.name)).toEqual(expect.arrayContaining([
-      'SetThreadPinned', 'ReadThread', 'SearchThreadMessages', 'ListThreadItems', 'ReadThreadItem', 'ListTerminalTabs'
+      'ListProjects', 'StopThread', 'SetThreadPinned', 'ReadThread', 'SearchThreadMessages', 'ListThreadItems', 'ReadThreadItem', 'ListTerminalTabs'
     ]))
   })
 
@@ -410,10 +409,11 @@ describe('desktop runtime thread tools', () => {
     expect(turnCall?.[1]).not.toHaveProperty('cwd')
   })
 
-  it('accepts a message into an existing turn with its requested model and reasoning', async () => {
+  it('starts a follow-up with the requested model and saves reasoning for future turns', async () => {
     const client = createClient(async (method) => {
       if (method === 'thread/read') return { thread: { id: 'thread-1', status: 'active' } }
-      if (method === 'turn/start') return { turn: { id: 'turn-existing' } }
+      if (method === 'thread/config/update') return {}
+      if (method === 'turn/start') return { turn: { id: 'turn-new' } }
       throw new Error(`unexpected ${method}`)
     })
 
@@ -429,47 +429,39 @@ describe('desktop runtime thread tools', () => {
     expect(result?.structuredContent).toEqual(expect.objectContaining({
       threadId: 'thread-1',
       accepted: true,
-      turn: { id: 'turn-existing' }
+      queued: false,
+      turn: { id: 'turn-new' }
     }))
-    expect(vi.mocked(client.sendRequest).mock.calls.map((call) => call[0])).toEqual([
-      'thread/read',
-      'turn/start'
+    expect(vi.mocked(client.sendRequest).mock.calls.map(([method, params]) => [method, params])).toEqual([
+      ['thread/read', { threadId: 'thread-1' }],
+      ['thread/config/update', { threadId: 'thread-1', config: { reasoning: { enabled: true, effort: 'ultra', output: 'full' } } }],
+      ['turn/start', expect.objectContaining({ threadId: 'thread-1', input: [{ type: 'text', text: 'follow up' }], model: 'model-b' })]
     ])
-    expect(vi.mocked(client.sendRequest).mock.calls[1][1]).toEqual({
-      threadId: 'thread-1',
-      input: [{ type: 'text', text: 'follow up' }],
-      model: 'model-b',
-      reasoning: { enabled: true, effort: 'ultra' }
-    })
   })
 
-  it('reports a non-steerable execution without silently queueing input', async () => {
+  it('reports a busy thread when the target does not support enqueue', async () => {
     const client = createClient(async (method) => {
       if (method === 'thread/read') {
         return {
           thread: {
             id: 'thread-1',
             status: 'active',
-            configuration: {
-              mode: 'agent',
-              model: 'gpt-5',
-              reasoning: { enabled: true, effort: 'medium', output: 'summary' }
-            }
+            runtime: { busy: true, maintenanceKind: 'compacting' }
           }
         }
       }
-      if (method === 'turn/start') throw new Error('Thread is running maintenance')
+      if (method === 'turn/enqueue') throw Object.assign(new Error('Method not found'), { rpcCode: -32601 })
       throw new Error(`unexpected ${method}`)
     })
 
     const result = await handleDesktopRuntimeThreadToolCall(client, {
       namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
       tool: 'SendMessageToThread',
-      arguments: { threadId: 'thread-1', prompt: 'follow up', reasoningEffort: 'ultra' }
+      arguments: { threadId: 'thread-1', prompt: 'follow up' }
     }, 'F:\\examples\\workspace')
 
     expect(result).toEqual(expect.objectContaining({ success: false, errorCode: 'ThreadBusy' }))
-    expect(vi.mocked(client.sendRequest).mock.calls.map((call) => call[0])).toEqual(['thread/read', 'turn/start'])
+    expect(vi.mocked(client.sendRequest).mock.calls.map((call) => call[0])).toEqual(['thread/read', 'turn/enqueue'])
   })
 
   it('rejects empty model selections and ignores other namespaces without requests', async () => {

@@ -7,6 +7,7 @@ import {
   handleDesktopRuntimeThreadToolCall,
   hasDesktopThreadTools,
   resetDesktopThreadToolBindings,
+  threadTaskConnection,
   type DesktopAppServerRequestOptions
 } from '../desktopRuntimeThreadTools'
 import { broadcastServerRequest, createServerRequestBridge } from '../ipcBridge'
@@ -18,10 +19,24 @@ import { NEW_TASK_OFFER_ATTENTION, WRAP_UP_QUESTION_ATTENTION } from '../windowA
 import { isRendererInteractiveServerRequest } from '../workspaceConnectionRouting'
 import type { DesktopWindowRuntime } from './windowRuntime'
 import type { WorkspaceConnectionEntry } from './windowTypes'
+import { holdThreadProjectRequest, listThreadProjects, openThreadProject, threadProjectForEntry } from './windowThreadProjects'
 import { handleWorkspaceNodeReplRequest, isCurrentWorkspaceRequestSource, isWorkspaceNodeReplRequest } from './windowNodeReplRequests'
 
 export function desktopThreadToolOptions(ctx: DesktopWindowRuntime, source?: WorkspaceConnectionEntry): DesktopAppServerRequestOptions {
+  const entry = source ?? [...ctx.workspaceConnections.values()].find(candidate => candidate.client === ctx.wireClient)
   return {
+    ...(entry ? {
+      project: threadProjectForEntry(ctx, entry),
+      remote: entry.kind === 'remote',
+      holdThreadRequest: <T>(request: () => Promise<T>) => holdThreadProjectRequest(entry, request),
+      projects: {
+        list: () => listThreadProjects(ctx),
+        connect: async project => {
+          const target = await openThreadProject(ctx, project)
+          return threadTaskConnection(target.client, target.workspacePath, desktopThreadToolOptions(ctx, target))
+        }
+      }
+    } : {}),
     supportsDynamicToolRebind: (source ? source.initializeResult?.capabilities : ctx.lastConnectionStatus.capabilities)?.dynamicToolRebind === true,
     projectWorkspaceFor: (client, workspacePath) => {
       const connection = [...ctx.workspaceConnections.values()].find((entry) => entry.client === client)

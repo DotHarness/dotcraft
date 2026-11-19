@@ -128,7 +128,7 @@ export function ApprovalPolicyPicker({
 
   const applyPolicy = useCallback(
     async (nextPolicy: VisibleApprovalPolicy): Promise<void> => {
-      if (nextPolicy === value || saving || disabled) return
+      if ((!placeholder && nextPolicy === value) || saving || disabled) return
 
       // Only full access carries real risk; ask-for-approval never needs a warning.
       if (nextPolicy === 'autoApprove') {
@@ -188,7 +188,7 @@ export function ApprovalPolicyPicker({
         setSaving(false)
       }
     },
-    [activeThread, confirm, disabled, onChange, saving, setActiveThread, t, threadId, value]
+    [activeThread, confirm, disabled, onChange, placeholder, saving, setActiveThread, t, threadId, value]
   )
 
   const triggerColor = !placeholder && value === 'autoApprove' ? ORANGE : 'var(--composer-footer-text)'
@@ -241,7 +241,7 @@ export function ApprovalPolicyPicker({
         >
           <ComposerOverlapBand height={overlapBandHeight} />
           {OPTIONS.map((option, index) => {
-            const selected = option === value
+            const selected = !placeholder && option === value
             const highlighted = index === highlight
             return (
               <button

@@ -11,6 +11,8 @@ import {
   type ThreadTaskStartResult
 } from '../../shared/threadTasks'
 import type { ThreadTaskConnection } from './childThreads'
+import { callingThread } from './threadProjects'
+import type { DesktopLinkedChats } from './linkedChats'
 import { DesktopThreadTasks } from './threadTaskService'
 import { ThreadTaskStore } from './threadTaskStore'
 
@@ -18,6 +20,7 @@ const NOT_CONNECTED = 'DotCraft is not connected.'
 
 export interface DesktopThreadTasksRuntimeOptions {
   filePath: string
+  linkedChats: DesktopLinkedChats
   getNewTaskPrompt(): NewTaskPromptMode
   notifyOffer(task: ThreadTask, ownerId?: number): void
   notifyWrapUpQuestion(threadId: string, turnId: string | undefined, callId: string, ownerId?: number): void
@@ -32,6 +35,7 @@ export function createDesktopThreadTasks(options: DesktopThreadTasksRuntimeOptio
   })
   return new DesktopThreadTasks({
     store,
+    linkedChats: options.linkedChats,
     getNewTaskPrompt: options.getNewTaskPrompt,
     notifyOffer: options.notifyOffer,
     notifyWrapUpQuestion: options.notifyWrapUpQuestion
@@ -50,6 +54,15 @@ export function registerThreadTasksIpc(host: ThreadTasksIpcHost, ipc: WindowIpcM
     if (connection) await host.tasks.reconcileQuestion(connection, threadId)
     const snapshot = host.tasks.snapshot(threadId)
     return { ...snapshot, tasks: snapshot.tasks.filter((task) => connection && sameFilePath(task.workspacePath, connection.workspacePath)) }
+  })
+
+  ipc.handle('threadTasks:linked-workspace', (_event, params: unknown): string | null => {
+    const { threadId, targetThreadId } = isRecord(params) ? params : {}
+    if (typeof threadId !== 'string' || typeof targetThreadId !== 'string') return null
+    const connection = host.getConnection(threadId)
+    return connection
+      ? host.tasks.linkedChats?.workspacePathBetween(callingThread(connection, threadId), targetThreadId) ?? null
+      : null
   })
 
   ipc.handle('threadTasks:answer-offer', async (_event, params: unknown): Promise<ThreadTaskActionResult> => {

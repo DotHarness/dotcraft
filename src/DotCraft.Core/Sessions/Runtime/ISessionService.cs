@@ -269,6 +269,9 @@ public interface ISessionService
         CancellationToken ct = default,
         SessionInputSnapshot? inputSnapshot = null);
 
+    Task<bool> NotifyThreadAsync(string threadId, ThreadTaskReport report, CancellationToken ct = default) =>
+        throw new NotSupportedException("Thread notifications are not supported by this session service.");
+
     /// <summary>Adds guidance to the active regular Turn.</summary>
     Task<string> SteerTurnAsync(
         string threadId,

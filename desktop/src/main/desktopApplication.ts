@@ -37,6 +37,7 @@ import { resolveWhatsNewMediaAssets, WhatsNewMediaCache } from './whatsNewMediaC
 import { createWindowAttentionNotifier } from './windowAttentionNotifier'
 import type { DesktopWindowRuntime } from './windows/windowRuntime'
 import { applyNativeChromeTheme, resolveInitialTheme, resolveThemeSurface } from './windowTheme'
+import { DesktopLinkedChats } from './threadTasks/linkedChats'
 import { hasRemoteEndpointArg, NO_WORKSPACE_ARG } from './workspaceArgs'
 
 const WINDOW_CONNECTION_SETTINGS = new Set<keyof AppSettings>([
@@ -66,6 +67,11 @@ export class DesktopApplication implements DesktopApplicationServices {
     { isActive: () => !this.lifecycle.isStopping }
   )
   readonly tasks = createDesktopThreadTasks({
+    linkedChats: new DesktopLinkedChats(join(app.getPath('userData'), 'linked-chats.json'), () => {
+      for (const window of this.windows.values()) {
+        if (!window.runtimeIsStopping()) window.scheduleSecondaryWorkspaceRefresh()
+      }
+    }),
     filePath: join(app.getPath('userData'), 'thread-tasks.json'),
     getNewTaskPrompt: () => normalizeNewTaskPromptMode(this.settings.newTaskPrompt),
     notifyOffer: (task, ownerId) => {

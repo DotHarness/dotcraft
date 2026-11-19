@@ -7400,6 +7400,40 @@
       ]
     },
     {
+      "name": "turn/notify",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "params",
+          "required": true,
+          "schema": {
+            "$ref": "./schemas/core/TurnNotifyParams.schema.json"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "./schemas/core/TurnNotifyResult.schema.json"
+        }
+      },
+      "x-dotcraft-direction": "clientToServer",
+      "x-dotcraft-kind": "request",
+      "x-dotcraft-module": "core",
+      "x-dotcraft-capability": "threadManagement",
+      "x-dotcraft-scope": "thread",
+      "x-dotcraft-notification-opt-out": false,
+      "x-dotcraft-stability": "stable",
+      "x-dotcraft-since": "1",
+      "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
+      "x-dotcraft-errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound",
+        "ThreadNotFound"
+      ]
+    },
+    {
       "name": "turn/queue/remove",
       "paramStructure": "by-name",
       "params": [

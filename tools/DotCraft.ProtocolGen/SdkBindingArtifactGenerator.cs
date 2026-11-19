@@ -58,7 +58,10 @@ public static class SdkBindingArtifactGenerator
                         .AppendLine();
                     break;
                 case ContractTypeKind.Enum:
-                    source.Append("export type ").Append(type.Name).AppendLine(" = string;")
+                    source.Append("export type ").Append(type.Name).Append(" = ")
+                        .Append(string.Join(" | ", Enum.GetNames(type.RuntimeType)
+                            .Select(static name => TypeScriptString(JsonNamingPolicy.CamelCase.ConvertName(name)))))
+                        .AppendLine(";")
                         .AppendLine();
                     break;
                 case ContractTypeKind.Object:

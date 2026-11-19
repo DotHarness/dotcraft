@@ -90,6 +90,10 @@ public static partial class AppServerRpc
     public static readonly RpcRequest<TurnEnqueueParams, TurnEnqueueResult> TurnEnqueue =
         new("turn/enqueue", RpcDirection.ClientToServer, "1", Spec, capability: "threadManagement", scope: "thread", errors: CommonErrors);
 
+    public static readonly RpcRequest<TurnNotifyParams, TurnNotifyResult> TurnNotify =
+        new("turn/notify", RpcDirection.ClientToServer, "1", Spec, capability: "threadManagement", scope: "thread",
+            errors: [.. CommonErrors, "ThreadNotFound"]);
+
     /// <summary>turn/steer request.</summary>
     public static readonly RpcRequest<TurnSteerParams, TurnSteerResult> TurnSteer =
         new("turn/steer", RpcDirection.ClientToServer, "1", Spec, capability: "threadManagement", scope: "thread", errors: CommonErrors);

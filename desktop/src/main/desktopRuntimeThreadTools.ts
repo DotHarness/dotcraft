@@ -1,6 +1,7 @@
 import { handleDesktopThreadHistoryTool, threadHistoryToolDefinitions, threadHistoryToolNames } from './desktopThreadHistoryTools'
 import { DesktopThreadBindings } from './desktopThreadBindings'
-import { submitThreadMessage } from './desktopThreadMessageTool'
+import { handleThreadManagementTool, MAX_LIST_THREADS_LIMIT, requestClient, resolveTargetThread } from './threadTasks/threadManagementTools'
+import { PROJECT_PROPERTY, ThreadProjectError, type ThreadProject, type ThreadProjectHost } from './threadTasks/threadProjects'
 import { themeToolDefinition, themeTool, type DesktopThemeHost } from './themes/themeTools'
 import {
   listTerminalTabsTool,
@@ -9,8 +10,8 @@ import {
   readTerminalToolDefinition,
   type DesktopTerminalHost
 } from './desktopTerminalTools'
-import { normalizeWorkspaceProjectKey } from '../shared/workspaceProjectKey'
-import { desktopIdentity, type ThreadTaskConnection, type ThreadTaskWorkspace } from './threadTasks/childThreads'
+import type { ThreadTaskConnection, ThreadTaskWorkspace } from './threadTasks/childThreads'
+import { readAppServerErrorFields } from '../shared/appServerError'
 import {
   CREATE_THREAD_DESCRIPTION,
   CREATE_THREAD_PROPERTIES,
@@ -26,12 +27,7 @@ export const DESKTOP_THREAD_TOOL_NAMESPACE = 'desktop'
 export const DESKTOP_CONVERSATION_TOOL_NAMESPACE = 'desktop_conversation'
 export const DESKTOP_THREAD_COORDINATION_CONTEXT_KEY = 'desktop.threadCoordination'
 
-const MAX_LIST_THREADS_LIMIT = 100
-const DEFAULT_LIST_THREADS_LIMIT = 20
-const REASONING_EFFORT_VALUES = new Set(['low', 'medium', 'high', 'extraHigh', 'max', 'ultra'])
-
 type JsonObject = Record<string, unknown>
-type ReasoningEffortValue = 'low' | 'medium' | 'high' | 'extraHigh' | 'max' | 'ultra'
 
 export interface RuntimeAdditionalContextEntry {
   kind: 'application'
@@ -76,6 +72,10 @@ export interface DesktopAppServerRequestOptions {
   onError?: (error: unknown) => void
   supportsDynamicToolRebind?: boolean
   settingsHost?: DesktopThreadToolSettingsHost
+  project?: ThreadProject
+  projects?: ThreadProjectHost
+  remote?: boolean
+  holdThreadRequest?: <T>(request: () => Promise<T>) => Promise<T>
   createChatFolder?: (firstMessage: string) => Promise<string>
   projectWorkspaceFor?: (client: AppServerRequestClient, workspacePath: string) => ThreadTaskWorkspace | undefined
   tasks?: DesktopThreadTasks
@@ -111,30 +111,14 @@ export interface DynamicToolCallResult {
   errorMessage?: string
 }
 
-interface ThreadSummaryWire {
-  id?: string
-  displayName?: string | null
-  status?: string
-  originChannel?: string
-  channelContext?: string | null
-  createdAt?: string
-  lastActiveAt?: string
-  source?: Record<string, unknown> | null
-  metadata?: Record<string, unknown> | null
-  runtime?: unknown
-  goal?: unknown
-}
 
-interface ThreadWire extends ThreadSummaryWire {
-  turns?: Array<Record<string, unknown>>
-  queuedInputs?: unknown[]
-  configuration?: JsonObject | null
-}
 
 const CONVERSATION_TOOL_NAMES = new Set(['CreateThread', 'DismissProposal', 'WrapUp'])
 
 const TOOL_NAMES = new Set([
+  'ListProjects',
   'ListThreads',
+  'StopThread',
   ...threadHistoryToolNames,
   'SendMessageToThread',
   'SetThreadTitle',
@@ -209,11 +193,30 @@ export function buildDesktopThreadDynamicTools(): DynamicToolSpec[] {
     },
     {
       namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
+      name: 'ListProjects',
+      description: 'List the projects Desktop thread tools can reach, including projects that are not running. Use a returned id to target another project.',
+      inputSchema: { type: 'object', properties: {}, additionalProperties: false }
+    },
+    {
+      namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
+      name: 'StopThread',
+      description: 'Stop the active turn in a chat started by this chat. An idle chat stays open. Do not stop a chat waiting for the user in place of asking them.',
+      inputSchema: {
+        type: 'object',
+        properties: { threadId: { type: 'string' }, project: PROJECT_PROPERTY },
+        required: ['threadId'],
+        additionalProperties: false
+      }
+    },
+    {
+      namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
       name: 'ListThreads',
-      description: 'List recent DotCraft threads in the current Desktop workspace.',
+      description: 'List recent chats in a project, or all chats started by this chat across projects with linked: true.',
       inputSchema: {
         type: 'object',
         properties: {
+          project: PROJECT_PROPERTY,
+          linked: { type: 'boolean', description: 'List chats started by this chat, newest first, with project and state. Ignores project.' },
           query: { type: 'string', description: 'Optional local text filter for thread id, title, or origin.' },
           limit: { type: 'integer', minimum: 1, maximum: MAX_LIST_THREADS_LIMIT },
           cursor: { type: 'string', description: 'Opaque cursor from a previous ListThreads result.' },
@@ -232,7 +235,10 @@ export function buildDesktopThreadDynamicTools(): DynamicToolSpec[] {
       },
       display: { title: 'List chats', subtitle: 'Desktop' }
     },
-    ...threadHistoryToolDefinitions,
+    ...threadHistoryToolDefinitions.map(tool => ({
+      ...tool,
+      inputSchema: { ...tool.inputSchema, properties: { ...tool.inputSchema.properties, project: PROJECT_PROPERTY } }
+    })),
     {
       namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
       name: 'SendMessageToThread',
@@ -241,6 +247,7 @@ export function buildDesktopThreadDynamicTools(): DynamicToolSpec[] {
         type: 'object',
         properties: {
           threadId: { type: 'string' },
+          project: PROJECT_PROPERTY,
           prompt: { type: 'string' },
           model: { type: 'string', description: 'Model for a new turn and subsequent turns; an active turn keeps its current model.' },
           reasoningEffort: {
@@ -269,6 +276,7 @@ export function buildDesktopThreadDynamicTools(): DynamicToolSpec[] {
         type: 'object',
         properties: {
           threadId: { type: 'string' },
+          project: PROJECT_PROPERTY,
           title: { type: 'string' }
         },
         required: ['threadId', 'title'],
@@ -291,6 +299,7 @@ export function buildDesktopThreadDynamicTools(): DynamicToolSpec[] {
         type: 'object',
         properties: {
           threadId: { type: 'string' },
+          project: PROJECT_PROPERTY,
           archived: { type: 'boolean' }
         },
         required: ['threadId', 'archived'],
@@ -313,6 +322,7 @@ export function buildDesktopThreadDynamicTools(): DynamicToolSpec[] {
         type: 'object',
         properties: {
           threadId: { type: 'string' },
+          project: PROJECT_PROPERTY,
           pinned: { type: 'boolean' }
         },
         required: ['threadId', 'pinned'],
@@ -385,26 +395,27 @@ export async function handleDesktopRuntimeThreadToolCall(
   const args = isRecord(p.arguments) ? p.arguments : {}
 
   try {
+    const connection = threadTaskConnection(client, workspacePath, options)
     if (threadHistoryToolNames.has(p.tool)) {
-      return await handleDesktopThreadHistoryTool(client, p.tool, p.arguments)
+      const { project: _project, ...historyArgs } = args
+      const target = await resolveTargetThread(connection, options.tasks?.linkedChats, args, p.threadId)
+      return await handleDesktopThreadHistoryTool(requestClient(target), p.tool, isRecord(p.arguments) ? historyArgs : p.arguments)
     }
     switch (p.tool) {
       case 'CreateThread':
-        return await createThreadTool(threadTaskConnection(client, workspacePath, options), options.tasks, args, p)
+        return await createThreadTool(connection, options.tasks, args, p)
       case 'DismissProposal':
         return dismissProposalTool(options.tasks, args, p)
       case 'WrapUp':
-        return await wrapUpTool(threadTaskConnection(client, workspacePath, options), options.tasks, args, p)
+        return await wrapUpTool(connection, options.tasks, args, p)
+      case 'ListProjects':
       case 'ListThreads':
-        return await listThreadsTool(client, args, workspacePath, options)
       case 'SendMessageToThread':
-        return await sendMessageToThreadTool(client, args, options)
+      case 'StopThread':
       case 'SetThreadTitle':
-        return await setThreadTitleTool(client, args)
       case 'SetThreadArchived':
-        return await setThreadArchivedTool(client, args)
       case 'SetThreadPinned':
-        return await setThreadPinnedTool(client, args, workspacePath, options.settingsHost)
+        return await handleThreadManagementTool(connection, options.tasks?.linkedChats, options.settingsHost, p.tool, args, p.threadId)
       case 'ReadTerminal':
         return await readTerminalTool(options.terminals, p.threadId, p.arguments)
       case 'ListTerminalTabs':
@@ -424,168 +435,24 @@ export function threadTaskConnection(
   workspacePath: string,
   options: DesktopAppServerRequestOptions
 ): ThreadTaskConnection {
+  const hold = options.holdThreadRequest
   return {
     ownerId: options.ownerId,
     workspacePath,
+    client: hold
+      ? { sendRequest: <T>(method: string, params?: unknown, timeout?: number | null) =>
+          hold(() => client.sendRequest<T>(method, params, timeout)) }
+      : client,
+    project: options.project,
+    projects: options.projects,
+    remote: options.remote,
     getProjectWorkspace: () => options.projectWorkspaceFor?.(client, workspacePath),
-    request: (method, params, timeoutMs) => sendDesktopAppServerRequest(client, method, params, timeoutMs, { ...options, attachmentOwner: 'task' }),
+    request: <T>(method: string, params?: unknown, timeoutMs?: number | null) => {
+      const send = () => sendDesktopAppServerRequest<T>(client, method, params, timeoutMs, { ...options, attachmentOwner: 'task' })
+      return hold ? hold(send) : send()
+    },
     ...(options.createChatFolder ? { createChatFolder: options.createChatFolder } : {})
   }
-}
-
-async function listThreadsTool(
-  client: AppServerRequestClient,
-  args: Record<string, unknown>,
-  workspacePath: string,
-  _options: DesktopAppServerRequestOptions
-): Promise<DynamicToolCallResult> {
-  if (!workspacePath.trim()) {
-    return fail('ThreadManagementUnavailable', 'No Desktop workspace is currently open.')
-  }
-
-  const query = optionalString(args, 'query')
-  if (query?.ok === false) return query.error
-  const limit = optionalInteger(args, 'limit', DEFAULT_LIST_THREADS_LIMIT, MAX_LIST_THREADS_LIMIT)
-  if (limit.ok === false) return limit.error
-  const cursor = optionalString(args, 'cursor')
-  if (cursor?.ok === false) return cursor.error
-  const includeArchived = optionalBoolean(args, 'includeArchived', false)
-  if (includeArchived.ok === false) return includeArchived.error
-
-  const request: JsonObject = {
-    identity: desktopIdentity(workspacePath),
-    scope: 'workspace',
-    includeSubAgents: false,
-    includeArchived: includeArchived.value,
-    limit: limit.value
-  }
-  if (query?.value) request.query = query.value
-  if (cursor?.value) request.cursor = cursor.value
-
-  const result = await client.sendRequest<{
-    data?: ThreadSummaryWire[]
-    nextCursor?: string | null
-    totalMatched?: number | null
-  }>('thread/list', request)
-  const threads = (result.data ?? []).map(summarizeThread)
-  const totalMatched = typeof result.totalMatched === 'number' ? result.totalMatched : threads.length
-  const text = threads.length === 0
-    ? 'No matching threads were found.'
-    : `Found ${threads.length} thread${threads.length === 1 ? '' : 's'}${result.nextCursor ? ' (more available)' : ''}:\n${threads.map(formatThreadSummaryLine).join('\n')}`
-
-  return ok(text, {
-    threads,
-    count: threads.length,
-    totalMatched,
-    nextCursor: result.nextCursor ?? null
-  })
-}
-
-async function sendMessageToThreadTool(
-  client: AppServerRequestClient,
-  args: Record<string, unknown>,
-  _options: DesktopAppServerRequestOptions
-): Promise<DynamicToolCallResult> {
-  const threadId = requiredNonEmptyString(args, 'threadId')
-  if (threadId.ok === false) return threadId.error
-  const prompt = requiredNonEmptyString(args, 'prompt')
-  if (prompt.ok === false) return prompt.error
-  const model = optionalNonEmptyString(args, 'model')
-  if (model?.ok === false) return model.error
-  const reasoningEffort = optionalReasoningEffort(args, 'reasoningEffort')
-  if (reasoningEffort?.ok === false) return reasoningEffort.error
-  return await submitThreadMessage(client, threadId.value, prompt.value, model?.value, reasoningEffort?.value)
-}
-
-async function setThreadTitleTool(
-  client: AppServerRequestClient,
-  args: Record<string, unknown>
-): Promise<DynamicToolCallResult> {
-  const threadId = requiredNonEmptyString(args, 'threadId')
-  if (threadId.ok === false) return threadId.error
-  const title = requiredNonEmptyString(args, 'title')
-  if (title.ok === false) return title.error
-
-  await client.sendRequest('thread/rename', {
-    threadId: threadId.value,
-    displayName: title.value
-  })
-  return ok(`Renamed thread ${threadId.value} to "${title.value}".`, {
-    threadId: threadId.value,
-    title: title.value
-  })
-}
-
-async function setThreadArchivedTool(
-  client: AppServerRequestClient,
-  args: Record<string, unknown>
-): Promise<DynamicToolCallResult> {
-  const threadId = requiredNonEmptyString(args, 'threadId')
-  if (threadId.ok === false) return threadId.error
-  const archived = requiredBoolean(args, 'archived')
-  if (archived.ok === false) return archived.error
-
-  await client.sendRequest(archived.value ? 'thread/archive' : 'thread/unarchive', {
-    threadId: threadId.value
-  })
-  return ok(`${archived.value ? 'Archived' : 'Restored'} thread ${threadId.value}.`, {
-    threadId: threadId.value,
-    archived: archived.value
-  })
-}
-
-async function setThreadPinnedTool(
-  client: AppServerRequestClient,
-  args: Record<string, unknown>,
-  workspacePath: string,
-  settingsHost: DesktopThreadToolSettingsHost | undefined
-): Promise<DynamicToolCallResult> {
-  const threadId = requiredNonEmptyString(args, 'threadId')
-  if (threadId.ok === false) return threadId.error
-  const pinned = requiredBoolean(args, 'pinned')
-  if (pinned.ok === false) return pinned.error
-  const workspace = normalizeWorkspaceProjectKey(workspacePath)
-  if (!workspace) {
-    return fail('ThreadManagementUnavailable', 'No Desktop workspace is currently open.')
-  }
-  if (!settingsHost) {
-    return fail('ThreadManagementUnavailable', 'Desktop settings are not available.')
-  }
-
-  if (pinned.value) {
-    const readResult = await client.sendRequest<{ thread?: ThreadWire }>('thread/read', {
-      threadId: threadId.value
-    })
-    const thread = readResult.thread
-    if (!thread) {
-      return fail('ThreadNotFound', `Thread '${threadId.value}' was not found.`)
-    }
-    if (thread.status === 'archived') {
-      return fail('ThreadArchived', `Thread '${threadId.value}' is archived.`)
-    }
-    if (isSubAgentThreadWire(thread)) {
-      return fail('TargetUnsupported', `Thread '${threadId.value}' is a subagent child thread and cannot be pinned.`)
-    }
-  }
-
-  const settings = settingsHost.getSettings()
-  const current = resolvePinnedThreadIdsForWorkspace(settings.pinnedThreadIdsByWorkspace, workspace)
-  const next = pinned.value
-    ? normalizePinnedThreadIds([threadId.value, ...current])
-    : normalizePinnedThreadIds(current.filter((id) => id !== threadId.value))
-
-  await settingsHost.updateSettings({
-    pinnedThreadIdsByWorkspace: {
-      [workspace]: next
-    }
-  })
-  settingsHost.onPinnedThreadIdsChanged?.(workspace, next)
-
-  return ok(`${pinned.value ? 'Pinned' : 'Unpinned'} thread ${threadId.value}.`, {
-    threadId: threadId.value,
-    pinned: pinned.value,
-    pinnedThreadIds: next
-  })
 }
 
 export function hasDesktopThreadTools(client: AppServerRequestClient | null, threadId: string, options: DesktopAppServerRequestOptions): boolean {
@@ -637,191 +504,12 @@ function isDesktopThreadToolSpec(value: unknown): boolean {
     && Array.isArray(value.tools)
 }
 
-function ok(text: string, structuredContent?: unknown): DynamicToolCallResult {
-  return {
-    success: true,
-    contentItems: [{ type: 'text', text }],
-    structuredContent
-  }
-}
-
-function fail(errorCode: string, errorMessage: string, structuredContent?: unknown): DynamicToolCallResult {
-  return {
-    success: false,
-    errorCode,
-    errorMessage,
-    ...(structuredContent === undefined ? {} : { structuredContent })
-  }
-}
-
-function requiredNonEmptyString(
-  args: Record<string, unknown>,
-  field: string
-): { ok: true; value: string } | { ok: false; error: DynamicToolCallResult } {
-  const value = args[field]
-  if (typeof value !== 'string' || value.trim() === '') {
-    return {
-      ok: false,
-      error: fail('InvalidArguments', `${field} must be a non-empty string.`)
-    }
-  }
-  return { ok: true, value: value.trim() }
-}
-
-function optionalString(
-  args: Record<string, unknown>,
-  field: string
-): { ok: true; value: string | undefined } | { ok: false; error: DynamicToolCallResult } | null {
-  if (!(field in args) || args[field] == null) return null
-  const value = args[field]
-  if (typeof value !== 'string') {
-    return {
-      ok: false,
-      error: fail('InvalidArguments', `${field} must be a string.`)
-    }
-  }
-  return { ok: true, value: value.trim() || undefined }
-}
-
-function optionalNonEmptyString(
-  args: Record<string, unknown>,
-  field: string
-): { ok: true; value: string | undefined } | { ok: false; error: DynamicToolCallResult } | null {
-  if (!(field in args) || args[field] == null) return null
-  const value = args[field]
-  if (typeof value !== 'string' || value.trim() === '') {
-    return {
-      ok: false,
-      error: fail('InvalidArguments', `${field} must be a non-empty string when provided.`)
-    }
-  }
-  return { ok: true, value: value.trim() }
-}
-
-function optionalReasoningEffort(
-  args: Record<string, unknown>,
-  field: string
-): { ok: true; value: ReasoningEffortValue | undefined } | { ok: false; error: DynamicToolCallResult } | null {
-  if (!(field in args) || args[field] == null) return null
-  const value = args[field]
-  if (typeof value !== 'string' || !REASONING_EFFORT_VALUES.has(value)) {
-    return {
-      ok: false,
-      error: fail('InvalidArguments', `${field} must be one of low, medium, high, extraHigh, max, or ultra.`)
-    }
-  }
-  return { ok: true, value: value as ReasoningEffortValue }
-}
-
-function requiredBoolean(
-  args: Record<string, unknown>,
-  field: string
-): { ok: true; value: boolean } | { ok: false; error: DynamicToolCallResult } {
-  const value = args[field]
-  if (typeof value !== 'boolean') {
-    return {
-      ok: false,
-      error: fail('InvalidArguments', `${field} must be a boolean.`)
-    }
-  }
-  return { ok: true, value }
-}
-
-function optionalBoolean(
-  args: Record<string, unknown>,
-  field: string,
-  defaultValue: boolean
-): { ok: true; value: boolean } | { ok: false; error: DynamicToolCallResult } {
-  if (!(field in args) || args[field] == null) return { ok: true, value: defaultValue }
-  const value = args[field]
-  if (typeof value !== 'boolean') {
-    return {
-      ok: false,
-      error: fail('InvalidArguments', `${field} must be a boolean.`)
-    }
-  }
-  return { ok: true, value }
-}
-
-function optionalInteger(
-  args: Record<string, unknown>,
-  field: string,
-  defaultValue: number,
-  maxValue: number
-): { ok: true; value: number } | { ok: false; error: DynamicToolCallResult } {
-  if (!(field in args) || args[field] == null) return { ok: true, value: defaultValue }
-  const value = args[field]
-  if (!Number.isInteger(value) || typeof value !== 'number' || value < 1 || value > maxValue) {
-    return {
-      ok: false,
-      error: fail('InvalidArguments', `${field} must be an integer from 1 to ${maxValue}.`)
-    }
-  }
-  return { ok: true, value }
-}
-
-function resolvePinnedThreadIdsForWorkspace(
-  pinnedThreadIdsByWorkspace: Record<string, string[]> | undefined,
-  workspacePath: string
-): string[] {
-  const workspaceKey = normalizeWorkspaceProjectKey(workspacePath)
-  if (!workspaceKey || !pinnedThreadIdsByWorkspace) return []
-  const exact = pinnedThreadIdsByWorkspace[workspaceKey]
-  if (Array.isArray(exact)) return normalizePinnedThreadIds(exact)
-  const match = Object.entries(pinnedThreadIdsByWorkspace).find(
-    ([candidate]) => normalizeWorkspaceProjectKey(candidate) === workspaceKey
-  )
-  return normalizePinnedThreadIds(match?.[1] ?? [])
-}
-
-function normalizePinnedThreadIds(threadIds: Iterable<string>): string[] {
-  const seen = new Set<string>()
-  const normalized: string[] = []
-  for (const value of threadIds) {
-    const id = typeof value === 'string' ? value.trim() : ''
-    if (!id || seen.has(id)) continue
-    seen.add(id)
-    normalized.push(id)
-  }
-  return normalized
-}
-
-function isSubAgentThreadWire(thread: ThreadSummaryWire): boolean {
-  const source = isRecord(thread.source) ? thread.source : null
-  const kind = stringProperty(source, 'kind')
-  return kind?.toLowerCase() === 'subagent'
-    || thread.originChannel?.toLowerCase() === 'subagent'
-}
-
-function summarizeThread(thread: ThreadSummaryWire): JsonObject {
-  return {
-    id: thread.id ?? '',
-    displayName: thread.displayName ?? null,
-    status: thread.status ?? 'unknown',
-    originChannel: thread.originChannel ?? null,
-    createdAt: thread.createdAt ?? null,
-    lastActiveAt: thread.lastActiveAt ?? null,
-    runtime: thread.runtime ?? null,
-    goal: thread.goal ?? null
-  }
-}
-
-function formatThreadSummaryLine(thread: JsonObject): string {
-  const title = typeof thread.displayName === 'string' && thread.displayName.trim()
-    ? thread.displayName.trim()
-    : '(untitled)'
-  return `- ${thread.id}: ${title} [${thread.status ?? 'unknown'}]`
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value != null && typeof value === 'object' && !Array.isArray(value)
 }
 
-function stringProperty(value: unknown, key: string): string | null {
-  if (!isRecord(value)) return null
-  const property = value[key]
-  if (typeof property !== 'string' || property.trim() === '') return null
-  return property
+function fail(errorCode: string, errorMessage: string): DynamicToolCallResult {
+  return { success: false, errorCode, errorMessage }
 }
 
 function requestErrorMessage(error: unknown): string {
@@ -829,7 +517,11 @@ function requestErrorMessage(error: unknown): string {
 }
 
 function mapRequestErrorCode(error: unknown): string {
-  if (isRecord(error) && error.rpcCode === -32602) return 'InvalidArguments'
+  if (error instanceof ThreadProjectError) return error.code
+  const { rpcCode } = readAppServerErrorFields(error)
+  if (rpcCode === -32602) return 'InvalidArguments'
+  if (rpcCode === -32010) return 'ThreadNotFound'
+  if (rpcCode === -32012) return 'ThreadBusy'
   const message = requestErrorMessage(error).toLowerCase()
   if (message.includes('not found')) return 'ThreadNotFound'
   if (message.includes('archived')) return 'ThreadArchived'

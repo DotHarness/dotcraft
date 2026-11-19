@@ -3,6 +3,7 @@ import { composeBrief, createChildThread, startChildTurn, type ThreadTaskConnect
 import { threadTaskText } from './threadTaskPrompts'
 import type { DesktopThreadTasks, OfferOutcome, ProposalRefusal } from './threadTaskService'
 import { isThreadTaskId } from './threadTaskStore'
+import { connectThreadProject, currentThreadProject, readProjectArgument, resolveThreadProject } from './threadProjects'
 
 const INITIATIONS = new Set(['userAsked', 'offer', 'ownInitiative'])
 const REASONING_EFFORTS = new Set(['low', 'medium', 'high', 'extraHigh', 'max', 'ultra'])
@@ -57,8 +58,10 @@ export async function createThreadTool(
     return fail('ThreadManagementUnavailable', 'No Desktop workspace is currently open.')
   }
 
+  const project = await resolveThreadProject(connection, readProjectArgument(args.project))
   if (initiation === 'userAsked') {
-    return startNow(connection, { title, prompt: prompt as string, background, defaults, callerThreadId: call.threadId })
+    const target = await connectThreadProject(connection, project)
+    return startNow(connection, target, tasks, { title, prompt: prompt as string, background, defaults, callerThreadId: call.threadId })
   }
 
   const threadId = call.threadId?.trim()
@@ -68,6 +71,7 @@ export async function createThreadTool(
   const base = {
     threadId,
     workspacePath: connection.workspacePath,
+    ...(project.id === currentThreadProject(connection).id ? {} : { targetProjectId: project.id, targetWorkspacePath: project.path }),
     title,
     defaults,
     ...(call.callId ? { toolCallId: call.callId } : {}),
@@ -135,9 +139,9 @@ async function startProposalTool(
   })
   if (outcome.kind === 'refused') return fail('InvalidArguments', refusalText(outcome.reason, proposalId))
   if (outcome.kind === 'failed') {
-    return fail('AppServerRequestFailed', outcome.message, outcome.thread ? { thread: outcome.thread, turn: null, started: false } : undefined)
+    return fail(outcome.code ?? 'AppServerRequestFailed', outcome.message, outcome.thread ? { thread: outcome.thread, turn: null, started: false } : undefined)
   }
-  return ok(threadTaskText.started(outcome.task.title, outcome.thread.id as string, extras), {
+  return ok(threadTaskText.started(outcome.task.title, outcome.thread.id, extras), {
     thread: outcome.thread,
     turn: outcome.turn,
     started: Boolean(outcome.turn)
@@ -145,7 +149,9 @@ async function startProposalTool(
 }
 
 async function startNow(
-  connection: ThreadTaskConnection,
+  source: ThreadTaskConnection,
+  target: ThreadTaskConnection,
+  tasks: DesktopThreadTasks | undefined,
   spec: {
     title: string
     prompt: string
@@ -154,15 +160,16 @@ async function startNow(
     callerThreadId?: string
   }
 ): Promise<ThreadTaskToolResult> {
-  const thread = await createChildThread(connection, {
+  const childSpec = {
     title: spec.title,
     callerThreadId: spec.callerThreadId,
     defaults: spec.defaults,
     folderSeed: spec.prompt
-  })
-  const threadId = thread.id as string
+  }
+  const thread = await (tasks ? tasks.createLinkedChild(source, target, childSpec) : createChildThread(target, childSpec))
+  const threadId = thread.id
   try {
-    const turn = await startChildTurn(connection, threadId, composeBrief(spec.prompt, spec.background))
+    const turn = await startChildTurn(target, threadId, composeBrief(spec.prompt, spec.background))
     return ok(threadTaskText.started(spec.title, threadId), { thread, turn, started: Boolean(turn) })
   } catch (error) {
     return fail(
