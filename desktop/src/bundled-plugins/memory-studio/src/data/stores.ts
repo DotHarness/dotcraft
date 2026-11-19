@@ -2,7 +2,8 @@ import type { MemoryStoreInfo } from '@dotcraft/sdk/contracts'
 import { joinHostPath } from './hostPath'
 import { parseMemoryFile } from './memoryFile'
 import type { MemoryFs } from './memoryFs'
-import { analyzeIndex, INDEX_FILE, type IndexHealth } from './memoryIndex'
+import { saveIndex } from './entrySave'
+import { INDEX_FILE, measureIndex, syncIndex, type IndexUsage } from './memoryIndex'
 import type { Rpc } from './rpc'
 
 export interface MemoryStore {
@@ -30,7 +31,7 @@ export interface StoreContents {
   store: MemoryStore
   entries: MemoryEntry[]
   indexText: string | null
-  health: IndexHealth
+  usage: IndexUsage
 }
 
 export const STALE_AFTER_MS = 30 * 24 * 60 * 60 * 1000
@@ -64,7 +65,8 @@ export function isMemoryFile(fileName: string): boolean {
 }
 
 export async function loadStore(fs: MemoryFs, store: MemoryStore): Promise<StoreContents> {
-  const names = (await fs.listFiles(store.path) ?? []).filter(isMemoryFile)
+  const listed = await fs.listFiles(store.path)
+  const names = (listed ?? []).filter(isMemoryFile)
   const [indexText, entries] = await Promise.all([
     fs.readText(joinHostPath(store.path, INDEX_FILE)),
     Promise.all(names.map(async (fileName): Promise<MemoryEntry | null> => {
@@ -85,7 +87,19 @@ export async function loadStore(fs: MemoryFs, store: MemoryStore): Promise<Store
   ])
   const present = entries.filter((entry): entry is MemoryEntry => entry != null)
     .sort((a, b) => b.modifiedAtMs - a.modifiedAtMs || a.fileName.localeCompare(b.fileName))
-  return { store, entries: present, indexText, health: analyzeIndex(indexText, present.map((entry) => entry.fileName)) }
+  const synced = store.writable && listed != null ? await syncStoreIndex(fs, store, indexText, names, present) : indexText
+  return { store, entries: present, indexText: synced, usage: measureIndex(synced) }
+}
+
+async function syncStoreIndex(fs: MemoryFs, store: MemoryStore, indexText: string | null, files: readonly string[], entries: readonly MemoryEntry[]): Promise<string | null> {
+  const next = syncIndex(indexText, files, new Map(entries.map((entry) => [entry.fileName, entry.description])))
+  if (next == null) return indexText
+  try {
+    const outcome = await saveIndex(fs, store.path, indexText, next)
+    return outcome.kind === 'saved' ? next : outcome.current
+  } catch {
+    return indexText
+  }
 }
 
 export function matchesSearch(entry: MemoryEntry, query: string): boolean {

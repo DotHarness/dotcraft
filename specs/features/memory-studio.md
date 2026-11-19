@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.13.1 |
+| **Version** | 0.13.2 |
 | **Status** | Draft |
-| **Date** | 2026-11-19 |
+| **Date** | 2026-11-20 |
 | **Related Specs** | [Memory](memory.md), [Dreams](dreams.md), [Desktop Extensions](../architecture/desktop-plugins.md) |
 
 Purpose: Define **Memory Studio**, a bundled Desktop plugin where the user browses and edits memory and tailors the [memory policy](memory.md#10-memory-policy) from presets. Memory Studio is presentation and editing only. It holds no memory or policy of its own: memory stays in the stores, and the policy stays in configuration, so the agent behaves the same in every client whether or not the plugin is enabled.
@@ -19,7 +19,7 @@ Purpose: Define **Memory Studio**, a bundled Desktop plugin where the user brows
 
 Every read and write goes through the connected AppServer: memory files through the file system methods, the policy through configuration methods, and stores and Dreams through their memory and Dreams methods. Memory Studio therefore works the same against local and remote workspaces, and it shows a notice instead of a view whose server capability is missing.
 
-The main view follows Desktop's catalog pages. Memory and Dreams share one hero title, as Plugins and Skills do. The top bar holds Refresh and Policy as icon-only actions and **New** as the one labelled action, and keeps them while the user switches views. Policy, an open entry, the index editor, and a Dreams run open as pages that replace the view switch with a breadcrumb back to their view.
+The main view follows Desktop's catalog pages. Memory and Dreams share one hero title, as Plugins and Skills do. The top bar holds Refresh and Policy as icon-only actions and **New** as the one labelled action, and keeps them while the user switches views. Policy, an open entry, and a Dreams run open as pages that replace the view switch with a breadcrumb back to their view.
 
 ## 2. Entries
 
@@ -34,7 +34,9 @@ Opening an entry shows it as a page: `name` is the page title and `description` 
 
 These edits are the user editing files, so they reach running threads through the memory index section like any other change.
 
-Each store also shows its index against the load limits: lines out of 200 and bytes out of 25,000. It flags non-pointer lines, pointer lines over 200 characters, memory files with no index line, and index lines whose file is missing, and offers the matching fix: add the missing line, remove the dangling line, or open the index for editing.
+Memory Studio keeps each writable store's index in step with its files without asking the user, and does not offer the index for editing. Each time it loads a store, it appends a pointer line, with the description as the hook, for every memory file no index line links to, and removes pointer lines whose memory file is missing. It leaves every other line alone, including grouped or free-form lines the agent wrote, since Core already asks the agent to tidy those. The write uses the same unchanged-since-read check as **Save** and is skipped on a conflict until the next load.
+
+A store whose index fills more than 80% of a load limit (200 lines, 25,000 bytes) shows its usage. Past a limit, it warns that the agent sees only part of the index.
 
 ## 3. Policy
 

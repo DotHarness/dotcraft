@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { analyzeIndex, removeIndexEntry, upsertIndexEntry } from './memoryIndex'
+import { measureIndex, removeIndexEntry, syncIndex, upsertIndexEntry } from './memoryIndex'
 
 describe('memory index maintenance', () => {
   it('adds a pointer line for a new entry with the description as its hook', () => {
@@ -30,19 +30,33 @@ describe('memory index maintenance', () => {
       .toBe('- [Upper](Role.md) — x\n- [Lower](role.md) — z\n')
   })
 
-  it('reports the load limits and the lines Core flags', () => {
-    const long = `- [Long](long.md) — ${'x'.repeat(200)}`
-    const index = ['- [A](a.md) — x', 'free text', long, '- [Gone](gone.md) — y', '', '- [Site](https://example.com) — z'].join('\n')
-    const health = analyzeIndex(index, ['a.md', 'long.md', 'orphan.md'])
-    expect(health.lines).toBe(6)
-    expect(health.nonPointerLines.map((line) => line.lineNumber)).toEqual([2])
-    expect(health.longPointerLines.map((line) => line.lineNumber)).toEqual([3])
-    expect(health.dangling.map((line) => line.lineNumber)).toEqual([4])
-    expect(health.missing).toEqual(['orphan.md'])
-    expect(health.overLines || health.overBytes).toBe(false)
+  it('links unindexed files and drops pointers to missing files, leaving other lines alone', () => {
+    const index = ['# Notes', '- Promo: [A](a.md), [B](b.md)', '- [Gone](gone.md) — y', '- [Site](https://example.com) — z', '- [Nested](sub/x.md)'].join('\n')
+    const descriptions = new Map([['new-one.md', 'fresh']])
+    expect(syncIndex(index, ['a.md', 'b.md', 'new-one.md'], descriptions)).toBe([
+      '# Notes', '- Promo: [A](a.md), [B](b.md)', '- [Site](https://example.com) — z', '- [Nested](sub/x.md)', '- [New one](new-one.md) — fresh'
+    ].join('\n') + '\n')
+    expect(syncIndex(null, ['a.md'], new Map([['a.md', 'x']]))).toBe('- [A](a.md) — x\n')
+  })
 
-    const crowded = analyzeIndex(Array.from({ length: 201 }, (_, i) => `- [N](n${i}.md)`).join('\n'), [])
-    expect(crowded.overLines).toBe(true)
-    expect(analyzeIndex('é'.repeat(12_501), []).overBytes).toBe(true)
+  it('reports no change when every file is linked and every pointer resolves', () => {
+    expect(syncIndex('- [A](./A.md) — x\r\n', ['a.md'], new Map())).toBeNull()
+    expect(syncIndex('- [Notes](my%20notes.md) — x\n', ['my notes.md'], new Map())).toBeNull()
+    expect(syncIndex(null, [], new Map())).toBeNull()
+  })
+
+  it('skips files a pointer cannot name and clips long hooks to the pointer limit', () => {
+    expect(syncIndex(null, ['my notes.md', 'a(1).md'], new Map())).toBeNull()
+    const synced = syncIndex(null, ['long.md'], new Map([['long.md', 'x'.repeat(400)]]))!
+    expect(synced.trimEnd().length).toBeLessThanOrEqual(200)
+    expect(synced.trimEnd().endsWith('…')).toBe(true)
+    expect(syncIndex(synced, ['long.md'], new Map())).toBeNull()
+  })
+
+  it('measures the index against the load limits as Core does', () => {
+    expect(measureIndex('- [A](a.md)\n\n- [B](b.md)\n')).toEqual({ lines: 3, bytes: 24, load: 'ok' })
+    expect(measureIndex(Array.from({ length: 161 }, (_, i) => `- [N](n${i}.md)`).join('\n')).load).toBe('near')
+    expect(measureIndex(Array.from({ length: 201 }, (_, i) => `- [N](n${i}.md)`).join('\n')).load).toBe('over')
+    expect(measureIndex('é'.repeat(12_501)).load).toBe('over')
   })
 })

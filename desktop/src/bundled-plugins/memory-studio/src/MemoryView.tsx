@@ -5,11 +5,9 @@ import { ConsolidationTab, RunReview, useRunTitle, type RunFilters } from './con
 import type { RunStatusFilter } from './consolidation/dreamRuns'
 import { isWithin } from './data/hostPath'
 import { memoryName } from './data/memoryFile'
-import { INDEX_FILE } from './data/memoryIndex'
 import type { MemoryStore } from './data/stores'
 import { ALL, EntriesTab, UNTYPED, useStoreLabel, type AgeFilter, type EntryFilters } from './entries/EntriesTab'
 import { EntryEditor, type EntryTarget } from './entries/EntryEditor'
-import { IndexEditor } from './entries/IndexEditor'
 import { useDreamRuns, useMemoryFs, usePolicyState, useStores, type Loaded } from './hooks/useMemoryData'
 import { useT } from './i18n'
 import { PolicySettingEditor } from './policy/PolicySettingEditor'
@@ -24,7 +22,6 @@ type Page =
   | { kind: 'policy' }
   | { kind: 'policySetting'; setting: PolicyEditorSetting }
   | { kind: 'entry'; target: EntryTarget }
-  | { kind: 'index'; storeKey: string }
   | { kind: 'run'; runId: string }
 
 /** The store a Summary row names: the attached store by id, otherwise the store that contains the file. */
@@ -88,7 +85,6 @@ export function MemoryView({ host }: DesktopPluginViewProps): JSX.Element {
 
   const writableStore = storeList.find((store) => store.writable)
   const tabLabel = (value: Tab): string => value === 'dreams' ? t('tab.dreams') : t('view.title')
-  const editingIndex = page?.kind === 'index' ? stores.value?.find((contents) => contents.store.key === page.storeKey) : undefined
   const reviewedRun = page?.kind === 'run' ? dreams.value?.find((run) => run.id === page.runId) : undefined
 
   const pageTitle = (current: Page): string => {
@@ -96,7 +92,6 @@ export function MemoryView({ host }: DesktopPluginViewProps): JSX.Element {
       case 'policy': return t('tab.policy')
       case 'policySetting': return t(`policy.setting.${current.setting}` as const)
       case 'entry': return current.target.mode === 'new' ? t('editor.newTitle') : memoryName(current.target.fileName)
-      case 'index': return INDEX_FILE
       case 'run': return reviewedRun ? runTitle(reviewedRun) : t('tab.dreams')
     }
   }
@@ -131,7 +126,7 @@ export function MemoryView({ host }: DesktopPluginViewProps): JSX.Element {
 
   const chrome: Pick<CatalogPageProps, 'title' | 'tabs' | 'breadcrumb' | 'actions' | 'search' | 'filters'> = page
     ? {
-        title: page.kind === 'index' && editingIndex ? t('index.editorTitle', { file: INDEX_FILE, store: label(editingIndex.store) }) : pageTitle(page),
+        title: pageTitle(page),
         breadcrumb: {
           parentLabel: tabLabel(page.kind === 'run' ? 'dreams' : page.kind === 'policy' || page.kind === 'policySetting' ? tab : 'entries'),
           currentLabel: pageTitle(page),
@@ -258,21 +253,15 @@ export function MemoryView({ host }: DesktopPluginViewProps): JSX.Element {
     }
     return (
       <LoadState loaded={stores} unsupported={t('unsupported.entries')}>
-        {(contents) => {
-          if (editingIndex) return <IndexEditor fs={fs} contents={editingIndex} onClose={closeEditor} />
-          return (
-            <EntriesTab
-              fs={fs}
-              stores={contents}
-              filters={filters}
-              declaredTypes={declaredTypes}
-              onOpen={(store, entry) => setPage({ kind: 'entry', target: { mode: 'existing', storeKey: store.key, fileName: entry.fileName } })}
-              onNew={(store) => setPage({ kind: 'entry', target: { mode: 'new', storeKey: store.key, body: '' } })}
-              onEditIndex={(store) => setPage({ kind: 'index', storeKey: store.store.key })}
-              onChanged={stores.reload}
-            />
-          )
-        }}
+        {(contents) => (
+          <EntriesTab
+            stores={contents}
+            filters={filters}
+            declaredTypes={declaredTypes}
+            onOpen={(store, entry) => setPage({ kind: 'entry', target: { mode: 'existing', storeKey: store.key, fileName: entry.fileName } })}
+            onNew={(store) => setPage({ kind: 'entry', target: { mode: 'new', storeKey: store.key, body: '' } })}
+          />
+        )}
       </LoadState>
     )
   }

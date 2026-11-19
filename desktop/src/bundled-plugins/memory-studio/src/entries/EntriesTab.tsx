@@ -2,10 +2,9 @@ import { Button, CatalogSection } from '@dotcraft/plugin'
 import { FileText } from 'lucide-react'
 import type { JSX } from 'react'
 import { useLocale, useT } from '../i18n'
-import type { MemoryFs } from '../data/memoryFs'
+import { INDEX_MAX_BYTES, INDEX_MAX_LINES, type IndexUsage } from '../data/memoryIndex'
 import { isStale, matchesSearch, type MemoryEntry, type MemoryStore, type StoreContents } from '../data/stores'
 import { EmptyState, formatDate, StatusIndicator } from '../shared/ui'
-import { IndexHealthPanel } from './IndexHealthPanel'
 import styles from './entries.module.css'
 
 export type AgeFilter = 'all' | 'stale' | 'recent'
@@ -67,15 +66,25 @@ function EntryRow({ entry, declared, now, onOpen }: {
   )
 }
 
-export function EntriesTab({ fs, stores, filters, declaredTypes, onOpen, onNew, onEditIndex, onChanged }: {
-  fs: MemoryFs
+function IndexLoadNotice({ usage }: { usage: IndexUsage }): JSX.Element | null {
+  const t = useT()
+  const locale = useLocale()
+  if (usage.load === 'ok') return null
+  const number = (value: number): string => value.toLocaleString(locale)
+  const values = { lines: number(usage.lines), maxLines: number(INDEX_MAX_LINES), bytes: number(usage.bytes), maxBytes: number(INDEX_MAX_BYTES) }
+  return (
+    <p className={styles.indexLoad} data-tone={usage.load === 'over' ? 'warning' : undefined}>
+      {usage.load === 'over' ? t('index.over', values) : t('index.near', values)}
+    </p>
+  )
+}
+
+export function EntriesTab({ stores, filters, declaredTypes, onOpen, onNew }: {
   stores: readonly StoreContents[]
   filters: EntryFilters
   declaredTypes: ReadonlySet<string>
   onOpen(store: MemoryStore, entry: MemoryEntry): void
   onNew(store: MemoryStore): void
-  onEditIndex(contents: StoreContents): void
-  onChanged(): void
 }): JSX.Element {
   const t = useT()
   const label = useStoreLabel()
@@ -91,7 +100,7 @@ export function EntriesTab({ fs, stores, filters, declaredTypes, onOpen, onNew, 
         const title = contents.store.writable ? label(contents.store) : t('store.readOnly', { name: label(contents.store) })
         return (
           <CatalogSection key={contents.store.key} title={title}>
-            <IndexHealthPanel fs={fs} contents={contents} onEditIndex={() => onEditIndex(contents)} onChanged={onChanged} />
+            <IndexLoadNotice usage={contents.usage} />
             {entries.length > 0 ? (
               <ul className={styles.rows}>
                 {entries.map((entry) => (

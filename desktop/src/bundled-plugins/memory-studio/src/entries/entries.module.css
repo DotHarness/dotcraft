@@ -1,43 +1,12 @@
-.storeMeta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 10px;
+.indexLoad {
   margin: -4px 0 8px;
   color: var(--text-dimmed);
   font-size: var(--type-secondary-size);
   line-height: var(--type-secondary-line-height);
 }
 
-.issues {
-  display: grid;
-  gap: 2px;
-  margin: 0 0 10px;
-  padding: 0;
-  list-style: none;
-}
-
-.issue {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 32px;
-  padding: 0 4px 0 10px;
-  border-radius: 8px;
-  color: var(--text-secondary);
-  font-size: var(--type-ui-size);
-}
-
-.issue[data-tone='warning'] {
+.indexLoad[data-tone='warning'] {
   color: var(--warning-text);
-}
-
-.issueText {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .rows {

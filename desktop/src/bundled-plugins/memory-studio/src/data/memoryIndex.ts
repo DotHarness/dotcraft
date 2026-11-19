@@ -3,7 +3,7 @@ import { memoryName } from './memoryFile'
 export const INDEX_FILE = 'MEMORY.md'
 export const INDEX_MAX_LINES = 200
 export const INDEX_MAX_BYTES = 25_000
-export const INDEX_MAX_POINTER_LENGTH = 200
+const INDEX_MAX_POINTER_LENGTH = 200
 
 /** Core's pointer grammar for an index line. */
 const POINTER = /^\s*[-*+]\s+\[([^\]]*)\]\(([^)\s]+)\)(.*)$/
@@ -82,59 +82,63 @@ export function removeIndexEntry(indexText: string, file: string): string {
   return joinLines(lines.filter((_, index) => !remove.has(index)))
 }
 
-export interface IndexIssueLine {
-  lineNumber: number
-  text: string
-}
+export type IndexLoad = 'ok' | 'near' | 'over'
 
-export interface IndexHealth {
+export interface IndexUsage {
   lines: number
   bytes: number
-  overLines: boolean
-  overBytes: boolean
-  nonPointerLines: IndexIssueLine[]
-  longPointerLines: IndexIssueLine[]
-  /** Memory files the index has no line for. */
-  missing: string[]
-  /** Pointer targets with no memory file. */
-  dangling: IndexIssueLine[]
+  load: IndexLoad
 }
 
-/** Measures the index as Core loads it: trimmed, CRLF folded, lines and UTF-8 bytes. */
-export function analyzeIndex(indexText: string | null, memoryFiles: readonly string[]): IndexHealth {
+/** Measures the index as Core loads it: trimmed, CRLF folded, lines and UTF-8 bytes, near past 80% of a limit. */
+export function measureIndex(indexText: string | null): IndexUsage {
   const trimmed = (indexText ?? '').replace(/\r\n/g, '\n').trim()
-  const lines = trimmed ? trimmed.split('\n') : []
-  const targets = new Set<string>()
-  const health: IndexHealth = {
-    lines: lines.length,
-    bytes: new TextEncoder().encode(trimmed).length,
-    overLines: lines.length > INDEX_MAX_LINES,
-    overBytes: false,
-    nonPointerLines: [],
-    longPointerLines: [],
-    missing: [],
-    dangling: []
-  }
-  health.overBytes = health.bytes > INDEX_MAX_BYTES
-  const files = new Set(memoryFiles.map((file) => file.toLowerCase()))
-  lines.forEach((text, index) => {
-    if (!text.trim()) return
-    const issue = { lineNumber: index + 1, text }
-    const pointer = readPointer(text)
-    if (!pointer) {
-      health.nonPointerLines.push(issue)
-      return
-    }
-    if (text.length > INDEX_MAX_POINTER_LENGTH) health.longPointerLines.push(issue)
-    const target = pointer.target.toLowerCase()
-    targets.add(target)
-    if (!target.includes('://') && !files.has(target)) health.dangling.push(issue)
-  })
-  health.missing = memoryFiles.filter((file) => !targets.has(file.toLowerCase()))
-  return health
+  const lines = trimmed ? trimmed.split('\n').length : 0
+  const bytes = new TextEncoder().encode(trimmed).length
+  const load: IndexLoad = lines > INDEX_MAX_LINES || bytes > INDEX_MAX_BYTES
+    ? 'over'
+    : lines * 5 > INDEX_MAX_LINES * 4 || bytes * 5 > INDEX_MAX_BYTES * 4 ? 'near' : 'ok'
+  return { lines, bytes, load }
 }
 
-export function removeIndexLine(indexText: string, lineNumber: number, expectedText: string): string | null {
-  const lines = splitLines(indexText.replace(/^\s+/, ''))
-  return lines[lineNumber - 1] === expectedText ? joinLines(lines.filter((_, index) => index !== lineNumber - 1)) : null
+const LINK_TARGET = /\]\(([^)\s]+)\)/g
+
+function decodeTarget(target: string): string {
+  try {
+    return decodeURIComponent(target)
+  } catch {
+    return target
+  }
+}
+
+function normalizeTarget(target: string): string {
+  return decodeTarget(target).replace(/\\/g, '/').replace(/^\.\//, '').toLowerCase()
+}
+
+function isMemoryFileTarget(target: string): boolean {
+  return /^[^/:]+\.md$/i.test(target)
+}
+
+function newPointer(file: string, description: string): string | null {
+  const title = defaultTitle(file)
+  const room = INDEX_MAX_POINTER_LENGTH - formatPointer({ title, target: file, hook: 'x' }).length + 1
+  const hook = description.trim().length > room ? `${description.trim().slice(0, Math.max(room - 1, 0)).trimEnd()}…` : description.trim()
+  const line = formatPointer({ title, target: file, hook })
+  return readPointer(line)?.target === file && line.length <= INDEX_MAX_POINTER_LENGTH ? line : null
+}
+
+export function syncIndex(indexText: string | null, files: readonly string[], descriptions: ReadonlyMap<string, string>): string | null {
+  const present = new Set(files.map((file) => file.toLowerCase()))
+  const lines = splitLines(indexText ?? '')
+  const kept = lines.filter((line) => {
+    const target = readPointer(line)?.target
+    return target == null || !isMemoryFileTarget(target) || present.has(normalizeTarget(target))
+  })
+  const linked = new Set(kept.flatMap((line) => [...line.matchAll(LINK_TARGET)].map((match) => normalizeTarget(match[1]))))
+  const added = files
+    .filter((file) => !linked.has(file.toLowerCase()))
+    .flatMap((file) => newPointer(file, descriptions.get(file) ?? '') ?? [])
+  if (kept.length === lines.length && added.length === 0) return null
+  while (kept.length > 0 && kept[kept.length - 1].trim() === '') kept.pop()
+  return joinLines([...kept, ...added])
 }
