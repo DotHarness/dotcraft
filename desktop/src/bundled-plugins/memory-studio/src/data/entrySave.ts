@@ -48,11 +48,10 @@ export async function saveEntry(fs: MemoryFs, snapshot: EntrySnapshot, fields: M
   }
 
   const previous = snapshot.fileText == null ? null : parseMemoryFile(snapshot.fileText)
-  const fileText = serializeMemoryFile({ ...fields, name: fields.name.trim() }, previous?.extraFrontmatter)
+  const fileText = serializeMemoryFile({ ...fields, name: fields.name.trim() }, previous?.extra)
   if (snapshot.fileName == null) await fs.ensureDirectory(snapshot.storePath)
+  // The old file goes last, so a failure part-way leaves at most an orphan file, never a pointer to a missing one.
   await fs.writeText(path, fileText)
-  if (snapshot.fileName != null && snapshot.fileName !== fileName) await fs.remove(joinHostPath(snapshot.storePath, snapshot.fileName))
-
   const indexText = upsertIndexEntry(snapshot.indexText ?? '', {
     previousFile: snapshot.fileName ?? undefined,
     file: fileName,
@@ -60,6 +59,7 @@ export async function saveEntry(fs: MemoryFs, snapshot: EntrySnapshot, fields: M
     description: fields.description
   })
   if (indexText !== snapshot.indexText) await fs.writeText(joinHostPath(snapshot.storePath, INDEX_FILE), indexText)
+  if (snapshot.fileName != null && snapshot.fileName !== fileName) await fs.remove(joinHostPath(snapshot.storePath, snapshot.fileName))
   return { kind: 'saved', snapshot: { storePath: snapshot.storePath, fileName, fileText, indexText } }
 }
 

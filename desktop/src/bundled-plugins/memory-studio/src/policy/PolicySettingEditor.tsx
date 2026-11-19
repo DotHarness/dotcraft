@@ -1,5 +1,5 @@
 import { Button, InlineDiff, Input, SplitButton, Textarea } from '@dotcraft/plugin'
-import { useMemo, useState, type JSX } from 'react'
+import { useEffect, useMemo, useState, type JSX } from 'react'
 import { useT } from '../i18n'
 import { changedSpan } from '../shared/ui'
 import {
@@ -31,11 +31,21 @@ export function PolicySettingEditor({ state, setting, onClose, onChanged }: {
   const t = useT()
   const { busy, write } = usePolicyWrite(onChanged)
   const [draft, setDraft] = useState<PolicyValues>(state.effective)
+  // Edits and layer versions stay relative to what the page opened with, so a change saved elsewhere meanwhile
+  // fails as a version conflict instead of being overwritten. After a conflict the reloaded state becomes the base.
+  const [base, setBase] = useState<PolicyState>(state)
+  const [rebase, setRebase] = useState(false)
   const [comparing, setComparing] = useState(false)
+  useEffect(() => {
+    if (!rebase || state === base) return
+    setBase(state)
+    setRebase(false)
+  }, [rebase, state, base])
+
   const settings = editorSettings(setting)
   const issues = useMemo(() => validatePolicy(draft), [draft])
   const issue = settings.map((candidate) => issues[candidate]).find((value) => value != null)
-  const changed = settings.filter((candidate) => !settingEquals(candidate, draft[candidate], state.effective[candidate]))
+  const changed = settings.filter((candidate) => !settingEquals(candidate, draft[candidate], base.effective[candidate]))
   const customized = editorOrigin(state, setting) !== 'default'
   const differsFromDefault = settings.some((candidate) => !settingEquals(candidate, draft[candidate], state.defaults[candidate]))
   const span = comparing ? changedSpan(displayValue(setting, state.defaults), displayValue(setting, draft)) : null
@@ -43,17 +53,18 @@ export function PolicySettingEditor({ state, setting, onClose, onChanged }: {
   const update = <S extends PolicySetting>(key: S, value: PolicyValues[S]): void => setDraft((previous) => ({ ...previous, [key]: value }))
 
   const save = async (layer: PolicyLayerKind): Promise<void> => {
-    if (await write(state.layers[layer], changed.map((candidate) => settingEdit(candidate, draft[candidate])))) onClose()
+    const outcome = await write(base.layers[layer], changed.map((candidate) => settingEdit(candidate, draft[candidate])))
+    if (outcome === 'saved') onClose()
+    else if (outcome === 'conflict') setRebase(true)
   }
   const canSave = !busy && changed.length > 0 && issue == null
 
   const restore = async (): Promise<void> => {
-    for (const candidate of settings) {
-      const from = state.origins[candidate]
-      if (from === 'default') continue
-      if (!await write(state.layers[from], [settingEdit(candidate, null)])) return
+    for (const layer of ['workspace', 'user'] as const) {
+      const edits = settings.filter((candidate) => state.origins[candidate] === layer).map((candidate) => settingEdit(candidate, null))
+      if (edits.length > 0 && await write(state.layers[layer], edits) !== 'saved') return
     }
-    setDraft((previous) => ({ ...previous, ...Object.fromEntries(settings.map((candidate) => [candidate, state.defaults[candidate]])) }))
+    onClose()
   }
 
   return (

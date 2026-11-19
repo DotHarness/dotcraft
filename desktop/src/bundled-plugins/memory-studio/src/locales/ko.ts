@@ -51,6 +51,7 @@ export const messages: Record<MessageKey, string> = {
   'editor.deleteTitle': '{{name}}을(를) 삭제할까요?',
   'editor.deleteMessage': '메모리 파일과 인덱스의 해당 줄을 삭제합니다.',
   'editor.readOnly': '{{name}}은(는) 다른 곳에서 관리되므로 여기서는 메모리를 읽기 전용으로 표시합니다.',
+  'editor.invalidHeader': '이 메모리의 헤더가 올바른 YAML이 아니어서 여기서 저장할 수 없습니다. 파일을 직접 수정하세요.',
   'editor.conflict.fileChanged': '연 뒤에 이 메모리가 변경되었습니다. 입력한 내용은 유지되며, 현재 버전은 다음과 같습니다.',
   'editor.conflict.indexChanged': '이 메모리를 연 뒤에 인덱스가 변경되었습니다. 입력한 내용은 유지되며, 현재 인덱스는 다음과 같습니다.',
   'editor.conflict.nameTaken': '같은 이름의 메모리가 이미 있습니다. 다른 이름을 선택하세요.',

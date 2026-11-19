@@ -49,6 +49,7 @@ export const messages = {
   'editor.deleteTitle': 'Delete {{name}}?',
   'editor.deleteMessage': 'This removes the memory file and its line in the index.',
   'editor.readOnly': '{{name}} is maintained elsewhere, so its memories are read-only here.',
+  'editor.invalidHeader': 'This memory’s header isn’t valid YAML, so it can’t be saved here. Fix the file directly.',
   'editor.conflict.fileChanged': 'This memory changed since you opened it. Your text is kept. Here is the current version.',
   'editor.conflict.indexChanged': 'The index changed since you opened this memory. Your text is kept. Here is the current index.',
   'editor.conflict.nameTaken': 'A memory with this name already exists. Choose another name.',

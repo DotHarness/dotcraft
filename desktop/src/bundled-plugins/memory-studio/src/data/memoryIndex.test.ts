@@ -19,8 +19,15 @@ describe('memory index maintenance', () => {
       .toBe('- [Role](role.md) — handwritten\n')
   })
 
-  it('removes only the entry line, matching the target case-insensitively', () => {
+  it('removes only the entry line, matching the target case-insensitively when no line matches exactly', () => {
     expect(removeIndexEntry('- [A](a.md) — x\n- [B](./B.md) — y\n', 'b.md')).toBe('- [A](a.md) — x\n')
+  })
+
+  it('keeps case-distinct pointers separate when both files exist', () => {
+    const index = '- [Upper](Role.md) — x\n- [Lower](role.md) — y\n'
+    expect(removeIndexEntry(index, 'role.md')).toBe('- [Upper](Role.md) — x\n')
+    expect(upsertIndexEntry(index, { previousFile: 'role.md', file: 'role.md', previousDescription: 'y', description: 'z' }))
+      .toBe('- [Upper](Role.md) — x\n- [Lower](role.md) — z\n')
   })
 
   it('reports the load limits and the lines Core flags', () => {

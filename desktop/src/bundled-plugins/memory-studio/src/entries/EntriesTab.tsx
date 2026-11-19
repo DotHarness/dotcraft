@@ -17,7 +17,7 @@ export interface EntryFilters {
   age: AgeFilter
 }
 
-export const ALL = 'all'
+export const ALL = ':all'
 export const UNTYPED = ':untyped'
 
 export function filterEntries(contents: StoreContents, filters: EntryFilters, declaredTypes: ReadonlySet<string>, now: number): MemoryEntry[] {

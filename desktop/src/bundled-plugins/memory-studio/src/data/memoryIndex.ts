@@ -31,8 +31,11 @@ export function defaultTitle(fileName: string): string {
   return words ? words[0].toUpperCase() + words.slice(1) : fileName
 }
 
-function sameFile(a: string, b: string): boolean {
-  return a.toLowerCase() === b.toLowerCase()
+/** Falls back to a case-insensitive match only when no line matches exactly, so `Role.md` and `role.md` stay separate. */
+function pointerLines(lines: readonly string[], file: string): number[] {
+  const targets = lines.map((line) => readPointer(line)?.target)
+  const exact = targets.flatMap((target, index) => target === file ? [index] : [])
+  return exact.length > 0 ? exact : targets.flatMap((target, index) => target?.toLowerCase() === file.toLowerCase() ? [index] : [])
 }
 
 function splitLines(text: string): string[] {
@@ -56,11 +59,7 @@ export interface IndexEntryChange {
 /** Adds or updates the entry's pointer line, renaming it with the file and keeping a user-written title and hook. */
 export function upsertIndexEntry(indexText: string, change: IndexEntryChange): string {
   const lines = splitLines(indexText)
-  const lookup = change.previousFile ?? change.file
-  const at = lines.findIndex((line) => {
-    const pointer = readPointer(line)
-    return pointer != null && sameFile(pointer.target, lookup)
-  })
+  const at = pointerLines(lines, change.previousFile ?? change.file)[0] ?? -1
   if (at < 0) {
     const line = formatPointer({ title: defaultTitle(change.file), target: change.file, hook: change.description.trim() })
     while (lines.length > 0 && lines[lines.length - 1].trim() === '') lines.pop()
@@ -78,10 +77,9 @@ export function upsertIndexEntry(indexText: string, change: IndexEntryChange): s
 }
 
 export function removeIndexEntry(indexText: string, file: string): string {
-  return joinLines(splitLines(indexText).filter((line) => {
-    const pointer = readPointer(line)
-    return pointer == null || !sameFile(pointer.target, file)
-  }))
+  const lines = splitLines(indexText)
+  const remove = new Set(pointerLines(lines, file))
+  return joinLines(lines.filter((_, index) => !remove.has(index)))
 }
 
 export interface IndexIssueLine {

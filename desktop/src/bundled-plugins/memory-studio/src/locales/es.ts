@@ -51,6 +51,7 @@ export const messages: Record<MessageKey, string> = {
   'editor.deleteTitle': '¿Eliminar {{name}}?',
   'editor.deleteMessage': 'Se eliminarán el archivo de memoria y su línea en el índice.',
   'editor.readOnly': '{{name}} se mantiene en otro lugar, por lo que aquí sus memorias son de solo lectura.',
+  'editor.invalidHeader': 'El encabezado de esta memoria no es YAML válido, así que no se puede guardar aquí. Corrige el archivo directamente.',
   'editor.conflict.fileChanged': 'Esta memoria cambió después de abrirla. Tu texto se conserva. Esta es la versión actual.',
   'editor.conflict.indexChanged': 'El índice cambió después de abrir esta memoria. Tu texto se conserva. Este es el índice actual.',
   'editor.conflict.nameTaken': 'Ya existe una memoria con este nombre. Elige otro nombre.',

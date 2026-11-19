@@ -62,7 +62,7 @@ public static partial class MemoryPolicyRules
         var names = new HashSet<string>(StringComparer.Ordinal);
         foreach (var type in types)
         {
-            if (type.Name is not { Length: > 0 and <= MaxTypeNameLength } name || !SlugPattern().IsMatch(name))
+            if (type?.Name is not { Length: > 0 and <= MaxTypeNameLength } name || !SlugPattern().IsMatch(name))
                 return $"Each 'Memory.Types' name must be a kebab-case slug of at most {MaxTypeNameLength} characters.";
             if (!names.Add(name))
                 return $"'Memory.Types' lists '{name}' more than once.";

@@ -498,6 +498,6 @@ li[data-on-demand] > .conversation-summary-context__row .conversation-summary-co
   line-height: var(--type-secondary-line-height);
 }
 
-.conversation-summary-section[data-hide-empty]:not(:has(.conversation-summary-rows > li)) {
+.conversation-summary-section[data-hide-empty]:not(:has(.conversation-summary-rows li)) {
   display: none;
 }

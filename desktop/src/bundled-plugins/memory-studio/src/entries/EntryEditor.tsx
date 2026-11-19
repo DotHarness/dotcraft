@@ -53,6 +53,7 @@ export function EntryEditor({ fs, stores, target, types, breadcrumb, onClose }: 
   const [busy, setBusy] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const readOnly = !store?.writable
+  const invalidHeader = snapshot?.fileText != null && parseMemoryFile(snapshot.fileText).invalidHeader
 
   useEffect(() => {
     if (!store) return
@@ -81,7 +82,7 @@ export function EntryEditor({ fs, stores, target, types, breadcrumb, onClose }: 
   const nameValid = isValidMemoryName(fields.name.trim())
   const nameInvalid = fields.name !== '' && !nameValid
   const descriptionValid = fields.description.trim() !== '' && !/[\r\n]/.test(fields.description)
-  const canSave = !readOnly && snapshot != null && nameValid && descriptionValid && fields.type !== '' && !busy
+  const canSave = !readOnly && !invalidHeader && snapshot != null && nameValid && descriptionValid && fields.type !== '' && !busy
   const set = <K extends keyof MemoryFileFields>(key: K, value: MemoryFileFields[K]): void => setFields((previous) => ({ ...previous, [key]: value }))
 
   const save = async (base: EntrySnapshot): Promise<void> => {
@@ -184,6 +185,7 @@ export function EntryEditor({ fs, stores, target, types, breadcrumb, onClose }: 
       <div className={styles.editor}>
         {loadError ? <Notice tone="error">{loadError}</Notice> : null}
         {readOnly && store ? <Notice>{t('editor.readOnly', { name: label(store) })}</Notice> : null}
+        {invalidHeader ? <Notice tone="error">{t('editor.invalidHeader')}</Notice> : null}
         {nameInvalid ? <Notice tone="error">{t('editor.nameHint')}</Notice> : null}
         {conflict ? (
           <Notice tone="warning">

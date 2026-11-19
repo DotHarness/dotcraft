@@ -51,6 +51,7 @@ export const messages: Record<MessageKey, string> = {
   'editor.deleteTitle': '删除 {{name}}？',
   'editor.deleteMessage': '这会删除记忆文件及其在索引中的那一行。',
   'editor.readOnly': '{{name}} 由其他方维护，因此其记忆在此为只读。',
+  'editor.invalidHeader': '这条记忆的头部不是有效的 YAML，无法在这里保存。请直接修改文件。',
   'editor.conflict.fileChanged': '打开后这条记忆已被修改。你的文本已保留，下面是当前版本。',
   'editor.conflict.indexChanged': '打开这条记忆后索引已被修改。你的文本已保留，下面是当前索引。',
   'editor.conflict.nameTaken': '已存在同名记忆，请换一个名称。',

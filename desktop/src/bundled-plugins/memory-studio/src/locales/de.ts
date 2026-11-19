@@ -51,6 +51,7 @@ export const messages: Record<MessageKey, string> = {
   'editor.deleteTitle': '{{name}} löschen?',
   'editor.deleteMessage': 'Die Erinnerungsdatei und ihre Zeile im Index werden entfernt.',
   'editor.readOnly': '{{name}} wird an anderer Stelle gepflegt, daher sind seine Erinnerungen hier schreibgeschützt.',
+  'editor.invalidHeader': 'Der Kopf dieser Erinnerung ist kein gültiges YAML und kann hier nicht gespeichert werden. Korrigiere die Datei direkt.',
   'editor.conflict.fileChanged': 'Diese Erinnerung hat sich seit dem Öffnen geändert. Dein Text bleibt erhalten. Hier ist die aktuelle Fassung.',
   'editor.conflict.indexChanged': 'Der Index hat sich seit dem Öffnen dieser Erinnerung geändert. Dein Text bleibt erhalten. Hier ist der aktuelle Index.',
   'editor.conflict.nameTaken': 'Es gibt bereits eine Erinnerung mit diesem Namen. Wähle einen anderen Namen.',

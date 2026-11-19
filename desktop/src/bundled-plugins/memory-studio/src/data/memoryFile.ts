@@ -1,3 +1,5 @@
+import yaml from 'js-yaml'
+
 export interface MemoryFileFields {
   name: string
   description: string
@@ -5,77 +7,66 @@ export interface MemoryFileFields {
   body: string
 }
 
+type YamlMap = Record<string, unknown>
+
 export interface ParsedMemoryFile extends MemoryFileFields {
   hasFrontmatter: boolean
-  /** Frontmatter lines this editor does not own, kept verbatim on save. */
-  extraFrontmatter: string[]
+  invalidHeader: boolean
+  extra: { top: YamlMap; metadata: YamlMap }
 }
 
-const OWNED_KEYS = new Set(['name', 'description', 'metadata'])
-
-function unquote(value: string): string {
-  const trimmed = value.trim()
-  if (trimmed.length >= 2 && trimmed.startsWith('"') && trimmed.endsWith('"')) {
-    try {
-      return JSON.parse(trimmed) as string
-    } catch {
-      return trimmed.slice(1, -1)
-    }
-  }
-  if (trimmed.length >= 2 && trimmed.startsWith("'") && trimmed.endsWith("'")) return trimmed.slice(1, -1).replace(/''/g, "'")
-  return trimmed
+function isMap(value: unknown): value is YamlMap {
+  return value != null && typeof value === 'object' && !Array.isArray(value)
 }
 
-/** A plain scalar unless YAML would read it differently, then a double-quoted one. */
-function scalar(value: string): string {
-  const plain = value.trim()
-  if (plain === '') return '""'
-  return /^[\s"'#&*!|>%@`[\]{},?:-]|: | #|\s$/.test(plain) || /^(?:true|false|null|yes|no|on|off|~)$/i.test(plain) || /^[-+.]?\d/.test(plain)
-    ? JSON.stringify(plain)
-    : plain
+function text(value: unknown): string {
+  return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' ? String(value) : ''
 }
 
-export function parseMemoryFile(text: string): ParsedMemoryFile {
-  const normalized = text.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n')
+export function parseMemoryFile(source: string): ParsedMemoryFile {
+  const normalized = source.replace(/^﻿/, '').replace(/\r\n/g, '\n')
   const lines = normalized.split('\n')
-  const empty: ParsedMemoryFile = { name: '', description: '', type: '', body: normalized, hasFrontmatter: false, extraFrontmatter: [] }
+  const empty: ParsedMemoryFile = {
+    name: '', description: '', type: '', body: normalized, hasFrontmatter: false, invalidHeader: false, extra: { top: {}, metadata: {} }
+  }
   if (lines[0]?.trim() !== '---') return empty
   const end = lines.findIndex((line, index) => index > 0 && line.trim() === '---')
   if (end < 0) return empty
 
-  const result: ParsedMemoryFile = { ...empty, hasFrontmatter: true, body: lines.slice(end + 1).join('\n').replace(/^\n+/, '') }
-  let inMetadata = false
-  for (const line of lines.slice(1, end)) {
-    const nested = /^\s+([A-Za-z_][\w-]*)\s*:(.*)$/.exec(line)
-    if (inMetadata && nested) {
-      if (nested[1] === 'type') result.type = unquote(nested[2])
-      else result.extraFrontmatter.push(`metadata.${line}`)
-      continue
-    }
-    const top = /^([A-Za-z_][\w-]*)\s*:(.*)$/.exec(line)
-    inMetadata = top?.[1] === 'metadata'
-    if (top && top[1] === 'name') result.name = unquote(top[2])
-    else if (top && top[1] === 'description') result.description = unquote(top[2])
-    else if (!top || !OWNED_KEYS.has(top[1])) result.extraFrontmatter.push(line)
+  const body = lines.slice(end + 1).join('\n').replace(/^\n+/, '')
+  let header: unknown
+  try {
+    header = yaml.load(lines.slice(1, end).join('\n'), { schema: yaml.CORE_SCHEMA }) ?? {}
+  } catch {
+    header = null
   }
-  return result
+  if (!isMap(header)) return { ...empty, hasFrontmatter: true, invalidHeader: true, body }
+
+  const { name, description, metadata, ...top } = header
+  const { type, ...metadataRest } = isMap(metadata) ? metadata : {}
+  return {
+    name: text(name),
+    description: text(description),
+    type: text(type),
+    body,
+    hasFrontmatter: true,
+    invalidHeader: false,
+    extra: { top, metadata: metadataRest }
+  }
 }
 
-export function serializeMemoryFile(fields: MemoryFileFields, extraFrontmatter: readonly string[] = []): string {
-  const metadataExtras = extraFrontmatter.filter((line) => line.startsWith('metadata.')).map((line) => line.slice('metadata.'.length))
-  const topExtras = extraFrontmatter.filter((line) => !line.startsWith('metadata.'))
-  const header = [
-    '---',
-    `name: ${scalar(fields.name)}`,
-    `description: ${scalar(fields.description)}`,
-    ...topExtras,
-    'metadata:',
-    `  type: ${scalar(fields.type)}`,
-    ...metadataExtras,
-    '---'
-  ]
+export function serializeMemoryFile(fields: MemoryFileFields, extra: ParsedMemoryFile['extra'] = { top: {}, metadata: {} }): string {
+  const header = yaml.dump(
+    {
+      name: fields.name.trim(),
+      description: fields.description.trim(),
+      ...extra.top,
+      metadata: { type: fields.type, ...extra.metadata }
+    },
+    { schema: yaml.CORE_SCHEMA, lineWidth: -1 }
+  )
   const body = fields.body.replace(/\r\n/g, '\n').replace(/^\n+/, '').replace(/\s+$/, '')
-  return `${header.join('\n')}\n\n${body}\n`
+  return `---\n${header}---\n\n${body}\n`
 }
 
 /** File names are the store's identity for a memory; Core reads any top-level Markdown file except the index. */

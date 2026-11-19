@@ -29,7 +29,7 @@ Opening an entry shows it as a page: `name` is the page title and `description` 
 
 - **Save** writes the file and keeps its index line in step: it adds `- [Title](name.md) — hook` for a new entry, updates the line of an existing one, and renames both when `name` changes. The hook defaults to the description.
 - **Delete** removes the file and its index line after confirmation.
-- Before writing, the editor checks that the file and the index are unchanged since it read them. When either changed, it refuses the save, keeps the user's text, and shows the current content, so a user edit never silently overwrites one made by the agent, extraction, or Dreams.
+- Before writing, the editor checks that the file and the index are unchanged since it read them. When either changed, it refuses the save, keeps the user's text, and shows the current content. The check and the writes are separate requests, so a write by the agent, extraction, or Dreams in between is not detected. A rename writes the new file and the index before removing the old file, so a failure part-way leaves at most an unindexed file.
 - Attached stores are read-only.
 
 These edits are the user editing files, so they reach running threads through the memory index section like any other change.

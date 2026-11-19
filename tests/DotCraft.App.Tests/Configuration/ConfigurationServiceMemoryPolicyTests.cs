@@ -8,6 +8,7 @@ public sealed class ConfigurationServiceMemoryPolicyTests
 {
     [Theory]
     [InlineData("Memory.Types", "[]")]
+    [InlineData("Memory.Types", "[null]")]
     [InlineData("Memory.Types", """[{ "Name": "fact", "Description": "One fact." }, { "Name": "fact", "Description": "Another." }]""")]
     [InlineData("Memory.Types", """[{ "Name": "Not A Slug", "Description": "One fact." }]""")]
     [InlineData("Memory.Types", """[{ "Name": "fact", "Description": "Two\nlines." }]""")]

@@ -51,6 +51,7 @@ export const messages: Record<MessageKey, string> = {
   'editor.deleteTitle': '{{name}} を削除しますか？',
   'editor.deleteMessage': 'メモリファイルとインデックス内のその行を削除します。',
   'editor.readOnly': '{{name}} は別の場所で管理されているため、ここではメモリを読み取り専用で表示します。',
+  'editor.invalidHeader': 'このメモリのヘッダーは有効な YAML ではないため、ここでは保存できません。ファイルを直接修正してください。',
   'editor.conflict.fileChanged': '開いた後にこのメモリが変更されました。入力内容は保持されています。現在の内容は次のとおりです。',
   'editor.conflict.indexChanged': 'このメモリを開いた後にインデックスが変更されました。入力内容は保持されています。現在のインデックスは次のとおりです。',
   'editor.conflict.nameTaken': '同じ名前のメモリがすでにあります。別の名前を選んでください。',

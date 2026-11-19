@@ -40,7 +40,7 @@ public sealed class MemoryExtractionScheduler : ITurnLifecycleContributor, IThre
     public Task OnTurnEndedAsync(TurnLifecycleContext context, CancellationToken cancellationToken = default)
     {
         if (context.Status == TurnStatus.Completed)
-            Post(new TurnCompleted(context.ThreadId, context.TurnId));
+            Post(new TurnCompleted(context.ThreadId, context.TurnId, _interval()));
         return Task.CompletedTask;
     }
 
@@ -80,7 +80,7 @@ public sealed class MemoryExtractionScheduler : ITurnLifecycleContributor, IThre
                 switch (signal)
                 {
                     case TurnCompleted completed:
-                        await EvaluateAsync(completed.ThreadId, completed.TurnId).ConfigureAwait(false);
+                        await EvaluateAsync(completed.ThreadId, completed.TurnId, completed.Interval).ConfigureAwait(false);
                         break;
                     case RunFinished finished:
                         Finish(finished);
@@ -101,7 +101,7 @@ public sealed class MemoryExtractionScheduler : ITurnLifecycleContributor, IThre
         }
     }
 
-    private async Task EvaluateAsync(string threadId, string turnId)
+    private async Task EvaluateAsync(string threadId, string turnId, int interval)
     {
         var thread = await _loadThread(threadId, _lifetime.Token).ConfigureAwait(false);
         if (!IsEligible(thread))
@@ -130,7 +130,7 @@ public sealed class MemoryExtractionScheduler : ITurnLifecycleContributor, IThre
             return;
         }
 
-        if (++state.Count < _interval())
+        if (++state.Count < interval)
             return;
         state.Count = 0;
         if (state.Running)
@@ -249,7 +249,7 @@ public sealed class MemoryExtractionScheduler : ITurnLifecycleContributor, IThre
 
     private abstract record Signal(string ThreadId);
 
-    private sealed record TurnCompleted(string ThreadId, string TurnId) : Signal(ThreadId);
+    private sealed record TurnCompleted(string ThreadId, string TurnId, int Interval) : Signal(ThreadId);
 
     private sealed record RunFinished(string ThreadId, string? StartCursor, string? Through) : Signal(ThreadId);
 
