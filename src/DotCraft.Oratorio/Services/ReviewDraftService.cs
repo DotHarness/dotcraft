@@ -193,13 +193,16 @@ public sealed class ReviewDraftService(
         }
 
         ApplyWriteResultToDraft(draft, write);
-        await db.SaveChangesAsync(ct);
 
         if (write.Source == "github" &&
             ((enforceAutoPublishGates && write.Status == SourceWriteStatus.Failed) ||
                 (retrying && write.Status == SourceWriteStatus.Succeeded)))
         {
-            await gitHubWrites.RecordReviewGatePublicationAsync(write, ct);
+            await gitHubWrites.SaveReviewPublicationAndUpdateCheckAsync(write, ct);
+        }
+        else
+        {
+            await db.SaveChangesAsync(ct);
         }
     }
 

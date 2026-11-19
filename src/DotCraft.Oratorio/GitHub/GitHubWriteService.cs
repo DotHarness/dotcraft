@@ -305,11 +305,13 @@ public sealed partial class GitHubWriteService(
         write.UpdatedAt = clock.UtcNow;
         AddTimeline(write, TimelineEventKind.SourceWriteQueued, "Retrying GitHub write", null);
         await TryExecuteAsync(write, ct);
-        var publishedReview = await ReconcileReviewDraftPublishAsync(write, ct);
-        await db.SaveChangesAsync(ct);
-        if (publishedReview)
+        if (await ReconcileReviewDraftPublishAsync(write, ct))
         {
-            await RecordReviewGatePublicationAsync(write, ct);
+            await SaveReviewPublicationAndUpdateCheckAsync(write, ct);
+        }
+        else
+        {
+            await db.SaveChangesAsync(ct);
         }
 
         return write.ItemId;

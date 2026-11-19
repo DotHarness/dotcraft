@@ -65,6 +65,57 @@ public sealed class ReviewPublicationCheckTests
     }
 
     [Fact]
+    public async Task CanceledPublishRequest_LeavesCheckRetryableWithoutRepublishingReview()
+    {
+        var github = new FakeGitHubApiClient();
+        await using var app = CreateApp(github, blockedByWarnings: true);
+        var client = app.CreateClient();
+        var failed = await RunReviewUntilPublicationFailsAsync(client);
+        var draft = Assert.Single(failed.ReviewDrafts);
+        var itemPath = $"/api/v1/items/id/{failed.Item.ItemId}";
+
+        var patchStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var patchBlocked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        github.BeforeCheckRunUpdateAsync = (_, ct) =>
+        {
+            patchStarted.SetResult();
+            return patchBlocked.Task.WaitAsync(ct);
+        };
+
+        using var scope = app.Services.CreateScope();
+        using var caller = new CancellationTokenSource();
+        var publication = scope.ServiceProvider.GetRequiredService<ReviewDraftService>().PublishAsync(
+            draft.DraftId, scope.ServiceProvider.GetRequiredService<OratorioService>(), caller.Token);
+        string checkWriteId;
+        try
+        {
+            await patchStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            var duringPatch = await client.GetFromJsonAsync<ItemDetailResponse>(itemPath, JsonOptions);
+            AssertPublishedWrite(duringPatch!);
+            checkWriteId = Assert.Single(duringPatch!.SourceWrites, write =>
+                write.Kind == SourceWriteKind.CheckRun && write.Status == SourceWriteStatus.Pending).WriteId;
+        }
+        finally
+        {
+            caller.Cancel();
+        }
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => publication.WaitAsync(TimeSpan.FromSeconds(10)));
+        github.BeforeCheckRunUpdateAsync = null;
+
+        var afterCancel = await client.GetFromJsonAsync<ItemDetailResponse>(itemPath, JsonOptions);
+        AssertPublishedWrite(afterCancel!);
+        Assert.Equal(SourceWriteStatus.Failed, Assert.Single(afterCancel!.SourceWrites, write => write.WriteId == checkWriteId).Status);
+
+        var recovered = await PostAsync<ItemDetailResponse>(
+            client, $"/api/v1/source-writes/{checkWriteId}/retry", new { });
+
+        Assert.Equal(SourceWriteStatus.Succeeded, Assert.Single(recovered.SourceWrites, write => write.WriteId == checkWriteId).Status);
+        Assert.Single(github.PullRequestReviews);
+        Assert.Contains("review published", Assert.Single(github.CheckRuns).Title, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task ApprovalOverlappingPublicationRetry_LeavesDecisionOnTheSameCheck()
     {
         var github = new FakeGitHubApiClient { FailNextPullRequestReviewCount = 1 };

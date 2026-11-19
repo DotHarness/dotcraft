@@ -13,17 +13,42 @@ public sealed partial class GitHubWriteService
         .Select(_ => new SemaphoreSlim(1, 1))
         .ToArray();
 
-    internal async Task RecordReviewGatePublicationAsync(OratorioSourceWriteLog publication, CancellationToken ct)
+    internal async Task SaveReviewPublicationAndUpdateCheckAsync(OratorioSourceWriteLog publication, CancellationToken ct)
     {
-        if (publication.HeadSha is null || !await IsCurrentReviewGateAsync(publication, ct))
+        var write = await QueueReviewGatePublicationAsync(publication);
+        await db.SaveChangesAsync(CancellationToken.None);
+        if (write is null)
         {
             return;
         }
 
-        var checkRunId = await FindLatestReviewGateCheckRunIdAsync(publication.ItemId, publication.RoundId!, publication.HeadSha, ct);
+        try
+        {
+            await TryExecuteAsync(write, ct);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            MarkFailed(write, "githubCheckWriteCanceled", "The GitHub check update was canceled.");
+            throw;
+        }
+        finally
+        {
+            await db.SaveChangesAsync(CancellationToken.None);
+        }
+    }
+
+    private async Task<OratorioSourceWriteLog?> QueueReviewGatePublicationAsync(OratorioSourceWriteLog publication)
+    {
+        if (publication.HeadSha is null || !await IsCurrentReviewGateAsync(publication, CancellationToken.None))
+        {
+            return null;
+        }
+
+        var checkRunId = await FindLatestReviewGateCheckRunIdAsync(
+            publication.ItemId, publication.RoundId!, publication.HeadSha, CancellationToken.None);
         if (checkRunId is null)
         {
-            return;
+            return null;
         }
 
         var now = clock.UtcNow;
@@ -45,8 +70,7 @@ public sealed partial class GitHubWriteService
 
         db.SourceWriteLogs.Add(write);
         AddTimeline(write, TimelineEventKind.SourceWriteQueued, "GitHub write queued", null);
-        await TryExecuteAsync(write, ct);
-        await db.SaveChangesAsync(ct);
+        return write;
     }
 
     private async Task<GitHubWriteResponse?> ExecuteCheckRunAsync(GitHubRepositoryRef repository, OratorioSourceWriteLog write, CancellationToken ct)
