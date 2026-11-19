@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { setImmediate as settle } from 'node:timers/promises'
+import { JsonRpcError, RequestTimeoutError } from '@dotcraft/sdk/wire'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   DesktopLinkedChats,
@@ -9,6 +10,11 @@ import {
   type LinkedChatConnection,
   type LinkedChatRef
 } from '../threadTasks/linkedChats'
+
+vi.mock('node:timers/promises', async importOriginal => ({
+  ...await importOriginal<typeof import('node:timers/promises')>(),
+  setTimeout: (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+}))
 
 const PARENT: LinkedChatRef = { threadId: 'parent', projectId: 'chats', workspacePath: '/chats' }
 const CHILD: LinkedChatChild = {
@@ -211,6 +217,38 @@ describe('following linked chats', () => {
     reopened.connected(child.connection)
     await settle()
     expect(parent.notify).toHaveBeenCalledOnce()
+  })
+
+  it('retries a missed acknowledgment on the same connection and preserves the report id', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      const chats = new DesktopLinkedChats(null)
+      const parent = appServer(PARENT)
+      const child = appServer(CHILD)
+      child.state.turns = [turn('completed', 'completed')]
+      chats.link(PARENT, CHILD)
+      chats.connected(child.connection)
+      await settle()
+
+      parent.readHeader.mockRejectedValueOnce(new JsonRpcError(-32001, 'Server overloaded'))
+      parent.notify.mockRejectedValueOnce(new RequestTimeoutError('turn/notify', 1000))
+      parent.notify.mockResolvedValue({ queued: false })
+      chats.connected(parent.connection)
+      await settle()
+      expect(parent.notify).not.toHaveBeenCalled()
+
+      await vi.advanceTimersToNextTimerAsync()
+      expect(parent.notify).toHaveBeenCalledOnce()
+
+      await vi.advanceTimersToNextTimerAsync()
+      expect(parent.notify.mock.calls).toEqual([
+        [expect.objectContaining({ status: 'completed', notificationId: expect.any(String) })],
+        parent.notify.mock.calls[0]
+      ])
+      expect(chats.needsProjectConnection(PARENT.projectId)).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('reports the caller stop separately from an unrelated cancellation', async () => {

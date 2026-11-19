@@ -1,3 +1,4 @@
+import { setTimeout as delay } from 'node:timers/promises'
 import { readAppServerErrorFields } from '../../shared/appServerError'
 import {
   linkedChatRefKey,
@@ -43,7 +44,8 @@ interface ThreadHeaderResult {
 
 interface ProjectConnection {
   connection: LinkedChatConnection
-  parentChecks: Map<string, Promise<boolean>>
+  parentChecks: Map<string, Promise<boolean | 'retry'>>
+  lifetime: AbortController
 }
 
 interface Observation {
@@ -127,7 +129,7 @@ export class DesktopLinkedChats {
     const projectId = connection.projectId
     const project = this.projects.get(projectId) ?? new Map<LinkedChatConnection, ProjectConnection>()
     if (project.has(connection)) return
-    project.set(connection, { connection, parentChecks: new Map() })
+    project.set(connection, { connection, parentChecks: new Map(), lifetime: new AbortController() })
     this.projects.set(projectId, project)
     if (project.size === 1) this.reconcileProject(projectId)
   }
@@ -135,9 +137,11 @@ export class DesktopLinkedChats {
   disconnected(connection: LinkedChatConnection): void {
     const projectId = connection.projectId
     const project = this.projects.get(projectId)
-    if (!project) return
-    const wasPrimary = this.primary(projectId)?.connection === connection
-    if (!project.delete(connection)) return
+    const disconnected = project?.get(connection)
+    if (!project || !disconnected) return
+    const wasPrimary = this.primary(projectId) === disconnected
+    project.delete(connection)
+    disconnected.lifetime.abort()
     if (project.size === 0) this.projects.delete(projectId)
     if (wasPrimary) this.reconcileProject(projectId)
   }
@@ -385,25 +389,17 @@ export class DesktopLinkedChats {
     if (!project || !this.current(project, link)) return
     state.delivering = true
     void (async () => {
-      if (!await this.checkParent(project, link.parent)) return
+      let retryDelayMs = 1000
       while (this.current(project, link) && link.pending.length) {
         const report = link.pending[0]
-        try {
-          await project.connection.request('turn/notify', {
-            threadId: link.parent.threadId,
-            notificationId: report.notificationId,
-            refId: link.child.threadId,
-            label: link.child.title,
-            project: link.child.projectName,
-            status: report.status,
-            summary: report.summary,
-            ...(report.result ? { result: report.result } : {})
-          })
-        } catch (error) {
-          if (this.current(project, link) && isThreadNotFound(error)) this.remove(link.parent)
-          return
+        const sent = await this.sendReport(project, link, report)
+        if (!this.current(project, link) || sent === false) return
+        if (sent === 'retry') {
+          await delay(retryDelayMs, undefined, { signal: project.lifetime.signal, ref: false }).catch(() => {})
+          retryDelayMs = Math.min(retryDelayMs * 2, 30_000)
+          continue
         }
-        if (!this.current(project, link)) return
+        retryDelayMs = 1000
         link.pending.shift()
         if (report.wait) {
           const kinds = link.reportedWaits?.turnId === report.turnId ? link.reportedWaits.kinds : []
@@ -423,25 +419,49 @@ export class DesktopLinkedChats {
     })
   }
 
-  private checkParent(project: ProjectConnection, parent: LinkedChatRef): Promise<boolean> {
+  private async sendReport(project: ProjectConnection, link: StoredLinkedChat, report: ChatReport): Promise<boolean | 'retry'> {
+    const parent = await this.checkParent(project, link.parent)
+    if (parent !== true) return parent
+    if (!this.current(project, link)) return false
+    try {
+      await project.connection.request('turn/notify', {
+        threadId: link.parent.threadId,
+        notificationId: report.notificationId,
+        refId: link.child.threadId,
+        label: link.child.title,
+        project: link.child.projectName,
+        status: report.status,
+        summary: report.summary,
+        ...(report.result ? { result: report.result } : {})
+      })
+      return true
+    } catch (error) {
+      if (this.current(project, link) && isThreadNotFound(error)) this.remove(link.parent)
+      return isTransientDeliveryError(error) ? 'retry' : false
+    }
+  }
+
+  private checkParent(project: ProjectConnection, parent: LinkedChatRef): Promise<boolean | 'retry'> {
     const key = linkedChatRefKey(parent)
     const existing = project.parentChecks.get(key)
     if (existing) return existing
     const stillCurrent = () => this.primary(parent.projectId) === project
-    const check = (async () => {
+    const check = (async (): Promise<boolean | 'retry'> => {
       try {
         const { thread } = await project.connection.request<ThreadHeaderResult>('thread/read', { threadId: parent.threadId })
         if (!stillCurrent()) return false
         if (thread?.status !== 'archived') return true
         this.remove(parent)
       } catch (error) {
-        if (stillCurrent() && isThreadNotFound(error)) this.remove(parent)
+        if (!stillCurrent()) return false
+        if (isThreadNotFound(error)) this.remove(parent)
+        else if (isTransientDeliveryError(error)) return 'retry'
       }
       return false
     })()
     project.parentChecks.set(key, check)
-    void check.then(ok => {
-      if (!ok) project.parentChecks.delete(key)
+    void check.then(result => {
+      if (result !== true) project.parentChecks.delete(key)
     })
     return check
   }
@@ -469,6 +489,11 @@ function holdsForStatus(status: LinkedChatStatus): boolean {
 function isThreadNotFound(error: unknown): boolean {
   const { rpcCode, data } = readAppServerErrorFields(error)
   return data?.code === 'ThreadNotFound' || rpcCode === -32010
+}
+
+function isTransientDeliveryError(error: unknown): boolean {
+  const { code, rpcCode } = readAppServerErrorFields(error)
+  return code === 'requestTimeout' || rpcCode === -32001
 }
 
 function describeChat(link: StoredLinkedChat): string {
