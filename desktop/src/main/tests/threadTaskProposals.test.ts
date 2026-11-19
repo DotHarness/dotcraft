@@ -137,10 +137,14 @@ describe('CreateThread proposals', () => {
     await harness.tasks.startProposals(target, PARENT, [task.id], { workLocation })
 
     const method = workLocation === 'worktree' ? 'worktree/createAndStart' : 'thread/start'
-    expect(harness.calls().find(([name]) => name === method)?.[1]).toMatchObject({
+    const params = harness.calls().find(([name]) => name === method)?.[1] as { config: unknown }
+    expect(params).toMatchObject({
       identity: { workspacePath: WORKSPACE },
-      config: { cwd, runtimeWorkspaceRoots: [cwd, WORKSPACE] }
+      cwd,
+      runtimeWorkspaceRoots: [cwd, WORKSPACE]
     })
+    expect(params.config).not.toHaveProperty('cwd')
+    expect(params.config).not.toHaveProperty('runtimeWorkspaceRoots')
   })
 
   it('starts a proposal with reasoning off when the card turns it off', async () => {

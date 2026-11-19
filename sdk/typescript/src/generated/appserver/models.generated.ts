@@ -5922,6 +5922,7 @@ export interface WorktreeCreateAndStartParams {
   branchName?: string | null;
   config?: ThreadConfiguration | null;
   copyDirtyChanges?: boolean | null;
+  cwd?: string | null;
   displayName?: string | null;
   dynamicTools?: JsonValue[] | null;
   environmentPath?: string | null;
@@ -5929,6 +5930,7 @@ export interface WorktreeCreateAndStartParams {
   identity?: SessionIdentity;
   operationId?: string | null;
   path?: string | null;
+  runtimeWorkspaceRoots?: string[] | null;
   [key: string]: unknown;
 }
 

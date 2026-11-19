@@ -19,6 +19,7 @@ import { useComposerDraftStore } from '../stores/composerDraftStore'
 import { useComposerPreferencesStore } from '../stores/composerPreferencesStore'
 import { useVoiceStore } from '../voice/voiceStore'
 import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
+import { useWorktreeCreationStore } from '../stores/worktreeCreationStore'
 import { installDesktopApiMock } from './desktopApiMock'
 import { activateTestWorkspace } from './workspaceResourceFixtures'
 import {
@@ -76,6 +77,15 @@ function renderWelcome({
       />
     </LocaleProvider>
   )
+}
+
+async function selectResearchProfile(): Promise<void> {
+  fireEvent.click(screen.getByRole('button', { name: 'Open commands' }))
+  fireEvent.click(await screen.findByRole('option', { name: /Agent profile/u }))
+  const profile = await screen.findByRole('button', { name: 'Research profile' })
+  await act(async () => {
+    fireEvent.click(profile)
+  })
 }
 
 describe('ConversationWelcome composer', () => {
@@ -210,6 +220,9 @@ describe('ConversationWelcome composer', () => {
           ]
         }
       }
+      if (method === 'agent/profiles/list') {
+        return { profiles: [{ id: 'research-profile', name: 'Research profile', source: 'workspace', valid: true }] }
+      }
       if (method === 'thread/start') {
         return {
           thread: {
@@ -343,7 +356,8 @@ describe('ConversationWelcome composer', () => {
     expect((start?.[1] as { config?: Record<string, unknown> })?.config).not.toHaveProperty('approvalPolicy')
   })
 
-  it('starts in the promoted primary without moving the project state identity', async () => {
+  it('starts a profile-backed chat in the promoted primary without moving the project state identity', async () => {
+    useConnectionStore.setState((state) => ({ capabilities: { ...state.capabilities, agentProfileManagement: true } }))
     useWorkspaceProjectsStore.setState({ projects: [{
       kind: 'local', path: 'X:\\fixtures\\workspace', primaryFolder: 'X:\\fixtures\\lib',
       secondaryFolders: ['X:\\fixtures\\workspace', 'X:\\fixtures\\shared'],
@@ -351,18 +365,23 @@ describe('ConversationWelcome composer', () => {
     }] })
     renderWelcome()
     const textbox = await screen.findByRole('textbox')
+    await selectResearchProfile()
     textbox.textContent = 'Use the promoted primary'
     fireEvent.input(textbox)
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
 
     await waitFor(() => expect(appServerSendRequest).toHaveBeenCalledWith('thread/start', expect.objectContaining({
       identity: expect.objectContaining({ workspacePath: 'X:\\fixtures\\workspace' }),
-      config: expect.objectContaining({ cwd: 'X:\\fixtures\\lib' }),
+      config: expect.objectContaining({ agentProfileId: 'research-profile' }),
+      cwd: 'X:\\fixtures\\lib',
       runtimeWorkspaceRoots: ['X:\\fixtures\\lib', 'X:\\fixtures\\workspace', 'X:\\fixtures\\shared']
     })))
+    const start = appServerSendRequest.mock.calls.find(([method]) => method === 'thread/start')
+    expect(start?.[1].config).not.toHaveProperty('cwd')
+    expect(start?.[1].config).not.toHaveProperty('runtimeWorkspaceRoots')
   })
 
-  it('uses the new primary for worktree inputs without resetting the project text draft', async () => {
+  it.each(['worktree', 'local fallback'])('uses the new primary and preserves the profile and draft: %s', async (mode) => {
     const anchor = 'X:\\fixtures\\workspace'
     const primary = 'X:\\fixtures\\lib'
     const project = {
@@ -370,7 +389,9 @@ describe('ConversationWelcome composer', () => {
       state: 'foreground' as const, running: true, loaded: true, threadCount: 0, threads: [], pinned: false
     }
     useWorkspaceProjectsStore.setState({ projects: [project] })
-    useConnectionStore.setState((state) => ({ capabilities: { ...state.capabilities, gitWorktrees: true } }))
+    useConnectionStore.setState((state) => ({
+      capabilities: { ...state.capabilities, gitWorktrees: true, agentProfileManagement: true }
+    }))
     gitListBranches.mockImplementation(async (path: string) => ({
       current: path === primary ? 'lib-main' : 'main',
       detachedHead: null,
@@ -381,14 +402,19 @@ describe('ConversationWelcome composer', () => {
       selectedEnvironmentId: 'setup',
       unavailable: false
     }))
+    const creation = Promise.withResolvers<never>()
     const defaultRequest = appServerSendRequest.getMockImplementation()!
-    appServerSendRequest.mockImplementation(async (method: string, ...args: unknown[]) =>
-      method === 'worktree/createAndStart'
-        ? { thread: { id: 'thread-worktree', workspacePath: anchor } }
-        : defaultRequest(method, ...args))
+    appServerSendRequest.mockImplementation(async (method: string, ...args: unknown[]) => {
+      if (method === 'worktree/createAndStart') {
+        return mode === 'local fallback' ? creation.promise : { thread: { id: 'thread-worktree', workspacePath: anchor } }
+      }
+      if (method === 'worktree/cancelCreate') creation.reject(new Error('Worktree creation was cancelled'))
+      return defaultRequest(method, ...args)
+    })
 
     renderWelcome()
     const textbox = await screen.findByRole('textbox')
+    await selectResearchProfile()
     fireEvent.click(screen.getByRole('button', { name: 'Work locally' }))
     fireEvent.click(screen.getByRole('button', { name: 'New worktree' }))
     await waitFor(() => expect(listWorktreeEnvironments).toHaveBeenCalledWith(anchor))
@@ -408,11 +434,16 @@ describe('ConversationWelcome composer', () => {
     await screen.findByRole('button', { name: 'lib-main', exact: true })
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
 
+    const projectStartParams = {
+      identity: expect.objectContaining({ workspacePath: anchor }),
+      config: expect.objectContaining({ agentProfileId: 'research-profile' }),
+      cwd: primary,
+      runtimeWorkspaceRoots: [primary, anchor]
+    }
     await waitFor(() => expect(appServerSendRequest).toHaveBeenCalledWith(
       'worktree/createAndStart',
       expect.objectContaining({
-        identity: expect.objectContaining({ workspacePath: anchor }),
-        config: expect.objectContaining({ cwd: primary }),
+        ...projectStartParams,
         baseRef: 'lib-main',
         branchName: undefined,
         environmentPath: `${primary}\\.craft\\environments\\setup.json`
@@ -420,7 +451,25 @@ describe('ConversationWelcome composer', () => {
       null,
       { attachmentOwner: 'warm' }
     ))
-    expect(getRendererTestState().pendingWelcomeTurn?.text).toBe('Keep this draft across primary changes')
+    const worktreeStart = appServerSendRequest.mock.calls.find(([method]) => method === 'worktree/createAndStart')
+    expect(worktreeStart?.[1].config).not.toHaveProperty('cwd')
+    expect(worktreeStart?.[1].config).not.toHaveProperty('runtimeWorkspaceRoots')
+
+    if (mode === 'local fallback') {
+      const state = useWorktreeCreationStore.getState()
+      const [anchorId] = Object.keys(state.creations)
+      await act(() => state.createWithoutWorktree(anchorId))
+      await waitFor(() => expect(appServerSendRequest).toHaveBeenCalledWith(
+        'thread/start', expect.objectContaining(projectStartParams), undefined, { attachmentOwner: 'warm' }
+      ))
+      const localStart = appServerSendRequest.mock.calls.find(([method]) => method === 'thread/start')
+      expect(localStart?.[1].config).not.toHaveProperty('cwd')
+      expect(localStart?.[1].config).not.toHaveProperty('runtimeWorkspaceRoots')
+    }
+    await waitFor(() => expect(getRendererTestState().pendingWelcomeTurn).toMatchObject({
+      threadId: mode === 'local fallback' ? 'thread-welcome' : 'thread-worktree',
+      text: 'Keep this draft across primary changes'
+    }))
   })
 
   it('writes an explicit approval override in thread/start', async () => {

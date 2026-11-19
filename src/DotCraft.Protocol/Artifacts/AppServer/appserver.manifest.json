@@ -29550,6 +29550,13 @@
           "const": null
         },
         {
+          "name": "cwd",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "displayName",
           "type": "string",
           "required": false,
@@ -29594,6 +29601,13 @@
         {
           "name": "path",
           "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "runtimeWorkspaceRoots",
+          "type": "array<string>",
           "required": false,
           "nullable": true,
           "const": null

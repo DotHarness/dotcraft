@@ -108,10 +108,16 @@ internal sealed class WorktreeRequestHandler(
             ? ThreadConfigurationContractMapper.FromContract(contractConfig)
             : null;
         threadBinder.ValidateRuntimeInputs(dynamicTools, additionalContext);
-        var identity = WorktreeContractMapper.ToDomain(ValueOrDefault(p.Identity))
-                       ?? throw AppServerErrors.InvalidParams("'identity' is required.");
+        var identity = NormalizeIdentityWorkspace(
+            WorktreeContractMapper.ToDomain(ValueOrDefault(p.Identity))
+            ?? throw AppServerErrors.InvalidParams("'identity' is required."));
         config = profileResolver.Resolve(config, request.Message);
         ValidateRuntimeConfiguration(config);
+        config = ThreadWorkspaceResolver.Apply(
+            identity.WorkspacePath,
+            config,
+            ValueOrDefault(p.Cwd),
+            ValueOrDefault(p.RuntimeWorkspaceRoots));
 
         var operationId = ValueOrDefault(p.OperationId);
         var notifier = new WorktreeOperationNotifier(responseWriter, operationId);
@@ -121,7 +127,7 @@ internal sealed class WorktreeRequestHandler(
             result = await sessionService.CreateWorktreeAndStartAsync(
                 new WorktreeCreateAndStartOptions
                 {
-                    Identity = NormalizeIdentityWorkspace(identity),
+                    Identity = identity,
                     Config = config,
                     HistoryMode = ParseHistoryMode(ValueOrDefault(p.HistoryMode)),
                     DisplayName = ValueOrDefault(p.DisplayName),

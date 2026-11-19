@@ -577,13 +577,16 @@ function ConversationWelcomeCore({
     const chatFolder = startsInChatFolder(identityPath, remoteWorkspace)
       ? await chatFolderThreadStart(firstMessage, welcomeThreadConfiguration)
       : null
-    const runtimeWorkspaceRoots = runtimeWorkspaceRootsFor(identityPath)
-    const config = {
-      ...(chatFolder?.config ?? welcomeThreadConfiguration),
-      ...(runtimeWorkspaceRoots ? { cwd: runtimeWorkspaceRoots[0] } : {})
+    const runtimeWorkspaceRoots = remoteWorkspace || chatFolder ? undefined : runtimeWorkspaceRootsFor(identityPath)
+    const cwd = chatFolder?.cwd ?? runtimeWorkspaceRoots?.[0]
+    const startParams = {
+      identity,
+      historyMode: 'server',
+      config: chatFolder?.config ?? welcomeThreadConfiguration,
+      ...(displayName ? { displayName } : {}),
+      ...(cwd ? { cwd } : {}),
+      ...(runtimeWorkspaceRoots ? { runtimeWorkspaceRoots } : {})
     }
-    const rootsField = runtimeWorkspaceRoots ? { runtimeWorkspaceRoots } : {}
-    const nameField = displayName ? { displayName } : {}
 
     const thread = welcomeWorkspaceMode === 'worktree' && !chatFolder
       ? await createWelcomeWorktreeThread({
@@ -591,22 +594,13 @@ function ConversationWelcomeCore({
           sourceWorkspacePath,
           local: !remoteWorkspace,
           params: {
-            identity,
-            historyMode: 'server',
+            ...startParams,
             baseRef: welcomeBaseRef || undefined,
-            branchName: welcomeWorktreeBranchName || undefined,
-            config,
-            ...nameField
+            branchName: welcomeWorktreeBranchName || undefined
           },
-          localParams: { identity, historyMode: 'server', config, ...rootsField, ...nameField }
+          localParams: startParams
         })
-      : (await target.request('thread/start', {
-          identity,
-          historyMode: 'server',
-          config,
-          ...nameField,
-          ...(chatFolder ? { cwd: chatFolder.cwd } : rootsField)
-        }, undefined, { attachmentOwner: 'warm' }) as unknown as { thread: ThreadSummary }).thread
+      : (await target.request('thread/start', startParams, undefined, { attachmentOwner: 'warm' }) as unknown as { thread: ThreadSummary }).thread
 
     if (welcomeChangelist && welcomeChangelist !== 'default') {
       try {

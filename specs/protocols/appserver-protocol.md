@@ -4,7 +4,7 @@
 |-------|-------|
 | **Version** | 0.13.1 |
 | **Status** | Living |
-| **Date** | 2026-11-18 |
+| **Date** | 2026-11-19 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
 | **Related Specs** | [Plugin Architecture](../architecture/plugin-architecture.md), [.NET Extension Runtime](../architecture/dotnet-extensions.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md) |
 
@@ -587,7 +587,9 @@ Create a worktree, then fork `sourceThreadId` into it. Also accepts `forkPoint`,
 
 #### 4.17.2 `worktree/createAndStart`
 
-Create a worktree, then start a new empty thread in it. Accepts `identity` (required), `config`, `dynamicTools`, `additionalContext`, `historyMode`, and `displayName` with `thread/start` semantics. Agent Profile resolution happens before the worktree is created; a profile failure creates neither worktree nor thread. Result: `{ thread, worktree }`. The server emits `thread/started`.
+Create a worktree, then start a new empty thread in it. Accepts `identity` (required), `config`, `dynamicTools`, `additionalContext`, `historyMode`, `displayName`, and the top-level `cwd` and `runtimeWorkspaceRoots` with `thread/start` semantics. The ordinary `cwd` selects the source repository without changing the thread's state workspace. The new worktree is the effective execution directory and replaces the ordinary `cwd` in the effective runtime roots when present, leaving other roots unchanged.
+
+Agent Profile resolution precedes workspace overrides and worktree creation. A profile failure creates neither worktree nor thread. Result: `{ thread, worktree }`. The server emits `thread/started`.
 
 #### 4.17.3 `thread/worktree/handoff`
 

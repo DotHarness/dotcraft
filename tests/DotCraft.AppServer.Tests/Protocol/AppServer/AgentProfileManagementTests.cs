@@ -159,9 +159,14 @@ public sealed class AgentProfileManagementTests : IDisposable
         }));
         await harness.Transport.ReadNextSentAsync();
 
+        var stateWorkspace = harness.Identity.WorkspacePath;
+        var primary = Directory.CreateDirectory(Path.Combine(stateWorkspace, "primary")).FullName;
+        var secondary = Directory.CreateDirectory(Path.Combine(stateWorkspace, "secondary")).FullName;
         await harness.ExecuteRequestAsync(harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
         {
-            identity = new { channelName = "appserver", userId = "test_user", workspacePath = harness.Identity.WorkspacePath },
+            identity = new { channelName = "appserver", userId = "test_user", workspacePath = stateWorkspace },
+            cwd = primary,
+            runtimeWorkspaceRoots = new[] { primary, secondary },
             config = new
             {
                 agentProfileId = "reviewer-lite",
@@ -178,8 +183,14 @@ public sealed class AgentProfileManagementTests : IDisposable
         using (var startResponse = await harness.Transport.ReadNextSentAsync())
         {
             AppServerTestHarness.AssertIsSuccessResponse(startResponse);
-            var config = startResponse.RootElement.GetProperty("result").GetProperty("thread").GetProperty("configuration");
-            threadId = startResponse.RootElement.GetProperty("result").GetProperty("thread").GetProperty("id").GetString()!;
+            var thread = startResponse.RootElement.GetProperty("result").GetProperty("thread");
+            var config = thread.GetProperty("configuration");
+            threadId = thread.GetProperty("id").GetString()!;
+            Assert.Equal(stateWorkspace, thread.GetProperty("workspacePath").GetString());
+            Assert.Equal(primary, thread.GetProperty("cwd").GetString());
+            Assert.Equal(
+                [primary, secondary],
+                thread.GetProperty("runtimeWorkspaceRoots").EnumerateArray().Select(root => root.GetString()!).ToArray());
             Assert.Equal("reviewer-lite", config.GetProperty("agentProfileId").GetString());
             Assert.Equal("workspace", config.GetProperty("agentProfileSource").GetString());
             fingerprint = config.GetProperty("agentProfileFingerprint").GetString()!;
@@ -385,6 +396,7 @@ Body.
             config = new
             {
                 agentProfileId = "reviewer-lite",
+                cwd = harness.Identity.WorkspacePath,
                 toolPolicy = new { allow = new[] { "WriteFile" } }
             }
         }));
@@ -394,6 +406,7 @@ Body.
         var data = response.RootElement.GetProperty("error").GetProperty("data");
         Assert.Equal("AgentProfileValidationFailed", data.GetProperty("code").GetString());
         Assert.Contains("toolPolicy", data.GetProperty("detail").GetString(), StringComparison.Ordinal);
+        Assert.Contains("cwd", data.GetProperty("detail").GetString(), StringComparison.Ordinal);
         Assert.Contains(
             data.GetProperty("params").GetProperty("diagnostics").EnumerateArray(),
             diagnostic => diagnostic.GetProperty("code").GetString() == "UnsupportedOverlayField");
