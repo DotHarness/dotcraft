@@ -40,15 +40,9 @@ public sealed partial class SessionImportModule : ModuleBase
         services.TryAddSingleton(_ => new SetupImportService(new SetupImportPaths(
             context.Paths.WorkspacePath, context.Paths.Data.RootPath,
             Path.GetDirectoryName(UserConfigPath(context.Config))!,
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-            new Dictionary<string, string>
-            {
-                ["claude-code"] = EnvironmentRoot("CLAUDE_CONFIG_DIR") ?? HomeRoot(".claude"),
-                ["codex"] = EnvironmentRoot("CODEX_HOME") ?? HomeRoot(".codex"),
-                ["cursor"] = HomeRoot(".cursor")
-            })));
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), CurrentUserSetupRoots())));
         services.TryAddSingleton(sp => new SessionImportService(
-            new SessionImportServiceOptions(context.Paths.WorkspacePath, context.Paths.Data.RootPath, section),
+            CreateServiceOptions(context, section),
             new SessionImportSettingsStore(UserConfigPath(context.Config), WorkspaceConfigPath(context)),
             sp.GetServices<ISessionImportSource>(),
             sp.GetService<ILogger<SessionImportService>>(), sp.GetRequiredService<SetupImportService>()));
@@ -62,6 +56,29 @@ public sealed partial class SessionImportModule : ModuleBase
         new CodexSessionSource(EnvironmentRoot("CODEX_HOME") ?? HomeRoot(".codex")),
         new CursorSessionSource(HomeRoot(".cursor"))
     ];
+
+    internal static IReadOnlyDictionary<string, string> CurrentUserSetupRoots() => new Dictionary<string, string>
+    {
+        [SessionImportSources.ClaudeCode] = EnvironmentRoot("CLAUDE_CONFIG_DIR") ?? HomeRoot(".claude"),
+        [SessionImportSources.Codex] = EnvironmentRoot("CODEX_HOME") ?? HomeRoot(".codex"),
+        [SessionImportSources.Cursor] = HomeRoot(".cursor")
+    };
+
+    private static SessionImportServiceOptions CreateServiceOptions(ModuleContext context, SessionImportConfig config)
+    {
+        var options = new SessionImportServiceOptions(context.Paths.WorkspacePath, context.Paths.Data.RootPath, config);
+        if (EnvironmentRoot("DOTCRAFT_HUB_API_BASE_URL") == null) return options;
+        var userData = Path.GetDirectoryName(UserConfigPath(context.Config))!;
+        return options with
+        {
+            LocalHost = new LocalImportHostOptions(
+                Path.Combine(userData, "hub", "projects.json"),
+                Path.Combine(userData, "workspaces", "chats"),
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                CurrentUserSetupRoots(),
+                LocalImportConfiguration.CurrentCursorWorkspaceStorage())
+        };
+    }
 
     private static string? EnvironmentRoot(string variable) =>
         Environment.GetEnvironmentVariable(variable) is { Length: > 0 } value ? value.Trim() : null;

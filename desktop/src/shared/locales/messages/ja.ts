@@ -1,6 +1,17 @@
 import type { MessageId } from './en'
 
 export const MESSAGES_JA = {
+  "settings.import.local.description": "このコンピューター上の他の AI アプリから、プロジェクト、チャット、設定を取り込みます。",
+  "settings.import.local.syncDescription": "選んだアプリの内容を最新に保ちます。新しいプロジェクトは追加されません。",
+  "settings.import.local.projectSetup": "プロジェクト設定",
+  "settings.import.local.dialogDescription": "DotCraft に取り込む項目と、その保存先を確認してください。",
+  "settings.import.local.addProject": "プロジェクトに追加 · {{path}}",
+  "settings.import.local.chatsDestination": "最近のチャットに追加",
+  "settings.import.local.disabled": "このコンピューターではインポートが無効です。",
+  "settings.import.local.openFailed": "インポートした項目を開けませんでした：{{error}}",
+  "settings.import.local.showInstructions": "指示ファイルを表示",
+  "settings.import.reason.import_project_unavailable": "元のプロジェクトフォルダーが見つからないか、特定できませんでした。",
+  "settings.import.reason.import_project_disabled": "このプロジェクトではインポートが無効です。",
   'workspace.config.loadFailed': "ワークスペースの設定を読み込めませんでした。",
   "settings.import.setup.user": "ツールと設定",
   "settings.import.setup.userHint": "すべてのプロジェクトで利用可能",

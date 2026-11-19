@@ -1,6 +1,17 @@
 import type { MessageId } from './en'
 
 export const MESSAGES_DE = {
+  "settings.import.local.description": "Übernimm Projekte, Chats und Einstellungen aus anderen KI-Apps auf diesem Computer.",
+  "settings.import.local.syncDescription": "Halte die ausgewählten Inhalte deiner Apps aktuell, ohne neue Projekte hinzuzufügen.",
+  "settings.import.local.projectSetup": "Projekteinstellungen",
+  "settings.import.local.dialogDescription": "Wähle aus, was du nach DotCraft übernehmen möchtest und wo es gespeichert wird.",
+  "settings.import.local.addProject": "Wird zu den Projekten hinzugefügt · {{path}}",
+  "settings.import.local.chatsDestination": "Wird zu den letzten Chats hinzugefügt",
+  "settings.import.local.disabled": "Der Import ist auf diesem Computer deaktiviert.",
+  "settings.import.local.openFailed": "Das importierte Element konnte nicht geöffnet werden: {{error}}",
+  "settings.import.local.showInstructions": "Anweisungsdatei anzeigen",
+  "settings.import.reason.import_project_unavailable": "Der ursprüngliche Projektordner fehlt oder konnte nicht ermittelt werden.",
+  "settings.import.reason.import_project_disabled": "Der Import ist für dieses Projekt deaktiviert.",
   'workspace.config.loadFailed': "Die Arbeitsbereichseinstellungen konnten nicht geladen werden.",
   "settings.import.setup.user": "Werkzeuge und Einrichtung",
   "settings.import.setup.userHint": "In allen Ihren Projekten verfügbar",

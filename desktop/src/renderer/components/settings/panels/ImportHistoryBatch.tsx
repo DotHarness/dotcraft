@@ -1,5 +1,5 @@
 import { useId, useState, type JSX } from 'react'
-import type { ImportCompletedNotification, ImportOutcome } from '@dotcraft/sdk/contracts'
+import type { LocalImportBatch, LocalImportOutcome } from '../../../../shared/localImport'
 import { useLocale, useT } from '../../../contexts/LocaleContext'
 import { Button } from '../../ui/Button'
 import { DisclosureChevron } from '../../ui/DisclosureChevron'
@@ -9,7 +9,7 @@ import {
   batchSources,
   batchTitle,
   groupByCategory,
-  openOutcome,
+  importDestinationLabel,
   outcomeActionKey,
   outcomeDetail,
   reasonText,
@@ -21,12 +21,14 @@ import {
 import styles from './ImportHistory.module.css'
 
 interface ImportHistoryBatchProps {
-  batch: ImportCompletedNotification
+  batch: LocalImportBatch
   expanded: boolean
   onToggle: () => void
+  onOpen: (outcome: LocalImportOutcome) => void
+  local: boolean
 }
 
-export function ImportHistoryBatch({ batch, expanded, onToggle }: ImportHistoryBatchProps): JSX.Element {
+export function ImportHistoryBatch({ batch, expanded, onToggle, onOpen, local }: ImportHistoryBatchProps): JSX.Element {
   const t = useT()
   const locale = useLocale()
   const bodyId = useId()
@@ -37,11 +39,19 @@ export function ImportHistoryBatch({ batch, expanded, onToggle }: ImportHistoryB
 
   return (
     <div className={styles.card}>
-      <button type="button" className={styles.disclosure} aria-expanded={expanded} aria-controls={bodyId} onClick={onToggle}>
+      <button
+        type="button"
+        className={styles.disclosure}
+        aria-expanded={expanded}
+        aria-controls={expanded ? bodyId : undefined}
+        aria-labelledby={`${bodyId}-title`}
+        aria-describedby={`${bodyId}-summary`}
+        onClick={onToggle}
+      >
         <ImportSourceIcon source={sources.length === 1 ? sources[0] : ''} />
         <span className={styles.text}>
-          <span className={styles.title}>{batchTitle(batch, sources, locale, t)}</span>
-          <span className={styles.meta}>{completedAt} · {tallySummary(tally(items), t)}</span>
+          <span id={`${bodyId}-title`} className={styles.title}>{batchTitle(batch, sources, locale, t)}</span>
+          <span id={`${bodyId}-summary`} className={styles.meta}>{completedAt} · {tallySummary(tally(items), t)}</span>
         </span>
         <DisclosureChevron expanded={expanded} direction="reveal" />
       </button>
@@ -66,13 +76,15 @@ export function ImportHistoryBatch({ batch, expanded, onToggle }: ImportHistoryB
                   className={styles.disclosure}
                   data-level="category"
                   aria-expanded={open}
-                  aria-controls={listId}
+                  aria-controls={open ? listId : undefined}
+                  aria-labelledby={`${listId}-title`}
+                  aria-describedby={`${listId}-summary`}
                   onClick={() => setOpenCategory(open ? null : category)}
                 >
                   <span className={styles.text}>
-                    <span className={styles.title}>{t(`settings.import.category.${category}`)}</span>
+                    <span id={`${listId}-title`} className={styles.title}>{t(`settings.import.category.${category}`)}</span>
                   </span>
-                  <span className={styles.status}>
+                  <span id={`${listId}-summary`} className={styles.status}>
                     <StatusIndicator tone={tallyTone(summary)} />
                     <span>{tallySummary(summary, t)}</span>
                   </span>
@@ -80,7 +92,9 @@ export function ImportHistoryBatch({ batch, expanded, onToggle }: ImportHistoryB
                 </button>
                 {open && (
                   <div id={listId} role="list" className={styles.list}>
-                    {outcomes.map((outcome, index) => <HistoryItem key={`${outcome.sourceId}-${index}`} outcome={outcome} />)}
+                    {outcomes.map((outcome, index) => (
+                      <HistoryItem key={`${outcome.sourceId}-${index}`} outcome={outcome} onOpen={onOpen} local={local} />
+                    ))}
                   </div>
                 )}
               </div>
@@ -92,15 +106,20 @@ export function ImportHistoryBatch({ batch, expanded, onToggle }: ImportHistoryB
   )
 }
 
-function HistoryItem({ outcome }: { outcome: ImportOutcome }): JSX.Element {
+function HistoryItem({ outcome, onOpen, local }: {
+  outcome: LocalImportOutcome
+  onOpen: (outcome: LocalImportOutcome) => void
+  local: boolean
+}): JSX.Element {
   const t = useT()
   const title = outcome.title ?? (outcome.category === 'sessions' ? t('settings.import.history.untitledChat') : outcome.sourceId)
   const detail = outcomeDetail(outcome, t)
-  const action = outcomeActionKey(outcome)
+  const action = outcomeActionKey(outcome, local)
   return (
     <div className={styles.item} role="listitem">
       <span className={styles.text}>
         <span className={styles.itemTitle}>{title}</span>
+        {local && <span className={styles.meta}>{importDestinationLabel(outcome, t)}</span>}
         {detail && (
           <span className={styles.detail}>
             {detail.tone && <StatusIndicator tone={detail.tone} />}
@@ -109,7 +128,7 @@ function HistoryItem({ outcome }: { outcome: ImportOutcome }): JSX.Element {
         )}
       </span>
       {action && (
-        <Button variant="ghost" aria-label={t('settings.import.action.named', { action: t(action), title })} onClick={() => openOutcome(outcome)}>
+        <Button variant="ghost" aria-label={t('settings.import.action.named', { action: t(action), title })} onClick={() => onOpen(outcome)}>
           {t(action)}
         </Button>
       )}

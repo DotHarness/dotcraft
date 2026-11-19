@@ -8,6 +8,7 @@ import { resolveDotCraftRuntimeTools } from '../ripgrepRuntime'
 import { forgetLocalProject, saveLocalProjectDetails } from '../settings'
 import { viewerBrowserManager } from '../viewerBrowser'
 import { invalidateForegroundFileAccess, revokeAllWindowFileAccess } from '../windowFileAccess'
+import { hasRemoteEndpointArg } from '../workspaceArgs'
 import { getForegroundWorkspaceClient } from '../workspaceConnectionRouting'
 import { listSetupModels, loginSetupProvider, runWorkspaceSetup } from '../workspaceSetup'
 import { beginWorkspaceThreadListRequest } from '../workspaceThreadCache'
@@ -104,6 +105,7 @@ export function buildCallbacks(ctx: DesktopWindowRuntime): IpcHandlerCallbacks {
       await ctx.updateSettings(partial)
     },
     getHubClient: () => ctx.app.createHubClient(ctx.settings),
+    localImportAvailable: !hasRemoteEndpointArg(ctx.argv),
     getAppServerWsConfig: () => (ctx.lastAppServerWsUrl ? { wsUrl: ctx.lastAppServerWsUrl } : null),
     getLocalProjectPaths: () => ctx.app.localProjects.list().map((project) => project.path),
     getWorkspaceProjects: ctx.getWorkspaceProjectsPayload,

@@ -4,7 +4,7 @@
 |-------|-------|
 | **Version** | 0.9.1 |
 | **Status** | Draft |
-| **Date** | 2026-10-19 |
+| **Date** | 2026-11-19 |
 | **Parent Specs** | [Session Core](../architecture/session-core.md), [Runtime Module Boundaries](../architecture/runtime-module-boundaries.md) |
 | **Related Specs** | [External CLI SubAgent](external-cli-subagent.md), [Context Compaction](../architecture/context-compaction.md), [Agent Import](agent-import.md) |
 
@@ -13,27 +13,22 @@ machine (Claude Code, ChatGPT, Cursor) into DotCraft threads, and how those impo
 
 ## 1. Scope and Ownership
 
-Session import is a per-workspace capability owned by a bundled module and projected through
-AppServer. It has four boundaries:
+The session import module converts external history into threads stored in a destination workspace.
+It has four boundaries:
 
 1. **Source adapters** read the on-disk session stores of other agents. They are read-only: an adapter
    never writes to, locks, renames, or repairs a source file.
 2. **Session Core** creates and extends threads from normalized import input (§5).
 3. **AppServer** exposes detection, import, and sync settings under `import/*` and broadcasts import
    progress notifications.
-4. **Desktop** renders the Settings › Import page and the import dialog for the current workspace.
+4. **Local discovery** classifies sessions for the host-wide operation defined by [Agent Import](agent-import.md).
 
-This document owns session conversion and persistence. The caller owns combined setup selection, protocol presentation and scheduling.
-
-### 1.1 Per-workspace model
-
-DotCraft keeps one workspace per project folder, so import is scoped to the workspace whose AppServer
-runs it: a workspace detects and imports only the source sessions whose working directory belongs to
-that workspace (§3.2). There is no cross-workspace import, no session-to-project assignment step, and
-import never creates a workspace or writes `.craft/` into another folder.
-
-An AppServer reads the source stores of the machine it runs on; in remote mode the sources are not on
-the client machine.
+AppServer reads the stores of its own machine and retains workspace membership for its import
+requests (§3.2). The local operation assigns each source session to at most one destination. An
+existing import takes precedence over a new attribution. Otherwise the most specific matching
+registered project owns the session. Resolved working directories remain intact within their project.
+Chats with no project use the ordinary chat destination. Missing or ambiguous project directories
+are not reassigned. Scheduled and manual operations use the same ownership rules.
 
 ## 2. Definitions
 

@@ -79,7 +79,8 @@ internal sealed class AppServerWorkspaceRuntimeFeature(IServiceProvider services
 
             LogStartupStage(startupTimer, "feature-workflow-recovery");
             _sessionImportSync = services.GetService<SessionImportSyncRuntime>();
-            _sessionImportSync?.Start();
+            if (!ManagedAppServerEnvironment.IsManaged)
+                _sessionImportSync?.Start();
 
             _channelRunner?.BeginChannelLoops(ct);
             _started = true;

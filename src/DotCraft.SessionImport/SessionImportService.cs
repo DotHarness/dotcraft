@@ -6,7 +6,10 @@ using Contract = DotCraft.Protocol.AppServer;
 
 namespace DotCraft.SessionImport;
 
-public sealed record SessionImportServiceOptions(string WorkspacePath, string CraftDataPath, SessionImportConfig Config);
+public sealed record SessionImportServiceOptions(string WorkspacePath, string CraftDataPath, SessionImportConfig Config)
+{
+    internal LocalImportHostOptions? LocalHost { get; init; }
+}
 
 public sealed partial class SessionImportService : ISessionServiceConsumer
 {

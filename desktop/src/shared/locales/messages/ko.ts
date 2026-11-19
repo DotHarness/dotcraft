@@ -1,6 +1,17 @@
 import type { MessageId } from './en'
 
 export const MESSAGES_KO = {
+  "settings.import.local.description": "이 컴퓨터의 다른 AI 앱에서 프로젝트, 채팅 및 설정을 가져옵니다.",
+  "settings.import.local.syncDescription": "선택한 앱의 콘텐츠를 최신 상태로 유지합니다. 새 프로젝트는 추가하지 않습니다.",
+  "settings.import.local.projectSetup": "프로젝트 설정",
+  "settings.import.local.dialogDescription": "DotCraft로 가져올 항목과 저장 위치를 확인하세요.",
+  "settings.import.local.addProject": "프로젝트에 추가됨 · {{path}}",
+  "settings.import.local.chatsDestination": "최근 채팅에 추가됨",
+  "settings.import.local.disabled": "이 컴퓨터에서 가져오기가 비활성화되어 있습니다.",
+  "settings.import.local.openFailed": "가져온 항목을 열 수 없습니다: {{error}}",
+  "settings.import.local.showInstructions": "지침 파일 표시",
+  "settings.import.reason.import_project_unavailable": "원래 프로젝트 폴더가 없거나 위치를 확인할 수 없습니다.",
+  "settings.import.reason.import_project_disabled": "이 프로젝트에서는 가져오기가 비활성화되어 있습니다.",
   'workspace.config.loadFailed': "워크스페이스 설정을 불러오지 못했습니다.",
   "settings.import.setup.user": "도구 및 설정",
   "settings.import.setup.userHint": "모든 프로젝트에서 사용 가능",

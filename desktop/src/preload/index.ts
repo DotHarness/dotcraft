@@ -67,6 +67,7 @@ import type {
   MobileStatusResult
 } from '../shared/mobile'
 import type { CodexRemoteApi, CodexRemoteEvent } from '../shared/codexRemote'
+import type { LocalImportApi } from '../shared/localImport'
 import type {
   AddFolderFailureCode,
   PairedComputer,
@@ -489,6 +490,13 @@ let satellitesSubscriptionCount = 0
 let mobileSubscriptionCount = 0
 let codexRemoteSubscriptionCount = 0
 
+const localImports: LocalImportApi = {
+  detect: () => ipcRenderer.invoke('local-import:detect'),
+  getState: () => ipcRenderer.invoke('local-import:state'),
+  run: (params) => ipcRenderer.invoke('local-import:run', params),
+  setSettings: (params) => ipcRenderer.invoke('local-import:settings', params)
+}
+
 const api = {
   desktopPet,
   themes,
@@ -516,6 +524,8 @@ const api = {
       return ipcRenderer.invoke('menu:invoke-item', commandId)
     }
   },
+
+  imports: localImports,
 
   visualization: {
     copyImage(rect: VisualizationCaptureRect): Promise<VisualizationCaptureResult> {

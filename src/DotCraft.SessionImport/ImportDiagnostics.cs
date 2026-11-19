@@ -6,6 +6,8 @@ internal static class ImportDiagnostics
     {
         "import_source_changed" => "The source changed after detection. Check available imports again.",
         "import_source_invalid" => "The source could not be read as a supported import item.",
+        "import_project_unavailable" => "The original project folder is missing or could not be identified.",
+        "import_project_disabled" => "Import is disabled for this project.",
         "import_hooks_need_trust" => "Review and trust the imported hooks before they can run.",
         "import_environment_missing" => "One or more required environment variables are missing on this host.",
         "import_plugin_review" => "Review the plugin's hooks and unsupported contributions.",

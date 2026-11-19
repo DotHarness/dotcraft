@@ -1,8 +1,10 @@
 import type { ImportCompletedNotification, ImportOutcome } from '@dotcraft/sdk/contracts'
+import type { LocalImportOutcome } from '../../../../shared/localImport'
 import { usePluginStore } from '../../../stores/pluginStore'
 import { useSkillsStore } from '../../../stores/skillsStore'
 import { useThreadStore } from '../../../stores/threadStore'
 import { useUIStore } from '../../../stores/uiStore'
+import { showToast } from '../../../stores/toastStore'
 import { importSourceLabel } from '../../../utils/sessionImport'
 import type { StatusTone } from '../../ui/StatusIndicator'
 import { SETUP_CATEGORIES } from './importPresentation'
@@ -33,7 +35,9 @@ const REASON_CODES = new Set([
   'import_pass_failed',
   'import_failed',
   'import_thread_exists',
-  'import_append_refused'
+  'import_append_refused',
+  'import_project_unavailable',
+  'import_project_disabled'
 ])
 const ACTIONS: Record<string, string> = {
   skills: 'settings.import.action.openSkills',
@@ -57,7 +61,28 @@ export function tally(outcomes: ImportOutcome[]): OutcomeTally {
   }
 }
 
-export function splitBatch(batch: ImportCompletedNotification): { items: ImportOutcome[]; passErrors: ImportOutcome[] } {
+export function announceImportCompletion(result: ImportCompletedNotification, t: Translate): void {
+  const tally = (status: string): number => result.outcomes.filter((outcome) => outcome.status === status).length
+  const imported = tally('imported') + tally('attention')
+  const updated = tally('appended')
+  const failed = tally('failed') + tally('unsupported')
+  const parts = [
+    imported > 0 ? t('settings.import.toast.imported', { count: imported }) : null,
+    updated > 0 ? t('settings.import.toast.updated', { count: updated }) : null,
+    failed > 0 ? t('settings.import.toast.failed', { count: failed }) : null
+  ].filter((part): part is string => part !== null)
+  if (parts.length === 0) {
+    if (result.trigger === 'manual') showToast({ message: t('settings.import.toast.nothing') })
+    return
+  }
+  showToast({
+    type: failed > 0 ? 'warning' : 'success',
+    message: t(failed > 0 ? 'settings.import.toast.partial' : 'settings.import.toast.done'),
+    description: parts.join(' · ')
+  })
+}
+
+export function splitBatch<T extends ImportOutcome>(batch: { outcomes: T[] }): { items: T[]; passErrors: T[] } {
   return {
     items: batch.outcomes.filter(o => !PASS_ENTRIES.has(o.sourceId)),
     passErrors: batch.outcomes.filter(o => PASS_ENTRIES.has(o.sourceId))
@@ -91,7 +116,7 @@ export function tallyTone({ imported, failed, review }: OutcomeTally): StatusTon
   return imported > 0 ? 'success' : 'neutral'
 }
 
-export function groupByCategory(items: ImportOutcome[]): { category: string; outcomes: ImportOutcome[] }[] {
+export function groupByCategory<T extends ImportOutcome>(items: T[]): { category: string; outcomes: T[] }[] {
   return CATEGORY_ORDER
     .map(category => ({ category, outcomes: items.filter(o => o.category === category) }))
     .filter(group => group.outcomes.length > 0)
@@ -102,7 +127,7 @@ export function latestBatchIds(batches: ImportCompletedNotification[]): Set<stri
   return new Set(batches.filter(b => newest - Date.parse(b.completedAt) <= LATEST_WINDOW_MS).map(b => b.importId))
 }
 
-export function reasonText(outcome: ImportOutcome, t: Translate): string | null {
+export function reasonText(outcome: Pick<ImportOutcome, 'errorCode' | 'error'>, t: Translate): string | null {
   const code = outcome.errorCode
   if (!code) return null
   if (REASON_CODES.has(code)) return t(`settings.import.reason.${code}`)
@@ -118,9 +143,14 @@ export function outcomeDetail(outcome: ImportOutcome, t: Translate): { tone: Sta
   return text ? { tone, text } : null
 }
 
-export function outcomeActionKey(outcome: ImportOutcome): string | null {
+export function importDestinationLabel(outcome: LocalImportOutcome, t: Translate): string {
+  return outcome.projectName || t(outcome.category === 'sessions' ? 'settings.import.category.sessions' : 'settings.import.setup.user')
+}
+
+export function outcomeActionKey(outcome: ImportOutcome, local: boolean): string | null {
   if (!OPENABLE.has(outcome.status)) return null
   if (outcome.category === 'sessions') return outcome.threadId ? 'settings.import.action.openChat' : null
+  if (local && outcome.category === 'instructions') return outcome.targetPath ? 'settings.import.local.showInstructions' : null
   return ACTIONS[outcome.category] ?? null
 }
 

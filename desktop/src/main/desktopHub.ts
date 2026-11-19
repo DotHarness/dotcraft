@@ -21,6 +21,7 @@ import { resolveBinaryLocation } from './AppServerManager'
 import type { AppSettings, BinarySource } from './settings'
 import type { DesktopLifecycle } from './desktopLifecycle'
 import { DesktopHubError } from './desktopHubErrors'
+import { createLocalImportApi } from './localImportIpc'
 export { DesktopHubError, desktopHubConnectionFailure, formatDesktopHubError } from './desktopHubErrors'
 
 export type { HubAppServerResponse, HubCreateSatelliteInviteOptions, HubEvent, HubManagedServiceResponse, HubProject, HubRuntimeToolsRequest, HubSatellite, HubSatelliteInvite, HubStatusResponse } from '@dotcraft/sdk/hub'
@@ -38,6 +39,8 @@ export interface SatelliteBridgeTarget {
 }
 
 export class DesktopHubClient {
+  readonly imports = createLocalImportApi(signal => this.run(() => this.inner.ensureHub(signal)))
+
   constructor(
     private readonly inner: HubClient,
     private readonly configurationError?: DesktopHubError

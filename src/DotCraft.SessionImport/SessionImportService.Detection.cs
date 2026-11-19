@@ -11,6 +11,8 @@ public sealed partial class SessionImportService
         SessionImportLedgerDocument Ledger,
         SessionImportScope Scope)
     {
+        public (LocalImportRouting Routing, Lazy<Task<LocalImportHostScan>> Scan)? Host { get; set; }
+
         public List<SessionImportLedgerRecord> RecomputedHashes { get; } = [];
 
         public List<SessionImportLedgerRecord> RefreshedModifiedTimes { get; } = [];
@@ -34,7 +36,22 @@ public sealed partial class SessionImportService
             MaxSessions = _options.Config.MaxSessionsPerSource,
             ExternalCliSessionIds = workspace.ExternalCliSessionIds
         };
-        return new DetectionContext(workspace, ledger, scope);
+        var context = new DetectionContext(workspace, ledger, scope);
+        if (_options.LocalHost is { } local)
+        {
+            var projects = LocalImportConfiguration.ReadRegisteredProjects(local.ProjectsPath);
+            var routing = new LocalImportRouting(projects, local.ChatPath, local.HomePath, _settingsStore.UserDataPath,
+                _options.WorkspacePath, _options.CraftDataPath, ledger);
+            if (routing.IsKnownWorkspace(_options.WorkspacePath))
+            {
+                var scan = new Lazy<Task<LocalImportHostScan>>(() => LocalImportHostScan.DiscoverAsync(
+                    _sources, routing, _options.WorkspacePath, LocalImportConfiguration.ReadLimits(_settingsStore.UserDataPath),
+                    LocalImportConfiguration.ReadSourceProjectPaths(local.SourceRoots, local.CursorWorkspaceStorage),
+                    workspace.ExternalCliSessionIds, ct));
+                context.Host = (routing, scan);
+            }
+        }
+        return context;
     }
 
     private async Task<IReadOnlyList<DetectedSession>> DetectSourceAsync(
@@ -46,7 +63,8 @@ public sealed partial class SessionImportService
         IReadOnlyList<SessionImportCandidateFile> files;
         try
         {
-            files = await source.EnumerateCandidatesAsync(context.Scope, ct).ConfigureAwait(false);
+            files = context.Host is { } host ? (await host.Scan.Value.ConfigureAwait(false)).Files[source.SourceId]
+                : await source.EnumerateCandidatesAsync(context.Scope, ct).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -55,8 +73,15 @@ public sealed partial class SessionImportService
         }
 
         var detected = new List<DetectedSession>();
-        foreach (var file in files)
+        foreach (var candidateFile in files.DistinctBy(file => file.SourceId, StringComparer.OrdinalIgnoreCase))
         {
+            var file = candidateFile;
+            if (context.Host is { Routing: var routing })
+            {
+                var route = await routing.ResolveSessionAsync(source.SourceId, file, ct).ConfigureAwait(false);
+                if (!WorkspacePathMatcher.Comparer.Equals(route.ProjectPath, _options.WorkspacePath)) continue;
+                file = file with { Cwd = route.Cwd };
+            }
             var record = context.Ledger.Find(source.SourceId, file.SourceId);
             if (record is { ContentSha256: not null, SourceModifiedAt: { } modifiedAt }
                 && SessionImportLedger.SameInstant(modifiedAt, file.ModifiedAt))

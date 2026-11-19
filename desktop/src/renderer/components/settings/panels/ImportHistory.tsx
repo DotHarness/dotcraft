@@ -1,21 +1,18 @@
 import { useEffect, useMemo, useState, type JSX } from 'react'
-import type { ImportCompletedNotification, ImportOutcome } from '@dotcraft/sdk/contracts'
+import type { LocalImportBatch, LocalImportOutcome } from '../../../../shared/localImport'
 import { useT } from '../../../contexts/LocaleContext'
 import { Button } from '../../ui/Button'
 import { SettingsGroup, SettingsRow } from '../SettingsGroup'
 import { ImportAttention } from './ImportAttention'
 import { ImportHistoryBatch } from './ImportHistoryBatch'
-import { latestBatchIds } from './importOutcomes'
+import { latestBatchIds, openOutcome } from './importOutcomes'
 import styles from './ImportHistory.module.css'
 
 export function ImportHistory({ revision }: { revision: number }): JSX.Element {
-  const t = useT()
-  const [batches, setBatches] = useState<ImportCompletedNotification[] | null>(null)
-  const [attention, setAttention] = useState<ImportOutcome[]>([])
+  const [batches, setBatches] = useState<LocalImportBatch[] | null>(null)
+  const [attention, setAttention] = useState<LocalImportOutcome[]>([])
   const [failed, setFailed] = useState(false)
   const [reload, setReload] = useState(0)
-  const [showAll, setShowAll] = useState(false)
-  const [toggled, setToggled] = useState<ReadonlyMap<string, boolean>>(new Map())
 
   useEffect(() => {
     let disposed = false
@@ -30,18 +27,32 @@ export function ImportHistory({ revision }: { revision: number }): JSX.Element {
     return () => { disposed = true }
   }, [revision, reload])
 
+  return <ImportHistoryContent batches={batches} attention={attention} failed={failed} onRetry={() => setReload(value => value + 1)} />
+}
+
+export function ImportHistoryContent({ batches, attention, failed, onRetry, onOpen = openOutcome, local = false }: {
+  batches: LocalImportBatch[] | null
+  attention: LocalImportOutcome[]
+  failed: boolean
+  onRetry: () => void
+  onOpen?: (outcome: LocalImportOutcome) => void
+  local?: boolean
+}): JSX.Element {
+  const t = useT()
+  const [showAll, setShowAll] = useState(false)
+  const [toggled, setToggled] = useState<ReadonlyMap<string, boolean>>(new Map())
   const latest = useMemo(() => latestBatchIds(batches ?? []), [batches])
   const visible = (batches ?? []).filter(batch => showAll || latest.has(batch.importId))
   const isExpanded = (importId: string): boolean => toggled.get(importId) ?? latest.has(importId)
 
   return (
     <>
-      <ImportAttention outcomes={attention} />
+      <ImportAttention outcomes={attention} onOpen={onOpen} local={local} />
       {failed && batches == null ? (
         <SettingsGroup title={t('settings.import.setup.history')}>
           <SettingsRow
             label={<span className={styles.error}>{t('settings.import.history.loadFailed')}</span>}
-            control={<Button onClick={() => setReload(value => value + 1)}>{t('common.retry')}</Button>}
+            control={<Button onClick={onRetry}>{t('common.retry')}</Button>}
           />
         </SettingsGroup>
       ) : batches != null && batches.length > 0 && (
@@ -51,6 +62,8 @@ export function ImportHistory({ revision }: { revision: number }): JSX.Element {
               <ImportHistoryBatch
                 key={batch.importId}
                 batch={batch}
+                onOpen={onOpen}
+                local={local}
                 expanded={isExpanded(batch.importId)}
                 onToggle={() => setToggled(previous => new Map(previous).set(batch.importId, !isExpanded(batch.importId)))}
               />

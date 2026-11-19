@@ -25,7 +25,7 @@ import {
   SIDEBAR_NAV_ROW_OUTER
 } from '../sidebar/sidebarNavRowStyles'
 
-export function SettingsSidebar(): JSX.Element {
+export function SettingsSidebar({ localImport = false }: { localImport?: boolean }): JSX.Element {
   const t = useT()
   const locale = useLocale()
   const capabilities = useConnectionStore((s) => s.capabilities)
@@ -42,7 +42,7 @@ export function SettingsSidebar(): JSX.Element {
     sourceControlEnabled: capabilities?.sourceControlManagement === true,
     mcpEnabled: capabilities?.mcpManagement === true,
     hooksEnabled: capabilities?.hooksManagement === true,
-    sessionImportEnabled: isSessionImportAvailable(capabilities),
+    sessionImportEnabled: localImport || isSessionImportAvailable(capabilities),
     personalizationEnabled: isPersonalizationAvailable(capabilities)
   })
   const pluginTabs = useDesktopPluginRegistry((state) => state.settingsPages).map((entry) => ({

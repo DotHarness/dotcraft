@@ -33,7 +33,30 @@ internal static class WorkspacePathMatcher
         }
     }
 
-    private static bool IsWithin(string path, string root)
+    public static StringComparer Comparer => OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+
+    public static string? ResolveExistingDirectory(string? path)
+    {
+        var normalized = Normalize(path);
+        if (normalized is null || !Directory.Exists(normalized)) return null;
+        try
+        {
+            var root = Path.GetPathRoot(normalized)!;
+            var current = root;
+            foreach (var segment in normalized[root.Length..].Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries))
+            {
+                var directory = new DirectoryInfo(Path.Combine(current, segment));
+                current = directory.ResolveLinkTarget(returnFinalTarget: true)?.FullName ?? directory.FullName;
+            }
+            return Normalize(current);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            return null;
+        }
+    }
+
+    public static bool IsWithin(string path, string root)
     {
         if (string.Equals(path, root, PathComparison))
             return true;
@@ -85,6 +108,45 @@ internal static class WorkspacePathMatcher
             return null;
         var tokens = directoryName[(slug.Length + 1)..].Split('-', StringSplitOptions.RemoveEmptyEntries);
         return tokens.Length == 0 ? null : ReconstructSubfolder(workspaceRoot, tokens);
+    }
+
+    public static string? ResolveHostCursorProjectCwd(string directoryName, IReadOnlyList<string> roots)
+    {
+        var matches = new HashSet<string>(Comparer);
+        foreach (var root in roots)
+        {
+            var slug = CursorSlug(root);
+            if (slug.Length == 0) continue;
+            if (string.Equals(directoryName, slug, PathComparison))
+            {
+                Add(root);
+                continue;
+            }
+            if (!directoryName.StartsWith(slug + "-", PathComparison)) continue;
+            var tokens = directoryName[(slug.Length + 1)..].Split('-', StringSplitOptions.RemoveEmptyEntries);
+            var probes = 0;
+            if (tokens.Length > 0)
+                Search(root, tokens[0], 1);
+            if (probes > MaxCursorFolderProbes || matches.Count > 1) return null;
+
+            void Search(string parent, string segment, int next)
+            {
+                if (probes++ >= MaxCursorFolderProbes || matches.Count > 1) return;
+                var candidate = Path.Combine(parent, segment);
+                if (Directory.Exists(candidate))
+                {
+                    if (next == tokens.Length) Add(candidate);
+                    else Search(candidate, tokens[next], next + 1);
+                }
+                if (next < tokens.Length) Search(parent, $"{segment}-{tokens[next]}", next + 1);
+            }
+        }
+        return matches.Count == 1 ? matches.Single() : null;
+
+        void Add(string path)
+        {
+            if (ResolveExistingDirectory(path) is { } existing) matches.Add(existing);
+        }
     }
 
     private static string? ReconstructSubfolder(string root, string[] tokens)

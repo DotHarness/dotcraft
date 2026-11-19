@@ -20,14 +20,16 @@ public sealed class SessionImportSyncRuntime(SessionImportService service)
 
     public async Task StopAsync()
     {
-        if (_lifetime is not { } lifetime)
-            return;
-        service.SyncActivated -= OnSyncActivated;
-        _lifetime = null;
-        await lifetime.CancelAsync().ConfigureAwait(false);
-        await _loop.ConfigureAwait(false);
+        using var lifetime = _lifetime;
+        if (lifetime != null)
+        {
+            service.SyncActivated -= OnSyncActivated;
+            _lifetime = null;
+            await lifetime.CancelAsync().ConfigureAwait(false);
+            await _loop.ConfigureAwait(false);
+        }
+
         await service.StopPassesAsync().ConfigureAwait(false);
-        lifetime.Dispose();
     }
 
     private async Task LoopAsync(CancellationToken ct)

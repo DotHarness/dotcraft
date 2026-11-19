@@ -21,7 +21,10 @@ public sealed record ImportedSession
     public required string ContentSha256 { get; init; }
 }
 
-public sealed record SessionImportCandidateFile(string SourceId, string Path, DateTimeOffset ModifiedAt, string Cwd);
+public sealed record SessionImportCandidateFile(string SourceId, string Path, DateTimeOffset ModifiedAt, string Cwd)
+{
+    internal bool ProjectUnresolved { get; init; }
+}
 
 public sealed record SessionImportScope
 {
@@ -34,6 +37,8 @@ public sealed record SessionImportScope
     public required int MaxSessions { get; init; }
 
     public required IReadOnlySet<string> ExternalCliSessionIds { get; init; }
+
+    internal IReadOnlyList<string>? HostProjects { get; init; }
 
     /// <summary>Also reads sessions a source keeps apart as archived. Import never sets it.</summary>
     public bool IncludeArchived { get; init; }

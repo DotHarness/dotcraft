@@ -17,10 +17,10 @@ interface ImportOptionRowProps {
   expandLabel?: string
   controlsId?: string
   onToggleExpanded?: () => void
-  checked: boolean
+  checked?: boolean
   indeterminate?: boolean
   disabled?: boolean
-  onChange: (checked: boolean) => void
+  onChange?: (checked: boolean) => void
 }
 
 export function ImportOptionRow({
@@ -34,19 +34,20 @@ export function ImportOptionRow({
   expandLabel,
   controlsId,
   onToggleExpanded,
-  checked,
+  checked = false,
   indeterminate = false,
   disabled = false,
   onChange
 }: ImportOptionRowProps): JSX.Element {
   const checkboxId = useId()
+  const Text = onChange ? 'label' : 'span'
   return (
     <div className={styles.option} data-nested={nested || undefined}>
       <span className={nested ? styles.optionTile : styles.optionIcon} aria-hidden="true">{icon}</span>
-      <label htmlFor={checkboxId} className={styles.optionText} data-disabled={disabled || undefined}>
+      <Text htmlFor={onChange ? checkboxId : undefined} className={styles.optionText} data-disabled={disabled || undefined}>
         <span className={styles.optionTitle}>{title}</span>
         {description && <span className={styles.optionHint}>{description}</span>}
-      </label>
+      </Text>
       <span className={styles.optionActions}>
         {info && (
           <ActionTooltip label={info} multiline>
@@ -66,14 +67,16 @@ export function ImportOptionRow({
             onClick={onToggleExpanded}
           />
         )}
-        <Checkbox
-          id={checkboxId}
-          checked={checked}
-          indeterminate={indeterminate}
-          disabled={disabled}
-          ariaLabel={title}
-          onChange={onChange}
-        />
+        {onChange && (
+          <Checkbox
+            id={checkboxId}
+            checked={checked}
+            indeterminate={indeterminate}
+            disabled={disabled}
+            ariaLabel={title}
+            onChange={onChange}
+          />
+        )}
       </span>
     </div>
   )

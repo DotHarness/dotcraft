@@ -455,6 +455,13 @@ export function App(): JSX.Element {
   } | null>(null)
   const [whatsNewMediaStates, setWhatsNewMediaStates] = useState<Record<string, WhatsNewMediaState>>({})
   const activeMainView = useUIStore((s) => s.activeMainView)
+  const activeSettingsTab = useUIStore((s) => s.activeSettingsTab)
+  const localImport = foregroundChat != null
+  const showingLocalImport = localImport && activeMainView === 'settings' && activeSettingsTab === 'import'
+  const [settingsViewKey, setSettingsViewKey] = useState(foregroundThreadListKey)
+  if (settingsViewKey !== foregroundThreadListKey && !showingLocalImport) {
+    setSettingsViewKey(foregroundThreadListKey)
+  }
   const quickOpenVisible = useUIStore((s) => s.quickOpenVisible)
   const activeThreadEffectiveWorkspacePath = useThreadStore((s) => s.activeThread?.effectiveWorkspacePath ?? null)
   const desktopPluginMainViews = useDesktopPluginRegistry((state) => state.mainViews)
@@ -1658,7 +1665,7 @@ export function App(): JSX.Element {
         <ThreePanel
           sidebar={
             activeMainView === 'settings'
-              ? <SettingsSidebar />
+              ? <SettingsSidebar localImport={localImport} />
               : (
                   <Sidebar
                     workspaceName={displayWorkspaceName}
@@ -1677,7 +1684,8 @@ export function App(): JSX.Element {
                   return (
                     <CoreMainViewBoundary fallback={<SettingsViewSkeleton />}>
                       <CoreSettingsView
-                        key={activeProjectKey || protocolWorkspacePath || workspacePath}
+                        key={settingsViewKey}
+                        localImport={localImport}
                         workspacePath={workspacePath}
                         identityWorkspacePath={protocolWorkspacePath || workspacePath}
                         onThreadListRefreshRequested={() => {
