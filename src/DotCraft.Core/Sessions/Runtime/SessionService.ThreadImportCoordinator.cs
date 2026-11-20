@@ -111,6 +111,7 @@ public sealed partial class SessionService
                 if (existing != null)
                     return (existing, false);
 
+                await owner.RefreshRuntimeResourcesAsync(ct).ConfigureAwait(false);
                 var thread = CreateThread(request);
                 owner._runtimeRegistry.ClearPendingPermanentDeletion(threadId);
                 await owner.PersistThreadWithMaterializationAsync(thread, ct);

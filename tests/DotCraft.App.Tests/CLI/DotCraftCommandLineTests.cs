@@ -70,4 +70,27 @@ public sealed class DotCraftCommandLineTests
         Assert.Equal(2, exitCode);
         Assert.NotEqual(string.Empty, error.ToString());
     }
+
+    [Fact]
+    public void AuthRouting_UsesStandaloneFromUserHome_AndKeepsWorkspaceGuardForExplicitWorkspace()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"dotcraft-auth-route-{Guid.NewGuid():N}");
+        var userCraftHome = Path.Combine(root, "home", ".craft");
+        var workspaceCraft = Path.Combine(root, "project", ".craft");
+        Directory.CreateDirectory(userCraftHome);
+        Directory.CreateDirectory(workspaceCraft);
+        try
+        {
+            var implicitAuth = new CommandLineArgs { Mode = CommandLineArgs.RunMode.Auth, AuthAction = "status", SetupProviderId = "openai" };
+            var explicitHomeAuth = implicitAuth with { AuthWorkspacePath = Path.Combine(root, "home") };
+
+            Assert.True(DotCraftApplication.ShouldRunStandaloneAuth(implicitAuth, userCraftHome, userCraftHome));
+            Assert.False(DotCraftApplication.ShouldRunStandaloneAuth(implicitAuth, workspaceCraft, userCraftHome));
+            Assert.False(DotCraftApplication.ShouldRunStandaloneAuth(explicitHomeAuth, userCraftHome, userCraftHome));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
 }

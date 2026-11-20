@@ -25,10 +25,15 @@ public static class DotCraftPathResolver
         return DotCraftPaths.Create(workspacePath, dataPath, userDataPath);
     }
 
-    private static void EnsureDistinctFromUserData(string dataPath, string userDataPath)
+    public static bool IsSameDirectory(string left, string right)
     {
         var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-        if (string.Equals(ResolveFinalDirectoryLink(dataPath), ResolveFinalDirectoryLink(userDataPath), comparison))
+        return string.Equals(ResolveFinalDirectoryLink(left), ResolveFinalDirectoryLink(right), comparison);
+    }
+
+    private static void EnsureDistinctFromUserData(string dataPath, string userDataPath)
+    {
+        if (IsSameDirectory(dataPath, userDataPath))
         {
             throw new ArgumentException(
                 "Workspace DataPath must not be the same as UserDataPath.",

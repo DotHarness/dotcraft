@@ -170,6 +170,27 @@ public sealed class SessionServiceMemorySwitchTests : IDisposable
         Assert.False(thread.Configuration?.MemoryPersonal);
     }
 
+    [Fact]
+    public async Task ImportThread_RefreshesRuntimeResourcesBeforeCapturingMemoryPersonal()
+    {
+        _config.Memory.Personal = true;
+        await using var factory = CreateAgentFactory();
+        var refresher = new DelegateRuntimeRefresher(() => _config.Memory.Personal = false);
+        var service = CreateService(factory, [refresher]);
+        var now = DateTimeOffset.UtcNow;
+
+        var result = await service.ImportThreadAsync(new ThreadImportRequest
+        {
+            Identity = MakeIdentity() with { ChannelName = ThreadImportConstants.ChannelName },
+            ThreadId = "imported-thread-1",
+            DisplayName = "Imported",
+            Turns = [new ImportedTurnInput { UserText = "hi", AgentTexts = ["hello"], StartedAt = now, CompletedAt = now }]
+        });
+
+        Assert.False(result.AlreadyExisted);
+        Assert.False(result.Thread.Configuration?.MemoryPersonal);
+    }
+
     public void Dispose()
     {
         try { Directory.Delete(_root, recursive: true); } catch { }
