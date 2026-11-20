@@ -1168,6 +1168,8 @@ Plan tools keep the same schema across Agent/Plan switches to preserve prompt-ca
 
 `CreatePlan` saves the proposed plan with its tasks as `pending`. `TodoWrite` takes the complete task list, each item a description, an optional present-tense `activeForm` shown while the item is in progress, and a status of `pending`, `in_progress`, or `completed`, and replaces the stored list while keeping the plan's title and body. Task ids are assigned by position (`todo-1`, `todo-2`, …); the model never supplies them.
 
+When a Turn completes successfully, the runtime may check off tasks only in the list that Turn saved with `TodoWrite`. If its latest successful `desktop_conversation.WrapUp` declares `blocked: true`, the runtime leaves the checklist as saved. Otherwise, if that call finished after the last successful `TodoWrite` finished, the runtime checks off all remaining `pending` and `in_progress` tasks. Without that explicit checkoff, it checks off only a final `in_progress` task whose preceding tasks are all `completed`. A rejected write reports a tool failure and does not qualify the Turn to check off a list. Failed and cancelled Turns retain the task statuses they last saved. The runtime saves and publishes any checkoff before the Turn's completion event and before the next Turn can write its own list.
+
 Every host that exposes mode switching must provide per-thread plan persistence, and hook execution where lifecycle hooks are expected, so mode switching behaves identically across hosts; without plan persistence the plan tools are omitted, which is a host configuration error. A host may observe plan changes (each carrying `threadId` and the complete plan) to drive its own UX.
 
 ### 12.4 MCP Lifecycle

@@ -182,9 +182,9 @@ public sealed class PlanToolsTests
                 [("todo-1", "Add metrics", PlanTodoStatus.Completed, (string?)null),
                     ("todo-2", "Expose cache hit rate", PlanTodoStatus.InProgress, "Exposing cache hit rate")],
                 plan.Todos.Select(static todo => (todo.Id, todo.Content, todo.Status, todo.ActiveForm)));
-            Assert.Equal(
-                "Error: todos[0].content is required.",
-                await tools.TodoWrite([new TodoWriteInput { Content = " ", Status = PlanTodoInputStatus.Pending }]));
+            var rejected = await tools.TodoWrite([new TodoWriteInput { Content = " ", Status = PlanTodoInputStatus.Pending }]);
+            Assert.False(rejected.Success);
+            Assert.Equal(ToolErrorCodes.InputInvalid, rejected.Error?.Code);
         }
         finally
         {

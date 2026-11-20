@@ -356,7 +356,7 @@ public sealed partial class SessionService
                 DrainCollaborationMailboxAsync(inbox, thread, turn, eventChannel, NextItemSeq,
                     FinalizeStreamingAgentMessage, FinalizeStreamingReasoning, turnModelHistory!, ct);
 
-            async Task RestoreUndrainedGuidanceAsync(Action? terminalTransition = null)
+            async Task RestoreUndrainedGuidanceAsync(Action terminalTransition, Func<Task>? finalize = null)
             {
                 turnModelHistory?.AbortPending();
                 if (turnModelHistory is { RequiresReconciliation: true } && !thread.Ephemeral)
@@ -374,7 +374,7 @@ public sealed partial class SessionService
                 }
                 if (!_runtimeRegistry.IsCurrent(threadId, admittedRuntime))
                 {
-                    terminalTransition?.Invoke();
+                    await FinishTransitionAsync();
                     return;
                 }
 
@@ -382,9 +382,15 @@ public sealed partial class SessionService
                     async commandCt =>
                     {
                         await RestoreUndrainedGuidanceCoreAsync(commandCt);
-                        terminalTransition?.Invoke();
+                        await FinishTransitionAsync();
                     },
                     CancellationToken.None);
+
+                Task FinishTransitionAsync()
+                {
+                    terminalTransition();
+                    return finalize?.Invoke() ?? Task.CompletedTask;
+                }
             }
 
             async Task RestoreUndrainedGuidanceCoreAsync(CancellationToken _)
@@ -1885,16 +1891,21 @@ public sealed partial class SessionService
                 gateLock.Dispose();
                 gateLock = null;
 
-                // Serialize completion with guidance restoration so steer cannot bind input past the Turn's final boundary.
-                await RestoreUndrainedGuidanceAsync(() =>
-                {
-                    turn.Status = TurnStatus.Completed;
-                    turn.CompletedAt = DateTimeOffset.UtcNow;
-                    thread.LastActiveAt = DateTimeOffset.UtcNow;
-                });
-                RecordTurnTokenUsage(thread, turn, turnCost);
-                RecordTurnDurationTrace(threadId, turn);
-                await PersistCurrentTurnCommitAsync();
+                // The terminal command orders guidance restoration and checklist persistence before the next Turn's admission.
+                await RestoreUndrainedGuidanceAsync(
+                    () =>
+                    {
+                        turn.Status = TurnStatus.Completed;
+                        turn.CompletedAt = DateTimeOffset.UtcNow;
+                        thread.LastActiveAt = DateTimeOffset.UtcNow;
+                    },
+                    async () =>
+                    {
+                        RecordTurnTokenUsage(thread, turn, turnCost);
+                        RecordTurnDurationTrace(threadId, turn);
+                        await PersistCurrentTurnCommitAsync();
+                        await CheckOffTurnTodosAsync(threadId, turn);
+                    });
                 FlushTurnDiff(turnRuntime, eventChannel);
                 await RecordTurnResultReadStateAsync(thread, turn);
                 eventChannel.EmitTurnCompleted(turn);

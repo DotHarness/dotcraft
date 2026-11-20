@@ -188,6 +188,32 @@ public sealed class AgentFactory : IAsyncDisposable
     /// </summary>
     public PlanStore? PlanStore => _planStore;
 
+    internal async Task CheckOffTodosAsync(string threadId, bool completeAll)
+    {
+        if (_planStore is null || await _planStore.LoadStructuredPlanAsync(threadId) is not { } plan)
+            return;
+
+        if (completeAll)
+        {
+            var open = plan.Todos.Where(static todo => todo.Status is PlanTodoStatus.Pending or PlanTodoStatus.InProgress).ToList();
+            if (open.Count == 0)
+                return;
+            foreach (var todo in open)
+                todo.Status = PlanTodoStatus.Completed;
+        }
+        else
+        {
+            if (plan.Todos.LastOrDefault() is not { Status: PlanTodoStatus.InProgress } last
+                || !plan.Todos.SkipLast(1).All(static todo => todo.Status == PlanTodoStatus.Completed))
+                return;
+            last.Status = PlanTodoStatus.Completed;
+        }
+
+        plan.UpdatedAt = DateTimeOffset.UtcNow;
+        await _planStore.SaveStructuredPlanAsync(threadId, plan);
+        _onPlanUpdated?.Invoke(threadId, plan);
+    }
+
     /// <summary>
     /// Gets the process-shared Remote Tool Host client that owns every thread route.
     /// </summary>
