@@ -45,6 +45,7 @@ export const messages: Record<MessageKey, string> = {
   'editor.save': 'Speichern',
   'editor.cancel': 'Abbrechen',
   'editor.delete': 'Löschen',
+  'editor.moreActions': 'Weitere Aktionen',
   'editor.saved': 'Erinnerung gespeichert',
   'editor.saveFailed': 'Die Erinnerung konnte nicht gespeichert werden',
   'editor.deleteFailed': 'Die Erinnerung konnte nicht gelöscht werden',

@@ -43,6 +43,7 @@ export const messages = {
   'editor.save': 'Save',
   'editor.cancel': 'Cancel',
   'editor.delete': 'Delete',
+  'editor.moreActions': 'More actions',
   'editor.saved': 'Memory saved',
   'editor.saveFailed': 'Couldn’t save the memory',
   'editor.deleteFailed': 'Couldn’t delete the memory',

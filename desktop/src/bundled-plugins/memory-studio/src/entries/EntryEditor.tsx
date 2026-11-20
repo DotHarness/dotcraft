@@ -1,6 +1,6 @@
-import { Button, CatalogPage, IconButton, Markdown, Menu, Textarea, type CatalogPageBreadcrumb } from '@dotcraft/plugin'
-import { ChevronDown, Code2, Database, Eye, Tag } from 'lucide-react'
-import { useEffect, useMemo, useState, type JSX } from 'react'
+import { Button, CatalogPage, CatalogToolbarButton, IconButton, Markdown, Menu, Textarea, type CatalogPageBreadcrumb } from '@dotcraft/plugin'
+import { ChevronDown, Code2, Database, Eye, MoreHorizontal, Tag } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type JSX } from 'react'
 import { deleteEntry, readSnapshot, saveEntry, type EntryConflictReason, type EntrySnapshot } from '../data/entrySave'
 import { isValidMemoryName, memoryName, parseMemoryFile, type MemoryFileFields } from '../data/memoryFile'
 import type { MemoryFs } from '../data/memoryFs'
@@ -48,7 +48,10 @@ export function EntryEditor({ fs, stores, target, types, breadcrumb, onClose }: 
   const [fields, setFields] = useState<MemoryFileFields>(() => ({
     ...EMPTY_FIELDS, type: types[0]?.name ?? '', body: target.mode === 'new' ? target.body : ''
   }))
-  const [bodyMode, setBodyMode] = useState<BodyMode>('edit')
+  const [loaded, setLoaded] = useState<MemoryFileFields | null>(null)
+  const [bodyMode, setBodyMode] = useState<BodyMode>(target.mode === 'new' ? 'edit' : 'preview')
+  const bodyRef = useRef<HTMLDivElement>(null)
+  const focusSource = useRef(false)
   const [conflict, setConflict] = useState<Conflict | null>(null)
   const [busy, setBusy] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -63,8 +66,10 @@ export function EntryEditor({ fs, stores, target, types, breadcrumb, onClose }: 
       if (cancelled) return
       setSnapshot(next)
       if (target.mode === 'existing') {
-        const loaded = fieldsFrom(next)
-        setFields({ ...loaded, type: loaded.type || types[0]?.name || '' })
+        const read = fieldsFrom(next)
+        const initial = { ...read, type: read.type || types[0]?.name || '' }
+        setFields(initial)
+        setLoaded(initial)
       }
     }, (error: unknown) => { if (!cancelled) setLoadError(errorMessage(error)) })
     return () => { cancelled = true }
@@ -83,6 +88,9 @@ export function EntryEditor({ fs, stores, target, types, breadcrumb, onClose }: 
   const nameInvalid = fields.name !== '' && !nameValid
   const descriptionValid = fields.description.trim() !== '' && !/[\r\n]/.test(fields.description)
   const canSave = !readOnly && !invalidHeader && snapshot != null && nameValid && descriptionValid && fields.type !== '' && !busy
+  const dirty = target.mode === 'new' || (loaded != null && (
+    fields.name !== loaded.name || fields.description !== loaded.description || fields.type !== loaded.type || fields.body !== loaded.body
+  ))
   const set = <K extends keyof MemoryFileFields>(key: K, value: MemoryFileFields[K]): void => setFields((previous) => ({ ...previous, [key]: value }))
 
   const save = async (base: EntrySnapshot): Promise<void> => {
@@ -131,8 +139,40 @@ export function EntryEditor({ fs, stores, target, types, breadcrumb, onClose }: 
   const useCurrent = (): void => {
     if (!conflict || conflict.reason === 'nameTaken') return
     setSnapshot(conflict.current)
-    if (conflict.current.fileText != null) setFields(fieldsFrom(conflict.current))
+    if (conflict.current.fileText != null) {
+      const current = fieldsFrom(conflict.current)
+      setFields(current)
+      setLoaded(current)
+    }
     setConflict(null)
+  }
+
+  const sourceField = (): HTMLTextAreaElement | null => bodyRef.current?.querySelector('textarea') ?? null
+  useEffect(() => {
+    const field = sourceField()
+    if (!field) return
+    field.style.height = 'auto'
+    field.style.height = `${field.scrollHeight + 2}px`
+    if (focusSource.current) {
+      focusSource.current = false
+      field.focus()
+    }
+  }, [bodyMode, fields.body, readOnly])
+
+  const editSource = (): void => {
+    if (readOnly) return
+    focusSource.current = true
+    setBodyMode('edit')
+  }
+
+  const cancel = (): void => {
+    if (target.mode === 'new' || !loaded) {
+      onClose(false)
+      return
+    }
+    setFields(loaded)
+    setConflict(null)
+    setBodyMode('preview')
   }
 
   const conflictText = conflict?.reason === 'indexChanged' ? conflict.current.indexText : conflict?.current.fileText
@@ -142,6 +182,21 @@ export function EntryEditor({ fs, stores, target, types, breadcrumb, onClose }: 
     <CatalogPage
       title={fields.name || t('editor.newTitle')}
       breadcrumb={breadcrumb}
+      actions={readOnly ? undefined : (
+        <>
+          {target.mode === 'existing' ? (
+            <Menu items={[{ label: t('editor.delete'), danger: true, disabled: busy || snapshot == null, onSelect: () => void remove() }]}>
+              <CatalogToolbarButton icon={<MoreHorizontal size={15} />} label={t('editor.moreActions')} onClick={() => undefined} />
+            </Menu>
+          ) : null}
+          {dirty ? (
+            <>
+              <Button variant="ghost" size="toolbar" onClick={cancel}>{t('editor.cancel')}</Button>
+              <Button variant="primary" size="toolbar" loading={busy} disabled={!canSave} onClick={() => snapshot && void save(snapshot)}>{t('editor.save')}</Button>
+            </>
+          ) : null}
+        </>
+      )}
       titleEditor={{
         value: fields.name,
         placeholder: t('editor.namePlaceholder'),
@@ -200,12 +255,23 @@ export function EntryEditor({ fs, stores, target, types, breadcrumb, onClose }: 
           </Notice>
         ) : null}
 
-        <div className={styles.bodyFrame}>
+        <div ref={bodyRef} className={styles.body} data-mode={bodyMode === 'edit' && !readOnly ? 'source' : 'preview'}>
           {bodyMode === 'edit' && !readOnly ? (
-            <Textarea className={styles.bodyField} aria-label={t('editor.body')} value={fields.body} mono onChange={(event) => set('body', event.target.value)} />
+            <Textarea
+              className={styles.bodyField}
+              aria-label={t('editor.body')}
+              value={fields.body}
+              mono
+              onChange={(event) => set('body', event.target.value)}
+              onKeyDown={(event) => { if (event.key === 'Escape') setBodyMode('preview') }}
+            />
           ) : (
-            <div className={styles.preview}>
-              {fields.body.trim() ? <Markdown content={fields.body} /> : <span className={styles.previewEmpty}>{t('editor.previewEmpty')}</span>}
+            <div className={styles.preview} onDoubleClick={editSource}>
+              {fields.body.trim()
+                ? <Markdown content={fields.body} />
+                : readOnly
+                  ? <span className={styles.previewEmpty}>{t('editor.previewEmpty')}</span>
+                  : <button type="button" className={styles.previewEmpty} onClick={editSource}>{t('editor.previewEmpty')}</button>}
             </div>
           )}
           {readOnly ? null : (
@@ -216,22 +282,12 @@ export function EntryEditor({ fs, stores, target, types, breadcrumb, onClose }: 
                 tooltipLabel={bodyMode === 'preview' ? t('editor.viewSource') : t('editor.viewPreview')}
                 tooltipPlacement="bottom"
                 icon={bodyMode === 'preview' ? <Code2 size={16} /> : <Eye size={16} />}
-                onClick={() => setBodyMode(bodyMode === 'preview' ? 'edit' : 'preview')}
+                onClick={() => (bodyMode === 'preview' ? editSource() : setBodyMode('preview'))}
               />
             </span>
           )}
         </div>
 
-        {readOnly ? null : (
-          <div className={styles.actions}>
-            {target.mode === 'existing'
-              ? <Button variant="danger" disabled={busy || snapshot == null} onClick={() => void remove()}>{t('editor.delete')}</Button>
-              : null}
-            <span className={styles.spacer} />
-            <Button variant="ghost" onClick={() => onClose(false)}>{t('editor.cancel')}</Button>
-            <Button variant="primary" loading={busy} disabled={!canSave} onClick={() => snapshot && void save(snapshot)}>{t('editor.save')}</Button>
-          </div>
-        )}
       </div>
     </CatalogPage>
   )

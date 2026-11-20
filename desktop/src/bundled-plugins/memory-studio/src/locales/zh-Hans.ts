@@ -45,6 +45,7 @@ export const messages: Record<MessageKey, string> = {
   'editor.save': '保存',
   'editor.cancel': '取消',
   'editor.delete': '删除',
+  'editor.moreActions': '更多操作',
   'editor.saved': '记忆已保存',
   'editor.saveFailed': '无法保存记忆',
   'editor.deleteFailed': '无法删除记忆',

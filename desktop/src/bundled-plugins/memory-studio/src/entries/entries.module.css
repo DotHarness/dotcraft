@@ -174,39 +174,63 @@ button.capsule:focus-visible {
   opacity: 0.6;
 }
 
-/* Edit and Preview share one fixed frame, so switching never moves the page. */
-.bodyFrame {
+.body {
   position: relative;
-  height: 360px;
+  min-width: 0;
 }
 
 .bodyToggle {
   position: absolute;
-  top: 6px;
-  right: 6px;
+  top: 0;
+  right: 0;
+  z-index: 1;
+  opacity: 0.6;
+  transition: opacity 120ms ease;
 }
 
-.bodyFrame > .bodyField[data-multiline] {
-  height: 100%;
-  padding-right: 44px;
+.body:hover .bodyToggle,
+.bodyToggle:focus-within,
+.body[data-mode='source'] .bodyToggle {
+  opacity: 1;
+}
+
+.body[data-mode='source'] .bodyToggle {
+  top: -4px;
+  right: -6px;
+}
+
+/* The negative margin keeps the source text where the preview text was. */
+.body > .bodyField[data-multiline] {
+  display: block;
+  width: calc(100% + 24px);
+  min-height: 240px;
+  margin: -10px -12px 0;
+  padding: 10px 44px 10px 12px;
+  overflow: hidden;
   resize: none;
 }
 
 .preview {
-  box-sizing: border-box;
-  height: 100%;
-  padding: 8px 44px 8px 10px;
-  overflow: auto;
-  border: 1px solid var(--border-default);
-  border-radius: var(--button-radius);
-  background: var(--bg-primary);
+  padding-right: 40px;
   color: var(--text-primary);
   font-size: var(--type-ui-size);
   overflow-wrap: anywhere;
 }
 
 .previewEmpty {
+  padding: 0;
+  border: 0;
+  background: transparent;
   color: var(--text-dimmed);
+  font: inherit;
+}
+
+button.previewEmpty {
+  cursor: text;
+}
+
+button.previewEmpty:hover {
+  color: var(--text-secondary);
 }
 
 .hint {
@@ -219,10 +243,6 @@ button.capsule:focus-visible {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-}
-
-.spacer {
-  flex: 1;
 }
 
 .current {

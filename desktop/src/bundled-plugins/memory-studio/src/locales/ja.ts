@@ -45,6 +45,7 @@ export const messages: Record<MessageKey, string> = {
   'editor.save': '保存',
   'editor.cancel': 'キャンセル',
   'editor.delete': '削除',
+  'editor.moreActions': 'その他の操作',
   'editor.saved': 'メモリを保存しました',
   'editor.saveFailed': 'メモリを保存できませんでした',
   'editor.deleteFailed': 'メモリを削除できませんでした',
