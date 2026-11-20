@@ -73,6 +73,7 @@ function lastLine(logs: ServerLogBuffer): string {
 export class DevServerManager extends EventEmitter {
   private readonly records = new Map<string, ServerRecord>()
   private readonly starting = new Map<string, Promise<DevServerStartResult>>()
+  private queue: Promise<unknown> = Promise.resolve()
   private readonly readyTimeoutMs: number
   private readonly readyPollMs: number
 
@@ -88,9 +89,8 @@ export class DevServerManager extends EventEmitter {
   }
 
   servers(scope: DevServerScope): DevServerSnapshot[] {
-    const key = folderKeyOf(scope.folder)
     return [...this.records.values()]
-      .filter((record) => record.folderKey === key && record.threadId === scope.threadId)
+      .filter((record) => record.threadId === scope.threadId)
       .sort((a, b) => Date.parse(a.startedAt) - Date.parse(b.startedAt))
       .map(snapshot)
   }
@@ -108,7 +108,8 @@ export class DevServerManager extends EventEmitter {
     const key = `${folderKeyOf(scope.folder)}\n${scope.threadId}\n${name.trim().toLowerCase()}`
     const pending = this.starting.get(key)
     if (pending) return pending
-    const work = this.startOnce(scope, name).finally(() => this.starting.delete(key))
+    const work = this.queue.then(() => this.startOnce(scope, name)).finally(() => this.starting.delete(key))
+    this.queue = work.catch(() => undefined)
     this.starting.set(key, work)
     return work
   }
@@ -234,7 +235,13 @@ export class DevServerManager extends EventEmitter {
     env: NodeJS.ProcessEnv
   ): Promise<'ready' | 'stopped' | DevServerFailure> {
     return new Promise((settle) => {
-      const child = spawnServerProcess({ command, args, cwd, env })
+      let child: ChildProcess
+      try {
+        child = spawnServerProcess({ command, args, cwd, env })
+      } catch (error) {
+        settle({ kind: 'spawn', message: `Could not start "${command}" (${(error as Error).message}).` })
+        return
+      }
       record.child = child
       let settled = false
       const finish = (result: 'ready' | 'stopped' | DevServerFailure): void => {
@@ -251,6 +258,7 @@ export class DevServerManager extends EventEmitter {
       })
       child.once('exit', (code) => {
         if (record.child === child) record.child = undefined
+        void killProcessTree(child)
         if (record.status === 'stopped') {
           finish('stopped')
           return
@@ -309,7 +317,10 @@ export class DevServerManager extends EventEmitter {
     record.status = 'stopped'
     record.endedAt = new Date().toISOString()
     this.emit('change')
-    if (child) await killProcessTree(child)
+    if (child) {
+      await killProcessTree(child)
+      this.emit('change')
+    }
     return snapshot(record)
   }
 
@@ -320,6 +331,7 @@ export class DevServerManager extends EventEmitter {
   }
 
   async forgetThread(threadId: string): Promise<void> {
+    await this.queue
     const records = [...this.records.values()].filter((record) => record.threadId === threadId)
     await Promise.all(records.map((record) => this.stop(record.id)))
     for (const record of records) this.records.delete(record.id)
@@ -327,6 +339,7 @@ export class DevServerManager extends EventEmitter {
   }
 
   async stopFolder(folder: string): Promise<void> {
+    await this.queue
     const key = folderKeyOf(folder)
     const records = [...this.records.values()].filter((record) => record.folderKey === key)
     await Promise.all(records.map((record) => this.stop(record.id)))
@@ -343,6 +356,7 @@ export class DevServerManager extends EventEmitter {
   }
 
   async disposeAll(): Promise<void> {
+    await this.queue
     await Promise.all([...this.records.values()].map((record) => this.stop(record.id)))
   }
 

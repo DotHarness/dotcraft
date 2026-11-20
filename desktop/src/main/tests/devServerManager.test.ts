@@ -159,11 +159,40 @@ describe('DevServerManager', { timeout: 30_000 }, () => {
     expect(await isListening(port)).toBe(false)
   })
 
-  it('hands Welcome draft servers to the new thread', async () => {
+  it('hands Welcome draft servers to the new thread, even in another folder', async () => {
     await writeLaunch([nodeServer('web', await freePort())])
     const server = await started('welcome-draft', 'web')
     manager.rebindThread('welcome-draft', 'thread-a')
-    expect(manager.servers({ folder, threadId: 'thread-a' }).map((entry) => entry.serverId)).toEqual([server.serverId])
+    const worktree = join(folder, 'worktree')
+    expect(manager.servers({ folder: worktree, threadId: 'thread-a' }).map((entry) => entry.serverId)).toEqual([server.serverId])
+  })
+
+  it('fails a launch that cannot be spawned instead of leaving it starting', async () => {
+    await writeLaunch([nodeServer('web', await freePort(), { args: ['bad arg'] })])
+    const server = await until((await started('thread-a', 'web')).serverId, ['error'])
+    expect(server.failure?.kind).toBe('spawn')
+  })
+
+  it('applies the folder limit and port choice across concurrent starts', async () => {
+    const ports = await Promise.all(Array.from({ length: MAX_SERVERS_PER_FOLDER }, freePort))
+    await writeLaunch([...ports.map((port, index) => nodeServer(`s${index}`, port)), nodeServer('extra', ports[0])])
+    const results = await Promise.all([
+      ...ports.map((_, index) => manager.start({ folder, threadId: `thread-${index}` }, `s${index}`)),
+      manager.start({ folder, threadId: 'thread-extra' }, 'extra')
+    ])
+    expect(results.filter((result) => !result.ok && result.failure.kind === 'folderLimit')).toHaveLength(1)
+    const started = results.flatMap((result) => result.ok && 'server' in result ? [result.server.port] : [])
+    expect(new Set(started).size).toBe(started.length)
+  })
+
+  it('stops a start that was still in progress when its thread was archived', async () => {
+    const port = await freePort()
+    await writeLaunch([nodeServer('web', port)])
+    const pending = manager.start({ folder, threadId: 'thread-a' }, 'web')
+    await manager.forgetThread('thread-a')
+    await pending
+    expect(manager.servers({ folder, threadId: 'thread-a' })).toEqual([])
+    expect(await isListening(port)).toBe(false)
   })
 
   it('opens attach configurations without starting a process', async () => {

@@ -59,9 +59,14 @@ function exited(child: ChildProcess): boolean {
   return child.exitCode !== null || child.signalCode !== null
 }
 
+/** On POSIX the process group can outlive its leader, so an exited leader still has its group killed. */
 export function killProcessTree(child: ChildProcess): Promise<void> {
-  if (child.pid === undefined || exited(child)) return Promise.resolve()
+  if (child.pid === undefined) return Promise.resolve()
   const pid = child.pid
+  if (exited(child)) {
+    if (process.platform !== 'win32') forceKill(pid)
+    return Promise.resolve()
+  }
   return new Promise((resolve) => {
     const timer = setTimeout(() => {
       forceKill(pid)

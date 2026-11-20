@@ -3,7 +3,8 @@ import {
   devServerPortOfUrl,
   type DevServerFailure,
   type DevServerList,
-  type DevServerScope
+  type DevServerScope,
+  type DevServerSnapshot
 } from '../../shared/devServers'
 import { useConversationStore } from '../stores/conversationStore'
 import { useDetailPanelStore } from '../stores/detailPanelStore'
@@ -15,11 +16,11 @@ type Translator = (key: string, params?: Record<string, string | number>) => str
 export function useDevServerScope(threadId: string | null): DevServerScope | null {
   const remote = useConversationStore((state) => state.remoteWorkspaceActive)
   const workspacePath = useConversationStore((state) => state.workspacePath)
-  const worktreePath = useThreadStore((state) => {
+  const threadFolder = useThreadStore((state) => {
     const thread = state.activeThread?.id === threadId ? state.activeThread : state.threadList.find((entry) => entry.id === threadId)
-    return thread?.worktree?.path || thread?.workspacePath || ''
+    return thread?.worktree?.path || thread?.effectiveWorkspacePath || thread?.workspacePath || ''
   })
-  const folder = remote || !threadId ? null : worktreePath || workspacePath || null
+  const folder = remote || !threadId ? null : threadFolder || workspacePath || null
   return useMemo(() => (folder && threadId ? { folder, threadId } : null), [folder, threadId])
 }
 
@@ -71,6 +72,16 @@ export function devServerFailureText(failure: DevServerFailure, t: Translator): 
   }
 }
 
+/** A server that never got its port has no page, so opening it explains why instead of showing the holder's page. */
+export function openDevServer(server: DevServerSnapshot, t: Translator): void {
+  const { failure } = server
+  if (server.status === 'error' && failure?.kind === 'portInUse' && failure.holder !== 'otherThread') {
+    addToast(devServerFailureText(failure, t), 'warning')
+    return
+  }
+  openDevServerTab(server.threadId, server.url, server.name)
+}
+
 export async function runDevServer(scope: DevServerScope, name: string, t: Translator): Promise<void> {
   try {
     const result = await window.api.devServers.start(scope, name)
@@ -79,7 +90,7 @@ export async function runDevServer(scope: DevServerScope, name: string, t: Trans
       else openDevServerTab(scope.threadId, result.server.url, result.server.name)
       return
     }
-    if (result.server) openDevServerTab(scope.threadId, result.server.url, result.server.name)
+    if (result.server) openDevServer(result.server, t)
     else addToast(devServerFailureText(result.failure, t), 'warning')
   } catch {
     addToast(t('devServers.startFailed'), 'warning')

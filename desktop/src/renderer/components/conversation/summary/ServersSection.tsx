@@ -4,7 +4,7 @@ import { useT } from '../../../contexts/LocaleContext'
 import type { DevServerSnapshot } from '../../../../shared/devServers'
 import { IconButton } from '../../ui/IconButton'
 import { Spinner } from '../../ui/Spinner'
-import { openDevServerTab, stopDevServer, useDevServers, useDevServerScope } from '../../../utils/devServers'
+import { openDevServer, stopDevServer, useDevServers, useDevServerScope } from '../../../utils/devServers'
 import { GLYPH, Row, Section } from './SummaryRows'
 
 const ROW_LIMIT = 4
@@ -59,7 +59,7 @@ export function ServersSection({ threadId }: { threadId: string }): JSX.Element 
             label={label}
             title={server.configuredPort ? t('devServers.movedPort', { port: server.port, configured: server.configuredPort }) : label}
             meta={<span data-danger={server.status === 'error' || undefined}>{state === label ? null : state}</span>}
-            onClick={() => openDevServerTab(threadId, server.url, label)}
+            onClick={() => openDevServer(server, t)}
             trailing={(
               <IconButton
                 size={24}

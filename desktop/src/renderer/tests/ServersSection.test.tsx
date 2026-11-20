@@ -5,6 +5,9 @@ import { ServersSection } from '../components/conversation/summary/ServersSectio
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { useConversationStore } from '../stores/conversationStore'
 import { useDetailPanelStore } from '../stores/detailPanelStore'
+import { useThreadStore } from '../stores/threadStore'
+import { useToastStore } from '../stores/toastStore'
+import type { ThreadSummary } from '../types/thread'
 
 const FOLDER = '/work/app'
 
@@ -42,6 +45,8 @@ beforeEach(() => {
   notify = null
   Object.assign(window, { api: { ...(window as unknown as { api?: object }).api, devServers: api } })
   useConversationStore.setState({ workspacePath: FOLDER, remoteWorkspaceActive: false })
+  useThreadStore.setState({ activeThread: null, threadList: [] })
+  useToastStore.setState({ toasts: [] })
 })
 
 afterEach(() => {
@@ -83,6 +88,24 @@ describe('Summary Servers section', () => {
     show()
     fireEvent.click(await screen.findByRole('button', { name: /web/ }))
     expect(openBrowser).toHaveBeenCalledWith(expect.objectContaining({ threadId: 'thread-1', initialUrl: 'http://localhost:5173' }))
+  })
+
+  it('reads servers for the thread’s execution folder', async () => {
+    useThreadStore.setState({ activeThread: { id: 'thread-1', workspacePath: FOLDER, effectiveWorkspacePath: '/work/app/web' } as ThreadSummary })
+    show()
+    await waitFor(() => expect(api.list).toHaveBeenCalledWith({ folder: '/work/app/web', threadId: 'thread-1' }))
+  })
+
+  it('explains a server whose port another server holds instead of opening the holder’s page', async () => {
+    list = {
+      ...list,
+      servers: [server({ status: 'error', failure: { kind: 'portInUse', port: 5173, holder: 'sameThread', message: 'Port 5173 is in use.' } })]
+    }
+    const openBrowser = vi.spyOn(useDetailPanelStore.getState(), 'openBrowser')
+    show()
+    fireEvent.click(await screen.findByRole('button', { name: /web/ }))
+    expect(openBrowser).not.toHaveBeenCalled()
+    expect(useToastStore.getState().toasts).toHaveLength(1)
   })
 
   it('shows nothing in a remote workspace', async () => {

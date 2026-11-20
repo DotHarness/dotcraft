@@ -72,9 +72,9 @@ Desktop writes the launch file only to add one configuration (§6.2) or to chang
 
 ### 3.1 Identity and ownership
 
-A running server belongs to a workspace folder and to the thread that started it. Starting a configuration whose name already has a starting or running server in the same folder and thread reuses that server instead of starting a second process, and two concurrent starts of one name settle on one server. A thread can stop only its own servers. The user can stop any server from the Summary or the browser.
+A running server belongs to a workspace folder and to the thread that started it. Starting a configuration whose name already has a starting or running server in the same folder and thread reuses that server instead of starting a second process, and two concurrent starts of one name settle on one server. A thread keeps its servers when it moves to another folder, such as the worktree its first message creates, so they stay listed and controllable. A thread can stop only its own servers. The user can stop any server from the Summary or the browser.
 
-A folder runs at most five servers at a time, across all its threads, so a forgotten loop cannot exhaust the machine. Starting a sixth fails and names how many belong to other threads.
+A folder runs at most five servers at a time, across all its threads, so a forgotten loop cannot exhaust the machine. Starting a sixth fails and names how many belong to other threads. Desktop handles one start at a time, so the limit and the port choice hold when several threads start servers together.
 
 A server started from the Welcome draft's browser belongs to that draft and moves to the thread its first message creates, together with the panel's other live resources.
 
@@ -101,7 +101,7 @@ The surfaces show the port the server actually uses, and the configured port whe
 
 ### 3.4 Stopping
 
-Stopping ends the server's whole process tree. Desktop stops a thread's servers when the thread is archived or deleted, a folder's servers when its worktree is removed, and every server when Desktop quits. Rewinding or switching the thread's model does not stop servers, because they belong to Desktop, not to the agent's runtime. A dev server never keeps a thread working, so it never shows the thread as busy.
+Stopping ends the server's whole process tree, including processes the start command leaves running after it exits. Archiving, deleting, worktree removal, and quitting wait for starts in progress, so no server outlives what it belonged to. Desktop stops a thread's servers when the thread is archived or deleted, a folder's servers when its worktree is removed, and every server when Desktop quits. Rewinding or switching the thread's model does not stop servers, because they belong to Desktop, not to the agent's runtime. A dev server never keeps a thread working, so it never shows the thread as busy.
 
 ## 4. Summary Servers section
 
@@ -117,7 +117,7 @@ Selecting a running row opens the thread's browser tab bound to the server (§5.
 
 A browser tab opened for a server is bound to it. Opening a server focuses the thread's tab already showing the server's address before opening another. A tab opened while its server is still starting loads the page once the server is running. A bound tab keeps the browser's ordinary navigation, and loses its binding when it navigates to another origin.
 
-An attach configuration (`url`) opens its address in the same way, without a process.
+An attach configuration (`url`) opens its address in the same way, without a process. A server that failed because another server of the same thread, or a process outside Desktop, holds its port has no page of its own: opening it says why instead of showing the holder's page.
 
 ### 5.2 Server states in a tab
 
