@@ -55,6 +55,8 @@ public sealed partial class AppServerHost
             var moduleRegistry = runtime.Services.GetRequiredService<ModuleRegistry>();
             var runtimeStarted = false;
             var runtimeEventsCleanupRequired = false;
+            using var startupSyncCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            var startupSyncTask = Task.CompletedTask;
 
             try
             {
@@ -82,7 +84,7 @@ public sealed partial class AppServerHost
                 LogStartupStage("appserver-feature-start");
                 runtimeEventsCleanupRequired = true;
                 SubscribeRuntimeEvents();
-                StartPluginRegistrySync(cancellationToken);
+                startupSyncTask = StartPluginStartupSync(startupSyncCts.Token);
 
                 LogStartupStage("subscriptions-and-background-sync");
                 switch (appServerConfig.Mode)
@@ -102,6 +104,15 @@ public sealed partial class AppServerHost
             }
             finally
             {
+                startupSyncCts.Cancel();
+                try
+                {
+                    await startupSyncTask.WaitAsync(TimeSpan.FromSeconds(5));
+                }
+                catch (Exception ex) when (ex is OperationCanceledException or TimeoutException)
+                {
+                }
+
                 try
                 {
                     if (runtimeEventsCleanupRequired)

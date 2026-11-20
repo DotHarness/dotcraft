@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.13.0 |
+| **Version** | 0.14.0 |
 | **Status** | Draft |
-| **Date** | 2026-11-18 |
+| **Date** | 2026-11-21 |
 
 Purpose: define the product and process contract for DotCraft plugin marketplaces. A marketplace lets DotCraft discover installable external integration plugins without bundling every integration in the DotCraft Desktop release package, and lets users and organizations add their own plugin sources.
 
@@ -180,7 +180,7 @@ An archive HTTP request, including reading its body, is bounded by a 30-second t
 
 Each archive source records both its last successful activation and its last attempt. A successful activation is reused until the refresh interval elapses. A failed attempt is not retried until a backoff interval has elapsed, and the backoff grows with consecutive failures up to the refresh interval, so a source that has never activated does not re-download on every pass.
 
-The host supplies the default registry through the environment, so it has no configuration entry to refresh from. DotCraft syncs it once per process shortly after startup, off any request path, and again when a refresh operation targets it. Concurrent syncs of one source coalesce into a single download. When a startup sync activates a new snapshot, DotCraft advances the plugin snapshot revision so connected clients reload the catalog.
+The host supplies the default registry through the environment, so it has no configuration entry to refresh from. DotCraft syncs due archive registries (including the host default registry and configured archive sources) once per process shortly after startup, off any request path, and again when a refresh operation targets them. Concurrent syncs of one source coalesce into a single download. When a startup sync activates a new snapshot, DotCraft refreshes any installed managed plugins sourced from the updated snapshots through the plugin mutation path and advances the plugin snapshot revision so connected clients reload both the catalog and updated plugins.
 
 ### 7.7.1 Built-in official marketplace
 
@@ -221,7 +221,7 @@ Installing a marketplace plugin must:
 - write a managed marker recording the marketplace it came from, for DotCraft-owned refresh/removal behavior;
 - refresh plugin-contributed skills, apps, MCP/LSP servers, and Desktop module metadata through the normal plugin runtime.
 
-User-owned plugins without a managed marker are never overwritten by marketplace install or refresh. Refresh updates a managed install only from the marketplace recorded in its marker, so another marketplace offering the same plugin id never replaces it.
+User-owned plugins without a managed marker are never overwritten by marketplace install, refresh, or startup reconciliation. Updates apply to a managed install only from the marketplace recorded in its marker, so another marketplace offering the same plugin id never replaces it.
 
 ## 10. Security and Trust Boundaries
 
