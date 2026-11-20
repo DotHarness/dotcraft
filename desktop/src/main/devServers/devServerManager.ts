@@ -4,6 +4,7 @@ import { stat } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { resolve } from 'node:path'
 import {
+  devServerFolderKey,
   devServerUrl,
   isActiveDevServer,
   type DevServerFailure,
@@ -46,8 +47,7 @@ export interface DevServerManagerOptions {
 }
 
 function folderKeyOf(folder: string): string {
-  const path = resolve(folder)
-  return process.platform === 'win32' ? path.toLowerCase() : path
+  return devServerFolderKey(resolve(folder), process.platform)
 }
 
 function snapshot(record: ServerRecord): DevServerSnapshot {

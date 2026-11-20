@@ -48,7 +48,7 @@ export type LaunchFileState =
   }
 
 export interface DevServerList {
-  /** The listed folder, spelled as server snapshots spell theirs. */
+  /** Resolved folder path, like the paths in server snapshots. */
   readonly folder: string
   readonly launch: LaunchFileState
   readonly servers: readonly DevServerSnapshot[]
@@ -63,6 +63,10 @@ export type DevServerStartResult =
   | { readonly ok: true; readonly server: DevServerSnapshot; readonly reused: boolean }
   | { readonly ok: true; readonly attachUrl: string }
   | { readonly ok: false; readonly failure: DevServerFailure; readonly server?: DevServerSnapshot }
+
+export function devServerFolderKey(resolvedFolder: string, platform: string): string {
+  return platform === 'win32' ? resolvedFolder.toLowerCase() : resolvedFolder
+}
 
 export function devServerUrl(port: number): string {
   return `http://localhost:${port}`

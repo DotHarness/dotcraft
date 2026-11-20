@@ -2,6 +2,7 @@ import { CircleAlert, FileCog, Globe, Play, ScrollText, Server, Square, SquareSt
 import { useRef, useState, type JSX } from 'react'
 import { useT } from '../../../contexts/LocaleContext'
 import {
+  devServerFolderKey,
   isActiveDevServer,
   type DevServerList,
   type DevServerScope,
@@ -26,8 +27,10 @@ export function BrowserServersMenu({ scope, list, boundServer, logsOpen, onToggl
   const [open, setOpen] = useState<{ x: number; y: number; keyboard: boolean } | null>(null)
   const trigger = useRef<HTMLButtonElement | null>(null)
   const active = (list?.servers ?? []).filter(isActiveDevServer)
+  const platform = window.api.platform
+  const folderKey = list ? devServerFolderKey(list.folder, platform) : null
   const activeByName = new Map(active
-    .filter((server) => server.folder === list?.folder)
+    .filter((server) => devServerFolderKey(server.folder, platform) === folderKey)
     .map((server) => [server.name.toLowerCase(), server]))
   const launch = list?.launch
   const configurations = launch?.status === 'ok' ? launch.configurations : []
