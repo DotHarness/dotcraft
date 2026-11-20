@@ -33,10 +33,10 @@ public sealed class MemoryManagementService(DotCraftPaths paths, MemoryStore wor
         }
 
         var stores = new List<MemoryStoreEntry>();
-        if (personalEnabled() && paths.UserData.RootPath is { } userDataPath)
+        if (MemoryScopes.PersonalStoreDirectory(personalEnabled(), paths.UserData.RootPath, workspaceStore) is { } personalDirectory)
         {
             stores.Add(new MemoryStoreEntry(
-                MemoryStoreKinds.Personal, null, null, MemoryStore.DirectoryOf(userDataPath), ThreadMemoryStores.PersonalStoreName, true));
+                MemoryStoreKinds.Personal, null, null, personalDirectory, ThreadMemoryStores.PersonalStoreName, true));
         }
 
         stores.Add(new MemoryStoreEntry(MemoryStoreKinds.Workspace, null, null, workspaceStore.MemoryDirectoryPath, MemoryStoreKinds.Workspace, true));

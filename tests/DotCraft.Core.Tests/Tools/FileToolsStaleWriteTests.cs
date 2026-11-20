@@ -60,6 +60,21 @@ public sealed class FileToolsStaleWriteTests : IDisposable
     }
 
     [Fact]
+    public async Task ReadThenDeletedOnDisk_RejectsWriteUntilReRead()
+    {
+        await _tools.ReadFile(_path);
+        File.Delete(_path);
+
+        var rejected = await _tools.WriteFile(_path, "recreated\n");
+        Assert.False(rejected.Success);
+        Assert.False(File.Exists(_path));
+
+        await _tools.ReadFile(_path);
+        Assert.True((await _tools.WriteFile(_path, "recreated\n")).Success);
+        Assert.Equal("recreated\n", File.ReadAllText(_path));
+    }
+
+    [Fact]
     public async Task EditFile_IsNotChecked()
     {
         await _tools.ReadFile(_path);

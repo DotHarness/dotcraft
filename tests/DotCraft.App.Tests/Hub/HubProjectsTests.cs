@@ -58,6 +58,17 @@ public sealed class HubProjectsTests : IDisposable
     }
 
     [Fact]
+    public void Open_RejectsUserHomeDirectoryAsWorkspace()
+    {
+        Directory.CreateDirectory(_userProfile);
+        var paths = HubPaths.Resolve(_userProfile);
+        var registry = new ProjectRegistry(paths);
+
+        var error = Assert.Throws<HubProtocolException>(() => registry.Open(_userProfile));
+        Assert.Equal("invalidRequest", error.Code);
+    }
+
+    [Fact]
     public void Open_WhenTheListCannotBeSaved_LeavesTheListUnchanged()
     {
         var paths = HubPaths.Resolve(_userProfile);

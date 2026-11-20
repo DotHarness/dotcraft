@@ -2,10 +2,15 @@ namespace DotCraft.Sessions;
 
 public sealed partial class SessionService
 {
-    private async Task<TurnExecutionResources> CaptureTurnExecutionResourcesAsync(ThreadRuntime runtime, CancellationToken ct)
+    private async Task RefreshRuntimeResourcesAsync(CancellationToken ct)
     {
         foreach (var refresher in runtimeRefreshers ?? [])
             await refresher.RefreshAsync(ct).ConfigureAwait(false);
+    }
+
+    private async Task<TurnExecutionResources> CaptureTurnExecutionResourcesAsync(ThreadRuntime runtime, CancellationToken ct)
+    {
+        await RefreshRuntimeResourcesAsync(ct).ConfigureAwait(false);
         if (!_hasExplicitDefaultAgent || _forcePerThreadAgents || runtime.ToolSnapshotDirty)
             await EnsurePerThreadAgentIfMissingAsync(runtime.Thread.Id, runtime.Thread, ct).ConfigureAwait(false);
         TurnExecutionResources resources;

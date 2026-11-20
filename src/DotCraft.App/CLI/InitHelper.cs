@@ -57,6 +57,18 @@ public static class InitHelper
     private static void SaveJsonObject(string path, JsonObject node) =>
         AtomicConfigDocument.WithLock(path, () => AtomicConfigDocument.Write(path, node.ToJsonString(JsonOptions)));
 
+    private static void EnsureDistinctFromUserHome(string craftPath, string globalConfigPath)
+    {
+        var userCraftPath = Path.GetDirectoryName(Path.GetFullPath(globalConfigPath));
+        if (string.IsNullOrEmpty(userCraftPath))
+            return;
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        var normalizedCraft = Path.TrimEndingDirectorySeparator(Path.GetFullPath(craftPath));
+        var normalizedUserCraft = Path.TrimEndingDirectorySeparator(userCraftPath);
+        if (string.Equals(normalizedCraft, normalizedUserCraft, comparison))
+            throw new InvalidOperationException("The user home directory cannot be initialized as a workspace.");
+    }
+
     private static void EnsureWorkspaceStructure(string craftPath, List<(string Status, string Path)>? createdItems = null)
     {
         var directories = new[]
@@ -329,11 +341,12 @@ public static class InitHelper
 
         try
         {
+            var globalConfigPath = GetGlobalConfigPath();
+            EnsureDistinctFromUserHome(craftPath, globalConfigPath);
             EnsureWorkspaceStructure(craftPath, createdItems);
 
             var workspaceNode = new JsonObject();
 
-            var globalConfigPath = GetGlobalConfigPath();
             if (File.Exists(globalConfigPath))
             {
                 var globalNode = LoadJsonObject(globalConfigPath);
@@ -378,6 +391,7 @@ public static class InitHelper
 
     internal static int RunSetup(string craftPath, WorkspaceSetupRequest request, string globalConfigPath)
     {
+        EnsureDistinctFromUserHome(craftPath, globalConfigPath);
         EnsureWorkspaceStructure(craftPath);
         WorkspaceConfigUpgrade.Apply(craftPath, globalConfigPath);
 

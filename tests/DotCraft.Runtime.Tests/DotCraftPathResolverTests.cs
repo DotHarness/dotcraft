@@ -32,6 +32,13 @@ public sealed class DotCraftPathResolverTests : IDisposable
     }
 
     [Fact]
+    public void Resolve_RejectsDataPathMatchingUserDataPath()
+    {
+        var shared = Path.Combine(_root, ".craft");
+        Assert.Throws<ArgumentException>(() => Resolve(".craft", shared));
+    }
+
+    [Fact]
     public void OptionalUserData_ExpressesDisabledDiscoveryAndRequiredPersistence()
     {
         var paths = Resolve(".agents");

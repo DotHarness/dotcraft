@@ -18,7 +18,7 @@ internal static class TextFileEncoding
         return Detect(bom[..bytesRead]);
     }
 
-    public static async Task<(string? Text, Encoding Encoding, string? Error)> ReadAsync(
+    public static async Task<(string? Text, Encoding Encoding, byte[] Bytes, string? Error)> ReadAsync(
         string fullPath,
         string displayPath,
         CancellationToken cancellationToken = default)
@@ -28,19 +28,23 @@ internal static class TextFileEncoding
         var bomLength = encoding.Preamble.Length;
         try
         {
-            return (encoding.GetString(bytes, bomLength, bytes.Length - bomLength), encoding, null);
+            return (encoding.GetString(bytes, bomLength, bytes.Length - bomLength), encoding, bytes, null);
         }
         catch (DecoderFallbackException)
         {
-            return (null, encoding, InvalidTextError(displayPath, encoding));
+            return (null, encoding, bytes, InvalidTextError(displayPath, encoding));
         }
     }
 
     /// <summary>
     /// Encodes the whole text before opening the file, so text the encoding rejects fails without truncating it.
     /// </summary>
-    public static Task WriteAsync(string fullPath, string text, Encoding encoding)
-        => File.WriteAllBytesAsync(fullPath, [.. encoding.Preamble, .. encoding.GetBytes(text)]);
+    public static async Task<byte[]> WriteAsync(string fullPath, string text, Encoding encoding)
+    {
+        byte[] bytes = [.. encoding.Preamble, .. encoding.GetBytes(text)];
+        await File.WriteAllBytesAsync(fullPath, bytes);
+        return bytes;
+    }
 
     public static string InvalidTextError(string displayPath, Encoding encoding)
         => $"Error: {displayPath} is not valid {encoding.WebName} text. Only UTF-8, UTF-16, and UTF-32 files can be read or edited.";

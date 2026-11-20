@@ -36,7 +36,7 @@ Opening an entry shows it as a page: `name` is the page title and `description` 
 
 These edits are the user editing files, so they reach running threads through the memory index section like any other change.
 
-Memory Studio keeps each writable store's index in step with its files without asking the user, and does not offer the index for editing. Each time it loads a store, it appends a pointer line, with the description as the hook, for every memory file no index line links to, and removes pointer lines whose memory file is missing. It leaves every other line alone, including grouped or free-form lines the agent wrote, since Core already asks the agent to tidy those. The write uses the same unchanged-since-read check as **Save** and is skipped on a conflict until the next load.
+Memory Studio keeps each writable workspace or scope store's index in step with its files without asking the user, and does not offer the index for editing. Each time it loads such a store, it appends a pointer line, with the description as the hook, for every memory file no index line links to, and removes pointer lines whose memory file is missing. It leaves every other line alone, including grouped or free-form lines the agent wrote, since Core already asks the agent to tidy those. The write uses the same unchanged-since-read check as **Save** and is skipped on a conflict until the next load. Browsing the shared personal store does not automatically rewrite its index, so concurrent writes from other workspaces are never pruned while loading.
 
 A store whose index fills more than 80% of a load limit (200 lines, 25,000 bytes) shows its usage. Past a limit, it warns that the agent sees only part of the index.
 

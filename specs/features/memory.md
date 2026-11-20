@@ -151,7 +151,7 @@ Choosing between the own store and the personal store is fixed. The memory's typ
 - A memory of a personal type goes to the personal store.
 - A memory of any other type goes to the own store, unless the user said it applies in every project. Then it goes to the personal store.
 - The personal store never holds project facts, paths, commands, business or customer details, credentials, or conversation content, because whatever it holds reaches every workspace on the machine.
-- Before saving to the personal store, the agent deletes any memory in its own store that covers the same knowledge, so one fact never lives in both.
+- Only after saving to the personal store and updating its index, the agent deletes any memory in its own store that covers the same knowledge, so one fact never lives in both.
 - When a memory in the own store narrows a personal memory to this workspace, the own store's memory takes precedence there. Otherwise the personal store's takes precedence. Current instructions and observed evidence take precedence over both (§5.2).
 - The agent deletes a memory in the personal store by writing the file empty and removing its index line, and the runtime removes the file.
 

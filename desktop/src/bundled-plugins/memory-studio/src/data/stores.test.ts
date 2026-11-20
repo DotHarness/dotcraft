@@ -53,6 +53,14 @@ describe('loading a store', () => {
     expect(fs.files.get(`${STORE}\\MEMORY.md`)).toBe('- [Role](role.md) — mine\n')
   })
 
+  it('does not rewrite the index while loading the shared personal store', async () => {
+    const fs = fakeFs({ 'role.md': memory, 'MEMORY.md': '- [Other](other.md) — concurrent\n' })
+    const personalStore: MemoryStore = { ...store(true), key: 'personal', kind: 'personal' }
+    const contents = await loadStore(fs, personalStore)
+    expect(fs.files.get(`${STORE}\\MEMORY.md`)).toBe('- [Other](other.md) — concurrent\n')
+    expect(contents.indexText).toBe('- [Other](other.md) — concurrent\n')
+  })
+
   it('skips the write when the index changed after it was read', async () => {
     let reads = 0
     const fs = fakeFs({ 'role.md': memory, 'MEMORY.md': '' }, (path, map) => {

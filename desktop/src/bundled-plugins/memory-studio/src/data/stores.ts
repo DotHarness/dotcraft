@@ -89,7 +89,7 @@ export async function loadStore(fs: MemoryFs, store: MemoryStore): Promise<Store
   ])
   const present = entries.filter((entry): entry is MemoryEntry => entry != null)
     .sort((a, b) => b.modifiedAtMs - a.modifiedAtMs || a.fileName.localeCompare(b.fileName))
-  const synced = store.writable && listed != null ? await syncStoreIndex(fs, store, indexText, names, present) : indexText
+  const synced = store.writable && store.kind !== 'personal' && listed != null ? await syncStoreIndex(fs, store, indexText, names, present) : indexText
   return { store, entries: present, indexText: synced, usage: measureIndex(synced) }
 }
 

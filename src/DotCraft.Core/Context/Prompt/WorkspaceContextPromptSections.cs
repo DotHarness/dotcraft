@@ -105,7 +105,7 @@ Save to a shared memory you can write only what holds for everyone who uses it, 
 
 - Save a memory of a personal type to the personal memory. Save any other memory to your memory, unless the user said it applies in every project. Then save it to the personal memory.
 - Never save project facts, paths, commands, business or customer details, credentials, or conversation content to the personal memory, because every workspace on this computer reads it.
-- Before saving to the personal memory, delete any memory in your memory that covers the same knowledge.
+- Only after saving the personal memory and updating its index successfully, delete any duplicate in your memory.
 - A memory in your memory that narrows a personal memory to this workspace takes precedence here. Otherwise the personal memory takes precedence.
 - To delete a personal memory, write its file empty and remove its index line.
 """;

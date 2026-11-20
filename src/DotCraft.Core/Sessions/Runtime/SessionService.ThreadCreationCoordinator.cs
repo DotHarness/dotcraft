@@ -18,6 +18,7 @@ public sealed partial class SessionService
             ThreadSource? source,
             bool ephemeral)
         {
+            await owner.RefreshRuntimeResourcesAsync(ct).ConfigureAwait(false);
             var capturedConfig = owner.CaptureThreadConfigurationForNewThread(config);
             capturedConfig = ThreadWorkspaceResolver.Apply(
                 identity.WorkspacePath,

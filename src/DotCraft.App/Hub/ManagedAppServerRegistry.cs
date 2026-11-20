@@ -22,6 +22,7 @@ public sealed partial class ManagedAppServerRegistry : IAsyncDisposable
     private readonly string _hubApiBaseUrl;
     private readonly string _hubToken;
     private readonly string? _dotcraftBin;
+    private readonly string _craftHomePath;
     private readonly HubAppServerRegistryStore? _store;
     private readonly HubRuntimeToolsStore? _runtimeToolsStore;
     private readonly ConcurrentDictionary<string, HubAppServerRegistryRecord> _persisted;
@@ -41,13 +42,15 @@ public sealed partial class ManagedAppServerRegistry : IAsyncDisposable
         string? dotcraftBin = null,
         string? registryPath = null,
         string? runtimeToolsPath = null,
-        ILogger<ManagedAppServerRegistry>? logger = null)
+        ILogger<ManagedAppServerRegistry>? logger = null,
+        string? craftHomePath = null)
     {
         _entries = new ConcurrentDictionary<string, ManagedEntry>(WorkspaceComparer);
         _events = events;
         _hubApiBaseUrl = hubApiBaseUrl;
         _hubToken = hubToken;
         _dotcraftBin = dotcraftBin;
+        _craftHomePath = CanonicalizeWorkspacePath(craftHomePath ?? HubPaths.Resolve().CraftHomePath);
         _store = string.IsNullOrWhiteSpace(registryPath) ? null : new HubAppServerRegistryStore(registryPath);
         _runtimeToolsStore = string.IsNullOrWhiteSpace(runtimeToolsPath) ? null : new HubRuntimeToolsStore(runtimeToolsPath);
         _logger = logger ?? NullLogger<ManagedAppServerRegistry>.Instance;
@@ -584,7 +587,7 @@ public sealed partial class ManagedAppServerRegistry : IAsyncDisposable
         }
     }
 
-    private static (string WorkspacePath, string CanonicalWorkspacePath, string CraftPath) ResolveWorkspace(string workspacePath)
+    private (string WorkspacePath, string CanonicalWorkspacePath, string CraftPath) ResolveWorkspace(string workspacePath)
     {
         if (string.IsNullOrWhiteSpace(workspacePath))
         {
@@ -606,6 +609,15 @@ public sealed partial class ManagedAppServerRegistry : IAsyncDisposable
 
         var canonical = CanonicalizeWorkspacePath(fullPath);
         var craftPath = Path.Combine(canonical, ".craft");
+        if (WorkspaceComparer.Equals(CanonicalizeWorkspacePath(craftPath), _craftHomePath))
+        {
+            throw new HubProtocolException(
+                "invalidRequest",
+                "The user home directory cannot be used as a workspace.",
+                StatusCodes.Status400BadRequest,
+                new { workspacePath = canonical });
+        }
+
         if (!Directory.Exists(craftPath))
         {
             throw new HubProtocolException(

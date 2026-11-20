@@ -15,13 +15,16 @@ public static partial class MemoryScopes
     public static string StoreDirectory(ThreadConfiguration? configuration, string dataPath) =>
         MemoryStore.DirectoryOf(OwnDataRoot(configuration, dataPath) ?? dataPath);
 
-    public static MemoryStore? PersonalStore(bool enabled, string? userDataPath, MemoryStore own)
+    public static string? PersonalStoreDirectory(bool enabled, string? userDataPath, MemoryStore own)
     {
         if (!enabled || string.IsNullOrEmpty(userDataPath))
             return null;
         var directory = MemoryStore.DirectoryOf(userDataPath);
-        return WorkspaceBoundary.IsWithin(directory, own.MemoryDirectoryPath) ? null : new MemoryStore(userDataPath);
+        return WorkspaceBoundary.IsWithin(directory, own.MemoryDirectoryPath) ? null : directory;
     }
+
+    public static MemoryStore? PersonalStore(bool enabled, string? userDataPath, MemoryStore own) =>
+        PersonalStoreDirectory(enabled, userDataPath, own) is not null ? new MemoryStore(userDataPath!) : null;
 
     /// <summary>Empties the workspace store and every scope store beside it, keeping their directories.</summary>
     public static void ClearAll(MemoryStore workspaceStore)

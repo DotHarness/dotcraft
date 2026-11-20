@@ -20,7 +20,20 @@ public static class DotCraftPathResolver
         var userDataPath = string.IsNullOrWhiteSpace(options.UserDataPath)
             ? null
             : Normalize(options.UserDataPath);
+        if (userDataPath is not null)
+            EnsureDistinctFromUserData(dataPath, userDataPath);
         return DotCraftPaths.Create(workspacePath, dataPath, userDataPath);
+    }
+
+    private static void EnsureDistinctFromUserData(string dataPath, string userDataPath)
+    {
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        if (string.Equals(ResolveFinalDirectoryLink(dataPath), ResolveFinalDirectoryLink(userDataPath), comparison))
+        {
+            throw new ArgumentException(
+                "Workspace DataPath must not be the same as UserDataPath.",
+                nameof(DotCraftRuntimeOptions.WorkspacePath));
+        }
     }
 
     private static void EnsureDirectChild(string workspacePath, string dataPath)

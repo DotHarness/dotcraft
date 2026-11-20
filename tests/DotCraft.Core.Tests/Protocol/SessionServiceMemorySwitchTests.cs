@@ -157,17 +157,40 @@ public sealed class SessionServiceMemorySwitchTests : IDisposable
         Assert.Equal("nightly", fork.Configuration?.MemoryScope);
     }
 
+    [Fact]
+    public async Task CreateThread_RefreshesRuntimeResourcesBeforeCapturingMemoryPersonal()
+    {
+        _config.Memory.Personal = true;
+        await using var factory = CreateAgentFactory();
+        var refresher = new DelegateRuntimeRefresher(() => _config.Memory.Personal = false);
+        var service = CreateService(factory, [refresher]);
+
+        var thread = await service.CreateThreadAsync(MakeIdentity(), new ThreadConfiguration());
+
+        Assert.False(thread.Configuration?.MemoryPersonal);
+    }
+
     public void Dispose()
     {
         try { Directory.Delete(_root, recursive: true); } catch { }
     }
 
-    private SessionService CreateService(AgentFactory factory) =>
+    private SessionService CreateService(AgentFactory factory, IEnumerable<ISessionRuntimeRefresher>? refreshers = null) =>
         new(
             factory,
             factory.CreateAgentForMode(AgentMode.Agent),
             new SessionPersistenceService(new ThreadStore(Path.Combine(_root, "data"))),
-            new SessionGate());
+            new SessionGate(),
+            runtimeRefreshers: refreshers);
+
+    private sealed class DelegateRuntimeRefresher(Action onRefresh) : ISessionRuntimeRefresher
+    {
+        public Task RefreshAsync(CancellationToken cancellationToken)
+        {
+            onRefresh();
+            return Task.CompletedTask;
+        }
+    }
 
     private AgentFactory CreateAgentFactory(string? userDataPath = null)
     {
