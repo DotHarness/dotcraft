@@ -185,6 +185,106 @@ function New-PerSkillLinks {
     Write-Host "Other skills already present in $DisplayName were left untouched." -ForegroundColor Green
 }
 
+function Format-AntigravityManifestPath {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    return [System.IO.Path]::GetFullPath($Path).TrimEnd([char[]]@('\', '/')).Replace('\', '/')
+}
+
+function Update-AntigravitySkillsManifest {
+    param(
+        [Parameter(Mandatory = $true)][object[]]$SkillSources,
+        [Parameter(Mandatory = $true)][string]$ManifestPath,
+        [Parameter(Mandatory = $true)][string]$DisplayName
+    )
+
+    Write-Section -Text "Registering skills in $DisplayName"
+    Write-Host "Manifest: $ManifestPath" -ForegroundColor Gray
+
+    $manifestDir = Split-Path -Parent $ManifestPath
+    if (-not (Test-Path -LiteralPath $manifestDir)) {
+        New-Item -ItemType Directory -Path $manifestDir -Force | Out-Null
+    }
+
+    $manifest = [ordered]@{}
+    $existingEntries = @()
+    if (Test-Path -LiteralPath $ManifestPath -PathType Leaf) {
+        $raw = [System.IO.File]::ReadAllText($ManifestPath, [System.Text.Encoding]::UTF8)
+        if (-not [string]::IsNullOrWhiteSpace($raw)) {
+            $parsed = $raw | ConvertFrom-Json
+            foreach ($prop in $parsed.PSObject.Properties) {
+                if ($prop.Name -eq "entries") {
+                    if ($null -ne $prop.Value) {
+                        $existingEntries = @($prop.Value)
+                    }
+                } else {
+                    $manifest[$prop.Name] = $prop.Value
+                }
+            }
+        }
+    }
+
+    $normalizedSources = @($SkillSources | ForEach-Object {
+        @{
+            Name = $_.Name
+            Path = Format-AntigravityManifestPath -Path $_.Path
+        }
+    })
+    $targetPathKeys = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($source in $normalizedSources) {
+        [void]$targetPathKeys.Add($source.Path)
+    }
+
+    $seenTargetKeys = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    $mergedEntries = New-Object 'System.Collections.Generic.List[object]'
+    $removedCount = 0
+    foreach ($entry in $existingEntries) {
+        $pathProp = if ($null -ne $entry) { $entry.PSObject.Properties['path'] } else { $null }
+        if ($null -eq $pathProp -or [string]::IsNullOrWhiteSpace([string]$pathProp.Value)) {
+            $mergedEntries.Add($entry)
+            continue
+        }
+
+        $entryPath = ([string]$pathProp.Value).Trim().Replace('\', '/').TrimEnd('/')
+        if ($targetPathKeys.Contains($entryPath)) {
+            if ($seenTargetKeys.Add($entryPath)) {
+                $mergedEntries.Add($entry)
+            }
+            continue
+        }
+
+        if ($entryPath -match '/\.craft/cache/plugin-registries/[^/]+/snapshot/plugins/dotharness/skills$') {
+            Write-Host "  - removed stale DotHarness registry entry: $entryPath" -ForegroundColor Yellow
+            $removedCount++
+            continue
+        }
+
+        $mergedEntries.Add($entry)
+    }
+
+    $addedCount = 0
+    $skippedCount = 0
+    foreach ($source in $normalizedSources) {
+        if ($seenTargetKeys.Contains($source.Path)) {
+            Write-Host "  - $($source.Name): already registered, skipping" -ForegroundColor DarkGray
+            $skippedCount++
+            continue
+        }
+
+        $mergedEntries.Add([ordered]@{ path = $source.Path })
+        Write-Host "  - $($source.Name): added $($source.Path)" -ForegroundColor Green
+        $addedCount++
+    }
+
+    $manifest['entries'] = @($mergedEntries.ToArray())
+    $json = ($manifest | ConvertTo-Json -Depth 10) + "`n"
+    [System.IO.File]::WriteAllText($ManifestPath, $json, [System.Text.UTF8Encoding]::new($false))
+
+    Write-Host ""
+    Write-Host "Registered $addedCount source(s), $skippedCount already up to date, $removedCount stale entry(s) removed." -ForegroundColor Green
+    Write-Host "Other entries already present in $DisplayName were left untouched." -ForegroundColor Green
+}
+
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $pluginRegistrySource = "local override"
 if ([string]::IsNullOrWhiteSpace($PluginsRepoRoot)) {
@@ -253,28 +353,47 @@ $availableDestinations = @(
     @{
         Name = "Cursor (.cursor\skills)"
         Path = Join-Path $repoRoot ".cursor\skills"
+        Mode = "Junction"
     },
     @{
         Name = "Claude (~\.claude\skills)"
         Path = Join-Path $env:USERPROFILE ".claude\skills"
+        Mode = "Junction"
     },
     @{
         Name = "Codex (~\.codex\skills)"
         Path = Join-Path $env:USERPROFILE ".codex\skills"
+        Mode = "Junction"
     },
     @{
-        Name = "Antigravity (~\.gemini\config\skills)"
-        Path = Join-Path $env:USERPROFILE ".gemini\config\skills"
+        Name = "Antigravity (~\.gemini\config\skills.json)"
+        Path = Join-Path $env:USERPROFILE ".gemini\config\skills.json"
+        Mode = "AntigravityJson"
     }
 )
 $skillDestinations = if ([string]::IsNullOrWhiteSpace($DestinationDir)) {
     @(Select-LinkDestinations -Destinations $availableDestinations)
 } else {
-    @(@{ Name = "Custom destination"; Path = [System.IO.Path]::GetFullPath($DestinationDir) })
+    $resolvedDestination = [System.IO.Path]::GetFullPath($DestinationDir)
+    $destinationMode = if ([System.IO.Path]::GetFileName($resolvedDestination) -ieq "skills.json") {
+        "AntigravityJson"
+    } else {
+        "Junction"
+    }
+    @(@{
+        Name = "Custom destination"
+        Path = $resolvedDestination
+        Mode = $destinationMode
+    })
 }
 $legacyDotCraftSkillNames = @("dev-guide", "docs-guide", "release-draft")
 
 foreach ($skillDestination in $skillDestinations) {
+    if ($skillDestination.Mode -eq "AntigravityJson") {
+        Update-AntigravitySkillsManifest -SkillSources $skillSources -ManifestPath $skillDestination.Path -DisplayName $skillDestination.Name
+        continue
+    }
+
     foreach ($legacyName in $legacyDotCraftSkillNames) {
         Remove-LegacyDotCraftSkillLink -DestinationDir $skillDestination.Path -LegacyName $legacyName
     }
@@ -286,6 +405,6 @@ foreach ($skillDestination in $skillDestinations) {
 
 Write-Host ""
 Write-Host "Done." -ForegroundColor Green
-Write-Host "Selected destinations get per-skill junctions; unrelated existing skills are left untouched." -ForegroundColor Green
+Write-Host "Folder destinations get per-skill junctions and Antigravity registers source directories in skills.json; unrelated existing skills are left untouched." -ForegroundColor Green
 Write-Host "DotCraft skill edits in this repo take effect immediately in the selected agents." -ForegroundColor Green
 Write-Host "DotHarness skills come from the local override or resolved plugin registry; use -ForcePluginRegistryRefresh to refresh the registry now." -ForegroundColor Green
