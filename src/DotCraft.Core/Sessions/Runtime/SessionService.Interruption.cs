@@ -72,6 +72,9 @@ public sealed partial class SessionService
         var config = _appConfigMonitor?.Current ?? agentFactory.RuntimeContext.Config;
         var model = agentFactory.RuntimeContext.ChatClientRegistry.ResolveMainRuntime(
             config, thread.Configuration?.ProviderId, thread.Configuration?.Model);
+        if (!model.IsOpenAIResponses)
+            return null;
+
         var factory = agentFactory.RuntimeContext.ChatClientRegistry.GetProviderService<IProviderHistorySessionFactory>(model);
         if (factory == null)
             return null;
