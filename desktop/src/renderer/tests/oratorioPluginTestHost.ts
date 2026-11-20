@@ -14,6 +14,7 @@ export function installOratorioTestHost(overrides: Partial<DesktopPluginHost> = 
     navigation: {
       openMainView() {},
       openSettingsPage() {},
+      openSettingsSection() {},
       async openThread() {},
       async openExternal() {},
       onOpenUrl() { return () => undefined }

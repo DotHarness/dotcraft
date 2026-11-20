@@ -25,7 +25,8 @@ public sealed class ThreadDeletionBroadcastIntegrationTests
               },
               "DashBoard": { "Enabled": false },
               "Automations": { "Enabled": false },
-              "Dreams": { "Enabled": false }
+              "Dreams": { "Enabled": false },
+              "Memory": { "Personal": false }
             }
             """);
 

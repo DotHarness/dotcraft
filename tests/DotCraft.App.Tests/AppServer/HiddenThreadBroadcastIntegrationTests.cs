@@ -25,7 +25,8 @@ public sealed class HiddenThreadBroadcastIntegrationTests
               },
               "DashBoard": { "Enabled": false },
               "Automations": { "Enabled": false },
-              "Dreams": { "Enabled": false }
+              "Dreams": { "Enabled": false },
+              "Memory": { "Personal": false }
             }
             """);
 

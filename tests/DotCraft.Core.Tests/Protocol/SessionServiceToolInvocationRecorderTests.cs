@@ -119,6 +119,21 @@ public sealed class SessionServiceToolInvocationRecorderTests : IDisposable
     }
 
     [Fact]
+    public async Task RecordStartedAsync_FileCallInsideThePersonalStore_NamesThePersonalStore()
+    {
+        var userData = Path.Combine(_tempDir, "home", ".craft");
+        var personal = new MemoryStore(userData);
+        File.WriteAllText(Path.Combine(personal.MemoryDirectoryPath, "role.md"), "role\n");
+
+        var (events, history) = await RunMemoryTurnAsync("ReadFile", Path.Combine(personal.MemoryDirectoryPath, "role.md"), userDataPath: userData);
+
+        var call = LastToolCall(events, SessionEventType.ItemStarted);
+        Assert.Equal("recall", MemoryMark(call));
+        Assert.Equal(("personal", "Personal"), MemoryStoreMark(call));
+        Assert.Equal(("personal", "Personal"), MemoryStoreMark(Assert.Single(history, item => item.Payload is ToolResultPayload)));
+    }
+
+    [Fact]
     public async Task RecordStartedAsync_FileCallOutsideMemoryStore_LeavesPresentationUnmarked()
     {
         File.WriteAllText(Path.Combine(_tempDir, "notes.md"), "notes\n");
@@ -251,7 +266,8 @@ public sealed class SessionServiceToolInvocationRecorderTests : IDisposable
     private async Task<(List<SessionEvent> Events, IReadOnlyList<SessionItem> History)> RunMemoryTurnAsync(
         string tool,
         string path,
-        ThreadConfiguration? config = null)
+        ThreadConfiguration? config = null,
+        string? userDataPath = null)
     {
         var arguments = new Dictionary<string, object?> { ["path"] = path };
         if (tool == "WriteFile")
@@ -268,6 +284,7 @@ public sealed class SessionServiceToolInvocationRecorderTests : IDisposable
         var events = await RunToolTurnAsync(
             [(tool, arguments)],
             config: config,
+            userDataPath: userDataPath,
             inspect: async (service, threadId) =>
             {
                 var page = await service.ListThreadItemsAsync(
@@ -309,6 +326,16 @@ public sealed class SessionServiceToolInvocationRecorderTests : IDisposable
     private static SessionItem LastToolCall(List<SessionEvent> events, SessionEventType type) =>
         events.Last(evt => evt.EventType == type && evt.ItemPayload?.Payload is ToolCallPayload).ItemPayload!;
 
+    private static (string? Id, string? Name)? MemoryStoreMark(SessionItem item) =>
+        (item.Payload switch
+        {
+            ToolCallPayload call => call.Presentation,
+            ToolResultPayload result => result.Presentation,
+            _ => null
+        })?.Options?["memoryStore"] is JsonObject store
+            ? (store["id"]?.GetValue<string>(), store["name"]?.GetValue<string>())
+            : null;
+
     private static string? MemoryMark(SessionItem item) =>
         (item.Payload switch
         {
@@ -321,19 +348,40 @@ public sealed class SessionServiceToolInvocationRecorderTests : IDisposable
         IReadOnlyList<(string Tool, IDictionary<string, object?> Arguments)> calls,
         string? remoteCallId = null,
         ThreadConfiguration? config = null,
-        Func<SessionService, string, Task>? inspect = null)
+        Func<SessionService, string, Task>? inspect = null,
+        string? userDataPath = null)
     {
         var chatClient = new ScriptedToolCallChatClient(calls);
         var router = new ToolInvocationRecorderRouter();
+        var appConfig = AppConfigTestFactory.CreateOpenAI();
+        var memoryStore = new MemoryStore(_tempDir);
+        var skills = new SkillsLoader(_tempDir);
+        var approvals = new SessionScopedApprovalService(new AutoApproveApprovalService());
+        var registry = TestModelProviderRegistry.Create();
         await using var agentFactory = new AgentFactory(
             dotcraftPath: _tempDir,
             workspacePath: _tempDir,
-            config: AppConfigTestFactory.CreateOpenAI(),
-            memoryStore: new MemoryStore(_tempDir),
-            skillsLoader: new SkillsLoader(_tempDir),
-            approvalService: new SessionScopedApprovalService(new AutoApproveApprovalService()),
+            config: appConfig,
+            memoryStore: memoryStore,
+            skillsLoader: skills,
+            approvalService: approvals,
             blacklist: null,
-            chatClientRegistry: TestModelProviderRegistry.Create(),
+            runtimeContext: userDataPath is null
+                ? null
+                : new AgentRuntimeContext
+                {
+                    Config = appConfig,
+                    ChatClient = chatClient,
+                    ChatClientRegistry = registry,
+                    WorkspacePath = _tempDir,
+                    BotPath = _tempDir,
+                    UserDataPath = userDataPath,
+                    MemoryStore = memoryStore,
+                    SkillsLoader = skills,
+                    ContextPageManager = new DotCraft.Context.ContextPageManager(),
+                    ApprovalService = approvals
+                },
+            chatClientRegistry: registry,
             chatClient: chatClient,
             toolDispatcher: new ToolDispatcher(recorder: new RemoteLocationRecorder(router, remoteCallId)),
             toolSources: [new FileToolSource(_tempDir)]);

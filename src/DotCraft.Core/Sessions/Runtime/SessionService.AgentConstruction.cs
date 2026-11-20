@@ -78,6 +78,7 @@ public sealed partial class SessionService
         MemoryScopes.ValidateAttachments(captured.MemoryStores);
         captured.MemoryEnabled ??= currentConfig.Memory.Enabled;
         captured.MemoryAutoExtract ??= currentConfig.Memory.AutoExtract;
+        captured.MemoryPersonal ??= currentConfig.Memory.Personal;
         captured.Reasoning ??= ThreadConfigurationCloner.CloneReasoningConfig(preference.Reasoning);
         captured.Speed ??= preference.Speed;
 
@@ -202,7 +203,7 @@ public sealed partial class SessionService
     {
         if (!string.IsNullOrWhiteSpace(config.AgentProfileId) || !string.IsNullOrWhiteSpace(config.MemoryScope))
             return true;
-        if (config.MemoryEnabled == false || config.MemoryStores is { Count: > 0 })
+        if (config.MemoryEnabled == false || config.MemoryPersonal == false || config.MemoryStores is { Count: > 0 })
             return true;
         if (!string.IsNullOrWhiteSpace(config.AgentProfileSource))
             return true;
@@ -372,7 +373,8 @@ public sealed partial class SessionService
         {
             MemoryStore = ResolveMemoryStore(config),
             AttachedMemoryStores = MemoryScopes.AttachedStores(config, DataPath),
-            MemoryEnabled = config.MemoryEnabled ?? true
+            MemoryEnabled = config.MemoryEnabled ?? true,
+            MemoryPersonal = config.MemoryPersonal ?? true
         };
 
         var toolContext = CloneContextWithWorkspace(
@@ -454,7 +456,8 @@ public sealed partial class SessionService
             config.RequireApprovalOutsideWorkspace,
             toolContext.MemoryStores,
             toolContext.ToolLocation,
-            config.CodeModeExcludedNamespaces);
+            config.CodeModeExcludedNamespaces,
+            threadRuntimeState.FileVersions);
         var toolSnapshot = await agentFactory.BuildToolSnapshotAsync(
             snapshotSources,
             planningContext,

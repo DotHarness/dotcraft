@@ -35,10 +35,10 @@ Cardo is Desktop's coordinator mode: one conversation from which the person mana
 
 ## 4. Thread configuration
 
-- Cardo's thread uses the Agent mode with a coordinator tool policy: the Desktop thread tools, read-only file and web tools, and no file-editing, shell, or SubAgent tools. The policy is enforced by the runtime, not by instructions alone.
+- Cardo's thread uses the Agent mode with a coordinator tool policy: the Desktop thread tools, read-only file and web tools, file-writing tools that reach only its memory stores, and no shell or SubAgent tools. The policy is enforced by the runtime, not by instructions alone.
 - Cardo's instructions add the role and reporting rules above to the generated base instructions. They replace the default chat guidance on offers: in Cardo, `CreateThread` for project work uses `userAsked`, and `ownInitiative` proposals remain available for follow-ups Cardo notices.
 - Cardo's thread uses the person's default model and reasoning settings unless they change them in its composer.
-- Memory follows the default Chat workspace, so what Cardo learns about the person's preferences is available to it across days without being copied into project memories.
+- Cardo's thread runs with an Agent Profile that declares `memory: own`, so its own store holds what it learns about the projects and the work it coordinates ([Memory](memory.md#4-memory-scope)). What it learns about the person goes to the [personal store](memory.md#42-personal-store) like any Thread's. Knowledge of projects stays in Cardo's own store, because every chat in every project reads the personal store.
 
 ## 5. Scope
 

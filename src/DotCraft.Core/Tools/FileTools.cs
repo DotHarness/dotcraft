@@ -30,7 +30,8 @@ public sealed class FileTools(
     bool managedSearchOnly = false,
     ThreadMemoryStores? memoryStores = null,
     Func<IReadOnlyList<IMemoryWriteGate>>? memoryWriteGates = null,
-    ToolLocation? location = null)
+    ToolLocation? location = null,
+    ThreadFileVersions? fileVersions = null)
 {
     private readonly MemoryFileWrites _memory = new(memoryStores, memoryWriteGates);
 
@@ -158,18 +159,22 @@ public sealed class FileTools(
 
     private static IList<AIContent> ReadFileTextResult(string text) => [new TextContent(text)];
 
-    private IList<AIContent> ReadTextFileResult(string fullPath, string text) =>
-        ReadFileTextResult(!text.StartsWith("Error", StringComparison.Ordinal) && _memory.ReadNote(fullPath) is { } note
-            ? text + "\n\n" + note
-            : text);
+    private IList<AIContent> ReadTextFileResult(string fullPath, string text)
+    {
+        if (text.StartsWith("Error", StringComparison.Ordinal))
+            return ReadFileTextResult(text);
+        fileVersions?.Record(fullPath);
+        return ReadFileTextResult(_memory.ReadNote(fullPath) is { } note ? text + "\n\n" + note : text);
+    }
 
-    private ToolExecutionResult DeleteMemoryFile(FileWriteOutcome outcome, string fullPath, string path, string before, AttachedMemoryStore store)
+    private ToolExecutionResult DeleteMemoryFile(FileWriteOutcome outcome, string fullPath, string path, string before, MemoryStoreTarget store)
     {
         outcome.BeginWrite();
         File.Delete(fullPath);
+        fileVersions?.Forget(fullPath);
         return outcome.Complete(
             CreateFileChange(fullPath, FileChangeKind.Update, before, string.Empty),
-            $"Deleted {path} from {store.Attachment.Name}.",
+            $"Deleted {path} from {store.Label?.Name}.",
             ChangeReporter);
     }
 
@@ -207,6 +212,8 @@ public sealed class FileTools(
             using (await PathAsyncMutex.AcquireAsync(fullPath))
             {
                 var existedBefore = File.Exists(fullPath);
+                if (existedBefore && fileVersions?.ChangedSinceRecorded(fullPath) == true)
+                    return outcome.Fail($"Error: {path} changed since you last read or wrote it. Read it again before writing it.", ToolErrorCodes.ExecutionFailed);
                 var (before, encoding, error) = existedBefore
                     ? await TextFileEncoding.ReadAsync(fullPath, path)
                     : (null, Utf8NoBom, null);
@@ -226,6 +233,7 @@ public sealed class FileTools(
 
                 outcome.BeginWrite();
                 await WriteAllTextEnsuringDirectoryAsync(fullPath, content, encoding);
+                fileVersions?.Record(fullPath);
                 var lineCount = content.Split('\n').Length;
                 var result = outcome.Complete(
                     CreateFileChange(fullPath, existedBefore ? FileChangeKind.Update : FileChangeKind.Add, before, content),
@@ -288,6 +296,7 @@ public sealed class FileTools(
 
                 outcome.BeginWrite();
                 await TextFileEncoding.WriteAsync(fullPath, prepared.WrittenContent, encoding);
+                fileVersions?.Record(fullPath);
                 result = outcome.Complete(CreateFileChange(fullPath, FileChangeKind.Update, content, prepared.WrittenContent),
                     prepared.Result + _memory.WriteNotice(fullPath, prepared.WrittenContent), ChangeReporter);
                 writtenContent = prepared.WrittenContent;

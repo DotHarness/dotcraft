@@ -172,6 +172,30 @@ export interface DesktopPluginTurnRunningTasks {
   claim(): DesktopPluginDispose;
 }
 
+export type DesktopPluginSettingsSection =
+  | "general"
+  | "import"
+  | "profile"
+  | "appearance"
+  | "archived-threads"
+  | "voice"
+  | "personalization"
+  | "pet"
+  | "usage"
+  | "model-providers"
+  | "browser"
+  | "computer-use"
+  | "connections"
+  | "mcp"
+  | "hooks"
+  | "source-control"
+  | "worktrees";
+
+export interface DesktopPluginSettingsSectionContext {
+  readonly section: DesktopPluginSettingsSection;
+  readonly title: string;
+}
+
 /**
  * Known Desktop surface contexts. Plugins may augment this interface with their own surfaces.
  */
@@ -209,6 +233,23 @@ export interface DesktopPluginSurfaceContextMap {
   readonly "summary.sources": DesktopPluginThreadSurfaceContext;
   readonly "summary.sections": DesktopPluginThreadSurfaceContext;
   readonly "conversation.turn.status": DesktopPluginTurnStatusContext;
+  readonly "settings.general": DesktopPluginSettingsSectionContext;
+  readonly "settings.import": DesktopPluginSettingsSectionContext;
+  readonly "settings.profile": DesktopPluginSettingsSectionContext;
+  readonly "settings.appearance": DesktopPluginSettingsSectionContext;
+  readonly "settings.archived-threads": DesktopPluginSettingsSectionContext;
+  readonly "settings.voice": DesktopPluginSettingsSectionContext;
+  readonly "settings.personalization": DesktopPluginSettingsSectionContext;
+  readonly "settings.pet": DesktopPluginSettingsSectionContext;
+  readonly "settings.usage": DesktopPluginSettingsSectionContext;
+  readonly "settings.model-providers": DesktopPluginSettingsSectionContext;
+  readonly "settings.browser": DesktopPluginSettingsSectionContext;
+  readonly "settings.computer-use": DesktopPluginSettingsSectionContext;
+  readonly "settings.connections": DesktopPluginSettingsSectionContext;
+  readonly "settings.mcp": DesktopPluginSettingsSectionContext;
+  readonly "settings.hooks": DesktopPluginSettingsSectionContext;
+  readonly "settings.source-control": DesktopPluginSettingsSectionContext;
+  readonly "settings.worktrees": DesktopPluginSettingsSectionContext;
 }
 
 export type DesktopPluginSurfaceContext<Surface extends string> =
@@ -267,6 +308,7 @@ export interface DesktopPluginChatDraft {
 export interface DesktopPluginNavigation {
   openMainView(contributionId: string): void;
   openSettingsPage(contributionId: string): void;
+  openSettingsSection(section: DesktopPluginSettingsSection): void;
   openThread(threadId: string, workspacePath?: string): Promise<void>;
   /** Opens an http(s) URL in the user's default browser and handles a `dotcraft:` link inside Desktop; rejects other schemes. */
   openExternal(url: string): Promise<void>;

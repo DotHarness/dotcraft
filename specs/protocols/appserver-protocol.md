@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.13.2 |
+| **Version** | 0.14.0 |
 | **Status** | Living |
 | **Date** | 2026-11-20 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
@@ -2530,7 +2530,7 @@ Server-authoritative workspace memory maintenance: deleting memory and listing s
 
 ### 26.1 `memory/reset`
 
-Params none. Result `{}`. Clears the contents of every memory store of the workspace (the workspace store and every scope store) and the Dreams artifacts under `.craft/dreams`, keeping the directories themselves.
+Params none. Result `{}`. Clears the contents of every memory store of the workspace (the workspace store and every scope store) and the Dreams artifacts under `.craft/dreams`, keeping the directories themselves. The personal store and attached stores are untouched.
 
 - Sessions, thread history, skills, plugins, automations, Agent Profiles, and configuration are untouched; `Memory.Enabled` and `Memory.AutoExtract` are preserved, so later threads may save memory again.
 - Success emits `config/changed` with `source: "memory/reset"` and `regions: ["memory"]`.
@@ -2539,12 +2539,12 @@ Params none. Result `{}`. Clears the contents of every memory store of the works
 
 Params none. Result `{ stores }`, each store `{ kind, scope?, id?, path, displayName, writable }`:
 
-- `kind` is `workspace`, `scope`, or `attached`. `scope` is set for a `scope` store and `id` for an `attached` store.
+- `kind` is `personal`, `workspace`, `scope`, or `attached`. `scope` is set for a `scope` store and `id` for an `attached` store.
 - `path` is the store directory on the AppServer host. A directory may not exist yet.
-- `displayName` is the owning Agent Profile or automation name when resolvable, otherwise the scope or attachment id.
+- `displayName` is `Personal` for the personal store, otherwise the owning Agent Profile or automation name when resolvable, otherwise the scope or attachment id.
 - `writable` is `false` for an `attached` store.
 
-The workspace store comes first, then scope stores and attached stores, each ordered by scope or id.
+The personal store comes first when `Memory.Personal` is on, then the workspace store, then scope stores and attached stores, each ordered by scope or id.
 
 ## 27. Dreams Management Methods
 

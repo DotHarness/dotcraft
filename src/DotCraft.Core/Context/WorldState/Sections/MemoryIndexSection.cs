@@ -4,13 +4,14 @@ using DotCraft.Memory;
 
 namespace DotCraft.Context.WorldState;
 
-/// <summary>Entries are keyed by the memory file they point to, so an edit to one entry restates only that entry.
-/// Attached stores are keyed by their id under <c>stores</c>, after the Thread's own index.</summary>
+/// <summary>Entries are keyed by the memory file they point to, so an edit to one entry restates only that entry.</summary>
 internal sealed class MemoryIndexSection : IWorldStateSection
 {
     public const string SectionId = "memory_index";
 
     private const string Heading = "## Memory Index";
+
+    private const string OwnHeading = "### Your memory";
 
     private const string NonPointerKeyPrefix = "line:";
 
@@ -23,14 +24,15 @@ internal sealed class MemoryIndexSection : IWorldStateSection
 
         // Keep an object even when the index is empty, so an empty index stays distinct from an absent one.
         var snapshot = IndexSnapshot(MemoryIndex.Load(store.MemoryDirectoryPath));
-        if (context.AttachedMemoryStores.Count > 0)
+        var sideStores = SideStores(context);
+        if (sideStores.Count > 0)
         {
             var stores = new JsonObject();
-            foreach (var attached in context.AttachedMemoryStores)
+            foreach (var side in sideStores)
             {
-                var storeSnapshot = IndexSnapshot(MemoryIndex.Load(attached.DirectoryPath));
-                storeSnapshot["name"] = attached.Attachment.Name;
-                stores[attached.Attachment.Id] = storeSnapshot;
+                var storeSnapshot = IndexSnapshot(MemoryIndex.Load(side.DirectoryPath));
+                storeSnapshot["name"] = side.Name;
+                stores[side.Id] = storeSnapshot;
             }
             snapshot["stores"] = stores;
         }
@@ -50,11 +52,13 @@ internal sealed class MemoryIndexSection : IWorldStateSection
         var text = new StringBuilder(Heading).Append('\n');
         if (previous.MayBeShown)
             text.Append("This index replaces any memory index shown earlier.\n");
+        if (Personal(context) is { } personal)
+            text.Append(RenderFull(personal)).Append("\n\n").Append(OwnHeading).Append('\n');
         text.Append(index.IsEmpty
             ? "MEMORY.md is empty. Saved memories will be listed here."
             : $"Contents of {Path.GetFullPath(store.IndexFilePath)}:\n\n{index.Text}");
-        foreach (var attached in context.AttachedMemoryStores)
-            text.Append("\n\n").Append(RenderAttachedFull(attached));
+        foreach (var attached in Attached(context))
+            text.Append("\n\n").Append(RenderFull(attached));
         return text.ToString();
     }
 
@@ -66,42 +70,30 @@ internal sealed class MemoryIndexSection : IWorldStateSection
         JsonObject? shownStores)
     {
         var parts = new List<string>();
+        var personal = Personal(context);
+        if (personal is not null)
+            AddUpdate(parts, personal, shownStores);
+
+        string? own = null;
         if (index.IsEmpty)
         {
             if (shown.Count > 0)
-                parts.Add("MEMORY.md is now empty.");
+                own = "MEMORY.md is now empty.";
         }
         else if (RenderEntryUpdate(index, shown, shownNotices) is { } update)
         {
-            parts.Add("MEMORY.md changed since it was last shown. These entries update that index." + update);
+            own = "MEMORY.md changed since it was last shown. These entries update that index." + update;
         }
 
-        var current = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var attached in context.AttachedMemoryStores)
-        {
-            current.Add(attached.Attachment.Id);
-            if (shownStores?[attached.Attachment.Id] is not JsonObject shownStore
-                || shownStore["entries"] is not JsonObject shownEntries)
-            {
-                parts.Add(RenderAttachedFull(attached));
-                continue;
-            }
+        if (own is not null)
+            parts.Add(personal is null ? own : $"{OwnHeading}\n{own}");
 
-            var attachedIndex = MemoryIndex.Load(attached.DirectoryPath);
-            var name = attached.Attachment.Name;
-            if (attachedIndex.IsEmpty)
-            {
-                if (shownEntries.Count > 0)
-                    parts.Add($"### {name}\nIts MEMORY.md is now empty.");
-            }
-            else if (RenderEntryUpdate(attachedIndex, shownEntries, shownStore["notices"]?.GetValue<string>()) is { } update)
-            {
-                parts.Add($"### {name}\nIts MEMORY.md changed since it was last shown. These entries update that index." + update);
-            }
-        }
+        foreach (var attached in Attached(context))
+            AddUpdate(parts, attached, shownStores);
 
         if (shownStores is not null)
         {
+            var current = SideStores(context).Select(static side => side.Id).ToHashSet(StringComparer.Ordinal);
             foreach (var (id, shownStore) in shownStores)
             {
                 if (!current.Contains(id))
@@ -112,14 +104,49 @@ internal sealed class MemoryIndexSection : IWorldStateSection
         return parts.Count == 0 ? null : $"{Heading}\n" + string.Join("\n\n", parts);
     }
 
-    private static string RenderAttachedFull(AttachedMemoryStore attached)
+    private static void AddUpdate(List<string> parts, SideStore side, JsonObject? shownStores)
     {
-        var index = MemoryIndex.Load(attached.DirectoryPath);
-        var indexPath = Path.GetFullPath(Path.Combine(attached.DirectoryPath, MemoryStore.IndexFileName));
-        return index.IsEmpty
-            ? $"### {attached.Attachment.Name}\nIts MEMORY.md is empty."
-            : $"### {attached.Attachment.Name}\nContents of {indexPath}:\n\n{index.Text}";
+        if (shownStores?[side.Id] is not JsonObject shownStore
+            || shownStore["entries"] is not JsonObject shownEntries)
+        {
+            parts.Add(RenderFull(side));
+            return;
+        }
+
+        var index = MemoryIndex.Load(side.DirectoryPath);
+        if (index.IsEmpty)
+        {
+            if (shownEntries.Count > 0)
+                parts.Add($"### {side.Name}\nIts MEMORY.md is now empty.");
+        }
+        else if (RenderEntryUpdate(index, shownEntries, shownStore["notices"]?.GetValue<string>()) is { } update)
+        {
+            parts.Add($"### {side.Name}\nIts MEMORY.md changed since it was last shown. These entries update that index." + update);
+        }
     }
+
+    private static string RenderFull(SideStore side)
+    {
+        var index = MemoryIndex.Load(side.DirectoryPath);
+        var indexPath = Path.GetFullPath(Path.Combine(side.DirectoryPath, MemoryStore.IndexFileName));
+        return index.IsEmpty
+            ? $"### {side.Name}\nIts MEMORY.md is empty."
+            : $"### {side.Name}\nContents of {indexPath}:\n\n{index.Text}";
+    }
+
+    private sealed record SideStore(string Id, string Name, string DirectoryPath);
+
+    private static SideStore? Personal(WorldStateContext context) =>
+        context.PersonalMemoryStore is { } personal
+            ? new SideStore(ThreadMemoryStores.PersonalStoreId, "Personal memory", personal.MemoryDirectoryPath)
+            : null;
+
+    private static IEnumerable<SideStore> Attached(WorldStateContext context) =>
+        context.AttachedMemoryStores.Select(static attached =>
+            new SideStore(attached.Attachment.Id, attached.Attachment.Name, attached.DirectoryPath));
+
+    private static IReadOnlyList<SideStore> SideStores(WorldStateContext context) =>
+        Personal(context) is { } personal ? [personal, .. Attached(context)] : [.. Attached(context)];
 
     private static JsonObject IndexSnapshot(MemoryIndex index)
     {

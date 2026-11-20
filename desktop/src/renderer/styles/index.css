@@ -47,6 +47,7 @@
 @import "./primitives/combobox.css";
 @import "./primitives/button.css";
 @import "./primitives/quiet-action.css";
+@import "./primitives/revealed-actions.css";
 @import "./primitives/message-state.css";
 @import "./primitives/icon-button.css";
 @import "./primitives/disclosure-chevron.css";

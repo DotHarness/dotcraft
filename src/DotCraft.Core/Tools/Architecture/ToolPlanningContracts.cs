@@ -24,7 +24,8 @@ public sealed class ToolPlanningContext
         bool? requireApprovalOutsideWorkspace = null,
         Memory.ThreadMemoryStores? memoryStores = null,
         ToolLocation? location = null,
-        IEnumerable<string>? codeModeExcludedNamespaces = null)
+        IEnumerable<string>? codeModeExcludedNamespaces = null,
+        ThreadFileVersions? fileVersions = null)
     {
         if (string.IsNullOrWhiteSpace(threadId))
             throw new ArgumentException("A thread identifier is required.", nameof(threadId));
@@ -53,6 +54,7 @@ public sealed class ToolPlanningContext
         Location = location;
         CodeModeExcludedNamespaces = (codeModeExcludedNamespaces ?? [])
             .ToFrozenSet(StringComparer.Ordinal);
+        FileVersions = fileVersions;
     }
 
     /// <summary>Gets the thread identifier.</summary>
@@ -94,4 +96,5 @@ public sealed class ToolPlanningContext
     public ToolLocation? Location { get; }
     /// <summary>Gets the tool namespaces kept off the code mode nested surface.</summary>
     public IReadOnlySet<string> CodeModeExcludedNamespaces { get; }
+    public ThreadFileVersions? FileVersions { get; }
 }

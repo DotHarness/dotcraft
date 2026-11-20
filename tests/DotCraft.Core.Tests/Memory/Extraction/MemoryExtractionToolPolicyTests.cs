@@ -10,7 +10,8 @@ public sealed class MemoryExtractionToolPolicyTests
 {
     private static readonly string Workspace = Path.Combine(Path.GetTempPath(), "extraction-policy", "workspace");
     private static readonly string Store = Path.Combine(Workspace, ".craft", "memory");
-    private readonly MemoryExtractionToolPolicy _policy = new(Store);
+    private static readonly string Personal = Path.Combine(Path.GetTempPath(), "extraction-policy", "home", ".craft", "memory");
+    private readonly MemoryExtractionToolPolicy _policy = new(Store, Personal);
 
     [Theory]
     [InlineData("ReadFile", "../elsewhere/notes.txt")]
@@ -25,6 +26,15 @@ public sealed class MemoryExtractionToolPolicyTests
     {
         Assert.True(await AllowsAsync(tool, path));
         Assert.True(await AllowsAsync(tool, Path.Combine(Workspace, path)));
+    }
+
+    [Fact]
+    public async Task MarkdownWritesInsideThePersonalStore_AreAllowed()
+    {
+        Assert.True(await AllowsAsync("WriteFile", Path.Combine(Personal, "role.md")));
+        Assert.True(await AllowsAsync("EditFile", Path.Combine(Personal, "MEMORY.md")));
+        Assert.False(await AllowsAsync("WriteFile", Path.Combine(Personal, "notes.txt")));
+        Assert.False(await AllowsAsync("WriteFile", Path.Combine(Path.GetDirectoryName(Personal)!, "config.md")));
     }
 
     [Theory]

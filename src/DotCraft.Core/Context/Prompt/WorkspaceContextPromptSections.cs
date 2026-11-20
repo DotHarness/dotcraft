@@ -35,15 +35,21 @@ internal static class WorkspaceContextPromptSections
         if (sources.MemoryStore is not { } memoryStore)
             return null;
 
+        var personal = sources.PersonalMemoryStore;
         var attached = sources.AttachedMemoryStores;
         var policy = sources.ReadMemoryPolicy();
         return sources.GetContextPage(
             context.ThreadId,
             ContextPageKeys.Memory(
-                Path.GetFullPath(memoryStore.MemoryDirectoryPath) + AttachedStoresVariant(attached) + "\n" + policy.InstructionsFingerprint),
-            () => attached.Count == 0
-                ? BuildMemoryContext(memoryStore, policy)
-                : BuildMemoryContext(memoryStore, policy) + "\n" + BuildAttachedStoresContext(attached));
+                Path.GetFullPath(memoryStore.MemoryDirectoryPath)
+                + "\n" + (personal is null ? string.Empty : Path.GetFullPath(personal.MemoryDirectoryPath))
+                + AttachedStoresVariant(attached) + "\n" + policy.InstructionsFingerprint),
+            () => string.Join("\n", ((string?[])
+            [
+                BuildMemoryContext(memoryStore, personal, policy),
+                personal is null ? null : PersonalStoreRules,
+                attached.Count == 0 ? null : BuildAttachedStoresContext(attached)
+            ]).OfType<string>()));
     }
 
     private static string LoadBootstrapFiles(PromptSectionSources sources)
@@ -93,13 +99,24 @@ Save to a shared memory you can write only what holds for everyone who uses it, 
 """;
     }
 
-    private static string BuildMemoryContext(MemoryStore memoryStore, MemoryPolicy policy) =>
+    private const string PersonalStoreRules =
+"""
+## Personal memory
+
+- Save a memory of a personal type to the personal memory. Save any other memory to your memory, unless the user said it applies in every project. Then save it to the personal memory.
+- Never save project facts, paths, commands, business or customer details, credentials, or conversation content to the personal memory, because every workspace on this computer reads it.
+- Before saving to the personal memory, delete any memory in your memory that covers the same knowledge.
+- A memory in your memory that narrows a personal memory to this workspace takes precedence here. Otherwise the personal memory takes precedence.
+- To delete a personal memory, write its file empty and remove its index line.
+""";
+
+    private static string BuildMemoryContext(MemoryStore memoryStore, MemoryStore? personal, MemoryPolicy policy) =>
 $"""
 # Memory
 
-You have a persistent, file-based memory at `{Path.GetFullPath(memoryStore.MemoryDirectoryPath)}`. The directory already exists; write to it directly.
+You have a persistent, file-based memory at `{Path.GetFullPath(memoryStore.MemoryDirectoryPath)}`. The directory already exists; write to it directly.{(personal is null ? string.Empty : $" You also have a personal memory at `{Path.GetFullPath(personal.MemoryDirectoryPath)}`, shared by every workspace on this computer, with its own `MEMORY.md` index in the same format.")}
 
-{MemoryInstructions.FileFormat(policy.Types)}
+{MemoryInstructions.FileFormat(policy.Types, markPersonal: personal is not null)}
 
 After writing the file, add or update its pointer in `MEMORY.md`: one line, `- [Title](name.md) — hook`, under about 150 characters. MEMORY.md is the index shown to you in each conversation. It has no frontmatter and never holds memory content.
 

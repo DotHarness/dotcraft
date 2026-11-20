@@ -5,14 +5,25 @@ namespace DotCraft.Memory.Extraction;
 
 internal static class MemoryExtractionPrompt
 {
-    public static string Build(int turnCount, string storeDirectory, IReadOnlyList<MemoryFileInfo> files, string guidance)
+    public static string Build(
+        int turnCount,
+        string storeDirectory,
+        IReadOnlyList<MemoryFileInfo> files,
+        string? personalDirectory,
+        IReadOnlyList<MemoryFileInfo> personalFiles,
+        string guidance)
     {
         var turns = turnCount == 1 ? "the last turn" : $"the last {turnCount} turns";
+        var stores = personalDirectory is null
+            ? $"`{storeDirectory}`"
+            : $"`{storeDirectory}` or the personal memory directory `{personalDirectory}`";
         var sb = new StringBuilder();
         sb.Append("You are now acting as the memory extraction pass for this conversation. Review ")
             .Append(turns)
-            .Append(" above and save, in the memory directory `").Append(storeDirectory)
-            .AppendLine("`, what the extraction guidance below says is worth saving.")
+            .Append(" above and save, in the memory directory ").Append(stores);
+        if (personalDirectory is not null)
+            sb.Append(", choosing between them as your memory instructions say");
+        sb.AppendLine(", what the extraction guidance below says is worth saving.")
             .AppendLine()
             .AppendLine("## Extraction guidance")
             .AppendLine()
@@ -28,9 +39,26 @@ internal static class MemoryExtractionPrompt
             .AppendLine("- Keep each memory's pointer line in MEMORY.md in sync with its file.")
             .AppendLine("- If nothing is worth saving, reply \"Nothing to save.\" and stop.")
             .AppendLine()
-            .Append("Write only Markdown files inside `").Append(storeDirectory).AppendLine("`. Calls other than file reads and those writes are refused.")
+            .Append("Write only Markdown files inside ").Append(stores).AppendLine(". Calls other than file reads and those writes are refused.")
             .AppendLine()
             .AppendLine("## Existing memory files");
+        if (personalDirectory is null)
+        {
+            AppendFiles(sb, files);
+        }
+        else
+        {
+            sb.Append("### `").Append(storeDirectory).AppendLine("`");
+            AppendFiles(sb, files);
+            sb.AppendLine().Append("### `").Append(personalDirectory).AppendLine("`");
+            AppendFiles(sb, personalFiles);
+        }
+
+        return sb.ToString().TrimEnd();
+    }
+
+    private static void AppendFiles(StringBuilder sb, IReadOnlyList<MemoryFileInfo> files)
+    {
         if (files.Count == 0)
             sb.AppendLine("(none)");
         foreach (var file in files)
@@ -46,7 +74,5 @@ internal static class MemoryExtractionPrompt
                 sb.Append(": ").Append(file.Description);
             sb.AppendLine();
         }
-
-        return sb.ToString().TrimEnd();
     }
 }

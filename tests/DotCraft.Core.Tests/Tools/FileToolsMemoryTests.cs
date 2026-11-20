@@ -119,7 +119,7 @@ public sealed class FileToolsMemoryTests : IDisposable
     }
 
     private FileTools MemoryAwareTools(bool requireApprovalOutsideWorkspace = true) =>
-        new(_worktree, requireApprovalOutsideWorkspace, memoryStores: new ThreadMemoryStores(_store, []));
+        new(_worktree, requireApprovalOutsideWorkspace, memoryStores: new ThreadMemoryStores(_store, null, []));
 
     private static string IndexLines(int count) =>
         string.Join('\n', Enumerable.Range(1, count).Select(static i => $"- [M{i}](m{i}.md) — hook"));

@@ -15,6 +15,7 @@ interface MemoryToggle {
 interface MemorySettingsGroupProps {
   memoryToggle: MemoryToggle | null
   autoExtractToggle: MemoryToggle | null
+  personalToggle: MemoryToggle | null
   dreams: DreamsSettings | null
   onManageDreams: () => void
   deleteMemories: {
@@ -26,6 +27,7 @@ interface MemorySettingsGroupProps {
 export function MemorySettingsGroup({
   memoryToggle,
   autoExtractToggle,
+  personalToggle,
   dreams,
   onManageDreams,
   deleteMemories
@@ -66,6 +68,25 @@ export function MemorySettingsGroup({
                 disabled={!memoryEnabled || autoExtractToggle.applying}
                 aria-label={t('settings.personalization.memory.autoExtract')}
                 onChange={autoExtractToggle.onToggle}
+              />
+            </ActionTooltip>
+          }
+        />
+      )}
+      {personalToggle && (
+        <SettingsRow
+          label={t('settings.personalization.memory.personal')}
+          description={t('settings.personalization.memory.personalHint')}
+          control={
+            <ActionTooltip
+              label=""
+              disabledReason={memoryEnabled ? undefined : t('settings.personalization.memory.requiredForPersonal')}
+            >
+              <PillSwitch
+                checked={personalToggle.enabled}
+                disabled={!memoryEnabled || personalToggle.applying}
+                aria-label={t('settings.personalization.memory.personal')}
+                onChange={personalToggle.onToggle}
               />
             </ActionTooltip>
           }

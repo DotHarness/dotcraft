@@ -12,6 +12,8 @@ internal sealed class PromptSectionSources
 {
     internal MemoryStore? MemoryStore { get; init; }
 
+    internal MemoryStore? PersonalMemoryStore { get; init; }
+
     internal IReadOnlyList<AttachedMemoryStore> AttachedMemoryStores { get; init; } = [];
 
     /// <summary>Reads the memory policy at build time, so a policy change reaches the next prompt.</summary>

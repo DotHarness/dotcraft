@@ -34,7 +34,7 @@ public sealed class DreamsStoreFilesTests : IDisposable
         var baseline = DreamsStoreFiles.Read(Store);
         Task<bool>? replacement = null;
         var replacedDuringWrite = true;
-        var tools = new FileTools(_root, memoryStores: new ThreadMemoryStores(new MemoryStore(Path.GetDirectoryName(Store)!), []))
+        var tools = new FileTools(_root, memoryStores: new ThreadMemoryStores(new MemoryStore(Path.GetDirectoryName(Store)!), null, []))
         {
             ChangeReporter = change =>
             {

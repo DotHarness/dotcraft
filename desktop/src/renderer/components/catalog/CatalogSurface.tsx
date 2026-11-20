@@ -373,10 +373,17 @@ export function CatalogChip({ label, active = false }: { label: string; active?:
   return <span style={active ? styles.chipActive : styles.chip}>{label}</span>
 }
 
-export function CatalogSection({ title, children }: { title: string; children: ReactNode }): JSX.Element {
+export function CatalogSection({ title, actions, children }: { title: string; actions?: ReactNode; children: ReactNode }): JSX.Element {
   return (
     <section style={{ marginBottom: '34px' }}>
-      <h2 style={styles.sectionTitle}>{title}</h2>
+      {actions ? (
+        <div className="dc-revealed-actions-row" style={sectionHeaderRow}>
+          <h2 style={sectionHeaderTitle}>{title}</h2>
+          <span className="dc-revealed-actions">{actions}</span>
+        </div>
+      ) : (
+        <h2 style={styles.sectionTitle}>{title}</h2>
+      )}
       {children}
     </section>
   )
@@ -704,3 +711,23 @@ export const styles = {
     color: 'var(--text-secondary)'
   }
 } satisfies Record<string, CSSProperties>
+
+const { maxWidth: sectionColumnWidth, margin: sectionColumnMargin, ...sectionTitleType } = styles.sectionTitle
+
+const sectionHeaderRow: CSSProperties = {
+  maxWidth: sectionColumnWidth,
+  margin: sectionColumnMargin,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: '10px'
+}
+
+const sectionHeaderTitle: CSSProperties = {
+  ...sectionTitleType,
+  margin: 0,
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap'
+}

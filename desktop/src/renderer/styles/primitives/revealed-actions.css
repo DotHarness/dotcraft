@@ -1,0 +1,13 @@
+.dc-revealed-actions {
+  display: inline-flex;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.dc-revealed-actions-row:hover .dc-revealed-actions,
+.dc-revealed-actions:focus-within,
+.dc-revealed-actions:has([aria-expanded="true"]) {
+  opacity: 1;
+  pointer-events: auto;
+}

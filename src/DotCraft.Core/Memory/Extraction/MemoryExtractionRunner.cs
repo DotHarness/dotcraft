@@ -21,7 +21,8 @@ public sealed class MemoryExtractionRunner(
     string dataPath,
     IModelRuntimeDiagnostics? diagnostics = null,
     ILogger? logger = null,
-    Func<MemoryPolicy>? policy = null) : IMemoryExtractionRunner
+    Func<MemoryPolicy>? policy = null,
+    string? userDataPath = null) : IMemoryExtractionRunner
 {
     private static readonly TimeSpan RunTimeout = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan CleanupTimeout = TimeSpan.FromSeconds(30);
@@ -34,8 +35,9 @@ public sealed class MemoryExtractionRunner(
 
         var turnsSinceCursor = await CountTurnsAsync(threadId, cursorTurnId, cancellationToken).ConfigureAwait(false);
         var store = MemoryScopes.ForThread(parent.Configuration, workspaceStore, dataPath);
+        var personal = MemoryScopes.PersonalStore(parent.Configuration?.MemoryPersonal ?? true, userDataPath, store);
         var current = policy?.Invoke() ?? MemoryPolicy.Default;
-        var run = await ExtractAsync(parent, forkPoint, turnsSinceCursor, store.MemoryDirectoryPath, current, cancellationToken)
+        var run = await ExtractAsync(parent, forkPoint, turnsSinceCursor, store.MemoryDirectoryPath, personal?.MemoryDirectoryPath, current, cancellationToken)
             .ConfigureAwait(false);
         if (run is not { } completed)
             return null;
@@ -64,6 +66,7 @@ public sealed class MemoryExtractionRunner(
         SessionTurn forkPoint,
         int turnCount,
         string storeDirectory,
+        string? personalDirectory,
         MemoryPolicy current,
         CancellationToken cancellationToken)
     {
@@ -92,8 +95,14 @@ public sealed class MemoryExtractionRunner(
                 turnCount,
                 storeDirectory,
                 MemoryFiles.List(storeDirectory, current.TypeNames),
+                personalDirectory,
+                personalDirectory is null ? [] : MemoryFiles.List(personalDirectory, current.TypeNames),
                 current.ExtractionGuidance);
-            var (outcome, turn) = await RunForkAsync(fork.Id, message, storeDirectory, cancellationToken).ConfigureAwait(false);
+            var (outcome, turn) = await RunForkAsync(
+                fork.Id,
+                message,
+                personalDirectory is null ? [storeDirectory] : [storeDirectory, personalDirectory],
+                cancellationToken).ConfigureAwait(false);
             return new ExtractionRun(fork.Id, outcome, turn);
         }
         finally
@@ -105,11 +114,11 @@ public sealed class MemoryExtractionRunner(
     private async Task<(string Outcome, SessionTurn? Turn)> RunForkAsync(
         string forkId,
         string message,
-        string storeDirectory,
+        IReadOnlyList<string> storeDirectories,
         CancellationToken cancellationToken)
     {
         using var guard = contributions.Add<IToolPolicyEvaluator>(
-            new MemoryExtractionToolPolicy(storeDirectory),
+            new MemoryExtractionToolPolicy(storeDirectories),
             ContributionOptions.ForThread(forkId));
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(RunTimeout);

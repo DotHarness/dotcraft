@@ -210,7 +210,8 @@ public sealed partial class WorkspaceRuntime
                     Paths.Data.RootPath,
                     traceCollector,
                     loggerFactory?.CreateLogger<MemoryExtractionRunner>(),
-                    () => MemoryPolicy.From(Config.Memory));
+                    () => MemoryPolicy.From(Config.Memory),
+                    Paths.UserData.RootPath);
                 var memoryExtraction = new MemoryExtractionScheduler(
                     sessionService.GetThreadAsync,
                     (thread, ct) => sessionService.ReadThreadTurnsAsync(
@@ -275,7 +276,7 @@ public sealed partial class WorkspaceRuntime
                     sessionService,
                     commitMessageSuggest,
                     dreamsService,
-                    new MemoryManagementService(Paths, MemoryStore),
+                    new MemoryManagementService(Paths, MemoryStore, () => _appConfigMonitor.Current.Memory.Personal),
                     pluginRuntime,
                     configSchema,
                     contextPageManager,

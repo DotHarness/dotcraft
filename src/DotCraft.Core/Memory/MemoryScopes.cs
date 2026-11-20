@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using DotCraft.Security;
 using DotCraft.Sessions;
 
 namespace DotCraft.Memory;
@@ -13,6 +14,14 @@ public static partial class MemoryScopes
     /// <summary>The directory of the store a Thread with this configuration uses, without creating it.</summary>
     public static string StoreDirectory(ThreadConfiguration? configuration, string dataPath) =>
         MemoryStore.DirectoryOf(OwnDataRoot(configuration, dataPath) ?? dataPath);
+
+    public static MemoryStore? PersonalStore(bool enabled, string? userDataPath, MemoryStore own)
+    {
+        if (!enabled || string.IsNullOrEmpty(userDataPath))
+            return null;
+        var directory = MemoryStore.DirectoryOf(userDataPath);
+        return WorkspaceBoundary.IsWithin(directory, own.MemoryDirectoryPath) ? null : new MemoryStore(userDataPath);
+    }
 
     /// <summary>Empties the workspace store and every scope store beside it, keeping their directories.</summary>
     public static void ClearAll(MemoryStore workspaceStore)
@@ -79,6 +88,8 @@ public static partial class MemoryScopes
         {
             if (attachment is null || string.IsNullOrEmpty(attachment.Id) || !Segment().IsMatch(attachment.Id))
                 throw new ArgumentException($"Memory store id '{attachment?.Id}' is not a single safe path segment.", nameof(attachments));
+            if (string.Equals(attachment.Id, ThreadMemoryStores.PersonalStoreId, StringComparison.OrdinalIgnoreCase))
+                throw new ArgumentException($"Memory store id '{attachment.Id}' is reserved.", nameof(attachments));
             if (!ids.Add(attachment.Id))
                 throw new ArgumentException($"Memory store '{attachment.Id}' is attached more than once.", nameof(attachments));
             if (string.IsNullOrWhiteSpace(attachment.Name) || string.IsNullOrWhiteSpace(attachment.Description))

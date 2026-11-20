@@ -3,6 +3,7 @@ import type { ConfigEdit, ConfigReadResult, ConfigSchemaResult, JsonValue } from
 export interface MemoryType {
   name: string
   description: string
+  personal: boolean
 }
 
 export interface PolicyValues {
@@ -50,18 +51,11 @@ export interface PolicyLayer {
   values: Partial<PolicyValues>
 }
 
-export interface PolicySwitches {
-  memoryEnabled: boolean
-  autoExtract: boolean
-  dreamsEnabled: boolean
-}
-
 export interface PolicyState {
   defaults: PolicyValues
   effective: PolicyValues
   origins: Record<PolicySetting, PolicyOrigin>
   layers: Partial<Record<PolicyLayerKind, PolicyLayer>>
-  switches: PolicySwitches
 }
 
 type JsonRecord = Record<string, unknown>
@@ -82,7 +76,8 @@ function readTypes(value: unknown): MemoryType[] | undefined {
   if (!Array.isArray(value)) return undefined
   return value.filter(isRecord).map((entry) => ({
     name: String(child(entry, 'Name') ?? ''),
-    description: String(child(entry, 'Description') ?? '')
+    description: String(child(entry, 'Description') ?? ''),
+    personal: child(entry, 'Personal') === true
   }))
 }
 
@@ -127,17 +122,11 @@ export function readPolicyState(defaults: PolicyValues, read: ConfigReadResult):
     origins[setting] = workspace !== undefined ? 'workspace' : user !== undefined ? 'user' : 'default'
     effective[setting] = workspace ?? user ?? defaults[setting]
   }
-  const memory = child(read.config, 'Memory')
   return {
     defaults,
     effective: effective as unknown as PolicyValues,
     origins,
-    layers,
-    switches: {
-      memoryEnabled: child(memory, 'Enabled') !== false,
-      autoExtract: child(memory, 'AutoExtract') === true,
-      dreamsEnabled: child(child(read.config, 'Dreams'), 'Enabled') === true
-    }
+    layers
   }
 }
 
@@ -150,31 +139,26 @@ export function settingEquals<S extends PolicySetting>(setting: S, a: PolicyValu
     const left = a as MemoryType[]
     const right = b as MemoryType[]
     return left.length === right.length && left.every((type, index) =>
-      type.name.trim() === right[index].name.trim() && type.description.trim() === right[index].description.trim())
+      type.name.trim() === right[index].name.trim() && type.description.trim() === right[index].description.trim()
+      && type.personal === right[index].personal)
   }
   if (setting === 'extractionInterval') return a === b
   return normalizeText(a as string) === normalizeText(b as string)
 }
 
-export function policyEquals(a: PolicyValues, b: PolicyValues): boolean {
-  return POLICY_SETTINGS.every((setting) => settingEquals(setting, a[setting], b[setting]))
-}
-
 function wireValue(setting: PolicySetting, value: PolicyValues[PolicySetting]): JsonValue {
   if (setting === 'types') {
-    return (value as MemoryType[]).map((type) => ({ Name: type.name.trim(), Description: type.description.trim() }))
+    return (value as MemoryType[]).map((type) => ({
+      Name: type.name.trim(),
+      Description: type.description.trim(),
+      ...(type.personal ? { Personal: true } : {})
+    }))
   }
   return typeof value === 'string' ? value.replace(/\r\n/g, '\n').trim() : value as number
 }
 
 export function settingEdit(setting: PolicySetting, value: PolicyValues[PolicySetting] | null): ConfigEdit {
   return { keyPath: policyKeyPath(setting), value: value === null ? null : wireValue(setting, value), mergeStrategy: 'replace' }
-}
-
-export function draftEdits(draft: PolicyValues, effective: PolicyValues): ConfigEdit[] {
-  return POLICY_SETTINGS
-    .filter((setting) => !settingEquals(setting, draft[setting], effective[setting]))
-    .map((setting) => settingEdit(setting, draft[setting]))
 }
 
 export type PolicyIssue =

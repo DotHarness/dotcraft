@@ -1,4 +1,5 @@
 import { useDetailPanelStore } from '../stores/detailPanelStore'
+import { settingsTabForSection } from '../components/settings/coreSettingsSections'
 import { createDesktopPluginSatellites, createDesktopPluginRemoteToolHost } from './desktopPluginSatellites'
 import { createDesktopPluginScreenView } from './desktopPluginScreenView'
 import type {
@@ -186,6 +187,13 @@ export function createDesktopPluginHost(
       openSettingsPage(id) {
         const ui = useUIStore.getState()
         ui.setActiveSettingsTab(buildDesktopPluginSettingsKey(pluginId, id))
+        ui.setActiveMainView('settings')
+      },
+      openSettingsSection(section) {
+        const tab = settingsTabForSection(section)
+        if (!tab) return
+        const ui = useUIStore.getState()
+        ui.setActiveSettingsTab(tab)
         ui.setActiveMainView('settings')
       },
       openThread(threadId, workspacePath) {

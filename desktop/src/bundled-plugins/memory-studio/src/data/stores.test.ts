@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { MemoryFs } from './memoryFs'
-import { loadStore, type MemoryStore } from './stores'
+import { clearStore, loadStore, type MemoryStore } from './stores'
 
 const STORE = 'C:\\ws\\.craft\\memory'
 
@@ -61,5 +61,13 @@ describe('loading a store', () => {
     const contents = await loadStore(fs, store(true))
     expect(fs.files.get(`${STORE}\\MEMORY.md`)).toBe('- [Other](other.md)\n')
     expect(contents.indexText).toBe('- [Other](other.md)\n')
+  })
+})
+
+describe('clearing a store', () => {
+  it('removes every memory file and the index but nothing else', async () => {
+    const fs = fakeFs({ 'role.md': memory, 'MEMORY.md': '- [Role](role.md) — x\n', 'notes.txt': 'keep' })
+    await clearStore(fs, store(true))
+    expect([...fs.files.keys()]).toEqual([`${STORE}\\notes.txt`])
   })
 })

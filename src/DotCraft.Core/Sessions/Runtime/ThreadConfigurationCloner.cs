@@ -11,6 +11,7 @@ internal static class ThreadConfigurationCloner
         MemoryStores = source.MemoryStores == null ? null : [.. source.MemoryStores],
         MemoryEnabled = source.MemoryEnabled,
         MemoryAutoExtract = source.MemoryAutoExtract,
+        MemoryPersonal = source.MemoryPersonal,
         AgentProfileSource = source.AgentProfileSource,
         AgentProfileFingerprint = source.AgentProfileFingerprint,
         AgentBuilderTargetId = source.AgentBuilderTargetId,

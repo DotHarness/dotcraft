@@ -10,6 +10,8 @@ public sealed class MemoryTypeDefinition
     public string Name { get; set; } = string.Empty;
 
     public string Description { get; set; } = string.Empty;
+
+    public bool Personal { get; set; }
 }
 
 public sealed record MemoryPolicy(
@@ -35,8 +37,10 @@ public sealed record MemoryPolicy(
 
     public IReadOnlySet<string> TypeNames => Types.Select(static type => type.Name).ToHashSet(StringComparer.Ordinal);
 
+    public IReadOnlyList<string> PersonalTypeNames => [.. Types.Where(static type => type.Personal).Select(static type => type.Name)];
+
     public string InstructionsFingerprint => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
-        string.Join("\n", Types.Select(static type => $"{type.Name}\t{type.Description}")) + "\n\0" + SaveGuidance)));
+        string.Join("\n", Types.Select(static type => $"{type.Name}\t{type.Description}\t{type.Personal}")) + "\n\0" + SaveGuidance)));
 }
 
 public static partial class MemoryPolicyRules

@@ -81,7 +81,7 @@ public sealed class CoreToolSourceWorkspaceBoundaryTests : IDisposable
         var store = Path.Combine(_tempRoot, "state", "memory");
         Directory.CreateDirectory(store);
         var approvals = new RecordingApprovalService();
-        var registrations = await GetRegistrationsAsync(requireApprovalOutsideWorkspace: null, approvals, new ThreadMemoryStores(new MemoryStore(Path.GetDirectoryName(store)!), []));
+        var registrations = await GetRegistrationsAsync(requireApprovalOutsideWorkspace: null, approvals, new ThreadMemoryStores(new MemoryStore(Path.GetDirectoryName(store)!), null, []));
         var writeFile = Assert.Single(registrations, item => item.Definition.Name.Name == "WriteFile");
         var evaluator = new CommonToolApprovalEvaluator();
         evaluator.Bind(approvals);
@@ -100,7 +100,7 @@ public sealed class CoreToolSourceWorkspaceBoundaryTests : IDisposable
     {
         var store = Path.Combine(_tempRoot, "state", "memory");
         Directory.CreateDirectory(store);
-        var registrations = await GetRegistrationsAsync(requireApprovalOutsideWorkspace: false, memoryStores: new ThreadMemoryStores(new MemoryStore(Path.GetDirectoryName(store)!), []));
+        var registrations = await GetRegistrationsAsync(requireApprovalOutsideWorkspace: false, memoryStores: new ThreadMemoryStores(new MemoryStore(Path.GetDirectoryName(store)!), null, []));
         var writeFile = Assert.Single(registrations, item => item.Definition.Name.Name == "WriteFile");
 
         var stored = await InvokeAsync(writeFile, new JsonObject
@@ -120,6 +120,25 @@ public sealed class CoreToolSourceWorkspaceBoundaryTests : IDisposable
         Assert.Equal("TOP-PRIVATE-CONTENT", File.ReadAllText(_outsideFile));
     }
 
+    [Fact]
+    public async Task Thread_file_record_outlives_a_tool_snapshot_rebuild()
+    {
+        var versions = new ThreadFileVersions();
+        var path = Path.Combine(_workspace, "notes.md");
+        File.WriteAllText(path, "first");
+        var before = await GetRegistrationsAsync(requireApprovalOutsideWorkspace: null, fileVersions: versions);
+        Assert.True((await InvokeAsync(Assert.Single(before, item => item.Definition.Name.Name == "ReadFile"), new JsonObject { ["path"] = path })).Success);
+        File.WriteAllText(path, "changed elsewhere");
+
+        var after = await GetRegistrationsAsync(requireApprovalOutsideWorkspace: null, fileVersions: versions);
+        var write = await InvokeAsync(
+            Assert.Single(after, item => item.Definition.Name.Name == "WriteFile"),
+            new JsonObject { ["path"] = path, ["content"] = "mine" });
+
+        Assert.False(write.Success);
+        Assert.Equal("changed elsewhere", File.ReadAllText(path));
+    }
+
     public void Dispose()
     {
         try
@@ -135,7 +154,8 @@ public sealed class CoreToolSourceWorkspaceBoundaryTests : IDisposable
     private async Task<IReadOnlyList<ToolRegistration>> GetRegistrationsAsync(
         bool? requireApprovalOutsideWorkspace,
         IApprovalService? approvalService = null,
-        ThreadMemoryStores? memoryStores = null)
+        ThreadMemoryStores? memoryStores = null,
+        ThreadFileVersions? fileVersions = null)
     {
         var config = AppConfigTestFactory.CreateOpenAI();
         Assert.True(config.Tools.File.RequireApprovalOutsideWorkspace);
@@ -157,7 +177,8 @@ public sealed class CoreToolSourceWorkspaceBoundaryTests : IDisposable
             1,
             workspaceRoots: [_workspace],
             requireApprovalOutsideWorkspace: requireApprovalOutsideWorkspace,
-            memoryStores: memoryStores));
+            memoryStores: memoryStores,
+            fileVersions: fileVersions));
     }
 
     private static async Task<ToolExecutionResult> InvokeAsync(

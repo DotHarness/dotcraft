@@ -49,6 +49,8 @@ public sealed record WorldStateContext
     /// <summary>The Thread's memory store, or <c>null</c> when the Thread does not use memory.</summary>
     public MemoryStore? MemoryStore { get; init; }
 
+    public MemoryStore? PersonalMemoryStore { get; init; }
+
     /// <summary>The stores attached beside <see cref="MemoryStore"/>, empty when the Thread does not use memory.</summary>
     public IReadOnlyList<AttachedMemoryStore> AttachedMemoryStores { get; init; } = [];
 

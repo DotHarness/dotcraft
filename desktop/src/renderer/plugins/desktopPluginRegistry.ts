@@ -17,6 +17,7 @@ import type {
   DesktopPluginToolRendererContribution
 } from '@dotcraft/plugin'
 import { normalizeLocale, type AppLocale } from '../../shared/locales'
+import { CORE_SETTINGS_SURFACES } from '../components/settings/coreSettingsSections'
 import type { DesktopPluginMainView } from '../stores/uiStore'
 import type { DesktopPluginSettingsTab } from '../types/settings'
 
@@ -148,7 +149,8 @@ const CORE_SURFACES: ReadonlySet<string> = new Set<keyof DesktopPluginSurfaceCon
   'conversation.aside.trailing',
   'conversation.turn.status',
   'summary.sources',
-  'summary.sections'
+  'summary.sections',
+  ...CORE_SETTINGS_SURFACES
 ])
 
 export function registerDesktopPluginSurface<S extends string>(
@@ -204,7 +206,7 @@ export function registerDesktopPluginSurface<S extends string>(
 }
 
 /** Only these roots are Core's to close; a plugin-declared name may legally be unmounted. */
-const CORE_SURFACE_ROOTS: ReadonlySet<string> = new Set(['app', 'composer', 'thread', 'conversation', 'summary'])
+const CORE_SURFACE_ROOTS: ReadonlySet<string> = new Set(['app', 'composer', 'thread', 'conversation', 'summary', 'settings'])
 
 function reportUnknownCoreSurface(pluginId: string, surface: string): void {
   const root = surface.split('.')[0]

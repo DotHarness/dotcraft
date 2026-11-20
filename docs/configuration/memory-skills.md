@@ -8,13 +8,14 @@ Workspace memory, Dreams, and how skills load. For the concepts, read [Memory & 
 |-------|-------------|---------|
 | `Memory.Enabled` | Lets new chats use and maintain memory. `Memory.AutoExtract` and Dreams also require it | `true` |
 | `Memory.AutoExtract` | Every few replies, a new memory-enabled chat is checked for anything worth remembering that was not saved | `false` |
-| `Memory.Types` | Kinds of memory, each a `Name` and a one-line `Description` of what belongs to it. One to eight | `user`, `feedback`, `project`, `reference` |
+| `Memory.Personal` | Lets new chats use the personal memory in `~/.craft/memory`, which every workspace on this computer shares | `true` |
+| `Memory.Types` | Kinds of memory, each a `Name` and a one-line `Description` of what belongs to it, and `Personal: true` for kinds saved to the personal memory. One to eight | `user` (personal), `feedback`, `project`, `reference` |
 | `Memory.SaveGuidance` | What the agent saves on its own while replying, and how it writes a memory | Built-in guidance |
 | `Memory.ExtractionGuidance` | What the automatic check saves from recent replies | Built-in guidance |
 | `Memory.ConsolidationGuidance` | What Dreams keeps when it tidies memory, and how it merges and resolves contradictions | Built-in guidance |
 | `Memory.ExtractionInterval` | Every how many replies the automatic check runs, from 1 to 50 | `7` |
 
-The two switches apply to chats created after the change. The other settings apply from the next reply in every chat. Removing one of them restores the built-in default. The Memory Studio plugin offers presets for them and lets you preview a change before saving it.
+The three switches apply to chats created after the change. The other settings apply from the next reply in every chat. Removing one of them restores the built-in default. The Memory Studio plugin lets you edit them under **Settings › Personalization** and compare changes with defaults before saving.
 
 ## Dreams
 

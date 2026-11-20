@@ -57,6 +57,7 @@ public sealed partial class SessionService
             ThreadGoal = threadGoal,
             SessionStartHookContext = sessionStartHookContext,
             MemoryStore = memoryStores?.Own,
+            PersonalMemoryStore = memoryStores?.Personal,
             AttachedMemoryStores = memoryStores?.Attached ?? [],
             Skills = ResolveSkillCatalog(thread),
             SubAgentModels = ResolveSubAgentModels(thread.Id, turnId),
