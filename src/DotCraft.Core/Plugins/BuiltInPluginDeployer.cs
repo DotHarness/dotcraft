@@ -105,8 +105,7 @@ public sealed class BuiltInPluginDeployer(
         {
             if (cancellationToken.CanBeCanceled)
             {
-                var signaled = WaitHandle.WaitAny([mutex, cancellationToken.WaitHandle]);
-                if (signaled != 0)
+                while (!mutex.WaitOne(TimeSpan.FromMilliseconds(100)))
                     cancellationToken.ThrowIfCancellationRequested();
                 acquired = true;
             }
