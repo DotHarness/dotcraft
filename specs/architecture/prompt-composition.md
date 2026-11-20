@@ -164,6 +164,7 @@ Current writers:
 | Thread configuration | `roleInstructions` and `developerInstructions`, through the `role_instructions` and `developer_instructions` world-state sections. |
 | AppServer client binding | Runtime additional context and client-rendered capabilities such as visualizations (§8), through the `client_context` world-state section. |
 | Native session-backed SubAgent | Child role framing and `subAgentRoleInstructions`. |
+| SubAgent model choices | The default SubAgent models and `SpawnAgent` model overrides, through the `subagent_models` world-state section ([SubAgents §5](../features/subagents.md#5-context-and-fork-modes)). |
 | Persistent state | Other state that persists across turns, through its own world-state section. |
 | Turn interruption | A `turn_aborted` event at the end of an intentionally interrupted turn or active-turn fork snapshot. |
 

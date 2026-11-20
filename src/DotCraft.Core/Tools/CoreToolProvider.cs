@@ -16,10 +16,6 @@ using System.Text.Json;
 
 namespace DotCraft.Tools;
 
-/// <summary>
-/// Provides core tools: file operations, shell execution, web tools, and agent spawning.
-/// These tools are available in all running modes.
-/// </summary>
 public sealed class CoreToolSource(
     AppConfig config,
     ChatClientRegistry chatClientRegistry,
@@ -33,27 +29,15 @@ public sealed class CoreToolSource(
     IContributionView? contributions = null,
     IProviderHttpTransport? providerHttpTransport = null) : AIFunctionToolSource
 {
-    /// <inheritdoc />
     public override string SourceId => "core-native";
 
-    /// <inheritdoc />
     public override int Priority => 10;
 
-    /// <inheritdoc />
     protected override ToolPolicyHints GetPolicyHints(AIFunction function, ToolPlanningContext context) =>
         GetNativeApprovalDescriptor(function, context) is null
             ? new ToolPolicyHints()
             : new ToolPolicyHints(RequiresApproval: true);
 
-    /// <inheritdoc />
-    protected override string GetDescription(AIFunction function, ToolPlanningContext context) =>
-        string.Equals(function.Name, nameof(AgentTools.SpawnAgent), StringComparison.Ordinal)
-            ? SubAgentModelCatalogSnapshots.AppendToToolDescription(
-                base.GetDescription(function, context),
-                context.SubAgentModelCatalogSnapshot)
-            : base.GetDescription(function, context);
-
-    /// <inheritdoc />
     protected override IReadOnlyDictionary<string, JsonElement>? GetAnnotations(
         AIFunction function,
         ToolPlanningContext context)
@@ -78,11 +62,6 @@ public sealed class CoreToolSource(
             : null;
     }
 
-    /// <summary>
-    /// Resolves the effective outside-workspace boundary policy for one planning context.
-    /// The thread-scoped override wins over the workspace-level default; false means
-    /// outside-workspace file/shell operations are rejected without prompting.
-    /// </summary>
     private bool RequiresApprovalOutsideWorkspace(ToolPlanningContext context) =>
         context.RequireApprovalOutsideWorkspace ?? config.Tools.File.RequireApprovalOutsideWorkspace;
 
@@ -106,7 +85,6 @@ public sealed class CoreToolSource(
         trustedPaths = (string[])[.. context.MemoryStores?.WritableDirectories ?? []]
     };
 
-    /// <inheritdoc />
     protected override IEnumerable<AIFunction> CreateFunctions(ToolPlanningContext context)
     {
         var tools = new List<AIFunction>();
@@ -146,7 +124,6 @@ public sealed class CoreToolSource(
         tools.AddRange(GeneratedToolFunctions.All(boardTools));
         tools.AddRange(GeneratedToolFunctions.All(new BackgroundTaskTools()));
 
-        // File tools
         var fileTools = new FileTools(
             context.WorkspacePath,
             requireOutside,
@@ -163,7 +140,6 @@ public sealed class CoreToolSource(
             location: context.Location);
         tools.AddRange(GeneratedToolFunctions.All(fileTools));
 
-        // LSP tool
         if (config.Tools.Lsp.Enabled && lspServerManager != null)
         {
             var lspTool = new LspTool(
@@ -177,7 +153,6 @@ public sealed class CoreToolSource(
             tools.Add(GeneratedToolFunctions.LspTool_LSP(lspTool));
         }
 
-        // Shell tools
         var shellTools = new ShellTools(
             context.WorkspacePath,
             backgroundTerminalService,

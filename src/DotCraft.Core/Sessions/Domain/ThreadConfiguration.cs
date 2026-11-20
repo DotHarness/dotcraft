@@ -4,171 +4,92 @@ using McpServerConfig = DotCraft.Mcp.McpServerConfig;
 
 namespace DotCraft.Sessions;
 
-/// <summary>
-/// Per-thread agent configuration. New threads capture workspace defaults at creation time.
-/// </summary>
+/// <summary>Per-thread agent configuration. New threads capture workspace defaults at creation.</summary>
 public sealed class ThreadConfiguration
 {
-    /// <summary>
-    /// Optional identifier of the Agent Profile snapshot that produced this configuration.
-    /// Runtime enforcement uses the resolved fields on this object, not the profile file.
-    /// </summary>
+    /// <summary>The Agent Profile this configuration was resolved from. Runtime uses the resolved fields, not the profile file.</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? AgentProfileId { get; set; }
 
-    /// <summary>
-    /// Names this Thread's own durable memory instead of the workspace's, such as an automation's or an
-    /// Agent Profile's that keeps its own; unset, the Thread reads and writes the workspace store.
-    /// </summary>
+    /// <summary>Names the Thread's own memory store. Unset, the Thread uses the workspace store.</summary>
     public string? MemoryScope { get; set; }
 
-    /// <summary>
-    /// Stores attached beside the Thread's own, in the order the model sees them. Unlike the scope, replacing the
-    /// configuration replaces them; a replacement that leaves them unset keeps the Thread's current ones.
-    /// </summary>
+    /// <summary>Stores attached beside the Thread's own, in model-visible order. A replacement that leaves them unset keeps the current ones.</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public List<DotCraft.Memory.MemoryStoreAttachment>? MemoryStores { get; set; }
 
-    /// <summary>
-    /// Whether this Thread uses and maintains memory, captured from the workspace at creation. Unset means enabled.
-    /// </summary>
+    /// <summary>Captured from the workspace at creation. Unset means enabled.</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public bool? MemoryEnabled { get; set; }
 
-    /// <summary>
-    /// Whether this Thread runs memory extraction, captured from the workspace at creation. Unset means disabled.
-    /// </summary>
+    /// <summary>Captured from the workspace at creation. Unset means disabled.</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public bool? MemoryAutoExtract { get; set; }
 
-    /// <summary>
-    /// Optional source of the Agent Profile snapshot, such as <c>builtIn</c>, <c>user</c>, or <c>workspace</c>.
-    /// </summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? AgentProfileSource { get; set; }
 
-    /// <summary>
-    /// Optional fingerprint of the profile content that produced this resolved configuration.
-    /// </summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? AgentProfileFingerprint { get; set; }
 
-    /// <summary>
-    /// When set, this thread runs the conversational profile-builder agent editing the named
-    /// Agent Profile (see specs/features/agent-profiles.md §12A). It exposes the builder tools and a
-    /// thread-scoped working draft and is excluded from ordinary thread listings.
-    /// </summary>
+    /// <summary>When set, the thread runs the profile builder for this Agent Profile and is left out of ordinary thread listings.</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? AgentBuilderTargetId { get; set; }
 
-    /// <summary>Source (user / workspace) of the Agent Profile being edited; pairs with <see cref="AgentBuilderTargetId"/>.</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? AgentBuilderTargetSource { get; set; }
 
-    /// <summary>
-    /// Per-thread MCP server connections. Null means use workspace-level MCP configuration.
-    /// </summary>
+    /// <summary>Null means the workspace MCP configuration.</summary>
     public McpServerConfig[]? McpServers { get; set; }
 
-    /// <summary>
-    /// Agent mode: "agent" (full tools, default), "plan" (read-only tools), etc.
-    /// </summary>
     public string Mode { get; set; } = "agent";
 
-    /// <summary>
-    /// Active extension prefixes declared by the client during ACP initialization
-    /// (e.g., ["_unity"]). Null for non-ACP channels.
-    /// </summary>
+    /// <summary>Extension prefixes the ACP client declared, such as <c>_unity</c>. Null for other channels.</summary>
     public string[]? Extensions { get; set; }
 
-    /// <summary>
-    /// Additional tool names to enable beyond the mode's default tool set.
-    /// </summary>
+    /// <summary>Tools enabled beyond the mode's default set.</summary>
     public string[]? CustomTools { get; set; }
 
-    /// <summary>
-    /// Per-thread provider id. When empty during thread creation, Session Core captures
-    /// the current effective workspace/global provider id.
-    /// </summary>
+    /// <summary>Captured from the effective configuration when empty at creation.</summary>
     public string? ProviderId { get; set; }
 
-    /// <summary>
-    /// Per-thread model. When empty during thread creation, Session Core captures
-    /// the selected provider's workspace/global <c>AppConfig.ProviderPreferences</c> entry.
-    /// </summary>
+    /// <summary>Captured from the provider's <c>ProviderPreferences</c> entry when empty at creation.</summary>
     public string? Model { get; set; }
 
-    /// <summary>
-    /// Gets or sets the durable provider model catalog snapshot used by the model-visible
-    /// <c>SpawnAgent</c> declaration. AppServer contract mapping intentionally omits this runtime state.
-    /// </summary>
-    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    /// <summary>Resolved at each Agent build. Never persisted or sent to clients.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
     public SubAgentModelCatalogSnapshot? SubAgentModelCatalogSnapshot { get; set; }
 
-    /// <summary>Inference-speed snapshot used by future turns in this thread.</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public InferenceSpeed? Speed { get; set; }
 
-    /// <summary>
-    /// Per-thread reasoning configuration. Null means use the current effective
-    /// effective provider preference.
-    /// </summary>
+    /// <summary>Null means the effective provider preference.</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public AppConfig.ReasoningConfig? Reasoning { get; set; }
 
-    /// <summary>
-    /// When set, all tools for this thread operate on this workspace path
-    /// instead of the AppServer's root workspace path.
-    /// The thread is still registered under the AppServer's root workspace
-    /// for discoverability via thread/list.
-    /// </summary>
+    /// <summary>Tools operate on this path, while the thread stays listed under the AppServer root workspace.</summary>
     public string? WorkspaceOverride { get; set; }
 
-    /// <summary>
-    /// Sticky working directory for this thread. Relative tool paths resolve from here
-    /// without changing the thread's state workspace.
-    /// </summary>
+    /// <summary>Relative tool paths resolve from here without changing the thread's state workspace.</summary>
     public string? Cwd { get; set; }
 
-    /// <summary>
-    /// Sticky ordered runtime workspace boundaries. Null defaults to the effective cwd;
-    /// an empty array explicitly provides no runtime roots.
-    /// </summary>
+    /// <summary>Null defaults to the effective cwd, and an empty array provides no runtime roots.</summary>
     public string[]? RuntimeWorkspaceRoots { get; set; }
 
-    /// <summary>
-    /// When set, tools for this thread execute against this workspace path while
-    /// thread state, memory, skills, plans, goals, and app bindings remain rooted
-    /// at <see cref="SessionThread.WorkspacePath"/>.
-    /// Used for Git worktree handoff.
-    /// </summary>
+    /// <summary>Tools run here while thread state stays rooted at <see cref="SessionThread.WorkspacePath"/>, as in a Git worktree handoff.</summary>
     public string? ExecutionWorkspaceOverride { get; set; }
 
-    /// <summary>
-    /// When set, the agent uses the tool set registered under this profile name
-    /// instead of the default tools for the thread's <see cref="Mode"/>.
-    /// Requires the profile to be registered in <c>IToolProfileRegistry</c>.
-    /// </summary>
+    /// <summary>Replaces the mode's default tools with this registered tool profile.</summary>
     public string? ToolProfile { get; set; }
 
-    /// <summary>
-    /// When <c>true</c> together with <see cref="ToolProfile"/>, the agent uses <b>only</b>
-    /// the profile tools (no mode default tools). Used for ephemeral internal threads
-    /// such as commit-message suggestion.
-    /// </summary>
+    /// <summary>With <see cref="ToolProfile"/>, the agent gets only the profile tools.</summary>
     public bool UseToolProfileOnly { get; set; }
 
-    /// <summary>
-    /// Optional system instructions for the agent (e.g. commit-message assistant).
-    /// When set, passed to <see cref="Agents.AgentFactory"/> as chat instructions.
-    /// </summary>
+    /// <summary>When set, these instructions are the whole system prompt.</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? AgentInstructions { get; set; }
 
-    /// <summary>
-    /// Optional exact tool allow-list resolved from a SubAgent role.
-    /// Empty or null means all assembled tools remain eligible unless denied.
-    /// </summary>
+    /// <summary>Resolved from a SubAgent role. Null or empty keeps every assembled tool that is not denied.</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string[]? ToolAllowList { get; set; }
 
@@ -176,224 +97,140 @@ public sealed class ThreadConfiguration
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string[]? CodeModeExcludedNamespaces { get; set; }
 
-    /// <summary>
-    /// Optional exact tool deny-list resolved from a SubAgent role.
-    /// </summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string[]? ToolDenyList { get; set; }
 
-    /// <summary>
-    /// Structured tool policy compiled from an Agent Profile or supplied directly by a client.
-    /// Composes with legacy <see cref="ToolAllowList"/> and <see cref="ToolDenyList"/>.
-    /// </summary>
+    /// <summary>Composes with <see cref="ToolAllowList"/> and <see cref="ToolDenyList"/>.</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public ThreadToolPolicy? ToolPolicy { get; set; }
 
-    /// <summary>
-    /// Structured MCP server and MCP tool policy for this thread.
-    /// </summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public ThreadMcpPolicy? McpPolicy { get; set; }
 
-    /// <summary>
-    /// Structured plugin and app policy for this thread.
-    /// </summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public ThreadPluginPolicy? PluginPolicy { get; set; }
 
-    /// <summary>
-    /// Structured skills policy for this thread.
-    /// </summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public ThreadSkillsPolicy? SkillsPolicy { get; set; }
 
-    /// <summary>
-    /// Optional per-thread override for DotCraft agent-control tools.
-    /// </summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public AgentControlToolAccess? AgentControlToolAccess { get; set; }
 
-    /// <summary>
-    /// Optional exact agent-control allow-list used when <see cref="AgentControlToolAccess"/> is allow-list.
-    /// </summary>
+    /// <summary>Used when <see cref="AgentControlToolAccess"/> is allow-list.</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string[]? AllowedAgentControlTools { get; set; }
 
-    /// <summary>
-    /// The thread's role, delivered as a thread context item. A full-history SubAgent keeps its parent's.
-    /// </summary>
+    /// <summary>Delivered as a thread context item. A full-history SubAgent keeps its parent's.</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? RoleInstructions { get; set; }
 
-    /// <summary>
-    /// A native SubAgent role's text, delivered in its role guidance apart from <see cref="RoleInstructions"/>.
-    /// AppServer contract mapping intentionally omits this runtime state.
-    /// </summary>
+    /// <summary>A native SubAgent role's text, kept apart from <see cref="RoleInstructions"/> and not sent to clients.</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? SubAgentRoleInstructions { get; set; }
 
-    /// <summary>
-    /// Instructions from the application that started the thread, delivered as a thread context item
-    /// after <see cref="RoleInstructions"/>. Only a full-history SubAgent inherits them.
-    /// </summary>
+    /// <summary>Delivered after <see cref="RoleInstructions"/> as a thread context item. Only a full-history SubAgent inherits them.</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? DeveloperInstructions { get; set; }
 
-    /// <summary>
-    /// When true, <see cref="RoleInstructions"/> replaces the generated prompt for this thread.
-    /// </summary>
+    /// <summary>When true, <see cref="RoleInstructions"/> replaces the generated prompt.</summary>
     public bool OverrideBasePrompt { get; set; }
 
-    /// <summary>
-    /// Overrides the process-level approval service for this thread only.
-    /// </summary>
     [System.Text.Json.Serialization.JsonConverter(typeof(ApprovalPolicyJsonConverter))]
     public ApprovalPolicy ApprovalPolicy { get; set; } = ApprovalPolicy.Default;
 
-    /// <summary>
-    /// Absolute path to the local automation task directory (contains <c>task.md</c>).
-    /// Used by automation-specific tools when <see cref="WorkspaceOverride"/> is the project root.
-    /// </summary>
+    /// <summary>The local automation task directory that holds <c>task.md</c>.</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? AutomationTaskDirectory { get; set; }
 
-    /// <summary>
-    /// When set, overrides <see cref="Configuration.AppConfig.Tools.File.RequireApprovalOutsideWorkspace"/> (and shell launch directories)
-    /// for core file/shell tools. Used by local automation: <c>false</c> = reject operations outside the thread workspace
-    /// without prompting; <c>true</c> = allow outside-workspace paths when combined with auto-approve policy.
-    /// </summary>
+    /// <summary>Overrides <c>Tools.File.RequireApprovalOutsideWorkspace</c> for this thread. False rejects outside-workspace operations without prompting.</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public bool? RequireApprovalOutsideWorkspace { get; set; }
 }
 
-/// <summary>A durable, provider-scoped model catalog frozen for one thread's agent tools.</summary>
 public sealed class SubAgentModelCatalogSnapshot
 {
-    /// <summary>Gets or sets the provider that produced this snapshot.</summary>
     public string ProviderId { get; set; } = string.Empty;
 
-    /// <summary>Gets or sets the exact model-visible description fragment.</summary>
-    public string Description { get; set; } = string.Empty;
+    /// <summary>The fresh and bounded child default as <c>providerId/modelId</c>, or null when children inherit the parent model.</summary>
+    public string? DefaultModel { get; set; }
 
-    /// <summary>Gets or sets the bounded override entries in model-visible order.</summary>
     public List<SubAgentModelCatalogItem> Models { get; set; } = [];
 }
 
-/// <summary>One model override advertised to a thread.</summary>
 public sealed class SubAgentModelCatalogItem
 {
-    /// <summary>Gets or sets the model-visible name, <c>providerId/modelId</c>.</summary>
+    /// <summary>The model-visible name, <c>providerId/modelId</c>.</summary>
     public string Id { get; set; } = string.Empty;
 
     public string ProviderId { get; set; } = string.Empty;
 
     public string Model { get; set; } = string.Empty;
 
-    /// <summary>Gets or sets the supported reasoning efforts known to DotCraft.</summary>
     public List<ModelReasoningEffort> SupportedReasoningEfforts { get; set; } = [];
 
-    /// <summary>Gets or sets the provider model's default reasoning effort when known.</summary>
     public ModelReasoningEffort? DefaultReasoningEffort { get; set; }
 }
 
-/// <summary>
-/// Exact-name policy for general model-visible tools.
-/// </summary>
 public sealed class ThreadToolPolicy
 {
-    /// <summary>
-    /// Tool names allowed by the profile. Null means no allow-list; an empty array means no tools.
-    /// </summary>
+    /// <summary>Null means no allow-list, and an empty array allows no tools.</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string[]? Allow { get; set; }
 
-    /// <summary>
-    /// Tool names denied by the profile. Deny rules win over allow rules.
-    /// </summary>
+    /// <summary>Deny wins over allow.</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string[]? Deny { get; set; }
 
-    /// <summary>
-    /// Optional agent-control policy: <c>disabled</c>, <c>full</c>, or <c>allowList</c>.
-    /// </summary>
+    /// <summary><c>disabled</c>, <c>full</c>, or <c>allowList</c>.</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? AgentControl { get; set; }
 
-    /// <summary>
-    /// Optional agent-control tool allow-list used when <see cref="AgentControl"/> is <c>allowList</c>.
-    /// </summary>
+    /// <summary>Used when <see cref="AgentControl"/> is <c>allowList</c>.</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string[]? AllowedAgentControlTools { get; set; }
 }
 
-/// <summary>
-/// Policy for MCP servers and tools available to a thread.
-/// </summary>
 public sealed class ThreadMcpPolicy
 {
-    /// <summary>
-    /// MCP server names allowed for this thread. Null means no server allow-list; empty means none.
-    /// </summary>
+    /// <summary>Null means no server allow-list, and empty allows none.</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string[]? Servers { get; set; }
 
-    /// <summary>
-    /// MCP tool-name policy. Wildcards are supported for MCP tool names.
-    /// </summary>
+    /// <summary>Supports wildcards in MCP tool names.</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public ThreadNamePolicy? Tools { get; set; }
 }
 
-/// <summary>
-/// Reusable allow/deny name policy.
-/// </summary>
 public sealed class ThreadNamePolicy
 {
-    /// <summary>
-    /// Allowed names or patterns. Null means no allow-list; empty means none.
-    /// </summary>
+    /// <summary>Null means no allow-list, and empty allows none.</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string[]? Allow { get; set; }
 
-    /// <summary>
-    /// Denied names or patterns. Deny rules win over allow rules.
-    /// </summary>
+    /// <summary>Deny wins over allow.</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string[]? Deny { get; set; }
 }
 
-/// <summary>
-/// Policy for plugin-provided functions and app-provided dynamic tools.
-/// </summary>
+/// <summary>Policy for plugin-provided functions and app-provided dynamic tools.</summary>
 public sealed class ThreadPluginPolicy
 {
-    /// <summary>
-    /// Allowed plugin or app ids. Null means no allow-list; empty means none.
-    /// </summary>
+    /// <summary>Null means no allow-list, and empty allows none.</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string[]? Allow { get; set; }
 
-    /// <summary>
-    /// Denied plugin or app ids. Deny rules win over allow rules.
-    /// </summary>
+    /// <summary>Deny wins over allow.</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string[]? Deny { get; set; }
 }
 
-/// <summary>
-/// Policy for agent-facing skill access.
-/// </summary>
 public sealed class ThreadSkillsPolicy
 {
-    /// <summary>
-    /// Skill names the agent may use. Null means no allow-list; empty means none.
-    /// </summary>
+    /// <summary>Null means no allow-list, and empty allows none.</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string[]? Allow { get; set; }
 
-    /// <summary>
-    /// Skill names the agent may not read or mutate. Deny rules win over allow rules.
-    /// </summary>
+    /// <summary>Skills the agent may not read or mutate. Deny wins over allow.</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string[]? Deny { get; set; }
 
@@ -401,7 +238,6 @@ public sealed class ThreadSkillsPolicy
 
     public bool Allows(string skillName) => Allow == null || Lists(Allow, skillName);
 
-    /// <summary>Whether the agent may see and load the skill: deny wins over allow.</summary>
     public bool Permits(string skillName) => !Denies(skillName) && Allows(skillName);
 
     private static bool Lists(string[]? names, string skillName) =>

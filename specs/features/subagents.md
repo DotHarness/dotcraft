@@ -173,22 +173,29 @@ independent prefix, and do not inherit client-owned dynamic tools, browser trans
 full-history-only bindings. External runtimes receive the selected parent Turns as rendered prompt
 context.
 
-The model-visible `SpawnAgent` declaration carries a model choice snapshot, created before a
-thread's first provider request, persisted with its thread configuration, and reused across Turns,
-rebuilds, and cold resumes. Thread configuration updates preserve the existing server-owned snapshot,
-including when changing provider, model, reasoning, speed, or approval policy; updated model choices
-apply to newly initialized snapshots, not existing ones. A full-history child copies the parent's
-snapshot; fresh and bounded children create their own.
+The `SpawnAgent` declaration is static, so model choices never change the tool schema. Session Core
+resolves a thread's model choices each time it builds the thread's Agent, and the `subagent_models`
+world-state section
+([Prompt Composition §4b](../architecture/prompt-composition.md#4b-thread-context-items)) shows them
+to the model. The section restates the choices only when they change, for example after a provider
+switch or a `SubAgent` configuration change, and the latest restatement replaces earlier ones.
+A thread that cannot spawn, because `SpawnAgent` is not callable or its tool policy, role, or depth
+limit rejects the call, shows no section. The tool schema and system prompt stay unchanged.
 
-- When `SubAgent.Models` is non-empty, the snapshot lists those entries in configured order, skipping
+The choices first name the default model: full-history children run on the parent's current model,
+and fresh and bounded children run on `SubAgent.ProviderPreferences[threadProviderId]` as
+`<providerId>/<modelId>` when that entry exists (§6.2), or on the parent's current model otherwise.
+They then list the override choices:
+
+- When `SubAgent.Models` is non-empty, the choices list those entries in configured order, skipping
   entries whose provider is not configured or has no usable credentials.
-- Otherwise it lists the first five entries of the thread provider's catalog, case-insensitively
+- Otherwise they list the first five entries of the thread provider's catalog, case-insensitively
   deduplicated in provider order.
 
 Each entry is named `<providerId>/<modelId>` and carries the reasoning efforts the model's catalog
-reports. Provider ids cannot contain `/`, and callers match names against the snapshot exactly, so a
+reports. Provider ids cannot contain `/`, and callers match names against the choices exactly, so a
 model id containing `/` stays unambiguous. A provider whose catalog fails to load keeps its configured
-entries without reasoning efforts. When the snapshot is empty, `SpawnAgent` stays available: omitted
+entries without reasoning efforts. When no overrides are listed, `SpawnAgent` stays available: omitted
 override fields use the default preference, and explicit overrides fail.
 
 ## 6. Native model resolution
@@ -212,7 +219,7 @@ For `forkTurns=none` or a positive integer, Session Core applies this order:
    entry inherits the parent. A module-managed caller may retain the parent selection when its feature
    contract requires.
 3. Apply `role.Model`, when configured, on `role.ProviderId` or else the parent's provider.
-4. Apply an authorized invocation override: an explicit snapshot entry replaces the provider and model
+4. Apply an authorized invocation override: an explicit override choice replaces the provider and model
    chosen so far; an explicit effort takes precedence over inherited effort.
 5. Normalize the complete preference against the final model's catalog capabilities on the final
    provider.
@@ -231,7 +238,7 @@ as a [protocol switch](../architecture/model-runtime.md#9-lifecycle-contract) do
 reasoning payloads from the parent do not carry over.
 
 `SpawnAgent` accepts optional `model` and `reasoningEffort` arguments, valid only for fresh and bounded
-native children. `model` must name an entry of the calling thread's snapshot. Full-history children
+native children. `model` must name an override from the calling thread's current choices. Full-history children
 reject either argument. Unknown models and provider rejection follow normal Turn failure.
 
 ## 7. Role, tools, and approval policy

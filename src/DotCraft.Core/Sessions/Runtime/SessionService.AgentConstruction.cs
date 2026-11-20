@@ -128,8 +128,7 @@ public sealed partial class SessionService
                 || runtime.ToolSnapshotDirty)
             {
                 var builtAgent = await BuildAgentForThreadAsync(thread, ct);
-                // A native SpawnAgent source establishes durable thread-specific tool text while
-                // building. Re-evaluate after the build so it cannot fall back to defaultAgent.
+                // Building resolves thread-specific SubAgent model choices, so re-evaluate before falling back to defaultAgent.
                 if (RequiresPerThreadAgent(thread))
                     SetThreadAgent(threadId, builtAgent);
             }
@@ -421,16 +420,13 @@ public sealed partial class SessionService
             snapshotSources.AddRange(profileSources);
         }
 
-        var exposesNativeSpawnAgent = snapshotSources.Any(source =>
-            source is CoreToolSource);
-        if (exposesNativeSpawnAgent && config.SubAgentModelCatalogSnapshot == null)
+        if (snapshotSources.Any(static source => source is CoreToolSource))
         {
             config.SubAgentModelCatalogSnapshot = await SubAgentModelCatalogSnapshots.CreateAsync(
                 currentConfig,
                 baseCtx.ChatClientRegistry.ProviderRegistry,
                 runtime.ProviderId,
                 ct).ConfigureAwait(false);
-            await PersistThreadIfMaterializedAsync(thread, ct).ConfigureAwait(false);
         }
 
         var providerCapabilities = new List<string>();
@@ -480,6 +476,9 @@ public sealed partial class SessionService
         }
         capabilityPolicy.SetRuntimeManagedTools(toolSnapshot);
         threadRuntimeState.SetLatestToolSnapshot(toolSnapshot);
+        threadRuntimeState.SubAgentModels = CanSpawn(toolSnapshot, capabilityPolicy)
+            ? config.SubAgentModelCatalogSnapshot
+            : null;
         threadRuntimeState.ToolLocation = toolContext.ToolLocation;
         EffectiveToolSnapshotChanged?.Invoke(
             this,
@@ -509,6 +508,17 @@ public sealed partial class SessionService
             mm,
             toolContext);
     }
+
+    private static bool CanSpawn(EffectiveToolSnapshot snapshot, ThreadCapabilityPolicyEvaluator policy) =>
+        snapshot.ModelVisibleDefinitions
+            .Concat(snapshot.ModelHiddenDefinitions)
+            .Concat(snapshot.DeferredDefinitions.Values.SelectMany(static group => group))
+            .Any(definition => string.Equals(
+                snapshot.ProviderFlatNames[definition.Name],
+                nameof(AgentTools.SpawnAgent),
+                StringComparison.Ordinal))
+        && policy.EvaluateCall(new FunctionCallContent(string.Empty, nameof(AgentTools.SpawnAgent))).Kind
+            == ModeToolPolicyDecisionKind.Allow;
 
     private static void ApplyThreadToolFilters(List<AITool> tools, ThreadCapabilityPolicyEvaluator policy) =>
         tools.RemoveAll(tool => !policy.AllowsTool(tool));

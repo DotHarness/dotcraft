@@ -7,9 +7,6 @@ using ModelPreference = DotCraft.Configuration.ModelPreference;
 
 namespace DotCraft.Tools;
 
-/// <summary>
-/// Core tools for DotCraft agent.
-/// </summary>
 public sealed class AgentTools(
     SubAgentCoordinator? subAgentCoordinator = null,
     IEnumerable<SubAgentRoleConfig>? subAgentRoles = null,
@@ -23,7 +20,7 @@ public sealed class AgentTools(
 {
     private static readonly JsonSerializerOptions ResultJsonOptions = new(JsonSerializerOptions.Web);
 
-    [Description("Start a subagent in the background. You will be notified when it finishes. Omit model to use the configured SubAgent or runtime default, and set it only when an explicit override is needed.")]
+    [Description("Start a subagent in the background. You will be notified when it finishes. Pick `model` overrides from the latest SubAgent models list.")]
     [Tool]
     [ToolPresentation("core.subagent", Operation = "spawn")]
     public async Task<string> SpawnAgent(

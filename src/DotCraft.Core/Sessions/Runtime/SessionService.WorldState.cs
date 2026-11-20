@@ -59,6 +59,7 @@ public sealed partial class SessionService
             MemoryStore = memoryStores?.Own,
             AttachedMemoryStores = memoryStores?.Attached ?? [],
             Skills = ResolveSkillCatalog(thread),
+            SubAgentModels = ResolveSubAgentModels(thread.Id, turnId),
             ClientSurface = clientSurface
         };
 
@@ -251,6 +252,16 @@ public sealed partial class SessionService
         runtime.PersistedWorldStateBaseline = null;
         runtime.WorldStateBaselineRestored = false;
         runtime.WorldStateBaselineOrigin = "none";
+    }
+
+    private SubAgentModelCatalogSnapshot? ResolveSubAgentModels(string threadId, string turnId)
+    {
+        if (!_runtimeRegistry.TryGetRuntime(threadId, out var runtime))
+            return null;
+        return runtime.TryGetTurn(turnId, out var turn)
+            && turn.Context?.Resources is { IsCompletedSuccessfully: true } resources
+                ? resources.Result.SubAgentModels
+                : runtime.SubAgentModels;
     }
 
     private ThreadMemoryStores? ResolveMemoryIndexStores(ThreadConfiguration? config)

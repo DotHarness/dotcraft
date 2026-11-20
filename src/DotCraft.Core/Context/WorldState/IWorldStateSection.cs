@@ -9,9 +9,8 @@ using DotCraft.Skills;
 namespace DotCraft.Context.WorldState;
 
 /// <summary>
-/// One section of the state the model can see. <see cref="Id"/> is persisted in rollouts and must
-/// stay stable; a snapshot must not carry values that move on their own, such as elapsed time or
-/// token counts. <see cref="RenderDiff"/> runs only when the snapshot differs from what was shown.
+/// <see cref="Id"/> is persisted in rollouts and must stay stable. A snapshot must not carry values that
+/// move on their own, such as elapsed time, and <see cref="RenderDiff"/> runs only when it changes.
 /// </summary>
 public interface IWorldStateSection : IContributionContract
 {
@@ -50,11 +49,14 @@ public sealed record WorldStateContext
     /// <summary>The Thread's memory store, or <c>null</c> when the Thread does not use memory.</summary>
     public MemoryStore? MemoryStore { get; init; }
 
-    /// <summary>The stores attached beside <see cref="MemoryStore"/>; empty when the Thread does not use memory.</summary>
+    /// <summary>The stores attached beside <see cref="MemoryStore"/>, empty when the Thread does not use memory.</summary>
     public IReadOnlyList<AttachedMemoryStore> AttachedMemoryStores { get; init; } = [];
 
     /// <summary>Reads the skills the Thread may use, or <c>null</c> when it composes no skill context.</summary>
     public Func<IReadOnlyList<SkillCatalogEntry>>? Skills { get; init; }
+
+    /// <summary>The SubAgent model choices, or <c>null</c> when the Thread cannot spawn.</summary>
+    public SubAgentModelCatalogSnapshot? SubAgentModels { get; init; }
 
     /// <summary>The client surface that submitted the current Turn, or <c>null</c> when no client did.</summary>
     public ClientSurface? ClientSurface { get; init; }
