@@ -57,12 +57,9 @@ export function todoCard(
   const input = items.find((item) => item.type === 'userMessage' && item.payload.deliveryMode !== 'guidance')
   const implementsPlan = !!planInput && input?.payload.clientUserMessageId === planInput
   const updated = updatedTodos(items)
-  if (plan.title && !implementsPlan && !updated && todos.every((todo) => todo.status === 'pending')) return null
+  if (!implementsPlan && !updated) return null
   const unfinished = todos.some((todo) => todo.status === 'pending' || todo.status === 'in_progress')
-  const live = running && (implementsPlan || updated)
-  if (running) return unfinished || updated ? { todos, live } : null
-  const lastLeftOpen = todos.every((todo, index) => todo.status === (index === todos.length - 1 ? 'in_progress' : 'completed'))
-  return unfinished && !(turn.status === 'completed' && lastLeftOpen) ? { todos, live } : null
+  return unfinished || (running && updated) ? { todos, live: running } : null
 }
 
 export function withTodoCard(lines: TranscriptEntry[], card: TodoCard | null): TranscriptEntry[] {

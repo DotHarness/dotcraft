@@ -43,11 +43,18 @@ afterEach(() => {
   act(() => setPopoverOpen(false))
 })
 
-it('keeps the last active step visible after cancellation but hides it after success', () => {
+it('keeps the last active step visible after cancellation but hides the checked-off list after success', () => {
   const plan: TurnTodoPlan = { ...PLAN, todos: [{ id: 'one', content: 'Apply the change', status: 'in_progress' }] }
   const { rerender } = render(card('cancelled', plan))
   expect(screen.getByRole('region')).toBeInTheDocument()
-  rerender(card('completed', plan))
+  rerender(card('completed', { ...plan, todos: [{ id: 'one', content: 'Apply the change', status: 'completed' }] }))
+  expect(screen.queryByRole('region')).not.toBeInTheDocument()
+})
+
+it('does not carry unfinished tasks into a turn that has not updated them', () => {
+  const { rerender } = render(card('running', { ...PLAN, updatedTodos: false }))
+  expect(screen.queryByRole('region')).not.toBeInTheDocument()
+  rerender(card('completed', { ...PLAN, updatedTodos: false }))
   expect(screen.queryByRole('region')).not.toBeInTheDocument()
 })
 

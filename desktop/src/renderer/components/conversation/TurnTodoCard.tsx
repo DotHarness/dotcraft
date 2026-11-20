@@ -32,13 +32,10 @@ export function progressOf(todos: readonly TurnTodo[]): { done: number; total: n
 }
 
 export function showsTodoCard(plan: TurnTodoPlan, status: TurnTodoStatus): boolean {
-  const { title, todos, implementsPlan, updatedTodos } = plan
-  if (todos.length === 0) return false
-  if (title && !implementsPlan && !updatedTodos && todos.every((todo) => todo.status === 'pending')) return false
+  const { todos, implementsPlan, updatedTodos } = plan
+  if (todos.length === 0 || !(implementsPlan || updatedTodos)) return false
   const unfinished = todos.some((todo) => todo.status === 'pending' || todo.status === 'in_progress')
-  if (status === 'running') return unfinished || updatedTodos
-  const lastLeftOpen = todos.every((todo, index) => todo.status === (index === todos.length - 1 ? 'in_progress' : 'completed'))
-  return unfinished && !(status === 'completed' && lastLeftOpen)
+  return unfinished || (status === 'running' && updatedTodos)
 }
 
 export function foldedPrefix(todos: readonly TurnTodo[], visibleLimit: number): number {
@@ -62,7 +59,7 @@ export function TurnTodoCard({ threadId, turnId, status, plan }: {
   if (!shown) return null
 
   const { done, total } = progressOf(plan.todos)
-  const live = status === 'running' && (plan.implementsPlan || plan.updatedTodos)
+  const live = status === 'running'
   const tasksLabel = showsTasks
     ? t(taskCount === 1 ? 'conversation.runningTasks.one' : 'conversation.runningTasks.other', { count: taskCount })
     : null

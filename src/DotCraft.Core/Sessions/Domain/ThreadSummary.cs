@@ -107,9 +107,11 @@ public sealed class ThreadSummaryRuntime
         if (!string.Equals(thread.Configuration?.Mode, "plan", StringComparison.OrdinalIgnoreCase))
             return false;
 
-        if (turn.Status != TurnStatus.Completed)
-            return false;
+        return turn.Status == TurnStatus.Completed && ContainsSuccessfulToolCall(turn, "CreatePlan");
+    }
 
+    internal static bool ContainsSuccessfulToolCall(SessionTurn turn, string toolName)
+    {
         var successfulCallIds = turn.Items
             .Select(item => item.Payload)
             .OfType<ToolResultPayload>()
@@ -121,7 +123,7 @@ public sealed class ThreadSummaryRuntime
             .Select(item => item.Payload)
             .OfType<ToolCallPayload>()
             .Any(call =>
-                string.Equals(call.ToolName, "CreatePlan", StringComparison.Ordinal)
+                string.Equals(call.ToolName, toolName, StringComparison.Ordinal)
                 && successfulCallIds.Contains(call.CallId));
     }
 }

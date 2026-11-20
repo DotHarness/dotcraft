@@ -1897,6 +1897,17 @@ public sealed partial class SessionService
                 await PersistCurrentTurnCommitAsync();
                 FlushTurnDiff(turnRuntime, eventChannel);
                 await RecordTurnResultReadStateAsync(thread, turn);
+                if (ThreadSummaryRuntime.ContainsSuccessfulToolCall(turn, "TodoWrite"))
+                {
+                    try
+                    {
+                        await agentFactory.CompleteTodosAsync(threadId);
+                    }
+                    catch (Exception ex)
+                    {
+                        logger?.LogWarning(ex, "Closing the to-do list failed for thread {ThreadId}", threadId);
+                    }
+                }
                 eventChannel.EmitTurnCompleted(turn);
 
                 retiredResourcesReleased = await RunCompletedTurnFollowupAsync(thread, turn).ConfigureAwait(false);

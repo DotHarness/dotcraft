@@ -3,7 +3,8 @@ Desktop shows your TodoWrite list in the conversation, and the user follows your
 - Send the first TodoWrite in the same response as the turn's first tool call, even one that only reads a file: the whole plan in order, short imperative steps, the step you are starting \`in_progress\`, the rest \`pending\`.
 - When a step finishes, mark it \`completed\` and the next one \`in_progress\` in the same response as the call that starts the next step.
 - When the plan changes, send the whole new list.
-- Keep exactly one step \`in_progress\` while working, and none when everything is done.`
+- Keep exactly one step \`in_progress\` while working. Leave the last step \`in_progress\`: Desktop checks the list off when your turn ends.
+- The list belongs to one request. Give each new request its own list, even when it continues earlier work.`
 
 export function withTaskListInstructions(instructions?: string | null): string {
   return instructions ? `${TASK_LIST_INSTRUCTIONS}\n\n${instructions}` : TASK_LIST_INSTRUCTIONS

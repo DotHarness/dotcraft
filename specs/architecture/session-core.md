@@ -1166,7 +1166,7 @@ Plan tools keep the same schema across Agent/Plan switches to preserve prompt-ca
 | `plan` | `CreatePlan` | `TodoWrite` |
 | `agent` | `TodoWrite` | `CreatePlan` |
 
-`CreatePlan` saves the proposed plan with its tasks as `pending`. `TodoWrite` takes the complete task list, each item a description, an optional present-tense `activeForm` shown while the item is in progress, and a status of `pending`, `in_progress`, or `completed`, and replaces the stored list while keeping the plan's title and body. Task ids are assigned by position (`todo-1`, `todo-2`, …); the model never supplies them.
+`CreatePlan` saves the proposed plan with its tasks as `pending`. `TodoWrite` takes the complete task list, each item a description, an optional present-tense `activeForm` shown while the item is in progress, and a status of `pending`, `in_progress`, or `completed`, and replaces the stored list while keeping the plan's title and body. Task ids are assigned by position (`todo-1`, `todo-2`, …); the model never supplies them. When a Turn that ran a successful `TodoWrite` completes, the runtime marks every remaining `pending` or `in_progress` task `completed` and saves the list before the Turn's completion event. Failed and cancelled Turns leave the list as it is.
 
 Every host that exposes mode switching must provide per-thread plan persistence, and hook execution where lifecycle hooks are expected, so mode switching behaves identically across hosts; without plan persistence the plan tools are omitted, which is a host configuration error. A host may observe plan changes (each carrying `threadId` and the complete plan) to drive its own UX.
 

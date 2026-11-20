@@ -41,7 +41,11 @@ describe('to-do card', () => {
   it('hides a finished list once the turn ends', () => {
     expect(todoCard(plan(['completed', 'completed']), turn('inProgress'), [input(), ...todoWrite], true, null)).not.toBeNull()
     expect(todoCard(plan(['completed', 'completed']), turn('completed'), [input(), ...todoWrite], false, null)).toBeNull()
-    expect(todoCard(plan(['completed', 'in_progress']), turn('completed'), [input(), ...todoWrite], false, null)).toBeNull()
+  })
+
+  it('does not carry unfinished tasks into a turn that has not updated them', () => {
+    expect(todoCard(plan(['completed', 'in_progress', 'pending']), turn('inProgress'), [input()], true, null)).toBeNull()
+    expect(todoCard(plan(['completed', 'in_progress', 'pending']), turn('completed'), [input()], false, null)).toBeNull()
   })
 
   it('sits above the working line, or under the reply above Copy', () => {
