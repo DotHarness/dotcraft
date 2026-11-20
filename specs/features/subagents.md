@@ -179,7 +179,8 @@ world-state section
 ([Prompt Composition §4b](../architecture/prompt-composition.md#4b-thread-context-items)) shows them
 to the model. The section restates the choices only when they change, for example after a provider
 switch or a `SubAgent` configuration change, and the latest restatement replaces earlier ones.
-A thread that cannot call `SpawnAgent` shows no section.
+A thread that cannot spawn, because `SpawnAgent` is not callable or its tool policy, role, or depth
+limit rejects the call, shows no section. The tool schema and system prompt stay unchanged.
 
 The choices first name the default model: full-history children run on the parent's current model,
 and fresh and bounded children run on `SubAgent.ProviderPreferences[threadProviderId]` as

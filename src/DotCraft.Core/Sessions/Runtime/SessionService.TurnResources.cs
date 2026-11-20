@@ -17,7 +17,7 @@ public sealed partial class SessionService
                 runtime.Agent ?? DefaultAgent,
                 runtime.LatestToolSnapshot,
                 runtime.ToolLocation,
-                runtime.Thread.Configuration?.SubAgentModelCatalogSnapshot);
+                runtime.SubAgentModels);
         }
         return resources;
     }

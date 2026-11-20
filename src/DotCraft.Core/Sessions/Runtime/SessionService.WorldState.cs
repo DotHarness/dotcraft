@@ -59,7 +59,7 @@ public sealed partial class SessionService
             MemoryStore = memoryStores?.Own,
             AttachedMemoryStores = memoryStores?.Attached ?? [],
             Skills = ResolveSkillCatalog(thread),
-            SubAgentModels = ResolveSubAgentModels(thread, turnId),
+            SubAgentModels = ResolveSubAgentModels(thread.Id, turnId),
             ClientSurface = clientSurface
         };
 
@@ -254,26 +254,15 @@ public sealed partial class SessionService
         runtime.WorldStateBaselineOrigin = "none";
     }
 
-    private SubAgentModelCatalogSnapshot? ResolveSubAgentModels(SessionThread thread, string turnId)
+    private SubAgentModelCatalogSnapshot? ResolveSubAgentModels(string threadId, string turnId)
     {
-        _runtimeRegistry.TryGetRuntime(thread.Id, out var runtime);
-        var (tools, choices) = runtime != null
-            && runtime.TryGetTurn(turnId, out var turn)
+        if (!_runtimeRegistry.TryGetRuntime(threadId, out var runtime))
+            return null;
+        return runtime.TryGetTurn(turnId, out var turn)
             && turn.Context?.Resources is { IsCompletedSuccessfully: true } resources
-                ? (resources.Result.ToolSnapshot, resources.Result.SubAgentModels)
-                : (runtime?.LatestToolSnapshot, thread.Configuration?.SubAgentModelCatalogSnapshot);
-        return tools != null && CanCallSpawnAgent(tools) ? choices : null;
+                ? resources.Result.SubAgentModels
+                : runtime.SubAgentModels;
     }
-
-    /// <summary>Counts direct, CodeMode-hidden, and deferred definitions, as the agent's callable tools do.</summary>
-    private static bool CanCallSpawnAgent(EffectiveToolSnapshot snapshot) =>
-        snapshot.ModelVisibleDefinitions
-            .Concat(snapshot.ModelHiddenDefinitions)
-            .Concat(snapshot.DeferredDefinitions.Values.SelectMany(static group => group))
-            .Any(definition => string.Equals(
-                snapshot.ProviderFlatNames[definition.Name],
-                nameof(AgentTools.SpawnAgent),
-                StringComparison.Ordinal));
 
     private ThreadMemoryStores? ResolveMemoryIndexStores(ThreadConfiguration? config)
     {

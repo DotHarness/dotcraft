@@ -476,6 +476,9 @@ public sealed partial class SessionService
         }
         capabilityPolicy.SetRuntimeManagedTools(toolSnapshot);
         threadRuntimeState.SetLatestToolSnapshot(toolSnapshot);
+        threadRuntimeState.SubAgentModels = CanSpawn(toolSnapshot, capabilityPolicy)
+            ? config.SubAgentModelCatalogSnapshot
+            : null;
         threadRuntimeState.ToolLocation = toolContext.ToolLocation;
         EffectiveToolSnapshotChanged?.Invoke(
             this,
@@ -505,6 +508,17 @@ public sealed partial class SessionService
             mm,
             toolContext);
     }
+
+    private static bool CanSpawn(EffectiveToolSnapshot snapshot, ThreadCapabilityPolicyEvaluator policy) =>
+        snapshot.ModelVisibleDefinitions
+            .Concat(snapshot.ModelHiddenDefinitions)
+            .Concat(snapshot.DeferredDefinitions.Values.SelectMany(static group => group))
+            .Any(definition => string.Equals(
+                snapshot.ProviderFlatNames[definition.Name],
+                nameof(AgentTools.SpawnAgent),
+                StringComparison.Ordinal))
+        && policy.EvaluateCall(new FunctionCallContent(string.Empty, nameof(AgentTools.SpawnAgent))).Kind
+            == ModeToolPolicyDecisionKind.Allow;
 
     private static void ApplyThreadToolFilters(List<AITool> tools, ThreadCapabilityPolicyEvaluator policy) =>
         tools.RemoveAll(tool => !policy.AllowsTool(tool));

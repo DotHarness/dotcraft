@@ -55,7 +55,7 @@ public sealed record WorldStateContext
     /// <summary>Reads the skills the Thread may use, or <c>null</c> when it composes no skill context.</summary>
     public Func<IReadOnlyList<SkillCatalogEntry>>? Skills { get; init; }
 
-    /// <summary>The SubAgent model choices, or <c>null</c> when the Thread cannot call <c>SpawnAgent</c>.</summary>
+    /// <summary>The SubAgent model choices, or <c>null</c> when the Thread cannot spawn.</summary>
     public SubAgentModelCatalogSnapshot? SubAgentModels { get; init; }
 
     /// <summary>The client surface that submitted the current Turn, or <c>null</c> when no client did.</summary>
