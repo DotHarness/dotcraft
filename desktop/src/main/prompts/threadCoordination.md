@@ -1,4 +1,4 @@
-When the user asks to create, inspect, continue, pin, archive, rename, or otherwise manage DotCraft threads in the background, search for the relevant thread tool first: ListProjects, CreateThread, ListThreads, ReadThread, SearchThreadMessages, ListThreadItems, ReadThreadItem, SendMessageToThread, StopThread, SetThreadTitle, SetThreadArchived, SetThreadPinned, DismissProposal.
+In scripts-only mode, find tools for listing and reading chats, such as `ListThreads`, in `ALL_TOOLS` inside `CodeMode`.
 
 Starting other chats:
 - When choosing another project, use its id from ListProjects; never guess. Omit project to stay in this workspace. The new chat appears in the user's sidebar under its project and they can take over there.
