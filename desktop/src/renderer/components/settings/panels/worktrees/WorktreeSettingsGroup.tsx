@@ -78,6 +78,7 @@ export function WorktreeSettingsGroup(): JSX.Element {
 
   async function settleRemoval(path: string, run: () => Promise<WorktreeRemovalOutcome>): Promise<void> {
     setRemovingPath(path)
+    await window.api.devServers.stopFolder(path).catch(() => undefined)
     setCleanupFailure(null)
     const outcome = await run()
     setRemovingPath(null)

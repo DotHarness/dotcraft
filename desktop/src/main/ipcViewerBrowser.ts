@@ -5,6 +5,7 @@ import { registerBrowserFeedbackIpc } from './browserFeedbackIpc'
 import { browserUseManager } from './browserUseManager'
 import { checkChromeSetup, installChromeNativeHost, openChromeWindow, type ChromeOpenRequest } from './chromeSetup'
 import { mainLocale, type WindowIpcContext } from './ipcBridgeContracts'
+import { registerDevServersHandlers } from './devServers/devServersIpc'
 import { registerProjectActionsHandlers } from './projectActions/projectActionsIpc'
 import { partitionForWorkspace, viewerBrowserManager } from './viewerBrowser'
 import { registerViewerTerminalHandlers } from './viewerTerminalIpc'
@@ -146,6 +147,7 @@ export function registerViewerBrowserHandlers(context: WindowIpcContext): () => 
       await callbacks.updateSettings({ projectActionPreferences })
     }
   })
+  const disposeDevServers = registerDevServersHandlers({ owner, handleSafe })
 
   handleSafe('computerUse:app-icon', async (_event, appId: unknown) => {
     if (typeof appId !== 'string' || !/\.exe$/i.test(appId)) return null
@@ -168,5 +170,8 @@ export function registerViewerBrowserHandlers(context: WindowIpcContext): () => 
   handleSafe('chrome:open', async (_event, params?: ChromeOpenRequest) => {
     return openChromeWindow(workspacePath, params)
   })
-  return disposeProjectActions
+  return () => {
+    disposeProjectActions()
+    disposeDevServers()
+  }
 }

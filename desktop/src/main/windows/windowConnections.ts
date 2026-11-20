@@ -10,6 +10,7 @@ import { resetDesktopThreadToolBindings } from '../desktopRuntimeThreadTools'
 import { bindLocalProjectRecovery } from '../localProjectRecovery'
 import { handleWorkspaceNodeReplNotification, ownsWorkspaceNodeReplThread } from './windowNodeReplRequests'
 import { handleWorkspaceThreadPanelDeletion } from './windowThreadPanelDeletion'
+import { handleDevServerThreadNotification } from '../devServers/devServerThreadEvents'
 import { recoverThreadQuestions } from './windowThreadQuestionRecovery'
 import { connectLinkedChats, observeLinkedChatNotification } from './windowThreadProjects'
 import { refreshVoiceChatGptAvailability } from '../voice/voiceIpc'
@@ -103,6 +104,7 @@ export async function connectViaWebSocket(
     const turn = readBrowserTurnNotification(method, params)
     const ownsThread = turn && ownsWorkspaceNodeReplThread(entry, turn.threadId)
     handleWorkspaceThreadPanelDeletion(entry, method, params, ctx.mainWindow)
+    handleDevServerThreadNotification(method, params)
     handleWorkspaceNodeReplNotification(entry, method, params)
     if (ownsThread) {
       if (turn.terminal) computerUseManager.handleTurnEnded(turn.threadId, turn.turnId)

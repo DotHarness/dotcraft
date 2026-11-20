@@ -49,6 +49,13 @@ const SCREEN_VIEW_DEFAULT: ApiOverrides<Api>['screenView'] = {
   onState: () => () => undefined
 }
 
+const DEV_SERVERS_DEFAULT: ApiOverrides<Api>['devServers'] = {
+  list: (scope) => Promise.resolve({ launch: { status: 'missing', path: `${scope.folder}/.craft/launch.json` }, servers: [] }),
+  watch: () => () => undefined,
+  stopFolder: () => Promise.resolve(),
+  rebindThread: () => Promise.resolve()
+}
+
 const WORKSPACE_DEFAULT: ApiOverrides<Api>['workspace'] = {
   getChatsFolder: () => Promise.resolve({ path: '/workspace/chats', customized: false })
 }
@@ -85,6 +92,7 @@ export function installDesktopApiMock(overrides: ApiOverrides<Api>): Api {
     pairedComputers: { ...PAIRED_COMPUTERS_DEFAULT, ...overrides.pairedComputers },
     desktopPet: { ...DESKTOP_PET_DEFAULT, ...overrides.desktopPet },
     screenView: { ...SCREEN_VIEW_DEFAULT, ...overrides.screenView },
+    devServers: { ...DEV_SERVERS_DEFAULT, ...overrides.devServers },
     workspace: {
       ...WORKSPACE_DEFAULT,
       ...overrides.workspace,

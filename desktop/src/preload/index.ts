@@ -224,6 +224,8 @@ import type {
   WriteEnvironmentResult
 } from '../shared/projectActions'
 export type * from '../shared/projectActions'
+import type { DevServerList, DevServerScope, DevServerSnapshot, DevServerStartResult } from '../shared/devServers'
+export type * from '../shared/devServers'
 import type { ChromeSetupStatus } from '../shared/chromeSetup'
 export type { ChromeSetupCheckStatus, ChromeSetupStatus } from '../shared/chromeSetup'
 import type { GitHeadInspection } from '../shared/gitHead'
@@ -1563,6 +1565,42 @@ const api = {
     },
     markKeptHere(params: { threadId: string; taskId: string }): Promise<ThreadTaskActionResult> {
       return ipcRenderer.invoke('threadTasks:mark-kept-here', params)
+    }
+  },
+
+  devServers: {
+    list(scope: DevServerScope): Promise<DevServerList> {
+      return ipcRenderer.invoke('dev-servers:list', scope)
+    },
+    watch(folder: string, listener: () => void): UnsubscribeFn {
+      const wrapped = (): void => listener()
+      ipcRenderer.on('dev-servers:changed', wrapped)
+      void ipcRenderer.invoke('dev-servers:subscribe', folder).catch(() => {})
+      return () => {
+        ipcRenderer.removeListener('dev-servers:changed', wrapped)
+        void ipcRenderer.invoke('dev-servers:unsubscribe', folder).catch(() => {})
+      }
+    },
+    start(scope: DevServerScope, name: string): Promise<DevServerStartResult> {
+      return ipcRenderer.invoke('dev-servers:start', { scope, name })
+    },
+    stop(serverId: string): Promise<DevServerSnapshot | undefined> {
+      return ipcRenderer.invoke('dev-servers:stop', serverId)
+    },
+    stopScope(scope: DevServerScope): Promise<number> {
+      return ipcRenderer.invoke('dev-servers:stop-scope', scope)
+    },
+    stopFolder(folder: string): Promise<void> {
+      return ipcRenderer.invoke('dev-servers:stop-folder', folder)
+    },
+    logs(serverId: string): Promise<string[]> {
+      return ipcRenderer.invoke('dev-servers:logs', serverId)
+    },
+    isListening(port: number): Promise<boolean> {
+      return ipcRenderer.invoke('dev-servers:is-listening', port)
+    },
+    rebindThread(params: { fromThreadId: string; toThreadId: string }): Promise<void> {
+      return ipcRenderer.invoke('dev-servers:rebind-thread', params)
     }
   },
 

@@ -16,6 +16,7 @@ import { cancelConnectionServerRequests } from '../ipcServerRequests'
 import { resetDesktopThreadToolBindings } from '../desktopRuntimeThreadTools'
 import { handleWorkspaceNodeReplNotification, ownsWorkspaceNodeReplThread } from './windowNodeReplRequests'
 import { handleWorkspaceThreadPanelDeletion } from './windowThreadPanelDeletion'
+import { handleDevServerThreadNotification } from '../devServers/devServerThreadEvents'
 import { recoverThreadQuestions } from './windowThreadQuestionRecovery'
 import { connectLinkedChats, linkedChatsNeedProject, observeLinkedChatNotification, threadToolsHoldConnection } from './windowThreadProjects'
 import { resolveDotCraftRuntimeTools } from '../ripgrepRuntime'
@@ -254,6 +255,7 @@ export function createSecondaryWorkspaceConnection(
       const turn = readBrowserTurnNotification(method, params)
       const ownsThread = turn && ownsWorkspaceNodeReplThread(entry, turn.threadId)
       handleWorkspaceThreadPanelDeletion(entry, method, params, ctx.mainWindow)
+      handleDevServerThreadNotification(method, params)
       handleWorkspaceNodeReplNotification(entry, method, params)
       if (ownsThread) {
         if (turn.terminal) computerUseManager.handleTurnEnded(turn.threadId, turn.turnId)
