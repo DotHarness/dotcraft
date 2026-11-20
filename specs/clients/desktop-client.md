@@ -1120,7 +1120,11 @@ The default companion can be colored and dressed with collectible items; the set
 
 Visual treatment follows [Desktop DESIGN.md](../architecture/DESIGN.md#pet).
 
-### 6.14 App Updates
+### 6.14 Windows Installation and App Updates
+
+The standalone Windows installer opens a wizard where users can choose the installation
+scope and destination, including another drive. If exactly one current-user or all-users
+installation is registered, the wizard defaults to that scope and its existing directory.
 
 Packaged Windows builds update themselves from GitHub Releases. Other platforms and unpackaged builds report updates as unsupported and show no controls.
 

@@ -264,14 +264,15 @@
       ]
     },
     "nsis": {
-      "oneClick": true,
+      "oneClick": false,
       "perMachine": false,
-      "runAfterFinish": true,
+      "selectPerMachineByDefault": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
       "include": "resources/installer.nsh",
       "artifactName": "DotCraft-v${version}-win-${arch}-Setup.${ext}",
       "installerIcon": "resources/icon.ico",
-      "uninstallerIcon": "resources/icon.ico",
-      "installerHeaderIcon": "resources/icon.ico"
+      "uninstallerIcon": "resources/icon.ico"
     }
   }
 }
