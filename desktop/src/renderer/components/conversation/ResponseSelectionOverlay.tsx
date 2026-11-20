@@ -6,7 +6,9 @@ import { useThreadStore } from '../../stores/threadStore'
 import { askInSideChat, useCanOpenSideChat } from '../../utils/sideChat'
 import { Button } from '../ui/Button'
 import { ContextCommentEditor } from './ContextCommentEditor'
+import { focusComposer } from './composerFocus'
 import { sendComposer } from './composerSend'
+import { readSelectionRange, sameSelectionRange } from './replySelection'
 import { useResponseSelectionStore, type ResponseSelection } from './responseSelectionStore'
 
 export function ResponseSelectionOverlay({ selection }: { selection: ResponseSelection }): JSX.Element {
@@ -52,11 +54,8 @@ export function ResponseSelectionOverlay({ selection }: { selection: ResponseSel
     }
     const selectionChanged = (): void => {
       if (selection.editing) return
-      const current = window.getSelection()
-      if (!current?.rangeCount || current.isCollapsed) { dismiss(); return }
-      const range = current.getRangeAt(0)
-      if (range.startContainer !== selection.range.startContainer || range.startOffset !== selection.range.startOffset ||
-        range.endContainer !== selection.range.endContainer || range.endOffset !== selection.range.endOffset) dismiss()
+      const range = readSelectionRange()
+      if (!range || !sameSelectionRange(range, selection.range)) dismiss()
     }
     document.addEventListener('pointerdown', outside, true)
     document.addEventListener('contextmenu', contextMenu, true)
@@ -89,6 +88,11 @@ export function ResponseSelectionOverlay({ selection }: { selection: ResponseSel
     window.getSelection()?.removeAllRanges()
   }
 
+  function addToChat(): void {
+    add('')
+    if (isActiveThread) focusComposer()
+  }
+
   function addAndSend(comment: string): void {
     add(comment)
     sendComposer(selection.threadId, t)
@@ -109,7 +113,7 @@ export function ResponseSelectionOverlay({ selection }: { selection: ResponseSel
       ) : (
         <div className="dc-response-feedback__actions" role="toolbar" aria-label={t('composer.context.selectedText')}
           onMouseDown={(event) => event.preventDefault()}>
-          <Button size="sm" variant="ghost" onClick={() => add('')}>{t('conversation.selection.addToChat')}</Button>
+          <Button size="sm" variant="ghost" onClick={addToChat}>{t('conversation.selection.addToChat')}</Button>
           <Button size="sm" variant="ghost" onClick={edit}>{t('conversation.selection.comment')}</Button>
           {sideChatAvailable && isActiveThread && (
             <Button size="sm" variant="ghost" onClick={askSide}>{t('conversation.selection.askInSideChat')}</Button>

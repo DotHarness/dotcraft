@@ -21,7 +21,20 @@ Electron Main owns downloads, page-selection capture, and browser controls, scop
 
 ## Reply text interactions
 
-One reply-selection overlay is active per window; a new selection replaces it. It offers **Add to chat** and **Comment**. Only a selection contained within one completed reply can become a response annotation, and an empty selection never becomes one. The overlay keeps its source selection while the comment editor has focus and follows scrolling and resizing.
+One reply-selection overlay is active per window. A new selection replaces it.
+It offers **Add to chat** and **Comment**, plus **Ask in side chat** when
+[Side Chat](../clients/desktop-client.md#5112-side-chat)
+is available for the reply. Only a non-empty selection within one completed
+reply can become a response annotation.
+
+Releasing the pointer after selecting text opens the overlay in either drag
+direction, even outside the reply. Moving away from the highlight and back
+does not change its visibility. Clearing the selection closes the overlay
+without reopening it for the old selection. The overlay keeps its source
+selection while the comment editor has focus and follows scrolling and
+resizing.
+
+**Add to chat** adds the selected text without sending. When the reply belongs to the active chat, the action also focuses its composer so the user can keep typing.
 
 Outside pointer-down, Escape, an outside context menu, task changes, and source unmount dismiss the overlay. Passive dismissal keeps an unfinished comment in memory keyed by source and selection; explicit cancel or save clears it. Opening or closing a native menu never clears the text selection or reopens the overlay.
 
