@@ -60,6 +60,43 @@ public sealed partial class SessionServiceInterruptionTests : IDisposable
         }
     }
 
+    [Fact]
+    public async Task Cancel_WithoutNativeHistory_PersistsMarkerAndAllowsNextTurn()
+    {
+        var client = new InterruptibleClient();
+        await using var factory = Factory(ModelProviderProtocols.OpenAIResponses);
+        await using var store = new ThreadStore(root);
+        var threadId = SessionIdGenerator.NewThreadId();
+        var now = DateTimeOffset.UtcNow;
+        await store.SaveThreadAsync(new SessionThread
+        {
+            Id = threadId,
+            WorkspacePath = root,
+            OriginChannel = "test",
+            DisplayName = "Interrupt without native history",
+            Status = ThreadStatus.Active,
+            CreatedAt = now,
+            LastActiveAt = now,
+            ProviderHistorySchemaVersion = default
+        });
+        var service = Service(factory, client, store);
+        await service.EnsureThreadLoadedAsync(threadId);
+        var run = service.SubmitInputAsync(threadId, [new TextContent("first")]).ToListAsync().AsTask();
+        await client.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await service.CancelTurnAsync(threadId, "turn_001");
+        var events = await run.WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.Single(events, evt => evt.EventType == SessionEventType.TurnCancelled);
+        var persisted = Assert.IsType<SessionThread>(await store.LoadThreadAsync(threadId));
+        Assert.Equal(TurnStatus.Cancelled, Assert.Single(persisted.Turns).Status);
+        Assert.Single(await store.LoadModelHistoryAsync(threadId), IsMarker);
+
+        client.Block = false;
+        var next = await service.SubmitInputAsync(threadId, [new TextContent("second")]).ToListAsync();
+        Assert.Single(next, evt => evt.EventType == SessionEventType.TurnCompleted);
+        Assert.Single(client.Messages, IsMarker);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

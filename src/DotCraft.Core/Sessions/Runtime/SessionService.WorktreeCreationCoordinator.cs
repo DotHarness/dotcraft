@@ -107,7 +107,8 @@ public sealed partial class SessionService
                 HistoryMode = options.HistoryMode,
                 Configuration = capturedConfig,
                 DisplayName = options.DisplayName,
-                Source = options.Source ?? ThreadSource.User()
+                Source = options.Source ?? ThreadSource.User(),
+                ProviderHistorySchemaVersion = ProviderHistorySchema.CurrentSchemaVersion
             };
 
             if (identity.ChannelContext != null)

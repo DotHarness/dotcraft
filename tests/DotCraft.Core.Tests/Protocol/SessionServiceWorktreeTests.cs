@@ -273,9 +273,10 @@ public sealed class SessionServiceWorktreeCreateTests : SessionServiceWorktreeTe
         Assert.Equal(result.Worktree, result.Thread.Worktree);
         Assert.Empty(result.Thread.Turns);
 
-        var loaded = await _store.LoadThreadAsync(result.Thread.Id);
-        Assert.Equal(result.Worktree.Path, loaded?.Configuration?.ExecutionWorkspaceOverride);
-        Assert.Equal(result.Worktree.Path, loaded?.Worktree?.Path);
+        var loaded = Assert.IsType<SessionThread>(await _store.LoadThreadAsync(result.Thread.Id));
+        Assert.Equal(result.Worktree.Path, loaded.Configuration?.ExecutionWorkspaceOverride);
+        Assert.Equal(result.Worktree.Path, loaded.Worktree?.Path);
+        Assert.Equal(ProviderHistorySchema.CurrentSchemaVersion, loaded.ProviderHistorySchemaVersion);
     }
 
     [Fact]
