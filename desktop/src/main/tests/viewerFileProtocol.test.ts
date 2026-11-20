@@ -135,6 +135,32 @@ describe('handleViewerFileRequest external authorization', () => {
   })
 })
 
+describe('inline workspace images', () => {
+  it('serves images from the reply workspace without using external file grants or sibling roots', async () => {
+    const workspace = createTempDir()
+    const sibling = createTempDir()
+    const external = createTempDir()
+    const image = join(workspace, 'shot.jpg')
+    const text = join(workspace, 'not-an-image.txt')
+    const siblingImage = join(sibling, 'other.jpg')
+    const externalImage = join(external, 'granted.jpg')
+    for (const file of [image, text, siblingImage, externalImage]) writeFileSync(file, 'bytes')
+    setViewerWorkspaceRoot(workspace)
+    setViewerSecondaryRootsResolver(() => [sibling])
+    await authorizeViewerFile(externalImage, OWNER)
+
+    const status = async (file: string) => (
+      await handleViewerFileRequest(new Request(`${buildViewerUrl(file)}?workspaceImage=${encodeURIComponent(workspace)}`))
+    ).status
+
+    expect(await status(image)).toBe(200)
+    expect(await status(text)).toBe(403)
+    expect(await status(siblingImage)).toBe(403)
+    expect(await status(externalImage)).toBe(403)
+    expect(netFetchMock).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('handleViewerFileRequest chat folders', () => {
   afterEach(() => setLocalChatsFolderRootsResolver(() => []))
 

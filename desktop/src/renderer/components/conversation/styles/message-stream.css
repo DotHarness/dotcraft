@@ -28,3 +28,8 @@
   height: 144px;
   overflow-anchor: none;
 }
+
+.dc-reply-markdown-image {
+  max-width: 100%;
+  height: auto;
+}

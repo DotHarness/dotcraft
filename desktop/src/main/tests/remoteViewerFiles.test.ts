@@ -199,6 +199,10 @@ describe('remote viewer files', () => {
     releases.push(registerWindowFileAccess(owner, { getWorkspaceRoot: () => '', getRemoteFiles: () => remoteViewerFilesFor(host.client) }))
     const url = buildViewerUrl('/srv/app/shot.png')
 
+    const localOnly = await handleViewerFileRequest(new Request(`${url}?workspaceImage=%2Fsrv%2Fapp`), owner)
+    expect(localOnly.status).toBe(403)
+    expect(host.sendRequest).not.toHaveBeenCalled()
+
     const whole = await handleViewerFileRequest(new Request(url), owner)
     expect(whole.status).toBe(200)
     expect(whole.headers.get('content-type')).toBe('image/png')

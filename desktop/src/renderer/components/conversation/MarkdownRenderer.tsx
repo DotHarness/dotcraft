@@ -12,6 +12,7 @@ import { isBareFileLocationLinkTarget } from '../../../shared/viewer/linkResolve
 import { InlineReferenceLink } from './InlineReferenceLink'
 import { CodeBlock, HighlightedCode } from './MarkdownCodeBlock'
 import { MarkdownTableBlock, MarkdownTableCell, MarkdownTableHeader } from './MarkdownTableBlock'
+import { ReplyMarkdownImage } from './ReplyMarkdownImage'
 import { mathSyntax } from './mathSyntax'
 import { copySelectionWithMathSource } from './mathCopy'
 import { rehypeStreamingFade } from './streamingFade'
@@ -23,6 +24,7 @@ interface MarkdownRendererProps {
   containOverflow?: boolean
   enableMermaid?: boolean
   streaming?: boolean
+  workspaceImages?: boolean
 }
 
 /** Memoized to avoid re-rendering finalized messages in the turn history. Spec §10.3.3. */
@@ -31,7 +33,8 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
   linkMode = 'conversation',
   containOverflow = false,
   enableMermaid = true,
-  streaming = false
+  streaming = false,
+  workspaceImages = false
 }: MarkdownRendererProps): JSX.Element {
   const t = useT()
   const workspacePath = useConversationStore((s) => s.workspacePath)
@@ -43,6 +46,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
 
   const customComponents = useMemo<Components>(() => ({
     ...baseComponents,
+    ...(workspaceImages ? { img: ReplyMarkdownImage } : {}),
     pre({ children, ...props }) {
       return <CodeBlock enableMermaid={enableMermaid} {...props}>{children}</CodeBlock>
     },
@@ -61,7 +65,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
         </InlineReferenceLink>
       )
     }
-  }), [activeThreadId, enableMermaid, linkMode, remoteWorkspaceActive, t, workspacePath])
+  }), [activeThreadId, enableMermaid, linkMode, remoteWorkspaceActive, t, workspaceImages, workspacePath])
 
   return (
     <div
@@ -75,7 +79,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
         remarkPlugins={remarkPlugins}
         rehypePlugins={rehypePlugins}
         components={customComponents}
-        urlTransform={markdownUrlTransform}
+        urlTransform={(url, key) => markdownUrlTransform(url, key, workspaceImages)}
       >
         {markdown}
       </ReactMarkdown>
@@ -306,13 +310,14 @@ const baseComponents: Components = {
   td: MarkdownTableCell
 }
 
-function markdownUrlTransform(url: string, key: string): string | null | undefined {
+function markdownUrlTransform(url: string, key: string, workspaceImages: boolean): string {
   const trimmed = url.trim()
-  if (key === 'href' && (isLocalFileLinkTarget(trimmed) || isBareFileLocationLinkTarget(trimmed))) return trimmed
+  if ((key === 'href' || (key === 'src' && workspaceImages)) && isLocalFileTarget(trimmed)) return trimmed
+  if (key === 'href' && isBareFileLocationLinkTarget(trimmed)) return trimmed
   return defaultUrlTransform(url)
 }
 
-function isLocalFileLinkTarget(value: string): boolean {
+function isLocalFileTarget(value: string): boolean {
   return value.toLowerCase().startsWith('file://') ||
     /^[A-Za-z]:(?:[\\/]|%5C)/i.test(value) ||
     value.startsWith('/') ||

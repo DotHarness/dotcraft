@@ -26,7 +26,7 @@ export function AssistantMessageContent({ text, streaming, threadId, turnId, ite
   return (
     <>
       {segments.map(segment => {
-        if (segment.kind === 'markdown') return <MarkdownRenderer key={`markdown-${segment.start}`} content={segment.text} streaming={streaming} />
+        if (segment.kind === 'markdown') return <MarkdownRenderer key={`markdown-${segment.start}`} content={segment.text} streaming={streaming} workspaceImages />
         if (segment.kind === 'invalidVisualization') {
           return (
             <VisualizationNotice

@@ -78,13 +78,17 @@ export function handleViewerFileRequest(request: Request, ownerId?: number): Pro
 async function handleViewerFileRequestWithContext(request: Request, context?: WindowFileAccess): Promise<Response> {
   try {
     const absPath = viewerUrlToPath(request.url)
+    const imageRoot = new URL(request.url).searchParams.get('workspaceImage')
 
     if (!absPath) {
       return new Response(null, { status: 400 })
     }
 
     const remote = context?.getRemoteFiles?.()
-    if (remote) return serveRemoteFile(request, absPath, await remote.readBytes(absPath))
+    if (remote) {
+      if (imageRoot !== null) return new Response(null, { status: 403 })
+      return serveRemoteFile(request, absPath, await remote.readBytes(absPath))
+    }
 
     const root = context?.getWorkspaceRoot()
     if (!context || !root) {
@@ -93,12 +97,17 @@ async function handleViewerFileRequestWithContext(request: Request, context?: Wi
 
     const epoch = context.authorizationEpoch
     const insideWorkspace = await isPathInsideContextRoots(absPath, context)
-    const resolvedExternalPath = insideWorkspace ? null : await resolveAuthorizedExternalFile(absPath, context)
-    if (!insideWorkspace && !resolvedExternalPath) {
-      return new Response(null, { status: 403 })
+    let filePath: string
+    if (imageRoot !== null) {
+      if (!insideWorkspace || !path.isAbsolute(imageRoot)) return new Response(null, { status: 403 })
+      filePath = await fs.realpath(absPath)
+      if (!mimeForExtension(path.extname(filePath)).startsWith('image/') ||
+        !await isPathInsideWorkspace(filePath, imageRoot)) return new Response(null, { status: 403 })
+    } else {
+      const resolved = insideWorkspace ? absPath : await resolveAuthorizedExternalFile(absPath, context)
+      if (!resolved) return new Response(null, { status: 403 })
+      filePath = resolved
     }
-
-    const filePath = resolvedExternalPath ?? absPath
     const stat = await fs.stat(filePath)
     if (!stat.isFile() || !isWindowFileAccessValid(context, root, epoch)) {
       return new Response(null, { status: 403 })
