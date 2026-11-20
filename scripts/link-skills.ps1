@@ -261,6 +261,10 @@ $availableDestinations = @(
     @{
         Name = "Codex (~\.codex\skills)"
         Path = Join-Path $env:USERPROFILE ".codex\skills"
+    },
+    @{
+        Name = "Antigravity (~\.gemini\config\skills)"
+        Path = Join-Path $env:USERPROFILE ".gemini\config\skills"
     }
 )
 $skillDestinations = if ([string]::IsNullOrWhiteSpace($DestinationDir)) {
