@@ -34,7 +34,7 @@ Themes with a backdrop show it through the sidebar, chat, and Composer. In Theme
 
 ## Keep motion comfortable
 
-Turn off scene animation to keep each scene's composed still picture. Scenes also become still when your system requests reduced motion or the window is hidden.
+Turn off scene animation to keep each scene's composed still picture. Scenes also become still when reduced motion is enabled.
 
 ## Share a theme
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type JSX } from 'react'
+import { useEffect, useMemo, useRef, useState, type JSX } from 'react'
 import type { Theme, ThemeBackdrop } from '../../../shared/themes'
 import {
   MCP_APP_SANDBOX_PROXY_READY_METHOD,
@@ -6,26 +6,28 @@ import {
   MCP_APP_SANDBOX_BRIDGE_VIOLATION_METHOD,
   VISUALIZATION_SANDBOX_RESOURCE_READY_METHOD
 } from '../../../shared/mcpAppSandbox'
-import { buildSceneDocument, posterUrl, SCENE_STATUS_METHOD } from './sceneDocument'
+import { buildSceneDocument, SCENE_STATUS_METHOD, svgDataUrl } from './sceneDocument'
 import { reportBackdropReady, themeKey } from './themeLibrary'
 
 const STARTUP_TIMEOUT_MS = 8000
+const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)'
+
+function readSceneMotion(enabled: boolean, media = window.matchMedia(REDUCED_MOTION_QUERY)): boolean {
+  return enabled && document.documentElement.dataset.reduceMotion !== 'on' && !media.matches
+}
 
 function useSceneMotion(enabled: boolean): boolean {
-  const [allowed, setAllowed] = useState(false)
+  const [allowed, setAllowed] = useState(() => readSceneMotion(enabled))
   useEffect(() => {
-    const media = window.matchMedia('(prefers-reduced-motion: reduce)')
-    const root = document.documentElement
-    const update = (): void => setAllowed(enabled && !media.matches && !document.hidden && root.dataset.reduceMotion !== 'on')
+    const media = window.matchMedia(REDUCED_MOTION_QUERY)
+    const update = (): void => setAllowed(readSceneMotion(enabled, media))
     const observer = new MutationObserver(update)
-    observer.observe(root, { attributes: true, attributeFilter: ['data-reduce-motion'] })
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-reduce-motion'] })
     media.addEventListener('change', update)
-    document.addEventListener('visibilitychange', update)
     update()
     return () => {
       observer.disconnect()
       media.removeEventListener('change', update)
-      document.removeEventListener('visibilitychange', update)
     }
   }, [enabled])
   return allowed
@@ -40,25 +42,31 @@ interface SceneFrameProps {
 export function SceneFrame({ theme, scene, animate }: SceneFrameProps): JSX.Element {
   const motion = useSceneMotion(animate)
   const [failed, setFailed] = useState(false)
-  const [ready, setReady] = useState(false)
-  const [posterReady, setPosterReady] = useState(false)
+  const [frameReady, setFrameReady] = useState(false)
+  const [imageReady, setImageReady] = useState(false)
   const frame = useRef<HTMLIFrameElement>(null)
   const key = themeKey(theme)
-  useEffect(() => { setFailed(false); setReady(false) }, [key, motion])
-  useEffect(() => { setPosterReady(false) }, [key])
+  const isHtml = scene.format === 'html'
+  useEffect(() => { setFailed(false); setFrameReady(false) }, [key, motion])
+  useEffect(() => { setImageReady(false) }, [key])
   const running = motion && !failed
+  const animatedSvg = !isHtml && running
+  const htmlRunning = isHtml && running
+  const imageSrc = useMemo(() => svgDataUrl(animatedSvg ? scene.source : scene.poster), [animatedSvg, scene.source, scene.poster])
+  const drawn = imageReady || (htmlRunning && frameReady)
 
   useEffect(() => {
-    reportBackdropReady(theme, posterReady || (running && ready))
-    return () => reportBackdropReady(theme, false)
-  }, [key, running, posterReady, ready])
+    reportBackdropReady(theme, drawn)
+  }, [key, drawn])
+
+  useEffect(() => () => reportBackdropReady(theme, false), [key])
 
   useEffect(() => {
-    if (!running) return
+    if (!htmlRunning) return
     const target = frame.current
     if (!target) return
     const nonce = crypto.randomUUID()
-    const fail = (): void => { setFailed(true); setReady(false) }
+    const fail = (): void => { setFailed(true); setFrameReady(false) }
     const timeout = window.setTimeout(fail, STARTUP_TIMEOUT_MS)
     let booted = false
     const receive = (event: MessageEvent): void => {
@@ -75,7 +83,7 @@ export function SceneFrame({ theme, scene, animate }: SceneFrameProps): JSX.Elem
       } else if (message.method === SCENE_STATUS_METHOD && message.params?.nonce === nonce) {
         if (message.params.state === 'ready') {
           window.clearTimeout(timeout)
-          setReady(true)
+          setFrameReady(true)
         } else if (message.params.state === 'failed') fail()
       }
     }
@@ -85,19 +93,22 @@ export function SceneFrame({ theme, scene, animate }: SceneFrameProps): JSX.Elem
       window.clearTimeout(timeout)
       window.removeEventListener('message', receive)
     }
-  }, [key, running])
+  }, [key, htmlRunning])
 
   return (
     <>
       <img
         className="dcw-scene-poster"
-        src={posterUrl(scene.poster)}
+        src={imageSrc}
         alt=""
         draggable={false}
-        onLoad={() => setPosterReady(true)}
-        onError={() => setPosterReady(false)}
+        onLoad={() => setImageReady(true)}
+        onError={() => {
+          setImageReady(false)
+          if (animatedSvg) setFailed(true)
+        }}
       />
-      {running && <iframe
+      {htmlRunning && <iframe
         key={key}
         ref={frame}
         name="dotcraft-themes"
@@ -107,7 +118,7 @@ export function SceneFrame({ theme, scene, animate }: SceneFrameProps): JSX.Elem
         allow=""
         tabIndex={-1}
         aria-hidden="true"
-        className={`dcw-scene-frame${ready ? ' dcw-scene-frame-ready' : ''}`}
+        className={`dcw-scene-frame${frameReady ? ' dcw-scene-frame-ready' : ''}`}
       />}
     </>
   )

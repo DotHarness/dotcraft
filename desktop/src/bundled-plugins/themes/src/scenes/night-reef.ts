@@ -401,9 +401,6 @@ function grainPattern(): string {
 export function nightReefSvg(): string {
   // The animals GLIDE: their laps are plain linear keyframes, no stepping and no held frames (a cell per step read like a stalled screen in the real app).
   // The four upright drawings of a lap, and the limb poses, cross-fade over about 0.4 s instead of snapping.
-  // Delays are chosen so that time zero is a good composition. The still a reduced-motion user sees is set apart from it:
-  // the resting place of each animal and its one visible pose stand in the PLAIN style: the app can stop a scene by taking every
-  // animation away, and what only keyframes place would fall to the top of the window. The keyframes name every moment of the run.
   const style = `
 text{font:700 13px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;text-anchor:middle}
 .rim{opacity:.5;animation:rim 12s ease-in-out infinite}
@@ -434,7 +431,7 @@ text{font:700 13px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;text-anc
 @keyframes legleft{0%{opacity:0}43.59%{opacity:0}43.91%{opacity:1}49.84%{opacity:1}50.16%{opacity:0}100%{opacity:0}}
 @keyframes legup{0%{opacity:0}49.84%{opacity:0}50.16%{opacity:1}93.59%{opacity:1}93.91%{opacity:0}100%{opacity:0}}
 @keyframes legright{0%{opacity:0}93.59%{opacity:0}93.91%{opacity:1}99.7%{opacity:1}100%{opacity:0}}
-.pose3a,.pose3c,.pose2b,.legleft,.legdown,.legright{opacity:0}.turtleway{transform:translate(-40px,440px)}.rayway{transform:translate(40px,520px)}
+.pose3b,.pose3c,.pose2b,.legleft,.legdown,.legright,.raylegs .legup{opacity:0}.raylegs .legdown{opacity:1}.turtleway{transform:translate(-40px,500px)}.rayway{transform:translate(0,550px)}
 @media (prefers-reduced-motion: reduce){*{animation:none!important}}`
 
   const defs = `

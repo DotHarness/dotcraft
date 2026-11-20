@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { validateTheme } from '../../../shared/themes'
 import { BUILTIN_THEMES } from './builtInThemes'
-import { buildSceneDocument, posterUrl } from './sceneDocument'
+import { buildSceneDocument, svgDataUrl } from './sceneDocument'
 
 describe('themes documents', () => {
   it('keeps example posters static and accepts every authorable example under the import contract', () => {
@@ -22,9 +22,9 @@ describe('themes documents', () => {
     }
   })
 
-  it('encodes a poster without letting malformed Unicode crash the host', () => {
-    expect(() => posterUrl('<svg><text>\uD800</text></svg>')).not.toThrow()
-    expect(decodeURIComponent(posterUrl('<svg/>').split(',')[1])).toBe('<svg/>')
+  it('encodes SVG data URLs without letting malformed Unicode crash the host', () => {
+    expect(() => svgDataUrl('<svg><text>\uD800</text></svg>')).not.toThrow()
+    expect(decodeURIComponent(svgDataUrl('<svg/>').split(',')[1])).toBe('<svg/>')
   })
 
   it('emits a network-denying policy before content and removes document navigation metadata', () => {

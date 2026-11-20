@@ -1,6 +1,6 @@
 import { useCallback, useSyncExternalStore } from 'react'
 import type { Theme } from '../../../shared/themes'
-import { posterUrl } from './sceneDocument'
+import { svgDataUrl } from './sceneDocument'
 
 const MAX_TILE_WIDTH = 280
 const MAX_TILE_HEIGHT = 80
@@ -35,7 +35,7 @@ function thumbnailOf(theme: Theme): Thumbnail | null {
   const cached = thumbnails.get(theme.id)
   if (cached?.revision === theme.revision) return cached
   const vector = backdrop.kind === 'scene'
-  const source = vector ? posterUrl(backdrop.poster) : backdrop.image
+  const source = vector ? svgDataUrl(backdrop.poster) : backdrop.image
   const thumbnail: Thumbnail = {
     revision: theme.revision,
     url: null,

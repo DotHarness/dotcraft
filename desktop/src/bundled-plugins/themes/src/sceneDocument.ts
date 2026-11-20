@@ -1,7 +1,7 @@
 export const SCENE_STATUS_METHOD = 'themes/scene-status'
 
-export function posterUrl(poster: string): string {
-  const text = new TextDecoder().decode(new TextEncoder().encode(poster))
+export function svgDataUrl(svg: string): string {
+  const text = new TextDecoder().decode(new TextEncoder().encode(svg))
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(text)}`
 }
 

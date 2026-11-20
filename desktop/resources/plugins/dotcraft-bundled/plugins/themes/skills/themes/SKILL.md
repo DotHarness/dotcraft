@@ -37,6 +37,6 @@ Then call `action: "preview", id: "your-theme"`. When this is the foreground aut
 
 Compose for a full, resizable window with quiet space where conversation text sits. Use `viewBox` and `preserveAspectRatio="xMidYMid slice"` in SVG. HTML fills the viewport without scrollbars. For Canvas, resize with the viewport, cap device pixel ratio and particle count, and use one animation loop. Backgrounds receive no pointer or keyboard input, so provide no click targets, controls, or explanatory text.
 
-Source runs in a sandbox without the host DOM, preload, tools, conversation data, or storage. Network access, external scripts, fonts, images and stylesheets, nested frames, forms, workers, and navigation are blocked. Embed assets as data URLs or inline markup. The host swaps in the poster for reduced motion, disabled animation, hidden windows, or unavailable GPU acceleration, and restores a fresh scene when animation resumes.
+SVG scenes render as non-interactive images without scripts or external resources, and HTML scenes run in a sandboxed frame without the host DOM, preload, tools, conversation data, or storage. Network access, external scripts, fonts, images and stylesheets, nested frames, forms, workers, and navigation are blocked. Embed assets as data URLs or inline markup. The host swaps in the poster for reduced motion, disabled animation, or scene load and runtime errors.
 
 Return a concise description of the theme and point to the preview. Keep the source in the saved theme rather than repeating it in chat.
