@@ -59,9 +59,7 @@ public sealed partial class SessionService
             MemoryStore = memoryStores?.Own,
             AttachedMemoryStores = memoryStores?.Attached ?? [],
             Skills = ResolveSkillCatalog(thread),
-            SubAgentModels = CanCallSpawnAgent(thread.Id)
-                ? thread.Configuration?.SubAgentModelCatalogSnapshot
-                : null,
+            SubAgentModels = ResolveSubAgentModels(thread, turnId),
             ClientSurface = clientSurface
         };
 
@@ -256,11 +254,20 @@ public sealed partial class SessionService
         runtime.WorldStateBaselineOrigin = "none";
     }
 
+    private SubAgentModelCatalogSnapshot? ResolveSubAgentModels(SessionThread thread, string turnId)
+    {
+        _runtimeRegistry.TryGetRuntime(thread.Id, out var runtime);
+        var (tools, choices) = runtime != null
+            && runtime.TryGetTurn(turnId, out var turn)
+            && turn.Context?.Resources is { IsCompletedSuccessfully: true } resources
+                ? (resources.Result.ToolSnapshot, resources.Result.SubAgentModels)
+                : (runtime?.LatestToolSnapshot, thread.Configuration?.SubAgentModelCatalogSnapshot);
+        return tools != null && CanCallSpawnAgent(tools) ? choices : null;
+    }
+
     /// <summary>Counts direct, CodeMode-hidden, and deferred definitions, as the agent's callable tools do.</summary>
-    private bool CanCallSpawnAgent(string threadId) =>
-        _runtimeRegistry.TryGetRuntime(threadId, out var runtime)
-        && runtime.LatestToolSnapshot is { } snapshot
-        && snapshot.ModelVisibleDefinitions
+    private static bool CanCallSpawnAgent(EffectiveToolSnapshot snapshot) =>
+        snapshot.ModelVisibleDefinitions
             .Concat(snapshot.ModelHiddenDefinitions)
             .Concat(snapshot.DeferredDefinitions.Values.SelectMany(static group => group))
             .Any(definition => string.Equals(
