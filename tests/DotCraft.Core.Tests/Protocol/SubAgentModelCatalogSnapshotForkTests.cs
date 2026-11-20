@@ -29,7 +29,6 @@ public sealed class SubAgentModelCatalogSnapshotForkTests : IDisposable
             context.ParentThread.Configuration?.SubAgentModelCatalogSnapshot);
         var childSnapshot = Assert.IsType<SubAgentModelCatalogSnapshot>(
             child.Configuration?.SubAgentModelCatalogSnapshot);
-        Assert.Equal(parentSnapshot.Description, childSnapshot.Description);
         Assert.Equal(parentSnapshot.Models.Select(static model => model.Id),
             childSnapshot.Models.Select(static model => model.Id));
     }
@@ -128,7 +127,6 @@ public sealed class SubAgentModelCatalogSnapshotForkTests : IDisposable
     private static SubAgentModelCatalogSnapshot Snapshot() => new()
     {
         ProviderId = "openai",
-        Description = "stable description",
         Models =
         [
             new SubAgentModelCatalogItem { Id = "model-a" },

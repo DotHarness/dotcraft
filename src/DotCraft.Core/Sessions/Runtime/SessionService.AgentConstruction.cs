@@ -128,8 +128,7 @@ public sealed partial class SessionService
                 || runtime.ToolSnapshotDirty)
             {
                 var builtAgent = await BuildAgentForThreadAsync(thread, ct);
-                // A native SpawnAgent source establishes durable thread-specific tool text while
-                // building. Re-evaluate after the build so it cannot fall back to defaultAgent.
+                // Building resolves thread-specific SubAgent model choices, so re-evaluate before falling back to defaultAgent.
                 if (RequiresPerThreadAgent(thread))
                     SetThreadAgent(threadId, builtAgent);
             }
@@ -421,16 +420,13 @@ public sealed partial class SessionService
             snapshotSources.AddRange(profileSources);
         }
 
-        var exposesNativeSpawnAgent = snapshotSources.Any(source =>
-            source is CoreToolSource);
-        if (exposesNativeSpawnAgent && config.SubAgentModelCatalogSnapshot == null)
+        if (snapshotSources.Any(static source => source is CoreToolSource))
         {
             config.SubAgentModelCatalogSnapshot = await SubAgentModelCatalogSnapshots.CreateAsync(
                 currentConfig,
                 baseCtx.ChatClientRegistry.ProviderRegistry,
                 runtime.ProviderId,
                 ct).ConfigureAwait(false);
-            await PersistThreadIfMaterializedAsync(thread, ct).ConfigureAwait(false);
         }
 
         var providerCapabilities = new List<string>();

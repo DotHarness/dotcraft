@@ -23,8 +23,6 @@ public sealed class SubAgentModelCatalogSnapshotTests
         Assert.Equal(
             ["openai/model-c", "openai/model-a", "openai/model-b", "openai/model-d", "openai/model-e"],
             snapshot.Models.Select(static model => model.Id));
-        Assert.Contains("model-c", snapshot.Description, StringComparison.Ordinal);
-        Assert.DoesNotContain("model-f", snapshot.Description, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -55,8 +53,6 @@ public sealed class SubAgentModelCatalogSnapshotTests
         var model = Assert.Single(snapshot.Models);
         Assert.Contains(ModelReasoningEffort.ExtraHigh, model.SupportedReasoningEfforts);
         Assert.Equal(ModelReasoningEffort.Medium, model.DefaultReasoningEffort);
-        Assert.Contains("xhigh", snapshot.Description, StringComparison.Ordinal);
-        Assert.Contains("medium (default)", snapshot.Description, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -89,7 +85,6 @@ public sealed class SubAgentModelCatalogSnapshotTests
     private static SubAgentModelCatalogSnapshot Snapshot(params SubAgentModelCatalogItem[] models) => new()
     {
         ProviderId = "openai",
-        Description = "stable snapshot description",
         Models = [.. models]
     };
 

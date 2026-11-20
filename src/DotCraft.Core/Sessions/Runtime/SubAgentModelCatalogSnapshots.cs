@@ -20,9 +20,20 @@ internal static class SubAgentModelCatalogSnapshots
         return new SubAgentModelCatalogSnapshot
         {
             ProviderId = providerId,
-            Models = items,
-            Description = RenderDescription(items)
+            DefaultModel = ResolveDefaultModel(config, providerId),
+            Models = items
         };
+    }
+
+    private static string? ResolveDefaultModel(AppConfig config, string providerId)
+    {
+        var preference = SubAgentModelPreference.Find(config.SubAgent.ProviderPreferences, providerId);
+        if (preference == null || string.IsNullOrWhiteSpace(preference.Model))
+            return null;
+        var defaultProviderId = string.IsNullOrWhiteSpace(preference.ProviderId)
+            ? providerId
+            : preference.ProviderId.Trim();
+        return $"{defaultProviderId}/{preference.Model.Trim()}";
     }
 
     private static async Task<List<SubAgentModelCatalogItem>> CreateCatalogItemsAsync(
@@ -100,7 +111,7 @@ internal static class SubAgentModelCatalogSnapshots
     public static SubAgentModelCatalogSnapshot Clone(SubAgentModelCatalogSnapshot source) => new()
     {
         ProviderId = source.ProviderId,
-        Description = source.Description,
+        DefaultModel = source.DefaultModel,
         Models = source.Models.Select(static model => new SubAgentModelCatalogItem
         {
             Id = model.Id,
@@ -111,12 +122,30 @@ internal static class SubAgentModelCatalogSnapshots
         }).ToList()
     };
 
-    public static string AppendToToolDescription(string baseDescription, SubAgentModelCatalogSnapshot? snapshot)
+    public static string Render(SubAgentModelCatalogSnapshot snapshot)
     {
-        var fragment = snapshot?.Description;
-        return string.IsNullOrWhiteSpace(fragment)
-            ? baseDescription
-            : $"{baseDescription.TrimEnd()}\n\n{fragment}";
+        var builder = new StringBuilder(snapshot.DefaultModel is { } defaultModel
+            ? $"By default, children run on your current model with `forkTurns` `all` and on `{defaultModel}` with `forkTurns` `none` or a positive integer.\n"
+            : "By default, children run on your current model.\n");
+
+        if (snapshot.Models.Count == 0)
+            return builder.Append("No `model` overrides are available.").ToString();
+
+        builder.AppendLine("`model` overrides:");
+        foreach (var model in snapshot.Models)
+        {
+            builder.Append("- `").Append(model.Id).Append('`');
+            if (model.SupportedReasoningEfforts.Count > 0)
+            {
+                builder.Append(". Reasoning efforts: ");
+                builder.Append(string.Join(", ", model.SupportedReasoningEfforts.Select(effort =>
+                    effort == model.DefaultReasoningEffort
+                        ? $"{ToModelToken(effort)} (default)"
+                        : ToModelToken(effort))));
+            }
+            builder.AppendLine();
+        }
+        return builder.ToString().TrimEnd();
     }
 
     public static SubAgentInvocationModelOverride? ResolveInvocationOverride(
@@ -131,7 +160,7 @@ internal static class SubAgentModelCatalogSnapshots
         if (normalizedModel == null && normalizedEffort == null)
             return null;
         if (snapshot == null)
-            throw new InvalidOperationException("Subagent model overrides are unavailable because this thread has no model catalog snapshot.");
+            throw new InvalidOperationException("Subagent model overrides are unavailable because this thread has no SubAgent model choices.");
 
         SubAgentModelCatalogItem? selected = null;
         if (normalizedModel != null)
@@ -226,37 +255,12 @@ internal static class SubAgentModelCatalogSnapshots
         };
     }
 
-    private static string RenderDescription(IReadOnlyList<SubAgentModelCatalogItem> models)
-    {
-        if (models.Count == 0)
-        {
-            return "No model overrides are currently loaded.";
-        }
-
-        var builder = new StringBuilder();
-        builder.AppendLine("Available model overrides for fresh or bounded native children (optional; configured defaults are preferred):");
-        foreach (var model in models)
-        {
-            builder.Append("- `").Append(model.Id).Append('`');
-            if (model.SupportedReasoningEfforts.Count > 0)
-            {
-                builder.Append(". Reasoning efforts: ");
-                builder.Append(string.Join(", ", model.SupportedReasoningEfforts.Select(effort =>
-                    effort == model.DefaultReasoningEffort
-                        ? $"{ToModelToken(effort)} (default)"
-                        : ToModelToken(effort))));
-            }
-            builder.AppendLine();
-        }
-        return builder.ToString().TrimEnd();
-    }
-
     private static string BuildUnavailableModelMessage(SubAgentModelCatalogSnapshot snapshot)
     {
         var available = snapshot.Models.Count == 0
             ? "none"
             : string.Join(", ", snapshot.Models.Select(static model => model.Id));
-        return $"The requested subagent model is not available in this thread snapshot. Available models: {available}.";
+        return $"The requested subagent model is not one of the current SubAgent model overrides. Available overrides: {available}.";
     }
 
     private static bool TryParseEffort(string value, out ModelReasoningEffort effort)

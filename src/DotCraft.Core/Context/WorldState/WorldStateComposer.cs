@@ -28,6 +28,7 @@ public static class WorldStateComposer
         world.AddSection(new ThreadGoalSection());
         world.AddSection(new MemoryIndexSection());
         world.AddSection(new SkillsSection());
+        world.AddSection(new SubAgentModelsSection());
         world.AddSection(new ClientContextSection());
 
         foreach (var section in contributedSections ?? [])

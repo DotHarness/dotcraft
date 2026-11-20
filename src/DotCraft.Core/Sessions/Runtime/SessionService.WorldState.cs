@@ -59,6 +59,9 @@ public sealed partial class SessionService
             MemoryStore = memoryStores?.Own,
             AttachedMemoryStores = memoryStores?.Attached ?? [],
             Skills = ResolveSkillCatalog(thread),
+            SubAgentModels = CanCallSpawnAgent(thread.Id)
+                ? thread.Configuration?.SubAgentModelCatalogSnapshot
+                : null,
             ClientSurface = clientSurface
         };
 
@@ -252,6 +255,18 @@ public sealed partial class SessionService
         runtime.WorldStateBaselineRestored = false;
         runtime.WorldStateBaselineOrigin = "none";
     }
+
+    /// <summary>Counts direct, CodeMode-hidden, and deferred definitions, as the agent's callable tools do.</summary>
+    private bool CanCallSpawnAgent(string threadId) =>
+        _runtimeRegistry.TryGetRuntime(threadId, out var runtime)
+        && runtime.LatestToolSnapshot is { } snapshot
+        && snapshot.ModelVisibleDefinitions
+            .Concat(snapshot.ModelHiddenDefinitions)
+            .Concat(snapshot.DeferredDefinitions.Values.SelectMany(static group => group))
+            .Any(definition => string.Equals(
+                snapshot.ProviderFlatNames[definition.Name],
+                nameof(AgentTools.SpawnAgent),
+                StringComparison.Ordinal));
 
     private ThreadMemoryStores? ResolveMemoryIndexStores(ThreadConfiguration? config)
     {
