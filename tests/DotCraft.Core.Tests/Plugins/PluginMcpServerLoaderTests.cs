@@ -166,6 +166,66 @@ public sealed class PluginMcpServerLoaderTests : IDisposable
             values.GetProperty("plugin_data").GetString());
     }
 
+    [Fact]
+    public async Task ConnectionIdentityChangesForStdioOnlyWhenManagedPluginFingerprintChanges()
+    {
+        var sourcePluginsRoot = Path.Combine(_root, "sources");
+        var installedPluginsRoot = Path.Combine(_root, "installed");
+        var sourcePlugin = Path.Combine(sourcePluginsRoot, "demo");
+        Directory.CreateDirectory(Path.Combine(sourcePlugin, ".craft-plugin"));
+        File.WriteAllText(Path.Combine(sourcePlugin, ".craft-plugin", "plugin.json"),
+            """{"schemaVersion":1,"id":"demo","version":"1.0.0","displayName":"Demo","description":"Test plugin","capabilities":["mcp"]}""");
+        File.WriteAllText(Path.Combine(sourcePlugin, ".mcp.json"),
+            JsonSerializer.Serialize(new
+            {
+                mcpServers = new
+                {
+                    local = new { command = "node", arguments = new[] { "${PLUGIN_ROOT}/server.js" } },
+                    remote = new { transport = "http", url = "https://mcp.example.test/v1" }
+                }
+            }));
+        File.WriteAllText(Path.Combine(sourcePlugin, "server.js"), "console.log('v1');");
+
+        var pluginsConfig = new AppConfig.PluginsConfig { DisableDefaultPluginRegistry = true };
+        var deployer = new BuiltInPluginDeployer(installedPluginsRoot, [sourcePluginsRoot], pluginsConfig);
+        deployer.DeployPlugin("demo@dotcraft-bundled");
+
+        var installedRoot = Path.Combine(installedPluginsRoot, "demo");
+        var dataPath = Path.Combine(_root, "data");
+        var v1Plugin = new DiscoveredPlugin(PluginManifestParser.Load(installedRoot).Manifest!, PluginDiscoverySourceKind.UserGlobal, installedRoot, Enabled: true);
+        var v1Inherited = McpServerComposition.Compose(
+            "thread-1",
+            threadServers: null,
+            PluginMcpServerLoader.LoadPluginServers(v1Plugin, [], dataPath),
+            bindingServers: []);
+        var v1Stdio = v1Inherited.Single(server => server.Name == "demo:local");
+        var v1Http = v1Inherited.Single(server => server.Name == "demo:remote");
+        var v1StdioIdentity = await McpConnectionIdentity.CreateAsync(v1Stdio, userDataPath: null, CancellationToken.None);
+        var v1HttpIdentity = await McpConnectionIdentity.CreateAsync(v1Http, userDataPath: null, CancellationToken.None);
+
+        File.WriteAllText(Path.Combine(sourcePlugin, "server.js"), "console.log('v2');");
+        var diagnostics = new List<PluginDiagnostic>();
+        Assert.True(deployer.RefreshPlugin("demo@dotcraft-bundled", diagnostics, requireSourceIdentity: true));
+
+        var v2Plugin = new DiscoveredPlugin(PluginManifestParser.Load(installedRoot).Manifest!, PluginDiscoverySourceKind.UserGlobal, installedRoot, Enabled: true);
+        var v2Inherited = McpServerComposition.Compose(
+            "thread-1",
+            threadServers: null,
+            PluginMcpServerLoader.LoadPluginServers(v2Plugin, [], dataPath),
+            bindingServers: []);
+        var v2Stdio = v2Inherited.Single(server => server.Name == "demo:local");
+        var v2Http = v2Inherited.Single(server => server.Name == "demo:remote");
+        var v2StdioIdentity = await McpConnectionIdentity.CreateAsync(v2Stdio, userDataPath: null, CancellationToken.None);
+        var v2HttpIdentity = await McpConnectionIdentity.CreateAsync(v2Http, userDataPath: null, CancellationToken.None);
+
+        Assert.Equal(v1Stdio.Command, v2Stdio.Command);
+        Assert.Equal(v1Stdio.Arguments, v2Stdio.Arguments);
+        Assert.False(string.IsNullOrWhiteSpace(v1Stdio.Origin.PluginFingerprint));
+        Assert.NotEqual(v1Stdio.Origin.PluginFingerprint, v2Stdio.Origin.PluginFingerprint);
+        Assert.NotEqual(v1StdioIdentity.Configuration, v2StdioIdentity.Configuration);
+        Assert.Equal(v1HttpIdentity.Configuration, v2HttpIdentity.Configuration);
+    }
+
     private DiscoveredPlugin WritePlugin(object server, string directory = "plugin with spaces")
     {
         var root = Path.Combine(_root, directory);

@@ -77,7 +77,16 @@ internal sealed partial class PluginRequestHandler
             () => CreateMarketplaceManager().RefreshAsync(name, commitToken, appConfigMonitor?.Current?.Plugins))
             .ConfigureAwait(false);
 
-        var (discovery, updateErrors) = await RefreshManagedPluginsAsync(name, commitToken).ConfigureAwait(false);
+        SyncConfiguredMarketplaces();
+        var refresh = await managedPluginRefresher.RefreshManagedPluginsLockedAsync(
+                PluginDataPath("user"),
+                name,
+                Contract.AppServerMethodNames.MarketplaceRefresh,
+                notifyWhenUnchanged: true,
+                requireSourceIdentity: false,
+                commitToken)
+            .ConfigureAwait(false);
+        var discovery = refresh.Discovery!;
         return await WriteMarketplaceMutationAsync(
             request.Message,
             new Contract.MarketplaceRefreshResult
@@ -90,7 +99,7 @@ internal sealed partial class PluginRequestHandler
                     Code = failure.Code,
                     Message = failure.Message
                 })
-                .Concat(updateErrors)
+                .Concat(refresh.Errors)
                 .ToList()
             },
             ct).ConfigureAwait(false);
@@ -161,24 +170,8 @@ internal sealed partial class PluginRequestHandler
         return AppServerTypedResult<TResult>.Written;
     }
 
-    // Marketplace sources live in the user-global config file, which the in-memory snapshot
-    // does not reflect until the next reload. After a marketplace mutation the snapshot is
-    // brought to what a reload would produce, keeping the ordinary precedence rule that a
-    // workspace-declared list wins over the global one.
-    private void SyncConfiguredMarketplaces()
-    {
-        var current = appConfigMonitor?.Current;
-        if (current == null || string.IsNullOrEmpty(workspaceCraftPath))
-            return;
-
-        var workspaceEntries = PluginsConfigPersistence.ReadPluginRegistries(
-            Path.Combine(workspaceCraftPath, "config.json"));
-        current.Plugins.PluginRegistries = workspaceEntries.Count > 0
-            ? [.. workspaceEntries]
-            : workspaceConfig.PersonalConfigPath is { } personalConfigPath
-                ? [.. PluginsConfigPersistence.ReadPluginRegistries(personalConfigPath)]
-                : [];
-    }
+    private void SyncConfiguredMarketplaces() =>
+        managedPluginRefresher.SyncConfiguredMarketplaces();
 
     private List<Contract.MarketplaceInfo> BuildMarketplaceList(PluginDiscoveryResult discovery)
     {

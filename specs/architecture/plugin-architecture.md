@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.10.0 |
+| **Version** | 0.14.0 |
 | **Status** | Living |
-| **Date** | 2026-11-18 |
+| **Date** | 2026-11-21 |
 
 Purpose: define the durable architecture for DotCraft plugins, including plugin-contained skills and
 workflows, local plugin manifests, plugin-bundled MCP servers, client-facing plugin metadata, and the
@@ -333,10 +333,29 @@ sharing-violation failures up to five times, waiting 100, 200, 300, 400, and 500
 and exhausted retries fail the affected plugin operation; staging paths and rollback behavior are unchanged.
 
 Installed built-in and registry plugins carry a `.builtin` marker holding a fingerprint of the
-source directory and, for a marketplace install, the marketplace name that completes its plugin key. Marked directories are DotCraft-owned and may be refreshed or removed by explicit
-plugin lifecycle operations; unmarked directories are user-owned and never overwritten or removed
-automatically. Discovery and thread projections never update installed plugin directories. Marketplace
-refresh may refresh managed installations through the plugin mutation path, collecting failures per
+source directory and, for a marketplace install, the marketplace name and canonical source identity
+that bind it to its originating catalog source. Marked directories are DotCraft-owned and may be
+refreshed or removed by plugin lifecycle operations. Unmarked directories are user-owned and never
+overwritten or removed automatically. Discovery and thread projections never update installed
+plugin directories.
+
+AppServer starts a non-blocking background reconciliation pass shortly after startup, serialized
+through the workspace plugin mutation path, using the effective merged plugin configuration to
+refresh installed managed plugins whose on-disk source (host-bundled roots, cached registry
+snapshots, or local marketplaces) has a newer fingerprint. Startup reconciliation never installs
+uninstalled catalog entries, never overwrites unmarked user-owned plugins, skips `.dotnet` plugins,
+requires a matching recorded source identity before updating a marketplace install (skipping
+installs whose source identity is missing or differs), preserves existing plugin enablement and
+settings, and collects failures per plugin while keeping the previous installation usable. Managed
+refresh commits only while the installed marker is still present on the shared plugins root,
+synchronized with plugin removal so another workspace removing a plugin cannot cause it to be
+reinstalled. When any managed installation changes, AppServer refreshes plugin-contributed skills,
+MCP/LSP servers (including active threads whose stdio MCP connection identity incorporates the
+deployed plugin fingerprint), and hooks, advances the plugin revision, and broadcasts
+`plugin/snapshot/updated` so connected clients reload affected metadata and Desktop extensions
+without prompting.
+
+Marketplace refresh runs the same serialized managed-plugin update flow, collecting failures per
 plugin and keeping the previous installation usable when replacement fails. A failed update must not
 prevent unrelated plugins, thread reads, or mode changes from working; an occupied directory is an
 update failure, not a reason to stop other workspaces.

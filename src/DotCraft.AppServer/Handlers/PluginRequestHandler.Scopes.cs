@@ -32,5 +32,5 @@ internal sealed partial class PluginRequestHandler
     }
 
     private static void PublishPluginRevision(string dataPath) =>
-        AtomicConfigDocument.Update(Path.Combine(dataPath, "imports", "revision.json"), root => root["revision"] = Guid.NewGuid().ToString("N"));
+        AppServerManagedPluginRefresher.PublishPluginRevision(dataPath);
 }

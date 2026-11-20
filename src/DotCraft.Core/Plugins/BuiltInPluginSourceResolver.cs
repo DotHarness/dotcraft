@@ -6,7 +6,8 @@ internal sealed record BuiltInPluginSource(
     PluginManifest Manifest,
     string PluginRoot,
     string ContainerRoot,
-    string? MarketplaceName = null)
+    string? MarketplaceName = null,
+    string? SourceIdentity = null)
 {
     public string Key => PluginIds.Key(Manifest.Id, MarketplaceName);
 }

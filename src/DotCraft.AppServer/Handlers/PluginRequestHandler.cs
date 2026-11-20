@@ -1,6 +1,5 @@
 using DotCraft.AppBinding;
 using DotCraft.Configuration;
-using DotCraft.Context;
 using DotCraft.Hooks;
 using DotCraft.Lsp;
 using DotCraft.Plugins;
@@ -22,12 +21,9 @@ internal sealed partial class PluginRequestHandler(
     string? hostWorkspacePath,
     IReadOnlyList<string>? builtInPluginSourceRoots,
     AppServerMcpConfigService mcpConfig,
-    LspServerManager? lspServerManager,
-    IContextPageManager? contextPageManager,
     AppBindingService? appBindingService,
     WorkspaceConfigEditor workspaceConfig,
-    AppServerRuntimeConfigRefresher runtimeConfig,
-    HookRunner? hookRunner,
+    AppServerManagedPluginRefresher managedPluginRefresher,
     IPluginWorkflowSummaryProvider? workflowSummaryProvider,
     IDotNetExtensionRuntimeCoordinator? dotnetRuntime,
     PluginConfigStore? pluginConfigStore,
@@ -377,7 +373,7 @@ internal sealed partial class PluginRequestHandler(
                 ct).ConfigureAwait(false);
         }
 
-        var contributionFailure = await QuiesceRootBackedContributionsAsync(pluginId, commitToken).ConfigureAwait(false);
+        var contributionFailure = await managedPluginRefresher.QuiesceRootBackedContributionsAsync(pluginId, commitToken).ConfigureAwait(false);
         if (contributionFailure != null)
         {
             var recovery = dotnetRuntime == null
@@ -409,7 +405,7 @@ internal sealed partial class PluginRequestHandler(
             var recovery = dotnetRuntime == null
                 ? null
                 : await dotnetRuntime.ReconcileAfterMutationAsync(pluginId, commitToken).ConfigureAwait(false);
-            await RestoreRootBackedContributionsAsync(commitToken).ConfigureAwait(false);
+            await managedPluginRefresher.RestoreRootBackedContributionsAsync(commitToken).ConfigureAwait(false);
             var affectedPluginIds = (quiesce?.AffectedPluginIds ?? [])
                 .Concat(recovery?.AffectedPluginIds ?? [])
                 .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -678,40 +674,8 @@ internal sealed partial class PluginRequestHandler(
             .OrderBy(appId => appId, StringComparer.Ordinal)
             .ToList();
 
-    private PluginDiscoveryResult RefreshPluginRuntime()
-    {
-        var current = appConfigMonitor?.Current ?? new AppConfig();
-        if (string.IsNullOrWhiteSpace(workspaceCraftPath))
-            throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.PluginList);
-        var workspacePath = hostWorkspacePath
-                            ?? Directory.GetParent(workspaceCraftPath)?.FullName
-                            ?? throw new InvalidOperationException("The workspace path could not be resolved from DataPath.");
-        return PluginRuntimeConfigurator.ConfigureSkillsLoader(
-            skillsLoader,
-            current,
-            workspacePath,
-            workspaceCraftPath,
-            builtInPluginSourceRoots,
-            logger);
-    }
-
-    private void RefreshHooksAfterPluginChange()
-    {
-        if (hookRunner == null)
-            return;
-
-        AppServerHookRuntimeRefresher.Refresh(
-            hookRunner,
-            appConfigMonitor,
-            workspaceCraftPath,
-            hostWorkspacePath,
-            workspaceConfig,
-            runtimeConfig,
-            builtInPluginSourceRoots);
-    }
-
-    private async Task<List<McpServerConfig>> GetWorkspaceMcpServersAsync(CancellationToken ct)
-        => await mcpConfig.GetWorkspaceServersAsync(ct);
+    private PluginDiscoveryResult RefreshPluginRuntime() =>
+        managedPluginRefresher.RefreshPluginRuntime();
 
     private List<McpServerConfig> GetWorkspaceMcpServersSnapshot()
         => mcpConfig.GetWorkspaceServersSnapshot();
@@ -722,20 +686,6 @@ internal sealed partial class PluginRequestHandler(
             .Where(server => !server.ReadOnly)
             .Select(CloneAsWorkspaceLspServer)
             .ToList();
-    }
-
-    private async Task ReconnectEffectiveMcpRuntimeAsync(
-        IReadOnlyList<McpServerConfig> workspaceServers,
-        CancellationToken ct)
-        => await mcpConfig.ReconnectEffectiveRuntimeAsync(workspaceServers, ct);
-
-    private async Task ReconnectEffectiveLspRuntimeAsync(CancellationToken ct)
-    {
-        if (lspServerManager == null)
-            return;
-
-        ct.ThrowIfCancellationRequested();
-        await lspServerManager.InitializeAsync(ct);
     }
 
     private static LspServerConfig CloneAsWorkspaceLspServer(LspServerConfig server)

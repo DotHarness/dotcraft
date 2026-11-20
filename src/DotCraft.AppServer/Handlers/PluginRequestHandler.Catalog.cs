@@ -15,7 +15,7 @@ internal sealed partial class PluginRequestHandler
             .DeployPlugin(pluginKey);
         PluginDiagnosticsLogger.Write(deployDiagnostics, logger);
         var pluginId = PluginIds.IdFromKey(pluginKey);
-        if (deployDiagnostics.Any(d => IsBlockingDeployDiagnosticForPlugin(d, pluginId)))
+        if (deployDiagnostics.Any(d => AppServerManagedPluginRefresher.IsBlockingDeployDiagnosticForPlugin(d, pluginId)))
             throw AppServerErrors.InvalidParams($"Plugin '{pluginKey}' could not be installed.");
     }
 
@@ -27,9 +27,4 @@ internal sealed partial class PluginRequestHandler
         var key = PluginIds.Key(id, marketplaceName);
         return discovery.CatalogEntries.FirstOrDefault(candidate => PluginIds.KeysEqual(candidate.Key, key));
     }
-
-    private static bool IsBlockingDeployDiagnosticForPlugin(PluginDiagnostic diagnostic, string pluginId) =>
-        (diagnostic.Severity == PluginDiagnosticSeverity.Error || diagnostic.Code == "BuiltInPluginNotFound")
-        && !string.IsNullOrWhiteSpace(diagnostic.PluginId)
-        && PluginIds.EqualsCanonical(diagnostic.PluginId, pluginId);
 }

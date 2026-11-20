@@ -20,7 +20,7 @@ public sealed class BuiltInPluginDeployer(
     public const string MarkerFile = ManagedPluginMarker.FileName;
 
     public IReadOnlyList<PluginDiagnostic> Deploy()
-        => DeployCore(targetKeys: null);
+        => DeployCore(targetKeys: null, updateOnly: false, requireSourceIdentity: false).Diagnostics;
 
     public IReadOnlyList<PluginDiagnostic> DeployPlugin(string pluginKey)
         => DeployPlugins([pluginKey]);
@@ -28,12 +28,30 @@ public sealed class BuiltInPluginDeployer(
     public IReadOnlyList<PluginDiagnostic> DeployPlugins(IReadOnlyCollection<string> pluginKeys)
     {
         var targets = pluginKeys.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        return targets.Count == 0 ? [] : DeployCore(targets);
+        return targets.Count == 0
+            ? []
+            : DeployCore(targets, updateOnly: false, requireSourceIdentity: false).Diagnostics;
+    }
+
+    public bool RefreshPlugin(
+        string pluginKey,
+        List<PluginDiagnostic> diagnostics,
+        bool requireSourceIdentity = false,
+        CancellationToken cancellationToken = default)
+    {
+        var outcome = DeployCore(
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase) { pluginKey },
+            updateOnly: true,
+            requireSourceIdentity,
+            cancellationToken);
+        diagnostics.AddRange(outcome.Diagnostics);
+        return outcome.Updated;
     }
 
     public IReadOnlyList<string> GetPendingUpdates(
         List<PluginDiagnostic> diagnostics,
-        string? marketplaceName = null)
+        string? marketplaceName = null,
+        bool requireSourceIdentity = false)
     {
         var sources = BuiltInPluginSourceResolver.Discover(sourceRoots, diagnostics, pluginsConfig, userDataPath);
 
@@ -48,7 +66,7 @@ public sealed class BuiltInPluginDeployer(
             try
             {
                 var marker = ManagedPluginMarker.Read(targetRoot);
-                if (marker == null || !PluginIds.KeysEqual(PluginIds.Key(source.Manifest.Id, marker.MarketplaceName), source.Key))
+                if (marker == null || !MatchesInstalledSource(marker, source, requireSourceIdentity))
                     continue;
 
                 var installed = PluginManifestParser.Load(targetRoot);
@@ -71,27 +89,67 @@ public sealed class BuiltInPluginDeployer(
     public static bool IsManagedBuiltInPluginRoot(string pluginRoot) =>
         File.Exists(Path.Combine(pluginRoot, MarkerFile));
 
-    private IReadOnlyList<PluginDiagnostic> DeployCore(IReadOnlySet<string>? targetKeys)
+    internal static T WithPluginsRootLock<T>(
+        string pluginsRoot,
+        Func<T> action,
+        ILogger? logger = null,
+        CancellationToken cancellationToken = default)
     {
-        var identity = Path.GetFullPath(pluginsPath);
+        cancellationToken.ThrowIfCancellationRequested();
+        var identity = Path.TrimEndingDirectorySeparator(Path.GetFullPath(pluginsRoot));
         if (OperatingSystem.IsWindows()) identity = identity.ToUpperInvariant();
         using var mutex = new Mutex(false, "DotCraft.PluginDeploy." + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identity))));
         var timer = Stopwatch.StartNew();
-        try { mutex.WaitOne(); }
-        catch (AbandonedMutexException) { }
+        var acquired = false;
         try
         {
+            if (cancellationToken.CanBeCanceled)
+            {
+                while (!mutex.WaitOne(TimeSpan.FromMilliseconds(100)))
+                    cancellationToken.ThrowIfCancellationRequested();
+                acquired = true;
+            }
+            else
+            {
+                mutex.WaitOne();
+                acquired = true;
+            }
+        }
+        catch (AbandonedMutexException)
+        {
+            acquired = true;
+        }
+
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
             logger?.LogInformation("Startup stage {Stage} completed in {ElapsedMs}ms",
                 "plugin-deploy-mutex-wait", timer.Elapsed.TotalMilliseconds);
-            return DeployCoreLocked(targetKeys);
+            return action();
         }
         finally
         {
-            mutex.ReleaseMutex();
+            if (acquired)
+                mutex.ReleaseMutex();
         }
     }
 
-    private IReadOnlyList<PluginDiagnostic> DeployCoreLocked(IReadOnlySet<string>? targetKeys)
+    private (bool Updated, IReadOnlyList<PluginDiagnostic> Diagnostics) DeployCore(
+        IReadOnlySet<string>? targetKeys,
+        bool updateOnly,
+        bool requireSourceIdentity,
+        CancellationToken cancellationToken = default) =>
+        WithPluginsRootLock(
+            pluginsPath,
+            () => DeployCoreLocked(targetKeys, updateOnly, requireSourceIdentity, cancellationToken),
+            logger,
+            cancellationToken);
+
+    private (bool Updated, IReadOnlyList<PluginDiagnostic> Diagnostics) DeployCoreLocked(
+        IReadOnlySet<string>? targetKeys,
+        bool updateOnly,
+        bool requireSourceIdentity,
+        CancellationToken cancellationToken)
     {
         var timer = Stopwatch.StartNew();
         var fingerprintMs = 0d;
@@ -110,7 +168,8 @@ public sealed class BuiltInPluginDeployer(
             ? null
             : new HashSet<string>(targetKeys, StringComparer.OrdinalIgnoreCase);
 
-        Directory.CreateDirectory(pluginsPath);
+        if (!updateOnly)
+            Directory.CreateDirectory(pluginsPath);
         foreach (var source in sources)
         {
             if (pending != null && !pending.Remove(source.Key))
@@ -121,19 +180,34 @@ public sealed class BuiltInPluginDeployer(
             var markerPath = Path.Combine(pluginDir, MarkerFile);
             if (Directory.Exists(pluginDir) && !File.Exists(markerPath))
             {
-                diagnostics.Add(PluginDiagnostic.Info(
-                    "BuiltInPluginUserOwned",
-                    $"Built-in plugin '{pluginId}' was not deployed because the target directory is user-owned.",
-                    pluginId,
-                    path: pluginDir));
+                if (!updateOnly)
+                {
+                    diagnostics.Add(PluginDiagnostic.Info(
+                        "BuiltInPluginUserOwned",
+                        $"Built-in plugin '{pluginId}' was not deployed because the target directory is user-owned.",
+                        pluginId,
+                        path: pluginDir));
+                }
                 continue;
             }
 
             try
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var installedMarker = ManagedPluginMarker.Read(pluginDir);
-                if (installedMarker != null
-                    && !PluginIds.KeysEqual(PluginIds.Key(pluginId, installedMarker.MarketplaceName), source.Key))
+                if (updateOnly)
+                {
+                    if (installedMarker == null
+                        || !MatchesInstalledSource(installedMarker, source, requireSourceIdentity))
+                        continue;
+
+                    var installed = PluginManifestParser.Load(pluginDir);
+                    diagnostics.AddRange(installed.Diagnostics);
+                    if (installed.Manifest == null || installed.Manifest.Dotnet != null || source.Manifest.Dotnet != null)
+                        continue;
+                }
+                else if (installedMarker != null
+                    && !MatchesInstalledSource(installedMarker, source, requireSourceIdentity: false))
                 {
                     diagnostics.Add(PluginDiagnostic.Error(
                         "PluginInstalledFromOtherSource",
@@ -151,7 +225,7 @@ public sealed class BuiltInPluginDeployer(
                     continue;
 
                 timer.Restart();
-                ReplacePluginDirectory(source.PluginRoot, pluginDir, marker.Format());
+                ReplacePluginDirectory(source.PluginRoot, pluginDir, marker.Format(), cancellationToken);
                 replaceMs += timer.Elapsed.TotalMilliseconds;
                 replaceCount++;
             }
@@ -161,12 +235,15 @@ public sealed class BuiltInPluginDeployer(
             }
         }
 
-        foreach (var missing in (pending ?? []).OrderBy(key => key, StringComparer.Ordinal))
+        if (!updateOnly)
         {
-            diagnostics.Add(PluginDiagnostic.Warning(
-                "BuiltInPluginNotFound",
-                $"Built-in plugin '{missing}' was not found.",
-                PluginIds.IdFromKey(missing)));
+            foreach (var missing in (pending ?? []).OrderBy(key => key, StringComparer.Ordinal))
+            {
+                diagnostics.Add(PluginDiagnostic.Warning(
+                    "BuiltInPluginNotFound",
+                    $"Built-in plugin '{missing}' was not found.",
+                    PluginIds.IdFromKey(missing)));
+            }
         }
 
         logger?.LogInformation(
@@ -175,7 +252,24 @@ public sealed class BuiltInPluginDeployer(
         logger?.LogInformation(
             "Startup stage {Stage} completed in {ElapsedMs}ms across {Count} plugins",
             "plugin-deploy-replace", replaceMs, replaceCount);
-        return diagnostics;
+        return (replaceCount > 0, diagnostics);
+    }
+
+    private static bool MatchesInstalledSource(
+        ManagedPluginMarker marker,
+        BuiltInPluginSource source,
+        bool requireSourceIdentity)
+    {
+        if (!PluginIds.KeysEqual(PluginIds.Key(source.Manifest.Id, marker.MarketplaceName), source.Key))
+            return false;
+
+        if (source.MarketplaceName == null)
+            return true;
+
+        if (string.IsNullOrWhiteSpace(marker.SourceIdentity))
+            return !requireSourceIdentity;
+
+        return string.Equals(marker.SourceIdentity, source.SourceIdentity, StringComparison.Ordinal);
     }
 
     private static PluginDiagnostic DeploymentFailure(string pluginId, string path, string phase, Exception exception) =>
@@ -190,7 +284,11 @@ public sealed class BuiltInPluginDeployer(
                 ["failureType"] = System.Text.Json.JsonSerializer.SerializeToElement(exception.GetType().Name)
             });
 
-    private static void ReplacePluginDirectory(string sourceRoot, string targetRoot, string markerText)
+    private static void ReplacePluginDirectory(
+        string sourceRoot,
+        string targetRoot,
+        string markerText,
+        CancellationToken cancellationToken)
     {
         var parent = Path.GetDirectoryName(targetRoot)!;
         var tempRoot = Path.Combine(parent, $".{Path.GetFileName(targetRoot)}.{Guid.NewGuid():N}.tmp");
@@ -198,8 +296,9 @@ public sealed class BuiltInPluginDeployer(
         var committed = false;
         try
         {
-            CopyDirectory(sourceRoot, tempRoot);
+            CopyDirectory(sourceRoot, tempRoot, cancellationToken);
             File.WriteAllText(Path.Combine(tempRoot, MarkerFile), markerText);
+            cancellationToken.ThrowIfCancellationRequested();
 
             if (Directory.Exists(targetRoot))
                 PluginDirectoryMover.Move(targetRoot, backupRoot);
@@ -235,17 +334,19 @@ public sealed class BuiltInPluginDeployer(
         }
     }
 
-    private static void CopyDirectory(string sourceRoot, string targetRoot)
+    private static void CopyDirectory(string sourceRoot, string targetRoot, CancellationToken cancellationToken)
     {
         Directory.CreateDirectory(targetRoot);
         foreach (var sourceDirectory in Directory.GetDirectories(sourceRoot, "*", SearchOption.AllDirectories))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var relativePath = Path.GetRelativePath(sourceRoot, sourceDirectory);
             Directory.CreateDirectory(Path.Combine(targetRoot, relativePath));
         }
 
         foreach (var sourceFile in Directory.GetFiles(sourceRoot, "*", SearchOption.AllDirectories))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (string.Equals(Path.GetFileName(sourceFile), MarkerFile, StringComparison.OrdinalIgnoreCase))
                 continue;
 
@@ -257,7 +358,7 @@ public sealed class BuiltInPluginDeployer(
     }
 
     private static ManagedPluginMarker BuildMarker(BuiltInPluginSource source) =>
-        new(BuildFingerprint(source.PluginRoot), source.MarketplaceName);
+        new(BuildFingerprint(source.PluginRoot), source.MarketplaceName, source.SourceIdentity);
 
     private static string BuildFingerprint(string sourceRoot)
     {

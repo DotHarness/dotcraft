@@ -64,6 +64,7 @@ public sealed class AppServerRequestHandler(
     private AppServerMcpConfigService? _mcpConfig;
     private ExternalChannelConfigService? _externalChannelConfig;
     private AppServerRuntimeConfigRefresher? _runtimeConfig;
+    private AppServerManagedPluginRefresher? _managedPluginRefresher;
     private AppServerThreadBinder? _threadBinder;
     private AppServerResponseWriter? _responseWriter;
     private AppServerThreadWireProjector? _threadProjector;
@@ -92,6 +93,22 @@ public sealed class AppServerRequestHandler(
 
     private AppServerRuntimeConfigRefresher RuntimeConfig => _runtimeConfig ??=
         new AppServerRuntimeConfigRefresher(sessionService, services.AppConfigMonitor, services.WorkspaceCraftPath, WorkspaceConfig);
+
+    private AppServerManagedPluginRefresher ManagedPluginRefresher => _managedPluginRefresher ??=
+        new AppServerManagedPluginRefresher(
+            services.SkillsLoader,
+            services.AppConfigMonitor,
+            services.WorkspaceCraftPath,
+            services.HostWorkspacePath,
+            services.BuiltInPluginSourceRoots,
+            McpConfig,
+            services.LspServerManager,
+            services.ContextPageManager,
+            WorkspaceConfig,
+            RuntimeConfig,
+            services.HookRunner,
+            services.PluginManagementState,
+            services.LoggerFactory?.CreateLogger("DotCraft.Plugins"));
 
     private AppServerThreadBinder ThreadBinder => _threadBinder ??=
         new AppServerThreadBinder(
@@ -193,7 +210,7 @@ public sealed class AppServerRequestHandler(
         new ConfigRequestHandler(services.Configuration),
         new SourceControlRequestHandler(sessionService, services.AppConfigMonitor, services.WorkspaceCraftPath, services.HostWorkspacePath),
         new HookRequestHandler(services.HookRunner, services.AppConfigMonitor, services.WorkspaceCraftPath, services.HostWorkspacePath, WorkspaceConfig, RuntimeConfig, services.BuiltInPluginSourceRoots),
-        new PluginRequestHandler(transport, connection, services.SkillsLoader, services.AppConfigMonitor, services.WorkspaceCraftPath, services.WorkspaceTempPath, services.HostWorkspacePath, services.BuiltInPluginSourceRoots, McpConfig, services.LspServerManager, services.ContextPageManager, services.AppBindingService, WorkspaceConfig, RuntimeConfig, services.HookRunner, services.PluginWorkflowSummaryProvider, services.DotNetExtensionRuntimeCoordinator, services.PluginConfigStore, services.BroadcastPluginSnapshotUpdated, services.PluginManagementState, services.LoggerFactory?.CreateLogger("DotCraft.Plugins")),
+        new PluginRequestHandler(transport, connection, services.SkillsLoader, services.AppConfigMonitor, services.WorkspaceCraftPath, services.WorkspaceTempPath, services.HostWorkspacePath, services.BuiltInPluginSourceRoots, McpConfig, services.AppBindingService, WorkspaceConfig, ManagedPluginRefresher, services.PluginWorkflowSummaryProvider, services.DotNetExtensionRuntimeCoordinator, services.PluginConfigStore, services.BroadcastPluginSnapshotUpdated, services.PluginManagementState, services.LoggerFactory?.CreateLogger("DotCraft.Plugins")),
         new AgentProfileRequestHandler(sessionService, services.WorkspaceCraftPath, WorkspaceConfig.UserDataPath, services.HostWorkspacePath, services.AppConfigMonitor),
         new CommandRequestHandler(
             _commandRegistry,

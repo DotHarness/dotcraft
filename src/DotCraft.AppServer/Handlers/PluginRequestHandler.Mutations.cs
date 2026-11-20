@@ -1,5 +1,3 @@
-using DotCraft.Configuration;
-using DotCraft.Context;
 using DotCraft.Plugins;
 using System.Runtime.ExceptionServices;
 using Contract = DotCraft.Protocol.AppServer;
@@ -64,76 +62,10 @@ internal sealed partial class PluginRequestHandler
         return CancellationToken.None;
     }
 
-    private async Task<PluginDiscoveryResult> FinalizePluginContributionRefreshAsync(
+    private Task<PluginDiscoveryResult> FinalizePluginContributionRefreshAsync(
         string source,
-        CancellationToken ct)
-    {
-        var discovery = RefreshPluginRuntime();
-        await ReconnectEffectiveMcpRuntimeAsync(await GetWorkspaceMcpServersAsync(ct), ct);
-        await runtimeConfig.RefreshMcpRuntimesAsync(ct);
-        await ReconnectEffectiveLspRuntimeAsync(ct);
-        RefreshHooksAfterPluginChange();
-        appConfigMonitor?.NotifyChanged(
-            source,
-            [ConfigChangeRegions.Plugins, ConfigChangeRegions.Skills, ConfigChangeRegions.Mcp, ConfigChangeRegions.Lsp, ConfigChangeRegions.Hooks]);
-        AppServerContextInvalidation.MarkSkills(contextPageManager);
-        return discovery;
-    }
-
-    private async Task<PluginDiagnostic?> QuiesceRootBackedContributionsAsync(
-        string pluginId,
-        CancellationToken ct)
-    {
-        var current = appConfigMonitor?.Current ?? new AppConfig();
-        var originalDisabled = current.Plugins.DisabledPlugins.ToList();
-        var temporarilyDisabled = PluginsConfigPersistence.NormalizeDisabledPluginIds(originalDisabled).ToList();
-        if (!temporarilyDisabled.Contains(pluginId, StringComparer.OrdinalIgnoreCase))
-            temporarilyDisabled.Add(pluginId);
-
-        PluginDiagnostic? failure = null;
-        current.Plugins.DisabledPlugins = temporarilyDisabled;
-        try
-        {
-            await RestoreRootBackedContributionsAsync(ct).ConfigureAwait(false);
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            failure = PluginDiagnostic.Error(
-                "PluginContributionQuiesceFailed",
-                "The plugin's root-backed contributions could not be stopped.",
-                pluginId,
-                parameters: new Dictionary<string, System.Text.Json.JsonElement>
-                {
-                    ["phase"] = System.Text.Json.JsonSerializer.SerializeToElement("quiesce"),
-                    ["failureType"] = System.Text.Json.JsonSerializer.SerializeToElement(exception.GetType().Name)
-                });
-        }
-        finally
-        {
-            current.Plugins.DisabledPlugins = originalDisabled;
-        }
-
-        if (failure == null)
-            return null;
-
-        try
-        {
-            await RestoreRootBackedContributionsAsync(ct).ConfigureAwait(false);
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-        }
-        return failure;
-    }
-
-    private async Task RestoreRootBackedContributionsAsync(CancellationToken ct)
-    {
-        RefreshPluginRuntime();
-        await ReconnectEffectiveMcpRuntimeAsync(await GetWorkspaceMcpServersAsync(ct), ct).ConfigureAwait(false);
-        await ReconnectEffectiveLspRuntimeAsync(ct).ConfigureAwait(false);
-        RefreshHooksAfterPluginChange();
-        AppServerContextInvalidation.MarkSkills(contextPageManager);
-    }
+        CancellationToken ct) =>
+        managedPluginRefresher.FinalizePluginContributionRefreshAsync(source, ct);
 
     private async Task<AppServerTypedResult<Contract.PluginOperationResult>> WriteWithSnapshotInvalidationAsync(
         AppServerIncomingMessage message,

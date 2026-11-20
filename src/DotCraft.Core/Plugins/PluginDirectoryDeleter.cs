@@ -4,16 +4,23 @@ public static class PluginDirectoryDeleter
 {
     public static void Delete(string pluginRoot, string temporaryPath)
     {
-        if (!Directory.Exists(pluginRoot))
+        var fullPluginRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(pluginRoot));
+        var pluginsRoot = Path.GetDirectoryName(fullPluginRoot);
+        string? tombstone;
+        if (string.IsNullOrEmpty(pluginsRoot))
+        {
+            tombstone = MoveToTombstone(fullPluginRoot, temporaryPath);
+        }
+        else
+        {
+            tombstone = BuiltInPluginDeployer.WithPluginsRootLock(
+                pluginsRoot,
+                () => MoveToTombstone(fullPluginRoot, temporaryPath));
+        }
+
+        if (tombstone == null)
             return;
 
-        Directory.CreateDirectory(temporaryPath);
-        var tombstone = Path.Combine(
-            temporaryPath,
-            $"plugin-remove.{Path.GetFileName(pluginRoot)}.{Guid.NewGuid():N}.removed");
-
-        // The same-volume rename is the removal commit; tombstone cleanup is not part of it.
-        Directory.Move(pluginRoot, tombstone);
         try
         {
             ClearReadOnlyAttributes(tombstone);
@@ -23,6 +30,21 @@ public static class PluginDirectoryDeleter
         {
             // A stale tombstone is outside plugin discovery and can be cleaned later.
         }
+    }
+
+    private static string? MoveToTombstone(string pluginRoot, string temporaryPath)
+    {
+        if (!Directory.Exists(pluginRoot))
+            return null;
+
+        Directory.CreateDirectory(temporaryPath);
+        var tombstone = Path.Combine(
+            temporaryPath,
+            $"plugin-remove.{Path.GetFileName(pluginRoot)}.{Guid.NewGuid():N}.removed");
+
+        // The same-volume rename is the removal commit; tombstone cleanup is not part of it.
+        Directory.Move(pluginRoot, tombstone);
+        return tombstone;
     }
 
     private static void ClearReadOnlyAttributes(string root)
