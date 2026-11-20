@@ -80,7 +80,7 @@ export function installDesktopApiMock(overrides: ApiOverrides<Api>): Api {
       },
       ...overrides.appServer
     },
-    threadTasks: { linkedWorkspace: async () => null, onChanged: () => () => undefined, ...overrides.threadTasks },
+    threadTasks: { linkedProject: async () => null, onChanged: () => () => undefined, ...overrides.threadTasks },
     satellites: { ...SATELLITES_DEFAULT, ...overrides.satellites },
     pairedComputers: { ...PAIRED_COMPUTERS_DEFAULT, ...overrides.pairedComputers },
     desktopPet: { ...DESKTOP_PET_DEFAULT, ...overrides.desktopPet },

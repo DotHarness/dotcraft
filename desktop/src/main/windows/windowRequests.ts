@@ -19,7 +19,13 @@ import { NEW_TASK_OFFER_ATTENTION, WRAP_UP_QUESTION_ATTENTION } from '../windowA
 import { isRendererInteractiveServerRequest } from '../workspaceConnectionRouting'
 import type { DesktopWindowRuntime } from './windowRuntime'
 import type { WorkspaceConnectionEntry } from './windowTypes'
-import { holdThreadProjectRequest, listThreadProjects, openThreadProject, threadProjectForEntry } from './windowThreadProjects'
+import {
+  disconnectedThreadProjectName,
+  holdThreadProjectRequest,
+  listThreadProjects,
+  openThreadProject,
+  threadProjectForEntry
+} from './windowThreadProjects'
 import { handleWorkspaceNodeReplRequest, isCurrentWorkspaceRequestSource, isWorkspaceNodeReplRequest } from './windowNodeReplRequests'
 
 export function desktopThreadToolOptions(ctx: DesktopWindowRuntime, source?: WorkspaceConnectionEntry): DesktopAppServerRequestOptions {
@@ -31,6 +37,7 @@ export function desktopThreadToolOptions(ctx: DesktopWindowRuntime, source?: Wor
       holdThreadRequest: <T>(request: () => Promise<T>) => holdThreadProjectRequest(entry, request),
       projects: {
         list: () => listThreadProjects(ctx),
+        disconnected: id => disconnectedThreadProjectName(ctx, id),
         connect: async project => {
           const target = await openThreadProject(ctx, project)
           return threadTaskConnection(target.client, target.workspacePath, desktopThreadToolOptions(ctx, target))

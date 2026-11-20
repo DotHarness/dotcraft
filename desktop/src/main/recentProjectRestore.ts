@@ -8,7 +8,7 @@ const PROJECT_RESTORE_CONCURRENCY = 2
 export type ProjectRestoreState = { state: 'connecting' } | { state: 'error'; errorMessage: string }
 
 export interface RecentProjectRestoreHost {
-  foregroundPath: string
+  foregroundPath?: string
   isChatWorkspace(path: string): boolean
   isActive(): boolean
   projects: Pick<LocalProjectList, 'refresh' | 'list' | 'has'>
@@ -20,7 +20,7 @@ export interface RecentProjectRestoreHost {
 export async function restoreRecentProjects(host: RecentProjectRestoreHost): Promise<void> {
   if (!host.isActive() || !await host.projects.refresh() || !host.isActive()) return
   const foregroundKey = normalizeWorkspaceProjectKey(host.foregroundPath)
-  const slots = PROJECT_RESTORE_LIMIT - (host.isChatWorkspace(host.foregroundPath) ? 0 : 1)
+  const slots = PROJECT_RESTORE_LIMIT - (!host.foregroundPath || host.isChatWorkspace(host.foregroundPath) ? 0 : 1)
   const candidates: HubProject[] = []
   const ranked = [...host.projects.list()]
     .sort((left, right) => Date.parse(right.lastOpenedAt) - Date.parse(left.lastOpenedAt))

@@ -91,9 +91,7 @@ export function isHubAppServerLifecycleEvent(_ctx: DesktopWindowRuntime, event: 
 export function isSecondaryProjectEvent(ctx: DesktopWindowRuntime, event: HubEvent): boolean {
   const workspacePath = event.workspacePath?.trim()
   if (!workspacePath || ctx.isWorkspaceForeground(workspacePath)) return false
-  if (isDefaultChatWorkspace(workspacePath)) return true
-  return !ctx.activeRemoteWorkspace && ctx.resolveConnectionMode(ctx.settings) === 'local' &&
-    ctx.app.localProjects.has(workspacePath)
+  return isDefaultChatWorkspace(workspacePath) || ctx.app.localProjects.has(workspacePath)
 }
 
 export function scheduleSecondaryWorkspaceRefresh(ctx: DesktopWindowRuntime): void {
@@ -428,9 +426,9 @@ export async function refreshSecondaryWorkspaceConnections(ctx: DesktopWindowRun
   if (ctx.runtimeIsStopping() || hasRemoteEndpointArg(ctx.argv)) return
   const generation = Symbol()
   secondaryRefreshGenerations.set(ctx, generation)
-  const isCurrent = () => secondaryRefreshGenerations.get(ctx) === generation &&
-    !ctx.runtimeIsStopping() && !ctx.activeRemoteWorkspace && ctx.resolveConnectionMode(ctx.settings) === 'local'
+  const isCurrent = () => secondaryRefreshGenerations.get(ctx) === generation && !ctx.runtimeIsStopping()
 
+  if (!ctx.hubEventAbortController) ctx.startHubEventSubscription(ctx.currentWorkspacePath, ctx.app.createHubClient(ctx.settings))
   enforceSecondaryWorkspaceBudget(ctx)
   if (ctx.secondaryRefreshTimer) clearTimeout(ctx.secondaryRefreshTimer)
   ctx.secondaryRefreshTimer = null

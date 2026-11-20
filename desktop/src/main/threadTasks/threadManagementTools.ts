@@ -36,7 +36,10 @@ export async function handleThreadManagementTool(
   if (tool === 'ListProjects') {
     const projects = connection.remote ? [currentThreadProject(connection)] :
       await connection.projects?.list() ?? [currentThreadProject(connection)]
-    return ok(projects.map(project => `- ${project.id}: ${project.name} (${project.path}) [${project.running ? 'running' : 'stopped'}]`).join('\n'), { projects })
+    return ok(projects.map(project => {
+      const machine = project.machine ? ` on ${project.machine}` : ''
+      return `- ${project.id}: ${project.name} (${project.path})${machine} [${project.running ? 'running' : 'stopped'}]`
+    }).join('\n'), { projects })
   }
   if (tool === 'ListThreads') {
     const linked = optionalBoolean(args, 'linked', false)
@@ -64,7 +67,7 @@ export async function handleThreadManagementTool(
     const { thread } = await client.sendRequest<{ thread?: { runtime?: { activeTurnId?: string } } }>('thread/read', { threadId: threadId.value })
     if (!thread) return fail('ThreadNotFound', `Thread '${threadId.value}' was not found.`)
     const turnId = thread.runtime?.activeTurnId
-    const result = { threadId: threadId.value, workspacePath: target.workspacePath, stopped: Boolean(turnId) }
+    const result = { threadId: threadId.value, ...targetRef(target), stopped: Boolean(turnId) }
     if (!turnId) return ok(`Chat "${link.child.title}" is idle; nothing was stopped.`, result)
     linkedChats.markStopped(link, turnId)
     try {
@@ -80,13 +83,13 @@ export async function handleThreadManagementTool(
   const client = requestClient(target)
   switch (tool) {
     case 'SendMessageToThread':
-      return withWorkspace(await sendMessageToThreadTool(client, threadId.value, args), target.workspacePath)
+      return withWorkspace(await sendMessageToThreadTool(client, threadId.value, args), target)
     case 'SetThreadTitle':
-      return withWorkspace(await setThreadTitleTool(client, threadId.value, args), target.workspacePath)
+      return withWorkspace(await setThreadTitleTool(client, threadId.value, args), target)
     case 'SetThreadArchived':
-      return withWorkspace(await setThreadArchivedTool(client, threadId.value, args), target.workspacePath)
+      return withWorkspace(await setThreadArchivedTool(client, threadId.value, args), target)
     case 'SetThreadPinned':
-      return withWorkspace(await setThreadPinnedTool(client, threadId.value, args, target.workspacePath, settingsHost), target.workspacePath)
+      return withWorkspace(await setThreadPinnedTool(client, threadId.value, args, currentThreadProject(target).id, settingsHost), target)
     default:
       return fail('UnsupportedTool', `Desktop tool '${tool}' is not supported.`)
   }
@@ -111,9 +114,13 @@ export function requestClient(connection: ThreadTaskConnection): AppServerReques
   return connection.client ?? { sendRequest: (method, params, timeout) => connection.request(method, params, timeout) }
 }
 
-function withWorkspace(result: DynamicToolCallResult, workspacePath: string): DynamicToolCallResult {
+function withWorkspace(result: DynamicToolCallResult, target: ThreadTaskConnection): DynamicToolCallResult {
   return result.success && isRecord(result.structuredContent)
-    ? { ...result, structuredContent: { ...result.structuredContent, workspacePath } } : result
+    ? { ...result, structuredContent: { ...result.structuredContent, ...targetRef(target) } } : result
+}
+
+function targetRef(target: ThreadTaskConnection) {
+  return { workspacePath: target.workspacePath, projectId: currentThreadProject(target).id }
 }
 
 async function listThreadsTool(
@@ -213,12 +220,12 @@ async function setThreadPinnedTool(
   client: AppServerRequestClient,
   threadId: string,
   args: Record<string, unknown>,
-  workspacePath: string,
+  projectKey: string,
   settingsHost: DesktopThreadToolSettingsHost | undefined
 ): Promise<DynamicToolCallResult> {
   const pinned = requiredBoolean(args, 'pinned')
   if (pinned.ok === false) return pinned.error
-  const workspace = normalizeWorkspaceProjectKey(workspacePath)
+  const workspace = normalizeWorkspaceProjectKey(projectKey)
   if (!workspace) {
     return fail('ThreadManagementUnavailable', 'No Desktop workspace is currently open.')
   }

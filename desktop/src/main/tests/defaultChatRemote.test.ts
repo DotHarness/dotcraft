@@ -25,8 +25,10 @@ vi.mock('../threadPanelStateIpc', () => ({ forgetThreadPanelState: vi.fn() }))
 
 import { connectViaWebSocket } from '../windows/windowConnections'
 import { buildDefaultChatSummary, disposeWorkspaceConnection, getWorkspaceProjectsPayload, refreshConnectionThreadList } from '../windows/windowProjects'
-import { createSecondaryWorkspaceConnection, ensureDefaultChatConnection, getManagedAppServerEndpoint, isHubAppServerLifecycleEvent, isSecondaryProjectEvent, refreshSecondaryWorkspaceConnections, startHubEventSubscription, startLocalProjectConnection } from '../windows/windowSecondaryConnections'
-import { openThreadProject, threadToolsHoldConnection } from '../windows/windowThreadProjects'
+import { createSecondaryWorkspaceConnection, enforceSecondaryWorkspaceBudget, ensureDefaultChatConnection, getManagedAppServerEndpoint, isHubAppServerLifecycleEvent, isSecondaryProjectEvent, refreshSecondaryWorkspaceConnections, startHubEventSubscription, startLocalProjectConnection } from '../windows/windowSecondaryConnections'
+import { connectLinkedChats, disconnectedThreadProjectName, listThreadProjects, openThreadProject, threadToolsHoldConnection } from '../windows/windowThreadProjects'
+import { ThreadProjectError } from '../threadTasks/threadProjects'
+import type { WorkspaceConnectionEntry } from '../windows/windowTypes'
 
 class Client extends EventEmitter {
   hasRetainedThreadAttachments = false
@@ -73,7 +75,7 @@ function fixture() {
     getPinnedThreadIdsForWorkspace: () => [], getPinnedThreadIdsForProject: () => [], isProjectPinned: () => false,
     emitWorkspaceProjects: vi.fn(), emitConnectionStatus: vi.fn(), reregisterIpcForWorkspace: vi.fn(),
     clearPendingDeviceOpenRetry: vi.fn(), resetThreadToolState: vi.fn(), flushPendingWorkspaceOpenThread: vi.fn(),
-    scheduleSecondaryWorkspaceRefresh: vi.fn(), disposeDeviceProjectConnection: vi.fn(),
+    scheduleSecondaryWorkspaceRefresh: vi.fn(), disposeDeviceProjectConnection: vi.fn(), startHubEventSubscription: vi.fn(),
     makeThreadListIdentity: (path: string) => ({ workspacePath: path })
   } as unknown as DesktopWindowRuntime
   ctx.getWorkspaceConnection = path => ctx.workspaceConnections.get(path)
@@ -132,6 +134,106 @@ describe('background project connection for thread tools', () => {
     await Promise.resolve()
     client.emit('close')
     await failed
+  })
+})
+
+describe('remote projects as thread tool targets', () => {
+  const studio = 'remote:device:studio:app'
+  const build = 'remote:ssh:build:api'
+  const stack = 'remote:servers:build:stack'
+
+  function remoteEntry(projectId: string, source: string, connected: boolean): WorkspaceConnectionEntry {
+    return {
+      key: projectId, projectId, kind: 'remote', workspacePath: `/remote/${projectId.split(':').at(-1)}`, role: 'secondary',
+      remote: { source, serverName: `${source} machine` }, remoteProject: { name: `${source} project` },
+      connected, connecting: false, client: new Client(), threads: [], lastUsedAt: 0
+    } as unknown as WorkspaceConnectionEntry
+  }
+
+  function remoteFixture() {
+    const state = fixture()
+    const { ctx, hub } = state
+    Object.assign(ctx.app.localProjects, { refresh: vi.fn(async () => undefined) })
+    Object.assign(ctx, {
+      settings: { ...ctx.settings, remoteHosts: [{ id: 'build', name: 'Build box', source: 'manual', hostname: 'build.example',
+        projects: [{ id: 'api', path: '/srv/api', label: 'API' }] }] },
+      sshRemoteProjectId: (machine: string, project: string) => `remote:ssh:${machine}:${project}`,
+      deviceRemoteProjectId: (computer: string, project: string) => `remote:device:${computer}:${project}`
+    })
+    for (const entry of [remoteEntry(studio, 'device', true), remoteEntry(build, 'ssh', false), remoteEntry(stack, 'servers', true)]) {
+      ctx.workspaceConnections.set(entry.key, entry)
+    }
+    return { ...state, ctx, hub }
+  }
+
+  it('lists only connected SSH and paired-computer projects, with their machine', async () => {
+    const { ctx } = remoteFixture()
+    const remote = (await listThreadProjects(ctx)).filter(project => project.id.startsWith('remote:'))
+    expect(remote).toEqual([
+      { id: studio, name: 'device project', path: '/remote/app', running: true, machine: 'device machine' }
+    ])
+  })
+
+  it('uses the open connection and never opens one for a disconnected remote project', async () => {
+    const { ctx, hub } = remoteFixture()
+    expect(await openThreadProject(ctx, { id: studio, name: 'device project', path: '/remote/app' }))
+      .toBe(ctx.workspaceConnections.get(studio))
+    const refused = openThreadProject(ctx, { id: build, name: 'API', path: '/srv/api' })
+    await expect(refused).rejects.toBeInstanceOf(ThreadProjectError)
+    await expect(refused).rejects.toMatchObject({ code: 'ProjectUnavailable' })
+    expect(hub.ensureAppServer).not.toHaveBeenCalled()
+    expect(ctx.connectViaWebSocket).not.toHaveBeenCalled()
+  })
+
+  it('names saved remote projects so a disconnected one is reported as unavailable', () => {
+    const { ctx } = remoteFixture()
+    expect(disconnectedThreadProjectName(ctx, build)).toBe('API')
+    expect(disconnectedThreadProjectName(ctx, 'remote:ssh:build:gone')).toBeUndefined()
+  })
+})
+
+describe('local projects and linked chats under a remote foreground', () => {
+  const library = '/projects/library'
+  const libraryEndpoint = 'ws://127.0.0.1:5555/ws'
+
+  function linkedFixture(needed: string[]) {
+    const state = fixture()
+    const { ctx, hub } = state
+    const linkedChats = {
+      needsProjectConnection: vi.fn((projectId: string) => needed.includes(projectId)),
+      holdsConnection: vi.fn((connection: { projectId: string }) => needed.includes(connection.projectId)),
+      connected: vi.fn(), disconnected: vi.fn(), handleNotification: vi.fn()
+    }
+    Object.assign(ctx.app, { tasks: { linkedChats } })
+    Object.assign(ctx.app.localProjects, { list: () => [{ path: library, displayName: 'Library', running: true }], has: (path: string) => path === library })
+    ctx.isRunningHubAppServer = () => true
+    hub.listAppServers.mockResolvedValue([{ workspacePath: library, endpoints: { appServerWebSocket: libraryEndpoint } }] as never)
+    return { ...state, linkedChats }
+  }
+
+  it('keeps a remote secondary with a running linked chat out of the idle budget', () => {
+    const { ctx, linkedChats } = linkedFixture(['remote:device:studio:app'])
+    const remote = ['remote:device:studio:app', ...Array.from({ length: 9 }, (_, index) => `remote:device:idle:${index}`)]
+    remote.forEach((projectId, index) => {
+      const entry = {
+        key: projectId, projectId, kind: 'remote', workspacePath: `/remote/${index}`, role: 'secondary',
+        remote: { source: 'device' }, connected: true, connecting: false, client: new Client(), threads: [], lastUsedAt: index
+      } as unknown as WorkspaceConnectionEntry
+      ctx.workspaceConnections.set(projectId, entry)
+      connectLinkedChats(ctx, entry)
+    })
+    enforceSecondaryWorkspaceBudget(ctx)
+    expect(ctx.workspaceConnections.has('remote:device:studio:app')).toBe(true)
+    expect(ctx.workspaceConnections.has('remote:device:idle:0')).toBe(false)
+    expect(linkedChats.connected).toHaveBeenCalledTimes(remote.length)
+  })
+
+  it('connects running local projects and follows their Hub events after a remote cold start', async () => {
+    const { ctx } = linkedFixture([])
+    await refreshSecondaryWorkspaceConnections(ctx)
+    expect(ctx.startHubEventSubscription).toHaveBeenCalledWith(host.chatPath, expect.anything())
+    expect(ctx.workspaceConnections.get(library)).toMatchObject({ role: 'secondary', wsUrl: libraryEndpoint })
+    expect(isSecondaryProjectEvent(ctx, { kind: 'appserver.running', workspacePath: library } as HubEvent)).toBe(true)
   })
 })
 
@@ -206,7 +308,7 @@ describe('local Recents with a remote foreground', () => {
     expect(ctx.emitConnectionStatus).toHaveBeenLastCalledWith(ctx.mainWindow, expect.objectContaining({ status: 'connected' }))
   })
 
-  it('replaces a stopped local Chat endpoint during remote-mode refresh without discovering other local projects', async () => {
+  it('replaces a stopped local Chat endpoint during remote-mode refresh', async () => {
     const { ctx, hub } = fixture()
     const remote = ctx.wireClient
     const old = ctx.createSecondaryWorkspaceConnection(host.chatPath, 'ws://127.0.0.1:1111/ws', { kind: 'chat' })
@@ -215,7 +317,6 @@ describe('local Recents with a remote foreground', () => {
     const recovered = ctx.getWorkspaceConnection(host.chatPath)!
     expect(recovered.wsUrl).toBe(localEndpoint)
     expect(old.client.dispose).toHaveBeenCalledOnce()
-    expect(hub.listAppServers).not.toHaveBeenCalled()
     expect(ctx.wireClient).toBe(remote)
   })
 

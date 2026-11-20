@@ -25,7 +25,7 @@ export const ThreadActionCard = memo(function ThreadActionCard({ action }: Threa
   const subtitle = action.queued ? t('threadActionCard.queuedSubtitle') : name
 
   function openChat(): void {
-    void openThread(action.threadId, action.workspacePath)
+    void openThread(action.threadId, action.projectId ?? action.workspacePath)
   }
 
   return (

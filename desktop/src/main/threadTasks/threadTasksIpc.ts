@@ -56,12 +56,12 @@ export function registerThreadTasksIpc(host: ThreadTasksIpcHost, ipc: WindowIpcM
     return { ...snapshot, tasks: snapshot.tasks.filter((task) => connection && sameFilePath(task.workspacePath, connection.workspacePath)) }
   })
 
-  ipc.handle('threadTasks:linked-workspace', (_event, params: unknown): string | null => {
+  ipc.handle('threadTasks:linked-project', (_event, params: unknown): string | null => {
     const { threadId, targetThreadId } = isRecord(params) ? params : {}
     if (typeof threadId !== 'string' || typeof targetThreadId !== 'string') return null
     const connection = host.getConnection(threadId)
     return connection
-      ? host.tasks.linkedChats?.workspacePathBetween(callingThread(connection, threadId), targetThreadId) ?? null
+      ? host.tasks.linkedChats?.linkedProjectBetween(callingThread(connection, threadId), targetThreadId) ?? null
       : null
   })
 

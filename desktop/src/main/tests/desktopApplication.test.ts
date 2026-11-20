@@ -175,12 +175,25 @@ it('continues the startup restore queue while another local project is connectin
   expect(window.startupProjectRestore).toBeUndefined()
 })
 
-it.each(['remote', 'transient', 'welcome', 'welcome-without-workspace', 'closed'])(
+it('restores four local projects when the launch foreground is a remote project', async () => {
+  application = new DesktopApplication()
+  const window = startupWindow()
+  Object.assign(window, { activeRemoteWorkspace: { source: 'device' }, resolveConnectionMode: () => 'remote' })
+  application.manager.initialWindow = window
+  fixture.hub.listProjects.mockResolvedValue(Array.from({ length: 6 }, (_, index) => ({
+    path: index === 5 ? window.currentWorkspacePath : `/work/${index}`, displayName: `${index}`, addedAt: '2026-11-01T00:00:00Z',
+    lastOpenedAt: `2026-11-0${index + 1}T00:00:00Z`, running: false
+  })))
+  await application.restoreRecentProjects(window)
+  expect(vi.mocked(window.startLocalProjectConnection).mock.calls.map(([path]) => path))
+    .toEqual([window.currentWorkspacePath, '/work/4', '/work/3', '/work/2'])
+})
+
+it.each(['transient', 'welcome', 'welcome-without-workspace', 'closed'])(
   'does not restore projects for %s startup', async (reason) => {
     application = new DesktopApplication()
     const window = startupWindow()
     application.manager.initialWindow = window
-    if (reason === 'remote') window.resolveConnectionMode = () => 'remote'
     if (reason === 'transient') window.argv = ['--remote', 'ws://remote']
     if (reason === 'welcome') window.argv = ['--no-workspace']
     if (reason === 'welcome-without-workspace') window.startupProjectRestore = undefined

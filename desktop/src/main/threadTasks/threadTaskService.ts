@@ -344,7 +344,10 @@ export class DesktopThreadTasks {
     brief: ProposalBrief
   ): Promise<ProposalStartOutcome> {
     const childThreadId = task.childThreadId as string
-    const thread: ChildThread = { id: childThreadId, displayName: task.title, workspacePath: task.targetWorkspacePath ?? connection.workspacePath }
+    const thread: ChildThread = {
+      id: childThreadId, displayName: task.title, workspacePath: task.targetWorkspacePath ?? connection.workspacePath,
+      projectId: task.targetProjectId ?? currentThreadProject(connection).id
+    }
     this.host.store.update(task.threadId, task.id, {
       state: 'starting',
       prompt: brief.prompt,

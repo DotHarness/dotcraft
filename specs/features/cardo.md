@@ -42,5 +42,5 @@ Cardo is Desktop's coordinator mode: one conversation from which the person mana
 
 ## 5. Scope
 
-- Cardo starts chats in local projects, including projects whose AppServer is not running, and in the default Chat workspace. Remote projects on SSH machines and paired computers are not targets.
+- Cardo starts chats in local projects, including projects whose AppServer is not running, in the default Chat workspace, and in projects on SSH machines and paired computers that Desktop is connected to. When work belongs in a remote project that is not connected, Cardo asks the person to connect it instead of starting the work somewhere else.
 - Cardo does not schedule work itself. Scheduled work in its overview comes from Automations the person created.

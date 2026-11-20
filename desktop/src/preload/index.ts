@@ -1541,8 +1541,8 @@ const api = {
     list(threadId: string): Promise<ThreadTasksSnapshot> {
       return ipcRenderer.invoke('threadTasks:list', threadId)
     },
-    linkedWorkspace(threadId: string, targetThreadId: string): Promise<string | null> {
-      return ipcRenderer.invoke('threadTasks:linked-workspace', { threadId, targetThreadId })
+    linkedProject(threadId: string, targetThreadId: string): Promise<string | null> {
+      return ipcRenderer.invoke('threadTasks:linked-project', { threadId, targetThreadId })
     },
     onChanged(listener: (snapshot: ThreadTasksSnapshot) => void): UnsubscribeFn {
       const wrapped = (_event: Electron.IpcRendererEvent, snapshot: ThreadTasksSnapshot): void => listener(snapshot)
