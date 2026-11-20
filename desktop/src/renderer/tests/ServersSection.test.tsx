@@ -41,7 +41,7 @@ function show() {
 }
 
 beforeEach(() => {
-  list = { launch: { status: 'missing', path: `${FOLDER}/.craft/launch.json` }, servers: [] }
+  list = { folder: FOLDER, launch: { status: 'missing', path: `${FOLDER}/.craft/launch.json` }, servers: [] }
   notify = null
   Object.assign(window, { api: { ...(window as unknown as { api?: object }).api, devServers: api } })
   useConversationStore.setState({ workspacePath: FOLDER, remoteWorkspaceActive: false })

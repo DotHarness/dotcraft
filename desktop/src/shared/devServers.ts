@@ -48,6 +48,8 @@ export type LaunchFileState =
   }
 
 export interface DevServerList {
+  /** The listed folder, spelled as server snapshots spell theirs. */
+  readonly folder: string
   readonly launch: LaunchFileState
   readonly servers: readonly DevServerSnapshot[]
 }

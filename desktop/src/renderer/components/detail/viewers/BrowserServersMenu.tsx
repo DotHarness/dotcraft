@@ -26,10 +26,12 @@ export function BrowserServersMenu({ scope, list, boundServer, logsOpen, onToggl
   const [open, setOpen] = useState<{ x: number; y: number; keyboard: boolean } | null>(null)
   const trigger = useRef<HTMLButtonElement | null>(null)
   const active = (list?.servers ?? []).filter(isActiveDevServer)
-  const activeByName = new Map(active.map((server) => [server.name.toLowerCase(), server]))
+  const activeByName = new Map(active
+    .filter((server) => server.folder === list?.folder)
+    .map((server) => [server.name.toLowerCase(), server]))
   const launch = list?.launch
   const configurations = launch?.status === 'ok' ? launch.configurations : []
-  const known = new Set(configurations.map((configuration) => configuration.name.toLowerCase()))
+  const shown = new Set<DevServerSnapshot>()
 
   const serverRow = (server: DevServerSnapshot): ContextMenuEntry => ({
     label: server.name,
@@ -53,6 +55,7 @@ export function BrowserServersMenu({ scope, list, boundServer, logsOpen, onToggl
   for (const configuration of configurations) {
     const server = activeByName.get(configuration.name.toLowerCase())
     if (server) {
+      shown.add(server)
       items.push(serverRow(server))
     } else if (configuration.url) {
       const url = configuration.url
@@ -74,7 +77,7 @@ export function BrowserServersMenu({ scope, list, boundServer, logsOpen, onToggl
     }
   }
   for (const server of active) {
-    if (!known.has(server.name.toLowerCase())) items.push(serverRow(server))
+    if (!shown.has(server)) items.push(serverRow(server))
   }
 
   const tools: ContextMenuEntry[] = []

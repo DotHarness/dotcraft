@@ -22,10 +22,11 @@ export function BrowserServerState({ state, scope, configurationName, logsOpen, 
   const [restarting, setRestarting] = useState(false)
   if (state.kind === 'none') return null
   const restartName = 'server' in state ? state.server.name : configurationName
-  const restart = restartName && scope
+  const restartScope = scope && 'server' in state ? { ...scope, folder: state.server.folder } : scope
+  const restart = restartName && restartScope
     ? () => {
       setRestarting(true)
-      void runDevServer(scope, restartName, t).finally(() => setRestarting(false))
+      void runDevServer(restartScope, restartName, t).finally(() => setRestarting(false))
     }
     : null
   const restartButton = restart ? (

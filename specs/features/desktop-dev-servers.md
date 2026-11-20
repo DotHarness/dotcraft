@@ -131,11 +131,11 @@ A bound tab never shows a browser error page for a server problem. Instead its p
 | Port held by another thread's server | Names the port and says to stop that server from its own thread. |
 | Nothing listening | "Nothing listening on localhost:{port}", with Restart when the address belongs to a configuration. |
 
-A bound tab can show the server's output in a logs area below the page. The logs follow live output and can be copied.
+Restart starts the server again in the folder it ran in. A bound tab can show the server's output in a logs area below the page. The logs follow live output and can be copied.
 
 ### 5.3 Servers menu
 
-The browser toolbar has a **Servers** menu while the project is local. It lists every configuration in the launch file, one row each with its port, or "Starting…" while it starts, followed by running servers of this thread whose configuration has since left the file. Selecting an idle configuration runs it, and selecting a running server or an attach configuration opens its bound tab, so every row has one action and the rows stay aligned. Actions for the current tab's server follow: Stop it, and Show or Hide its dev server logs. Stopping any other server happens from its own tab or the Summary. The menu also offers Stop all servers, Add server (§6), Edit configuration (opening the launch file in the file viewer), and the auto-verify switch (§7.3). Without a launch file the menu says "No dev server configured" and offers Detect dev server. A launch file that needs attention appears as one row that opens it.
+The browser toolbar has a **Servers** menu while the project is local. It lists every configuration in the launch file, one row each with its port, or "Starting…" while it starts, followed by this thread's other running servers: those from another folder, such as a server it brought from Welcome into a worktree, and those whose configuration has left the file. A running server stands in for a configuration only when both belong to the current folder, so an inherited server never hides the folder's own configuration of the same name. Selecting an idle configuration runs it, and selecting a running server or an attach configuration opens its bound tab, so every row has one action and the rows stay aligned. Actions for the current tab's server follow: Stop it, and Show or Hide its dev server logs. Stopping any other server happens from its own tab or the Summary. The menu also offers Stop all servers, Add server (§6), Edit configuration (opening the launch file in the file viewer), and the auto-verify switch (§7.3). Without a launch file the menu says "No dev server configured" and offers Detect dev server. A launch file that needs attention appears as one row that opens it.
 
 ### 5.4 New tab
 

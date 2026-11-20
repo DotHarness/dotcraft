@@ -85,7 +85,7 @@ export class DevServerManager extends EventEmitter {
 
   async list(scope: DevServerScope): Promise<DevServerList> {
     const launch = launchFileState(await loadLaunchFile(scope.folder))
-    return { launch, servers: this.servers(scope) }
+    return { folder: resolve(scope.folder), launch, servers: this.servers(scope) }
   }
 
   servers(scope: DevServerScope): DevServerSnapshot[] {

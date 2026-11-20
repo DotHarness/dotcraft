@@ -50,7 +50,7 @@ const SCREEN_VIEW_DEFAULT: ApiOverrides<Api>['screenView'] = {
 }
 
 const DEV_SERVERS_DEFAULT: ApiOverrides<Api>['devServers'] = {
-  list: (scope) => Promise.resolve({ launch: { status: 'missing', path: `${scope.folder}/.craft/launch.json` }, servers: [] }),
+  list: (scope) => Promise.resolve({ folder: scope.folder, launch: { status: 'missing', path: `${scope.folder}/.craft/launch.json` }, servers: [] }),
   watch: () => () => undefined,
   stopFolder: () => Promise.resolve(),
   rebindThread: () => Promise.resolve()

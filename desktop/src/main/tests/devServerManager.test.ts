@@ -168,7 +168,7 @@ describe('DevServerManager', { timeout: 30_000 }, () => {
   })
 
   it('fails a launch that cannot be spawned instead of leaving it starting', async () => {
-    await writeLaunch([nodeServer('web', await freePort(), { args: ['bad arg'] })])
+    await writeLaunch([nodeServer('web', await freePort(), { args: ['bad\0arg'] })])
     const server = await until((await started('thread-a', 'web')).serverId, ['error'])
     expect(server.failure?.kind).toBe('spawn')
   })
