@@ -31,6 +31,7 @@ import { ThreadPullRequestGlyph } from './ThreadPullRequest'
 import { ThreadRowTitle } from './ThreadRowTitle'
 import { ThreadWaitingBadge } from './ThreadWaitingBadge'
 import { useThreadWaitingStatus } from './threadWaitingStatus'
+import { useThreadShowsRunning } from './threadRunningStatus'
 import { useRememberRowSelection, useThreadRowSelected } from './threadRowSelection'
 import { buildWorkspaceOpenDeepLink } from '../../../shared/desktopDeepLink'
 import { buildOpenInSubmenu, useOpenTargets } from '../../utils/openTargets'
@@ -50,7 +51,6 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
     renameThread,
     pinnedThreadIds,
     togglePinnedThread,
-    runningTurnThreadIds,
     pendingApprovalThreadIds,
     pendingUserInputThreadIds,
     pendingPlanConfirmationThreadIds,
@@ -65,9 +65,7 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
   const rememberRowSelection = useRememberRowSelection()
   const isSubAgent = isSubAgentThread(thread)
   const subAgentDepth = getSubAgentDepth(thread)
-  const hasRunningTurn = runningTurnThreadIds.has(thread.id)
-  const hasBackgroundWork = useThreadStore((s) => s.runtimeSnapshots.get(thread.id)?.hasBackgroundWork === true)
-  const showsRunning = hasRunningTurn || hasBackgroundWork
+  const showsRunning = useThreadShowsRunning(thread)
 
   const [contextMenu, setContextMenu] = useState<ContextMenuPosition | null>(null)
   const [renaming, setRenaming] = useState(false)

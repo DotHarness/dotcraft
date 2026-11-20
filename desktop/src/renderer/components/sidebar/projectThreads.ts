@@ -8,6 +8,7 @@ import {
 import type { ThreadSummary } from '../../types/thread'
 import { isHiddenThread } from '../../../shared/hiddenThreads'
 import { isSubAgentThread } from '../../utils/subAgentThreads'
+import { isThreadRuntimeActive } from '../../utils/threadRuntime'
 
 export function projectIdentity(project: WorkspaceProjectSummary): string {
   return project.projectId?.trim() || normalizeWorkspaceProjectKey(project.path)
@@ -92,7 +93,7 @@ export function filterProjectThreads(project: WorkspaceProjectSummary, searchQue
 }
 
 export function isThreadRunning(thread: ThreadSummary): boolean {
-  return thread.runtime?.running === true || thread.runtime?.busy === true
+  return isThreadRuntimeActive(thread.runtime)
 }
 
 export function isThreadWaiting(thread: ThreadSummary): boolean {

@@ -14,6 +14,10 @@ export function normalizeThreadRuntime(runtime: Partial<ThreadRuntimeSnapshot>):
   }
 }
 
+export function isThreadRuntimeActive(runtime: Partial<ThreadRuntimeSnapshot> | null | undefined): boolean {
+  return runtime?.running === true || runtime?.busy === true || runtime?.hasBackgroundWork === true
+}
+
 export function normalizeThreadSummaryRuntime<T extends ThreadSummary>(thread: T): T {
   return thread.runtime ? { ...thread, runtime: normalizeThreadRuntime(thread.runtime) } : thread
 }

@@ -18,7 +18,8 @@ import { PinIcon } from './ThreadEntry'
 import { threadOriginBadge, useThreadEntryDetails } from './ThreadEntryDetails'
 import { ThreadRowLayout } from './ThreadRowLayout'
 import { SidebarEntryDetailsCard } from './SidebarEntryDetailsCard'
-import { isRemoteProject, isThreadRunning, projectIdentity } from './projectThreads'
+import { isRemoteProject, projectIdentity } from './projectThreads'
+import { useThreadShowsRunning } from './threadRunningStatus'
 import { ThreadPullRequestGlyph } from './ThreadPullRequest'
 import { ThreadRowTitle } from './ThreadRowTitle'
 import { ThreadWaitingBadge } from './ThreadWaitingBadge'
@@ -58,7 +59,8 @@ export function ReadonlyThreadRow({
   const selected = useThreadRowSelected(thread.id)
   const waitingStatus = useThreadWaitingStatus(thread.id, thread.runtime)
   const waiting = waitingStatus != null
-  const running = !waiting && isThreadRunning(thread)
+  const showsRunning = useThreadShowsRunning(thread)
+  const running = !waiting && showsRunning
   const displayName = thread.displayName ?? t('sidebar.newConversation')
   const relativeTime = formatRelativeTime(thread.lastActiveAt, new Date(), locale)
   const subAgent = isSubAgentThread(thread)
