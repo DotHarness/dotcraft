@@ -1230,7 +1230,7 @@ With `AgentInterruptMessageEnabled` (default `true`), explicit Turn cancellation
 
 - A regular fork that retains an active source Turn appends the same boundary only to the child. Completed-turn item cuts and forks excluding the active Turn add no marker.
 - Existing markers survive fork and resume; ephemeral threads keep them in memory. Disabling the setting suppresses new markers without removing existing ones.
-- Responses records the marker as provider-owned local input as well as neutral history, without replacing native compacted history. On cancellation, Responses keeps completed provider output and streamed assistant text whose output item had not completed before appending the boundary. Retried failed attempts are still discarded.
+- When the Thread uses Responses-native history, the marker is also recorded as provider-owned local input, without replacing native compacted history. On cancellation, Responses keeps completed provider output and streamed assistant text whose output item had not completed before appending the boundary. Retried failed attempts are still discarded.
 - Ephemeral history keeps the cancelled Turn's input even when cancellation precedes session initialization or no marker is generated.
 
 ## 14. Bidirectional Capabilities

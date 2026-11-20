@@ -65,6 +65,10 @@ public sealed partial class SessionService
         }
     }
 
+    private static bool SupportsServerManagedProviderHistory(SessionThread thread) =>
+        thread.HistoryMode == HistoryMode.Server
+        && thread.ProviderHistorySchemaVersion == ProviderHistorySchema.CurrentSchemaVersion;
+
     private async Task<IProviderConversationHistory?> CreateResponsesProviderHistoryContextAsync(
         SessionThread thread,
         SessionTurn? turn,
@@ -73,8 +77,7 @@ public sealed partial class SessionService
         string? coveredThroughTurnIdOverride = null,
         string? forceReplacementReason = null)
     {
-        if (thread.ProviderHistorySchemaVersion != ProviderHistorySchema.CurrentSchemaVersion
-            || thread.HistoryMode != HistoryMode.Server)
+        if (!SupportsServerManagedProviderHistory(thread))
             return null;
         var currentConfig = _appConfigMonitor?.Current ?? agentFactory.RuntimeContext.Config;
         var runtime = agentFactory.RuntimeContext.ChatClientRegistry.ResolveMainRuntime(

@@ -169,6 +169,41 @@ public sealed partial class SessionServiceInterruptionTests
         Assert.Single(client.Messages, IsMarker);
     }
 
+    [Fact]
+    public async Task ChatCompletionsCancellation_IgnoresInvalidResponsesHistory()
+    {
+        var client = new InterruptibleClient();
+        await using var factory = Factory(ModelProviderProtocols.OpenAIChatCompletions);
+        await using var store = new ThreadStore(root);
+        var service = Service(factory, client, store);
+        var thread = await service.CreateThreadAsync(Identity());
+        var persistence = new SessionPersistenceService(store);
+        var window = persistence.GetOrCreateResponsesContextWindow(thread.Id);
+        await persistence.ReplaceProviderHistoryAsync(new ProviderHistoryReplacedPayload
+        {
+            SchemaVersion = ProviderHistorySchema.CurrentSchemaVersion,
+            ThreadId = thread.Id,
+            Protocol = ModelProviderProtocols.OpenAIResponses,
+            GenerationId = window.CurrentWindowId,
+            ContextWindowId = window.CurrentWindowId,
+            Entries = [new ProviderHistoryEntry
+            {
+                EntryId = "invalid-native-item",
+                Item = JsonSerializer.SerializeToElement("not a Responses item")
+            }]
+        });
+
+        var run = service.SubmitInputAsync(thread.Id, [new TextContent("interruptible")]).ToListAsync().AsTask();
+        await client.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await service.CancelTurnAsync(thread.Id, thread.Turns[^1].Id);
+        var events = await run.WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.Single(events, evt => evt.EventType == SessionEventType.TurnCancelled);
+        var loaded = Assert.IsType<SessionThread>(await store.LoadThreadAsync(thread.Id));
+        Assert.Equal(TurnStatus.Cancelled, Assert.Single(loaded.Turns).Status);
+        Assert.Single(await store.LoadModelHistoryAsync(thread.Id), IsMarker);
+    }
+
     private static async Task SeedCompactedHistoryAsync(SessionPersistenceService persistence, SessionThread source)
     {
         var window = persistence.GetOrCreateResponsesContextWindow(source.Id);
