@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.12.1 |
+| Version | 0.14.0 |
 | Status | Living |
-| Date | 2026-11-17 |
+| Date | 2026-11-21 |
 
 DotCraft can authenticate outgoing model requests against a user's ChatGPT subscription (Plus,
 Pro, Team, Business, Enterprise, Edu) as an alternative to a pay-as-you-go OpenAI API key. This
@@ -180,26 +180,28 @@ runtime scope ends. It is never persisted.
 
 ## Responses request contract
 
-ChatGPT OAuth model metadata selects between two HTTP dialects. A `/models` entry with
-`use_responses_lite=true` marks a model as Responses Lite capable; `false`, missing, or unknown
-selects standard Responses. The latest matching endpoint/account/client-version cache entry takes
-precedence over the bundled catalog, which supplies the same metadata offline. An internal
-developer gate keeps Lite disabled so eligible models retain parallel tool execution; it is not
-user-configurable and never applies to API-key runtimes.
+ChatGPT OAuth uses the Responses Lite HTTP dialect for models with `use_responses_lite=true`
+and standard Responses when the value is false, missing, or unknown. The latest matching
+endpoint/account/client-version catalog entry takes precedence over the bundled catalog. Sampling
+and native compaction use the same dialect. API-key runtimes use standard Responses.
 
 Both dialects share canonical Responses history, OAuth routing headers, `store=false`,
 `reasoning.encrypted_content` inclusion, a `reasoning` object (empty or with configured effort and
 summary), stable item ids, and prompt-cache identity. Standard uses top-level `tools` and the
 model's default `parallel_tool_calls`. Lite:
 
-- carries `x-openai-internal-codex-responses-lite: true`;
-- moves tool definitions into a leading developer `additional_tools` input item before the
-  base-instruction prefix and history;
-- removes top-level `tools` and `max_output_tokens`, strips image `detail`, and sets
-  `reasoning.context=all_turns`;
-- always sends `parallel_tool_calls=false`, including requests without tools.
+- Carries `x-openai-internal-codex-responses-lite: true`.
+- Moves tool definitions, when present, into a leading developer `additional_tools` input item
+  before the base-instruction prefix and history. Its `at_` id is stable for unchanged tool
+  definitions within the current thread.
+- Removes top-level `tools` and `max_output_tokens`, strips image `detail`, and sets
+  `reasoning.context=all_turns`.
+- Sends `parallel_tool_calls=false`, including requests without tools.
 
 Tool choice maps `none`, `auto`, `required`, or a required function choice in both dialects.
+Lite exposes otherwise unnamespaced functions under the provider's `functions` namespace. Calls
+to those functions retain the wire namespace in provider history but dispatch to the original
+unnamespaced tool. Explicit tool namespaces keep their own identity.
 
 All `openai-responses` requests, including API-key and compatible endpoints, carry effective base
 instructions in one developer message before the original input and omit top-level

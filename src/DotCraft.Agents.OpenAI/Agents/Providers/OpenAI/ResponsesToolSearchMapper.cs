@@ -345,10 +345,16 @@ internal static partial class ResponsesToolSearchMapper
     {
         await foreach (var update in updates.WithCancellation(cancellationToken).ConfigureAwait(false))
         {
-            if (update is StreamingResponseOutputItemDoneUpdate doneWithNamespace
-                && TryReadFunctionCallNamespace(doneWithNamespace.Item, out var functionCallId, out var functionNamespace))
+            var namespaceItem = update switch
             {
-                callState?.Namespaces[functionCallId] = functionNamespace;
+                StreamingResponseOutputItemDoneUpdate doneWithNamespace => doneWithNamespace.Item,
+                StreamingResponseOutputItemAddedUpdate added when callState?.LiteToolCalls is not null => added.Item,
+                _ => null
+            };
+            if (callState is not null && namespaceItem is not null
+                && TryReadFunctionCallNamespace(namespaceItem, out var functionCallId, out var functionNamespace))
+            {
+                callState.Namespaces[functionCallId] = functionNamespace;
             }
 
             if (update is StreamingResponseOutputItemDoneUpdate done
@@ -375,6 +381,18 @@ internal static partial class ResponsesToolSearchMapper
         if (callState.Namespaces.Count == 0 && callState.CustomCalls.Count == 0)
             return;
 
+        if (callState.LiteToolCalls is { } routes
+            && update.RawRepresentation is StreamingResponseOutputItemAddedUpdate
+                { Item: FunctionCallResponseItem addedCall } added
+            && callState.Namespaces.GetValueOrDefault(addedCall.CallId) ==
+               OpenAIResponsesLiteRequestMapper.FunctionsNamespace
+            && !callState.IsLiteFlatAlias(OpenAIResponsesLiteRequestMapper.FunctionsNamespace, addedCall.FunctionName))
+        {
+            update.RawRepresentation = new ProviderToolCallArgumentsDelta(
+                added.OutputIndex, routes.GetValueOrDefault(addedCall.FunctionName).ProviderFlatName,
+                addedCall.CallId, string.Empty);
+        }
+
         foreach (var call in update.Contents.OfType<FunctionCallContent>())
         {
             if (callState.CustomCalls.Contains(call.CallId))
@@ -387,7 +405,8 @@ internal static partial class ResponsesToolSearchMapper
 
             call.AdditionalProperties ??= new AdditionalPropertiesDictionary();
             call.AdditionalProperties[FunctionCallNamespaceMetadataKey] = functionNamespace;
-            call.AdditionalProperties[ProviderFunctionCallMetadata.NamespaceKey] = functionNamespace;
+            call.AdditionalProperties[ProviderFunctionCallMetadata.NamespaceKey] =
+                callState.IsLiteFlatAlias(functionNamespace, call.Name) ? string.Empty : functionNamespace;
             call.AdditionalProperties["namespace"] = functionNamespace;
         }
     }

@@ -1,9 +1,12 @@
 using System.Net;
+using System.Reflection;
 using System.Text.Json;
 using DotCraft.Agents;
 using DotCraft.Auth.OpenAI;
 using DotCraft.Configuration;
+using DotCraft.Sessions;
 using DotCraft.Tests.Agents.TestSupport;
+using DotCraft.Tools;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
 using Xunit;
@@ -80,9 +83,9 @@ public sealed class ResponsesLiteWireTests : IDisposable
         Assert.Equal(threadId, metadata.GetProperty("thread_id").GetString());
         Assert.Equal(turnId, metadata.GetProperty("turn_id").GetString());
         Assert.Equal(windowId, metadata.GetProperty(OpenAIAuthConstants.WindowIdHeader).GetString());
-        var input = root.GetProperty("input").EnumerateArray().ToArray();
-        Assert.Equal("additional_tools", input[0].GetProperty("type").GetString());
-        var user = Assert.Single(input, item => item.GetProperty("role").GetString() == "user");
+        Assert.False(root.TryGetProperty("tools", out _));
+        var user = Assert.Single(root.GetProperty("input").EnumerateArray());
+        Assert.Equal("user", user.GetProperty("role").GetString());
         Assert.Equal("message", user.GetProperty("type").GetString());
     }
 
@@ -127,12 +130,89 @@ public sealed class ResponsesLiteWireTests : IDisposable
         Assert.Equal("stable standard instructions", prefix.GetProperty("content")[0].GetProperty("text").GetString());
         Assert.Equal(lite ? "additional_tools" : "message", input[0].GetProperty("type").GetString());
         Assert.Equal(!lite, root.TryGetProperty("tools", out _));
-        if (!lite)
+        if (lite)
+            Assert.StartsWith("at_", input[0].GetProperty("id").GetString());
+        else
             Assert.Equal("lookup", Assert.Single(root.GetProperty("tools").EnumerateArray()).GetProperty("name").GetString());
         Assert.Equal(!lite, root.GetProperty("parallel_tool_calls").GetBoolean());
         Assert.False(root.TryGetProperty("max_output_tokens", out _));
         Assert.Single(input, item => item.TryGetProperty("role", out var role) && role.GetString() == "developer"
                                     && item.GetProperty("type").GetString() == "message");
+    }
+
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(true, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(true, false, true)]
+    public async Task LiteToolCall_UsesLocalIdentityButReplaysProviderNamespace(
+        bool explicitNamespace, bool freeform, bool discovered)
+    {
+        var toolStream = freeform
+            ? """
+              data: {"type":"response.output_item.done","sequence_number":1,"output_index":0,"item":{"type":"custom_tool_call","id":"ctc_lookup","call_id":"call_lookup","namespace":"functions","name":"lookup","input":"sample","status":"completed"}}
+
+              """
+            : """
+              data: {"type":"response.output_item.added","sequence_number":1,"output_index":0,"item":{"type":"function_call","id":"fc_lookup","call_id":"call_lookup","namespace":"functions","name":"lookup","arguments":"","status":"in_progress"}}
+
+              data: {"type":"response.function_call_arguments.delta","sequence_number":2,"item_id":"fc_lookup","output_index":0,"delta":"{\"value\":\"sample\"}"}
+
+              data: {"type":"response.output_item.done","sequence_number":3,"output_index":0,"item":{"type":"function_call","id":"fc_lookup","call_id":"call_lookup","namespace":"functions","name":"lookup","arguments":"{\"value\":\"sample\"}","status":"completed"}}
+
+              """;
+        await using var server = RawRecordingHttpServer.Start(
+            RawHttpResponse.Sse(toolStream + """
+
+                data: {"type":"response.completed","sequence_number":4,"response":{"id":"resp_tool","object":"response","created_at":1778544000,"status":"completed","model":"gpt-test","output":[]}}
+
+                """ + "\n"),
+            SuccessfulSseResponse());
+        var identity = CreateContext("thread-tools", "turn-tools", "window-tools").ConversationIdentity;
+        var history = new OpenAIResponsesProviderHistoryContext(identity, "openai",
+            ProviderHistorySnapshot.Empty(identity.ContextWindowId), [], null, null, null);
+        using var scope = ProviderRequestContextScope.Push(new ProviderRequestContext(identity, history, history));
+        var messages = new List<ChatMessage>();
+        if (discovered)
+        {
+            using var search = JsonDocument.Parse("""
+                {"tools":[{"type":"namespace","name":"functions","tools":[{"type":"function","name":"lookup","parameters":{"type":"object"}}]}]}
+                """);
+            messages.Add(new ChatMessage(ChatRole.Assistant, [new FunctionCallContent("call_search", "SearchTools")]));
+            messages.Add(new ChatMessage(ChatRole.Tool, [new FunctionResultContent("call_search", search.RootElement.Clone())]));
+            await history.AppendLocalInputAsync(messages, CancellationToken.None);
+        }
+        messages.Add(new ChatMessage(ChatRole.User, "Find sample"));
+        var provider = CreateProvider(new RecordingAuthService("acct-token"));
+        var tool = new LiteLookupTool(explicitNamespace, freeform);
+        var runtime = OAuthRuntime(server.Endpoint + "/backend-api/codex") with { SupportsFreeformTools = freeform };
+        using var client = new StreamingFunctionInvokingChatClient(provider.GetOpenAIResponsesChatClient(runtime))
+        {
+            EnableToolCallArgumentPreviews = true,
+            IsStreamableTool = name => name == tool.Name,
+            TerminateOnUnknownCalls = true,
+            AdditionalTools = discovered ? [tool] : null
+        };
+        var contents = new List<AIContent>();
+        await foreach (var update in client.GetStreamingResponseAsync(
+                           messages, new ChatOptions { Tools = [discovered ? new LiteLookupTool(false, false) : tool] }))
+            contents.AddRange(update.Contents);
+
+        var call = Assert.Single(contents.OfType<FunctionCallContent>());
+        Assert.Equal(explicitNamespace, ProviderFunctionCallMetadata.TryGetNamespace(call, out var localNamespace));
+        Assert.Equal(explicitNamespace ? "functions" : string.Empty, localNamespace);
+        if (!freeform && !discovered)
+            Assert.Equal(tool.Name, Assert.Single(contents.OfType<ToolCallArgumentsDeltaContent>()).ToolName);
+        Assert.Equal("sample found", Assert.Single(contents.OfType<FunctionResultContent>()).Result?.ToString());
+        Assert.Equal(2, server.Requests.Count);
+        using var body = JsonDocument.Parse(Decompress(server.Requests[1].Body));
+        var input = body.RootElement.GetProperty("input").EnumerateArray().ToArray();
+        var replayed = Assert.Single(input, item => item.GetProperty("type").GetString() ==
+                                                   (freeform ? "custom_tool_call" : "function_call"));
+        Assert.Equal("functions", replayed.GetProperty("namespace").GetString());
+        Assert.Equal("call_lookup", replayed.GetProperty("call_id").GetString());
+        Assert.Contains(input, item => item.GetProperty("type").GetString() ==
+                                       (freeform ? "custom_tool_call_output" : "function_call_output"));
     }
 
     [Fact]
@@ -178,7 +258,11 @@ public sealed class ResponsesLiteWireTests : IDisposable
             OAuthRuntime(server.Endpoint + "/backend-api/codex", useResponsesLite: lite));
         await ConsumeAsync(client.GetStreamingResponseAsync([
             new ChatMessage(ChatRole.User, "retry")
-        ], new ChatOptions { Instructions = "retry instructions" }));
+        ], new ChatOptions
+        {
+            Instructions = "retry instructions",
+            Tools = [AIFunctionFactory.Create(() => "ok", name: "lookup")]
+        }));
 
         Assert.Equal([false, true], auth.ForceRefreshCalls);
         var requests = server.Requests;
@@ -336,6 +420,28 @@ public sealed class ResponsesLiteWireTests : IDisposable
         return RawHttpResponse.Sse(
             $"data: {{\"type\":\"response.completed\",\"sequence_number\":1,\"response\":{compactResponse}}}\n\n",
             chunkSizes: [1, 2, 3, 5, 8, 13]);
+    }
+
+    private sealed class LiteLookupTool(bool explicitNamespace, bool freeform)
+        : AIFunction, ICanonicalToolIdentityMetadata, IOpenAIResponsesFunctionToolMetadata
+    {
+        private readonly AIFunction _lookup = AIFunctionFactory.Create((string value) => value + " found", name: "lookup");
+
+        public ToolName CanonicalToolName => new(explicitNamespace ? "functions" : null, "lookup");
+        public string ProviderFlatName => explicitNamespace ? "functions__lookup" : "lookup";
+        public override string Name => ProviderFlatName;
+        public override string Description => _lookup.Description;
+        public override JsonElement JsonSchema => _lookup.JsonSchema;
+        public override MethodInfo? UnderlyingMethod => _lookup.UnderlyingMethod;
+        public bool? Strict => null;
+        public bool ReservedSchema => false;
+        public ToolFreeformInput? FreeformInput =>
+            freeform ? new("value", "lark", "start: /.+/") : null;
+
+        protected override ValueTask<object?> InvokeCoreAsync(
+            AIFunctionArguments arguments,
+            CancellationToken cancellationToken) =>
+            _lookup.InvokeAsync(arguments, cancellationToken);
     }
 
     private sealed class RecordingAuthService(string accountId) : IOpenAIAuthService

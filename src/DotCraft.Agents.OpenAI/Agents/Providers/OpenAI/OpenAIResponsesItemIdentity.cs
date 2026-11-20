@@ -63,6 +63,7 @@ internal sealed class OpenAIResponsesItemIdentityDiagnostics
             ? text
             : null;
         return type is "message"
+            or "additional_tools"
             or "reasoning"
             or "function_call"
             or "function_call_output"
@@ -178,13 +179,22 @@ internal static class OpenAIResponsesItemIdentity
         return candidate;
     }
 
+    internal static string GenerateThreadPrefix(string prefix, string domain, string value)
+    {
+        var threadId = OpenAIResponsesCodexMetadata.ResolveRoutingIdentity().ThreadId ?? string.Empty;
+        var payload = JsonSerializer.SerializeToUtf8Bytes(new[] { domain, threadId, value });
+        return $"{prefix}_{HashSuffix(payload)}";
+    }
+
     private static string Generate(string prefix, int itemOrdinal, JsonObject item)
     {
         var canonical = item.ToJsonString();
         var payload = Encoding.UTF8.GetBytes($"{prefix}\n{itemOrdinal}\n{canonical}");
-        var suffix = Convert.ToHexString(SHA256.HashData(payload)).ToLowerInvariant()[..32];
-        return $"{prefix}_{suffix}";
+        return $"{prefix}_{HashSuffix(payload)}";
     }
+
+    private static string HashSuffix(byte[] payload) =>
+        Convert.ToHexString(SHA256.HashData(payload)).ToLowerInvariant()[..32];
 
     private static string? FirstValid(params string?[] candidates) =>
         candidates.FirstOrDefault(IsValid)?.Trim();

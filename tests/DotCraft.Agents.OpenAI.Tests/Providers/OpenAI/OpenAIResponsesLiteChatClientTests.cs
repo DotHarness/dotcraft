@@ -19,7 +19,8 @@ public sealed class OpenAIResponsesLiteChatClientTests
         var options = ResponsesToolSearchMapper.CreateResponseOptions(
             "gpt-test",
             [
-                new ChatMessage(ChatRole.System, "developer guidance"),
+                new ChatMessage(ChatRole.System, "base instructions"),
+                new ChatMessage(new ChatRole("developer"), "thread guidance"),
                 new ChatMessage(ChatRole.User, "hello")
             ],
             new ChatOptions
@@ -38,7 +39,7 @@ public sealed class OpenAIResponsesLiteChatClientTests
             });
         var standardBody = JsonNode.Parse(ModelReaderWriter.Write(options).ToString())!.AsObject();
         var patchedInput = standardBody["input"]!.AsArray();
-        patchedInput[1]!["content"]!.AsArray().Add(JsonNode.Parse(
+        patchedInput[2]!["content"]!.AsArray().Add(JsonNode.Parse(
             """{"type":"input_image","image_url":"data:image/png;base64,AA==","detail":"high"}"""));
         standardBody["tools"] = JsonNode.Parse(
             """[{"type":"function","name":"nullable","parameters":{"type":"object","properties":{"value":{"type":["string","null"]}}}}]""");
@@ -69,10 +70,11 @@ public sealed class OpenAIResponsesLiteChatClientTests
         Assert.Equal("functions", functions.GetProperty("name").GetString());
         Assert.Equal(string.Empty, functions.GetProperty("description").GetString());
         Assert.Equal("nullable", functions.GetProperty("tools")[0].GetProperty("name").GetString());
-        Assert.Equal("message", input[1].GetProperty("type").GetString());
-        Assert.Equal("developer guidance", input[1].GetProperty("content")[0].GetProperty("text").GetString());
-        Assert.Equal("message", input[2].GetProperty("type").GetString());
-        Assert.False(input[2].GetProperty("content")[1].TryGetProperty("detail", out _));
+        Assert.Equal("base instructions", input[1].GetProperty("content")[0].GetProperty("text").GetString());
+        Assert.Equal("developer", input[2].GetProperty("role").GetString());
+        Assert.Equal("thread guidance", input[2].GetProperty("content")[0].GetProperty("text").GetString());
+        Assert.Equal("user", input[3].GetProperty("role").GetString());
+        Assert.False(input[3].GetProperty("content")[1].TryGetProperty("detail", out _));
         Assert.Equal(
             "install-1",
             root.GetProperty("client_metadata").GetProperty("x-codex-installation-id").GetString());
@@ -163,28 +165,6 @@ public sealed class OpenAIResponsesLiteChatClientTests
         using var document = JsonDocument.Parse(Assert.Single(transport.WireBodies));
         Assert.False(document.RootElement.TryGetProperty("tool_choice", out _));
         Assert.False(document.RootElement.GetProperty("parallel_tool_calls").GetBoolean());
-    }
-
-    [Fact]
-    public void RequestMapper_PreservesDeveloperGuidanceAsInputItem()
-    {
-        var options = ResponsesToolSearchMapper.CreateResponseOptions(
-            "gpt-test",
-            [
-                new ChatMessage(ChatRole.System, "stable base"),
-                new ChatMessage(new ChatRole("developer"), "subagent guidance"),
-                new ChatMessage(ChatRole.User, "task")
-            ],
-            new ChatOptions());
-
-        using var document = JsonDocument.Parse(
-            OpenAIResponsesLiteRequestMapper.BuildWireBody(options, "install-1"));
-        var input = document.RootElement.GetProperty("input");
-
-        Assert.Equal("stable base", input[1].GetProperty("content")[0].GetProperty("text").GetString());
-        Assert.Equal("developer", input[2].GetProperty("role").GetString());
-        Assert.Equal("subagent guidance", input[2].GetProperty("content")[0].GetProperty("text").GetString());
-        Assert.Equal("user", input[3].GetProperty("role").GetString());
     }
 
     [Fact]
@@ -283,7 +263,7 @@ public sealed class OpenAIResponsesLiteChatClientTests
 
         await foreach (var _ in client.GetStreamingResponseAsync([
                            new ChatMessage(ChatRole.User, "hello")
-                       ]))
+                       ], new ChatOptions { Tools = [CreateLookupTool()] }))
         {
         }
 

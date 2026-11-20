@@ -32,7 +32,8 @@ internal sealed class OpenAIResponsesToolSearchChatClient : IChatClient
     internal sealed record PreparedResponseStream(
         CreateResponseOptions Options,
         IAsyncEnumerable<StreamingResponseUpdate> Updates,
-        PromptCacheRequestShapeSnapshot? RequestShape = null);
+        PromptCacheRequestShapeSnapshot? RequestShape = null,
+        IReadOnlyDictionary<string, ResponsesToolSearchMapper.LiteToolCallRoute>? LiteToolCalls = null);
 
     public OpenAIResponsesToolSearchChatClient(
         ResponsesClient responsesClient,
@@ -131,7 +132,7 @@ internal sealed class OpenAIResponsesToolSearchChatClient : IChatClient
         if (providerHistory != null)
             sdkUpdates = CaptureProviderHistoryAsync(sdkUpdates, providerHistory, cancellationToken);
         var callState = new ResponsesToolSearchMapper.ResponsesOutputCallState(
-            ResponsesToolSearchMapper.CollectFreeformParameters(preparedOptions));
+            ResponsesToolSearchMapper.CollectFreeformParameters(preparedOptions), preparedResponse.LiteToolCalls);
         var normalizedUpdates = ResponsesToolSearchMapper.NormalizeToolSearchCalls(
             sdkUpdates,
             callState,

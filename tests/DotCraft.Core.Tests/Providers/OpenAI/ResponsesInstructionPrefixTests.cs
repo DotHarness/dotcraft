@@ -158,27 +158,18 @@ public sealed class ResponsesInstructionPrefixTests
     }
 
     [Fact]
-    public void Lite_UsesSharedPrefixAndDiagnosticsDescribeFinalInput()
+    public void Lite_DiagnosticsDescribeFinalInput()
     {
         using var client = new NoopChatClient();
         ChatMessage[] messages = [new(ChatRole.User, "hello")];
-        var options = new ChatOptions { Instructions = "base", Tools = [AIFunctionFactory.Create(() => "ok", name: "lookup")] };
-        var standard = Request(messages, options);
+        var options = new ChatOptions { Tools = [AIFunctionFactory.Create(() => "ok", name: "lookup")] };
         var lite = OpenAIResponsesLiteRequestMapper.CreateResponseRequest(
             "gpt-test", messages, options, null, null, client, "installation-test", supportsFreeformTools: true);
-        using var standardBody = Body(standard);
-        using var liteBody = JsonDocument.Parse(lite.WireBody);
-        var input = liteBody.RootElement.GetProperty("input");
-        Assert.Equal("additional_tools", input[0].GetProperty("type").GetString());
-        Assert.Equal(standardBody.RootElement.GetProperty("input")[0].GetRawText(), input[1].GetRawText());
-        Assert.False(liteBody.RootElement.TryGetProperty("instructions", out _));
-        Assert.Equal(1, lite.Shape.SchemaVersion);
+        using var body = JsonDocument.Parse(lite.WireBody);
+        var input = body.RootElement.GetProperty("input");
         Assert.Equal(input.GetArrayLength(), lite.Shape.InputItemCount);
+        Assert.Equal(input.GetArrayLength(), lite.Shape.InputItemIdPresentCount);
         Assert.Equal(Encoding.UTF8.GetByteCount(input.GetRawText()), lite.Shape.InputBytes);
-        Assert.Equal(2, lite.Shape.InputItemIdEligibleCount);
-        Assert.Equal(2, lite.Shape.InputItemIdPresentCount);
-        Assert.Equal(standard.Shape.InstructionsHash, lite.Shape.InstructionsHash);
-        Assert.NotEqual(standard.Shape.InputHash, lite.Shape.InputHash);
     }
 
     [Theory]
@@ -191,25 +182,34 @@ public sealed class ResponsesInstructionPrefixTests
         using var scope = OpenAIResponsesCodexRuntimeScope.Set(new(identity));
         var context = Context(identity, ProviderHistorySnapshot.Empty("window_1"), [], records);
         ChatMessage[] messages = [new(ChatRole.User, "hello")];
-        var options = new ChatOptions { Instructions = "base" };
+        using var client = new NoopChatClient();
+        var options = new ChatOptions
+        {
+            Instructions = "base",
+            Tools = [AIFunctionFactory.Create(() => "ok", name: "lookup")]
+        };
         var canonical = await context.PrepareInputAsync(messages, options, CancellationToken.None);
-        var first = Request(messages, options, canonical.Input, canonical.ItemIdentity);
-        using var firstBody = Body(first);
-        var prefix = firstBody.RootElement.GetProperty("input")[0].GetRawText();
+        using var firstBody = SamplingBody(canonical);
+        var prefixCount = lite ? 2 : 1;
+        var prefix = firstBody.RootElement.GetProperty("input").EnumerateArray().Take(prefixCount)
+            .Select(item => item.GetRawText()).ToArray();
 
         var snapshot = ProviderHistoryReplayer.Replay(
             "thread-history", "window_1", new HashSet<string>(["turn_1"], StringComparer.Ordinal), records);
         Assert.Single(snapshot.Entries);
         Assert.Equal("user", snapshot.Entries[0].Item.GetProperty("role").GetString());
-        var resumed = Context(identity with { TurnId = "turn_2" }, snapshot, messages, records);
+        var resumedIdentity = identity with { TurnId = "turn_2" };
+        using var resumedScope = OpenAIResponsesCodexRuntimeScope.Set(new(resumedIdentity));
+        var resumed = Context(resumedIdentity, snapshot, messages, records);
         var restored = await resumed.PrepareInputAsync(messages, options, CancellationToken.None);
-        using var resumedBody = Body(Request(messages, options, restored.Input, restored.ItemIdentity));
-        Assert.Equal(prefix, resumedBody.RootElement.GetProperty("input")[0].GetRawText());
+        using var resumedBody = SamplingBody(restored);
+        Assert.Equal(prefix, resumedBody.RootElement.GetProperty("input").EnumerateArray().Take(prefixCount)
+            .Select(item => item.GetRawText()).ToArray());
 
         var compactInput = await resumed.CaptureInputAsync(ProviderCompactionPhase.PreTurn, messages, options, CancellationToken.None);
         var compact = ChatGptResponsesCompactRequestBuilder.Build(
             "gpt-test", compactInput, messages, options, lite, installationId: "installation-test");
-        Assert.Equal(prefix, compact.Input[lite ? 1 : 0].GetRawText());
+        Assert.Equal(prefix, compact.Input.Take(prefixCount).Select(item => item.GetRawText()).ToArray());
         Assert.Equal("compaction_trigger", compact.Input[^1].GetProperty("type").GetString());
         var compactedHistory = ResponsesCompactionHistory.Build(compactInput.Items,
             JsonSerializer.SerializeToElement(new { type = "compaction", encrypted_content = "opaque" }));
@@ -219,10 +219,37 @@ public sealed class ResponsesInstructionPrefixTests
         await resumed.ReplaceAsync(replacement, CancellationToken.None);
         var after = await resumed.PrepareInputAsync(messages, options, CancellationToken.None);
         Assert.DoesNotContain(after.Input.OfType<JsonObject>(), item => item["role"]?.GetValue<string>() == "developer");
-        using var afterBody = Body(Request(messages, options, after.Input, after.ItemIdentity));
-        Assert.Equal(prefix, afterBody.RootElement.GetProperty("input")[0].GetRawText());
-        Assert.Single(afterBody.RootElement.GetProperty("input").EnumerateArray(),
-            item => item.TryGetProperty("role", out var role) && role.GetString() == "developer");
+        using var afterBody = SamplingBody(after);
+        var afterInput = afterBody.RootElement.GetProperty("input").EnumerateArray().ToArray();
+        Assert.Equal(prefix, afterInput.Take(prefixCount).Select(item => item.GetRawText()).ToArray());
+        Assert.Equal(prefixCount, afterInput.Count(
+            item => item.TryGetProperty("role", out var role) && role.GetString() == "developer"));
+
+        JsonDocument SamplingBody(CanonicalResponsesInput input) => lite
+            ? JsonDocument.Parse(OpenAIResponsesLiteRequestMapper.CreateResponseRequest(
+                "gpt-test", messages, options, input.Input, input.ItemIdentity, client, "installation-test", true).WireBody)
+            : Body(Request(messages, options, input.Input, input.ItemIdentity));
+    }
+
+    [Fact]
+    public void LiteToolPrefixIdentity_ChangesWithCurrentThreadAndToolSchema()
+    {
+        var identity = Identity("thread-root");
+        var first = ToolPrefixId(identity, "string");
+        Assert.StartsWith("at_", first);
+        Assert.NotEqual(first, ToolPrefixId(identity, "number"));
+        Assert.NotEqual(first, ToolPrefixId(identity with { CurrentThreadId = "thread-child" }, "string"));
+
+        static string ToolPrefixId(ProviderConversationIdentity identity, string propertyType)
+        {
+            using var scope = OpenAIResponsesCodexRuntimeScope.Set(new(identity));
+            var standard = BinaryData.FromString("""
+                {"input":[],"tools":[{"type":"function","name":"lookup",
+                  "parameters":{"type":"object","properties":{"value":{"type":"value-type"}}}}]}
+                """.Replace("value-type", propertyType, StringComparison.Ordinal));
+            using var body = JsonDocument.Parse(OpenAIResponsesLiteRequestMapper.BuildWireBody(standard, null));
+            return PrefixId(body);
+        }
     }
 
     private static OpenAIResponsesProviderHistoryContext Context(

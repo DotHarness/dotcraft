@@ -57,7 +57,11 @@ public sealed partial class OpenAIClientProviderTests
             1, "turn-v2");
         var replacement = await ((IProviderNativeCompactorFactory)provider).CreateCompactor(runtime)
             .CompactAsync(input, [new ChatMessage(ChatRole.User, "keep this")],
-                new ChatOptions { Instructions = "stable instruction" }, CancellationToken.None);
+                new ChatOptions
+                {
+                    Instructions = "stable instruction",
+                    Tools = [AIFunctionFactory.Create(() => "ok", name: "lookup")]
+                }, CancellationToken.None);
 
         var request = Assert.Single(server.Requests);
         Assert.Equal("/backend-api/codex/responses", request.Path);

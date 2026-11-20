@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.10.3 |
+| **Version** | 0.14.0 |
 | **Status** | Living |
-| **Date** | 2026-11-05 |
+| **Date** | 2026-11-21 |
 | **Parent Specs** | [Session Core](session-core.md), [Prompt Composition](prompt-composition.md), [OpenAI Subscription Auth](openai-subscription-auth.md) |
 
 Purpose: define the per-protocol contract DotCraft must satisfy for the provider's prompt cache to hit, and the empirical hit-rate envelope each protocol is expected to deliver. This is a design document — it constrains what the runtime emits on the wire, not how it builds the request internally.
@@ -91,17 +91,11 @@ Invariants the runtime must uphold:
 
 ### 2.3 `openai-responses` — ChatGPT OAuth path
 
-The [OpenAI Subscription Auth specification](openai-subscription-auth.md#responses-request-contract)
-owns the complete OAuth Responses wire contract. Model metadata and an internal Lite developer gate
-(off by default) select the standard or Lite wire dialect. Standard OAuth Responses follows §2.2 with top-level `instructions` and `tools`. Responses
-Lite projects those stable values into leading developer input items, sets
-`reasoning.context=all_turns`, and disables parallel tool execution. Both dialects consume the same
-canonical provider history and preserve the same append-only input prefix between explicit
-replacement boundaries. Both omit the top-level `max_output_tokens` field; that value remains a
-local DotCraft budget, with compaction summary length enforced after the provider returns.
-OAuth sampling applies Zstandard transport encoding after the logical request body is finalized;
-compression does not change the canonical input sequence or prompt-cache generation. Provider-native
-compact requests remain uncompressed.
+The [OpenAI Subscription Auth specification](openai-subscription-auth.md) owns OAuth dialect
+selection, request shape, and transport encoding. Both dialects consume the same canonical
+provider history and preserve an append-only input prefix between explicit replacement boundaries.
+A dialect change is a request-shape change. Transport compression does not affect prompt-cache
+identity.
 
 OAuth routing fields and authoritative header/body identity come from the authentication contract.
 

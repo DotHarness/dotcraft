@@ -65,7 +65,8 @@ internal sealed class OpenAIResponsesLiteChatClient : IChatClient
                 return new OpenAIResponsesToolSearchChatClient.PreparedResponseStream(
                     request.Options,
                     transport.CreateResponseStreamingAsync(request.WireBody, cancellationToken),
-                    request.Shape);
+                    request.Shape,
+                    request.ToolCallRoutes);
             });
     }
 

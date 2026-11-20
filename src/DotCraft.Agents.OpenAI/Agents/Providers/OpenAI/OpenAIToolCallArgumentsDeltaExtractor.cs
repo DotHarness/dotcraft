@@ -23,6 +23,11 @@ internal sealed class OpenAIToolCallArgumentsDeltaExtractor : IToolCallArguments
             }
             yield break;
         }
+        if (rawRepresentation is ProviderToolCallArgumentsDelta preview)
+        {
+            yield return preview;
+            yield break;
+        }
         if (rawRepresentation is StreamingResponseOutputItemAddedUpdate
             { Item: FunctionCallResponseItem call } added)
         {
