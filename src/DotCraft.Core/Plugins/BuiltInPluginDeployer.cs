@@ -36,12 +36,14 @@ public sealed class BuiltInPluginDeployer(
     public bool RefreshPlugin(
         string pluginKey,
         List<PluginDiagnostic> diagnostics,
-        bool requireSourceIdentity = false)
+        bool requireSourceIdentity = false,
+        CancellationToken cancellationToken = default)
     {
         var outcome = DeployCore(
             new HashSet<string>(StringComparer.OrdinalIgnoreCase) { pluginKey },
             updateOnly: true,
-            requireSourceIdentity);
+            requireSourceIdentity,
+            cancellationToken);
         diagnostics.AddRange(outcome.Diagnostics);
         return outcome.Updated;
     }
@@ -87,39 +89,68 @@ public sealed class BuiltInPluginDeployer(
     public static bool IsManagedBuiltInPluginRoot(string pluginRoot) =>
         File.Exists(Path.Combine(pluginRoot, MarkerFile));
 
-    internal static T WithPluginsRootLock<T>(string pluginsRoot, Func<T> action, ILogger? logger = null)
+    internal static T WithPluginsRootLock<T>(
+        string pluginsRoot,
+        Func<T> action,
+        ILogger? logger = null,
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var identity = Path.TrimEndingDirectorySeparator(Path.GetFullPath(pluginsRoot));
         if (OperatingSystem.IsWindows()) identity = identity.ToUpperInvariant();
         using var mutex = new Mutex(false, "DotCraft.PluginDeploy." + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identity))));
         var timer = Stopwatch.StartNew();
-        try { mutex.WaitOne(); }
-        catch (AbandonedMutexException) { }
+        var acquired = false;
         try
         {
+            if (cancellationToken.CanBeCanceled)
+            {
+                var signaled = WaitHandle.WaitAny([mutex, cancellationToken.WaitHandle]);
+                if (signaled != 0)
+                    cancellationToken.ThrowIfCancellationRequested();
+                acquired = true;
+            }
+            else
+            {
+                mutex.WaitOne();
+                acquired = true;
+            }
+        }
+        catch (AbandonedMutexException)
+        {
+            acquired = true;
+        }
+
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
             logger?.LogInformation("Startup stage {Stage} completed in {ElapsedMs}ms",
                 "plugin-deploy-mutex-wait", timer.Elapsed.TotalMilliseconds);
             return action();
         }
         finally
         {
-            mutex.ReleaseMutex();
+            if (acquired)
+                mutex.ReleaseMutex();
         }
     }
 
     private (bool Updated, IReadOnlyList<PluginDiagnostic> Diagnostics) DeployCore(
         IReadOnlySet<string>? targetKeys,
         bool updateOnly,
-        bool requireSourceIdentity) =>
+        bool requireSourceIdentity,
+        CancellationToken cancellationToken = default) =>
         WithPluginsRootLock(
             pluginsPath,
-            () => DeployCoreLocked(targetKeys, updateOnly, requireSourceIdentity),
-            logger);
+            () => DeployCoreLocked(targetKeys, updateOnly, requireSourceIdentity, cancellationToken),
+            logger,
+            cancellationToken);
 
     private (bool Updated, IReadOnlyList<PluginDiagnostic> Diagnostics) DeployCoreLocked(
         IReadOnlySet<string>? targetKeys,
         bool updateOnly,
-        bool requireSourceIdentity)
+        bool requireSourceIdentity,
+        CancellationToken cancellationToken)
     {
         var timer = Stopwatch.StartNew();
         var fingerprintMs = 0d;
@@ -163,11 +194,17 @@ public sealed class BuiltInPluginDeployer(
 
             try
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var installedMarker = ManagedPluginMarker.Read(pluginDir);
                 if (updateOnly)
                 {
                     if (installedMarker == null
                         || !MatchesInstalledSource(installedMarker, source, requireSourceIdentity))
+                        continue;
+
+                    var installed = PluginManifestParser.Load(pluginDir);
+                    diagnostics.AddRange(installed.Diagnostics);
+                    if (installed.Manifest == null || installed.Manifest.Dotnet != null || source.Manifest.Dotnet != null)
                         continue;
                 }
                 else if (installedMarker != null
@@ -189,7 +226,7 @@ public sealed class BuiltInPluginDeployer(
                     continue;
 
                 timer.Restart();
-                ReplacePluginDirectory(source.PluginRoot, pluginDir, marker.Format());
+                ReplacePluginDirectory(source.PluginRoot, pluginDir, marker.Format(), cancellationToken);
                 replaceMs += timer.Elapsed.TotalMilliseconds;
                 replaceCount++;
             }
@@ -248,7 +285,11 @@ public sealed class BuiltInPluginDeployer(
                 ["failureType"] = System.Text.Json.JsonSerializer.SerializeToElement(exception.GetType().Name)
             });
 
-    private static void ReplacePluginDirectory(string sourceRoot, string targetRoot, string markerText)
+    private static void ReplacePluginDirectory(
+        string sourceRoot,
+        string targetRoot,
+        string markerText,
+        CancellationToken cancellationToken)
     {
         var parent = Path.GetDirectoryName(targetRoot)!;
         var tempRoot = Path.Combine(parent, $".{Path.GetFileName(targetRoot)}.{Guid.NewGuid():N}.tmp");
@@ -256,8 +297,9 @@ public sealed class BuiltInPluginDeployer(
         var committed = false;
         try
         {
-            CopyDirectory(sourceRoot, tempRoot);
+            CopyDirectory(sourceRoot, tempRoot, cancellationToken);
             File.WriteAllText(Path.Combine(tempRoot, MarkerFile), markerText);
+            cancellationToken.ThrowIfCancellationRequested();
 
             if (Directory.Exists(targetRoot))
                 PluginDirectoryMover.Move(targetRoot, backupRoot);
@@ -293,17 +335,19 @@ public sealed class BuiltInPluginDeployer(
         }
     }
 
-    private static void CopyDirectory(string sourceRoot, string targetRoot)
+    private static void CopyDirectory(string sourceRoot, string targetRoot, CancellationToken cancellationToken)
     {
         Directory.CreateDirectory(targetRoot);
         foreach (var sourceDirectory in Directory.GetDirectories(sourceRoot, "*", SearchOption.AllDirectories))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var relativePath = Path.GetRelativePath(sourceRoot, sourceDirectory);
             Directory.CreateDirectory(Path.Combine(targetRoot, relativePath));
         }
 
         foreach (var sourceFile in Directory.GetFiles(sourceRoot, "*", SearchOption.AllDirectories))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (string.Equals(Path.GetFileName(sourceFile), MarkerFile, StringComparison.OrdinalIgnoreCase))
                 continue;
 

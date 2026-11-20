@@ -75,7 +75,7 @@ internal readonly record struct McpConnectionIdentity(string Configuration, stri
             config.Enabled,
             Transport = config.NormalizedTransport,
             Origin = config.Origin.Kind,
-            config.Origin.PluginFingerprint,
+            PluginFingerprint = config.NormalizedTransport == "stdio" ? config.Origin.PluginFingerprint : null,
             Inputs = inputs
         });
         return Convert.ToHexStringLower(SHA256.HashData(bytes));

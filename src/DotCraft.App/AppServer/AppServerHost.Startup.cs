@@ -107,9 +107,9 @@ public sealed partial class AppServerHost
                 startupSyncCts.Cancel();
                 try
                 {
-                    await startupSyncTask.WaitAsync(TimeSpan.FromSeconds(5));
+                    await startupSyncTask;
                 }
-                catch (Exception ex) when (ex is OperationCanceledException or TimeoutException)
+                catch (OperationCanceledException)
                 {
                 }
 

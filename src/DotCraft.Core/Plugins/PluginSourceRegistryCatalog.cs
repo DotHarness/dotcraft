@@ -19,21 +19,38 @@ internal sealed record PluginRegistrySource(
             .Replace('\\', '/');
         if (Kind == MarketplaceSourceKind.Git)
         {
-            var sparse = SparsePaths is { Count: > 0 } ? string.Join(",", SparsePaths) : string.Empty;
-            return $"git|{Url}|{Ref ?? string.Empty}|{sparse}|{normalizedMarketplacePath}";
+            return "git|" + HashIdentity(new
+            {
+                Url,
+                Ref,
+                SparsePaths,
+                MarketplacePath = normalizedMarketplacePath
+            });
         }
 
         if (Uri.TryCreate(Url, UriKind.Absolute, out var uri)
             && (string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)))
         {
-            return $"archive|{uri.AbsoluteUri}|{normalizedMarketplacePath}";
+            return "archive|" + HashIdentity(new
+            {
+                Url = uri.AbsoluteUri,
+                MarketplacePath = normalizedMarketplacePath
+            });
         }
 
         var normalizedPath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(Url));
         if (OperatingSystem.IsWindows())
             normalizedPath = normalizedPath.ToUpperInvariant();
-        return $"local|{normalizedPath}|{normalizedMarketplacePath}";
+        return "local|" + HashIdentity(new
+        {
+            Path = normalizedPath,
+            MarketplacePath = normalizedMarketplacePath
+        });
+
+        static string HashIdentity(object identity) =>
+            Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+                JsonSerializer.SerializeToUtf8Bytes(identity)));
     }
 }
 

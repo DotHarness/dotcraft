@@ -255,7 +255,7 @@ internal sealed class AppServerManagedPluginRefresher(
 
             try
             {
-                if (deployer.RefreshPlugin(pluginKey, diagnostics, requireSourceIdentity))
+                if (deployer.RefreshPlugin(pluginKey, diagnostics, requireSourceIdentity, ct))
                     updatedIds.Add(pluginId);
             }
             finally

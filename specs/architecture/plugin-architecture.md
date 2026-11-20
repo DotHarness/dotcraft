@@ -350,8 +350,8 @@ settings, and collects failures per plugin while keeping the previous installati
 refresh commits only while the installed marker is still present on the shared plugins root,
 synchronized with plugin removal so another workspace removing a plugin cannot cause it to be
 reinstalled. When any managed installation changes, AppServer refreshes plugin-contributed skills,
-MCP/LSP servers (including active threads whose MCP connection identity incorporates the deployed
-plugin fingerprint), and hooks, advances the plugin revision, and broadcasts
+MCP/LSP servers (including active threads whose stdio MCP connection identity incorporates the
+deployed plugin fingerprint), and hooks, advances the plugin revision, and broadcasts
 `plugin/snapshot/updated` so connected clients reload affected metadata and Desktop extensions
 without prompting.
 
