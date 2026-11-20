@@ -201,6 +201,11 @@ items the agent runs, and leaving the pose ends it at once.
   loop. On leaving the pose its parts blend back within 160 ms while the props retract.
 - Hosts add no outer loop while the story plays; the composer keeps only its placement and event
   motion.
+- A pose change never jumps a frame. When it starts or ends a keyframe loop, such as the wave or the
+  working loop, the body and arms blend from where they are into the new motion. The CSS working
+  loop is phased so the story takes over on its first frame.
+- A click wave during a turn plays to its last frame, then the avatar returns to the laptop. The
+  composer keeps the working pose's host motion for the length of the wave.
 
 The package drives the story with the Web Animations API from a single exported timeline and applies
 the avatar's motion-off, reduced-motion, paused, and offscreen rules to it. The design catalog

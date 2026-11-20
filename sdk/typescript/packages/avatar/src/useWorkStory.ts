@@ -26,7 +26,7 @@ export function useWorkStory(ref: RefObject<Element | null>, active: boolean, pa
         const started = Number(animation.currentTime ?? 0) > START_DELAY_MS
         const from = started && element.isConnected ? getComputedStyle(element).getPropertyValue(property) : ''
         animation.cancel()
-        if (from) element.animate([{ [property]: from }], { duration: EXIT_MS, easing: 'ease-out' })
+        if (from) element.animate([{ [property]: from, offset: 0 }], { duration: EXIT_MS, easing: 'ease-out' })
       }
     }
   }, [ref, active])

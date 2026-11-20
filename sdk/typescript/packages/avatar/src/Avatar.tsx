@@ -11,6 +11,7 @@ import { useMotionEnvironment, useOnscreen, useTransitionPause } from './environ
 import { useGesture } from './useGesture.js'
 import { useEventReplay } from './useEventReplay.js'
 import { useWorkStory } from './useWorkStory.js'
+import { usePoseHandoff } from './usePoseHandoff.js'
 
 export type SizeTier = 'compact' | 'standard' | 'full'
 export function sizeTier(size: number): SizeTier { return size <= 20 ? 'compact' : size < 44 ? 'standard' : 'full' }
@@ -47,21 +48,23 @@ export function AppearanceAvatar({ appearance, state = 'idle', size = 44, motion
   useEffect(() => { if (!animated || (!paused && visible)) setShownExpression(expression) }, [expression, animated, paused, visible])
   useGesture(ref, gesture, gestureSequence, animated, paused || !visible, onGestureComplete)
   useEventReplay(ref, displayedSequence, animated, paused || !visible)
+  const captureHandoff = usePoseHandoff(ref, animated && !paused && visible)
 
   useEffect(() => {
     if (previousIdentity.current !== identity) {
       previousIdentity.current = identity; setDisplayed(state); setDisplayedSequence(eventSequence); setExiting(false); return
     }
     if (!animated) { setDisplayed(state); setDisplayedSequence(eventSequence); setExiting(false); return }
-    if (state === displayed && eventSequence === displayedSequence) { setExiting(false); return }
+    if (state === displayed && eventSequence === displayedSequence) { if (exiting) { captureHandoff(); setExiting(false) } return }
     if (paused || !visible) return
+    const show = () => { captureHandoff(); setDisplayed(state); setDisplayedSequence(eventSequence); setExiting(false) }
     const changesWorkProp = displayed !== state && [displayed, state].some(pose => pose === 'working' || pose === 'waiting')
-    if (!changesWorkProp) { setDisplayed(state); setDisplayedSequence(eventSequence); setExiting(false); return }
+    if (!changesWorkProp) { show(); return }
     // Retract props before changing the original paired arm pose; rapid changes cancel this timer.
-    setExiting(true)
-    const timer = window.setTimeout(() => { setDisplayed(state); setDisplayedSequence(eventSequence); setExiting(false) }, 160)
+    if (!exiting) { captureHandoff(); setExiting(true) }
+    const timer = window.setTimeout(show, 160)
     return () => window.clearTimeout(timer)
-  }, [state, displayed, animated, paused, visible, identity, eventSequence, displayedSequence])
+  }, [state, displayed, animated, paused, visible, identity, eventSequence, displayedSequence, exiting, captureHandoff])
 
   const pose = animated ? displayed : state
   useWorkStory(ref, animated && pose === 'working' && !exiting, paused || !visible)

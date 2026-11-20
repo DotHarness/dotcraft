@@ -5,7 +5,7 @@ import { useComposerAvatarBehavior } from './useComposerAvatarBehavior.js'
 import { consumeMascotHandoff, recordMascotHandoff } from './mascotHandoff.js'
 import { useComposerProfile } from './useComposerProfile.js'
 import { useComposerMotion } from './useComposerMotion.js'
-import { MASCOT_SIZE, MASCOT_SCALE, MASCOT_HIDDEN_RATIO, MASCOT_RAISE, MASCOT_SLEEP_AFTER_MS, MASCOT_WAVE_DURATION_MS, MASCOT_SPARKLES } from './constants.js'
+import { MASCOT_SIZE, MASCOT_SCALE, MASCOT_HIDDEN_RATIO, MASCOT_RAISE, MASCOT_SLEEP_AFTER_MS, MASCOT_WAVE_DURATION_MS, MASCOT_WAVE_SETTLE_MS, MASCOT_SPARKLES } from './constants.js'
 import { useMascotActiveIdle } from './useMascotActiveIdle.js'
 import type { ComposerMascotProps, ComposerMascotContext, MascotExpression, MascotLight } from './types.js'
 export function ComposerMascot({ name, appearance, appearanceOf = deriveAppearance, motion = 'system', theme = 'dark', focused = false, dragOver = false, bounceSignal = 0, interaction, reasoningEffort = 'off', speed = 'standard', anchorOffset = 0, anchorPushSignal = 0, handoff = false, renderCharacter, renderMenu, onNameRendered }: ComposerMascotProps) {
@@ -232,7 +232,8 @@ export function ComposerMascot({ name, appearance, appearanceOf = deriveAppearan
 
   useEffect(() => {
     if (!waving) return
-    const timer = window.setTimeout(() => setWaving(false), MASCOT_WAVE_DURATION_MS)
+    // Fallback for when the arm's animationend never fires, such as a paused avatar.
+    const timer = window.setTimeout(() => setWaving(false), MASCOT_WAVE_DURATION_MS + MASCOT_WAVE_SETTLE_MS)
     return () => window.clearTimeout(timer)
   }, [waving])
 
@@ -249,6 +250,10 @@ export function ComposerMascot({ name, appearance, appearanceOf = deriveAppearan
   const onAnimationEnd = (event: AnimationEvent<HTMLDivElement>): void => {
     idle.onAnimationEnd(event)
     switch (event.animationName) {
+      case 'dca-action-wave-arm':
+      case 'dca-action-sign-wave-arm':
+        setWaving(false)
+        break
       case 'composer-mascot-launch':
         setLaunching(false)
         break
@@ -302,7 +307,7 @@ export function ComposerMascot({ name, appearance, appearanceOf = deriveAppearan
     ? 'composer-mascot-sleep-breathe'
     : dragOver
       ? 'composer-mascot-eager'
-      : semanticAvatarPose === 'working'
+      : laptopActive
         ? null
         : baseExpression === 'operator' && light === 'default'
           ? 'composer-mascot-think'

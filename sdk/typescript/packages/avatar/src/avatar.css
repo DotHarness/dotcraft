@@ -27,7 +27,8 @@
 
 .dca-robot[data-motion='on'][data-pose='idle'] .dca-body-motion { animation: dca-breathe 5s ease-in-out infinite; }
 .dca-robot[data-motion='on'][data-pose='idle'] .dca-part-caret { animation: dca-cursor 7s step-end infinite; }
-.dca-robot[data-motion='on'][data-pose='working'] .dca-body-motion { animation: dca-work var(--dca-loop) ease-in-out infinite; }
+/* Phased to reach 0% when useWorkStory takes over at 1520ms. */
+.dca-robot[data-motion='on'][data-pose='working'] .dca-body-motion { animation: dca-work var(--dca-loop) ease-in-out calc(1520ms - var(--dca-loop)) infinite; }
 .dca-robot[data-motion='on'][data-pose='done'] .dca-body-motion { animation: dca-celebrate 800ms ease-in-out both; }
 .dca-robot[data-motion='on'][data-pose='acknowledge'] .dca-body-motion { animation: dca-nod 350ms ease-in-out both; }
 
