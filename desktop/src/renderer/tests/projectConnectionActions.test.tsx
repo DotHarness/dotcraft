@@ -30,8 +30,8 @@ beforeEach(() => {
 it('opens a linked chat in its project even when that chat is not in the sidebar cache', async () => {
   const path = '/local/library'
   const switchProject = vi.fn().mockResolvedValue(undefined)
-  const linkedWorkspace = vi.fn().mockResolvedValue(path)
-  installDesktopApiMock({ workspace: { switch: switchProject }, threadTasks: { linkedWorkspace } })
+  const linkedProject = vi.fn().mockResolvedValue(path)
+  installDesktopApiMock({ workspace: { switch: switchProject }, threadTasks: { linkedProject } })
   useThreadStore.getState().setActiveThreadId('parent')
   useWorkspaceProjectsStore.setState({
     projects: [{ ...project, projectId: path, kind: 'local', path, state: 'stopped', running: false, loaded: false, remote: undefined }]
@@ -39,16 +39,31 @@ it('opens a linked chat in its project even when that chat is not in the sidebar
 
   await openThread('linked')
 
-  expect(linkedWorkspace).toHaveBeenCalledWith('parent', 'linked')
+  expect(linkedProject).toHaveBeenCalledWith('parent', 'linked')
   expect(switchProject).toHaveBeenCalledWith(path)
   expect(useUIStore.getState().pendingProjectThreadOpen?.threadId).toBe('linked')
   expect(useThreadStore.getState().activeThreadId).toBe('parent')
 })
 
+it('opens a chat by project id when a remote and a local project share the same path', async () => {
+  const switchProject = vi.fn().mockResolvedValue(undefined)
+  installDesktopApiMock({ workspace: { switch: switchProject } })
+  const local: WorkspaceProjectSummary = { ...project, projectId: project.path, kind: 'local', state: 'stopped', remote: undefined }
+  useWorkspaceProjectsStore.setState({ projects: [local, { ...project, state: 'foreground' }] })
+
+  await openThread('remote-chat', project.projectId)
+  expect(useThreadStore.getState().activeThreadId).toBe('remote-chat')
+  expect(switchProject).not.toHaveBeenCalled()
+
+  await openThread('local-chat', project.path)
+  expect(switchProject).toHaveBeenCalledWith(project.path)
+  expect(useUIStore.getState().pendingProjectThreadOpen?.threadId).toBe('local-chat')
+})
+
 it('does not replace a newer project navigation when a linked chat lookup returns late', async () => {
   const lookup = deferred<string>()
   const switchProject = vi.fn().mockResolvedValue(undefined)
-  installDesktopApiMock({ workspace: { switch: switchProject }, threadTasks: { linkedWorkspace: () => lookup.promise } })
+  installDesktopApiMock({ workspace: { switch: switchProject }, threadTasks: { linkedProject: () => lookup.promise } })
   const [older, newer] = ['/local/older', '/local/newer'].map((path): WorkspaceProjectSummary => ({
     ...project, projectId: path, kind: 'local', path, remote: undefined
   }))

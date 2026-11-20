@@ -75,6 +75,24 @@ describe('cross-project Desktop thread tools', () => {
     expect(connect).not.toHaveBeenCalled()
   })
 
+  it('reaches a connected remote project like a local one and refuses one that is not connected', async () => {
+    const { call, connect, list, target } = fixture()
+    const remote = { id: 'remote:device:studio:app', name: 'App', path: 'C:/work/app', running: true, machine: 'Studio PC' }
+    list.mockResolvedValue([chats, library, remote])
+    connect.mockImplementationOnce(async () => threadTaskConnection({ sendRequest: target } as AppServerRequestClient, remote.path,
+      { project: remote, remote: true }))
+    expect(await call('CreateThread', { initiation: 'userAsked', title: child.title, prompt: 'Run tests', project: remote.id }))
+      .toMatchObject({ success: true, structuredContent: { thread: { id: child.threadId, workspacePath: remote.path, projectId: remote.id } } })
+    expect(connect).toHaveBeenLastCalledWith(remote)
+
+    const disconnected = vi.fn((id: string) => id === 'remote:ssh:build:api' ? 'API' : undefined)
+    const projects = { list, connect, disconnected }
+    expect(await call('ListThreads', { project: 'remote:ssh:build:api' }, { projects })).toMatchObject({
+      errorCode: 'ProjectUnavailable', errorMessage: expect.stringContaining('"API"')
+    })
+    expect(await call('ListThreads', { project: 'remote:ssh:build:gone' }, { projects })).toMatchObject({ errorCode: 'ProjectNotFound' })
+  })
+
   it('creates, lists, and finds linked children across projects without sending requests to the caller', async () => {
     const { call, connect, source, target } = fixture()
     expect(await call('CreateThread', { initiation: 'userAsked', title: child.title, prompt: 'Run tests', project: library.id }))

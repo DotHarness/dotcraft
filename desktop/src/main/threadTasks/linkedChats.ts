@@ -89,10 +89,10 @@ export class DesktopLinkedChats {
     return link && viewLinkedChat(link)
   }
 
-  workspacePathBetween(source: LinkedChatRef, targetThreadId: string): string | undefined {
+  linkedProjectBetween(source: LinkedChatRef, targetThreadId: string): string | undefined {
     for (const { parent, child } of this.store.all().reverse()) {
-      if (targetThreadId === child.threadId && sameChat(source, parent)) return child.workspacePath
-      if (targetThreadId === parent.threadId && sameChat(source, child)) return parent.workspacePath
+      if (targetThreadId === child.threadId && sameChat(source, parent)) return child.projectId
+      if (targetThreadId === parent.threadId && sameChat(source, child)) return parent.projectId
     }
   }
 

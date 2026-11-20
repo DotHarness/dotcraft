@@ -86,9 +86,9 @@ describe('linked chat registry', () => {
     const reopened = new DesktopLinkedChats(filePath)
     expect(reopened.list(PARENT).map(({ child }) => child.threadId)).toEqual(['second-child', 'child'])
     expect(reopened.find(otherParent, CHILD.threadId)).toBeUndefined()
-    expect(reopened.workspacePathBetween(PARENT, CHILD.threadId)).toBe(CHILD.workspacePath)
-    expect(reopened.workspacePathBetween(CHILD, PARENT.threadId)).toBe(PARENT.workspacePath)
-    expect(reopened.workspacePathBetween(otherParent, CHILD.threadId)).toBeUndefined()
+    expect(reopened.linkedProjectBetween(PARENT, CHILD.threadId)).toBe(CHILD.projectId)
+    expect(reopened.linkedProjectBetween(CHILD, PARENT.threadId)).toBe(PARENT.projectId)
+    expect(reopened.linkedProjectBetween(otherParent, CHILD.threadId)).toBeUndefined()
 
     const parent = appServer(PARENT)
     reopened.connected(parent.connection)

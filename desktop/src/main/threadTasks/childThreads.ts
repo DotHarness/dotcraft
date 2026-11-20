@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { ThreadProject, ThreadProjectHost } from './threadProjects'
+import { currentThreadProject, type ThreadProject, type ThreadProjectHost } from './threadProjects'
 import type { AppServerRequestClient } from '../desktopRuntimeThreadTools'
 import { STANDALONE_CHAT_INSTRUCTIONS } from '../../shared/chatFolders'
 import { TASK_LIST_INSTRUCTIONS, withTaskListInstructions } from '../../shared/taskListInstructions'
@@ -39,6 +39,7 @@ interface ChildThreadWire {
 export interface ChildThread extends ChildThreadWire {
   id: string
   workspacePath: string
+  projectId: string
 }
 
 export interface ChildThreadSpec {
@@ -106,7 +107,7 @@ export async function createChildThread(connection: ThreadTaskConnection, spec: 
       },
       options.environmentPath ? null : WORKTREE_CREATION_TIMEOUT_MS
     )
-    const thread = requireThread(result.thread, connection.workspacePath, 'worktree/createAndStart')
+    const thread = requireThread(result.thread, connection, 'worktree/createAndStart')
     if (result.setup?.status === 'failed') {
       await connection.request('thread/unsubscribe', { threadId: thread.id })
       const tail = result.setup.outputTail?.trim()
@@ -123,7 +124,7 @@ export async function createChildThread(connection: ThreadTaskConnection, spec: 
   }
   params.config = config
   const result = await connection.request<{ thread?: ChildThreadWire }>('thread/start', params)
-  return requireThread(result.thread, connection.workspacePath, 'thread/start')
+  return requireThread(result.thread, connection, 'thread/start')
 }
 
 export async function startChildTurn(
@@ -144,7 +145,7 @@ export async function startChildTurn(
   }
 }
 
-function requireThread(thread: ChildThreadWire | undefined, workspacePath: string, method: string): ChildThread {
+function requireThread(thread: ChildThreadWire | undefined, connection: ThreadTaskConnection, method: string): ChildThread {
   if (!thread?.id) throw new Error(`${method} did not return a thread id.`)
-  return { ...thread, id: thread.id, workspacePath }
+  return { ...thread, id: thread.id, workspacePath: connection.workspacePath, projectId: currentThreadProject(connection).id }
 }

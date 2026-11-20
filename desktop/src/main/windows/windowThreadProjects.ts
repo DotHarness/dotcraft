@@ -1,7 +1,9 @@
 import { basename } from 'node:path'
+import { normalizeSshMachines } from '../../shared/sshMachines'
+import { isRemoteProjectKey } from '../../shared/workspaceProjectKey'
 import { isDefaultChatWorkspace, resolveDefaultChatWorkspacePath } from '../defaultChatWorkspace'
 import type { LinkedChatConnection } from '../threadTasks/linkedChats'
-import type { ThreadProject, ThreadProjectLocation } from '../threadTasks/threadProjects'
+import { notConnectedMessage, ThreadProjectError, type ThreadProject, type ThreadProjectLocation } from '../threadTasks/threadProjects'
 import type { DesktopWindowRuntime } from './windowRuntime'
 import type { WorkspaceConnectionEntry } from './windowTypes'
 
@@ -12,11 +14,15 @@ const observed = new WeakMap<WorkspaceConnectionEntry, LinkedChatConnection>()
 
 export function threadProjectForEntry(ctx: DesktopWindowRuntime, entry: WorkspaceConnectionEntry): ThreadProject {
   const path = entry.workspacePath
-  const name = entry.kind === 'remote'
-    ? entry.remoteProject?.name ?? entry.displayPath ?? path
-    : isDefaultChatWorkspace(path)
-      ? 'Chats'
-      : ctx.app.localProjects.list().find(project => ctx.localProjectId(project.path) === entry.projectId)?.displayName || basename(path)
+  if (entry.kind === 'remote') {
+    return {
+      id: entry.projectId, name: entry.remoteProject?.name ?? entry.displayPath ?? path, path, running: entry.connected,
+      machine: entry.remote?.serverName
+    }
+  }
+  const name = isDefaultChatWorkspace(path)
+    ? 'Chats'
+    : ctx.app.localProjects.list().find(project => ctx.localProjectId(project.path) === entry.projectId)?.displayName || basename(path)
   return { id: entry.projectId, name, path, running: entry.connected }
 }
 
@@ -32,8 +38,25 @@ export async function listThreadProjects(ctx: DesktopWindowRuntime): Promise<Thr
     { id: ctx.localProjectId(chatPath), name: 'Chats', path: chatPath, running: chatRunning },
     ...ctx.app.localProjects.list().filter(project => !isDefaultChatWorkspace(project.path)).map(project => ({
       id: ctx.localProjectId(project.path), name: project.displayName || basename(project.path), path: project.path, running: project.running
-    }))
+    })),
+    ...[...ctx.workspaceConnections.values()].filter(isReachableRemote).map(entry => threadProjectForEntry(ctx, entry))
   ]
+}
+
+function isReachableRemote(entry: WorkspaceConnectionEntry): boolean {
+  return entry.kind === 'remote' && (entry.remote?.source === 'ssh' || entry.remote?.source === 'device') &&
+    (entry.connected || entry.connecting)
+}
+
+export function disconnectedThreadProjectName(ctx: DesktopWindowRuntime, id: string): string | undefined {
+  for (const machine of normalizeSshMachines(ctx.settings.remoteHosts)) {
+    for (const project of machine.projects) {
+      if (ctx.sshRemoteProjectId(machine.id, project.id) === id) return project.label
+    }
+  }
+  for (const { computer, project } of ctx.app.pairedComputers.savedProjects()) {
+    if (ctx.deviceRemoteProjectId(computer.computerId, project.projectId) === id) return project.displayName
+  }
 }
 
 export function openThreadProject(ctx: DesktopWindowRuntime, project: ThreadProjectLocation): Promise<WorkspaceConnectionEntry> {
@@ -51,7 +74,9 @@ export function openThreadProject(ctx: DesktopWindowRuntime, project: ThreadProj
   async function open(): Promise<WorkspaceConnectionEntry> {
     if (ctx.runtimeIsStopping()) throw new Error('Desktop is closing.')
     const current = ctx.workspaceConnections.get(project.id)
-    if (!current?.connected && !current?.connecting) {
+    if (isRemoteProjectKey(project.id)) {
+      if (!current || !isReachableRemote(current)) throw new ThreadProjectError('ProjectUnavailable', notConnectedMessage(project.name))
+    } else if (!current?.connected && !current?.connecting) {
       if (isDefaultChatWorkspace(project.path)) await ctx.ensureDefaultChatConnection()
       else await ctx.startLocalProjectConnection(project.path)
     }
