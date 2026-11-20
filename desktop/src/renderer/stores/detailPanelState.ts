@@ -48,6 +48,7 @@ export interface ViewerTabActions {
     projectKey?: string
     browserStorageId?: string
     restore?: BrowserRestoreIntent
+    insertAfterTabId?: string
   }): string
   openTerminal(params: {
     threadId: string

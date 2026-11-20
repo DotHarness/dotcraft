@@ -126,6 +126,18 @@ describe('openBrowser / updateBrowserTab', () => {
     expect(threadState.activeTabId).toBe(id)
   })
 
+  it('inserts a duplicated browser tab directly after its source with its own page storage', () => {
+    const source = store().openBrowser({ threadId: THREAD_A, initialUrl: 'https://example.com/a' })
+    const last = openFile(THREAD_A, 'src/index.ts')
+    const copy = store().openBrowser({ threadId: THREAD_A, initialUrl: 'https://example.com/a', insertAfterTabId: source })
+
+    const { tabs, activeTabId } = store().getThreadState(THREAD_A)
+    expect(tabs.map((tab) => tab.id)).toEqual([source, copy, last])
+    expect(activeTabId).toBe(copy)
+    const [first, second] = tabs as Array<{ browserStorageId?: string }>
+    expect(second.browserStorageId).not.toBe(first.browserStorageId)
+  })
+
   it('deduplicates caller-provided browser tab ids and can register without activating', () => {
     const fileId = openFile(THREAD_A, 'src/index.ts')
     const first = store().openBrowser({

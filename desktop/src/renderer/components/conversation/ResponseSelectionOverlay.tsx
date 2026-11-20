@@ -6,6 +6,7 @@ import { useThreadStore } from '../../stores/threadStore'
 import { askInSideChat, useCanOpenSideChat } from '../../utils/sideChat'
 import { Button } from '../ui/Button'
 import { ContextCommentEditor } from './ContextCommentEditor'
+import { sendComposer } from './composerSend'
 import { useResponseSelectionStore, type ResponseSelection } from './responseSelectionStore'
 
 export function ResponseSelectionOverlay({ selection }: { selection: ResponseSelection }): JSX.Element {
@@ -88,6 +89,11 @@ export function ResponseSelectionOverlay({ selection }: { selection: ResponseSel
     window.getSelection()?.removeAllRanges()
   }
 
+  function addAndSend(comment: string): void {
+    add(comment)
+    sendComposer(selection.threadId, t)
+  }
+
   function askSide(): void {
     askInSideChat(selection.threadId, annotation(''), t)
     cancel()
@@ -99,7 +105,7 @@ export function ResponseSelectionOverlay({ selection }: { selection: ResponseSel
       onContextMenu={(event) => event.stopPropagation()}>
       {selection.editing ? (
         <ContextCommentEditor initialComment={useResponseSelectionStore.getState().drafts[selection.draftKey] ?? ''}
-          onCommentChange={setDraft} onSave={add} onCancel={cancel} />
+          onCommentChange={setDraft} onSave={add} onSend={addAndSend} onCancel={cancel} />
       ) : (
         <div className="dc-response-feedback__actions" role="toolbar" aria-label={t('composer.context.selectedText')}
           onMouseDown={(event) => event.preventDefault()}>

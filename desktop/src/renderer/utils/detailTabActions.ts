@@ -21,6 +21,28 @@ interface AddTabActionContext {
   t: TranslateFn
 }
 
+export function openBrowserTab({ url, label, insertAfterTabId }: {
+  url?: string
+  label: string
+  insertAfterTabId?: string
+}): void {
+  const threadId = activeDetailScopeId()
+  const viewer = useDetailPanelStore.getState()
+  if (!threadId || !viewer.currentWorkspacePath) return
+  const tabId = viewer.openBrowser({ threadId, initialUrl: url, initialLabel: label, insertAfterTabId })
+  viewer.setActiveViewerTab(tabId)
+  const tab = viewer.getThreadState(threadId).tabs.find(item => item.id === tabId)
+  if (tab?.kind === 'browser') void window.api.workspace.viewer.browser.create({
+    tabId,
+    threadId,
+    workspacePath: viewer.currentWorkspacePath,
+    projectKey: viewer.currentProjectKey,
+    browserStorageId: tab.browserStorageId,
+    restore: tab.restore ?? 'none',
+    ...(url ? { initialUrl: url } : {})
+  })
+}
+
 export function performAddTabAction(action: AddTabMenuAction, ctx: AddTabActionContext): void {
   const ui = useUIStore.getState()
 
@@ -49,17 +71,7 @@ export function performAddTabAction(action: AddTabMenuAction, ctx: AddTabActionC
   }
 
   if (action === 'newBrowser') {
-    const tabId = viewer.openBrowser({ threadId, initialLabel: t('viewer.newBrowserTab') })
-    useDetailPanelStore.getState().setActiveViewerTab(tabId)
-    const tab = viewer.getThreadState(threadId).tabs.find(item => item.id === tabId)
-    if (tab?.kind === 'browser') void window.api.workspace.viewer.browser.create({
-      tabId,
-      threadId,
-      workspacePath: viewer.currentWorkspacePath!,
-      projectKey: viewer.currentProjectKey,
-      browserStorageId: tab.browserStorageId,
-      restore: tab.restore ?? 'none'
-    })
+    openBrowserTab({ label: t('viewer.newBrowserTab') })
     return
   }
 

@@ -135,7 +135,8 @@ export const createViewerActions: StateCreator<DetailPanelStore, [], [], Pick<De
       activate = true,
       projectKey,
       browserStorageId,
-      restore
+      restore,
+      insertAfterTabId
     }) {
       const state = get()
       const threadState = state.getThreadState(threadId, projectKey)
@@ -179,7 +180,11 @@ export const createViewerActions: StateCreator<DetailPanelStore, [], [], Pick<De
         canGoBack: false,
         canGoForward: false
       }
-      const newTabs = computeLabels([...threadState.tabs, newTab])
+      const insertAt = insertAfterTabId ? threadState.tabs.findIndex((tab) => tab.id === insertAfterTabId) + 1 : 0
+      const ordered = insertAt > 0
+        ? [...threadState.tabs.slice(0, insertAt), newTab, ...threadState.tabs.slice(insertAt)]
+        : [...threadState.tabs, newTab]
+      const newTabs = computeLabels(ordered)
       set((s) => {
         const next = new Map(s.byThread)
         next.set(get().scopeKey(threadId, projectKey), {

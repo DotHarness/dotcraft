@@ -14,6 +14,7 @@ import { modelReviewCommentsForFile, parseModelReviewComments } from '../../../u
 import { LineCommentCard, ModelLineCommentCard, lineCommentLabel } from '../../code/LineCommentCard'
 import { Button } from '../../ui/Button'
 import { sameFilePath } from '../../../../shared/workspaceProjectKey'
+import { sendComposer } from '../../conversation/composerSend'
 
 interface Anchor {
   line: number
@@ -217,6 +218,11 @@ export function FileEditorComments({
               onSubmit={(value) => {
                 contextsStore.addContext(threadId, { ...entry, comment: value })
                 draftsStore.close(threadId, entry.id)
+              }}
+              onSend={(value) => {
+                contextsStore.addContext(threadId, { ...entry, comment: value })
+                draftsStore.close(threadId, entry.id)
+                sendComposer(threadId, t)
               }}
               onClose={() => draftsStore.close(threadId, entry.id)}
             />,

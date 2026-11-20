@@ -69,7 +69,7 @@ Line comments belong to the Changes panel diff (unified and split) and to text f
 
 In a diff, a comment starts from a per-row add control on the line-number edge (hover or keyboard focus). Line numbers select lines, Shift+click extends on the same side, and the add control on a selection comments on the whole selection; dragging from it selects a range. In a file preview, a comment starts from a Comment action beside a non-empty text selection; rendered Markdown switches to source first. A line that already ends a comment or open draft does not start another.
 
-A draft opens focused with Cancel, dictation, and Comment, which stays disabled while empty. Enter submits and returns focus to the task composer, Shift+Enter inserts a newline, Escape or Cancel discards. Any number of drafts may be open; they persist in memory per thread until submitted or discarded. A submitted comment stays on its line and can be edited (with Cancel restoring the saved text) or deleted. The card names its author and its line as `L` (old side) or `R` (new side) with the line number or range.
+A draft opens focused with Cancel, dictation, and Comment, which stays disabled while empty. Enter submits and returns focus to the task composer, Ctrl/⌘+Enter submits and sends the task composer, Shift+Enter inserts a newline, Escape or Cancel discards. Any number of drafts may be open; they persist in memory per thread until submitted or discarded. A submitted comment stays on its line and can be edited (with Cancel restoring the saved text) or deleted. The card names its author and its line as `L` (old side) or `R` (new side) with the line number or range.
 
 ### Composer summary
 
@@ -79,7 +79,7 @@ The composer summarizes feedback in two counts: line comments, and page plus res
 - The annotations list shows page annotations first, then numbered response annotations with their selected text and comment, each editable and removable.
 - Sent messages show the same summaries read-only.
 
-The compact annotation editor offers dictation while empty and a confirm action once populated, never submits empty text, and keeps its height stable as actions change. Dictation targets the active comment and never replaces the task composer draft.
+The compact annotation editor offers dictation while empty and a confirm action once populated, never submits empty text, and keeps its height stable as actions change. Enter adds the annotation to the task composer. Ctrl/⌘+Enter adds it and sends the task composer as its send action would, including queueing or steering while a turn runs. The confirm action's tooltip names both shortcuts. Editing a saved annotation only saves. If the task composer is not mounted, the annotation is still added and Desktop says it was not sent. Dictation targets the active comment and never replaces the task composer draft.
 
 ### Annotation data
 

@@ -9,6 +9,7 @@ import { useComposerContextStore } from '../../../stores/composerContextStore'
 import { useConversationStore } from '../../../stores/conversationStore'
 import { attachmentImageScope } from '../../conversation/imagePreview/galleryImages'
 import { ContextCommentEditor } from '../../conversation/ContextCommentEditor'
+import { sendComposer } from '../../conversation/composerSend'
 import { ActionTooltip } from '../../ui/ActionTooltip'
 import { Button } from '../../ui/Button'
 import { IconButton } from '../../ui/IconButton'
@@ -85,7 +86,7 @@ export function BrowserPageFeedback({
       }
     })
   }
-  function save(comment: string) {
+  function save(comment: string, send = false) {
     if (!reference || !threadId) return
     const selected = reference
     const source = attachmentImageScope(threadId).source
@@ -118,6 +119,7 @@ export function BrowserPageFeedback({
           : {}),
       })
       setReference(null)
+      if (send) sendComposer(threadId, t)
     })
   }
   const bounds = reference?.bounds
@@ -178,7 +180,8 @@ export function BrowserPageFeedback({
             >
               <ContextCommentEditor
                 key={reference.id}
-                onSave={save}
+                onSave={(comment) => save(comment)}
+                onSend={(comment) => save(comment, true)}
                 onCancel={() => setReference(null)}
               />
             </div>

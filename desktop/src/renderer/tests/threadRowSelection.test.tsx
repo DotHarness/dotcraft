@@ -60,7 +60,28 @@ describe('thread row selection', () => {
       workspace: { switch: vi.fn().mockResolvedValue(undefined) }
     })
     useThreadStore.getState().reset()
-    useUIStore.setState({ pendingProjectThreadOpen: null })
+    useUIStore.setState({ pendingProjectThreadOpen: null, activeMainView: 'conversation' })
+  })
+
+  it('moves the highlight off the active thread while another main view is shown', () => {
+    useThreadStore.getState().setActiveThreadId('thread-a')
+    const row = renderHook(() => useThreadRowSelected('thread-a'), { wrapper: Placement })
+    expect(row.result.current).toBe(true)
+
+    act(() => useUIStore.getState().setActiveMainView('desktop-plugin:memory:studio'))
+    expect(row.result.current).toBe(false)
+
+    act(() => useUIStore.getState().setActiveMainView('conversation'))
+    expect(row.result.current).toBe(true)
+  })
+
+  it('highlights a pending project thread opened from another main view', () => {
+    useUIStore.getState().setActiveMainView('automations')
+    const pending = renderHook(() => useThreadRowSelected(THREAD_B.id), { wrapper: Placement })
+
+    act(() => openPending())
+
+    expect(pending.result.current).toBe(true)
   })
 
   it('promotes local Chats before clearing a remote conversation for Recents New Chat', async () => {

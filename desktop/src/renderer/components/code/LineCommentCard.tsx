@@ -9,6 +9,7 @@ import { VoiceInputControl } from '../conversation/VoiceInputControl'
 import { focusComposer } from '../conversation/composerFocus'
 import { useCommentVoice } from '../conversation/useCommentVoice'
 import './line-comment.css'
+import { isSendNowShortcut } from '../conversation/composerSend'
 
 type Translate = ReturnType<typeof useT>
 
@@ -62,6 +63,7 @@ export function LineCommentCard({
   initialComment,
   onChange,
   onSubmit,
+  onSend,
   onClose,
   onDelete
 }: {
@@ -70,6 +72,7 @@ export function LineCommentCard({
   initialComment: string
   onChange?: (comment: string) => void
   onSubmit: (comment: string) => void
+  onSend?: (comment: string) => void
   onClose?: () => void
   onDelete?: () => void
 }): JSX.Element {
@@ -97,9 +100,10 @@ export function LineCommentCard({
     element.style.overflowY = element.scrollHeight > 240 ? 'auto' : 'hidden'
   }, [comment])
 
-  function submit() {
+  function submit(send = false) {
     if (!canSubmit) return
-    onSubmit(comment)
+    if (send && onSend && !saved) onSend(comment)
+    else onSubmit(comment)
     setEditing(false)
     input.current?.blur()
     focusComposer()
@@ -127,7 +131,7 @@ export function LineCommentCard({
         {t('common.cancel')}
       </Button>
       <VoiceInputControl threadId={voice.origin} enableShortcut={false} compact />
-      <Button size="sm" variant="primary" disabled={!canSubmit} onClick={submit}>
+      <Button size="sm" variant="primary" disabled={!canSubmit} onClick={() => submit()}>
         {saved ? t('lineComment.save') : t('lineComment.comment')}
       </Button>
     </>
@@ -175,7 +179,7 @@ export function LineCommentCard({
             onClose?.()
           } else if (event.key === 'Enter' && !event.shiftKey && !event.altKey) {
             event.preventDefault()
-            submit()
+            submit(isSendNowShortcut(event))
           }
         }}
       />

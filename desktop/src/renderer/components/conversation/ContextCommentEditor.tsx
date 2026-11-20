@@ -5,17 +5,24 @@ import { Textarea } from '../ui/Input'
 import { Button } from '../ui/Button'
 import { VoiceInputControl } from './VoiceInputControl'
 import { useCommentVoice } from './useCommentVoice'
+import { ActionTooltip } from '../ui/ActionTooltip'
+import { formatShortcutParts } from '../ui/shortcutKeys'
+import { isSendNowShortcut } from './composerSend'
+
+const SEND_NOW_SHORTCUT = ['Mod', 'Enter'] as const
 
 export function ContextCommentEditor({
   initialComment = '',
   mode = 'create',
   onSave,
+  onSend,
   onCancel,
   onCommentChange,
 }: {
   initialComment?: string
   mode?: 'create' | 'edit'
   onSave: (comment: string) => void
+  onSend?: (comment: string) => void
   onCancel: () => void
   onCommentChange?: (comment: string) => void
 }): JSX.Element {
@@ -28,6 +35,7 @@ export function ContextCommentEditor({
   const input = useRef<HTMLTextAreaElement>(null)
   const voice = useCommentVoice(comment, setComment)
   const hasText = comment.trim().length > 0
+  const sendNow = mode === 'create' ? onSend : undefined
   useLayoutEffect(() => {
     const element = input.current
     if (!element) return
@@ -64,7 +72,9 @@ export function ContextCommentEditor({
             !voice.busy
           ) {
             event.preventDefault()
-            if (hasText) onSave(comment)
+            if (!hasText) return
+            if (sendNow && isSendNowShortcut(event)) sendNow(comment)
+            else onSave(comment)
           }
         }}
       />
@@ -91,15 +101,23 @@ export function ContextCommentEditor({
             </Button>
           </>
         ) : hasText && !voice.busy ? (
-          <Button
-            variant="primary"
-            size="iconSm"
-            className="dc-context-comment-editor__submit"
-            aria-label={t('composer.context.save')}
-            onClick={() => onSave(comment)}
+          <ActionTooltip
+            label={t('composer.context.addToMessage')}
+            shortcut={['Enter']}
+            detail={sendNow
+              ? t('composer.context.sendNowHint', { shortcut: formatShortcutParts(SEND_NOW_SHORTCUT).join('+') })
+              : undefined}
           >
-            <Check size={17} aria-hidden />
-          </Button>
+            <Button
+              variant="primary"
+              size="iconSm"
+              className="dc-context-comment-editor__submit"
+              aria-label={t('composer.context.save')}
+              onClick={() => onSave(comment)}
+            >
+              <Check size={17} aria-hidden />
+            </Button>
+          </ActionTooltip>
         ) : null}
       </div>
     </div>

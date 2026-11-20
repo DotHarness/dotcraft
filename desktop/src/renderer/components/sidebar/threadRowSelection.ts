@@ -20,9 +20,10 @@ const useSelectionOriginStore = create<{ origin: SelectionOrigin | null }>(() =>
 export function useThreadRowSelected(threadId: string): boolean {
   const { listId, home } = useContext(ThreadRowPlacementContext)
   const active = useThreadStore((s) => s.activeThreadId === threadId)
+  const conversationShown = useUIStore((s) => s.activeMainView === 'conversation')
   const pendingThreadId = useUIStore((s) => s.pendingProjectThreadOpen?.threadId ?? null)
   const origin = useSelectionOriginStore((s) => (s.origin?.threadId === threadId ? s.origin : null))
-  if (pendingThreadId != null ? pendingThreadId !== threadId : !active) return false
+  if (pendingThreadId != null ? pendingThreadId !== threadId : !(active && conversationShown)) return false
   return origin ? origin.listId === listId : home
 }
 

@@ -29,13 +29,9 @@ import { ActionTooltip } from '../ui/ActionTooltip'
 import { ACTION_SHORTCUTS, formatShortcutParts, type ShortcutSpec } from '../ui/shortcutKeys'
 import { performAddTabAction } from '../../utils/detailTabActions'
 import { IconButton } from '../ui/IconButton'
-import { ContextMenu, type ContextMenuEntry, type ContextMenuPosition } from '../ui/ContextMenu'
-import {
-  currentDetailTabOrder,
-  detailTabMenuState,
-  useDetailPanelTabClose,
-  type DetailTabRef
-} from './useDetailPanelTabClose'
+import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
+import { useDetailPanelTabClose, type DetailTabRef } from './useDetailPanelTabClose'
+import { useDetailTabMenuItems } from './detailTabMenu'
 import { useTabStripOverflow } from './useTabStripOverflow'
 import { useHostFilesUnavailable } from '../../hooks/useHostFilesUnavailable'
 
@@ -109,18 +105,10 @@ export function DetailPanel({
     [...systemTabs, ...viewerTabs.map((tab) => tab.id)].join('|')
   )
 
-  const { closeTab, closeOtherTabs, closeTabsToRight } = useDetailPanelTabClose()
+  const tabClose = useDetailPanelTabClose()
+  const { closeTab } = tabClose
   const [tabMenu, setTabMenu] = useState<{ ref: DetailTabRef; position: ContextMenuPosition } | null>(null)
-
-  const tabMenuItems = (ref: DetailTabRef): ContextMenuEntry[] => {
-    const { canCloseOthers, canCloseRight } = detailTabMenuState(currentDetailTabOrder(), ref)
-    const icon = <X size={14} aria-hidden />
-    return [
-      { label: t('detailPanel.tabMenu.close'), icon, onClick: () => { void closeTab(ref) } },
-      { label: t('detailPanel.tabMenu.closeOthers'), icon, disabled: !canCloseOthers, onClick: () => { void closeOtherTabs(ref) } },
-      { label: t('detailPanel.tabMenu.closeRight'), icon, disabled: !canCloseRight, onClick: () => { void closeTabsToRight(ref) } }
-    ]
-  }
+  const tabMenuItems = useDetailTabMenuItems(tabClose, remoteWorkspace)
 
   const handleAddTabAction = (action: AddTabMenuAction | null): void => {
     if (!action) return

@@ -30,6 +30,7 @@ import {
   lineCommentLabel,
 } from '../../code/LineCommentCard'
 import { diffHunkExcerpt } from './diffRows'
+import { sendComposer } from '../../conversation/composerSend'
 
 type Side = 'left' | 'right'
 interface Selection {
@@ -228,6 +229,11 @@ export function DiffFeedbackProvider({
             onSubmit={(comment) => {
               contextsStore.addContext(threadId, { ...entry, comment })
               draftsStore.close(threadId, entry.id)
+            }}
+            onSend={(comment) => {
+              contextsStore.addContext(threadId, { ...entry, comment })
+              draftsStore.close(threadId, entry.id)
+              sendComposer(threadId, t)
             }}
             onClose={() => draftsStore.close(threadId, entry.id)}
           />

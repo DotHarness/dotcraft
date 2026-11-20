@@ -149,6 +149,7 @@ The update UI reports preparation, prevents duplicate installation, and preserve
 - Users can create named **sections** between Pinned and Projects to group projects and individual chats by purpose without changing their folders. Sections appear in creation order, collapse independently, and are Desktop-local. Each project or chat sits in exactly one place: a section member leaves Projects, its project's thread list, and Recents. Moving a pinned item into a section unpins it, and pinning a section member shows it under Pinned until it is unpinned. Removing a section returns its members to their usual places. A member whose project or thread no longer exists is not shown, and removing a local project drops it and its chats from every section.
 - Recents can optionally also list unpinned threads of loaded projects; a thread shown in two places is highlighted only where it was selected.
 - Selecting a thread in another project highlights its row immediately and removes the previous highlight, before that project is promoted and its thread list reloads. The highlight is withdrawn if the thread cannot be opened.
+- The sidebar highlights exactly one current destination. A thread row is highlighted only while the conversation surface shows it. Opening another main view (Agents, Skills, Plugins, Automations, Channels, Settings, or an extension page) moves the highlight to that destination, and the thread's running and waiting indicators remain. Returning to the thread restores its highlight.
 - A project title's color reflects whether its workspace is started, not whether it is foreground, so switching projects does not recolor the rail.
 - The Projects section is sourced from Hub's project list for local workspaces, remote projects saved for SSH machines and paired computers, and the active remote foreground project. Adding or removing a local project goes through Hub so every window and paired device agree; Desktop re-reads the list on `projects.changed`. Stopped local projects appear without being started eagerly, except for the bounded recent-project startup restore in §3.3.
 - Local and remote projects keep distinct identities so remote threads never appear under the local workspace that initiated the remote connection.
@@ -1248,6 +1249,12 @@ Surfaces beyond the conversation follow the same rules: protocol-driven behavior
 - The right-side viewer panel coexists with the changes, plan, and terminal tabs and hosts native file viewers, embedded browser tabs, and terminals.
 - It belongs to the conversation surface: an open thread and Welcome show it; other main views hide it without changing its saved state. [Thread Panels](../features/desktop-thread-panels.md) owns per-project/thread tabs, selection, visibility, durable recovery and resource lifetime. Thread/project switches change presentation, not ownership; transcript warm-cache release never closes panel resources.
 - On Welcome, the panel belongs to the foreground project's Welcome draft (open state, tabs, unsent comments). It offers only what works without a thread (files, browser, terminal), and comments and files added from it attach to the Welcome composer. When the first message creates the thread, that panel state moves to the thread with live terminal and browser sessions intact, and Welcome starts fresh.
+
+**Tab strip**
+
+- Middle-click closes a tab. Each tab's context menu ends with Close, Close other tabs, and Close tabs to the right.
+- A browser tab's menu first offers New tab to the right, Reload, Duplicate tab, and, for a loaded page, Copy URL and Open in system browser. Duplicate tab opens the current URL in a new focused tab immediately to its right that shares the workspace browser profile, so sign-ins carry over, but back/forward history is not copied.
+- A file tab's menu first offers Copy path and, in a local workspace, Open in Explorer.
 
 **File links**
 

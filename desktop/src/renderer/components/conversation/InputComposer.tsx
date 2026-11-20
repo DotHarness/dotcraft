@@ -51,6 +51,7 @@ import { captureComposerAttachmentTarget, prepareComposerAttachments, describeCo
 import { droppedWebLink, insertDroppedLink } from './composerLinkDrop'
 import { PendingMessageIndicator } from './PendingMessageIndicator'
 import { RichInputArea, type ComposerSubmitOptions, type RichInputAreaHandle } from './RichInputArea'
+import { registerComposerSend } from './composerSend'
 import { AttachmentStrip } from './AttachmentStrip'
 import { ComposerContextAttachments } from './ComposerContextAttachments'
 import { FileSearchPopover } from './FileSearchPopover'
@@ -1504,6 +1505,7 @@ function InputComposerCore({
     }
     void sendMessage(undefined, options)
   }, [isBusyForInput, sendMessage, voiceRecording])
+  useEffect(() => registerComposerSend(threadId, () => { void sendMessage() }), [threadId, sendMessage])
 
   const onSelectFile = useCallback(
     (relativePath: string): void => {
