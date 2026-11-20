@@ -71,7 +71,12 @@ internal readonly record struct McpConnectionIdentity(string Configuration, stri
 
         var bytes = JsonSerializer.SerializeToUtf8Bytes(new
         {
-            config.Name, config.Enabled, Transport = config.NormalizedTransport, Origin = config.Origin.Kind, Inputs = inputs
+            config.Name,
+            config.Enabled,
+            Transport = config.NormalizedTransport,
+            Origin = config.Origin.Kind,
+            config.Origin.PluginFingerprint,
+            Inputs = inputs
         });
         return Convert.ToHexStringLower(SHA256.HashData(bytes));
     }

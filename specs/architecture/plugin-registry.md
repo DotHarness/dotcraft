@@ -218,10 +218,10 @@ Installing a marketplace plugin must:
 - validate the plugin manifest id against the marketplace entry name;
 - reject the install when the plugin id is already installed from another plugin key or by a user-owned plugin;
 - copy the plugin directory to the user-global root at `<craft-home>/plugins/<pluginName>`;
-- write a managed marker recording the marketplace it came from, for DotCraft-owned refresh/removal behavior;
+- write a managed marker recording the marketplace name and canonical source identity, for DotCraft-owned refresh and removal behavior;
 - refresh plugin-contributed skills, apps, MCP/LSP servers, and Desktop module metadata through the normal plugin runtime.
 
-User-owned plugins without a managed marker are never overwritten by marketplace install, refresh, or startup reconciliation. Updates apply to a managed install only from the marketplace recorded in its marker, so another marketplace offering the same plugin id never replaces it.
+User-owned plugins without a managed marker are never overwritten by marketplace install, refresh, or startup reconciliation. Updates apply to a managed install only from the marketplace and source recorded in its marker, so another workspace or marketplace reusing the same marketplace name and plugin id never replaces it. Startup reconciliation skips marketplace installs whose recorded source identity is missing or differs from the active catalog source.
 
 ## 10. Security and Trust Boundaries
 

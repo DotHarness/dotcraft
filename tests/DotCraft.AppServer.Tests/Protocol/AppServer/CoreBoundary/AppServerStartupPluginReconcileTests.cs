@@ -198,6 +198,146 @@ public sealed class AppServerStartupPluginReconcileTests : IDisposable
         Assert.False(Directory.Exists(Path.Combine(Installed, "catalog-demo")));
     }
 
+    [Fact]
+    public async Task RunStartupSync_PreservesWorkspaceEmptyRegistriesAndExpandedEnvUrls()
+    {
+        var globalMarketplaceRoot = Path.Combine(_root, "global-mp");
+        WriteLocalMarketplace(globalMarketplaceRoot, "global-mp", "global-demo", "v1");
+        var globalConfig = new AppConfig.PluginsConfig
+        {
+            DisableDefaultPluginRegistry = true,
+            PluginRegistries =
+            [
+                new AppConfig.PluginRegistryConfig
+                {
+                    Name = "global-mp",
+                    SourceType = "local",
+                    Url = globalMarketplaceRoot
+                }
+            ]
+        };
+        new BuiltInPluginDeployer(Installed, [], globalConfig, UserData).DeployPlugin("global-demo@global-mp");
+        WriteLocalMarketplace(globalMarketplaceRoot, "global-mp", "global-demo", "v2");
+
+        var excludedConfig = new AppConfig.PluginsConfig
+        {
+            DisableDefaultPluginRegistry = true,
+            PluginRegistries = []
+        };
+        var managementState = new AppServerPluginManagementState();
+        using var harness = CreateHarness(excludedConfig, managementState, includeBundledRoots: false);
+        File.WriteAllText(
+            Path.Combine(UserData, "config.json"),
+            JsonSerializer.Serialize(new { Plugins = new { globalConfig.PluginRegistries } }));
+        File.WriteAllText(
+            Path.Combine(WorkspaceCraftPath, "config.json"),
+            """{"Plugins":{"PluginRegistries":[]}}""");
+        using (await harness.InitializeAsync()) { }
+
+        var refresher = CreateRefresher(harness, managementState, []);
+        var syncService = new PluginRegistrySyncService(UserData, handler: new StubHandler(HttpStatusCode.NotFound));
+        var notifications = new List<Contract.PluginSnapshotUpdatedNotification>();
+
+        await refresher.RunStartupSyncAsync(UserData, syncService, notifications.Add, CancellationToken.None);
+
+        Assert.Empty(notifications);
+        Assert.Equal("v1", File.ReadAllText(Path.Combine(Installed, "global-demo", "content.txt")));
+
+        const string expandedUrl = "https://registry.test/expanded.zip";
+        const string marketplacePath = ".craft/plugins/marketplace.json";
+        var expandedConfig = new AppConfig.PluginsConfig
+        {
+            DisableDefaultPluginRegistry = true,
+            PluginRegistries =
+            [
+                new AppConfig.PluginRegistryConfig
+                {
+                    Name = "env-mp",
+                    SourceType = "archive",
+                    Url = expandedUrl,
+                    MarketplacePath = marketplacePath
+                }
+            ]
+        };
+        var cache = new PluginRegistryArchiveCache(UserData);
+        cache.Activate(expandedUrl, marketplacePath, CreateRegistryArchive("env-mp", "env-demo", "old"));
+        new BuiltInPluginDeployer(Installed, [], expandedConfig, UserData).DeployPlugin("env-demo@env-mp");
+        cache.Invalidate(expandedUrl, marketplacePath);
+
+        File.WriteAllText(
+            Path.Combine(WorkspaceCraftPath, "config.json"),
+            """{"Plugins":{"PluginRegistries":[{"Name":"env-mp","SourceType":"archive","Url":"${REGISTRY_URL}"}]}}""");
+        harness.Monitor.Current.Plugins = expandedConfig;
+
+        var expandedSyncService = new PluginRegistrySyncService(
+            UserData,
+            handler: new StubHandler(HttpStatusCode.OK, CreateRegistryArchive("env-mp", "env-demo", "new")));
+        await refresher.RunStartupSyncAsync(UserData, expandedSyncService, notifications.Add, CancellationToken.None);
+
+        var notification = Assert.Single(notifications);
+        Assert.Equal(["env-demo"], notification.PluginIds.Value);
+        Assert.Equal("new", File.ReadAllText(Path.Combine(Installed, "env-demo", "content.txt")));
+    }
+
+    [Fact]
+    public async Task RunStartupSync_SkipsMarketplacePluginWhenActiveSourceDiffersFromInstalledSource()
+    {
+        var marketplaceA = Path.Combine(_root, "mp-a");
+        var marketplaceB = Path.Combine(_root, "mp-b");
+        WriteLocalMarketplace(marketplaceA, "team-mp", "shared-demo", "from-a");
+        WriteLocalMarketplace(marketplaceB, "team-mp", "shared-demo", "from-b");
+
+        var configA = new AppConfig.PluginsConfig
+        {
+            DisableDefaultPluginRegistry = true,
+            PluginRegistries =
+            [
+                new AppConfig.PluginRegistryConfig { Name = "team-mp", SourceType = "local", Url = marketplaceA }
+            ]
+        };
+        new BuiltInPluginDeployer(Installed, [], configA, UserData).DeployPlugin("shared-demo@team-mp");
+
+        var configB = new AppConfig.PluginsConfig
+        {
+            DisableDefaultPluginRegistry = true,
+            PluginRegistries =
+            [
+                new AppConfig.PluginRegistryConfig { Name = "team-mp", SourceType = "local", Url = marketplaceB }
+            ]
+        };
+        var managementState = new AppServerPluginManagementState();
+        using var harness = CreateHarness(configB, managementState, includeBundledRoots: false);
+        using (await harness.InitializeAsync()) { }
+
+        var refresher = CreateRefresher(harness, managementState, []);
+        var syncService = new PluginRegistrySyncService(UserData, handler: new StubHandler(HttpStatusCode.NotFound));
+        var notifications = new List<Contract.PluginSnapshotUpdatedNotification>();
+
+        await refresher.RunStartupSyncAsync(UserData, syncService, notifications.Add, CancellationToken.None);
+
+        Assert.Empty(notifications);
+        Assert.Equal("from-a", File.ReadAllText(Path.Combine(Installed, "shared-demo", "content.txt")));
+    }
+
+    private static void WriteLocalMarketplace(string root, string marketplaceName, string pluginId, string content)
+    {
+        Directory.CreateDirectory(Path.Combine(root, ".craft", "plugins"));
+        File.WriteAllText(Path.Combine(root, ".craft", "plugins", "marketplace.json"), $$"""
+            {
+              "name": "{{marketplaceName}}",
+              "plugins": [
+                {
+                  "name": "{{pluginId}}",
+                  "source": { "source": "local", "path": "./plugins/{{pluginId}}" },
+                  "policy": { "installation": "AVAILABLE", "authentication": "ON_INSTALL" },
+                  "category": "Testing"
+                }
+              ]
+            }
+            """);
+        WritePlugin(Path.Combine(root, "plugins", pluginId), pluginId, content);
+    }
+
     private AppServerTestHarness CreateHarness(
         AppConfig.PluginsConfig pluginsConfig,
         AppServerPluginManagementState managementState,

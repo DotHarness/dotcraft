@@ -1,12 +1,23 @@
 namespace DotCraft.Plugins;
 
-internal sealed record ManagedPluginMarker(string Fingerprint, string? MarketplaceName)
+internal sealed record ManagedPluginMarker(
+    string Fingerprint,
+    string? MarketplaceName,
+    string? SourceIdentity = null)
 {
     public const string FileName = ".builtin";
     private const string MarketplacePrefix = "marketplace=";
+    private const string SourcePrefix = "source=";
 
-    public string Format() =>
-        MarketplaceName == null ? Fingerprint : $"{Fingerprint}\n{MarketplacePrefix}{MarketplaceName}";
+    public string Format()
+    {
+        if (MarketplaceName == null)
+            return Fingerprint;
+
+        return string.IsNullOrWhiteSpace(SourceIdentity)
+            ? $"{Fingerprint}\n{MarketplacePrefix}{MarketplaceName}"
+            : $"{Fingerprint}\n{MarketplacePrefix}{MarketplaceName}\n{SourcePrefix}{SourceIdentity}";
+    }
 
     public static ManagedPluginMarker? Read(string pluginRoot)
     {
@@ -29,8 +40,16 @@ internal sealed record ManagedPluginMarker(string Fingerprint, string? Marketpla
     private static ManagedPluginMarker Parse(string text)
     {
         var lines = text.Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
-        var marketplace = lines.Skip(1)
-            .FirstOrDefault(static line => line.StartsWith(MarketplacePrefix, StringComparison.Ordinal))?[MarketplacePrefix.Length..];
-        return new ManagedPluginMarker(lines.FirstOrDefault() ?? string.Empty, marketplace);
+        string? marketplace = null;
+        string? source = null;
+        foreach (var line in lines.Skip(1))
+        {
+            if (line.StartsWith(MarketplacePrefix, StringComparison.Ordinal))
+                marketplace = line[MarketplacePrefix.Length..];
+            else if (line.StartsWith(SourcePrefix, StringComparison.Ordinal))
+                source = line[SourcePrefix.Length..];
+        }
+
+        return new ManagedPluginMarker(lines.FirstOrDefault() ?? string.Empty, marketplace, source);
     }
 }

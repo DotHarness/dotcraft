@@ -19,6 +19,9 @@ public sealed class McpServerOrigin
     public string? BindingId { get; set; }
 
     [JsonIgnore]
+    public string? PluginFingerprint { get; set; }
+
+    [JsonIgnore]
     public bool IsPlugin => string.Equals(Kind, "plugin", StringComparison.OrdinalIgnoreCase);
 
     [JsonIgnore]
@@ -32,13 +35,18 @@ public sealed class McpServerOrigin
 
     public static McpServerOrigin Workspace() => new() { Kind = "workspace" };
 
-    public static McpServerOrigin Plugin(string pluginId, string? pluginDisplayName, string declaredName) =>
+    public static McpServerOrigin Plugin(
+        string pluginId,
+        string? pluginDisplayName,
+        string declaredName,
+        string? pluginFingerprint = null) =>
         new()
         {
             Kind = "plugin",
             PluginId = pluginId,
             PluginDisplayName = pluginDisplayName,
-            DeclaredName = declaredName
+            DeclaredName = declaredName,
+            PluginFingerprint = pluginFingerprint
         };
 
     public static McpServerOrigin Thread(string threadId, string declaredName) =>
@@ -55,7 +63,8 @@ public sealed class McpServerOrigin
             PluginDisplayName = PluginDisplayName,
             DeclaredName = DeclaredName,
             ThreadId = ThreadId,
-            BindingId = BindingId
+            BindingId = BindingId,
+            PluginFingerprint = PluginFingerprint
         };
 }
 

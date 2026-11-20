@@ -77,11 +77,13 @@ internal sealed partial class PluginRequestHandler
             () => CreateMarketplaceManager().RefreshAsync(name, commitToken, appConfigMonitor?.Current?.Plugins))
             .ConfigureAwait(false);
 
+        SyncConfiguredMarketplaces();
         var refresh = await managedPluginRefresher.RefreshManagedPluginsLockedAsync(
                 PluginDataPath("user"),
                 name,
                 Contract.AppServerMethodNames.MarketplaceRefresh,
                 notifyWhenUnchanged: true,
+                requireSourceIdentity: false,
                 commitToken)
             .ConfigureAwait(false);
         var discovery = refresh.Discovery!;

@@ -166,6 +166,52 @@ public sealed class PluginMcpServerLoaderTests : IDisposable
             values.GetProperty("plugin_data").GetString());
     }
 
+    [Fact]
+    public async Task ConnectionIdentityChangesWhenManagedPluginFingerprintChanges()
+    {
+        var sourcePluginsRoot = Path.Combine(_root, "sources");
+        var installedPluginsRoot = Path.Combine(_root, "installed");
+        var sourcePlugin = Path.Combine(sourcePluginsRoot, "demo");
+        Directory.CreateDirectory(Path.Combine(sourcePlugin, ".craft-plugin"));
+        File.WriteAllText(Path.Combine(sourcePlugin, ".craft-plugin", "plugin.json"),
+            """{"schemaVersion":1,"id":"demo","version":"1.0.0","displayName":"Demo","description":"Test plugin","capabilities":["mcp"]}""");
+        File.WriteAllText(Path.Combine(sourcePlugin, ".mcp.json"),
+            JsonSerializer.Serialize(new { mcpServers = new { demo = new { command = "node", arguments = new[] { "${PLUGIN_ROOT}/server.js" } } } }));
+        File.WriteAllText(Path.Combine(sourcePlugin, "server.js"), "console.log('v1');");
+
+        var pluginsConfig = new AppConfig.PluginsConfig { DisableDefaultPluginRegistry = true };
+        var deployer = new BuiltInPluginDeployer(installedPluginsRoot, [sourcePluginsRoot], pluginsConfig);
+        deployer.DeployPlugin("demo@dotcraft-bundled");
+
+        var installedRoot = Path.Combine(installedPluginsRoot, "demo");
+        var dataPath = Path.Combine(_root, "data");
+        var v1Plugin = new DiscoveredPlugin(PluginManifestParser.Load(installedRoot).Manifest!, PluginDiscoverySourceKind.UserGlobal, installedRoot, Enabled: true);
+        var v1Inherited = Assert.Single(McpServerComposition.Compose(
+            "thread-1",
+            threadServers: null,
+            PluginMcpServerLoader.LoadPluginServers(v1Plugin, [], dataPath),
+            bindingServers: []));
+        var v1Identity = await McpConnectionIdentity.CreateAsync(v1Inherited, userDataPath: null, CancellationToken.None);
+
+        File.WriteAllText(Path.Combine(sourcePlugin, "server.js"), "console.log('v2');");
+        var diagnostics = new List<PluginDiagnostic>();
+        Assert.True(deployer.RefreshPlugin("demo@dotcraft-bundled", diagnostics, requireSourceIdentity: true));
+
+        var v2Plugin = new DiscoveredPlugin(PluginManifestParser.Load(installedRoot).Manifest!, PluginDiscoverySourceKind.UserGlobal, installedRoot, Enabled: true);
+        var v2Inherited = Assert.Single(McpServerComposition.Compose(
+            "thread-1",
+            threadServers: null,
+            PluginMcpServerLoader.LoadPluginServers(v2Plugin, [], dataPath),
+            bindingServers: []));
+        var v2Identity = await McpConnectionIdentity.CreateAsync(v2Inherited, userDataPath: null, CancellationToken.None);
+
+        Assert.Equal(v1Inherited.Command, v2Inherited.Command);
+        Assert.Equal(v1Inherited.Arguments, v2Inherited.Arguments);
+        Assert.False(string.IsNullOrWhiteSpace(v1Inherited.Origin.PluginFingerprint));
+        Assert.NotEqual(v1Inherited.Origin.PluginFingerprint, v2Inherited.Origin.PluginFingerprint);
+        Assert.NotEqual(v1Identity.Configuration, v2Identity.Configuration);
+    }
+
     private DiscoveredPlugin WritePlugin(object server, string directory = "plugin with spaces")
     {
         var root = Path.Combine(_root, directory);

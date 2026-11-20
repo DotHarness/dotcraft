@@ -222,9 +222,9 @@ internal sealed class AppServerManagedPluginRefresher(
         string? marketplaceName,
         string source,
         bool notifyWhenUnchanged,
+        bool requireSourceIdentity,
         CancellationToken ct)
     {
-        SyncConfiguredMarketplaces();
         var diagnostics = new List<PluginDiagnostic>();
         var deployer = new BuiltInPluginDeployer(
             Path.Combine(dataPath, "plugins"),
@@ -232,7 +232,7 @@ internal sealed class AppServerManagedPluginRefresher(
             appConfigMonitor?.Current.Plugins ?? new AppConfig.PluginsConfig(),
             dataPath,
             logger);
-        var pending = deployer.GetPendingUpdates(diagnostics, marketplaceName);
+        var pending = deployer.GetPendingUpdates(diagnostics, marketplaceName, requireSourceIdentity);
         if (pending.Count == 0 && !notifyWhenUnchanged)
         {
             PluginDiagnosticsLogger.Write(diagnostics, logger);
@@ -255,9 +255,7 @@ internal sealed class AppServerManagedPluginRefresher(
 
             try
             {
-                var deployment = deployer.DeployPlugin(pluginKey);
-                diagnostics.AddRange(deployment);
-                if (!deployment.Any(diagnostic => IsBlockingDeployDiagnosticForPlugin(diagnostic, pluginId)))
+                if (deployer.RefreshPlugin(pluginKey, diagnostics, requireSourceIdentity))
                     updatedIds.Add(pluginId);
             }
             finally
@@ -322,6 +320,7 @@ internal sealed class AppServerManagedPluginRefresher(
                     marketplaceName: null,
                     source,
                     notifyWhenUnchanged,
+                    requireSourceIdentity: true,
                     token)
                 .ConfigureAwait(false);
 

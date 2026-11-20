@@ -9,7 +9,33 @@ internal sealed record PluginRegistrySource(
     MarketplaceSourceKind Kind,
     string Url,
     string MarketplacePath,
-    bool IsDefault);
+    bool IsDefault,
+    string? Ref = null,
+    IReadOnlyList<string>? SparsePaths = null)
+{
+    public string CanonicalSourceIdentity()
+    {
+        var normalizedMarketplacePath = MarketplaceDocumentLoader.NormalizeRelativePath(MarketplacePath)
+            .Replace('\\', '/');
+        if (Kind == MarketplaceSourceKind.Git)
+        {
+            var sparse = SparsePaths is { Count: > 0 } ? string.Join(",", SparsePaths) : string.Empty;
+            return $"git|{Url}|{Ref ?? string.Empty}|{sparse}|{normalizedMarketplacePath}";
+        }
+
+        if (Uri.TryCreate(Url, UriKind.Absolute, out var uri)
+            && (string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)))
+        {
+            return $"archive|{uri.AbsoluteUri}|{normalizedMarketplacePath}";
+        }
+
+        var normalizedPath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(Url));
+        if (OperatingSystem.IsWindows())
+            normalizedPath = normalizedPath.ToUpperInvariant();
+        return $"local|{normalizedPath}|{normalizedMarketplacePath}";
+    }
+}
 
 internal static class PluginSourceRegistryCatalog
 {
@@ -87,9 +113,10 @@ internal static class PluginSourceRegistryCatalog
                 continue;
             }
 
+            var sourceIdentity = source.CanonicalSourceIdentity();
             foreach (var entry in document.Plugins)
             {
-                var plugin = BuildPluginSource(marketplaceName, registryRoot, marketplacePath, entry, diagnostics);
+                var plugin = BuildPluginSource(marketplaceName, sourceIdentity, registryRoot, marketplacePath, entry, diagnostics);
                 if (plugin != null)
                     plugins.Add(plugin);
             }
@@ -178,7 +205,9 @@ internal static class PluginSourceRegistryCatalog
                     source.Kind,
                     source.Value,
                     NormalizeOptional(configured.MarketplacePath) ?? DefaultMarketplacePath,
-                    IsDefault: false));
+                    IsDefault: false,
+                    source.Ref,
+                    source.SparsePaths));
             }
         }
 
@@ -187,6 +216,7 @@ internal static class PluginSourceRegistryCatalog
 
     private static BuiltInPluginSource? BuildPluginSource(
         string marketplaceName,
+        string sourceIdentity,
         string registryRoot,
         string marketplacePath,
         MarketplaceDocumentEntry entry,
@@ -283,7 +313,7 @@ internal static class PluginSourceRegistryCatalog
             return null;
         }
 
-        return new BuiltInPluginSource(parse.Manifest, pluginRoot, registryRoot, marketplaceName);
+        return new BuiltInPluginSource(parse.Manifest, pluginRoot, registryRoot, marketplaceName, sourceIdentity);
     }
 
     private static string? ResolveSnapshotRoot(

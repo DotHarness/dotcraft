@@ -92,6 +92,7 @@ public static class PluginMcpServerLoader
         if (parsed is not { Count: > 0 })
             return [];
 
+        var pluginFingerprint = ManagedPluginMarker.TryRead(manifest.RootPath)?.Fingerprint;
         var result = new List<McpServerConfig>();
         foreach (var server in parsed)
         {
@@ -111,7 +112,8 @@ public static class PluginMcpServerLoader
             clone.Origin = McpServerOrigin.Plugin(
                 manifest.Id,
                 manifest.Interface?.DisplayName ?? manifest.DisplayName,
-                declaredName);
+                declaredName,
+                pluginFingerprint);
             if (clone.NormalizedTransport == "stdio")
                 ExpandLaunchConfiguration(clone, manifest.RootPath, pluginDataPath);
             if (!string.IsNullOrWhiteSpace(clone.Cwd))
