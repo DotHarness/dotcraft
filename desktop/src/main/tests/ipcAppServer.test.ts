@@ -164,6 +164,28 @@ describe('AppServer ordered IPC requests', () => {
     expect(ipc.deliveries.map(delivery => delivery.kind)).toEqual(['response', 'notification'])
   })
 
+  it('does not bind local server tools or guidance to a remote thread starting a turn', async () => {
+    const server = wire()
+    const ipc = bridge(() => server.client, {
+      getConnectionContext: () => ({
+        workspacePath: '/srv/project', remote: true, capabilities: { dynamicToolRebind: true }
+      })
+    })
+    const pending = ipc.consumer.request('turn/start', { threadId: 'remote' })
+    const resume = await server.read()
+    expect(resume.method).toBe('thread/resume')
+    expect(resume.params.additionalContext).not.toHaveProperty('desktop.devServers')
+    const namespaces = resume.params.dynamicTools as { name: string; tools: { name: string }[] }[]
+    const names = namespaces.find(namespace => namespace.name === 'desktop')!.tools.map(tool => tool.name)
+    expect(names).toContain('ListThreads')
+    for (const name of ['StartServer', 'ListServers', 'StopServer', 'ReadServerLogs']) expect(names).not.toContain(name)
+    server.push({ id: resume.id, result: { thread: { id: 'remote' }, currentState: {} } })
+    const turn = await server.read()
+    expect(turn.method).toBe('turn/start')
+    server.push({ id: turn.id, result: { turn: { id: 'turn-1' } } })
+    await pending
+  })
+
   it('enriches creation identity and tools, and strips authentication token requests on the one RPC path', async () => {
     const server = wire()
     const ipc = bridge(() => server.client)

@@ -92,7 +92,8 @@ export function registerAppServerHandlers(context: WindowIpcContext): void {
           onCompleted?.(client, requestParams, result, requestGeneration)
           respond(result)
         },
-        supportsDynamicToolRebind: connection.capabilities?.dynamicToolRebind === true
+        supportsDynamicToolRebind: connection.capabilities?.dynamicToolRebind === true,
+        remote: connection.remote
       })
     } catch (error) {
       respond(toAppServerErrorEnvelope(error))

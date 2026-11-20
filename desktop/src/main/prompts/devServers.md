@@ -1,0 +1,2 @@
+Run local web previews with StartServer instead of a background shell. Find it through ALL_TOOLS in CodeMode or SearchTools for direct calls.
+Use ListServers to find the project's launch folder and check autoVerify. When autoVerify is enabled after a browser-visible change, start the preview, verify it in the in-app browser, and share what you saw. In Plan mode, only list servers or read their logs.

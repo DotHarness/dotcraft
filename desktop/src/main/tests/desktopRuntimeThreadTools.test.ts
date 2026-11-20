@@ -67,7 +67,13 @@ describe('desktop runtime thread tools', () => {
           type: 'namespace',
           name: DESKTOP_THREAD_TOOL_NAMESPACE,
           tools: expect.arrayContaining([
-            expect.objectContaining({ type: 'function', name: 'ListThreads' })
+            expect.objectContaining({ type: 'function', name: 'ListThreads' }),
+            expect.objectContaining({
+              type: 'function', name: 'StartServer', deferLoading: true,
+              approval: expect.objectContaining({ targetArgument: 'name' })
+            }),
+            ...['ListServers', 'StopServer', 'ReadServerLogs'].map(name =>
+              expect.objectContaining({ type: 'function', name, deferLoading: true }))
           ])
         })
       ])
@@ -131,6 +137,15 @@ describe('desktop runtime thread tools', () => {
     expect(desktop.tools.map((tool) => tool.name)).toEqual(expect.arrayContaining([
       'ListProjects', 'StopThread', 'SetThreadPinned', 'ReadThread', 'SearchThreadMessages', 'ListThreadItems', 'ReadThreadItem', 'ListTerminalTabs'
     ]))
+  })
+
+  it('rejects server callbacks on a remote connection without querying its thread', async () => {
+    const client = createClient(async () => { throw new Error('Unexpected request') })
+    const result = await handleDesktopRuntimeThreadToolCall(client, {
+      namespace: DESKTOP_THREAD_TOOL_NAMESPACE, threadId: 'remote', tool: 'StartServer', arguments: { name: 'web' }
+    }, '/remote/project', { remote: true })
+    expect(result).toMatchObject({ success: false, errorCode: 'DevServersUnavailable' })
+    expect(client.sendRequest).not.toHaveBeenCalled()
   })
 
   it('rebinds Desktop thread tools before sending a turn on an older thread', async () => {
@@ -292,12 +307,12 @@ describe('desktop runtime thread tools', () => {
 
     const startCall = vi.mocked(client.sendRequest).mock.calls[0]
     expect(startCall[1]).toEqual(expect.objectContaining({
-      additionalContext: {
+      additionalContext: expect.objectContaining({
         'sample.runtime': { kind: 'application', value: 'keep me' },
         [DESKTOP_THREAD_COORDINATION_CONTEXT_KEY]: expect.objectContaining({
           kind: 'application'
         })
-      }
+      })
     }))
   })
 

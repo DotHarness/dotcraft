@@ -7,6 +7,7 @@ interface BindingOptions {
   onResponse?: (result: unknown) => void
   onError?: (error: unknown) => void
   supportsDynamicToolRebind?: boolean
+  remote?: boolean
 }
 
 interface ConnectionBindings {
@@ -17,7 +18,7 @@ interface ConnectionBindings {
 }
 
 interface ToolDeclaration {
-  withTools(params: unknown): unknown
+  withTools(params: unknown, local: boolean): unknown
   includesTools(params: unknown): boolean
 }
 
@@ -65,7 +66,7 @@ export class DesktopThreadBindings {
 
     const startsThread = method === 'thread/start' || method === 'thread/fork' || method === 'worktree/createAndStart'
     const nextParams = startsThread
-      ? this.tools.withTools(params)
+      ? this.tools.withTools(params, options.remote !== true)
       : params
     const apply = (result: T): void => {
       this.assertCurrent(client, state)
@@ -91,7 +92,7 @@ export class DesktopThreadBindings {
       this.assertCurrent(client, state)
       return this.ensureTools(client, state, threadId, options)
     }
-    await this.bind(client, state, threadId, true, options.attachmentOwner)
+    await this.bind(client, state, threadId, true, options)
   }
 
   private async ensureVisualization(client: DesktopBindingClient, state: ConnectionBindings, threadId: string, options: BindingOptions): Promise<void> {
@@ -102,13 +103,13 @@ export class DesktopThreadBindings {
       this.assertCurrent(client, state)
       if (state.visualizations.has(threadId)) return
     }
-    await this.bind(client, state, threadId, options.supportsDynamicToolRebind === true, options.attachmentOwner)
+    await this.bind(client, state, threadId, options.supportsDynamicToolRebind === true, options)
   }
 
-  private async bind(client: DesktopBindingClient, state: ConnectionBindings, threadId: string, dynamicTools: boolean, attachmentOwner?: string): Promise<void> {
+  private async bind(client: DesktopBindingClient, state: ConnectionBindings, threadId: string, dynamicTools: boolean, options: BindingOptions): Promise<void> {
     this.assertCurrent(client, state)
-    const params = dynamicTools ? this.tools.withTools({ threadId }) : { threadId }
-    const binding = request(client, 'thread/resume', params, undefined, attachmentOwner).then(() => {
+    const params = dynamicTools ? this.tools.withTools({ threadId }, options.remote !== true) : { threadId }
+    const binding = request(client, 'thread/resume', params, undefined, options.attachmentOwner).then(() => {
       this.assertCurrent(client, state)
       state.visualizations.add(threadId)
       if (dynamicTools) state.bound.add(threadId)

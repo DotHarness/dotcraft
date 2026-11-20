@@ -31,19 +31,19 @@ import {
   normalizeBrowserUseDomainList,
   resolveBrowserUseNavigationDecision
 } from './browserUsePolicy'
-import type {
-  BrowserUseApprovalRequestPayload,
-  BrowserUseApprovalResponseAction,
-  BrowserUseApprovalResponsePayload,
-  BrowserUseClosePayload,
-  BrowserUseOpenPayload
+import {
+  BROWSER_USE_OPEN_CHANNEL,
+  type BrowserUseApprovalRequestPayload,
+  type BrowserUseApprovalResponseAction,
+  type BrowserUseApprovalResponsePayload,
+  type BrowserUseClosePayload,
+  type BrowserUseOpenPayload
 } from '../shared/viewer/types'
 
 const require = createRequire(import.meta.url)
 const playwrightCoreRoot = dirname(require.resolve('playwright-core/package.json'))
 const { source: playwrightInjectedScriptSource } = require(join(playwrightCoreRoot, 'lib/generated/injectedScriptSource.js')) as { source: string }
 
-const BROWSER_USE_OPEN_CHANNEL = 'viewer:browser:open'
 const BROWSER_USE_CLOSE_CHANNEL = 'viewer:browser:close'
 const BROWSER_USE_APPROVAL_REQUEST_CHANNEL = 'viewer:browser:approval-request'
 const BROWSER_USE_APPROVAL_TIMEOUT_MS = 120_000

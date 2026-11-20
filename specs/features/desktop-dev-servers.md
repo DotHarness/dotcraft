@@ -17,7 +17,7 @@ Dev servers exist for local projects only. Desktop's trusted host process runs t
 
 ### 2.1 Location
 
-The launch file is `.craft/launch.json` in the thread's execution workspace: the project folder, or the worktree for a worktree thread, or the primary folder of a multi-folder project. Each worktree reads its own copy, so a branch can change its servers. Desktop re-reads the file when it changes on disk. A launch file that resolves outside the workspace, for example through a link, is ignored.
+The launch file is `.craft/launch.json` in a launch folder. The default launch folder is the thread's execution folder, including its worktree when present. An agent can also select one of the thread's other effective runtime roots (§7.1). Each launch folder reads its own copy. Desktop re-reads the file when it changes on disk. A launch file that resolves outside its launch folder, for example through a link, is ignored.
 
 ### 2.2 Format
 
@@ -165,17 +165,21 @@ Desktop declares four server tools in its `desktop` namespace of [runtime thread
 
 | Tool | Input | Result |
 |---|---|---|
-| `StartServer` | `name`: a configuration name | `serverId`, `name`, `port`, `url`, and whether an existing server was reused. It opens or focuses the bound tab without taking focus from the user after the first time. |
+| `StartServer` | `name`: a configuration name. Optional `folder`: an absolute launch folder. | `serverId`, `name`, `port`, `url`, state, and whether the server was reused. An attach configuration returns the address without starting a process. Desktop opens or reuses the browser tab in the calling thread, presenting it on the first opening without stealing focus on subsequent calls. |
 | `StopServer` | `serverId` | The stopped server. |
-| `ListServers` | none | The thread's servers with `serverId`, `name`, `port`, `url`, and state, plus the launch file's configuration names. |
+| `ListServers` | none | The thread's servers and eligible launch folders, including each launch file's path, state, configuration names, and `autoVerify` when valid. |
 | `ReadServerLogs` | `serverId`, optional `lines`, `search`, and `errorsOnly` | Matching recent output lines, newest last. |
 
-Failures carry the reasons of §3, written so the agent can act on them: a missing or unusable launch file names the fields to fix, and a port conflict names the server holding it.
+If `folder` is omitted, `StartServer` reads the execution folder's launch file. An explicit folder must be that folder or one of the calling thread's effective [runtime workspace roots](multi-folder-projects.md). It cannot select another project or the source checkout replaced by a worktree. The configuration's `cwd` stays relative to its own launch folder.
+
+The tools follow Desktop's deferred tool discovery and CodeMode settings. Plan mode can list servers and read logs. Starting and stopping require Agent mode. A start goes through the thread's approval policy before Desktop runs the configured command.
+
+Failures carry the reasons of §3, written so the agent can act on them. A missing launch file names the path and gives a configuration example. A port conflict names what holds the port.
 
 ### 7.2 Guidance
 
-When the tools are declared, Desktop adds runtime context telling the agent to run dev servers with `StartServer` instead of a background shell, to create `.craft/launch.json` when the project has none, and to verify a page through the in-app browser at the address `StartServer` returns.
+When the tools are declared, runtime context tells the agent where to discover them and to use `StartServer` instead of a background shell to run a web preview. The agent checks `ListServers` for the relevant launch folder and creates `.craft/launch.json` there if needed. It verifies the page in the in-app browser at the address `StartServer` returns.
 
 ### 7.3 Auto verify
 
-While the launch file's `autoVerify` is on, the runtime context also asks the agent, after a change the browser can show, to start the server, check the page, and share what it saw before ending its turn. The browser's auto-verify switch writes `autoVerify` to the launch file, so the choice is shared by everyone working on the project.
+After a browser-visible change, the agent checks the relevant launch file's `autoVerify` from `ListServers`. When enabled, the agent starts or reuses the server, checks the page, and shares what it saw before ending the turn. Turning off automatic verification does not prevent an explicitly requested preview or browser check.

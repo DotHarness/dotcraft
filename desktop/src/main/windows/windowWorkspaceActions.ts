@@ -164,7 +164,11 @@ export function buildCallbacks(ctx: DesktopWindowRuntime): IpcHandlerCallbacks {
     },
     getConnectionContext: client => {
       const entry = ctx.findWorkspaceConnectionByClient(client)
-      return entry ? { workspacePath: entry.workspacePath, capabilities: entry.initializeResult?.capabilities } : null
+      return entry ? {
+        workspacePath: entry.workspacePath,
+        remote: entry.kind === 'remote',
+        capabilities: entry.initializeResult?.capabilities
+      } : null
     },
     onAppServerRequestStarted: (client, method, params) => {
       const entry = ctx.findWorkspaceConnectionByClient(client)

@@ -1,13 +1,32 @@
+import { devServerPortOfUrl } from '../../shared/devServers'
 import type { PanelScope } from '../../shared/viewer/panelState'
 import type { BrowserUseClosePayload, BrowserUseOpenPayload } from '../../shared/viewer/types'
 import { useUIStore } from '../stores/uiStore'
 import { useDetailPanelStore } from '../stores/detailPanelStore'
 
+function matchesPreviewUrl(currentUrl: string, previewUrl: string): boolean {
+  const port = devServerPortOfUrl(previewUrl)
+  if (port !== null) return devServerPortOfUrl(currentUrl) === port
+  try {
+    const current = new URL(currentUrl)
+    const preview = new URL(previewUrl)
+    return current.href === preview.href || (preview.href === `${preview.origin}/` && current.origin === preview.origin)
+  } catch {
+    return false
+  }
+}
+
 export function handleBrowserUseOpen(payload: BrowserUseOpenPayload): void {
   const { projectKey, threadId, tabId } = payload
   if (projectKey === undefined || !threadId || !tabId) return
 
-  useDetailPanelStore.getState().openBrowser({
+  const store = useDetailPanelStore.getState()
+  const existing = payload.reuseByUrl
+    ? store.getPanel(threadId, projectKey).tabs.find((tab) =>
+      tab.kind === 'browser' && matchesPreviewUrl(tab.currentUrl, payload.initialUrl))
+    : undefined
+
+  const openedTabId = existing?.id ?? store.openBrowser({
     threadId,
     projectKey,
     browserStorageId: payload.browserStorageId,
@@ -17,7 +36,7 @@ export function handleBrowserUseOpen(payload: BrowserUseOpenPayload): void {
     initialLabel: payload.title?.trim() || 'Browser',
     activate: false
   })
-  if (payload.focusMode === 'first-open') handleBrowserUseVisibility({ projectKey, threadId }, tabId, true)
+  if (payload.focusMode === 'first-open') handleBrowserUseVisibility({ projectKey, threadId }, openedTabId, true)
 }
 
 export function handleBrowserUseVisibility({ projectKey, threadId }: PanelScope, tabId: string, visible: boolean): void {

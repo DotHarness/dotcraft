@@ -99,6 +99,7 @@ import type { ApplicationMenuSnapshot } from '../shared/applicationMenu'
 import type { PetSettings } from '../shared/pet'
 import type { SidebarThreadSortMode } from '../shared/sidebarThreadOrder'
 import type { SidebarSection } from '../shared/sidebarSections'
+import { BROWSER_USE_OPEN_CHANNEL } from '../shared/viewer/types'
 import type {
   BrowserUseApprovalResponseAction,
   BrowserUseApprovalRequestPayload,
@@ -1335,8 +1336,8 @@ const api = {
         browserUse: {
           onOpen(listener: (event: BrowserUseOpenPayload) => void): UnsubscribeFn {
             const wrapped = (_evt: Electron.IpcRendererEvent, payload: BrowserUseOpenPayload) => listener(payload)
-            ipcRenderer.on('viewer:browser:open', wrapped)
-            return () => ipcRenderer.removeListener('viewer:browser:open', wrapped)
+            ipcRenderer.on(BROWSER_USE_OPEN_CHANNEL, wrapped)
+            return () => ipcRenderer.removeListener(BROWSER_USE_OPEN_CHANNEL, wrapped)
           },
           onClose(listener: (event: BrowserUseClosePayload) => void): UnsubscribeFn {
             const wrapped = (_evt: Electron.IpcRendererEvent, payload: BrowserUseClosePayload) => listener(payload)

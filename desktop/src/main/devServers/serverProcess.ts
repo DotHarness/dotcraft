@@ -63,8 +63,11 @@ function exited(child: ChildProcess): boolean {
 export function killProcessTree(child: ChildProcess): Promise<void> {
   if (child.pid === undefined) return Promise.resolve()
   const pid = child.pid
+  if (process.platform === 'win32') {
+    return exited(child) ? Promise.resolve() : killWindowsTree(child, pid)
+  }
   if (exited(child)) {
-    if (process.platform !== 'win32') forceKill(pid)
+    forceKill(pid)
     return Promise.resolve()
   }
   return new Promise((resolve) => {
@@ -74,13 +77,9 @@ export function killProcessTree(child: ChildProcess): Promise<void> {
     }, KILL_GRACE_MS)
     child.once('exit', () => {
       clearTimeout(timer)
-      if (process.platform !== 'win32') forceKill(pid)
+      forceKill(pid)
       resolve()
     })
-    if (process.platform === 'win32') {
-      forceKill(pid)
-      return
-    }
     try {
       process.kill(-pid, 'SIGTERM')
     } catch {
@@ -90,12 +89,17 @@ export function killProcessTree(child: ChildProcess): Promise<void> {
   })
 }
 
-function forceKill(pid: number): void {
-  if (process.platform === 'win32') {
+async function killWindowsTree(child: ChildProcess, pid: number): Promise<void> {
+  const pipesClosed = new Promise<void>((done) => child.once('close', () => done()))
+  const treeKilled = await new Promise<boolean>((done) => {
     const killer = spawn('taskkill', ['/pid', String(pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' })
-    killer.on('error', () => undefined)
-    return
-  }
+    killer.once('error', () => done(false))
+    killer.once('close', (code) => done(code === 0))
+  })
+  if (treeKilled) await pipesClosed
+}
+
+function forceKill(pid: number): void {
   try {
     process.kill(-pid, 'SIGKILL')
   } catch {

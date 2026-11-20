@@ -309,6 +309,8 @@ export interface BrowserEventPayload {
   action?: string
 }
 
+export const BROWSER_USE_OPEN_CHANNEL = 'viewer:browser:open'
+
 export interface BrowserUseOpenPayload {
   threadId: string
   tabId: string
@@ -317,6 +319,7 @@ export interface BrowserUseOpenPayload {
   initialUrl: string
   title?: string
   focusMode: 'first-open' | 'none'
+  reuseByUrl?: boolean
 }
 
 export interface BrowserRestoreResult {

@@ -11,6 +11,7 @@ import {
   type DesktopAppServerRequestOptions
 } from '../desktopRuntimeThreadTools'
 import { broadcastServerRequest, createServerRequestBridge } from '../ipcBridge'
+import { openDevServerPreview } from '../devServers/openDevServerPreview'
 import { getLocalProjectDetails } from '../settings'
 import { themeHostFor } from '../themes/themeIpc'
 import type { DesktopThreadTasks } from '../threadTasks/threadTaskService'
@@ -67,6 +68,13 @@ export function desktopThreadToolOptions(ctx: DesktopWindowRuntime, source?: Wor
     tasks: ctx.getThreadTasks(),
     ownerId: ctx.mainWindow?.webContents.id,
     themes: ctx.mainWindow ? themeHostFor(ctx.mainWindow) : undefined,
+    ...(entry?.kind === 'local' ? {
+      openDevServerPreview: preview => {
+        if (ctx.mainWindow && isCurrentWorkspaceRequestSource(ctx, entry)) {
+          openDevServerPreview(ctx.mainWindow, entry.projectId, preview)
+        }
+      }
+    } : {}),
     terminals: {
       threadTabs: (threadId) =>
         ctx.mainWindow && !ctx.mainWindow.isDestroyed()

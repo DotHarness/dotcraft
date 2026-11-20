@@ -1,5 +1,7 @@
 import { handleDesktopThreadHistoryTool, threadHistoryToolDefinitions, threadHistoryToolNames } from './desktopThreadHistoryTools'
 import { DesktopThreadBindings } from './desktopThreadBindings'
+import { devServerToolDefinitions, devServerToolNames, handleDevServerToolCall } from './devServers/devServerTools'
+import devServerGuidance from './prompts/devServers.md?raw'
 import { handleThreadManagementTool, MAX_LIST_THREADS_LIMIT, requestClient, resolveTargetThread } from './threadTasks/threadManagementTools'
 import { PROJECT_PROPERTY, ThreadProjectError, type ThreadProject, type ThreadProjectHost } from './threadTasks/threadProjects'
 import { themeToolDefinition, themeTool, type DesktopThemeHost } from './themes/themeTools'
@@ -26,6 +28,7 @@ import { WRAP_UP_DESCRIPTION, WRAP_UP_PROPERTIES, wrapUpTool } from './threadTas
 export const DESKTOP_THREAD_TOOL_NAMESPACE = 'desktop'
 export const DESKTOP_CONVERSATION_TOOL_NAMESPACE = 'desktop_conversation'
 export const DESKTOP_THREAD_COORDINATION_CONTEXT_KEY = 'desktop.threadCoordination'
+const DEV_SERVERS_CONTEXT_KEY = 'desktop.devServers'
 
 type JsonObject = Record<string, unknown>
 
@@ -40,6 +43,7 @@ export interface DynamicToolFunctionSpec {
   description: string
   inputSchema: JsonObject
   deferLoading?: boolean
+  approval?: { kind: 'remoteResource'; targetArgument: string; operation: string }
 }
 
 export interface DynamicToolNamespaceSpec {
@@ -59,6 +63,7 @@ interface DesktopThreadFunctionAuthoring {
   outputSchema?: JsonObject
   display?: { title?: string; subtitle?: string }
   deferLoading?: boolean
+  approval?: DynamicToolFunctionSpec['approval']
 }
 
 export interface AppServerRequestClient {
@@ -81,6 +86,7 @@ export interface DesktopAppServerRequestOptions {
   tasks?: DesktopThreadTasks
   terminals?: DesktopTerminalHost
   themes?: DesktopThemeHost
+  openDevServerPreview?: (preview: { threadId: string; name: string; url: string }) => void
 }
 
 export interface DesktopThreadToolSettingsHost {
@@ -126,7 +132,8 @@ const TOOL_NAMES = new Set([
   'SetThreadPinned',
   'ReadTerminal',
   'ListTerminalTabs',
-  'Theme'
+  'Theme',
+  ...devServerToolNames
 ])
 
 const DESKTOP_THREAD_COORDINATION_CONTEXT: RuntimeAdditionalContextEntry = {
@@ -143,7 +150,7 @@ export function resetDesktopThreadToolBindings(client: AppServerRequestClient): 
   bindings.reset(client)
 }
 
-export function buildDesktopThreadDynamicTools(): DynamicToolSpec[] {
+export function buildDesktopThreadDynamicTools(local = true): DynamicToolSpec[] {
   const functions: DesktopThreadFunctionAuthoring[] = [
     {
       namespace: DESKTOP_CONVERSATION_TOOL_NAMESPACE,
@@ -340,7 +347,8 @@ export function buildDesktopThreadDynamicTools(): DynamicToolSpec[] {
     },
     readTerminalToolDefinition,
     listTerminalTabsToolDefinition,
-    { ...themeToolDefinition, namespace: DESKTOP_THREAD_TOOL_NAMESPACE }
+    { ...themeToolDefinition, namespace: DESKTOP_THREAD_TOOL_NAMESPACE },
+    ...(local ? devServerToolDefinitions.map(tool => ({ ...tool, namespace: DESKTOP_THREAD_TOOL_NAMESPACE })) : [])
   ]
 
   const namespace = (name: string, description: string): DynamicToolNamespaceSpec => ({
@@ -358,13 +366,16 @@ export function buildDesktopThreadDynamicTools(): DynamicToolSpec[] {
 
   return [
     namespace(DESKTOP_CONVERSATION_TOOL_NAMESPACE, 'Desktop cards and the next-step box the user answers.'),
-    namespace(DESKTOP_THREAD_TOOL_NAMESPACE, 'Desktop chats, terminal output, and theme authoring.')
+    namespace(DESKTOP_THREAD_TOOL_NAMESPACE, local
+      ? 'Desktop chats, terminal output, theme authoring, and local dev servers.'
+      : 'Desktop chats, terminal output, and theme authoring.')
   ]
 }
 
-export function buildDesktopThreadAdditionalContext(): Record<string, RuntimeAdditionalContextEntry> {
+export function buildDesktopThreadAdditionalContext(local = true): Record<string, RuntimeAdditionalContextEntry> {
   return {
-    [DESKTOP_THREAD_COORDINATION_CONTEXT_KEY]: { ...DESKTOP_THREAD_COORDINATION_CONTEXT }
+    [DESKTOP_THREAD_COORDINATION_CONTEXT_KEY]: { ...DESKTOP_THREAD_COORDINATION_CONTEXT },
+    ...(local ? { [DEV_SERVERS_CONTEXT_KEY]: { kind: 'application', value: devServerGuidance.trimEnd() } } : {})
   }
 }
 
@@ -395,6 +406,10 @@ export async function handleDesktopRuntimeThreadToolCall(
   const args = isRecord(p.arguments) ? p.arguments : {}
 
   try {
+    if (devServerToolNames.has(p.tool)) {
+      if (options.remote) return fail('DevServersUnavailable', 'Dev servers are only available in local projects.')
+      return await handleDevServerToolCall(client, p, options.openDevServerPreview)
+    }
     const connection = threadTaskConnection(client, workspacePath, options)
     if (threadHistoryToolNames.has(p.tool)) {
       const { project: _project, ...historyArgs } = args
@@ -459,7 +474,7 @@ export function hasDesktopThreadTools(client: AppServerRequestClient | null, thr
   return bindings.hasTools(client, threadId, options)
 }
 
-function withDesktopThreadDynamicTools(params: unknown): unknown {
+function withDesktopThreadDynamicTools(params: unknown, local: boolean): unknown {
   if (!isRecord(params)) return params
 
   const existing = Array.isArray(params.dynamicTools)
@@ -482,11 +497,11 @@ function withDesktopThreadDynamicTools(params: unknown): unknown {
       : {}),
     additionalContext: {
       ...existingAdditionalContext,
-      ...buildDesktopThreadAdditionalContext()
+      ...buildDesktopThreadAdditionalContext(local)
     },
     dynamicTools: [
       ...existing,
-      ...buildDesktopThreadDynamicTools()
+      ...buildDesktopThreadDynamicTools(local)
     ]
   }
 }
