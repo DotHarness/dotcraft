@@ -86,8 +86,8 @@ internal static class DotCraftApplication
 
         var workspacePath = cliArgs.AuthWorkspacePath ?? cliArgs.Exec?.WorkspacePath ?? Directory.GetCurrentDirectory();
         var botPath = Path.Combine(workspacePath, ".craft");
-        if (cliArgs.Mode == CommandLineArgs.RunMode.Auth
-            && (cliArgs.AuthReadStdin || (cliArgs.AuthWorkspacePath is null && !Directory.Exists(botPath))))
+        var userCraftHomePath = HubPaths.ForCurrentUser().CraftHomePath;
+        if (ShouldRunStandaloneAuth(cliArgs, botPath, userCraftHomePath))
         {
             return await AuthCliRunner.RunStandaloneAsync(cliArgs, cancellationToken);
         }
@@ -288,7 +288,7 @@ internal static class DotCraftApplication
                     {
                         options.WorkspacePath = workspacePath;
                         options.DataPath = botPath;
-                        options.UserDataPath = HubPaths.ForCurrentUser().CraftHomePath;
+                        options.UserDataPath = userCraftHomePath;
                     })
                     .AddDotCraftCSharp();
 
@@ -327,4 +327,10 @@ internal static class DotCraftApplication
         }
         return Environment.ExitCode;
     }
+
+    internal static bool ShouldRunStandaloneAuth(CommandLineArgs cliArgs, string botPath, string userCraftHomePath) =>
+        cliArgs.Mode == CommandLineArgs.RunMode.Auth
+        && (cliArgs.AuthReadStdin
+            || (cliArgs.AuthWorkspacePath is null
+                && (!Directory.Exists(botPath) || DotCraftPathResolver.IsSameDirectory(botPath, userCraftHomePath))));
 }

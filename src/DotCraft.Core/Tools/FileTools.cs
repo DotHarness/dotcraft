@@ -30,7 +30,8 @@ public sealed class FileTools(
     bool managedSearchOnly = false,
     ThreadMemoryStores? memoryStores = null,
     Func<IReadOnlyList<IMemoryWriteGate>>? memoryWriteGates = null,
-    ToolLocation? location = null)
+    ToolLocation? location = null,
+    ThreadFileVersions? fileVersions = null)
 {
     private readonly MemoryFileWrites _memory = new(memoryStores, memoryWriteGates);
 
@@ -99,7 +100,10 @@ public sealed class FileTools(
                 return ReadFileTextResult(FormatDirectoryListing(fullPath, path));
 
             if (!File.Exists(fullPath))
+            {
+                fileVersions?.Forget(fullPath);
                 return ReadFileTextResult($"Error: File not found: {path}");
+            }
 
             var fileInfo = new FileInfo(fullPath);
             if (fileInfo.Length > maxFileSize)
@@ -129,18 +133,23 @@ public sealed class FileTools(
             if (await FileContentClassifier.LooksBinaryFileAsync(fullPath))
                 return ReadFileTextResult(FileContentClassifier.FormatBinaryUnsupportedMessage(path, fullPath, fileInfo.Length, detectedFromSample: true));
 
-            if (TextFileReadLimiter.IsPagedRead(offset, limit))
+            if (TextFileReadLimiter.IsPagedRead(offset, limit) && fileInfo.Length > TextFileReadLimiter.MaxUnpaginatedTextBytes)
                 return ReadTextFileResult(fullPath, await WithSharingViolationRetryAsync(
-                    () => TextFileReadLimiter.ReadPageAsync(fullPath, path, offset, limit, cancellationToken),
+                    () => TextFileReadLimiter.ReadPageAsync(
+                        fullPath, path, offset, limit, cancellationToken,
+                        fileVersions is null ? null : (stream, ct) => fileVersions.RecordAsync(fullPath, stream, ct)),
                     cancellationToken));
 
             if (fileInfo.Length > TextFileReadLimiter.MaxUnpaginatedTextBytes)
                 return ReadFileTextResult(TextFileReadLimiter.FormatUnpaginatedTooLarge(path, fileInfo.Length));
 
-            var (content, _, error) = await WithSharingViolationRetryAsync(
+            var (content, _, rawBytes, error) = await WithSharingViolationRetryAsync(
                 () => TextFileEncoding.ReadAsync(fullPath, path, cancellationToken),
                 cancellationToken);
-            return ReadTextFileResult(fullPath, error ?? TextFileReadLimiter.FormatInMemory(content!, offset, limit));
+            var formatted = error ?? TextFileReadLimiter.FormatInMemory(content!, offset, limit);
+            if (!formatted.StartsWith("Error", StringComparison.Ordinal))
+                fileVersions?.Record(fullPath, rawBytes);
+            return ReadTextFileResult(fullPath, formatted);
         }
         catch (OperationCanceledException)
         {
@@ -158,18 +167,21 @@ public sealed class FileTools(
 
     private static IList<AIContent> ReadFileTextResult(string text) => [new TextContent(text)];
 
-    private IList<AIContent> ReadTextFileResult(string fullPath, string text) =>
-        ReadFileTextResult(!text.StartsWith("Error", StringComparison.Ordinal) && _memory.ReadNote(fullPath) is { } note
-            ? text + "\n\n" + note
-            : text);
+    private IList<AIContent> ReadTextFileResult(string fullPath, string text)
+    {
+        if (text.StartsWith("Error", StringComparison.Ordinal))
+            return ReadFileTextResult(text);
+        return ReadFileTextResult(_memory.ReadNote(fullPath) is { } note ? text + "\n\n" + note : text);
+    }
 
-    private ToolExecutionResult DeleteMemoryFile(FileWriteOutcome outcome, string fullPath, string path, string before, AttachedMemoryStore store)
+    private ToolExecutionResult DeleteMemoryFile(FileWriteOutcome outcome, string fullPath, string path, string before, MemoryStoreTarget store)
     {
         outcome.BeginWrite();
         File.Delete(fullPath);
+        fileVersions?.Forget(fullPath);
         return outcome.Complete(
             CreateFileChange(fullPath, FileChangeKind.Update, before, string.Empty),
-            $"Deleted {path} from {store.Attachment.Name}.",
+            $"Deleted {path} from {store.Label?.Name}.",
             ChangeReporter);
     }
 
@@ -207,9 +219,11 @@ public sealed class FileTools(
             using (await PathAsyncMutex.AcquireAsync(fullPath))
             {
                 var existedBefore = File.Exists(fullPath);
-                var (before, encoding, error) = existedBefore
+                var (before, encoding, beforeBytes, error) = existedBefore
                     ? await TextFileEncoding.ReadAsync(fullPath, path)
-                    : (null, Utf8NoBom, null);
+                    : (null, Utf8NoBom, Array.Empty<byte>(), null);
+                if (fileVersions?.ChangedSinceRecorded(fullPath, beforeBytes, existedBefore) == true)
+                    return outcome.Fail($"Error: {path} changed since you last read or wrote it. Read it again before writing it.", ToolErrorCodes.ExecutionFailed);
                 if (error != null)
                     return outcome.Fail(error, ToolErrorCodes.InputInvalid);
                 content = RestoreLineEndings(NormalizeToLf(content), before != null && UsesCrLf(before));
@@ -225,7 +239,8 @@ public sealed class FileTools(
                     Directory.CreateDirectory(directory);
 
                 outcome.BeginWrite();
-                await WriteAllTextEnsuringDirectoryAsync(fullPath, content, encoding);
+                var writtenBytes = await WriteAllTextEnsuringDirectoryAsync(fullPath, content, encoding);
+                fileVersions?.Record(fullPath, writtenBytes);
                 var lineCount = content.Split('\n').Length;
                 var result = outcome.Complete(
                     CreateFileChange(fullPath, existedBefore ? FileChangeKind.Update : FileChangeKind.Add, before, content),
@@ -272,7 +287,7 @@ public sealed class FileTools(
                 if (!File.Exists(fullPath))
                     return outcome.Fail($"Error: File not found: {path}", ToolErrorCodes.ExecutionFailed);
 
-                var (content, encoding, error) = await TextFileEncoding.ReadAsync(fullPath, path);
+                var (content, encoding, _, error) = await TextFileEncoding.ReadAsync(fullPath, path);
                 if (error != null)
                     return outcome.Fail(error, ToolErrorCodes.InputInvalid);
 
@@ -287,7 +302,8 @@ public sealed class FileTools(
                     return DeleteMemoryFile(outcome, fullPath, path, content!, store);
 
                 outcome.BeginWrite();
-                await TextFileEncoding.WriteAsync(fullPath, prepared.WrittenContent, encoding);
+                var writtenBytes = await TextFileEncoding.WriteAsync(fullPath, prepared.WrittenContent, encoding);
+                fileVersions?.Record(fullPath, writtenBytes);
                 result = outcome.Complete(CreateFileChange(fullPath, FileChangeKind.Update, content, prepared.WrittenContent),
                     prepared.Result + _memory.WriteNotice(fullPath, prepared.WrittenContent), ChangeReporter);
                 writtenContent = prepared.WrittenContent;
@@ -648,11 +664,11 @@ public sealed class FileTools(
         return ($"Successfully edited {displayPath} at line {lineNum} ({oldLineCount} -> {newLineCount} lines){suffix}", newContent);
     }
 
-    private static async Task WriteAllTextEnsuringDirectoryAsync(string fullPath, string content, Encoding encoding)
+    private static async Task<byte[]> WriteAllTextEnsuringDirectoryAsync(string fullPath, string content, Encoding encoding)
     {
         try
         {
-            await TextFileEncoding.WriteAsync(fullPath, content, encoding);
+            return await TextFileEncoding.WriteAsync(fullPath, content, encoding);
         }
         catch (DirectoryNotFoundException)
         {
@@ -660,7 +676,7 @@ public sealed class FileTools(
             if (!string.IsNullOrEmpty(directory))
                 Directory.CreateDirectory(directory);
 
-            await TextFileEncoding.WriteAsync(fullPath, content, encoding);
+            return await TextFileEncoding.WriteAsync(fullPath, content, encoding);
         }
     }
 

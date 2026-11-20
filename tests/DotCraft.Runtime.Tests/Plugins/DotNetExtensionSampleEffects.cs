@@ -250,7 +250,7 @@ internal static class DotNetExtensionSampleEffects
         var path = Path.Combine(Assert.Single(stores).DirectoryPath, "review.md");
         var tools = new FileTools(
             workspace,
-            memoryStores: new ThreadMemoryStores(new MemoryStore(dataPath), stores),
+            memoryStores: new ThreadMemoryStores(new MemoryStore(dataPath), null, stores),
             memoryWriteGates: () => host.Registry.Resolve<IMemoryWriteGate>(ThreadId));
 
         var written = await tools.WriteFile(path, "Check cancellation before publishing.");

@@ -33,7 +33,7 @@ A memory saying the user corrected you does not by itself show it is newer than 
 
     public static List<MemoryTypeDefinition> CreateTypes() =>
     [
-        new() { Name = "user", Description = "who the user is (role, expertise, preferences)." },
+        new() { Name = "user", Description = "who the user is (role, expertise, preferences).", Personal = true },
         new() { Name = "feedback", Description = "how the user wants you to work, both corrections and approaches they confirmed; include the why." },
         new() { Name = "project", Description = "ongoing goals, decisions, or constraints the repository does not record; convert relative dates to absolute dates." },
         new() { Name = "reference", Description = "where to find information outside the workspace (URLs, dashboards, trackers)." }

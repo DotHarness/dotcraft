@@ -8,7 +8,7 @@ import type { Rpc } from './rpc'
 
 export interface MemoryStore {
   key: string
-  kind: 'workspace' | 'scope' | 'attached'
+  kind: 'personal' | 'workspace' | 'scope' | 'attached'
   scope: string | null
   id: string | null
   path: string
@@ -34,6 +34,8 @@ export interface StoreContents {
   usage: IndexUsage
 }
 
+export const PERSONAL_STORE_ID = 'personal'
+
 export const STALE_AFTER_MS = 30 * 24 * 60 * 60 * 1000
 
 export function isStale(entry: Pick<MemoryEntry, 'modifiedAtMs'>, now: number): boolean {
@@ -41,11 +43,11 @@ export function isStale(entry: Pick<MemoryEntry, 'modifiedAtMs'>, now: number): 
 }
 
 function toStore(info: MemoryStoreInfo): MemoryStore {
-  const kind = info.kind === 'scope' || info.kind === 'attached' ? info.kind : 'workspace'
+  const kind = info.kind === 'personal' || info.kind === 'scope' || info.kind === 'attached' ? info.kind : 'workspace'
   const scope = info.scope ?? null
   const id = info.id ?? null
   return {
-    key: kind === 'workspace' ? 'workspace' : `${kind}:${scope ?? id ?? ''}`,
+    key: kind === 'workspace' || kind === 'personal' ? kind : `${kind}:${scope ?? id ?? ''}`,
     kind,
     scope,
     id,
@@ -87,7 +89,7 @@ export async function loadStore(fs: MemoryFs, store: MemoryStore): Promise<Store
   ])
   const present = entries.filter((entry): entry is MemoryEntry => entry != null)
     .sort((a, b) => b.modifiedAtMs - a.modifiedAtMs || a.fileName.localeCompare(b.fileName))
-  const synced = store.writable && listed != null ? await syncStoreIndex(fs, store, indexText, names, present) : indexText
+  const synced = store.writable && store.kind !== 'personal' && listed != null ? await syncStoreIndex(fs, store, indexText, names, present) : indexText
   return { store, entries: present, indexText: synced, usage: measureIndex(synced) }
 }
 
@@ -100,6 +102,13 @@ async function syncStoreIndex(fs: MemoryFs, store: MemoryStore, indexText: strin
   } catch {
     return indexText
   }
+}
+
+export async function clearStore(fs: MemoryFs, store: MemoryStore): Promise<void> {
+  const files = await fs.listFiles(store.path)
+  const memories = (files ?? []).filter(isMemoryFile)
+  await Promise.all(memories.map((fileName) => fs.remove(joinHostPath(store.path, fileName))))
+  if (files?.some((fileName) => fileName.toLowerCase() === INDEX_FILE.toLowerCase())) await fs.remove(joinHostPath(store.path, INDEX_FILE))
 }
 
 export function matchesSearch(entry: MemoryEntry, query: string): boolean {

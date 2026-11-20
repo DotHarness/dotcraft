@@ -2,6 +2,7 @@ import type { DesktopPluginActivate } from '@dotcraft/plugin'
 import { Brain } from 'lucide-react'
 import { localizedLabel } from './i18n'
 import { MemoryView } from './MemoryView'
+import { MemoryPolicySettings } from './policy/MemoryPolicySettings'
 import { installMemoryStudioHost } from './runtime'
 import { requestOpen } from './state/openRequests'
 import { MEMORY_VIEW_ID, MemorySources } from './summary/MemorySources'
@@ -9,6 +10,7 @@ import { MEMORY_VIEW_ID, MemorySources } from './summary/MemorySources'
 export const activate: DesktopPluginActivate = (host) => {
   host.effect(() => installMemoryStudioHost(host))
   host.ui.add('summary.sources', MemorySources)
+  host.ui.wrap('settings.personalization', MemoryPolicySettings)
   return {
     mainViews: [{ id: MEMORY_VIEW_ID, label: localizedLabel('view.title'), icon: Brain, order: 60, component: MemoryView }],
     messageActions: [{

@@ -18,7 +18,8 @@ import {
   type ProviderDraft,
   type ProviderEditorId
 } from './providers/providerDraft'
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type JSX } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type JSX, type ReactNode } from 'react'
+import type { DesktopPluginSettingsSection } from '@dotcraft/plugin'
 import {
   MessageCircle,
   Plus,
@@ -108,9 +109,11 @@ import {
   statusTextStyle
 } from './panels/settingsStatusStyles'
 import { coreSettingsPanels } from './coreSettingsPanels'
+import { coreSettingsSectionForTab, coreSettingsSectionTitle } from './coreSettingsSections'
 import { settingsContentContainerStyle, settingsMainStyle } from './settingsLayout'
 import { SettingsPanelSkeleton } from './SettingsSkeleton'
 import { DesktopPluginSettingsPageOutlet } from '../desktopPlugins/DesktopPluginOutlets'
+import { DesktopPluginSurface } from '../desktopPlugins/DesktopPluginSurface'
 import {
   isDesktopPluginSettingsTab,
   useDesktopPluginRegistry
@@ -216,6 +219,29 @@ function normalizeBrowserUseDomainInput(input: string): string | null {
   }
 }
 
+function CoreSettingsSectionFrame({
+  section,
+  title,
+  children
+}: {
+  section: DesktopPluginSettingsSection | null
+  title: string
+  children: ReactNode
+}): JSX.Element {
+  if (!section) return <>{children}</>
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      <DesktopPluginSurface
+        key={section}
+        name={`settings.${section}`}
+        context={{ section, title }}
+      >
+        {children}
+      </DesktopPluginSurface>
+    </div>
+  )
+}
+
 export function SettingsView({
   workspacePath,
   identityWorkspacePath,
@@ -317,6 +343,8 @@ export function SettingsView({
   const memory = useConfigSetting('Memory.Enabled', (error) =>
     t('settings.personalization.memory.saveFailed', { error }))
   const memoryAutoExtract = useConfigSetting('Memory.AutoExtract', (error) =>
+    t('settings.personalization.memory.saveFailed', { error }))
+  const memoryPersonal = useConfigSetting('Memory.Personal', (error) =>
     t('settings.personalization.memory.saveFailed', { error }))
   const includeSharedSkills = readConfigValue(workspaceConfig, 'Skills.IncludeSharedSkills') === true
   const memoryEnabled = memory.value === true
@@ -1358,6 +1386,9 @@ export function SettingsView({
     }
   }, [])
 
+  const activeCoreSection = coreSettingsSectionForTab(activeSettingsTab)
+  const activeCoreSectionTitle = activeCoreSection ? coreSettingsSectionTitle(activeCoreSection, t) : ''
+
   return (
     <div
       aria-label={t('settings.title')}
@@ -1374,6 +1405,7 @@ export function SettingsView({
       <main className="dc-scrollbar-stable" style={settingsMainStyle()}>
         <div className={SETTINGS_SURFACE_CLASS} style={settingsContentContainerStyle()}>
           <WorkspaceResourceNotice providerError={providerError} onRetryProviders={() => { void reloadProviders() }} />
+          <CoreSettingsSectionFrame section={activeCoreSection} title={activeCoreSectionTitle}>
           <Suspense fallback={<SettingsPanelSkeleton />}>
             {activeSettingsTab === 'profile' && (
               <ProfilePanel>
@@ -1658,6 +1690,15 @@ export function SettingsView({
                           applying: memoryAutoExtract.pending,
                           onToggle: (checked) => {
                             void memoryAutoExtract.set(checked)
+                          }
+                        }
+                      : null}
+                    personalToggle={configManagementEnabled
+                      ? {
+                          enabled: memoryPersonal.value === true,
+                          applying: memoryPersonal.pending,
+                          onToggle: (checked) => {
+                            void memoryPersonal.set(checked)
                           }
                         }
                       : null}
@@ -2027,6 +2068,7 @@ export function SettingsView({
               />
             )}
           </Suspense>
+          </CoreSettingsSectionFrame>
           {activeDesktopPluginSettingsPage && (
             <DesktopPluginSettingsPageOutlet contribution={activeDesktopPluginSettingsPage} />
           )}

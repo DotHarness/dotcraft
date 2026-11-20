@@ -18,7 +18,7 @@ public sealed partial class RemoteToolHostCoreTests
             var dataPath = Path.Combine(workspace, ".craft");
             var store = Path.Combine(dataPath, "memory");
             Directory.CreateDirectory(store);
-            var stores = new ThreadMemoryStores(new MemoryStore(dataPath), []);
+            var stores = new ThreadMemoryStores(new MemoryStore(dataPath), null, []);
             var client = new FakeRemoteClient();
             client.SetRoute("thread-1");
             var registrations = await new WriteFileSource(workspace).GetRegistrationsAsync(new ToolPlanningContext(

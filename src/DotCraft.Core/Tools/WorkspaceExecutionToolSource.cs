@@ -50,7 +50,8 @@ public sealed class WorkspaceExecutionToolSource(
             searchTimeout: fileSearchTimeout,
             workspaceRoots: context.WorkspaceRoots,
             managedSearchOnly: managedFileSearch,
-            location: context.Location);
+            location: context.Location,
+            fileVersions: context.FileVersions);
         tools.AddRange(GeneratedToolFunctions.All(fileTools));
 
         if (config.Tools.Lsp.Enabled && lspServerManager != null)

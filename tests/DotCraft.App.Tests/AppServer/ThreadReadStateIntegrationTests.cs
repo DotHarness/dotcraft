@@ -25,7 +25,8 @@ public sealed class ThreadReadStateIntegrationTests
               },
               "DashBoard": { "Enabled": false },
               "Automations": { "Enabled": false },
-              "Dreams": { "Enabled": false }
+              "Dreams": { "Enabled": false },
+              "Memory": { "Personal": false }
             }
             """);
         var identity = new { channelName = "dotcraft-desktop", userId = "local", workspacePath = workspace };

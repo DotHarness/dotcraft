@@ -1,5 +1,6 @@
 using DotCraft.Agents;
 using DotCraft.Configuration;
+using DotCraft.Context;
 using DotCraft.Memory;
 using DotCraft.Security;
 using DotCraft.Sessions;
@@ -49,6 +50,31 @@ public sealed class SessionServiceMemorySwitchTests : IDisposable
     }
 
     [Fact]
+    public async Task PersonalSwitch_IsCapturedAndDecidesWhetherTheThreadUsesThePersonalStore()
+    {
+        var personal = new MemoryStore(Path.Combine(_root, "home", ".craft"));
+        File.WriteAllText(personal.IndexFilePath, "- [Worktrees](worktrees.md) — works in worktrees");
+        await using var factory = CreateAgentFactory(Path.Combine(_root, "home", ".craft"));
+        var service = CreateService(factory);
+
+        var withPersonal = await service.CreateThreadAsync(MakeIdentity());
+        _config.Memory.Personal = false;
+        var withoutPersonal = await service.CreateThreadAsync(MakeIdentity());
+
+        Assert.True(withPersonal.Configuration?.MemoryPersonal);
+        Assert.False(withoutPersonal.Configuration?.MemoryPersonal);
+
+        await DrainAsync(service.SubmitInputAsync(withPersonal.Id, [new TextContent("hello")]));
+        Assert.Contains("works in worktrees", _recorder.LastPrompt, StringComparison.Ordinal);
+        Assert.Contains(Path.GetFullPath(personal.MemoryDirectoryPath), _recorder.LastInstructions, StringComparison.Ordinal);
+
+        await DrainAsync(service.SubmitInputAsync(withoutPersonal.Id, [new TextContent("hello")]));
+        Assert.Contains("remembered-lesson", _recorder.LastPrompt, StringComparison.Ordinal);
+        Assert.DoesNotContain("works in worktrees", _recorder.LastPrompt, StringComparison.Ordinal);
+        Assert.DoesNotContain(Path.GetFullPath(personal.MemoryDirectoryPath), _recorder.LastPrompt, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task RunningThread_SeesIndexChangesAtItsNextTurnWithUnchangedInstructions()
     {
         await using var factory = CreateAgentFactory();
@@ -74,17 +100,19 @@ public sealed class SessionServiceMemorySwitchTests : IDisposable
     {
         _config.Memory.Enabled = false;
         _config.Memory.AutoExtract = true;
+        _config.Memory.Personal = false;
         await using var factory = CreateAgentFactory();
         var service = CreateService(factory);
         var thread = await service.CreateThreadAsync(MakeIdentity(), new ThreadConfiguration { MemoryScope = "agent-before" });
 
         await service.UpdateThreadConfigurationAsync(
             thread.Id,
-            new ThreadConfiguration { Mode = "agent", MemoryScope = "agent-after", MemoryAutoExtract = false });
+            new ThreadConfiguration { Mode = "agent", MemoryScope = "agent-after", MemoryAutoExtract = false, MemoryPersonal = true });
 
         var reloaded = await service.GetThreadAsync(thread.Id);
         Assert.False(reloaded.Configuration?.MemoryEnabled);
         Assert.True(reloaded.Configuration?.MemoryAutoExtract);
+        Assert.False(reloaded.Configuration?.MemoryPersonal);
         Assert.Equal("agent-before", reloaded.Configuration?.MemoryScope);
     }
 
@@ -110,12 +138,14 @@ public sealed class SessionServiceMemorySwitchTests : IDisposable
     {
         _config.Memory.Enabled = false;
         _config.Memory.AutoExtract = true;
+        _config.Memory.Personal = false;
         await using var factory = CreateAgentFactory();
         var service = CreateService(factory);
         var source = await service.CreateThreadAsync(MakeIdentity(), new ThreadConfiguration { MemoryScope = "nightly" });
         await DrainAsync(service.SubmitInputAsync(source.Id, [new TextContent("hello")]));
         _config.Memory.Enabled = true;
         _config.Memory.AutoExtract = false;
+        _config.Memory.Personal = true;
 
         var fork = await service.ForkThreadAsync(
             source.Id,
@@ -123,7 +153,42 @@ public sealed class SessionServiceMemorySwitchTests : IDisposable
 
         Assert.False(fork.Configuration?.MemoryEnabled);
         Assert.True(fork.Configuration?.MemoryAutoExtract);
+        Assert.False(fork.Configuration?.MemoryPersonal);
         Assert.Equal("nightly", fork.Configuration?.MemoryScope);
+    }
+
+    [Fact]
+    public async Task CreateThread_RefreshesRuntimeResourcesBeforeCapturingMemoryPersonal()
+    {
+        _config.Memory.Personal = true;
+        await using var factory = CreateAgentFactory();
+        var refresher = new DelegateRuntimeRefresher(() => _config.Memory.Personal = false);
+        var service = CreateService(factory, [refresher]);
+
+        var thread = await service.CreateThreadAsync(MakeIdentity(), new ThreadConfiguration());
+
+        Assert.False(thread.Configuration?.MemoryPersonal);
+    }
+
+    [Fact]
+    public async Task ImportThread_RefreshesRuntimeResourcesBeforeCapturingMemoryPersonal()
+    {
+        _config.Memory.Personal = true;
+        await using var factory = CreateAgentFactory();
+        var refresher = new DelegateRuntimeRefresher(() => _config.Memory.Personal = false);
+        var service = CreateService(factory, [refresher]);
+        var now = DateTimeOffset.UtcNow;
+
+        var result = await service.ImportThreadAsync(new ThreadImportRequest
+        {
+            Identity = MakeIdentity() with { ChannelName = ThreadImportConstants.ChannelName },
+            ThreadId = "imported-thread-1",
+            DisplayName = "Imported",
+            Turns = [new ImportedTurnInput { UserText = "hi", AgentTexts = ["hello"], StartedAt = now, CompletedAt = now }]
+        });
+
+        Assert.False(result.AlreadyExisted);
+        Assert.False(result.Thread.Configuration?.MemoryPersonal);
     }
 
     public void Dispose()
@@ -131,25 +196,55 @@ public sealed class SessionServiceMemorySwitchTests : IDisposable
         try { Directory.Delete(_root, recursive: true); } catch { }
     }
 
-    private SessionService CreateService(AgentFactory factory) =>
+    private SessionService CreateService(AgentFactory factory, IEnumerable<ISessionRuntimeRefresher>? refreshers = null) =>
         new(
             factory,
             factory.CreateAgentForMode(AgentMode.Agent),
             new SessionPersistenceService(new ThreadStore(Path.Combine(_root, "data"))),
-            new SessionGate());
+            new SessionGate(),
+            runtimeRefreshers: refreshers);
 
-    private AgentFactory CreateAgentFactory() =>
-        new(
+    private sealed class DelegateRuntimeRefresher(Action onRefresh) : ISessionRuntimeRefresher
+    {
+        public Task RefreshAsync(CancellationToken cancellationToken)
+        {
+            onRefresh();
+            return Task.CompletedTask;
+        }
+    }
+
+    private AgentFactory CreateAgentFactory(string? userDataPath = null)
+    {
+        var registry = TestModelProviderRegistry.Create();
+        var skills = new SkillsLoader(_root);
+        var approvals = new AutoApproveApprovalService();
+        return new(
             dotcraftPath: _root,
             workspacePath: _root,
             config: _config,
             memoryStore: _memoryStore,
-            skillsLoader: new SkillsLoader(_root),
-            approvalService: new AutoApproveApprovalService(),
+            skillsLoader: skills,
+            approvalService: approvals,
             blacklist: null,
-            chatClientRegistry: TestModelProviderRegistry.Create(),
+            runtimeContext: userDataPath is null
+                ? null
+                : new AgentRuntimeContext
+                {
+                    Config = _config,
+                    ChatClient = _recorder,
+                    ChatClientRegistry = registry,
+                    WorkspacePath = _root,
+                    BotPath = _root,
+                    UserDataPath = userDataPath,
+                    MemoryStore = _memoryStore,
+                    SkillsLoader = skills,
+                    ContextPageManager = new ContextPageManager(),
+                    ApprovalService = approvals
+                },
+            chatClientRegistry: registry,
             chatClient: _recorder,
             toolSources: Array.Empty<IToolSource>());
+    }
 
     private SessionIdentity MakeIdentity() => new()
     {

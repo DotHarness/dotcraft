@@ -2,9 +2,9 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 0.13.1 |
+| Version | 0.14.0 |
 | Status | Living |
-| Date | 2026-11-19 |
+| Date | 2026-11-20 |
 | Parent Specs | [Plugin Architecture](plugin-architecture.md), [Tool Architecture](tools-architecture.md) |
 
 ## Overview
@@ -111,7 +111,7 @@ names are stable independently of internal component props.
 A plugin main view that browses or manages a collection uses the Host catalog frame:
 
 - `CatalogPage` takes `{ title, tabs?, breadcrumb?, actions?, search?, filters?, children }` and renders the top band with `actions`, a pinned header with `title` and a search row, and a scrolling body centred on the catalog column. `search` is `{ value, placeholder, onValueChange }`. `filters` is `{ ariaLabel, groups }`, each group `{ label, icon?, value, options, onValueChange }` with options `{ value, label }`; the first option is the unfiltered choice. `tabs` is `{ value, items, onValueChange }` with items `{ value, label }`. It fills the band's navigation slot with the same top-bar tabs Desktop uses to switch Plugins and Skills. `breadcrumb` is `{ parentLabel, currentLabel, onBack, trail? }`, with `trail` segments `{ label, onClick }` for the pages between, outermost first. It takes the navigation slot instead of `tabs` for a page reached from another, like Plugins › Manage. `titleEditor` and `descriptionEditor`, each `{ value, placeholder, ariaLabel, onValueChange, invalid?, readOnly? }`, make the hero title and a one-line subtitle under it editable in place, frameless, for a page that edits one record. `meta` holds controls centred under them, such as the record's tags.
-- `CatalogSection` titles one body group with `{ title, children }`.
+- `CatalogSection` titles one body group with `{ title, actions?, children }`. `actions` sit at the end of the title row and appear while the pointer is over it, focus is inside them, or their menu is open.
 - `CatalogToolbarButton` is an icon-only band action, `{ icon, label, onClick }`, whose label is also its tooltip.
 - `SplitButton` is a principal action with alternatives: `{ label, onClick, items, menuLabel, icon?, variant?, disabled?, ariaLabel? }`, where `variant` is `primary` or `secondary` and `items` follow `Menu` items.
 
@@ -211,6 +211,7 @@ The Core surfaces are:
 | `summary.sources` | Additive rows inside a thread's Summary Sources section, after Core's sources. Empty by default. |
 | `summary.sections` | Additive sections inside a thread's Summary, after its sources and before its context and environment sections. Empty by default. |
 | `conversation.turn.status` | A seat inside the last visible turn, for status that belongs to the conversation's current work: above the reply's actions once the turn has a reply, otherwise directly above its working line. Empty by default. |
+| `settings.<section>` | Each built-in Settings section (`general`, `import`, `profile`, `appearance`, `archived-threads`, `voice`, `personalization`, `pet`, `usage`, `model-providers`, `browser`, `computer-use`, `connections`, `mcp`, `hooks`, `source-control`, `worktrees`). Additions append groups with the Settings section spacing, and wrappers can swap in a Settings subpage using the context `{ section, title }`. |
 
 `app.background`, `app.overlay`, and `app.status` share the application context. The overlay paints over the shell without consuming the single `app` wrapper. Overlay, status, and aside seats are click-through (`pointer-events: none`, inherited); a contribution opts back in on its own interactive elements.
 
@@ -228,7 +229,7 @@ On the new-chat Welcome screen, `composer` covers the complete pre-thread experi
 
 The SDK's `PluginSurface` component declares and renders a plugin-owned surface from its `name` and typed `context`. Core or another plugin may target it with `add`, `replace`, or `wrap` regardless of activation order; registrations render whenever it is mounted. Plugin-qualified names are recommended but not enforced.
 
-Core surface names are closed. The Host warns about unknown names rooted at `app`, `composer`, `thread`, `conversation`, or `summary` but still stores the registration. Plugin-owned names remain open.
+Core surface names are closed. The Host warns about unknown names rooted at `app`, `composer`, `thread`, `conversation`, `summary`, or `settings` but still stores the registration. Plugin-owned names remain open.
 
 ### Thread and conversation surfaces
 

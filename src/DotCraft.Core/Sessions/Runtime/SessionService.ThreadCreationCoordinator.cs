@@ -18,6 +18,7 @@ public sealed partial class SessionService
             ThreadSource? source,
             bool ephemeral)
         {
+            await owner.RefreshRuntimeResourcesAsync(ct).ConfigureAwait(false);
             var capturedConfig = owner.CaptureThreadConfigurationForNewThread(config);
             capturedConfig = ThreadWorkspaceResolver.Apply(
                 identity.WorkspacePath,
@@ -123,6 +124,7 @@ public sealed partial class SessionService
             config.MemoryStores = source.Configuration?.MemoryStores is { } stores ? [.. stores] : null;
             config.MemoryEnabled = source.Configuration?.MemoryEnabled;
             config.MemoryAutoExtract = source.Configuration?.MemoryAutoExtract;
+            config.MemoryPersonal = source.Configuration?.MemoryPersonal;
             // Nobody answers an extraction fork's approval prompts; the policy is not model-visible, so the cache is kept.
             if (options.Purpose == ThreadForkPurpose.MemoryExtraction)
                 config.ApprovalPolicy = ApprovalPolicy.Deny;

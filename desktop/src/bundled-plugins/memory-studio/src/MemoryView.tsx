@@ -4,14 +4,13 @@ import { useEffect, useMemo, useState, type JSX } from 'react'
 import { ConsolidationTab, RunReview, useRunTitle, type RunFilters } from './consolidation/ConsolidationTab'
 import type { RunStatusFilter } from './consolidation/dreamRuns'
 import { isWithin } from './data/hostPath'
+import { errorMessage } from './data/rpc'
 import { memoryName } from './data/memoryFile'
-import type { MemoryStore } from './data/stores'
+import { clearStore, PERSONAL_STORE_ID, type MemoryStore } from './data/stores'
 import { ALL, EntriesTab, UNTYPED, useStoreLabel, type AgeFilter, type EntryFilters } from './entries/EntriesTab'
 import { EntryEditor, type EntryTarget } from './entries/EntryEditor'
 import { useDreamRuns, useMemoryFs, usePolicyState, useStores, type Loaded } from './hooks/useMemoryData'
 import { useT } from './i18n'
-import { PolicySettingEditor } from './policy/PolicySettingEditor'
-import { PolicyTab, type PolicyEditorSetting } from './policy/PolicyTab'
 import { Notice } from './shared/ui'
 import { takeOpenRequest, usePendingOpenRequest, type OpenRequest } from './state/openRequests'
 import styles from './MemoryView.module.css'
@@ -19,16 +18,14 @@ import styles from './MemoryView.module.css'
 type Tab = 'entries' | 'dreams'
 
 type Page =
-  | { kind: 'policy' }
-  | { kind: 'policySetting'; setting: PolicyEditorSetting }
   | { kind: 'entry'; target: EntryTarget }
   | { kind: 'run'; runId: string }
 
-/** The store a Summary row names: the attached store by id, otherwise the store that contains the file. */
 export function resolveRequestStore(stores: readonly MemoryStore[], request: Extract<OpenRequest, { kind: 'entry' }>): MemoryStore | undefined {
+  if (request.storeId === PERSONAL_STORE_ID) return stores.find((store) => store.kind === 'personal')
   if (request.storeId) return stores.find((store) => store.kind === 'attached' && store.id === request.storeId)
   return stores
-    .filter((store) => store.kind !== 'attached' && isWithin(request.path, store.path, request.workspacePath))
+    .filter((store) => store.kind !== 'attached' && store.kind !== 'personal' && isWithin(request.path, store.path, request.workspacePath))
     .sort((a, b) => b.path.length - a.path.length)[0]
     ?? stores.find((store) => store.kind === 'workspace')
 }
@@ -83,14 +80,35 @@ export function MemoryView({ host }: DesktopPluginViewProps): JSX.Element {
     if (changed) stores.reload()
   }
 
-  const writableStore = storeList.find((store) => store.writable)
+  const writableStore =
+    (filters.store !== ALL ? storeList.find((store) => store.key === filters.store && store.writable) : undefined)
+    ?? storeList.find((store) => store.kind === 'workspace' && store.writable)
+    ?? storeList.find((store) => store.writable)
+  const [clearing, setClearing] = useState(false)
+  const clearMemory = async (store: MemoryStore): Promise<void> => {
+    const personal = store.kind === 'personal'
+    const confirmed = await host.ui.confirm({
+      title: t(personal ? 'clear.personalTitle' : 'clear.workspaceTitle'),
+      message: t(personal ? 'clear.personalMessage' : 'clear.workspaceMessage'),
+      confirmLabel: t(personal ? 'clear.personal' : 'clear.workspace'),
+      danger: true
+    })
+    if (!confirmed) return
+    setClearing(true)
+    try {
+      await clearStore(fs, store)
+    } catch (error) {
+      host.ui.showToast({ tone: 'error', message: t('clear.failed'), description: errorMessage(error) })
+    } finally {
+      setClearing(false)
+      stores.reload()
+    }
+  }
   const tabLabel = (value: Tab): string => value === 'dreams' ? t('tab.dreams') : t('view.title')
   const reviewedRun = page?.kind === 'run' ? dreams.value?.find((run) => run.id === page.runId) : undefined
 
   const pageTitle = (current: Page): string => {
     switch (current.kind) {
-      case 'policy': return t('tab.policy')
-      case 'policySetting': return t(`policy.setting.${current.setting}` as const)
       case 'entry': return current.target.mode === 'new' ? t('editor.newTitle') : memoryName(current.target.fileName)
       case 'run': return reviewedRun ? runTitle(reviewedRun) : t('tab.dreams')
     }
@@ -99,7 +117,11 @@ export function MemoryView({ host }: DesktopPluginViewProps): JSX.Element {
   const actions = (
     <>
       <CatalogToolbarButton icon={<RefreshCw size={15} />} label={t('view.refresh')} onClick={refresh} />
-      <CatalogToolbarButton icon={<Settings size={15} />} label={t('tab.policy')} onClick={() => setPage({ kind: 'policy' })} />
+      <CatalogToolbarButton
+        icon={<Settings size={15} />}
+        label={t('view.settings')}
+        onClick={() => host.navigation.openSettingsSection('personalization')}
+      />
       {writableStore ? (
         <Button
           variant="primary"
@@ -128,10 +150,9 @@ export function MemoryView({ host }: DesktopPluginViewProps): JSX.Element {
     ? {
         title: pageTitle(page),
         breadcrumb: {
-          parentLabel: tabLabel(page.kind === 'run' ? 'dreams' : page.kind === 'policy' || page.kind === 'policySetting' ? tab : 'entries'),
+          parentLabel: tabLabel(page.kind === 'run' ? 'dreams' : 'entries'),
           currentLabel: pageTitle(page),
-          onBack: () => setPage(null),
-          trail: page.kind === 'policySetting' ? [{ label: t('tab.policy'), onClick: () => setPage({ kind: 'policy' }) }] : undefined
+          onBack: () => setPage(null)
         }
       }
     : {
@@ -208,34 +229,6 @@ export function MemoryView({ host }: DesktopPluginViewProps): JSX.Element {
       }
 
   const body = (): JSX.Element => {
-    if (page?.kind === 'policy') {
-      return (
-        <LoadState loaded={policy} unsupported={t('unsupported.policy')}>
-          {(state) => (
-            <PolicyTab
-              state={state}
-              onEdit={(setting) => setPage({ kind: 'policySetting', setting })}
-              onChanged={policy.reload}
-            />
-          )}
-        </LoadState>
-      )
-    }
-    if (page?.kind === 'policySetting') {
-      return (
-        <LoadState loaded={policy} unsupported={t('unsupported.policy')}>
-          {(state) => (
-            <PolicySettingEditor
-              key={page.setting}
-              state={state}
-              setting={page.setting}
-              onClose={() => setPage({ kind: 'policy' })}
-              onChanged={policy.reload}
-            />
-          )}
-        </LoadState>
-      )
-    }
     if (page?.kind === 'run') return <RunReview runId={page.runId} onChanged={refresh} />
     if (tab === 'dreams' && page == null) {
       return (
@@ -259,7 +252,8 @@ export function MemoryView({ host }: DesktopPluginViewProps): JSX.Element {
             filters={filters}
             declaredTypes={declaredTypes}
             onOpen={(store, entry) => setPage({ kind: 'entry', target: { mode: 'existing', storeKey: store.key, fileName: entry.fileName } })}
-            onNew={(store) => setPage({ kind: 'entry', target: { mode: 'new', storeKey: store.key, body: '' } })}
+            clearing={clearing}
+            onClear={(store) => void clearMemory(store)}
           />
         )}
       </LoadState>

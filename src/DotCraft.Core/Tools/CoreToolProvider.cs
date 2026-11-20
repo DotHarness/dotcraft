@@ -137,7 +137,8 @@ public sealed class CoreToolSource(
             workspaceRoots: context.WorkspaceRoots,
             memoryStores: context.MemoryStores,
             memoryWriteGates: contributions is null ? null : () => contributions.Resolve<IMemoryWriteGate>(context.ThreadId),
-            location: context.Location);
+            location: context.Location,
+            fileVersions: context.FileVersions);
         tools.AddRange(GeneratedToolFunctions.All(fileTools));
 
         if (config.Tools.Lsp.Enabled && lspServerManager != null)

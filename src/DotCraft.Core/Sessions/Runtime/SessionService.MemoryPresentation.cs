@@ -4,7 +4,7 @@ using DotCraft.Tools;
 
 namespace DotCraft.Sessions;
 
-internal readonly record struct MemoryPresentationMark(string Kind, MemoryStoreAttachment? Store);
+internal readonly record struct MemoryPresentationMark(string Kind, (string Id, string Name)? Store);
 
 public sealed partial class SessionService
 {
@@ -31,7 +31,7 @@ public sealed partial class SessionService
                && configuration is not null and not { MemoryEnabled: false }
                && FileToolAccess.TryResolveTarget(definition.Id.SourceToolId.Value, arguments, workspacePath, out _, out var target)
                && ResolveMemoryStores(configuration).Classify(target) is { } store
-            ? new MemoryPresentationMark(mark, store.Attached?.Attachment)
+            ? new MemoryPresentationMark(mark, store.Label)
             : null;
     }
 }

@@ -19,7 +19,8 @@ internal static class TextFileReadLimiter
         string displayPath,
         int offset,
         int limit,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Func<Stream, CancellationToken, Task>? onStreamRead = null)
     {
         var encoding = TextFileEncoding.Detect(fullPath);
         var startLine = NormalizeOffset(offset);
@@ -69,6 +70,9 @@ internal static class TextFileReadLimiter
 
         if (lines.Count == 0 && lineNumber < startLine && !(startLine == 1 && lineNumber == 0))
             return $"Error: Offset {startLine} is out of range for this file ({lineNumber} lines).";
+
+        if (onStreamRead is not null)
+            await onStreamRead(stream, cancellationToken);
 
         return FormatLines(lines, startLine, hasMore, hasMore ? null : lineNumber);
     }

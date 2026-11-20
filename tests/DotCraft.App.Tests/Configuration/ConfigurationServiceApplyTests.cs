@@ -125,6 +125,7 @@ public sealed class ConfigurationServiceApplyTests
             "Memory.ConsolidationGuidance",
             "Memory.ExtractionGuidance",
             "Memory.ExtractionInterval",
+            "Memory.Personal",
             "Memory.SaveGuidance",
             "Memory.Types",
             "ProjectDocMaxBytes",

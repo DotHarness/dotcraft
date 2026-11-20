@@ -30,11 +30,12 @@ public sealed class ConfigurationServiceMemoryPolicyTests
     {
         using var fixture = Create();
 
-        await fixture.WriteAsync("Memory.Types", """[{ "Name": "fact", "Description": "One self-contained fact." }]""");
+        await fixture.WriteAsync("Memory.Types", """[{ "Name": "fact", "Description": "One self-contained fact." }, { "Name": "preference", "Description": "How the user likes to work.", "Personal": true }]""");
         await fixture.WriteAsync("Memory.SaveGuidance", "\"Save only facts.\"");
 
         var policy = MemoryPolicy.From(fixture.Monitor.Current.Memory);
-        Assert.Equal(["fact"], policy.TypeNames);
+        Assert.Equal(["fact", "preference"], policy.TypeNames);
+        Assert.Equal(["preference"], policy.PersonalTypeNames);
         Assert.Equal("Save only facts.", policy.SaveGuidance);
 
         await fixture.WriteAsync("Memory.Types", "null");
@@ -42,6 +43,7 @@ public sealed class ConfigurationServiceMemoryPolicyTests
 
         policy = MemoryPolicy.From(fixture.Monitor.Current.Memory);
         Assert.Equal(MemoryPolicy.Default.TypeNames, policy.TypeNames);
+        Assert.Equal(["user"], policy.PersonalTypeNames);
         Assert.Equal(MemoryPolicyDefaults.SaveGuidance, policy.SaveGuidance);
     }
 

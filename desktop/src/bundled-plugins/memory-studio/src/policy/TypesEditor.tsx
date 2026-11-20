@@ -1,4 +1,4 @@
-import { Button, IconButton, Input } from '@dotcraft/plugin'
+import { Button, IconButton, Input, PillSwitch } from '@dotcraft/plugin'
 import { Plus, X } from 'lucide-react'
 import type { JSX } from 'react'
 import { useT } from '../i18n'
@@ -34,6 +34,15 @@ export function TypesEditor({ types, disabled, onChange }: {
             value={type.description}
             onChange={(event) => update(index, { description: event.target.value })}
           />
+          <label className={styles.typePersonal}>
+            <PillSwitch
+              checked={type.personal}
+              disabled={disabled}
+              aria-label={t('policy.typePersonalFor', { name: type.name || '…' })}
+              onChange={(personal) => update(index, { personal })}
+            />
+            <span>{t('policy.typePersonal')}</span>
+          </label>
           <IconButton
             icon={<X size={14} />}
             label={t('policy.removeType', { name: type.name || '…' })}
@@ -48,7 +57,7 @@ export function TypesEditor({ types, disabled, onChange }: {
           size="sm"
           iconLeft={<Plus size={14} />}
           disabled={disabled || types.length >= POLICY_LIMITS.maxTypes}
-          onClick={() => onChange([...types, { name: '', description: '' }])}
+          onClick={() => onChange([...types, { name: '', description: '', personal: false }])}
         >
           {t('policy.addType')}
         </Button>

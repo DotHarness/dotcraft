@@ -215,6 +215,8 @@ internal sealed class ThreadRuntime(SessionThread thread, ThreadEventBroker brok
 
     public ToolLocation? ToolLocation { get; set; }
 
+    public ThreadFileVersions FileVersions { get; } = new();
+
     public SubAgentModelCatalogSnapshot? SubAgentModels { get; set; }
 
     public long NextToolSnapshotRevision() => Interlocked.Increment(ref _toolSnapshotRevision);

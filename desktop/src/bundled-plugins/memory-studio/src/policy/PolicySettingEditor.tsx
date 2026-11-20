@@ -18,7 +18,9 @@ import { usePolicyWrite } from './usePolicyWrite'
 import styles from './policy.module.css'
 
 function displayValue(setting: PolicyEditorSetting, values: PolicyValues): string {
-  if (setting === 'types') return values.types.map((type) => `${type.name}: ${type.description}`).join('\n')
+  if (setting === 'types') {
+    return values.types.map((type) => `${type.name}${type.personal ? ' (personal)' : ''}: ${type.description}`).join('\n')
+  }
   return values[setting].replace(/\r\n/g, '\n').trim()
 }
 

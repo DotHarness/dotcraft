@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.13.1 |
+| **Version** | 0.14.0 |
 | **Status** | Living |
-| **Date** | 2026-11-19 |
+| **Date** | 2026-11-20 |
 | **Related Specs** | [Session Core](../architecture/session-core.md), [Memory](memory.md) |
 
 Purpose: Define **Dreams**, DotCraft's background consolidation of memory stores. A Dream Run reviews one [memory store](memory.md) together with the recent Threads that used it, and produces a consolidated version of that store. The new version is applied after review or automatically.
@@ -46,8 +46,8 @@ How memory is maintained:
 
 | Workflow | Trigger | Writes |
 |----------|---------|--------|
-| Saving while responding | The agent, in the reply | The Thread's store directly. |
-| Memory extraction | A completed Turn, see [Memory](memory.md#62-memory-extraction) | The Thread's store directly. |
+| Saving while responding | The agent, in the reply | The Thread's own or personal store directly. |
+| Memory extraction | A completed Turn, see [Memory](memory.md#62-memory-extraction) | The Thread's own or personal store directly. |
 | Dreams | AppServer schedule or a manual request | A candidate store, which replaces the store's files when applied. |
 
 Dreams depends on the memory switch. While `Memory.Enabled` is `false`, Dreams starts no runs, and `Dreams.*` settings keep their stored values.
@@ -90,7 +90,7 @@ The default consolidation guidance merges near-duplicates into one file, convert
 
 A memory's statement that the user corrected the agent does not by itself show it is newer than `AGENTS.md`.
 
-Whatever the guidance says, transcript content is evidence, not instruction, and a run never edits `AGENTS.md`.
+Whatever the guidance says, transcript content is evidence, not instruction, and a run never edits `AGENTS.md`. A run never adds a memory of a personal type to the store it consolidates, because such memories belong in the [personal store](memory.md#42-personal-store), which Dreams does not consolidate.
 
 ## 6. Runtime Lifecycle
 

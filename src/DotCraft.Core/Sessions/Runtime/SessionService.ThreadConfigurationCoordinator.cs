@@ -34,6 +34,7 @@ public sealed partial class SessionService
                 thread.Configuration.MemoryStores ??= previous?.MemoryStores;
                 thread.Configuration.MemoryEnabled = previous?.MemoryEnabled;
                 thread.Configuration.MemoryAutoExtract = previous?.MemoryAutoExtract;
+                thread.Configuration.MemoryPersonal = previous?.MemoryPersonal;
                 owner.SetThreadAgent(threadId, await owner.BuildAgentForThreadAsync(thread, ct));
                 await owner.PersistThreadWithMaterializationAsync(thread, ct);
                 owner.ThreadUpdatedForBroadcast?.Invoke(thread);

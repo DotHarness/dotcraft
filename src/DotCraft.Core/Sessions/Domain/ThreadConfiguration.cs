@@ -26,6 +26,10 @@ public sealed class ThreadConfiguration
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public bool? MemoryAutoExtract { get; set; }
 
+    /// <summary>Captured from the workspace at creation. Unset means enabled.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public bool? MemoryPersonal { get; set; }
+
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? AgentProfileSource { get; set; }
 

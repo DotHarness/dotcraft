@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.9.6 |
+| Version | 0.14.0 |
 | Status | Living |
-| Date | 2026-10-26 |
+| Date | 2026-11-20 |
 | Scope | Agent tools, authority binding, execution, session projection, and interactive presentation |
 
 ## 1. Purpose
@@ -282,6 +282,8 @@ Exception conversion preserves the category, supplies a nonempty fallback, and k
 File mutation success reflects the disk write. A later diff-reporting failure produces a warning without turning a completed write into a failure; the [file-change payload](session-core.md#toolresult) records the write outcome independently of the diff. An unknown write outcome invalidates the local aggregate diff; a rejected write leaves it intact.
 
 `ReadFile`, `WriteFile`, and `EditFile` decode a file as UTF-8 unless a UTF-8, UTF-16, or UTF-32 byte-order mark selects that encoding. They return an error for bytes that are not valid text in that encoding and never rewrite such a file; `GrepFiles` still searches it.
+
+When a Thread has read or written a file and the file changed on disk since it last did, `WriteFile` rejects replacing it, leaves the file as it was, and asks the agent to read it again. Several Threads and processes, the user, and other tools change the same files, including the personal memory store that every workspace on a machine shares, and a whole-file write based on content the agent saw before such a change would silently discard it. A read of any part of the file counts. The record belongs to the Thread while its runtime is loaded, so a resumed Thread, a SubAgent, and a forked Thread start with none, and a file the Thread has no record of is written without the check. `EditFile` needs no such check, because it replaces only text it finds in the file's current content. A write that runs on a remote workspace's machine is not checked.
 
 `GrepFiles` accepts a file or directory path; a file target reports its name and matching line numbers, directories recurse, and include patterns filter directory scans. No file is skipped for size. Path authorization, binary-file filtering, cancellation, the search timeout, and the match limit always apply. Missing targets are reported as missing paths.
 

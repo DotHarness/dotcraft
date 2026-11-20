@@ -94,7 +94,8 @@ public sealed class HubHost : IDotCraftHost
                 _dotcraftBin,
                 _paths.AppServersRegistryPath,
                 _paths.RuntimeToolsPath,
-                _loggerFactory.CreateLogger<ManagedAppServerRegistry>());
+                _loggerFactory.CreateLogger<ManagedAppServerRegistry>(),
+                _paths.CraftHomePath);
             _projects = new ProjectRegistry(_paths);
             _serviceRegistry = new ManagedLocalServiceRegistry(
                 ManagedLocalServiceDefinitions.CreateBuiltIns(_paths),

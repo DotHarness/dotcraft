@@ -2,7 +2,7 @@ namespace DotCraft.Memory;
 
 internal static class MemoryInstructions
 {
-    public static string FileFormat(IReadOnlyList<MemoryTypeDefinition> types) =>
+    public static string FileFormat(IReadOnlyList<MemoryTypeDefinition> types, bool markPersonal = false) =>
 $"""
 Each memory is one Markdown file holding one fact, named `<name>.md`, with frontmatter:
 
@@ -15,6 +15,6 @@ metadata:
 
 <the fact>
 
-{string.Join("\n", types.Select(static type => $"- {type.Name}: {type.Description}"))}
+{string.Join("\n", types.Select(type => $"- {type.Name}{(markPersonal && type.Personal ? " (personal)" : string.Empty)}: {type.Description}"))}
 """;
 }

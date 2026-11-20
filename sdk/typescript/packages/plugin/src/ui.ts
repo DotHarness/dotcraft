@@ -332,6 +332,8 @@ export interface CatalogPageProps {
 
 export interface CatalogSectionProps {
   readonly title: string;
+  /** Shown at the end of the title row while the pointer is over it or focus is inside. */
+  readonly actions?: ReactNode;
   readonly children: ReactNode;
 }
 

@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.1 |
+| **Version** | 0.14.0 |
 | **Status** | Draft |
-| **Date** | 2026-10-19 |
+| **Date** | 2026-11-20 |
 | **Related Specs** | [Hub Architecture](../architecture/hub-architecture.md), [Session Core](../architecture/session-core.md) |
 
 ## 1. Overview
@@ -35,7 +35,7 @@ Its state still lives under:
 - No new `Chat` thread type.
 - No change to `thread/start`, `thread/list`, or `SessionIdentity`.
 - No special App Binding behavior for default chat threads.
-- No execution access to the user's home directory: a chat reaches only its own folder (§4.1).
+- No execution access to the user's home directory: a chat reaches only its own folder (§4.1) and the memory stores that [Memory](memory.md#61-while-responding) makes writable, the personal store among them.
 
 ## 4. Workspace Contract
 

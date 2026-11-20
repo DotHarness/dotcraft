@@ -29,6 +29,16 @@ internal sealed class ProjectRegistry(HubPaths paths, TimeProvider? timeProvider
         }
 
         if (ManagedAppServerRegistry.WorkspaceComparer.Equals(
+                ManagedAppServerRegistry.CanonicalizeWorkspacePath(Path.Combine(canonical, ".craft")),
+                ManagedAppServerRegistry.CanonicalizeWorkspacePath(paths.CraftHomePath)))
+        {
+            throw new HubProtocolException(
+                "invalidRequest",
+                "The user home directory cannot be opened as a workspace.",
+                StatusCodes.Status400BadRequest);
+        }
+
+        if (ManagedAppServerRegistry.WorkspaceComparer.Equals(
                 canonical,
                 ManagedAppServerRegistry.CanonicalizeWorkspacePath(paths.DefaultChatWorkspacePath)))
         {

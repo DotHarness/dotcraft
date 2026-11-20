@@ -37,7 +37,7 @@
   place-items: center;
   width: 40px;
   height: 40px;
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--bg-secondary);
   color: var(--text-secondary);
 }

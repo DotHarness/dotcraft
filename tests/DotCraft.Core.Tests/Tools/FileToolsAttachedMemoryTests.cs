@@ -136,7 +136,7 @@ public sealed class FileToolsAttachedMemoryTests : IDisposable
         new(
             _root,
             requireApprovalOutsideWorkspace: true,
-            memoryStores: new ThreadMemoryStores(_own, stores),
+            memoryStores: new ThreadMemoryStores(_own, null, stores),
             memoryWriteGates: () => [gate]);
 
     private sealed class RecordingGate(MemoryWriteDecision decision) : IMemoryWriteGate

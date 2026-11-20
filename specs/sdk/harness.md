@@ -40,7 +40,7 @@ service graph.
 
 Each Harness instance has a required `WorkspacePath`, a workspace-owned `DataPath`, and an optional
 user-owned `UserDataPath`. `DataPath` defaults to `.craft`; `UserDataPath` defaults to disabled.
-Workspace data must remain within the workspace boundary.
+Workspace data must remain within the workspace boundary and must not resolve to the same directory as `UserDataPath`, so the user home directory cannot be used as a workspace.
 
 Runtime resolves these inputs once into an immutable `DotCraftPaths`. Core, providers, and optional
 features consume the resolved paths rather than reconstructing `.craft` paths or selecting

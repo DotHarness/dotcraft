@@ -15,6 +15,9 @@ public sealed class MemoryConfig
     [ConfigField(Hint = "Let new memory-enabled sessions save knowledge missed while responding, every few turns.", Reload = ReloadBehavior.Hot, HasReload = true)]
     public bool AutoExtract { get; set; }
 
+    [ConfigField(Hint = "Let new memory-enabled sessions keep what they learn about you in a personal memory that every workspace on this computer shares.", Reload = ReloadBehavior.Hot, HasReload = true)]
+    public bool Personal { get; set; } = true;
+
     [ConfigField(Hint = "Memory types: each Name is a memory's metadata.type and each Description tells the model what belongs to it.", FieldType = "json", Reload = ReloadBehavior.Hot, HasReload = true)]
     public List<MemoryTypeDefinition> Types { get; set; } = MemoryPolicyDefaults.CreateTypes();
 

@@ -5,6 +5,7 @@ namespace DotCraft.Memory;
 
 public static class MemoryStoreKinds
 {
+    public const string Personal = "personal";
     public const string Workspace = "workspace";
     public const string Scope = "scope";
     public const string Attached = "attached";
@@ -12,7 +13,7 @@ public static class MemoryStoreKinds
 
 public sealed record MemoryStoreEntry(string Kind, string? Scope, string? Id, string Path, string DisplayName, bool Writable);
 
-public sealed class MemoryManagementService(DotCraftPaths paths, MemoryStore workspaceStore)
+public sealed class MemoryManagementService(DotCraftPaths paths, MemoryStore workspaceStore, Func<bool> personalEnabled)
 {
     public IReadOnlyList<MemoryStoreEntry> ListStores()
     {
@@ -31,10 +32,14 @@ public sealed class MemoryManagementService(DotCraftPaths paths, MemoryStore wor
                 scopes.Add(System.IO.Path.GetFileName(directory));
         }
 
-        var stores = new List<MemoryStoreEntry>
+        var stores = new List<MemoryStoreEntry>();
+        if (MemoryScopes.PersonalStoreDirectory(personalEnabled(), paths.UserData.RootPath, workspaceStore) is { } personalDirectory)
         {
-            new(MemoryStoreKinds.Workspace, null, null, workspaceStore.MemoryDirectoryPath, MemoryStoreKinds.Workspace, true)
-        };
+            stores.Add(new MemoryStoreEntry(
+                MemoryStoreKinds.Personal, null, null, personalDirectory, ThreadMemoryStores.PersonalStoreName, true));
+        }
+
+        stores.Add(new MemoryStoreEntry(MemoryStoreKinds.Workspace, null, null, workspaceStore.MemoryDirectoryPath, MemoryStoreKinds.Workspace, true));
         foreach (var scope in scopes)
         {
             var directory = MemoryStore.DirectoryOf(Path.Combine(dataPath, "scopes", scope));

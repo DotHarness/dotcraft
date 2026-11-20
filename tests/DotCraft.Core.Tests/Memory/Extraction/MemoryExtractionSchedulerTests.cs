@@ -65,6 +65,24 @@ public sealed class MemoryExtractionSchedulerTests : IDisposable
     }
 
     [Fact]
+    public async Task PersonalStoreWrites_AdvanceTheCursorButAttachedStoreWritesDoNot()
+    {
+        var personal = AddThread();
+        await CompleteTurnAsync(personal, MemoryWrite.Personal);
+        for (var i = 0; i < MemoryPolicyDefaults.ExtractionInterval; i++)
+            await CompleteTurnAsync(personal);
+
+        Assert.Equal([(personal.Id, "turn_001")], _runner.Calls);
+
+        var attached = AddThread();
+        await CompleteTurnAsync(attached, MemoryWrite.Attached);
+        for (var i = 0; i < MemoryPolicyDefaults.ExtractionInterval - 1; i++)
+            await CompleteTurnAsync(attached);
+
+        Assert.Equal([(personal.Id, "turn_001"), (attached.Id, (string?)null)], _runner.Calls);
+    }
+
+    [Fact]
     public async Task ReadsTheConfiguredIntervalWhenEachTurnCompletes()
     {
         var interval = 2;
@@ -242,7 +260,20 @@ public sealed class MemoryExtractionSchedulerTests : IDisposable
                     Presentation = new ToolPresentationPayload
                     {
                         PresentationId = "core.file-write",
-                        Options = new JsonObject { ["memory"] = "update" }
+                        Options = write switch
+                        {
+                            MemoryWrite.Personal => new JsonObject
+                            {
+                                ["memory"] = "update",
+                                ["memoryStore"] = new JsonObject { ["id"] = "personal", ["name"] = "Personal" }
+                            },
+                            MemoryWrite.Attached => new JsonObject
+                            {
+                                ["memory"] = "update",
+                                ["memoryStore"] = new JsonObject { ["id"] = "org", ["name"] = "Organization" }
+                            },
+                            _ => new JsonObject { ["memory"] = "update" }
+                        }
                     }
                 }
             });
@@ -256,7 +287,7 @@ public sealed class MemoryExtractionSchedulerTests : IDisposable
                     ToolName = "WriteFile",
                     ProviderFlatName = "WriteFile",
                     CallId = "call-1",
-                    Success = write == MemoryWrite.Succeeded
+                    Success = write != MemoryWrite.Failed
                 }
             });
         }
@@ -276,7 +307,9 @@ public sealed class MemoryExtractionSchedulerTests : IDisposable
     {
         None,
         Succeeded,
-        Failed
+        Failed,
+        Personal,
+        Attached
     }
 
     private sealed class FakeRunner : IMemoryExtractionRunner

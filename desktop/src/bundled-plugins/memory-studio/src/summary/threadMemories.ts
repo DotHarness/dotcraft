@@ -12,7 +12,7 @@ export interface ThreadMemory {
   fileName: string
   /** The path the tool call named, as the agent wrote it. */
   path: string
-  /** Set for an attached store; otherwise the Thread's own store. */
+  /** Set for the personal store or an attached store, or null for the Thread's own store. */
   store: MemoryStoreRef | null
   lastUsedAt: string
 }

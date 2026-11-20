@@ -49,7 +49,7 @@ internal static class PathAsyncMutex
         return new Releaser(key, entry);
     }
 
-    private static string Canonicalize(string fullPath)
+    internal static string Canonicalize(string fullPath)
     {
         var path = Path.GetFullPath(fullPath);
         return OperatingSystem.IsWindows()

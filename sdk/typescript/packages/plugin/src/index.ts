@@ -60,6 +60,8 @@ export type {
   DesktopPluginSession,
   DesktopPluginSessionSnapshot,
   DesktopPluginSettingsPageContribution,
+  DesktopPluginSettingsSection,
+  DesktopPluginSettingsSectionContext,
   DesktopPluginSettingField,
   DesktopPluginSettingType,
   DesktopPluginSettings,

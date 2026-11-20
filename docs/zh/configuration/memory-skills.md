@@ -8,13 +8,14 @@
 |--------|------|--------|
 | `Memory.Enabled` | 让新对话使用并维护记忆。`Memory.AutoExtract` 和梦境也依赖此开关 | `true` |
 | `Memory.AutoExtract` | 每隔几次回复，检查启用记忆的新对话中有没有值得记住但还没保存的内容 | `false` |
-| `Memory.Types` | 记忆的种类，每种包含 `Name` 和一句说明该类内容的 `Description`，一到八种 | `user`、`feedback`、`project`、`reference` |
+| `Memory.Personal` | 让新对话使用 `~/.craft/memory` 中的个人记忆，这台电脑上的所有工作区共用它 | `true` |
+| `Memory.Types` | 记忆的种类，每种包含 `Name` 和一句说明该类内容的 `Description`，保存到个人记忆的种类再加 `Personal: true`。一到八种 | `user`（个人）、`feedback`、`project`、`reference` |
 | `Memory.SaveGuidance` | Agent 在回复中主动保存哪些内容，以及如何写一条记忆 | 内置指引 |
 | `Memory.ExtractionGuidance` | 自动检查从最近的回复中保存哪些内容 | 内置指引 |
 | `Memory.ConsolidationGuidance` | 梦境整理记忆时保留什么，以及如何合并、如何处理矛盾 | 内置指引 |
 | `Memory.ExtractionInterval` | 自动检查每隔几次回复运行一次，取值 1 到 50 | `7` |
 
-两个开关只影响修改之后新建的对话。其余配置从每个对话的下一次回复起生效，删除某项即恢复内置默认值。Memory Studio 插件为这些配置提供预设，并支持在保存前预览修改效果。
+三个开关只影响修改之后新建的对话。其余配置从每个对话的下一次回复起生效，删除某项即恢复内置默认值。Memory Studio 插件支持在**设置 › 个性化**中编辑这些配置，并在保存前与默认值对比。
 
 ## 梦境
 

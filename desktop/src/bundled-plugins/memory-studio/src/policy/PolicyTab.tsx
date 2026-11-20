@@ -1,9 +1,9 @@
-import { Button, Menu, SettingsGroup, SettingsRow } from '@dotcraft/plugin'
+import { Button, IconButton, SettingsGroup, SettingsRow } from '@dotcraft/plugin'
+import { RotateCcw } from 'lucide-react'
 import type { JSX } from 'react'
 import { useT, type MessageKey } from '../i18n'
 import { memoryStudioHost } from '../runtime'
-import type { PolicyOrigin, PolicySetting, PolicyState } from './policy'
-import { matchingPreset, PRESETS, presetEdits, replacesLayerValues, type Preset } from './presets'
+import { POLICY_SETTINGS, settingEdit, type PolicyOrigin, type PolicySetting, type PolicyState } from './policy'
 import { usePolicyWrite } from './usePolicyWrite'
 import styles from './policy.module.css'
 
@@ -32,20 +32,21 @@ export function PolicyTab({ state, onEdit, onChanged }: {
 }): JSX.Element {
   const t = useT()
   const { busy, write } = usePolicyWrite(onChanged)
-  const matched = matchingPreset(state.effective, state.defaults)
+  const hasCustomizations = POLICY_SETTINGS.some((setting) => state.origins[setting] !== 'default')
 
-  // Presets write the personal layer, the one a workspace layer may still override.
-  const applyPreset = async (preset: Preset): Promise<void> => {
-    const layer = state.layers.user
-    if (replacesLayerValues(preset, layer, state.defaults)) {
-      const confirmed = await memoryStudioHost().ui.confirm({
-        title: t('presets.confirmTitle', { name: t(`preset.${preset.id}` as const) }),
-        message: t('presets.confirmUser'),
-        confirmLabel: t('presets.apply')
-      })
-      if (!confirmed) return
+  const restoreAll = async (): Promise<void> => {
+    const confirmed = await memoryStudioHost().ui.confirm({
+      title: t('policy.restoreAllTitle'),
+      message: t('policy.restoreAllMessage'),
+      confirmLabel: t('policy.restore')
+    })
+    if (!confirmed) return
+    for (const layer of ['workspace', 'user'] as const) {
+      const edits = POLICY_SETTINGS
+        .filter((setting) => state.layers[layer]?.values[setting] !== undefined)
+        .map((setting) => settingEdit(setting, null))
+      if (edits.length > 0 && await write(state.layers[layer], edits) !== 'saved') return
     }
-    await write(layer, presetEdits(preset))
   }
 
   const row = (setting: PolicyEditorSetting): JSX.Element => {
@@ -66,33 +67,22 @@ export function PolicyTab({ state, onEdit, onChanged }: {
   }
 
   return (
-    <div className={styles.stack}>
-      <SettingsGroup>
-        <SettingsRow
-          label={t('presets.label')}
-          description={t('presets.current', { name: matched ? t(`preset.${matched}` as const) : t('presets.customized') })}
-          control={(
-            <Menu items={PRESETS.map((preset) => ({
-              label: t(`preset.${preset.id}` as const),
-              checked: matched === preset.id,
-              disabled: busy,
-              onSelect: () => void applyPreset(preset)
-            }))}>
-              <Button variant="secondary" size="sm" disabled={busy}>{t('presets.apply')}</Button>
-            </Menu>
-          )}
+    <SettingsGroup
+      title={t('policy.group.title')}
+      headerAction={hasCustomizations ? (
+        <IconButton
+          icon={<RotateCcw size={14} />}
+          label={t('policy.restoreAll')}
+          tooltipLabel={t('policy.restoreAll')}
+          disabled={busy}
+          onClick={() => void restoreAll()}
         />
-      </SettingsGroup>
-
-      <SettingsGroup title={t('policy.group.remember')}>
-        {row('types')}
-      </SettingsGroup>
-
-      <SettingsGroup title={t('policy.group.write')}>
-        {row('saveGuidance')}
-        {row('extractionGuidance')}
-        {row('consolidationGuidance')}
-      </SettingsGroup>
-    </div>
+      ) : undefined}
+    >
+      {row('types')}
+      {row('saveGuidance')}
+      {row('extractionGuidance')}
+      {row('consolidationGuidance')}
+    </SettingsGroup>
   )
 }

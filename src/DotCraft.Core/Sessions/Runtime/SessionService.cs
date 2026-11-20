@@ -1044,8 +1044,14 @@ public sealed partial class SessionService(
     private MemoryStore ResolveMemoryStore(ThreadConfiguration? config) =>
         MemoryScopes.ForThread(config, agentFactory.RuntimeContext.MemoryStore, DataPath);
 
-    private ThreadMemoryStores ResolveMemoryStores(ThreadConfiguration? config) =>
-        new(ResolveMemoryStore(config), MemoryScopes.AttachedStores(config, DataPath));
+    private ThreadMemoryStores ResolveMemoryStores(ThreadConfiguration? config)
+    {
+        var own = ResolveMemoryStore(config);
+        return new ThreadMemoryStores(
+            own,
+            MemoryScopes.PersonalStore(config?.MemoryPersonal ?? true, agentFactory.RuntimeContext.UserDataPath, own),
+            MemoryScopes.AttachedStores(config, DataPath));
+    }
 
     private ThreadLoadGate AddThreadLoadGateReference(string threadId)
     {

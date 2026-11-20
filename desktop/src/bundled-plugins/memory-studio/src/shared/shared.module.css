@@ -111,16 +111,17 @@
 }
 
 .empty {
-  padding: 32px 0;
+  display: grid;
+  gap: 4px;
   color: var(--text-dimmed);
-  font-size: var(--type-ui-size);
-  text-align: center;
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-line-height);
 }
 
 .emptyTitle {
-  margin-bottom: 4px;
   color: var(--text-secondary);
-  font-weight: var(--type-ui-emphasis-weight);
+  font-size: var(--type-ui-size);
+  line-height: var(--type-ui-line-height);
 }
 
 .diffList {

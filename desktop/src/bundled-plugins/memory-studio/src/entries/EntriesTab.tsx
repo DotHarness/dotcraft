@@ -1,5 +1,5 @@
-import { Button, CatalogSection } from '@dotcraft/plugin'
-import { FileText } from 'lucide-react'
+import { CatalogSection, IconButton, Menu } from '@dotcraft/plugin'
+import { FileText, MoreHorizontal } from 'lucide-react'
 import type { JSX } from 'react'
 import { useLocale, useT } from '../i18n'
 import { INDEX_MAX_BYTES, INDEX_MAX_LINES, type IndexUsage } from '../data/memoryIndex'
@@ -32,7 +32,7 @@ export function filterEntries(contents: StoreContents, filters: EntryFilters, de
 
 export function useStoreLabel(): (store: MemoryStore) => string {
   const t = useT()
-  return (store) => store.kind === 'workspace' ? t('store.workspace') : store.displayName
+  return (store) => store.kind === 'workspace' ? t('store.workspace') : store.kind === 'personal' ? t('store.personal') : store.displayName
 }
 
 function EntryRow({ entry, declared, now, onOpen }: {
@@ -79,18 +79,24 @@ function IndexLoadNotice({ usage }: { usage: IndexUsage }): JSX.Element | null {
   )
 }
 
-export function EntriesTab({ stores, filters, declaredTypes, onOpen, onNew }: {
+export function EntriesTab({ stores, filters, declaredTypes, onOpen, clearing, onClear }: {
   stores: readonly StoreContents[]
   filters: EntryFilters
   declaredTypes: ReadonlySet<string>
   onOpen(store: MemoryStore, entry: MemoryEntry): void
-  onNew(store: MemoryStore): void
+  clearing: boolean
+  onClear(store: MemoryStore): void
 }): JSX.Element {
   const t = useT()
   const label = useStoreLabel()
   const now = Date.now()
   const shown = stores.filter((contents) => filters.store === ALL || contents.store.key === filters.store)
   const filtering = filters.query.trim() !== '' || filters.type !== ALL || filters.age !== 'all'
+  const allEmpty = !filtering && filters.store === ALL && shown.every((contents) => contents.entries.length === 0)
+
+  if (allEmpty) {
+    return <EmptyState title={t('entries.empty')} />
+  }
 
   return (
     <>
@@ -99,7 +105,15 @@ export function EntriesTab({ stores, filters, declaredTypes, onOpen, onNew }: {
         if (filtering && entries.length === 0) return null
         const title = contents.store.writable ? label(contents.store) : t('store.readOnly', { name: label(contents.store) })
         return (
-          <CatalogSection key={contents.store.key} title={title}>
+          <CatalogSection
+            key={contents.store.key}
+            title={title}
+            actions={(contents.store.kind === 'personal' || contents.store.kind === 'workspace') && contents.store.writable && contents.entries.length > 0 ? (
+              <Menu items={[{ label: t(contents.store.kind === 'personal' ? 'clear.personal' : 'clear.workspace'), danger: true, disabled: clearing, onSelect: () => onClear(contents.store) }]}>
+                <IconButton icon={<MoreHorizontal size={15} />} label={t('editor.moreActions')} size={28} />
+              </Menu>
+            ) : undefined}
+          >
             <IndexLoadNotice usage={contents.usage} />
             {entries.length > 0 ? (
               <ul className={styles.rows}>
@@ -114,10 +128,7 @@ export function EntriesTab({ stores, filters, declaredTypes, onOpen, onNew }: {
                 ))}
               </ul>
             ) : (
-              <div className={styles.actions}>
-                <EmptyState title={t('entries.emptyStore')} />
-                {contents.store.writable ? <Button variant="secondary" size="sm" onClick={() => onNew(contents.store)}>{t('entries.new')}</Button> : null}
-              </div>
+              <EmptyState title={t('entries.empty')} />
             )}
           </CatalogSection>
         )

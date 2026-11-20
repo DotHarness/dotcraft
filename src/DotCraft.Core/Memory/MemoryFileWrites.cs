@@ -2,8 +2,8 @@ using DotCraft.Tools;
 
 namespace DotCraft.Memory;
 
-/// <summary>A write's verdict: a refusal for the model, or the attached store it deletes from when the write empties a memory file.</summary>
-internal sealed record MemoryWriteAdmission(string? Refusal, AttachedMemoryStore? DeletesFrom)
+/// <summary>A write's verdict: a refusal for the model, or the store it deletes from when the write empties a memory file.</summary>
+internal sealed record MemoryWriteAdmission(string? Refusal, MemoryStoreTarget? DeletesFrom)
 {
     public static MemoryWriteAdmission Admitted { get; } = new(null, null);
 }
@@ -29,10 +29,13 @@ internal sealed class MemoryFileWrites(ThreadMemoryStores? stores, Func<IReadOnl
     /// <param name="before">The file's content before the write, or null when it does not exist.</param>
     public async Task<MemoryWriteAdmission> AdmitAsync(string fullPath, string? before, string after)
     {
-        if (stores?.Classify(fullPath) is not { Attached: { } store })
+        if (stores?.Classify(fullPath) is not { Kind: not MemoryStoreTargetKind.Own } target)
             return MemoryWriteAdmission.Admitted;
 
-        var deletes = before is not null && string.IsNullOrWhiteSpace(after) && !MemoryStore.IsIndexFile(store.DirectoryPath, fullPath);
+        var deletes = before is not null && string.IsNullOrWhiteSpace(after) && !MemoryStore.IsIndexFile(target.DirectoryPath, fullPath);
+        if (target.Attached is not { } store)
+            return deletes ? new MemoryWriteAdmission(null, target) : MemoryWriteAdmission.Admitted;
+
         var operation = deletes ? MemoryWriteOperation.Delete
             : before is null ? MemoryWriteOperation.Create
             : MemoryWriteOperation.Edit;
@@ -62,6 +65,6 @@ internal sealed class MemoryFileWrites(ThreadMemoryStores? stores, Func<IReadOnl
                 return new MemoryWriteAdmission($"Error: {store.Attachment.Name} rejected this write: {decision.Reason ?? "no reason given"}", null);
         }
 
-        return deletes ? new MemoryWriteAdmission(null, store) : MemoryWriteAdmission.Admitted;
+        return deletes ? new MemoryWriteAdmission(null, target) : MemoryWriteAdmission.Admitted;
     }
 }

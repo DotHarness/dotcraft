@@ -12,7 +12,6 @@
   line-height: var(--type-hint-line-height);
 }
 
-
 .editor {
   display: grid;
   gap: 8px;
@@ -50,18 +49,23 @@
 
 .typeRow {
   display: grid;
-  grid-template-columns: minmax(120px, 0.35fr) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(120px, 0.35fr) minmax(0, 1fr) auto auto;
   gap: 8px;
   align-items: center;
 }
 
-
-
-
+.typePersonal {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: var(--type-secondary-size);
+  white-space: nowrap;
+}
 
 @media (max-width: 640px) {
   .typeRow {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto auto;
   }
 
   .typeRow > :nth-child(2) {

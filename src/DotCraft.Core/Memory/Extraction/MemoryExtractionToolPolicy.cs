@@ -4,8 +4,7 @@ using DotCraft.Tools;
 
 namespace DotCraft.Memory.Extraction;
 
-/// <summary>Lets a memory extraction fork read files and write Markdown files in its store, refusing every other call at dispatch.</summary>
-internal sealed class MemoryExtractionToolPolicy(string storeDirectory) : IToolPolicyEvaluator
+internal sealed class MemoryExtractionToolPolicy(params IReadOnlyList<string> storeDirectories) : IToolPolicyEvaluator
 {
     private static readonly ToolName CodeModeToolName = new(null, "CodeMode");
     private static readonly ToolName CodeModeWaitToolName = new(null, "CodeModeWait");
@@ -30,14 +29,14 @@ internal sealed class MemoryExtractionToolPolicy(string storeDirectory) : IToolP
         if (access.Operation == "read"
             || context.ExecutionLocation is not { Target: "remote" }
             && string.Equals(Path.GetExtension(target), ".md", StringComparison.OrdinalIgnoreCase)
-            && WorkspaceBoundary.IsWithin(target, storeDirectory))
+            && storeDirectories.Any(directory => WorkspaceBoundary.IsWithin(target, directory)))
         {
             return ToolDispatchDecision.Allow;
         }
 
         return ToolDispatchDecision.Deny(
             ToolErrorCodes.Unauthorized,
-            $"Memory extraction can only write Markdown files inside {storeDirectory}.");
+            $"Memory extraction can only write Markdown files inside {string.Join(" or ", storeDirectories)}.");
     }
 
     private static ToolDispatchDecision Refuse() =>

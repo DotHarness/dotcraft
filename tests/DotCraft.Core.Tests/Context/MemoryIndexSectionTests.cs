@@ -171,6 +171,54 @@ public sealed class MemoryIndexSectionTests : IDisposable
         Assert.DoesNotContain(Release, detached, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void PersonalIndex_RendersBeforeTheOwnAndAttachedIndexes()
+    {
+        WriteIndex(Branches);
+        var personal = Personal(Tests);
+        var shared = Attached("org", "Organization");
+        File.WriteAllText(Path.Combine(shared.DirectoryPath, MemoryStore.IndexFileName), Release);
+
+        var text = MemoryText(_world.RenderFull(Context([shared], personal)));
+
+        Assert.True(text.IndexOf(Tests, StringComparison.Ordinal) < text.IndexOf(Branches, StringComparison.Ordinal));
+        Assert.True(text.IndexOf(Branches, StringComparison.Ordinal) < text.IndexOf(Release, StringComparison.Ordinal));
+        Assert.DoesNotContain(Tests, MemoryText(_world.RenderFull(Context([shared]))), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PersonalIndexChangedByAnotherProcess_ArrivesAsADeltaAtTheNextStep()
+    {
+        WriteIndex(Branches);
+        var personal = Personal(Tests);
+        var first = _world.RenderFull(Context([], personal));
+
+        Assert.Null(MemoryTextOrNull(_world.Render(Context([], personal), first.Snapshot, sectionIdsInHistory: null)));
+
+        File.WriteAllText(personal.IndexFilePath, Tests + "\n" + Release);
+        var update = MemoryText(_world.Render(Context([], personal), first.Snapshot, sectionIdsInHistory: null));
+
+        Assert.Contains(Release, update, StringComparison.Ordinal);
+        Assert.DoesNotContain(Tests, update, StringComparison.Ordinal);
+        Assert.DoesNotContain(Branches, update, StringComparison.Ordinal);
+        Assert.DoesNotContain("no longer available", update, StringComparison.Ordinal);
+    }
+
+    private MemoryStore Personal(params string[] lines)
+    {
+        var personal = new MemoryStore(Path.Combine(_root, "home", ".craft"));
+        File.WriteAllText(personal.IndexFilePath, string.Join('\n', lines));
+        return personal;
+    }
+
+    private WorldStateContext Context(IReadOnlyList<AttachedMemoryStore> attached, MemoryStore personal) => new()
+    {
+        Thread = new SessionThread { Id = "thread_memory", WorkspacePath = _root },
+        MemoryStore = _store,
+        PersonalMemoryStore = personal,
+        AttachedMemoryStores = attached
+    };
+
     private AttachedMemoryStore Attached(string id, string name) =>
         Assert.Single(MemoryScopes.AttachedStores(
             new ThreadConfiguration { MemoryStores = [new MemoryStoreAttachment(id, name, "Shared knowledge.", MemoryStoreAccess.ReadWrite)] },

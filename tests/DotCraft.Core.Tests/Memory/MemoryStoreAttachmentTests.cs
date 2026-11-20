@@ -39,6 +39,7 @@ public sealed class MemoryStoreAttachmentTests : IDisposable
         new[] { new MemoryStoreAttachment("..", "Up", "Escapes.", MemoryStoreAccess.Read) },
         new[] { new MemoryStoreAttachment("a", "A", "First.", MemoryStoreAccess.Read), new MemoryStoreAttachment("A", "A", "Again.", MemoryStoreAccess.Read) },
         new[] { new MemoryStoreAttachment("a", "A", "Bad access.", "write") },
+        new[] { new MemoryStoreAttachment("Personal", "Mine", "Reserved.", MemoryStoreAccess.Read) },
         Enumerable.Range(0, MemoryScopes.MaxAttachedStores + 1)
             .Select(static i => new MemoryStoreAttachment($"s{i}", $"S{i}", "Too many.", MemoryStoreAccess.Read))
             .ToArray()

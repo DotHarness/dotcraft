@@ -111,6 +111,14 @@ host.ui.add("conversation.aside.trailing", ({ context }) => {
 host.navigation.openDetailPanel("subagents");
 // @ts-expect-error Only Core Detail Panel tabs open.
 host.navigation.openDetailPanel("browser");
+host.navigation.openSettingsSection("personalization");
+host.navigation.openSettingsSection("appearance");
+// @ts-expect-error Only declared Core Settings sections open.
+host.navigation.openSettingsSection("unknown");
+host.ui.wrap("settings.personalization", ({ context, children }) => (
+  context.section === "personalization" ? children : context.title
+));
+host.ui.add("settings.appearance", ({ context }) => context.title);
 host.ui.add("sample.details", ({ context }) => context.value);
 host.ui.add("sample.unknown", ({ context }) => {
   const unknownContext: unknown = context;
