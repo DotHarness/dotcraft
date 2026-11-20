@@ -43,8 +43,7 @@ export function startDesktopWindow(
   ctx.mainWindow = win
   ctx.disposers.push(installThemeNavigationGuard(win))
   ctx.currentWorkspacePath = workspace ?? ''
-  if (workspace && ctx.resolveConnectionMode(ctx.settings) === 'local' &&
-    !hasRemoteEndpointArg(argv) && !argv.includes(NO_WORKSPACE_ARG)) {
+  if (workspace && !hasRemoteEndpointArg(argv) && !argv.includes(NO_WORKSPACE_ARG)) {
     ctx.startupProjectRestore = 'pending'
   }
   viewerBrowserManager.registerPersistenceOwner(win)

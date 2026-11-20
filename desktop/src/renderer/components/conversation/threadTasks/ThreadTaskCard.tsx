@@ -57,7 +57,7 @@ function StartedRow({ task, childThreadId }: { task: ThreadTask; childThreadId: 
   return (
     <div className={`${css.row} ${css.line}`} data-state={task.state}>
       <RunningShimmer active={working} className={css.lineTitle}>{task.title}</RunningShimmer>
-      <Button variant="outlineGhost" size="toolbar" className={css.lineAction} onClick={() => { void openThread(childThreadId, task.targetProjectId ?? task.targetWorkspacePath ?? task.workspacePath) }}>
+      <Button variant="outlineGhost" size="toolbar" className={css.lineAction} onClick={() => { void openThread(childThreadId, task.targetProjectId) }}>
         {t('threadActionCard.openChat')}
       </Button>
     </div>

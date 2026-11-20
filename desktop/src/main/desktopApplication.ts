@@ -130,11 +130,10 @@ export class DesktopApplication implements DesktopApplicationServices {
     window.startupProjectRestore = 'running'
     const isActive = (): boolean => window.startupProjectRestore === 'running' &&
       !window.runtimeIsStopping() && Boolean(window.currentWorkspacePath) &&
-      !hasRemoteEndpointArg(window.argv) && !window.argv.includes(NO_WORKSPACE_ARG) &&
-      !window.activeRemoteWorkspace && window.resolveConnectionMode(window.settings) === 'local'
+      !hasRemoteEndpointArg(window.argv) && !window.argv.includes(NO_WORKSPACE_ARG)
     try {
       await restoreRecentProjects({
-        foregroundPath: window.currentWorkspacePath,
+        foregroundPath: window.activeRemoteWorkspace ? undefined : window.currentWorkspacePath,
         isChatWorkspace: isDefaultChatWorkspace,
         isActive,
         projects: this.localProjects,

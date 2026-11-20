@@ -85,6 +85,13 @@ describe('cross-project Desktop thread tools', () => {
       .toMatchObject({ success: true, structuredContent: { thread: { id: child.threadId, workspacePath: remote.path, projectId: remote.id } } })
     expect(connect).toHaveBeenLastCalledWith(remote)
 
+    const updateSettings = vi.fn(async () => {})
+    connect.mockImplementationOnce(async () => threadTaskConnection({ sendRequest: target } as AppServerRequestClient, remote.path,
+      { project: remote, remote: true }))
+    expect(await call('SetThreadPinned', { threadId: child.threadId, project: remote.id, pinned: true },
+      { settingsHost: { getSettings: () => ({}), updateSettings } as never })).toMatchObject({ success: true })
+    expect(updateSettings).toHaveBeenCalledWith({ pinnedThreadIdsByWorkspace: { [remote.id]: [child.threadId] } })
+
     const disconnected = vi.fn((id: string) => id === 'remote:ssh:build:api' ? 'API' : undefined)
     const projects = { list, connect, disconnected }
     expect(await call('ListThreads', { project: 'remote:ssh:build:api' }, { projects })).toMatchObject({

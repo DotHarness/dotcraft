@@ -91,10 +91,7 @@ export function isHubAppServerLifecycleEvent(_ctx: DesktopWindowRuntime, event: 
 export function isSecondaryProjectEvent(ctx: DesktopWindowRuntime, event: HubEvent): boolean {
   const workspacePath = event.workspacePath?.trim()
   if (!workspacePath || ctx.isWorkspaceForeground(workspacePath)) return false
-  if (isDefaultChatWorkspace(workspacePath)) return true
-  if (!ctx.app.localProjects.has(workspacePath)) return false
-  return (!ctx.activeRemoteWorkspace && ctx.resolveConnectionMode(ctx.settings) === 'local') ||
-    linkedChatsNeedProject(ctx, ctx.normalizeWorkspaceConnectionKey(workspacePath))
+  return isDefaultChatWorkspace(workspacePath) || ctx.app.localProjects.has(workspacePath)
 }
 
 export function scheduleSecondaryWorkspaceRefresh(ctx: DesktopWindowRuntime): void {
@@ -429,18 +426,13 @@ export async function refreshSecondaryWorkspaceConnections(ctx: DesktopWindowRun
   if (ctx.runtimeIsStopping() || hasRemoteEndpointArg(ctx.argv)) return
   const generation = Symbol()
   secondaryRefreshGenerations.set(ctx, generation)
-  const isLatest = () => secondaryRefreshGenerations.get(ctx) === generation && !ctx.runtimeIsStopping()
-  const isLocalMode = () => !ctx.activeRemoteWorkspace && ctx.resolveConnectionMode(ctx.settings) === 'local'
-  const isCurrent = () => isLatest() && isLocalMode()
+  const isCurrent = () => secondaryRefreshGenerations.get(ctx) === generation && !ctx.runtimeIsStopping()
 
+  if (!ctx.hubEventAbortController) ctx.startHubEventSubscription(ctx.currentWorkspacePath, ctx.app.createHubClient(ctx.settings))
   enforceSecondaryWorkspaceBudget(ctx)
   if (ctx.secondaryRefreshTimer) clearTimeout(ctx.secondaryRefreshTimer)
   ctx.secondaryRefreshTimer = null
   await ctx.ensureDefaultChatConnection()
-  if (isLatest() && !isLocalMode()) {
-    await connectLinkedLocalProjects(ctx, () => isLatest() && !isLocalMode())
-    return
-  }
   if (!isCurrent()) return
 
   let liveAppServers: HubAppServerResponse[]
@@ -454,7 +446,16 @@ export async function refreshSecondaryWorkspaceConnections(ctx: DesktopWindowRun
   }
   if (!isCurrent()) return
 
-  const liveByKey = liveAppServersByKey(ctx, liveAppServers)
+  const liveByKey = new Map<string, HubAppServerResponse>()
+  for (const appServer of liveAppServers) {
+    if (!ctx.isRunningHubAppServer(appServer)) continue
+    const workspacePath = appServer.workspacePath || appServer.canonicalWorkspacePath
+    if (!workspacePath) continue
+    liveByKey.set(ctx.normalizeWorkspaceConnectionKey(workspacePath), appServer)
+    if (appServer.canonicalWorkspacePath) {
+      liveByKey.set(ctx.normalizeWorkspaceConnectionKey(appServer.canonicalWorkspacePath), appServer)
+    }
+  }
 
   const candidates = ctx.app.localProjects.list()
     .filter((project) => !ctx.isWorkspaceForeground(project.path))
@@ -491,46 +492,6 @@ export async function refreshSecondaryWorkspaceConnections(ctx: DesktopWindowRun
 
   for (const entry of [...ctx.workspaceConnections.values()]) {
     if (isIdleSecondary(ctx, entry) && !allowedKeys.has(entry.key)) ctx.disposeWorkspaceConnection(entry)
-  }
-  ctx.emitWorkspaceProjects()
-}
-
-function liveAppServersByKey(ctx: DesktopWindowRuntime, appServers: HubAppServerResponse[]): Map<string, HubAppServerResponse> {
-  const liveByKey = new Map<string, HubAppServerResponse>()
-  for (const appServer of appServers) {
-    if (!ctx.isRunningHubAppServer(appServer)) continue
-    const workspacePath = appServer.workspacePath || appServer.canonicalWorkspacePath
-    if (!workspacePath) continue
-    liveByKey.set(ctx.normalizeWorkspaceConnectionKey(workspacePath), appServer)
-    if (appServer.canonicalWorkspacePath) {
-      liveByKey.set(ctx.normalizeWorkspaceConnectionKey(appServer.canonicalWorkspacePath), appServer)
-    }
-  }
-  return liveByKey
-}
-
-async function connectLinkedLocalProjects(ctx: DesktopWindowRuntime, isCurrent: () => boolean): Promise<void> {
-  const needed = ctx.app.localProjects.list().filter((project) => {
-    const key = ctx.normalizeWorkspaceConnectionKey(project.path)
-    const entry = ctx.workspaceConnections.get(key)
-    return !entry?.connected && !entry?.connecting && linkedChatsNeedProject(ctx, key)
-  })
-  if (needed.length === 0) return
-  let liveByKey: Map<string, HubAppServerResponse>
-  try {
-    liveByKey = liveAppServersByKey(ctx, await ctx.app.createHubClient(ctx.settings).listAppServers())
-  } catch (error) {
-    console.warn('[desktop] failed to list Hub appservers for linked chats', error)
-    return
-  }
-  for (const project of needed) {
-    if (!isCurrent()) return
-    const key = ctx.normalizeWorkspaceConnectionKey(project.path)
-    const endpoint = liveByKey.get(key)?.endpoints?.appServerWebSocket
-    const entry = ctx.workspaceConnections.get(key)
-    if (!endpoint?.trim() || entry?.connected || entry?.connecting) continue
-    if (entry) ctx.disposeWorkspaceConnection(entry)
-    ctx.createSecondaryWorkspaceConnection(project.path, endpoint)
   }
   ctx.emitWorkspaceProjects()
 }

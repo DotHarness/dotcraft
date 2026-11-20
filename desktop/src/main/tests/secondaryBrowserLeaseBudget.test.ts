@@ -35,7 +35,7 @@ function fixture(count: number) {
     workspacePath: entry.workspacePath, endpoints: { appServerWebSocket: endpointFor(entry.workspacePath) }
   })))
   const ctx = {
-    runtimeIsStopping: () => false, resolveConnectionMode: () => 'local', settings: {},
+    runtimeIsStopping: () => false, resolveConnectionMode: () => 'local', settings: {}, startHubEventSubscription: vi.fn(),
     ensureDefaultChatConnection: async () => {},
     app: {
       localProjects: { list: () => entries.map(entry => ({ path: entry.workspacePath })) },

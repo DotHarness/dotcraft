@@ -75,7 +75,7 @@ function fixture() {
     getPinnedThreadIdsForWorkspace: () => [], getPinnedThreadIdsForProject: () => [], isProjectPinned: () => false,
     emitWorkspaceProjects: vi.fn(), emitConnectionStatus: vi.fn(), reregisterIpcForWorkspace: vi.fn(),
     clearPendingDeviceOpenRetry: vi.fn(), resetThreadToolState: vi.fn(), flushPendingWorkspaceOpenThread: vi.fn(),
-    scheduleSecondaryWorkspaceRefresh: vi.fn(), disposeDeviceProjectConnection: vi.fn(),
+    scheduleSecondaryWorkspaceRefresh: vi.fn(), disposeDeviceProjectConnection: vi.fn(), startHubEventSubscription: vi.fn(),
     makeThreadListIdentity: (path: string) => ({ workspacePath: path })
   } as unknown as DesktopWindowRuntime
   ctx.getWorkspaceConnection = path => ctx.workspaceConnections.get(path)
@@ -192,7 +192,7 @@ describe('remote projects as thread tool targets', () => {
   })
 })
 
-describe('following linked chats while a remote project is involved', () => {
+describe('local projects and linked chats under a remote foreground', () => {
   const library = '/projects/library'
   const libraryEndpoint = 'ws://127.0.0.1:5555/ws'
 
@@ -228,19 +228,12 @@ describe('following linked chats while a remote project is involved', () => {
     expect(linkedChats.connected).toHaveBeenCalledTimes(remote.length)
   })
 
-  it('reconnects a running local project with a linked chat while a remote project is foreground', async () => {
-    const { ctx } = linkedFixture([library])
+  it('connects running local projects and follows their Hub events after a remote cold start', async () => {
+    const { ctx } = linkedFixture([])
     await refreshSecondaryWorkspaceConnections(ctx)
+    expect(ctx.startHubEventSubscription).toHaveBeenCalledWith(host.chatPath, expect.anything())
     expect(ctx.workspaceConnections.get(library)).toMatchObject({ role: 'secondary', wsUrl: libraryEndpoint })
-    expect(isSecondaryProjectEvent(ctx, { kind: 'appserver.started', workspacePath: library } as HubEvent)).toBe(true)
-  })
-
-  it('leaves local projects without linked chats alone while a remote project is foreground', async () => {
-    const { ctx, hub } = linkedFixture([])
-    await refreshSecondaryWorkspaceConnections(ctx)
-    expect(ctx.workspaceConnections.has(library)).toBe(false)
-    expect(hub.listAppServers).not.toHaveBeenCalled()
-    expect(isSecondaryProjectEvent(ctx, { kind: 'appserver.started', workspacePath: library } as HubEvent)).toBe(false)
+    expect(isSecondaryProjectEvent(ctx, { kind: 'appserver.running', workspacePath: library } as HubEvent)).toBe(true)
   })
 })
 
@@ -315,7 +308,7 @@ describe('local Recents with a remote foreground', () => {
     expect(ctx.emitConnectionStatus).toHaveBeenLastCalledWith(ctx.mainWindow, expect.objectContaining({ status: 'connected' }))
   })
 
-  it('replaces a stopped local Chat endpoint during remote-mode refresh without discovering other local projects', async () => {
+  it('replaces a stopped local Chat endpoint during remote-mode refresh', async () => {
     const { ctx, hub } = fixture()
     const remote = ctx.wireClient
     const old = ctx.createSecondaryWorkspaceConnection(host.chatPath, 'ws://127.0.0.1:1111/ws', { kind: 'chat' })
@@ -324,7 +317,6 @@ describe('local Recents with a remote foreground', () => {
     const recovered = ctx.getWorkspaceConnection(host.chatPath)!
     expect(recovered.wsUrl).toBe(localEndpoint)
     expect(old.client.dispose).toHaveBeenCalledOnce()
-    expect(hub.listAppServers).not.toHaveBeenCalled()
     expect(ctx.wireClient).toBe(remote)
   })
 

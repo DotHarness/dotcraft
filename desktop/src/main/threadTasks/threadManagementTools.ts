@@ -89,7 +89,7 @@ export async function handleThreadManagementTool(
     case 'SetThreadArchived':
       return withWorkspace(await setThreadArchivedTool(client, threadId.value, args), target)
     case 'SetThreadPinned':
-      return withWorkspace(await setThreadPinnedTool(client, threadId.value, args, target.workspacePath, settingsHost), target)
+      return withWorkspace(await setThreadPinnedTool(client, threadId.value, args, currentThreadProject(target).id, settingsHost), target)
     default:
       return fail('UnsupportedTool', `Desktop tool '${tool}' is not supported.`)
   }
@@ -220,12 +220,12 @@ async function setThreadPinnedTool(
   client: AppServerRequestClient,
   threadId: string,
   args: Record<string, unknown>,
-  workspacePath: string,
+  projectKey: string,
   settingsHost: DesktopThreadToolSettingsHost | undefined
 ): Promise<DynamicToolCallResult> {
   const pinned = requiredBoolean(args, 'pinned')
   if (pinned.ok === false) return pinned.error
-  const workspace = normalizeWorkspaceProjectKey(workspacePath)
+  const workspace = normalizeWorkspaceProjectKey(projectKey)
   if (!workspace) {
     return fail('ThreadManagementUnavailable', 'No Desktop workspace is currently open.')
   }
