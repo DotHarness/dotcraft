@@ -188,20 +188,27 @@ public sealed class AgentFactory : IAsyncDisposable
     /// </summary>
     public PlanStore? PlanStore => _planStore;
 
-    public async Task CompleteTodosAsync(string threadId)
+    internal async Task CheckOffTodosAsync(string threadId, bool completeAll)
     {
-        if (_planStore is null)
+        if (_planStore is null || await _planStore.LoadStructuredPlanAsync(threadId) is not { } plan)
             return;
 
-        var plan = await _planStore.LoadStructuredPlanAsync(threadId);
-        var open = plan?.Todos
-            .Where(static todo => todo.Status is PlanTodoStatus.Pending or PlanTodoStatus.InProgress)
-            .ToList();
-        if (plan is null || open is not { Count: > 0 })
-            return;
+        if (completeAll)
+        {
+            var open = plan.Todos.Where(static todo => todo.Status is PlanTodoStatus.Pending or PlanTodoStatus.InProgress).ToList();
+            if (open.Count == 0)
+                return;
+            foreach (var todo in open)
+                todo.Status = PlanTodoStatus.Completed;
+        }
+        else
+        {
+            if (plan.Todos.LastOrDefault() is not { Status: PlanTodoStatus.InProgress } last
+                || !plan.Todos.SkipLast(1).All(static todo => todo.Status == PlanTodoStatus.Completed))
+                return;
+            last.Status = PlanTodoStatus.Completed;
+        }
 
-        foreach (var todo in open)
-            todo.Status = PlanTodoStatus.Completed;
         plan.UpdatedAt = DateTimeOffset.UtcNow;
         await _planStore.SaveStructuredPlanAsync(threadId, plan);
         _onPlanUpdated?.Invoke(threadId, plan);

@@ -77,44 +77,33 @@ public sealed class PlanTools(
         """)]
     [Tool]
     [ToolPresentation("core.todo", Operation = "todoWrite")]
-    public async Task<string> TodoWrite(
+    public async Task<ToolExecutionResult> TodoWrite(
         [Description("The complete task list in order, each with its description and status.")]
         List<TodoWriteInput> todos)
     {
-        try
+        var sessionId = sessionIdProvider();
+        if (string.IsNullOrEmpty(sessionId))
+            return ToolExecutionResult.Failed(new ToolError(ToolErrorCodes.Unavailable, "No active session."));
+
+        var emptyIndex = todos.FindIndex(static todo => string.IsNullOrWhiteSpace(todo.Content));
+        if (emptyIndex >= 0)
+            return ToolExecutionResult.Failed(new ToolError(ToolErrorCodes.InputInvalid, $"todos[{emptyIndex}].content is required."));
+
+        var now = DateTimeOffset.UtcNow;
+        var existing = await planStore.LoadStructuredPlanAsync(sessionId);
+        var plan = new StructuredPlan
         {
-            var sessionId = sessionIdProvider();
-            if (string.IsNullOrEmpty(sessionId))
-            {
-                DebugModeService.LogIfEnabled("[PlanTools] TodoWrite: sessionId is null or empty");
-                return "Error: No active session.";
-            }
+            Title = existing?.Title ?? "",
+            Overview = existing?.Overview ?? "",
+            Content = existing?.Content ?? "",
+            Todos = CreateTodos(todos.Select(static todo => (todo.Content, ToStatus(todo.Status), todo.ActiveForm))),
+            CreatedAt = existing?.CreatedAt ?? now,
+            UpdatedAt = now
+        };
 
-            var emptyIndex = todos.FindIndex(static todo => string.IsNullOrWhiteSpace(todo.Content));
-            if (emptyIndex >= 0)
-                return $"Error: todos[{emptyIndex}].content is required.";
-
-            var now = DateTimeOffset.UtcNow;
-            var existing = await planStore.LoadStructuredPlanAsync(sessionId);
-            var plan = new StructuredPlan
-            {
-                Title = existing?.Title ?? "",
-                Overview = existing?.Overview ?? "",
-                Content = existing?.Content ?? "",
-                Todos = CreateTodos(todos.Select(static todo => (todo.Content, ToStatus(todo.Status), todo.ActiveForm))),
-                CreatedAt = existing?.CreatedAt ?? now,
-                UpdatedAt = now
-            };
-
-            await planStore.SaveStructuredPlanAsync(sessionId, plan);
-            onPlanUpdated?.Invoke(sessionId, plan);
-            return "Plan updated";
-        }
-        catch (Exception ex)
-        {
-            DebugModeService.LogIfEnabled($"[PlanTools] TodoWrite exception: {ex.Message}\n{ex.StackTrace}");
-            return $"Error: Failed to write todos - {ex.Message}";
-        }
+        await planStore.SaveStructuredPlanAsync(sessionId, plan);
+        onPlanUpdated?.Invoke(sessionId, plan);
+        return ToolExecutionResult.Succeeded("Plan updated");
     }
 
     private static List<PlanTodo> CreateTodos(IEnumerable<(string Content, string Status, string? ActiveForm)> todos) =>

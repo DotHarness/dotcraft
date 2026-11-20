@@ -52,7 +52,7 @@ export function todoCard(
   running: boolean,
   planInput: string | null | undefined,
 ): TodoCard | null {
-  if (!plan || plan.todos.length === 0 || !turn) return null
+  if (!plan || plan.todos.length === 0 || !turn || turn.status === 'completed') return null
   const { todos } = plan
   const input = items.find((item) => item.type === 'userMessage' && item.payload.deliveryMode !== 'guidance')
   const implementsPlan = !!planInput && input?.payload.clientUserMessageId === planInput

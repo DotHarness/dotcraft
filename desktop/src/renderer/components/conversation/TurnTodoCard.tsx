@@ -33,7 +33,7 @@ export function progressOf(todos: readonly TurnTodo[]): { done: number; total: n
 
 export function showsTodoCard(plan: TurnTodoPlan, status: TurnTodoStatus): boolean {
   const { todos, implementsPlan, updatedTodos } = plan
-  if (todos.length === 0 || !(implementsPlan || updatedTodos)) return false
+  if (status === 'completed' || todos.length === 0 || !(implementsPlan || updatedTodos)) return false
   const unfinished = todos.some((todo) => todo.status === 'pending' || todo.status === 'in_progress')
   return unfinished || (status === 'running' && updatedTodos)
 }

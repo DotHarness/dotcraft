@@ -1882,9 +1882,6 @@ public sealed partial class SessionService
                     }
                 }
 
-                gateLock.Dispose();
-                gateLock = null;
-
                 // Serialize completion with guidance restoration so steer cannot bind input past the Turn's final boundary.
                 await RestoreUndrainedGuidanceAsync(() =>
                 {
@@ -1897,18 +1894,10 @@ public sealed partial class SessionService
                 await PersistCurrentTurnCommitAsync();
                 FlushTurnDiff(turnRuntime, eventChannel);
                 await RecordTurnResultReadStateAsync(thread, turn);
-                if (ThreadSummaryRuntime.ContainsSuccessfulToolCall(turn, "TodoWrite"))
-                {
-                    try
-                    {
-                        await agentFactory.CompleteTodosAsync(threadId);
-                    }
-                    catch (Exception ex)
-                    {
-                        logger?.LogWarning(ex, "Closing the to-do list failed for thread {ThreadId}", threadId);
-                    }
-                }
+                await CheckOffTurnTodosAsync(threadId, turn);
                 eventChannel.EmitTurnCompleted(turn);
+                gateLock.Dispose();
+                gateLock = null;
 
                 retiredResourcesReleased = await RunCompletedTurnFollowupAsync(thread, turn).ConfigureAwait(false);
             }

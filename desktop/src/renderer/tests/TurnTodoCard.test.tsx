@@ -43,11 +43,15 @@ afterEach(() => {
   act(() => setPopoverOpen(false))
 })
 
-it('keeps the last active step visible after cancellation but hides the checked-off list after success', () => {
-  const plan: TurnTodoPlan = { ...PLAN, todos: [{ id: 'one', content: 'Apply the change', status: 'in_progress' }] }
-  const { rerender } = render(card('cancelled', plan))
+it.each([
+  ['a list this turn wrote', PLAN],
+  ['an approved plan without a write', { ...PLAN, implementsPlan: true, updatedTodos: false }]
+])('hides %s after success even if work is unfinished', (_, plan) => {
+  const { rerender } = render(card('running', plan))
   expect(screen.getByRole('region')).toBeInTheDocument()
-  rerender(card('completed', { ...plan, todos: [{ id: 'one', content: 'Apply the change', status: 'completed' }] }))
+  rerender(card('cancelled', plan))
+  expect(screen.getByRole('region')).toBeInTheDocument()
+  rerender(card('completed', plan))
   expect(screen.queryByRole('region')).not.toBeInTheDocument()
 })
 
@@ -66,13 +70,13 @@ it('does not show a proposed plan as execution progress', () => {
 
 it('takes the running task count from the working line while it shows it', () => {
   taskCount.value = 2
-  const { rerender } = render(card('completed', PLAN))
+  const { rerender } = render(card('failed', PLAN))
   expect(screen.getByRole('status', { name: 'Claimed' })).toHaveTextContent('true')
   fireEvent.click(screen.getByRole('button'))
   expect(screen.getByRole('status', { name: 'Summary' })).toHaveTextContent('true')
 
   taskCount.value = 0
-  rerender(card('completed', { ...PLAN }))
+  rerender(card('failed', PLAN))
   expect(screen.getByRole('status', { name: 'Claimed' })).toHaveTextContent('false')
   expect(screen.queryByRole('button')).not.toBeInTheDocument()
 })
