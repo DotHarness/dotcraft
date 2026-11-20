@@ -137,6 +137,18 @@
   margin-right: -4px;
 }
 
+.conversation-summary-section__summary {
+  padding-right: 4px;
+  color: var(--text-dimmed);
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-line-height);
+  font-variant-numeric: tabular-nums;
+}
+
+.conversation-summary-row__meta [data-danger] {
+  color: var(--error);
+}
+
 .conversation-summary-rows {
   display: flex;
   flex-direction: column;

@@ -7,6 +7,7 @@ import { RobotAvatar } from '../../agents/RobotAvatar'
 import { DesktopPluginSurface } from '../../desktopPlugins/DesktopPluginSurface'
 import { useDesktopPluginRegistry } from '../../../plugins/desktopPluginRegistry'
 import { BackgroundTasksSection } from './BackgroundTasksSection'
+import { ServersSection } from './ServersSection'
 import { ContextSection } from './ContextSection'
 import { EnvironmentSection } from './EnvironmentSection'
 import type { SummaryAutomation, SummaryState } from './feed'
@@ -214,6 +215,8 @@ export function SummaryPanel({
           <SubagentsRow services={services} state={state} />
         </Section>
       ) : null}
+
+      <ServersSection threadId={threadId} />
 
       <BackgroundTasksSection
         services={services}

@@ -8,6 +8,9 @@ import { BrowserFeedbackControls, BrowserFindBar } from './BrowserFeedbackContro
 import { BrowserPageFeedback } from './BrowserPageFeedback'
 import { BrowserToolbar } from './BrowserToolbar'
 import { useBrowserFeedback } from './useBrowserFeedback'
+import { BrowserServerLogs, BrowserServerState } from './BrowserDevServerPanels'
+import { BrowserServersMenu } from './BrowserServersMenu'
+import { useBrowserDevServer } from './useBrowserDevServer'
 
 interface BrowserViewerTabProps {
   tabId: string
@@ -46,6 +49,9 @@ export function BrowserViewerTab({ tabId }: BrowserViewerTabProps): JSX.Element 
   const { activeDetailTab, detailPanelVisible } = useDetailPanelPresentation()
 
   const [readyTab, setReadyTab] = useState<string | null>(null)
+  const [logsOpen, setLogsOpen] = useState(false)
+  const devServer = useBrowserDevServer({ threadId: currentThreadId, tabId, currentUrl })
+  const serverCoversPage = devServer.state.kind !== 'none'
   const bodyRef = useRef<HTMLDivElement>(null)
 
   const isBlank = !currentUrl || currentUrl === 'about:blank' || currentUrl.startsWith('data:')
@@ -54,7 +60,7 @@ export function BrowserViewerTab({ tabId }: BrowserViewerTabProps): JSX.Element 
     detailPanelVisible &&
     activeDetailTab.kind === 'viewer' &&
     activeDetailTab.id === tabId
-  const pageVisible = isActiveBrowserSurface && !isBlank && readyTab === tabId
+  const pageVisible = isActiveBrowserSurface && !isBlank && !serverCoversPage && readyTab === tabId
 
   useEffect(() => {
     if (!currentThreadId || !workspacePath || !existsTab) return
@@ -189,7 +195,20 @@ export function BrowserViewerTab({ tabId }: BrowserViewerTabProps): JSX.Element 
         onOpenExternal={() => window.api.workspace.viewer.browser.openExternal({ tabId })}
         onAddressDismiss={() => { void window.api.workspace.viewer.browser.setActive({ tabId }) }}
         annotate={<BrowserPageFeedback tabId={tabId} threadId={currentThreadId} body={bodyRef} disabled={isBlank} run={feedback.run} />}
-        controls={<BrowserFeedbackControls active={isActiveBrowserSurface} tabId={tabId} state={feedback.state} run={feedback.run} />}
+        controls={(
+          <>
+            <BrowserFeedbackControls active={isActiveBrowserSurface} tabId={tabId} state={feedback.state} run={feedback.run} />
+            {devServer.scope ? (
+              <BrowserServersMenu
+                scope={devServer.scope}
+                list={devServer.list}
+                boundServer={devServer.server}
+                logsOpen={logsOpen}
+                onToggleLogs={() => setLogsOpen((open) => !open)}
+              />
+            ) : null}
+          </>
+        )}
       />
       <BrowserFindBar active={isActiveBrowserSurface} tabId={tabId} state={feedback.state.find} run={feedback.run} />
       {feedback.state.error && <div role="alert">{feedback.state.error}</div>}
@@ -259,7 +278,17 @@ export function BrowserViewerTab({ tabId }: BrowserViewerTabProps): JSX.Element 
             </span>
           </div>
         )}
+        {!isBlank && (
+          <BrowserServerState
+            state={devServer.state}
+            scope={devServer.scope}
+            configurationName={devServer.configurationName}
+            logsOpen={logsOpen && devServer.server !== null}
+            onShowLogs={() => setLogsOpen(true)}
+          />
+        )}
       </div>
+      {logsOpen && devServer.server ? <BrowserServerLogs serverId={devServer.server.serverId} /> : null}
     </div>
   )
 }

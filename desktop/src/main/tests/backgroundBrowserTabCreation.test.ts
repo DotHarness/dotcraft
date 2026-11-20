@@ -10,6 +10,7 @@ vi.mock('../browserUseManagers', () => ({ browserUseManagers: {} }))
 vi.mock('../browserFeedbackIpc', () => ({ registerBrowserFeedbackIpc: vi.fn() }))
 vi.mock('../viewerTerminalIpc', () => ({ registerViewerTerminalHandlers: vi.fn() }))
 vi.mock('../projectActions/projectActionsIpc', () => ({ registerProjectActionsHandlers: () => () => {} }))
+vi.mock('../devServers/devServersIpc', () => ({ registerDevServersHandlers: () => () => {} }))
 vi.mock('../chromeSetup', () => ({ checkChromeSetup: vi.fn(), installChromeNativeHost: vi.fn(), openChromeWindow: vi.fn() }))
 
 import { registerViewerBrowserHandlers } from '../ipcViewerBrowser'

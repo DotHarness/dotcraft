@@ -25,6 +25,7 @@ import { createFileStorage, createSafeStorageVault } from './pairedComputers/pai
 import { openPinnedWebSocket, pinnedRequest } from './pairedComputers/pinnedTransport'
 import { applyNativeThemeSource } from './nativeThemeSource'
 import { nodeReplManager } from './nodeReplManager'
+import { devServerManager } from './devServers/devServerManager'
 import { disposeSatellitesHubBridge } from './satellites/satellitesHubBridge'
 import { closeAllScreenViews } from './screenView/screenViewManager'
 import { loadSettings, saveSettings, type AppSettings } from './settings'
@@ -330,6 +331,7 @@ export class DesktopApplication implements DesktopApplicationServices {
         this.manager.dispose(),
         shutdownVoiceService(),
         nodeReplManager.disposeAll(),
+        devServerManager.disposeAll(),
         disposeComputerUse()
       ])
       closeAllScreenViews()
