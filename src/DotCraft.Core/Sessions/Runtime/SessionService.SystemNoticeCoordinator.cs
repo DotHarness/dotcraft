@@ -200,23 +200,20 @@ public sealed partial class SessionService
                     threadId);
             }
         }
+    }
 
-        private static SessionItem CreateNoticeItem(
-            SessionTurn turn,
-            int sequence,
-            SystemNoticePayload payload)
+    private static SessionItem CreateNoticeItem(SessionTurn turn, int sequence, SystemNoticePayload payload)
+    {
+        var now = DateTimeOffset.UtcNow;
+        return new SessionItem
         {
-            var now = DateTimeOffset.UtcNow;
-            return new SessionItem
-            {
-                Id = SessionIdGenerator.NewItemId(sequence),
-                TurnId = turn.Id,
-                Type = ItemType.SystemNotice,
-                Status = ItemStatus.Completed,
-                CreatedAt = now,
-                CompletedAt = now,
-                Payload = payload
-            };
-        }
+            Id = SessionIdGenerator.NewItemId(sequence),
+            TurnId = turn.Id,
+            Type = ItemType.SystemNotice,
+            Status = ItemStatus.Completed,
+            CreatedAt = now,
+            CompletedAt = now,
+            Payload = payload
+        };
     }
 }

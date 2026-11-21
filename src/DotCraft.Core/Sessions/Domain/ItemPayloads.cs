@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace DotCraft.Sessions;
 
 /// <summary>
@@ -93,7 +95,18 @@ public sealed record SystemNoticePayload
     /// Display name of the external conversation the notice is about.
     /// </summary>
     public string? TargetName { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextHandoffEndpoint? From { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextHandoffEndpoint? To { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? FallbackText { get; init; }
 }
+
+public sealed record ContextHandoffEndpoint(string ProviderId, string Model);
 
 /// <summary>
 /// Payload for Error items.

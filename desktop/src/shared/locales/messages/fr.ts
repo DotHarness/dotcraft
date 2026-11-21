@@ -3884,6 +3884,8 @@ export const MESSAGES_FR = {
   'systemNotice.compacted.manual': 'Contexte compacté',
   'systemNotice.compacted.reactive': 'Récupéré d\'un débordement de contexte',
   'systemNotice.compacted.detail': 'Jetons {{freed}} libérés · {{percent}} % restants',
+  'systemNotice.contextHandoff.title': 'Transfert de contexte',
+  'systemNotice.contextHandoff.description': '{{title}} : de {{from}} vers {{to}}',
   'systemNotice.forked.title': 'Fork depuis la discussion',
   'systemNotice.remoteRoute.connected': 'Connecté à {{host}}',
   'systemNotice.remoteRoute.disconnected': 'Déconnecté de {{host}}',

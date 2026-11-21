@@ -57,6 +57,28 @@ describe('response placement', () => {
     expect(placements.get('gap')).toEqual({ leading: [], absorbed: false })
   })
 
+  it('starts a response at a handoff even without a user bubble', () => {
+    const asked = turn('asked', [prompt, tool], 0, 10)
+    const resumed = turn('resumed', [
+      commandEnded,
+      {
+        id: 'handoff', type: 'systemNotice', status: 'completed',
+        systemNotice: {
+          kind: 'contextHandoff',
+          contextHandoff: {
+            from: { providerId: 'a', model: 'one' },
+            to: { providerId: 'b', model: 'one' }
+          }
+        }
+      },
+      reply
+    ], 20, 5)
+
+    const placements = placeResponses([asked, resumed], all)
+    expect(placements.get('asked')).toEqual({ leading: [], absorbed: false })
+    expect(placements.get('resumed')).toEqual({ leading: [], absorbed: false })
+  })
+
   it('keeps a response joined across a turn that is not shown', () => {
     const asked = turn('asked', [prompt, tool], 0, 10)
     const silent = turn('silent', [mailbox], 20, 5)

@@ -1,5 +1,6 @@
 import type { ComposerContextRecord, ThreadReferencesContext } from '../../shared/composerContext'
 import { stripSystemReminderBlocks } from '../utils/systemReminderText'
+import { readContextHandoff, type ContextHandoff } from './contextHandoff'
 
 export type TurnStatus = 'running' | 'completed' | 'failed' | 'cancelled'
 
@@ -24,11 +25,12 @@ export type ItemType =
 
 /**
  * Payload for systemNotice items. Known kinds include `compacted`,
- * `forked`, `remoteRoute`, and `channel`; the optional fields below mirror
+ * `forked`, `remoteRoute`, `channel`, and `contextHandoff`; the optional fields below mirror
  * `SystemNoticePayload` on the wire.
  */
 export interface SystemNoticeInfo {
   kind: string
+  contextHandoff?: ContextHandoff
   trigger?: string
   mode?: string
   tokensBefore?: number
@@ -732,6 +734,7 @@ function mapSystemNotice(
     || ''
   return {
     kind,
+    contextHandoff: kind === 'contextHandoff' ? readContextHandoff(payload.from ?? raw.from, payload.to ?? raw.to) : undefined,
     trigger: typeof payload.trigger === 'string' ? payload.trigger : undefined,
     mode: typeof payload.mode === 'string' ? payload.mode : undefined,
     tokensBefore: typeof payload.tokensBefore === 'number' ? payload.tokensBefore : undefined,

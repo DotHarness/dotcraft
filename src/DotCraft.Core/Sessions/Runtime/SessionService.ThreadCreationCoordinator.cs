@@ -431,6 +431,11 @@ public sealed partial class SessionService
 
             var originalItemCount = targetTurn.Items.Count;
             targetTurn.Items = targetTurn.Items.Take(itemCount).ToList();
+            if (targetTurn.SampledModel is { } sample
+                && SessionIdGenerator.LastItemSequence(targetTurn.Items) <= sample.AfterItemSequence)
+            {
+                targetTurn.SampledModel = null;
+            }
             targetTurn.Input = ResolveTurnInput(targetTurn);
             if (itemCount < originalItemCount || IsActiveTurn(targetTurn))
                 MarkForkInterruptedTurn(targetTurn, now, "Forked from a partial source turn.");

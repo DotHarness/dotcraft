@@ -125,7 +125,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
 
   const inSideChat = useSideChatStore((state) => findSideChat(state.chats, turn.threadId) != null)
   const renderableItems = hydrateToolCallItems(turn.items)
-    .filter((item) => !shouldHideCoordinationTool(item, isRunning))
+    .filter((item) => item.systemNotice?.kind !== 'contextHandoff' && !shouldHideCoordinationTool(item, isRunning))
     .filter((item) => isDefaultRenderableItem(item) || (inSideChat && isSideChatMainMessageItem(item)))
 
   const offersCapacityRetry = !readOnly && isLastTurn && turn.status === 'failed'
