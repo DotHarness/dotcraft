@@ -734,25 +734,11 @@ public sealed partial class SessionService
             }
 
             ProviderFailure? classifiedProviderFailure = null;
-            ChatClientAgent? agent = null;
 
             async Task FailAndPersistTurnAsync(string errorMsg, string errorCode)
             {
                 itemProjector.FinalizeAgentMessage(AgentMessagePhases.PartialAnswer);
                 FinalizeStreamingReasoning();
-                if (agent is not null && classifiedProviderFailure is not null && !executionCt.IsCancellationRequested)
-                {
-                    try
-                    {
-                        await RecordContextHandoffAsync(thread, turn, agent, eventChannel, NextItemSeq);
-                    }
-                    catch (RolloutPersistenceException ex)
-                    {
-                        PublishTurnPersistenceFailure(thread, turn, turnRuntime, eventChannel, NextItemSeq(), ex);
-                        return;
-                    }
-                }
-
                 var errorItem = CreateErrorItem(turn, NextItemSeq(), errorMsg, errorCode, fatal: true);
                 turn.Items.Add(errorItem);
                 eventChannel.EmitItemStarted(errorItem);
@@ -842,7 +828,7 @@ public sealed partial class SessionService
                 // Resource capture was ordered at admission. It may wait for an in-flight
                 // publication, but later configuration changes cannot overtake it.
                 var executionResources = await turnContext.Resources.WaitAsync(executionCt).ConfigureAwait(false);
-                agent = executionResources.Agent;
+                var agent = executionResources.Agent;
                 turnRuntime.ToolSnapshot = executionResources.ToolSnapshot;
                 var toolLocation = executionResources.ToolLocation ?? new ToolLocation(turnContext.Workspace);
                 toolLocation.MoveTo(turnContext.Workspace);
@@ -1372,6 +1358,8 @@ public sealed partial class SessionService
                         (delta, historyCt) => thread.Ephemeral
                             ? Task.CompletedTask
                             : persistence.AppendModelHistoryAsync(threadId, delta, turn.Id, historyCt));
+                    if (!executionCt.IsCancellationRequested)
+                        await RecordContextHandoffAsync(thread, turn, agent, eventChannel, NextItemSeq);
                     await foreach (var update in agent.RunStreamingAsync(userMessage, session,
                         new ChatClientAgentRunOptions { HistoryObserver = turnModelHistory })
                         .WithCancellation(executionCt))
@@ -1382,11 +1370,7 @@ public sealed partial class SessionService
 
                         var updateRequestIndex = TokenUsageRequestMetadata.TryGetRequestIndex(chatResponseUpdate);
                         if (updateRequestIndex.HasValue)
-                        {
                             currentUsageRequestIndex = updateRequestIndex;
-                            if (!executionCt.IsCancellationRequested)
-                                await RecordContextHandoffAsync(thread, turn, agent, eventChannel, NextItemSeq);
-                        }
                         turnCost.ObserveUpdate(chatResponseUpdate, currentUsageRequestIndex);
 
                         foreach (var responseContent in update.Contents)
