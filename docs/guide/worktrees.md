@@ -32,6 +32,8 @@ config/local.json
 
 ## Clean up
 
-Archiving a chat removes its worktree when nothing in it is uncommitted; the branch stays, and unarchiving checks it out again. Deleting a chat removes its clean worktree too, and deletes the branch when it holds no new commits. A worktree with uncommitted changes always stays on disk.
+Archiving a chat normally removes its clean worktree and keeps the branch. The worktree stays if archiving needs to interrupt a turn in the chat or one of its subagents, or if background command cleanup is still in progress or fails. Unarchiving checks the branch out again if needed.
+
+Deleting a chat removes its clean worktree and deletes the branch when it holds no new commits. Both archiving and deleting leave worktrees with uncommitted changes on disk.
 
 **Settings › Worktrees** lists every worktree of the workspace and removes the ones you no longer need. It also sets the prefix DotCraft names new worktree branches with (`dotcraft` by default).
