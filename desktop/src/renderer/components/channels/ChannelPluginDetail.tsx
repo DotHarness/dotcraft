@@ -134,8 +134,10 @@ export function ChannelPluginDetail({
     }
   }
 
-  async function setEnabled(next: boolean): Promise<void> {
-    if (busy || connectionPending.current || !current() || (next ? !controls : !canDisconnect)) return
+  async function setEnabled(next: boolean, cancelSignIn = false): Promise<void> {
+    const canStopSignIn = cancelSignIn && management && attempted && channel.requiresInteractiveSetup
+    if (busy || connectionPending.current || !current() ||
+      (next ? !controls : !(canDisconnect || canStopSignIn))) return
     connectionPending.current = true
     setBusy(true)
     cancelPending.current = false
@@ -315,7 +317,7 @@ export function ChannelPluginDetail({
             login.hide()
             setAttempted(false)
             if (connectionPending.current) cancelPending.current = true
-            else void setEnabled(false)
+            else void setEnabled(false, true)
           }}
           onDone={login.hide}
           onRetry={() => void setEnabled(true)}

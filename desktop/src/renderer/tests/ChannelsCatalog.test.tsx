@@ -244,7 +244,7 @@ describe('Channels catalog', () => {
     }))
   })
 
-  it.each(['start', 'status refresh'])('stops sign-in cancelled during %s', async (phase) => {
+  it.each(['start', 'status refresh', 'status refresh failure'])('stops sign-in cancelled at %s', async (phase) => {
     currentPlugin = plugin(currentPlugin.id, true)
     currentPlugin.channel.requiresInteractiveSetup = true
     usePluginStore.setState({ plugins: [currentPlugin] })
@@ -263,8 +263,9 @@ describe('Channels catalog', () => {
       if (method === 'channel/setEnabled') return {}
       if (method === 'channel/setup/read') return { artifact: null }
       if (method === 'channel/status') {
-        if (started && !statusRefreshStarted && phase === 'status refresh') {
+        if (started && !statusRefreshStarted && phase !== 'start') {
           statusRefreshStarted = true
+          if (phase === 'status refresh failure') throw new Error('Could not refresh channel status')
           await pending
         }
         return { channels: [] }
@@ -275,7 +276,10 @@ describe('Channels catalog', () => {
     mount()
     await waitFor(() => expect(sendRequest).toHaveBeenCalledWith('plugin/config/get', { id: currentPlugin.id }))
     fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
-    if (phase === 'status refresh') await waitFor(() => expect(statusRefreshStarted).toBe(true))
+    if (phase !== 'start') await waitFor(() => expect(statusRefreshStarted).toBe(true))
+    if (phase === 'status refresh failure') {
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Connect' }).getAttribute('aria-busy')).toBe('false'))
+    }
     fireEvent.click(await screen.findByRole('button', { name: 'Cancel', exact: true }))
     finishPending()
 
