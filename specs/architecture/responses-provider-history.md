@@ -153,8 +153,10 @@ machine.
   not the source history is natively compacted. A full-history native SubAgent copies the spawning
   request's canonical input, including its pending local tail, before appending child context.
   The copy retains provider/model ownership and native-compaction state under the child's own
-  generation and context-window identity. Partial forks, and forks without an exact prefix, create a
-  new snapshot from the fork materialization. Fork state is copied, never linked.
+  generation and context-window identity. A partial fork retains compatible canonical history
+  through the preceding whole Turn and projects only its retained tail. When no compatible
+  canonical prefix exists, the fork projects its selected neutral history. Fork state is copied,
+  never linked.
 - **Thread context items:** canonical input carries the SubAgent role item materialized at the fork
   boundary and any client context item appended for the turn. Both are ordinary input items: later
   requests append after them, and adapters do not move them at request time. A role-instruction

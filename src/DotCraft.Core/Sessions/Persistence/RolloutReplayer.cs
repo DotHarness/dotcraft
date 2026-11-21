@@ -32,7 +32,8 @@ internal sealed class RolloutReplayer : IRolloutReplayer
         Func<IReadOnlyCollection<string>, CancellationToken, Task<IReadOnlyList<SessionTurn>>> readTurns,
         string? excludedTurnId = null,
         CancellationToken ct = default,
-        string? expectedThreadId = null)
+        string? expectedThreadId = null,
+        Dictionary<string, IReadOnlyList<ChatMessage>>? turnHistories = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(rolloutPath);
         ArgumentNullException.ThrowIfNull(survivingTurnIds);
@@ -220,11 +221,11 @@ internal sealed class RolloutReplayer : IRolloutReplayer
                 string.Equals(id, selectedCheckpoint.CoveredThroughTurnId, StringComparison.Ordinal));
         }
 
-        var batchedTurnIds = reverseBatches.Select(static batch => batch.TurnId).ToHashSet(StringComparer.Ordinal);
+        var batchesByTurn = reverseBatches.ToLookup(static batch => batch.TurnId, StringComparer.Ordinal);
         for (var turnIndex = Math.Max(0, firstTailTurnIndex); turnIndex < orderedTurnIds.Count; turnIndex++)
         {
             var turnId = orderedTurnIds[turnIndex];
-            if (!batchedTurnIds.Contains(turnId) && !(selectedCheckpoint != null && turnIndex == firstTailTurnIndex))
+            if (!batchesByTurn.Contains(turnId) && !(selectedCheckpoint != null && turnIndex == firstTailTurnIndex))
                 fallbackTurnIds.Add(turnId);
         }
 
@@ -238,15 +239,16 @@ internal sealed class RolloutReplayer : IRolloutReplayer
         for (var turnIndex = Math.Max(0, firstTailTurnIndex); turnIndex < orderedTurnIds.Count; turnIndex++)
         {
             var turnId = orderedTurnIds[turnIndex];
-            if (fallbackTurnIds.Contains(turnId))
+            var start = messages.Count;
+            if (fallbackTurns.TryGetValue(turnId, out var turn))
+                messages.AddRange(ThreadStore.BuildModelVisibleHistoryFromTurn(turn));
+            else if (!fallbackTurnIds.Contains(turnId))
             {
-                if (fallbackTurns.TryGetValue(turnId, out var turn))
-                    messages.AddRange(ThreadStore.BuildModelVisibleHistoryFromTurn(turn));
-                continue;
+                foreach (var batch in batchesByTurn[turnId])
+                    messages.AddRange(batch.Messages);
             }
-
-            foreach (var batch in reverseBatches.Where(batch => string.Equals(batch.TurnId, turnId, StringComparison.Ordinal)))
-                messages.AddRange(batch.Messages);
+            if (turnHistories != null && messages.Count > start)
+                turnHistories[turnId] = messages.GetRange(start, messages.Count - start);
         }
 
         // Folded last: a turn rebuilt from its projection carries no context items.
@@ -261,7 +263,8 @@ internal sealed class RolloutReplayer : IRolloutReplayer
             fallbackTurnIds,
             reader.BytesRead,
             recordsDecoded,
-            worldState);
+            worldState,
+            selectedCheckpoint);
 
         void Reject(
             string code,

@@ -48,10 +48,8 @@ public sealed partial class OpenAIResponsesToolSearchChatClientTests
 
                 var fork = new SessionThread { Id = "thread_fork", Turns = thread.Turns };
                 var materialized = await cold.BuildForkModelHistoryMaterializationAsync(thread, fork);
-                Assert.True(materialized.HasCompatibleCheckpoint);
                 using var forkRequest = JsonDocument.Parse(CreateRequestJson("test", materialized.History, null));
                 AssertReplay(native, Assert.Single(forkRequest.RootElement.GetProperty("input").EnumerateArray()));
-                Assert.NotSame(Assert.Single(restored).Contents[0], Assert.Single(materialized.History).Contents[0]);
 
                 var page = await cold.ListThreadItemsAsync(thread.Id, null, null, 10, ThreadHistorySortDirection.Ascending);
                 Assert.DoesNotContain(ResponsesReasoningMetadata.Key, JsonSerializer.Serialize(page));

@@ -68,6 +68,23 @@ public sealed partial class ThreadStore
             records);
     }
 
+    internal async Task<ProviderHistorySnapshot> LoadForkProviderHistoryAsync(
+        string sourceThreadId,
+        string contextWindowId,
+        IReadOnlySet<string> retainedTurnIds,
+        DateTimeOffset? checkpointAt,
+        CancellationToken ct)
+    {
+        var records = await _rolloutStore.LoadProviderHistoryRecordsAsync(sourceThreadId, ct);
+        if (checkpointAt is { } at && !records.Any(record => record.Timestamp >= at
+            && ProviderHistoryReplayer.IsValidReplacement(record.ProviderHistoryReplaced, sourceThreadId, retainedTurnIds)))
+        {
+            return ProviderHistorySnapshot.Empty(contextWindowId);
+        }
+
+        return ProviderHistoryReplayer.Replay(sourceThreadId, contextWindowId, retainedTurnIds, records);
+    }
+
     /// <summary>
     /// Rebuilds MEAI model history from canonical rollout records.
     /// </summary>

@@ -11,24 +11,6 @@ namespace DotCraft.Sessions;
 
 public sealed partial class ThreadStore
 {
-    private static bool TryDeserializeCheckpointHistory(
-        ThreadCompactionCheckpoint checkpoint,
-        out List<ChatMessage> history)
-    {
-        history = [];
-        try
-        {
-            var codec = new ModelHistoryCodec();
-            var restored = checkpoint.ReplacementHistory.Select(codec.Decode).ToList();
-            history = MessageGrouper.NormalizeFunctionCallArguments(restored).ToList();
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
     private static List<ChatMessage> BuildModelVisibleHistoryFromTurns(IEnumerable<SessionTurn> turns)
     {
         var history = new List<ChatMessage>();
@@ -41,64 +23,15 @@ public sealed partial class ThreadStore
     private static List<SessionTurn> OrderTurns(IEnumerable<SessionTurn> turns) =>
         turns.OrderBy(t => t.StartedAt).ThenBy(t => t.Id, StringComparer.Ordinal).ToList();
 
-    private static bool IsCheckpointCompatibleForFork(
-        SessionThread source,
-        List<SessionTurn> orderedForkTurns,
-        ThreadCompactionCheckpoint checkpoint)
-    {
-        var sourceTurn = source.Turns.FirstOrDefault(turn =>
-            string.Equals(turn.Id, checkpoint.CoveredThroughTurnId, StringComparison.Ordinal));
-        if (sourceTurn == null)
-            return false;
+    internal static IReadOnlyList<ChatMessage> BuildModelVisibleHistoryFromTurn(SessionTurn turn) =>
+        BuildModelVisibleHistoryFromItems(turn.Items);
 
-        var forkTurnIndex = orderedForkTurns.FindIndex(turn =>
-            string.Equals(turn.Id, checkpoint.CoveredThroughTurnId, StringComparison.Ordinal));
-        if (forkTurnIndex < 0)
-            return false;
-
-        var forkTurn = orderedForkTurns[forkTurnIndex];
-        var forkItems = forkTurnIndex == orderedForkTurns.Count - 1
-            ? RemoveTrailingForkNotice(forkTurn.Items)
-            : forkTurn.Items;
-        return SameItemPrefix(sourceTurn.Items, forkItems, requireCompleteSourcePrefix: true);
-    }
-
-    private static IReadOnlyList<SessionItem> RemoveTrailingForkNotice(IReadOnlyList<SessionItem> items)
-    {
-        if (items.Count == 0 || !IsForkNotice(items[^1]))
-            return items;
-
-        return items.Take(items.Count - 1).ToList();
-    }
-
-    private static bool IsForkNotice(SessionItem item) =>
-        item.Type == ItemType.SystemNotice &&
-        item.Payload is SystemNoticePayload { Kind: "forked" };
-
-    private static bool SameItemPrefix(
-        IReadOnlyList<SessionItem> sourceItems,
-        IReadOnlyList<SessionItem> forkItems,
-        bool requireCompleteSourcePrefix)
-    {
-        if (requireCompleteSourcePrefix && sourceItems.Count != forkItems.Count)
-            return false;
-
-        if (forkItems.Count > sourceItems.Count)
-            return false;
-
-        for (var i = 0; i < forkItems.Count; i++)
-        {
-            if (!string.Equals(sourceItems[i].Id, forkItems[i].Id, StringComparison.Ordinal))
-                return false;
-        }
-
-        return true;
-    }
-
-    internal static IReadOnlyList<ChatMessage> BuildModelVisibleHistoryFromTurn(SessionTurn turn)
+    internal static IReadOnlyList<ChatMessage> BuildModelVisibleHistoryFromItems(
+        IReadOnlyList<SessionItem> items,
+        IReadOnlySet<string>? coveredItemIds = null)
     {
         var history = new List<ChatMessage>();
-        var completedItems = turn.Items
+        var completedItems = items
             .Where(static item => item.Status == ItemStatus.Completed
                                   && item.InvocationOrigin != ToolInvocationOrigin.CodeModeKind)
             .ToList();
@@ -107,6 +40,9 @@ public sealed partial class ThreadStore
 
         foreach (var item in completedItems)
         {
+            if (coveredItemIds?.Contains(item.Id) == true)
+                continue;
+
             if (item.Type == ItemType.UserMessage && TryBuildUserMessage(item, out var userMessage))
             {
                 FlushAssistantSegment(history, assistantBuilder);

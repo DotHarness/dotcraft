@@ -15,8 +15,9 @@ public sealed partial class SessionService
         if (childThread.TurnCount == 0)
             return false;
 
+        var parentRequest = TryGetLastPromptRequestSnapshot(parentThread.Id);
         var forkHistory = BuildNativeSubAgentForkHistory(
-            ResolveParentForkSource(parentThread.Id, parentModelHistory));
+            parentRequest is { Messages.Count: > 0 } ? parentRequest.Messages : parentModelHistory);
         if (forkHistory.Count == 0)
             return false;
 
@@ -45,7 +46,8 @@ public sealed partial class SessionService
 
         await PersistThreadWithMaterializationAsync(childThread, ct);
         InheritWorldStateBaseline(parentThread.Id, childThread.Id, forkHistory);
-        var inheritedTokens = await InheritSubAgentContextUsageAsync(parentThread.Id, childThread.Id, forkHistory, ct);
+        var model = ResolveForkModel(childThread);
+        var inheritedTokens = await InheritForkContextUsageAsync(parentThread, childThread, model, forkHistory, ct);
         if (!childThread.Ephemeral)
         {
             var coveredThroughTurnId = childThread.Turns[^1].Id;
@@ -61,108 +63,17 @@ public sealed partial class SessionService
                 ct);
         }
 
-        var childWindow = GetOrCreateResponsesContextWindow(childThread.Id);
-        var childIdentity = ThreadConversationIdentity.Create(
-            childThread,
-            childThread.Turns[^1],
-            childWindow.CurrentWindowId,
-            ProviderRequestKind.Turn);
-        var childProviderState = new ProviderConversationState(childIdentity);
-        using var childResponsesScope = ProviderRequestContextScope.Push(
-            new ProviderRequestContext(childIdentity, ConversationState: childProviderState));
-        await ForkSubAgentProviderHistoryAsync(parentThread.Id, childThread, forkHistory, ct);
+        if (await InstallForkProviderHistoryAsync(
+                childThread, model, parentRequest?.ProviderHistory, forkHistory, childContext, ct) is null
+            && !childThread.Ephemeral && model.IsOpenAIResponses)
+        {
+            var window = GetOrCreateResponsesContextWindow(childThread.Id).CurrentWindowId;
+            var identity = ThreadConversationIdentity.Create(childThread, childThread.Turns[^1], window, ProviderRequestKind.Turn);
+            using var scope = ProviderRequestContextScope.Push(new ProviderRequestContext(identity));
+            await TryReplaceResponsesProviderHistoryAsync(childThread, forkHistory, ProviderHistoryReasons.Fork, ct);
+        }
 
         return true;
-    }
-
-    private async Task ForkSubAgentProviderHistoryAsync(
-        string parentThreadId,
-        SessionThread childThread,
-        List<ChatMessage> forkHistory,
-        CancellationToken ct)
-    {
-        var parentRequest = TryGetLastPromptRequestSnapshot(parentThreadId);
-        if (parentRequest?.ProviderHistory is not { } sourceHistory)
-        {
-            await TryReplaceResponsesProviderHistoryAsync(childThread, forkHistory, ProviderHistoryReasons.Fork, ct);
-            return;
-        }
-
-        var identity = ProviderRequestContextScope.Current!.CurrentIdentity;
-        var inherited = sourceHistory with
-        {
-            Identity = sourceHistory.Identity with
-            {
-                ThreadId = childThread.Id,
-                TurnId = identity.TurnId,
-                GenerationId = identity.ContextWindowId,
-                ContextWindowId = identity.ContextWindowId
-            },
-            CoveredThroughTurnId = identity.TurnId
-        };
-        if (childThread.Ephemeral)
-        {
-            _runtimeRegistry.SetThread(childThread).ResponsesProviderHistorySnapshot = inherited;
-        }
-        else
-        {
-            await new SessionProviderHistorySink(persistence).ReplaceAsync(
-                inherited.Identity,
-                inherited.CoveredThroughTurnId,
-                inherited.IsNativeCompacted
-                    ? ProviderHistoryReasons.ForkNativeCompaction
-                    : ProviderHistoryReasons.Fork,
-                inherited.Items,
-                ct);
-        }
-
-        var history = (await CreateResponsesProviderHistoryContextAsync(
-            childThread, turn: null, parentRequest.Messages.ToList(), ct))!;
-        await history.AppendLocalInputAsync(forkHistory.Skip(parentRequest.Messages.Count).ToArray(), ct);
-        if (childThread.Ephemeral)
-            _runtimeRegistry.SetThread(childThread).ResponsesProviderHistorySnapshot = history.CaptureOpaqueSnapshot();
-    }
-
-    private async Task<long?> InheritSubAgentContextUsageAsync(
-        string parentThreadId,
-        string childThreadId,
-        IReadOnlyList<ChatMessage> forkHistory,
-        CancellationToken ct)
-    {
-        var snapshot = TryGetLastPromptRequestSnapshot(parentThreadId);
-        var anchor = TryGetInMemoryContextUsageAnchor(parentThreadId)
-            ?? persistence.LoadContextUsageAnchor(parentThreadId);
-        if (snapshot is null || anchor is null)
-            return null;
-
-        var estimate = ContextUsageTokenCounter.EstimateFromAnchorDetailed(
-            anchor,
-            forkHistory,
-            snapshot.RequestFingerprint,
-            requireRequestFingerprint: true,
-            snapshot.ContextUsageFingerprint,
-            snapshot.BaseInstructionsTokenEstimate);
-        if (estimate is null)
-            return null;
-
-        if (_runtimeRegistry.TryGetRuntime(childThreadId, out var runtime))
-            runtime.LastPromptRequest = snapshot with { ThreadId = childThreadId, TurnId = null };
-        await SaveContextUsageSnapshotAsync(
-            childThreadId,
-            estimate.Tokens,
-            anchor,
-            source: "estimate",
-            isEstimate: true,
-            ct);
-        return estimate.Tokens;
-    }
-
-    private IReadOnlyList<ChatMessage> ResolveParentForkSource(
-        string parentThreadId,
-        IReadOnlyList<ChatMessage> fallback)
-    {
-        var snapshot = TryGetLastPromptRequestSnapshot(parentThreadId);
-        return snapshot is { Messages.Count: > 0 } ? snapshot.Messages : fallback;
     }
 
     internal static List<ChatMessage> BuildNativeSubAgentForkHistory(

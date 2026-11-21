@@ -1,6 +1,5 @@
 using System.Text.Json;
 using DotCraft.Agents;
-using DotCraft.Context.Compaction;
 
 namespace DotCraft.Sessions;
 
@@ -134,8 +133,9 @@ public sealed partial class SessionService
                 options.Cwd,
                 options.RuntimeWorkspaceRoots);
             var forkedThreadId = SessionIdGenerator.NewThreadId();
-            var activeSourceTurns = source.Turns.Where(IsActiveTurn).ToArray();
-            var forkedTurns = CloneForkTurns(source, options.ForkPoint, forkedThreadId, source.Id, now);
+            var sourceRequest = owner.TryGetLastPromptRequestSnapshot(source.Id);
+            var (forkedTurns, activeSourceTurnId, completedActiveItems) = CloneForkTurns(
+                source, options.ForkPoint, forkedThreadId, source.Id, now);
             var metadata = CopyForkMetadata(source, identity);
             if (options.Purpose is { } purpose)
             {
@@ -187,37 +187,9 @@ public sealed partial class SessionService
                         owner.SetThreadAgent(forked.Id, threadAgent);
                 }
 
-                var interruptions = await owner.BuildForkInterruptionsAsync(source, forked, activeSourceTurns, ct);
-                var materialization = await owner.Persistence.BuildForkModelHistoryMaterializationAsync(
-                    source, forked, ct, interruptions);
-                if (options.Purpose is not null)
-                {
-                    var runningTurn = activeSourceTurns.LastOrDefault();
-                    var copiedHistory = await owner.Persistence.LoadModelHistoryAsync(source, runningTurn?.Id, ct);
-                    if (copiedHistory.Count > 0)
-                    {
-                        if (runningTurn != null && materialization.TurnHistories.TryGetValue(runningTurn.Id, out var partial))
-                            copiedHistory.AddRange(partial.Select(message => message.Clone()));
-                        materialization = materialization with
-                        {
-                            History = copiedHistory,
-                            EstimatedTokens = MessageTokenEstimator.Estimate(copiedHistory),
-                            UsageSource = "copied_model_history"
-                        };
-                    }
-                }
-                var forkTurns = forked.Turns.ToList();
-                if (forked.Ephemeral)
-                    owner._runtimeRegistry.SetThread(forked).EphemeralHistory = materialization.History;
-                else
-                {
-                    await owner.PersistThreadWithMaterializationAsync(forked, ct);
-                    await PersistForkModelHistoryAsync(forked, forkTurns, materialization, ct);
-                }
-                await PersistForkProviderHistoryAsync(source, forked, forkTurns, options, ct);
-                var activeSourceTurn = activeSourceTurns.LastOrDefault();
-                if (activeSourceTurn != null && interruptions.TryGetValue(activeSourceTurn.Id, out var newMarker))
-                    await owner.AppendProviderInterruptionAsync(forked, forked.Turns[^1], newMarker, null, ct);
+                await owner.MaterializeThreadForkContextAsync(
+                    source, forked, activeSourceTurnId, sourceRequest, completedActiveItems,
+                    string.IsNullOrWhiteSpace(options.ForkPoint?.ItemId), ct);
 
                 broker.PublishThreadEvent(SessionEventType.ThreadCreated, forked);
                 owner.ObserveUsageThread(forked);
@@ -234,121 +206,6 @@ public sealed partial class SessionService
                 owner._runtimeRegistry.ForgetBroker(forked.Id);
                 throw;
             }
-        }
-
-        private async Task PersistForkModelHistoryAsync(
-            SessionThread forked,
-            IReadOnlyList<SessionTurn> forkTurns,
-            ForkModelHistoryMaterialization materialization,
-            CancellationToken ct)
-        {
-            if (materialization.HasCompatibleCheckpoint)
-            {
-                var checkpointTokens = MessageTokenEstimator.Estimate(materialization.CheckpointReplacementHistory!);
-                await owner.Persistence.AppendCompactionCheckpointAsync(
-                    forked.Id,
-                    materialization.CheckpointCoveredThroughTurnId!,
-                    materialization.CheckpointReplacementHistory!,
-                    trigger: "fork",
-                    mode: string.IsNullOrWhiteSpace(materialization.CheckpointMode)
-                        ? "partial"
-                        : materialization.CheckpointMode!,
-                    tokensBefore: materialization.EstimatedTokens,
-                    tokensAfter: checkpointTokens,
-                    ct);
-            }
-
-            if (forked.HistoryMode == HistoryMode.Server
-                && materialization.History.Count > 0
-                && forkTurns.Count > 0)
-            {
-                var afterCheckpoint = !materialization.HasCompatibleCheckpoint;
-                foreach (var forkTurn in forkTurns)
-                {
-                    if (afterCheckpoint)
-                    {
-                        await owner.Persistence.AppendModelHistoryAsync(
-                            forked.Id,
-                            materialization.TurnHistories[forkTurn.Id],
-                            forkTurn.Id,
-                            ct);
-                    }
-                    if (forkTurn.Id == materialization.CheckpointCoveredThroughTurnId)
-                        afterCheckpoint = true;
-                }
-            }
-
-            await owner.SaveContextUsageSnapshotAsync(
-                forked.Id,
-                materialization.EstimatedTokens,
-                materialization.UsageSource,
-                materialization.UsageIsEstimate,
-                ct);
-        }
-
-        private async Task PersistForkProviderHistoryAsync(
-            SessionThread source,
-            SessionThread forked,
-            IReadOnlyList<SessionTurn> forkTurns,
-            ThreadForkOptions options,
-            CancellationToken ct)
-        {
-            if (forked.ProviderHistorySchemaVersion != ProviderHistorySchema.CurrentSchemaVersion
-                || source.ProviderHistorySchemaVersion != ProviderHistorySchema.CurrentSchemaVersion
-                || !string.IsNullOrWhiteSpace(options.ForkPoint?.ItemId))
-            {
-                return;
-            }
-
-            var selectedSource = new SessionThread
-            {
-                Id = source.Id,
-                ProviderHistorySchemaVersion = source.ProviderHistorySchemaVersion,
-                Turns = [.. forkTurns]
-            };
-            var sourceWindow = owner.GetOrCreateResponsesContextWindow(source.Id);
-            var sourceSnapshot = await owner.Persistence.LoadProviderHistoryAsync(
-                selectedSource,
-                sourceWindow.CurrentWindowId,
-                ct);
-            if (sourceSnapshot.Entries.Count == 0)
-                return;
-
-            var forkWindow = owner.GetOrCreateResponsesContextWindow(forked.Id);
-            if (forked.Ephemeral)
-            {
-                var config = owner._appConfigMonitor?.Current ?? owner.AgentFactory.RuntimeContext.Config;
-                var model = owner.AgentFactory.RuntimeContext.ChatClientRegistry.ResolveMainRuntime(
-                    config, forked.Configuration?.ProviderId, forked.Configuration?.Model);
-                var identity = ThreadConversationIdentity.Create(forked, forked.Turns.LastOrDefault(),
-                    forkWindow.CurrentWindowId, ProviderRequestKind.Turn);
-                owner._runtimeRegistry.SetThread(forked).ResponsesProviderHistorySnapshot = ToOpaqueHistory(model, identity,
-                    sourceSnapshot with
-                    {
-                        GenerationId = forkWindow.CurrentWindowId,
-                        ContextWindowId = forkWindow.CurrentWindowId,
-                        CoveredThroughTurnId = forked.Turns.LastOrDefault()?.Id
-                    });
-                return;
-            }
-            await owner.Persistence.ReplaceProviderHistoryAsync(
-                new ProviderHistoryReplacedPayload
-                {
-                    SchemaVersion = ProviderHistorySchema.CurrentSchemaVersion,
-                    ThreadId = forked.Id,
-                    Protocol = ProviderHistorySchema.OpenAIResponsesProtocol,
-                    GenerationId = forkWindow.CurrentWindowId,
-                    ContextWindowId = forkWindow.CurrentWindowId,
-                    CoveredThroughTurnId = forked.Turns.LastOrDefault()?.Id,
-                    Origin = sourceSnapshot.Origin,
-                    Reason = sourceSnapshot.IsNativeCompacted
-                        ? ProviderHistoryReasons.ForkNativeCompaction
-                        : ProviderHistoryReasons.Fork,
-                    Entries = sourceSnapshot.Entries
-                        .Select(ProviderHistoryReplayer.CloneEntry)
-                        .ToList()
-                },
-                ct);
         }
 
         private async Task<SessionThread> LoadForkSourceThreadAsync(
@@ -427,7 +284,7 @@ public sealed partial class SessionService
             return JsonSerializer.Deserialize<ThreadSource>(json, SessionJsonOptions.Default) ?? ThreadSource.User();
         }
 
-        private static List<SessionTurn> CloneForkTurns(
+        private static (List<SessionTurn> Turns, string? ActiveTurnId, IReadOnlyList<SessionItem> CompletedActiveItems) CloneForkTurns(
             SessionThread source,
             ThreadForkPoint? forkPoint,
             string forkedThreadId,
@@ -435,23 +292,16 @@ public sealed partial class SessionService
             DateTimeOffset now)
         {
             var cloned = DeepCloneTurns(source.Turns);
-            List<SessionTurn> selected;
-
-            if (forkPoint == null)
-            {
-                selected = cloned;
-            }
-            else
-            {
-                selected = SelectForkTurnPrefix(cloned, forkPoint, now);
-            }
-
+            var activeTurnId = cloned.LastOrDefault(IsActiveTurn)?.Id;
+            var selected = forkPoint is null ? cloned : SelectForkTurnPrefix(cloned, forkPoint, now);
+            var completedActiveItems = selected.LastOrDefault(IsActiveTurn)?.Items
+                .Where(static item => item.Status == ItemStatus.Completed).ToArray() ?? [];
             foreach (var turn in selected.Where(IsActiveTurn))
                 MarkForkInterruptedTurn(turn, now, "Forked from an interrupted source turn.");
 
             RetargetForkTurns(selected, forkedThreadId);
             AppendForkBoundaryNotice(selected, forkedThreadId, sourceThreadId, now);
-            return selected;
+            return (selected, activeTurnId, completedActiveItems);
         }
 
         private static string? ResolveForkDisplayName(

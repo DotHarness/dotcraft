@@ -226,8 +226,9 @@ public sealed partial class SessionPersistenceService(
         SessionThread source,
         SessionThread forked,
         CancellationToken ct = default,
-        IReadOnlyDictionary<string, ChatMessage>? interruptions = null)
-        => threadStore.BuildForkModelHistoryMaterializationAsync(source, forked, ct, interruptions);
+        string? interruptedTurnId = null,
+        ChatMessage? interruption = null)
+        => threadStore.BuildForkModelHistoryMaterializationAsync(source, forked, ct, interruptedTurnId, interruption);
 
     internal Task<List<ChatMessage>> LoadModelHistoryAsync(
         SessionThread thread,
@@ -334,6 +335,14 @@ public sealed partial class SessionPersistenceService(
         string currentContextWindowId,
         CancellationToken ct = default)
         => threadStore.LoadProviderHistoryAsync(thread, currentContextWindowId, ct);
+
+    internal Task<ProviderHistorySnapshot> LoadForkProviderHistoryAsync(
+        string sourceThreadId,
+        string contextWindowId,
+        IReadOnlySet<string> retainedTurnIds,
+        DateTimeOffset? checkpointAt,
+        CancellationToken ct)
+        => threadStore.LoadForkProviderHistoryAsync(sourceThreadId, contextWindowId, retainedTurnIds, checkpointAt, ct);
 
     internal Task<ProviderHistorySnapshot> LoadResidentProviderHistoryAsync(
         SessionThread thread,

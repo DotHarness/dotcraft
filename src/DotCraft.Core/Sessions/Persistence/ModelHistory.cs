@@ -13,7 +13,8 @@ internal interface IRolloutReplayer
         Func<IReadOnlyCollection<string>, CancellationToken, Task<IReadOnlyList<SessionTurn>>> readTurns,
         string? excludedTurnId = null,
         CancellationToken ct = default,
-        string? expectedThreadId = null);
+        string? expectedThreadId = null,
+        Dictionary<string, IReadOnlyList<ChatMessage>>? turnHistories = null);
 }
 
 #pragma warning disable MEAI001 // Persist the complete runtime usage contract, including preview counters.
@@ -688,7 +689,8 @@ internal sealed record ModelHistoryReplayResult(
     IReadOnlySet<string>? FallbackTurnIds = null,
     long BytesRead = 0,
     int RecordsDecoded = 0,
-    WorldStateSnapshot? WorldState = null);
+    WorldStateSnapshot? WorldState = null,
+    ContextCompactedPayload? Checkpoint = null);
 
 internal sealed record ModelHistoryReplayWarning(
     string Code,

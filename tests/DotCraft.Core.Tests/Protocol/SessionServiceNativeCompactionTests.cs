@@ -123,6 +123,31 @@ public sealed partial class SessionServiceNativeCompactionTests : IDisposable
     }
 
     [Fact]
+    public async Task PromptSuggestionRejectedForContextLength_DoesNotCompact()
+    {
+        await using var factory = CreateFactory();
+        var service = CreateService(factory);
+        var parent = await service.CreateThreadAsync(new SessionIdentity
+        {
+            WorkspacePath = _workspace, ChannelName = "test", UserId = "user"
+        });
+        await DrainAsync(service.SubmitInputAsync(parent.Id, [new TextContent("before-prediction")]));
+        var fork = await service.ForkThreadAsync(parent.Id, new ThreadForkOptions
+        {
+            Ephemeral = true,
+            Purpose = ThreadForkPurpose.PromptSuggestion,
+            ForkPoint = new ThreadForkPoint { TurnId = parent.Turns[^1].Id }
+        });
+
+        _provider.OverflowNextRequest = true;
+        await DrainAsync(service.SubmitInputAsync(fork.Id, [new TextContent("predict")]));
+
+        Assert.Contains("predict", _provider.Requests[^1]);
+        Assert.Empty(_provider.Compactions);
+        Assert.Equal(TurnStatus.Failed, (await service.GetThreadAsync(fork.Id)).Turns[^1].Status);
+    }
+
+    [Fact]
     public async Task PreTurnCompaction_ExcludesPendingUserAndAppendsItOnce()
     {
         await using var factory = CreateFactory();
@@ -384,6 +409,7 @@ public sealed partial class SessionServiceNativeCompactionTests : IDisposable
         public bool ReportHighUsageNextResponse { get; set; }
         public long? InputTokensNextResponse { get; set; }
         public bool ToolNextResponse { get; set; }
+        public string? TextBeforeNextTool { get; set; }
         public bool ReasoningNextResponse { get; set; }
         public Func<CancellationToken, Task>? BeforeNextResponse { get; set; }
         public IReadOnlyCollection<string> Protocols => [ModelProviderProtocols.OpenAIResponses];
@@ -443,8 +469,16 @@ public sealed partial class SessionServiceNativeCompactionTests : IDisposable
             ToolNextResponse = false;
             if (tool)
             {
+                if (TextBeforeNextTool is { } text)
+                {
+                    TextBeforeNextTool = null;
+                    yield return new StreamingResponseOutputTextDeltaUpdate
+                    {
+                        SequenceNumber = 0, ItemId = "msg_before_tool", OutputIndex = 0, ContentIndex = 0, Delta = text
+                    };
+                }
                 yield return ModelReaderWriter.Read<StreamingResponseUpdate>(BinaryData.FromString("""
-                    {"type":"response.output_item.done","sequence_number":1,"output_index":0,
+                     {"type":"response.output_item.done","sequence_number":1,"output_index":0,
                      "item":{"type":"function_call","id":"fc_test","call_id":"call_test","name":"GetStatus",
                      "arguments":"{}","status":"completed"}}
                     """))!;

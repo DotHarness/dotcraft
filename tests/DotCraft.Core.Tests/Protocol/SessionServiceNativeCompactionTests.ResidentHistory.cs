@@ -1,3 +1,4 @@
+using System.Text.Json;
 using DotCraft.Agents;
 using DotCraft.Sessions;
 using Microsoft.Extensions.AI;
@@ -140,8 +141,10 @@ public sealed partial class SessionServiceNativeCompactionTests
         Assert.Equal(warmRequest, _provider.Requests[^1]);
     }
 
-    [Fact]
-    public async Task ForkBeforeTheLatestReplacement_KeepsTheEarlierNativeCompaction()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ForkBeforeTheLatestReplacement_KeepsTheEarlierNativeCompaction(bool cutInsideTurn)
     {
         await using var factory = CreateFactory();
         var store = new ThreadStore(Path.Combine(_workspace, ".craft"));
@@ -151,20 +154,128 @@ public sealed partial class SessionServiceNativeCompactionTests
             WorkspacePath = _workspace, ChannelName = "test", UserId = "user"
         }, threadId: ResidentThreadId);
         await DrainAsync(service.SubmitInputAsync(ResidentThreadId, [new TextContent("alpha")]));
-        var forkTurnId = (await service.GetThreadAsync(ResidentThreadId)).Turns[^1].Id;
+        var firstTurnId = (await service.GetThreadAsync(ResidentThreadId)).Turns[^1].Id;
         await CompactAsync(service, ResidentThreadId);
+        _provider.ReasoningNextResponse = true;
         await DrainAsync(service.SubmitInputAsync(ResidentThreadId, [new TextContent("beta")]));
+        var secondTurn = (await service.GetThreadAsync(ResidentThreadId)).Turns[^1];
         await CompactAsync(service, ResidentThreadId);
         await DrainAsync(service.SubmitInputAsync(ResidentThreadId, [new TextContent("gamma")]));
 
         var child = await service.ForkThreadAsync(ResidentThreadId, new ThreadForkOptions
         {
-            ForkPoint = new ThreadForkPoint { TurnId = forkTurnId }
+            ForkPoint = cutInsideTurn
+                ? new ThreadForkPoint { TurnId = secondTurn.Id, ItemId = secondTurn.Input!.Id }
+                : new ThreadForkPoint { TurnId = firstTurnId }
         });
         await DrainAsync(service.SubmitInputAsync(child.Id, [new TextContent("fork continuation")]));
 
-        Assert.Contains("encrypted-test", _provider.Requests[^1]);
-        Assert.DoesNotContain("beta", _provider.Requests[^1]);
+        var request = _provider.Requests[^1];
+        Assert.Contains("encrypted-test", request);
+        Assert.DoesNotContain("old-reasoning-cache", request);
+        Assert.DoesNotContain("gamma", request);
+        if (cutInsideTurn)
+            AssertContainsOnce(request, "beta");
+        else
+            Assert.DoesNotContain("beta", request);
+    }
+
+    [Fact]
+    public async Task SideChatRetainsTheRunningRequestPrefixWithoutTakingItsResponse()
+    {
+        await using var factory = CreateFactory();
+        var service = CreateService(factory);
+        var parent = await service.CreateThreadAsync(new SessionIdentity
+        {
+            WorkspacePath = _workspace, ChannelName = "test", UserId = "user"
+        });
+        await DrainAsync(service.SubmitInputAsync(parent.Id, [new TextContent("completed turn")]));
+
+        SessionThread? sideChat = null;
+        string[] parentPrefix = [];
+        _provider.BeforeNextResponse = async ct =>
+        {
+            parentPrefix = InputItems(_provider.Requests[^1]);
+            sideChat = await service.ForkThreadAsync(parent.Id, new ThreadForkOptions
+            {
+                Ephemeral = true,
+                Purpose = ThreadForkPurpose.SideChat
+            }, ct);
+            _provider.ReasoningNextResponse = true;
+        };
+        await DrainAsync(service.SubmitInputAsync(parent.Id, [new TextContent("running parent question")]));
+
+        var fork = Assert.IsType<SessionThread>(sideChat);
+        await DrainAsync(service.SubmitInputAsync(fork.Id, [new TextContent("side question")]));
+        var request = _provider.Requests[^1];
+        Assert.Equal(parentPrefix, InputItems(request).Take(parentPrefix.Length));
+        Assert.DoesNotContain("old-reasoning-cache", request);
+        AssertContainsOnce(request, "side question");
+        Assert.Empty(_provider.Compactions);
+    }
+
+    [Fact]
+    public async Task SideChatRetainsCompletedTextAfterTheRunningRequestWithoutTakingPendingTool()
+    {
+        const string completedText = "I checked the deployment status.";
+        const string lateToolResult = "parent tool result after the fork";
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var toolStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseTool = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var factory = CreateFactory();
+        var agent = factory.CreateAgentWithTools(
+            [AIFunctionFactory.Create(async (CancellationToken ct) =>
+            {
+                toolStarted.TrySetResult();
+                await releaseTool.Task.WaitAsync(ct);
+                return lateToolResult;
+            }, name: "GetStatus")], null, factory.RuntimeContext, "Use the status tool.");
+        var service = new SessionService(factory, agent,
+            new SessionPersistenceService(new ThreadStore(Path.Combine(_workspace, ".craft"))), new SessionGate());
+        var parent = await service.CreateThreadAsync(new SessionIdentity
+        {
+            WorkspacePath = _workspace, ChannelName = "test", UserId = "user"
+        });
+        await DrainAsync(service.SubmitInputAsync(parent.Id, [new TextContent("completed turn")]));
+
+        _provider.ToolNextResponse = true;
+        _provider.TextBeforeNextTool = completedText;
+        var running = DrainAsync(service.SubmitInputAsync(parent.Id, [new TextContent("check the deployment")], ct: deadline.Token));
+        SessionThread fork;
+        string[] parentPrefix;
+        try
+        {
+            await toolStarted.Task.WaitAsync(deadline.Token);
+            Assert.Contains(parent.Turns[^1].Items, item =>
+                item.Status == ItemStatus.Completed && item.AsAgentMessage?.Text == completedText);
+            parentPrefix = InputItems(_provider.Requests[^1]);
+            fork = await service.ForkThreadAsync(parent.Id, new ThreadForkOptions
+            {
+                Ephemeral = true,
+                Purpose = ThreadForkPurpose.SideChat
+            }, deadline.Token);
+        }
+        finally
+        {
+            releaseTool.TrySetResult();
+            await running.WaitAsync(deadline.Token);
+        }
+
+        await DrainAsync(service.SubmitInputAsync(fork.Id, [new TextContent("what do we know?")], ct: deadline.Token));
+        var request = _provider.Requests[^1];
+        var input = InputItems(request);
+        Assert.Equal(parentPrefix, input.Take(parentPrefix.Length));
+        Assert.Contains(input.Skip(parentPrefix.Length), item => item.Contains(completedText, StringComparison.Ordinal));
+        AssertContainsOnce(request, completedText);
+        Assert.DoesNotContain("call_test", request);
+        Assert.DoesNotContain(lateToolResult, request);
+    }
+
+    private static string[] InputItems(string request)
+    {
+        using var json = JsonDocument.Parse(request);
+        return json.RootElement.GetProperty("input").EnumerateArray().Skip(1)
+            .Select(item => item.GetRawText()).ToArray();
     }
 
     private async Task RunScenarioAsync(SessionService service, string scenario)
