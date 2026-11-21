@@ -120,7 +120,7 @@ internal sealed class FakeSessionService : ISessionService
 
     public Task<SessionThread> ResumeThreadAsync(string threadId, CancellationToken ct = default) => throw new NotSupportedException();
 
-    public Task ArchiveThreadAsync(string threadId, CancellationToken ct = default) => throw new NotSupportedException();
+    public Task<bool> ArchiveThreadAsync(string threadId, CancellationToken ct = default) => throw new NotSupportedException();
 
     public Task UnarchiveThreadAsync(string threadId, CancellationToken ct = default) => throw new NotSupportedException();
 

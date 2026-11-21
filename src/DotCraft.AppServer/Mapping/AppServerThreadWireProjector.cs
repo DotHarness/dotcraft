@@ -250,7 +250,7 @@ internal sealed class AppServerThreadWireProjector(
         return null;
     }
 
-    public void RevokeAppBindingsForDeletedThread(SessionThread thread)
+    public void RevokeAppBindingsForDeletedThread(string threadId)
     {
         if (appBindingService == null || string.IsNullOrWhiteSpace(workspaceDataPath))
             return;
@@ -258,10 +258,10 @@ internal sealed class AppServerThreadWireProjector(
         if (!Directory.Exists(workspaceDataPath))
             return;
 
-        _ = appBindingService.RevokeThreadBindings(workspaceDataPath, thread.Id, "threadDeleted");
+        _ = appBindingService.RevokeThreadBindings(workspaceDataPath, threadId, "threadDeleted");
     }
 
-    public IReadOnlyList<AppBindingSnapshot> RevokeChannelAppBindingsForArchivedThread(SessionThread thread)
+    public IReadOnlyList<AppBindingSnapshot> RevokeChannelAppBindingsForArchivedThread(string threadId)
     {
         if (appBindingService == null || string.IsNullOrWhiteSpace(workspaceDataPath))
             return [];
@@ -269,9 +269,9 @@ internal sealed class AppServerThreadWireProjector(
         if (!Directory.Exists(workspaceDataPath))
             return [];
 
-        return appBindingService.ListThreadBindings(workspaceDataPath, thread.Id)
+        return appBindingService.ListThreadBindings(workspaceDataPath, threadId)
             .Where(binding => binding.ChannelTarget != null && binding.State != AppBindingStates.Revoked)
-            .Select(binding => appBindingService.RevokeBinding(workspaceDataPath, thread.Id, binding.BindingId, "threadArchived"))
+            .Select(binding => appBindingService.RevokeBinding(workspaceDataPath, threadId, binding.BindingId, "threadArchived"))
             .ToArray();
     }
 

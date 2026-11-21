@@ -459,11 +459,12 @@ public sealed partial class SessionService(
             commandCt => Goals.ClearAsync(threadId, commandCt),
             ct);
 
-    public async Task ArchiveThreadAsync(string threadId, CancellationToken ct = default)
+    public async Task<bool> ArchiveThreadAsync(string threadId, CancellationToken ct = default)
     {
-        await ThreadLifecycle.ArchiveAsync(threadId, ct);
+        var archived = await ThreadLifecycle.ArchiveAsync(threadId, ct);
         McpAppTransientContexts?.ClearThread(threadId);
         await DeleteSideChatsAsync(threadId, ct);
+        return archived;
     }
 
     public async Task UnarchiveThreadAsync(string threadId, CancellationToken ct = default)
@@ -474,13 +475,8 @@ public sealed partial class SessionService(
 
     public async Task DeleteThreadPermanentlyAsync(string threadId, CancellationToken ct = default)
     {
-        var deleteOrder = await InvokeThreadCommandAsync(
-            threadId,
-            commandCt => ThreadLifecycle.PreparePermanentDeletionAsync(threadId, commandCt),
-            ct);
-        await ThreadLifecycle.ExecutePermanentDeletionAsync(deleteOrder, ct);
-        _sessionApprovalScopes.RemoveThread(threadId);
-        McpAppTransientContexts?.ClearThread(threadId);
+        threadId = NormalizeRequiredThreadId(threadId);
+        await ThreadLifecycle.DeletePermanentlyAsync(threadId, ct);
         await DeleteSideChatsAsync(threadId, ct);
     }
 
@@ -566,11 +562,8 @@ public sealed partial class SessionService(
             commandCt => SubAgents.CancelSyntheticTurnAsync(threadId, turnId, reason, commandCt),
             ct);
 
-    public async Task ArchiveSubAgentTreeForCloseAsync(string childThreadId, CancellationToken ct = default)
-        => await InvokeThreadCommandAsync(
-            childThreadId,
-            commandCt => ThreadLifecycle.ArchiveSubAgentTreeForCloseAsync(childThreadId, commandCt),
-            ct);
+    public Task ArchiveSubAgentTreeForCloseAsync(string childThreadId, CancellationToken ct = default)
+        => ThreadLifecycle.ArchiveSubAgentTreeForCloseAsync(childThreadId, ct);
 
     private static bool IsSubAgentThread(SessionThread thread) =>
         string.Equals(thread.Source.Kind, ThreadSourceKinds.SubAgent, StringComparison.OrdinalIgnoreCase)
@@ -1083,8 +1076,7 @@ public sealed partial class SessionService(
 
     private async Task<SessionThread> GetOrLoadThreadAsync(string threadId, CancellationToken ct)
     {
-        if (_runtimeRegistry.IsPendingPermanentDeletion(threadId))
-            throw new InvalidOperationException($"Thread '{threadId}' is being permanently deleted.");
+        ThrowIfPendingPermanentDeletion(threadId);
 
         if (_runtimeRegistry.TryGetRuntime(threadId, out var current))
         {
@@ -1099,8 +1091,7 @@ public sealed partial class SessionService(
             await loadGate.Semaphore.WaitAsync(ct);
             gateAcquired = true;
 
-            if (_runtimeRegistry.IsPendingPermanentDeletion(threadId))
-                throw new InvalidOperationException($"Thread '{threadId}' is being permanently deleted.");
+            ThrowIfPendingPermanentDeletion(threadId);
 
             if (_runtimeRegistry.TryGetThread(threadId, out var cached))
                 return cached;
@@ -1108,8 +1099,7 @@ public sealed partial class SessionService(
             var thread = await persistence.LoadThreadWorkingSetAsync(threadId, ct)
                          ?? throw new ThreadNotFoundException(threadId);
 
-            if (_runtimeRegistry.IsPendingPermanentDeletion(threadId))
-                throw new InvalidOperationException($"Thread '{threadId}' is being permanently deleted.");
+            ThrowIfPendingPermanentDeletion(threadId);
 
             var interruptedTurn = thread.Turns.SingleOrDefault(static turn =>
                 turn.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput);
@@ -1190,7 +1180,11 @@ public sealed partial class SessionService(
 
             try
             {
-                return await runtime.Commands.InvokeAsync(action, ct).ConfigureAwait(false);
+                return await runtime.Commands.InvokeAsync(commandCt =>
+                {
+                    ThrowIfPendingPermanentDeletion(threadId);
+                    return action(commandCt);
+                }, ct).ConfigureAwait(false);
             }
             catch (ObjectDisposedException) when (attempt == 0 && runtime.Commands.IsClosed)
             {

@@ -155,7 +155,7 @@ public sealed partial class ThreadHistoryProjectionTests
         await _store.SaveTurnAsync(thread, turn);
         thread.Turns.RemoveAt(1);
         await _store.RollbackThreadAsync(thread, 1);
-        await _store.ArchiveStoredThreadAsync(thread.Id);
+        await _store.ArchiveStoredThreadAsync(thread, requireRollout: true);
         var archived = await _store.ListThreadSummariesAsync(thread.Id, null, 2, ThreadHistorySortDirection.Descending, []);
         var summary = Assert.Single(archived.Data);
         Assert.Equal(turn.Id, summary.Turn.Id);

@@ -445,16 +445,10 @@ internal sealed partial class ThreadRequestHandler(
     {
         var msg = request.Message;
         var threadId = Require(request.Params.ThreadId, "'threadId' is required.");
-        var thread = sessionService.TryGetLoadedThread(threadId)
-            ?? (await sessionService.ReadThreadSnapshotAsync(threadId, ct)).Thread;
-        var previousStatus = thread.Status;
-
-        await sessionService.ArchiveThreadAsync(threadId, ct);
-
-        if (previousStatus == ThreadStatus.Archived)
+        if (!await sessionService.ArchiveThreadAsync(threadId, ct))
             return AppServerTypedResult<Protocol.RpcEmpty>.FromResult(new());
 
-        var channelBindingCleanup = threadProjector.RevokeChannelAppBindingsForArchivedThread(thread);
+        var channelBindingCleanup = threadProjector.RevokeChannelAppBindingsForArchivedThread(threadId);
         if (connection.HasSubscription(threadId))
         {
             await responseWriter.WriteResponseAsync(msg.Id, new Protocol.RpcEmpty(), ct);
@@ -527,9 +521,8 @@ internal sealed partial class ThreadRequestHandler(
         CancellationToken ct)
     {
         var threadId = Require(request.Params.ThreadId, "'threadId' is required.");
-        var thread = await sessionService.GetThreadAsync(threadId, ct);
         await sessionService.DeleteThreadPermanentlyAsync(threadId, ct);
-        threadProjector.RevokeAppBindingsForDeletedThread(thread);
+        threadProjector.RevokeAppBindingsForDeletedThread(threadId);
         return AppServerTypedResult<Protocol.RpcEmpty>.FromResult(new());
     }
 

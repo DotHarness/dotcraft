@@ -3,6 +3,7 @@ using DotCraft.AppServer;
 using DotCraft.Configuration;
 using DotCraft.Memory;
 using DotCraft.Modules;
+using DotCraft.Persistence;
 using DotCraft.Security;
 using DotCraft.Sessions;
 using DotCraft.Skills;
@@ -26,23 +27,26 @@ public sealed class AppServerThreadArchiveTests : IDisposable
             Id = "cold-archive", WorkspacePath = _workspace, UserId = "user", OriginChannel = "appserver",
             CreatedAt = at, LastActiveAt = at, Status = ThreadStatus.Active
         };
-        for (var index = 1; index <= 8; index++)
+        var input = new SessionItem
         {
-            var turnId = $"turn_{index:000}";
-            var input = new SessionItem
-            {
-                Id = $"item_{index:000}", TurnId = turnId, Type = ItemType.UserMessage,
-                Status = ItemStatus.Completed, CreatedAt = at, CompletedAt = at,
-                Payload = new UserMessagePayload { Text = new string('x', 2048) }
-            };
-            thread.Turns.Add(new SessionTurn
-            {
-                Id = turnId, ThreadId = thread.Id, Status = TurnStatus.Completed,
-                StartedAt = at, CompletedAt = at, Input = input, Items = [input]
-            });
-        }
+            Id = "item_001", TurnId = "turn_001", Type = ItemType.UserMessage,
+            Status = ItemStatus.Completed, CreatedAt = at, CompletedAt = at,
+            Payload = new UserMessagePayload { Text = "request" }
+        };
+        thread.Turns.Add(new SessionTurn
+        {
+            Id = input.TurnId, ThreadId = thread.Id, Status = TurnStatus.Completed,
+            StartedAt = at, CompletedAt = at, Input = input, Items = [input]
+        });
         await using (var seed = new ThreadStore(CraftPath))
             await seed.SaveThreadAsync(thread);
+        using (var connection = new WorkspaceStateDatabase(CraftPath).OpenConnection())
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = "DELETE FROM thread_history_projection_state WHERE thread_id = $id";
+            command.Parameters.AddWithValue("$id", thread.Id);
+            command.ExecuteNonQuery();
+        }
 
         await using var store = new ThreadStore(CraftPath);
         await using var factory = CreateFactory();
@@ -67,15 +71,14 @@ public sealed class AppServerThreadArchiveTests : IDisposable
             CoreAppServerTestHarness.AssertIsNotification(notification, Contract.AppServerMethodNames.ThreadArchived);
             Assert.Equal(thread.Id, notification.RootElement.GetProperty("params").GetProperty("threadId").GetString());
         }
-        Assert.Equal(0, store.RolloutReplayCount);
-        Assert.Equal(0, store.ForwardReplayCount);
-        Assert.Equal(ThreadStatus.Archived, (await service.ReadThreadSnapshotAsync(thread.Id)).Thread.Status);
-
         await SendAsync(Contract.AppServerMethodNames.ThreadArchive, new { threadId = thread.Id }, 3);
         using (var response = await transport.ReadNextSentAsync())
             CoreAppServerTestHarness.AssertIsSuccessResponse(response);
         Assert.Null(transport.TryReadSent());
         Assert.Equal(0, store.RolloutReplayCount);
+        Assert.Equal(0, store.ProjectedRolloutBytes);
+        Assert.Null(service.TryGetLoadedThread(thread.Id));
+        Assert.Equal(ThreadStatus.Archived, (await service.ReadThreadSnapshotAsync(thread.Id)).Thread.Status);
 
         async Task SendAsync(string method, object parameters, int id)
         {

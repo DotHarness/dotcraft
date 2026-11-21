@@ -35,7 +35,7 @@ beforeEach(() => {
   useToastStore.setState({ toasts: [] })
   vi.mocked(requestConfirmDialog).mockReset()
   vi.mocked(requestConfirmDialog).mockReturnValue({ result: Promise.resolve(false), dismiss: vi.fn() })
-  sendRequest = vi.fn().mockResolvedValue({ thread: { runtime: idle } })
+  sendRequest = vi.fn().mockResolvedValue({})
   archiveWorkspace = vi.fn().mockResolvedValue(undefined)
   installDesktopApiMock({ appServer: { sendRequest }, workspace: { archiveThread: archiveWorkspace } })
 })
@@ -51,7 +51,7 @@ describe('archive after runtime completion', () => {
 
     expect(await archiveThreadWithUndo({ threadId: 'parent', t })).toBe(true)
     expect(requestConfirmDialog).not.toHaveBeenCalled()
-    expect(sendRequest.mock.calls.map(call => call[0])).toEqual(['thread/read', 'thread/archive'])
+    expect(sendRequest).toHaveBeenCalledExactlyOnceWith('thread/archive', { threadId: 'parent' })
     expect(state().threadList).toEqual([])
   })
 

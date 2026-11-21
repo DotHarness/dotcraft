@@ -79,7 +79,7 @@ describe('optimistic thread archive', () => {
     cleanup.resolve({})
     expect(await archiving).toBe(true)
     await vi.waitFor(() => expect(ids()).toEqual(['parent', 'child', 'grandchild', 'other']))
-    expect(sendRequest.mock.calls.map(([method]) => method)).toEqual(['thread/read', 'thread/archive', 'thread/unarchive'])
+    expect(sendRequest.mock.calls.map(([method]) => method)).toEqual(['thread/archive', 'thread/unarchive'])
     expect(state().activeThreadId).toBe('parent')
   })
 
@@ -141,7 +141,7 @@ describe('optimistic thread archive', () => {
     expect(ids()).toEqual(['same-id'])
     expect(state().activeThreadId).toBe('same-id')
     expect(sendConnectionRequest.mock.calls.map(call => call.slice(0, 2))).toEqual([
-      ['/secondary', 'thread/read'], ['/secondary', 'thread/archive'], ['/secondary', 'thread/unarchive']
+      ['/secondary', 'thread/archive'], ['/secondary', 'thread/unarchive']
     ])
     for (const call of vi.mocked(window.api.appServer.sendConnectionRequest).mock.calls) {
       expect(call[4]).toEqual({ connectionId: 'secondary-lifetime' })

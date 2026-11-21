@@ -12,6 +12,7 @@ vi.mock('../ripgrepRuntime', () => ({ resolveDotCraftRuntimeTools: vi.fn() }))
 vi.mock('../settings', () => ({ forgetLocalProject: vi.fn(), saveLocalProjectDetails: vi.fn() }))
 vi.mock('../workspaceSetup', () => ({ listSetupModels: vi.fn(), loginSetupProvider: vi.fn(), runWorkspaceSetup: vi.fn() }))
 
+import { applyWorkspaceThreadNotification } from '../windows/windowProjects'
 import { recordForegroundWorkspace } from '../windows/windowSecondaryConnections'
 import { buildCallbacks, clearWorkspaceSelection, switchForegroundWorkspace } from '../windows/windowWorkspaceActions'
 
@@ -118,16 +119,26 @@ describe('panel resources on foreground workspace changes', () => {
     expect(ctx.connectToAppServer).not.toHaveBeenCalled()
   })
 
-  it('archives through the requested remote connection instead of a local workspace with the same path', async () => {
+  it('removes the archived thread from the owning connection without a server notification', async () => {
     const ctx = fixture()
-    const sendRequest = vi.fn(async () => ({}))
+    const sendRequest = vi.fn().mockResolvedValue({})
     const key = 'remote:device:computer:project'
-    ctx.workspaceConnections = new Map([[key, { key, connected: true, client: { sendRequest } } as never]])
+    const thread = { id: 'thread', runtime: { activeTurnId: 'remote-turn' } }
+    const entry = { key, connected: true, threads: [thread], client: { sendRequest } }
+    const other = { key: '/same/path', connected: true, threads: [thread] }
+    ctx.workspaceConnections = new Map([[key, entry as never], [other.key, other as never]])
     ctx.getWorkspaceConnection = vi.fn()
     ctx.refreshConnectionThreadList = vi.fn(async () => {})
+    ctx.applyWorkspaceThreadNotification = (target, method, params) =>
+      applyWorkspaceThreadNotification(ctx, target, method, params)
+
     await buildCallbacks(ctx).archiveThreadInWorkspace?.('/same/path', 'thread', key)
+
+    expect(sendRequest).toHaveBeenCalledExactlyOnceWith('thread/archive', { threadId: 'thread' })
+    expect(entry.threads).toEqual([])
+    expect(other.threads).toEqual([thread])
     expect(ctx.getWorkspaceConnection).not.toHaveBeenCalled()
-    expect(sendRequest).toHaveBeenCalledWith('thread/archive', { threadId: 'thread' })
+    expect(ctx.refreshConnectionThreadList).not.toHaveBeenCalled()
   })
 
   it('keeps explicit workspace clearing as a real teardown with grant revocation', async () => {

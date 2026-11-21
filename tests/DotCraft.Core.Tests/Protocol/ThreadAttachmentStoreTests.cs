@@ -47,6 +47,32 @@ public sealed class ThreadAttachmentStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task DeleteThread_WithMissingAttachmentIndex_DefersCleanupWithoutReplayingHistory()
+    {
+        var imagePath = CreateAttachment("unindexed.png");
+        var thread = CreateThread("thread_unindexed_attachment", imagePath);
+        await _store.SaveThreadAsync(thread);
+        ClearAttachmentRows();
+        using (var connection = new WorkspaceStateDatabase(_root).OpenConnection())
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = "DELETE FROM thread_history_projection_state";
+            command.ExecuteNonQuery();
+        }
+        var projectedBytes = _store.ProjectedRolloutBytes;
+
+        _store.DeleteThread(thread.Id);
+
+        Assert.False(_store.ThreadExists(thread.Id));
+        Assert.Equal(projectedBytes, _store.ProjectedRolloutBytes);
+        Assert.True(File.Exists(imagePath));
+        File.SetLastWriteTimeUtc(imagePath, DateTime.UtcNow.AddDays(-2));
+
+        await _store.LoadIndexAsync();
+        Assert.False(File.Exists(imagePath));
+    }
+
+    [Fact]
     public async Task ArchiveThread_KeepsAttachmentReferenceAndFile()
     {
         var imagePath = CreateAttachment("archived.png");

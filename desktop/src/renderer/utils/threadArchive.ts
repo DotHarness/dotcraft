@@ -10,7 +10,6 @@ import type { ThreadSummary } from '../types/thread'
 import type { WorkspaceProjectSummary } from '../../shared/workspaceProjects'
 import { confirmThreadArchive, needsThreadTreeArchiveConfirmation } from './confirmThreadArchive'
 import { collectThreadTreeIds } from './subAgentThreads'
-import { stopBeforeArchive } from '../../shared/stopBeforeArchive'
 
 type Translate = (key: string, vars?: Record<string, string | number>) => string
 
@@ -31,7 +30,7 @@ export function archiveThreadWithUndo({ threadId, t }: ArchiveThreadOptions): Pr
   const running = needsThreadTreeArchiveConfirmation(threadId, state.threadList, state.runningTurnThreadIds)
   return confirmThreadArchive(JSON.stringify([projectKey, threadId]), running, t, () => performThreadArchive({
     projectKey, threadId, threads: state.threadList, t,
-    archive: () => stopBeforeArchive(send, threadId),
+    archive: () => send('thread/archive', { threadId }),
     unarchive: () => send('thread/unarchive', { threadId })
   }))
 }

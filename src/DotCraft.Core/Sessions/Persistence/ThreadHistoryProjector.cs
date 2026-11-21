@@ -165,7 +165,8 @@ internal sealed partial class ThreadHistoryProjector(
     {
         var thread = EnsureSnapshot();
         thread.Status = status.Status;
-        thread.LastActiveAt = status.LastActiveAt;
+        if (status.LastActiveAt is { } lastActiveAt)
+            thread.LastActiveAt = lastActiveAt;
     }
 
     private void ApplyQueueAdded(QueuedInputAddedPayload payload)

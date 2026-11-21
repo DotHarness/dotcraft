@@ -230,6 +230,46 @@ internal sealed partial class ThreadMetadataStore
         }
     }
 
+    public SessionThread? ReadLifecycleMetadata(string threadId, string? expectedPath, long? rolloutLength)
+    {
+        using var connection = stateRuntime.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = $"""
+            SELECT {SummaryColumns}, rollout_path, projected_rollout_offset FROM threads WHERE thread_id = $thread_id
+            """;
+        command.Parameters.AddWithValue("$thread_id", threadId);
+        using var reader = command.ExecuteReader();
+        if (!reader.Read() || (expectedPath is not null && !string.Equals(
+                StoredRolloutPath.Resolve(connection, reader.GetString(15)), expectedPath, StringComparison.Ordinal)))
+            return null;
+
+        try
+        {
+            var summary = ReadSummary(reader);
+            return new SessionThread
+            {
+                Id = summary.Id,
+                WorkspacePath = summary.WorkspacePath,
+                Source = summary.Source,
+                Status = summary.Status,
+                DisplayName = summary.DisplayName,
+                UserId = summary.UserId,
+                OriginChannel = summary.OriginChannel,
+                ChannelContext = summary.ChannelContext,
+                ForkedFromId = summary.ForkedFromId,
+                Ephemeral = summary.Ephemeral,
+                Worktree = rolloutLength == reader.GetInt64(16) ? summary.Worktree : null,
+                CreatedAt = summary.CreatedAt,
+                LastActiveAt = summary.LastActiveAt,
+                Metadata = summary.Metadata
+            };
+        }
+        catch (Exception ex) when (ex is InvalidDataException or JsonException or NotSupportedException or InvalidOperationException or FormatException)
+        {
+            return null;
+        }
+    }
+
     public string? GetRolloutPath(string threadId)
     {
         using var connection = stateRuntime.OpenConnection();

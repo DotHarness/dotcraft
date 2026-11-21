@@ -24,7 +24,7 @@ internal interface IRolloutWriter
 
     Task<RolloutWriteReceipt> FlushAsync(string threadId, CancellationToken ct = default);
 
-    Task CloseAsync(string threadId, CancellationToken ct = default);
+    Task CloseAsync(string threadId, CancellationToken ct = default, bool discardPending = false);
 
     Task ShutdownAllAsync(CancellationToken ct = default);
 }
@@ -92,12 +92,12 @@ internal sealed class OrderedRolloutWriter : IRolloutWriter
         }
     }
 
-    public async Task CloseAsync(string threadId, CancellationToken ct = default)
+    public async Task CloseAsync(string threadId, CancellationToken ct = default, bool discardPending = false)
     {
         if (!_writers.TryGetValue(threadId, out var writer))
             return;
 
-        await writer.CloseAsync(ct);
+        await writer.CloseAsync(ct, discardPending);
         _writers.TryRemove(new KeyValuePair<string, ThreadWriter>(threadId, writer));
     }
 
@@ -189,14 +189,14 @@ internal sealed class OrderedRolloutWriter : IRolloutWriter
             }
         }
 
-        public async Task CloseAsync(CancellationToken ct)
+        public async Task CloseAsync(CancellationToken ct, bool discardPending = false)
         {
             await _enqueueGate.WaitAsync(ct);
             var closed = false;
             try
             {
                 var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-                await _channel.Writer.WriteAsync(new CloseCommand(completion), CancellationToken.None);
+                await _channel.Writer.WriteAsync(new CloseCommand(completion, discardPending), CancellationToken.None);
                 await completion.Task.WaitAsync(ct);
                 await _pump.WaitAsync(ct);
                 closed = true;
@@ -243,7 +243,8 @@ internal sealed class OrderedRolloutWriter : IRolloutWriter
                     case CloseCommand close:
                         try
                         {
-                            await WritePendingWithRecoveryAsync();
+                            if (!close.DiscardPending)
+                                await WritePendingWithRecoveryAsync();
                             await DisposeStreamAsync();
                             close.Completion.TrySetResult();
                             _channel.Writer.TryComplete();
@@ -439,7 +440,7 @@ internal sealed class OrderedRolloutWriter : IRolloutWriter
 
     private sealed record FlushCommand(TaskCompletionSource<RolloutWriteReceipt> Completion) : WriterCommand;
 
-    private sealed record CloseCommand(TaskCompletionSource Completion) : WriterCommand;
+    private sealed record CloseCommand(TaskCompletionSource Completion, bool DiscardPending) : WriterCommand;
 
     private sealed record PendingRecord(ThreadRolloutRecord Record, byte[] Bytes, Exception? Error)
     {

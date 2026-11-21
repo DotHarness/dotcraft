@@ -278,26 +278,11 @@ public sealed partial class ThreadStore : IAsyncDisposable
     public void DeleteThread(string threadId)
     {
         using var writeLock = ThreadRolloutWriteGate.Acquire(_botPath, threadId);
-        new AgentMessageBoardStore(StateDatabase).Delete(threadId);
         _rolloutStore.CloseThreadAsync(threadId).GetAwaiter().GetResult();
-        var cleanupCandidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        if (_rolloutStore.ResolveExistingPath(threadId) is { } rolloutPath)
-        {
-            try
-            {
-                cleanupCandidates.UnionWith(_historyProjectionStore
-                    .ProjectCommittedAsync(threadId, rolloutPath, new FileInfo(rolloutPath).Length, CancellationToken.None)
-                    .GetAwaiter()
-                    .GetResult());
-            }
-            catch (ThreadHistoryUnavailableException ex)
-            {
-                System.Diagnostics.Trace.TraceWarning(
-                    $"Thread projection was unavailable before deleting '{threadId}': {ex.Message}");
-            }
-        }
-        cleanupCandidates.UnionWith(_attachmentStore.LoadCandidatePaths(threadId));
+        VerifyDeletionIdentity(threadId);
+        var cleanupCandidates = _attachmentStore.LoadCandidatePaths(threadId);
         _rolloutStore.DeleteThreadAsync(threadId).GetAwaiter().GetResult();
+        new AgentMessageBoardStore(StateDatabase).Delete(threadId);
         _residentProviderHistory.TryRemove(threadId, out _);
         _persistedBaselines.TryRemove(threadId, out _);
         _modelHistoryRevisions.TryRemove(threadId, out _);

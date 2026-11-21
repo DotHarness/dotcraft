@@ -110,6 +110,18 @@ internal sealed partial class ThreadMetadataStore(WorkspaceStateDatabase stateRu
         command.ExecuteNonQuery();
     }
 
+    public string? GetSubAgentParentThreadId(string childThreadId)
+    {
+        using var connection = stateRuntime.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT parent_thread_id FROM thread_spawn_edges
+            WHERE child_thread_id = $thread_id ORDER BY updated_at DESC LIMIT 1
+            """;
+        command.Parameters.AddWithValue("$thread_id", childThreadId);
+        return command.ExecuteScalar() as string;
+    }
+
     public List<ThreadSpawnEdge> ListSubAgentChildren(string parentThreadId, bool includeClosed)
     {
         var edges = new List<ThreadSpawnEdge>();

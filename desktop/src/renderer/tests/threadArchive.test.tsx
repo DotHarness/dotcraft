@@ -52,34 +52,21 @@ describe('archiveThreadWithUndo', () => {
     expect(listedIds()).toEqual(['a', 'b'])
   })
 
-  it('waits for confirmation and interrupts before archive without duplicate requests', async () => {
+  it('waits for confirmation and sends only one archive request for an active thread', async () => {
     setRunning()
     let confirm!: (value: boolean) => void
     vi.mocked(requestConfirmDialog).mockReturnValue({ result: new Promise(resolve => { confirm = resolve }), dismiss: vi.fn() })
-    sendRequest.mockImplementation(async (method: string) => method === 'thread/read'
-      ? { thread: { runtime: { activeTurnId: 'turn-a' } } } : {})
     const pending = archiveThreadWithUndo({ threadId: 'a', t })
     expect(sendRequest).not.toHaveBeenCalled()
     expect(await archiveThreadWithUndo({ threadId: 'a', t })).toBe(false)
     confirm(true)
     expect(await pending).toBe(true)
     expect(requestConfirmDialog).toHaveBeenCalledOnce()
-    expect(sendRequest.mock.calls.map(call => call[0])).toEqual(['thread/read', 'turn/interrupt', 'thread/archive'])
-    expect(sendRequest).toHaveBeenCalledWith('turn/interrupt', { threadId: 'a', turnId: 'turn-a' })
+    expect(sendRequest).toHaveBeenCalledExactlyOnceWith('thread/archive', { threadId: 'a' })
     useToastStore.getState().toasts[0].action?.onClick()
     await vi.waitFor(() => expect(listedIds()).toContain('a'))
     expect(useThreadStore.getState().threadList.find(thread => thread.id === 'a')?.runtime)
       .toMatchObject({ running: false, activeTurnId: null })
-  })
-
-  it('does not archive when interruption fails', async () => {
-    setRunning()
-    vi.mocked(requestConfirmDialog).mockReturnValue({ result: Promise.resolve(true), dismiss: vi.fn() })
-    sendRequest.mockResolvedValueOnce({ thread: { runtime: { activeTurnId: 'turn-a' } } })
-      .mockRejectedValueOnce(new Error('offline'))
-    expect(await archiveThreadWithUndo({ threadId: 'a', t })).toBe(false)
-    expect(sendRequest).not.toHaveBeenCalledWith('thread/archive', expect.anything())
-    expect(listedIds()).toEqual(['a', 'b'])
   })
 
   it('requires confirmation before routing a secondary workspace archive', async () => {

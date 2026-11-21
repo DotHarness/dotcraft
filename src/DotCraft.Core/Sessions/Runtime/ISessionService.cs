@@ -171,7 +171,8 @@ public interface ISessionService
     Task<ThreadGoalClearResult> ClearThreadGoalAsync(string threadId, CancellationToken ct = default) =>
         throw new NotSupportedException("Thread goals are not supported by this session service.");
 
-    Task ArchiveThreadAsync(string threadId, CancellationToken ct = default);
+    /// <summary>Returns whether the requested thread changed to Archived.</summary>
+    Task<bool> ArchiveThreadAsync(string threadId, CancellationToken ct = default);
 
     Task UnarchiveThreadAsync(string threadId, CancellationToken ct = default);
 

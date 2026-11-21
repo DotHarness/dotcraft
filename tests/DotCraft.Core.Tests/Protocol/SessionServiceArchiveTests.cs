@@ -2,12 +2,14 @@ using System.Text.Json;
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Memory;
+using DotCraft.Persistence;
 using DotCraft.Security;
 using DotCraft.Sessions;
 using DotCraft.Skills;
 using DotCraft.Tests.Tools;
 using DotCraft.Tools;
 using DotCraft.Tools.BackgroundTerminals;
+using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
 using Xunit;
 
@@ -25,21 +27,41 @@ public sealed class SessionServiceArchiveTests : IDisposable
         if (Directory.Exists(_workspace)) Directory.Delete(_workspace, recursive: true);
     }
 
-    [Fact]
-    public async Task ColdLongThread_ArchivesWithoutHydratingAndPreservesHistory()
+    [Theory]
+    [InlineData("current")]
+    [InlineData("missing")]
+    [InlineData("stale")]
+    public async Task ColdLongThread_ArchivesWithoutHydratingAndPreservesHistory(string projection)
     {
         const int turns = 128;
         var attachment = Path.Combine(CraftPath, "attachments", "images", "kept.png");
         Directory.CreateDirectory(Path.GetDirectoryName(attachment)!);
         await File.WriteAllBytesAsync(attachment, [1, 2, 3]);
         await SeedAsync("cold", turns, attachment: attachment);
-        var original = await File.ReadAllBytesAsync(ActivePath("cold"));
         await using var store = new ThreadStore(CraftPath);
         var chat = new RecordingChatClient();
         var resources = new ThreadResources();
         await using var factory = CreateFactory(chat, resources);
         var service = CreateService(factory, chat, store);
         var before = await service.ReadThreadSnapshotAsync("cold");
+        if (projection == "missing")
+        {
+            using var connection = new WorkspaceStateDatabase(CraftPath).OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = "DELETE FROM threads WHERE thread_id = 'cold'";
+            command.ExecuteNonQuery();
+        }
+        else if (projection == "stale")
+        {
+            var rename = new ThreadRolloutRecord
+            {
+                Kind = RolloutKinds.ThreadNameUpdated,
+                ThreadNameUpdated = new ThreadNameUpdatedPayload { ThreadId = "cold", DisplayName = "Renamed" }
+            };
+            await File.AppendAllLinesAsync(ActivePath("cold"), [JsonSerializer.Serialize(rename, SessionJsonOptions.Default)]);
+        }
+
+        var original = await File.ReadAllBytesAsync(ActivePath("cold"));
         var projectedBefore = store.ProjectedRolloutBytes;
 
         await service.ArchiveThreadAsync("cold");
@@ -52,9 +74,12 @@ public sealed class SessionServiceArchiveTests : IDisposable
         Assert.Equal(original, archived[..original.Length]);
         var record = JsonSerializer.Deserialize<ThreadRolloutRecord>(archived.AsSpan(original.Length), SessionJsonOptions.Default)!;
         Assert.Equal(RolloutKinds.ThreadStatusChanged, record.Kind);
-        Assert.Equal(archived.Length - original.Length, store.ProjectedRolloutBytes - projectedBefore);
+        Assert.Equal(projection == "current" ? archived.Length - original.Length : 0L,
+            store.ProjectedRolloutBytes - projectedBefore);
         var snapshot = await service.ReadThreadSnapshotAsync("cold");
         Assert.Equal(ThreadStatus.Archived, snapshot.Thread.Status);
+        if (projection == "stale")
+            Assert.Equal("Renamed", snapshot.Thread.DisplayName);
         Assert.Equal(before.Thread.LastActiveAt, snapshot.Thread.LastActiveAt);
         Assert.Equal(turns, Assert.Single(await store.LoadIndexAsync(), summary => summary.Id == "cold").TurnCount);
         Assert.Empty(snapshot.Thread.Turns);
@@ -69,6 +94,83 @@ public sealed class SessionServiceArchiveTests : IDisposable
         Assert.Equal(archived, await File.ReadAllBytesAsync(ArchivedPath("cold")));
         Assert.Equal(["cold"], resources.Released);
         AssertNoHydration(service, store, "cold");
+    }
+
+    [Fact]
+    public async Task ArchiveAndQueuedInitialTurnWrite_KeepRolloutArchived()
+    {
+        const string id = "racing-turn";
+        var at = DateTimeOffset.UtcNow;
+        var thread = new SessionThread { Id = id, WorkspacePath = _workspace, CreatedAt = at, LastActiveAt = at };
+        await using var store = new ThreadStore(CraftPath);
+        await store.SaveThreadAsync(thread);
+        var turn = new SessionTurn { Id = "turn_001", ThreadId = id, StartedAt = at, Status = TurnStatus.Running };
+        thread.Turns.Add(turn);
+
+        using var database = new UsageStatisticsDatabase(_workspace);
+        var usage = new UsageStatisticsStore(database, _workspace);
+        usage.ObserveThread(thread);
+        var persistence = new SessionPersistenceService(store, tokenUsageStore: usage);
+        using var connection = database.OpenConnection();
+        using var blockedStatistics = connection.BeginTransaction();
+        Task archive;
+        Task turnWrite;
+        using (await ThreadRolloutWriteGate.AcquireAsync(CraftPath, id))
+        {
+            archive = persistence.ArchiveStoredThreadAsync(thread, requireRollout: true, CancellationToken.None);
+            turnWrite = store.SaveTurnAsync(thread, turn);
+        }
+
+        var timeout = TimeSpan.FromSeconds(10);
+        try
+        {
+            await turnWrite.WaitAsync(timeout);
+            Assert.False(File.Exists(ActivePath(id)));
+        }
+        finally
+        {
+            blockedStatistics.Rollback();
+            await archive.WaitAsync(timeout);
+        }
+
+        var snapshot = await store.ReadThreadSnapshotAsync(id);
+        Assert.Equal(ThreadStatus.Archived, snapshot.Thread.Status);
+        var turns = await store.ListThreadTurnsAsync(id, null, 1, ThreadHistorySortDirection.Ascending);
+        Assert.Equal(turn.Id, Assert.Single(turns.Data).Id);
+    }
+
+    [Fact]
+    public async Task FailedArchiveWrite_RestoresActiveHistoryAndAllowsColdRetry()
+    {
+        const string id = "retry";
+        await SeedAsync(id, 1);
+        var original = await File.ReadAllBytesAsync(ActivePath(id));
+        var writer = new OrderedRolloutWriter(async (path, _, _) =>
+        {
+            await File.AppendAllTextAsync(path, "{");
+            throw new UnauthorizedAccessException("Archive write failed.");
+        });
+        var chat = new RecordingChatClient();
+        await using var factory = CreateFactory(chat, new ThreadResources());
+
+        await using (var failedStore = new ThreadStore(CraftPath, null, null, writer))
+        await using (var failedService = CreateService(factory, chat, failedStore))
+        {
+            var loaded = await failedService.GetThreadAsync(id);
+
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => failedService.ArchiveThreadAsync(id));
+
+            Assert.Equal(ThreadStatus.Active, loaded.Status);
+            Assert.Equal(original, await File.ReadAllBytesAsync(ActivePath(id)));
+            Assert.False(File.Exists(ArchivedPath(id)));
+        }
+
+        await using var store = new ThreadStore(CraftPath);
+        await using var service = CreateService(factory, chat, store);
+        Assert.True(await service.ArchiveThreadAsync(id));
+
+        Assert.Null(service.TryGetLoadedThread(id));
+        Assert.Equal(ThreadStatus.Archived, (await service.ReadThreadSnapshotAsync(id)).Thread.Status);
     }
 
     [Theory]
@@ -167,8 +269,10 @@ public sealed class SessionServiceArchiveTests : IDisposable
         Assert.True(service.TryGetLoadedThread("root") is null or { Status: ThreadStatus.Archived });
     }
 
-    [Fact]
-    public async Task LoadedBusyThread_ArchivesWithoutWaitingForTerminalCleanupEvenIfCancellationCallbackThrows()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task LoadedBusyThread_ArchivesWithoutWaitingForTerminalCleanupWhenASideEffectFails(bool failUsageUpdate)
     {
         var timeout = TimeSpan.FromSeconds(10);
         var streamStarted = new TaskCompletionSource<CancellationToken>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -195,8 +299,27 @@ public sealed class SessionServiceArchiveTests : IDisposable
         await SeedAsync("busy", 1);
         await using var store = new ThreadStore(CraftPath);
         await using var factory = CreateFactory(chat, new ThreadResources());
-        await using var service = CreateService(factory, chat, store, terminals);
+        using var database = new UsageStatisticsDatabase(_workspace);
+        var usage = new UsageStatisticsStore(database, _workspace);
+        await using var service = new SessionService(factory, chat.AsAIAgent(),
+            new SessionPersistenceService(store, tokenUsageStore: usage), new SessionGate(), backgroundTerminalService: terminals);
         var thread = await service.GetThreadAsync("busy");
+        usage.ObserveThread(thread);
+        if (failUsageUpdate)
+        {
+            using var connection = database.OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                CREATE TRIGGER fail_archive_statistics BEFORE UPDATE OF archived ON usage_threads
+                WHEN NEW.archived = 1 BEGIN
+                    SELECT RAISE(ABORT, 'Archive statistics write failed.');
+                END;
+                """;
+            command.ExecuteNonQuery();
+        }
+
+        ThreadStatus? announcedStatus = null;
+        service.ThreadStatusChangedForBroadcast = (_, _, status) => announcedStatus = status;
         var run = service.SubmitInputAsync(thread.Id, [new TextContent("run")]).ToListAsync().AsTask();
 
         try
@@ -206,14 +329,15 @@ public sealed class SessionServiceArchiveTests : IDisposable
             using var registration = turnCancellation.Register(() =>
             {
                 callbackRan = true;
-                throw new InvalidOperationException("Cancellation callback failed.");
+                if (!failUsageUpdate)
+                    throw new InvalidOperationException("Cancellation callback failed.");
             });
-            var archive = service.ArchiveThreadAsync(thread.Id);
+            Assert.True(await service.ArchiveThreadAsync(thread.Id).WaitAsync(timeout));
             Assert.Equal((thread.Id, true), await cleanupStarted.Task.WaitAsync(timeout));
-            await archive.WaitAsync(timeout);
 
             Assert.True(callbackRan);
             Assert.False(cleanup.Task.IsCompleted);
+            Assert.Equal(ThreadStatus.Archived, announcedStatus);
             Assert.Equal(ThreadStatus.Archived, (await service.ReadThreadSnapshotAsync(thread.Id)).Thread.Status);
             Assert.Contains(await run.WaitAsync(timeout), e => e.EventType == SessionEventType.TurnCancelled);
         }
