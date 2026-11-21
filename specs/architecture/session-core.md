@@ -118,7 +118,7 @@ A fork creates a new conversation branch from a source thread and leaves the sou
 - A persistent fork gets a new id, its own rollout, and `ForkedFromId`. An ephemeral fork gets the same identity fields but stays process-local and unlisted.
 - History is copied, not linked; later source edits, archive, delete, rollback, or compaction never rewrite the fork.
 - The fork copies the selected turn/item prefix. A `forkPoint` targets a whole turn or an item boundary; `"after"` includes the target and `"before"` excludes it.
-- A copied active or partial source turn ends at an explicit interrupted boundary.
+- A copied active or partial source Turn ends at an explicit interrupted boundary. When a whole active Turn retains a compatible sampling request, the fork reuses that input and appends the retained model-visible items completed after it. Otherwise it rebuilds the selected part of the Turn from its copied items.
 - Forks do not inherit queued inputs, pending approvals or user-input requests, app bindings, active goals, or plan state. Copied transcript items stay visible.
 - Forks copy thread configuration, then apply request-level overrides.
 - A persisted `SystemNotice` with `kind = "forked"` and `sourceThreadId` marks the boundary between inherited history and new work. It is client-visible, not model-visible.
@@ -127,7 +127,6 @@ A fork creates a new conversation branch from a source thread and leaves the sou
 Side chat forks:
 
 - A side chat is an internal ephemeral fork of a non-side-chat thread. It copies the full current history and may be taken while a source Turn runs.
-- It reuses the completed Turns' model history and the compatible input of the latest sampling request in a running source Turn when available. Otherwise it rebuilds the running Turn's model history from its copied Items. The running Turn ends at the interrupted boundary in the fork.
 - It inherits the source's tool-planning role and cache routing root, so tool surface and base instructions match.
 - Before each Turn, Session Core appends a side-chat boundary context item when the history has none. It follows the copied history, is restored after compaction, and is not a visible Item.
 - A side chat cannot own persistent child threads, so spawning a child agent fails.

@@ -47,7 +47,7 @@ public sealed partial class SessionService
         await PersistThreadWithMaterializationAsync(childThread, ct);
         InheritWorldStateBaseline(parentThread.Id, childThread.Id, forkHistory);
         var model = ResolveForkModel(childThread);
-        var inheritedTokens = await InheritForkContextUsageAsync(parentThread, childThread, model, parentRequest, forkHistory, ct);
+        var inheritedTokens = await InheritForkContextUsageAsync(parentThread, childThread, model, forkHistory, ct);
         if (!childThread.Ephemeral)
         {
             var coveredThroughTurnId = childThread.Turns[^1].Id;

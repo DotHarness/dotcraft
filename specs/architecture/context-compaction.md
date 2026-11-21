@@ -339,10 +339,11 @@ Neutral history cannot estimate a provider-native compacted window because the o
 semantic `ChatMessage` representation. A valid provider usage anchor plus uncovered tail takes
 precedence over the provider-native estimator, including across ordinary Plan/Agent mode changes.
 A fork inherits a provider usage anchor only when it covers a matching prefix of the selected
-model history and applies to the target request. The fork estimates the uncovered tail and request
-changes. Without a matching anchor, it estimates the context the target will actually send. The
-anchor is independent of cumulative token consumption. Native full-history SubAgents use the
-spawning request as the fork boundary.
+model history and applies to the target request. A fork without a prior request of its own defers
+its automatic compaction check until it has prepared the target request. The fork estimates the
+uncovered tail and request changes. Without a matching anchor, it estimates the context the target
+will actually send. The anchor is independent of cumulative token consumption. Native full-history
+SubAgents use the spawning request as the fork boundary.
 
 Prompt suggestion forks inherit context usage but do not run automatic or overflow-triggered
 compaction. If the provider rejects the request for exceeding its context window, no suggestion is produced.

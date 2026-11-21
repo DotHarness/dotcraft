@@ -409,6 +409,7 @@ public sealed partial class SessionServiceNativeCompactionTests : IDisposable
         public bool ReportHighUsageNextResponse { get; set; }
         public long? InputTokensNextResponse { get; set; }
         public bool ToolNextResponse { get; set; }
+        public string? TextBeforeNextTool { get; set; }
         public bool ReasoningNextResponse { get; set; }
         public Func<CancellationToken, Task>? BeforeNextResponse { get; set; }
         public IReadOnlyCollection<string> Protocols => [ModelProviderProtocols.OpenAIResponses];
@@ -468,8 +469,16 @@ public sealed partial class SessionServiceNativeCompactionTests : IDisposable
             ToolNextResponse = false;
             if (tool)
             {
+                if (TextBeforeNextTool is { } text)
+                {
+                    TextBeforeNextTool = null;
+                    yield return new StreamingResponseOutputTextDeltaUpdate
+                    {
+                        SequenceNumber = 0, ItemId = "msg_before_tool", OutputIndex = 0, ContentIndex = 0, Delta = text
+                    };
+                }
                 yield return ModelReaderWriter.Read<StreamingResponseUpdate>(BinaryData.FromString("""
-                    {"type":"response.output_item.done","sequence_number":1,"output_index":0,
+                     {"type":"response.output_item.done","sequence_number":1,"output_index":0,
                      "item":{"type":"function_call","id":"fc_test","call_id":"call_test","name":"GetStatus",
                      "arguments":"{}","status":"completed"}}
                     """))!;

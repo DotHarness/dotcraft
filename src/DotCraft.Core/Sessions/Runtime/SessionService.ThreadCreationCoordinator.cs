@@ -133,9 +133,9 @@ public sealed partial class SessionService
                 options.Cwd,
                 options.RuntimeWorkspaceRoots);
             var forkedThreadId = SessionIdGenerator.NewThreadId();
-            var activeSourceTurn = source.Turns.LastOrDefault(IsActiveTurn);
             var sourceRequest = owner.TryGetLastPromptRequestSnapshot(source.Id);
-            var forkedTurns = CloneForkTurns(source, options.ForkPoint, forkedThreadId, source.Id, now);
+            var (forkedTurns, activeSourceTurnId, completedActiveItems) = CloneForkTurns(
+                source, options.ForkPoint, forkedThreadId, source.Id, now);
             var metadata = CopyForkMetadata(source, identity);
             if (options.Purpose is { } purpose)
             {
@@ -188,7 +188,7 @@ public sealed partial class SessionService
                 }
 
                 await owner.MaterializeThreadForkContextAsync(
-                    source, forked, activeSourceTurn?.Id, sourceRequest,
+                    source, forked, activeSourceTurnId, sourceRequest, completedActiveItems,
                     string.IsNullOrWhiteSpace(options.ForkPoint?.ItemId), ct);
 
                 broker.PublishThreadEvent(SessionEventType.ThreadCreated, forked);
@@ -284,7 +284,7 @@ public sealed partial class SessionService
             return JsonSerializer.Deserialize<ThreadSource>(json, SessionJsonOptions.Default) ?? ThreadSource.User();
         }
 
-        private static List<SessionTurn> CloneForkTurns(
+        private static (List<SessionTurn> Turns, string? ActiveTurnId, IReadOnlyList<SessionItem> CompletedActiveItems) CloneForkTurns(
             SessionThread source,
             ThreadForkPoint? forkPoint,
             string forkedThreadId,
@@ -292,23 +292,16 @@ public sealed partial class SessionService
             DateTimeOffset now)
         {
             var cloned = DeepCloneTurns(source.Turns);
-            List<SessionTurn> selected;
-
-            if (forkPoint == null)
-            {
-                selected = cloned;
-            }
-            else
-            {
-                selected = SelectForkTurnPrefix(cloned, forkPoint, now);
-            }
-
+            var activeTurnId = cloned.LastOrDefault(IsActiveTurn)?.Id;
+            var selected = forkPoint is null ? cloned : SelectForkTurnPrefix(cloned, forkPoint, now);
+            var completedActiveItems = selected.LastOrDefault(IsActiveTurn)?.Items
+                .Where(static item => item.Status == ItemStatus.Completed).ToArray() ?? [];
             foreach (var turn in selected.Where(IsActiveTurn))
                 MarkForkInterruptedTurn(turn, now, "Forked from an interrupted source turn.");
 
             RetargetForkTurns(selected, forkedThreadId);
             AppendForkBoundaryNotice(selected, forkedThreadId, sourceThreadId, now);
-            return selected;
+            return (selected, activeTurnId, completedActiveItems);
         }
 
         private static string? ResolveForkDisplayName(

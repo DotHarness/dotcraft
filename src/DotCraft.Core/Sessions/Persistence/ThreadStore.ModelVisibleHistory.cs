@@ -23,10 +23,15 @@ public sealed partial class ThreadStore
     private static List<SessionTurn> OrderTurns(IEnumerable<SessionTurn> turns) =>
         turns.OrderBy(t => t.StartedAt).ThenBy(t => t.Id, StringComparer.Ordinal).ToList();
 
-    internal static IReadOnlyList<ChatMessage> BuildModelVisibleHistoryFromTurn(SessionTurn turn)
+    internal static IReadOnlyList<ChatMessage> BuildModelVisibleHistoryFromTurn(SessionTurn turn) =>
+        BuildModelVisibleHistoryFromItems(turn.Items);
+
+    internal static IReadOnlyList<ChatMessage> BuildModelVisibleHistoryFromItems(
+        IReadOnlyList<SessionItem> items,
+        IReadOnlySet<string>? coveredItemIds = null)
     {
         var history = new List<ChatMessage>();
-        var completedItems = turn.Items
+        var completedItems = items
             .Where(static item => item.Status == ItemStatus.Completed
                                   && item.InvocationOrigin != ToolInvocationOrigin.CodeModeKind)
             .ToList();
@@ -35,6 +40,9 @@ public sealed partial class ThreadStore
 
         foreach (var item in completedItems)
         {
+            if (coveredItemIds?.Contains(item.Id) == true)
+                continue;
+
             if (item.Type == ItemType.UserMessage && TryBuildUserMessage(item, out var userMessage))
             {
                 FlushAssistantSegment(history, assistantBuilder);

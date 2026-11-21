@@ -13,6 +13,7 @@ public sealed partial class SessionService
         SessionThread fork,
         string? activeSourceTurnId,
         PromptRequestSnapshot? sourceRequest,
+        IReadOnlyList<SessionItem> completedActiveItems,
         bool wholeTurnBoundary,
         CancellationToken ct)
     {
@@ -30,10 +31,12 @@ public sealed partial class SessionService
         var model = ResolveForkModel(fork);
         OpaqueProviderHistorySnapshot? providerHistory;
         if (activeForkTurn is not null && wholeTurnBoundary
-            && sourceRequest?.TurnId == activeForkTurn.Id
+            && sourceRequest is { CompletedTurnItemIds: { } coveredItems }
+            && sourceRequest.TurnId == activeForkTurn.Id
             && ExtendsForkPrefix(sourceRequest, history.Take(materialization.WholeTurnMessageCount).ToArray(), out var prefixLength))
         {
-            providerTail = interruption is null ? [] : [interruption];
+            var completedTail = ThreadStore.BuildModelVisibleHistoryFromItems(completedActiveItems, coveredItems);
+            providerTail = interruption is null ? [.. completedTail] : [.. completedTail, interruption];
             materialization.TurnHistories[activeForkTurn.Id] = [.. sourceRequest.Messages.Skip(prefixLength), .. providerTail];
             history = [.. sourceRequest.Messages, .. providerTail];
             providerHistory = sourceRequest.ProviderHistory;
@@ -54,7 +57,7 @@ public sealed partial class SessionService
         }
 
         var provider = await InstallForkProviderHistoryAsync(fork, model, providerHistory, history, providerTail, ct);
-        var measured = await InheritForkContextUsageAsync(source, fork, model, sourceRequest, history, ct);
+        var measured = await InheritForkContextUsageAsync(source, fork, model, history, ct);
         if (measured is not null || fork.Ephemeral)
             return;
 
@@ -191,7 +194,6 @@ public sealed partial class SessionService
         SessionThread source,
         SessionThread fork,
         EffectiveModelRuntime model,
-        PromptRequestSnapshot? request,
         IReadOnlyList<ChatMessage> history,
         CancellationToken ct)
     {
@@ -204,23 +206,12 @@ public sealed partial class SessionService
             return null;
 
         var visibleHistory = PrepareProviderVisibleHistory(MessageGrouper.NormalizeFunctionCallArguments(history));
-        var matchingRequest = request is not null && request.Messages.Count <= visibleHistory.Count
-            && request.MessageFingerprint == MessageTokenEstimator.ComputePrefixFingerprint(visibleHistory, request.Messages.Count)
-                ? request
-                : null;
-        var estimate = ContextUsageTokenCounter.EstimateFromAnchorDetailed(
-            anchor,
-            visibleHistory,
-            matchingRequest?.RequestFingerprint ?? anchor.RequestFingerprint,
-            requireRequestFingerprint: true,
-            matchingRequest?.ContextUsageFingerprint,
-            matchingRequest?.BaseInstructionsTokenEstimate);
-        if (estimate is null)
+        var tokens = ContextUsageTokenCounter.EstimateFromAnchor(
+            anchor, visibleHistory, anchor.RequestFingerprint, requireRequestFingerprint: true);
+        if (tokens is null)
             return null;
 
-        if (matchingRequest is not null && _runtimeRegistry.TryGetRuntime(fork.Id, out var runtime))
-            runtime.LastPromptRequest = matchingRequest with { ThreadId = fork.Id, TurnId = null };
-        await SaveContextUsageSnapshotAsync(fork.Id, estimate.Tokens, anchor, "estimate", isEstimate: true, ct);
-        return estimate.Tokens;
+        await SaveContextUsageSnapshotAsync(fork.Id, tokens.Value, anchor, "estimate", isEstimate: true, ct);
+        return tokens;
     }
 }

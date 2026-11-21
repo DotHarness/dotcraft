@@ -29,6 +29,7 @@ public sealed record PromptRequestSnapshot
     public required IReadOnlyList<ChatMessage> Messages { get; init; }
 
     internal OpaqueProviderHistorySnapshot? ProviderHistory { get; init; }
+    internal IReadOnlySet<string>? CompletedTurnItemIds { get; init; }
 
     /// <summary>Order-sensitive fingerprint of <see cref="Messages"/>.</summary>
     public required string MessageFingerprint { get; init; }

@@ -61,6 +61,8 @@ public sealed partial class SessionService
             ?? string.Concat(content.OfType<TextContent>().Select(t => t.Text));
         var images = ExtractUserMessageImages(content);
         var currentSubAgentSource = thread.Source.SubAgent;
+        var isFullHistorySubAgent = string.Equals(currentSubAgentSource?.ForkTurns, "all", StringComparison.OrdinalIgnoreCase);
+        var inheritsForkContext = thread.ForkedFromId is not null || isFullHistorySubAgent;
         var isPromptSuggestion = CacheSharingFork.PurposeOf(thread) == ThreadForkPurpose.PromptSuggestion;
 
         var hasUserInput = content.Count > 0 || !string.IsNullOrWhiteSpace(inputSnapshot?.DisplayText);
@@ -841,18 +843,14 @@ public sealed partial class SessionService
                     var traceRootThreadId = string.IsNullOrWhiteSpace(subAgentSource.RootThreadId)
                         ? threadId
                         : subAgentSource.RootThreadId;
-                    var isFullHistoryFork = string.Equals(
-                        subAgentSource.ForkTurns,
-                        "all",
-                        StringComparison.OrdinalIgnoreCase);
                     traceCollector.BindChildSession(
                         threadId,
                         traceRootThreadId,
                         string.IsNullOrWhiteSpace(subAgentSource.ParentThreadId)
                             ? traceRootThreadId
                             : subAgentSource.ParentThreadId,
-                        expectsSharedInputPrefix: isFullHistoryFork,
-                        comparePromptPrefix: isFullHistoryFork,
+                        expectsSharedInputPrefix: isFullHistorySubAgent,
+                        comparePromptPrefix: isFullHistorySubAgent,
                         forkMode: subAgentSource.ForkTurns);
                 }
                 else
@@ -1210,6 +1208,7 @@ public sealed partial class SessionService
 
                 // Keep this Turn's context and input behind the checkpoint so rollback preserves the compacted history.
                 if (thread.HistoryMode != HistoryMode.Client
+                    && (!inheritsForkContext || admittedRuntime.LastPromptRequest is not null)
                     && TrySnapshotInMemoryHistory(session, out var preTurnHistory)
                     && preTurnHistory.Count > 0)
                 {
@@ -1288,8 +1287,14 @@ public sealed partial class SessionService
                                     snapshot);
                                 if (_runtimeRegistry.TryGetRuntime(threadId, out var runtime))
                                 {
+                                    var request = (preparedEstimate.RequestSnapshot ?? snapshot) with
+                                    {
+                                        CompletedTurnItemIds = turn.Items
+                                            .Where(static item => item.Status == ItemStatus.Completed)
+                                            .Select(static item => item.Id).ToHashSet(StringComparer.Ordinal)
+                                    };
                                     runtime.LastPromptRequest = await CaptureProviderHistorySnapshotAsync(
-                                        preparedEstimate.RequestSnapshot ?? snapshot, CancellationToken.None);
+                                        request, CancellationToken.None);
                                     runtime.ContextComposition = ContextUsageComposition.Capture(
                                         runtime.LastPromptRequest,
                                         promptSectionRecorder.Sections,
