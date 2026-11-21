@@ -61,6 +61,7 @@ public sealed partial class SessionService
             ?? string.Concat(content.OfType<TextContent>().Select(t => t.Text));
         var images = ExtractUserMessageImages(content);
         var currentSubAgentSource = thread.Source.SubAgent;
+        var isPromptSuggestion = CacheSharingFork.PurposeOf(thread) == ThreadForkPurpose.PromptSuggestion;
 
         var hasUserInput = content.Count > 0 || !string.IsNullOrWhiteSpace(inputSnapshot?.DisplayText);
         var userItem = !hasUserInput ? null : new SessionItem
@@ -450,7 +451,7 @@ public sealed partial class SessionService
                 ChatOptions? requestOptions,
                 CancellationToken compactionCt)
             {
-                if (session is null || tokenTracker is null || modelVisibleHistory.Count == 0)
+                if (isPromptSuggestion || session is null || tokenTracker is null || modelVisibleHistory.Count == 0)
                     return null;
 
                 var preparedEstimate = PrepareContextTokenEstimate(
@@ -2010,9 +2011,9 @@ public sealed partial class SessionService
 
                 // Compaction prepares history for the next user request; this failed Turn is not replayed.
                 var reactiveMessage = classifiedProviderFailure?.Message ?? ex.Message;
-                if ((classifiedProviderFailure?.Kind == ProviderFailureKind.ContextWindowExceeded
-                     || classifiedProviderFailure?.ProviderErrorCode is null && CompactionErrors.IsPromptTooLong(ex))
-                    && session is not null)
+                if (!isPromptSuggestion && session is not null
+                    && (classifiedProviderFailure?.Kind == ProviderFailureKind.ContextWindowExceeded
+                        || classifiedProviderFailure?.ProviderErrorCode is null && CompactionErrors.IsPromptTooLong(ex)))
                 {
                     try
                     {

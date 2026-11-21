@@ -1,22 +1,13 @@
-using DotCraft.Context.Compaction;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Sessions;
 
 internal sealed record ForkModelHistoryMaterialization(
     IReadOnlyList<ChatMessage> History,
-    IReadOnlyList<ChatMessage>? CheckpointReplacementHistory,
-    string? CheckpointCoveredThroughTurnId,
-    string? CheckpointMode,
-    long EstimatedTokens,
-    string UsageSource,
-    bool UsageIsEstimate,
-    IReadOnlyDictionary<string, IReadOnlyList<ChatMessage>> TurnHistories)
-{
-    public bool HasCompatibleCheckpoint =>
-        CheckpointReplacementHistory is not null &&
-        !string.IsNullOrWhiteSpace(CheckpointCoveredThroughTurnId);
-}
+    ContextCompactedPayload? Checkpoint,
+    IReadOnlyList<string> WholeTurnIds,
+    int WholeTurnMessageCount,
+    Dictionary<string, IReadOnlyList<ChatMessage>> TurnHistories);
 
 public sealed partial class ThreadStore
 {
@@ -24,53 +15,62 @@ public sealed partial class ThreadStore
         SessionThread source,
         SessionThread forked,
         CancellationToken ct = default,
-        IReadOnlyDictionary<string, ChatMessage>? interruptions = null)
+        string? interruptedTurnId = null,
+        ChatMessage? interruption = null)
     {
-        ct.ThrowIfCancellationRequested();
-        var orderedForkTurns = OrderTurns(forked.Turns);
-        var turnHistories = orderedForkTurns.ToDictionary(turn => turn.Id, turn =>
+        var orderedTurns = OrderTurns(forked.Turns).ToArray();
+        var wholeTurns = orderedTurns;
+        if (orderedTurns.LastOrDefault() is { } last
+            && (last.Id == interruptedTurnId
+                || source.Turns.FirstOrDefault(turn => turn.Id == last.Id) is not { } original
+                || !RetainsWholeForkTurn(original, last)))
+        {
+            wholeTurns = orderedTurns[..^1];
+        }
+        var wholeTurnIds = wholeTurns.Select(static turn => turn.Id).ToArray();
+
+        var turnHistories = new Dictionary<string, IReadOnlyList<ChatMessage>>(StringComparer.Ordinal);
+        var path = _rolloutStore.ResolveExistingPath(source.Id);
+        var replay = path == null || wholeTurns.Length == 0
+            ? null
+            : await _rolloutReplayer.ReplayModelHistoryAsync(
+                path,
+                wholeTurnIds,
+                (ids, _) => Task.FromResult<IReadOnlyList<SessionTurn>>(
+                    wholeTurns.Where(turn => ids.Contains(turn.Id, StringComparer.Ordinal)).ToList()),
+                ct: ct,
+                expectedThreadId: source.Id,
+                turnHistories: turnHistories);
+
+        var history = replay?.Messages.ToList() ?? [];
+        if (replay == null)
+        {
+            foreach (var turn in wholeTurns)
+                AddTurn(turn);
+        }
+        var wholeTurnMessageCount = history.Count;
+        foreach (var turn in orderedTurns.Skip(wholeTurns.Length))
+            AddTurn(turn);
+
+        return new ForkModelHistoryMaterialization(
+            history, replay?.Checkpoint, wholeTurnIds, wholeTurnMessageCount, turnHistories);
+
+        void AddTurn(SessionTurn turn)
         {
             var messages = BuildModelVisibleHistoryFromTurn(turn).ToList();
-            if (interruptions?.TryGetValue(turn.Id, out var marker) == true)
-                messages.Add(marker.Clone());
-            return (IReadOnlyList<ChatMessage>)messages;
-        });
-        var checkpoints = await _rolloutStore.LoadCompactionCheckpointsAsync(source.Id, ct);
-        for (var i = checkpoints.Count - 1; i >= 0; i--)
-        {
-            var checkpoint = checkpoints[i];
-            if (!IsCheckpointCompatibleForFork(source, orderedForkTurns, checkpoint))
-                continue;
-
-            if (!TryDeserializeCheckpointHistory(checkpoint, out var checkpointHistory))
-                continue;
-
-            var history = checkpointHistory.ToList();
-            var coveredTurnIndex = orderedForkTurns.FindIndex(turn =>
-                string.Equals(turn.Id, checkpoint.CoveredThroughTurnId, StringComparison.Ordinal));
-            for (var turnIndex = coveredTurnIndex + 1; turnIndex < orderedForkTurns.Count; turnIndex++)
-                history.AddRange(turnHistories[orderedForkTurns[turnIndex].Id]);
-
-            return new ForkModelHistoryMaterialization(
-                history,
-                checkpointHistory,
-                checkpoint.CoveredThroughTurnId,
-                checkpoint.Mode,
-                MessageTokenEstimator.Estimate(history),
-                "compacted_estimate",
-                UsageIsEstimate: true,
-                turnHistories);
+            if (turn.Id == interruptedTurnId && interruption != null)
+                messages.Add(interruption);
+            turnHistories[turn.Id] = messages;
+            history.AddRange(messages);
         }
+    }
 
-        var rawHistory = orderedForkTurns.SelectMany(turn => turnHistories[turn.Id]).ToList();
-        return new ForkModelHistoryMaterialization(
-            rawHistory,
-            CheckpointReplacementHistory: null,
-            CheckpointCoveredThroughTurnId: null,
-            CheckpointMode: null,
-            MessageTokenEstimator.Estimate(rawHistory),
-            "history_estimate",
-            UsageIsEstimate: true,
-            turnHistories);
+    private static bool RetainsWholeForkTurn(SessionTurn source, SessionTurn fork)
+    {
+        var itemCount = source.Items.Count;
+        return (fork.Items.Count == itemCount
+                || fork.Items.Count == itemCount + 1 && fork.Items[^1].AsSystemNotice is { Kind: "forked" })
+            && source.Items.Select(static item => item.Id)
+                .SequenceEqual(fork.Items.Take(itemCount).Select(static item => item.Id));
     }
 }

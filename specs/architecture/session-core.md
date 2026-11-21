@@ -122,12 +122,12 @@ A fork creates a new conversation branch from a source thread and leaves the sou
 - Forks do not inherit queued inputs, pending approvals or user-input requests, app bindings, active goals, or plan state. Copied transcript items stay visible.
 - Forks copy thread configuration, then apply request-level overrides.
 - A persisted `SystemNotice` with `kind = "forked"` and `sourceThreadId` marks the boundary between inherited history and new work. It is client-visible, not model-visible.
-- A persistent fork materializes its own optimized model history. When the fork prefix fully retains a source compaction checkpoint's covered turn, the checkpoint is rebased into the fork rollout followed by the retained later model history, with an estimated context usage snapshot; a fork point inside or before that turn falls back to an older compatible checkpoint. Forks never expand compacted source history back into the full transcript when a compatible checkpoint exists.
+- A fork replays the selected model history, including the newest compatible compaction checkpoint and any retained model input after it. A fork inside or before a checkpoint's covered Turn uses an older compatible checkpoint when available. A persistent fork records this history in its own rollout. Context usage follows [Context Compaction](context-compaction.md).
 
 Side chat forks:
 
 - A side chat is an internal ephemeral fork of a non-side-chat thread. It copies the full current history and may be taken while a source Turn runs.
-- Its model history reuses the source's persisted model history for every completed Turn, so the prefix is byte-identical; a running source Turn is rebuilt from its copied Items and ends at the interrupted boundary.
+- It reuses the completed Turns' model history and the compatible input of the latest sampling request in a running source Turn when available. Otherwise it rebuilds the running Turn's model history from its copied Items. The running Turn ends at the interrupted boundary in the fork.
 - It inherits the source's tool-planning role and cache routing root, so tool surface and base instructions match.
 - Before each Turn, Session Core appends a side-chat boundary context item when the history has none. It follows the copied history, is restored after compaction, and is not a visible Item.
 - A side chat cannot own persistent child threads, so spawning a child agent fails.

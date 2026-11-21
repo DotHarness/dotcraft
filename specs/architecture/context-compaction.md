@@ -338,11 +338,14 @@ anchors that refer to the replaced request boundary. Both produce the `partial` 
 Neutral history cannot estimate a provider-native compacted window because the opaque item has no
 semantic `ChatMessage` representation. A valid provider usage anchor plus uncovered tail takes
 precedence over the provider-native estimator, including across ordinary Plan/Agent mode changes.
-Native full-history SubAgent forks inherit the provider usage anchor together with the actual
-provider-visible prefix of the spawning request. An active native compaction stays opaque in the
-child rather than expanding from the neutral transcript. The child appends its own context and
-estimates only the uncovered tail and request-instruction changes. This context-usage baseline is
-independent of the child's cumulative token consumption.
+A fork inherits a provider usage anchor only when it covers a matching prefix of the selected
+model history and applies to the target request. The fork estimates the uncovered tail and request
+changes. Without a matching anchor, it estimates the context the target will actually send. The
+anchor is independent of cumulative token consumption. Native full-history SubAgents use the
+spawning request as the fork boundary.
+
+Prompt suggestion forks inherit context usage but do not run automatic or overflow-triggered
+compaction. If the provider rejects the request for exceeding its context window, no suggestion is produced.
 
 The OpenAI Responses estimator includes:
 
