@@ -17,8 +17,8 @@ internal static partial class ResponsesToolSearchMapper
     {
         functionNamespace = string.Empty;
 
-        if (ProviderFunctionCallMetadata.TryGetNamespace(call, out functionNamespace)
-            || TryReadString(call.AdditionalProperties, FunctionCallNamespaceMetadataKey, out functionNamespace))
+        if (TryReadString(call.AdditionalProperties, FunctionCallNamespaceMetadataKey, out functionNamespace)
+            || ProviderFunctionCallMetadata.TryGetNamespace(call, out functionNamespace))
         {
             return true;
         }
@@ -26,6 +26,9 @@ internal static partial class ResponsesToolSearchMapper
         return TryReadJsonObjectFromRaw(call.RawRepresentation, out var rawObject)
                && TryReadString(rawObject, "namespace", out functionNamespace);
     }
+
+    private static string ResolveWireCallName(FunctionCallContent call) =>
+        TryReadString(call.AdditionalProperties, FunctionCallNameMetadataKey, out var wireName) ? wireName : call.Name;
 
     private static bool TryReadFunctionCallNamespace(
         ResponseItem item,

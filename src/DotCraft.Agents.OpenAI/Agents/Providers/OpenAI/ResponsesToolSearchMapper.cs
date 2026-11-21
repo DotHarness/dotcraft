@@ -14,6 +14,7 @@ namespace DotCraft.Agents;
 internal static partial class ResponsesToolSearchMapper
 {
     internal const string FunctionCallNamespaceMetadataKey = "openai.responses.function_call.namespace";
+    private const string FunctionCallNameMetadataKey = "openai.responses.function_call.name";
     internal const string PromptCacheKeyAdditionalProperty = "prompt_cache_key";
 
     private const int PromptCacheRequestShapeSchemaVersion = 1;
@@ -378,36 +379,49 @@ internal static partial class ResponsesToolSearchMapper
         ChatResponseUpdate update,
         ResponsesOutputCallState callState)
     {
-        if (callState.Namespaces.Count == 0 && callState.CustomCalls.Count == 0)
-            return;
-
-        if (callState.LiteToolCalls is { } routes
+        if (callState.LiteToolCalls is not null
             && update.RawRepresentation is StreamingResponseOutputItemAddedUpdate
-                { Item: FunctionCallResponseItem addedCall } added
-            && callState.Namespaces.GetValueOrDefault(addedCall.CallId) ==
-               OpenAIResponsesLiteRequestMapper.FunctionsNamespace
-            && !callState.IsLiteFlatAlias(OpenAIResponsesLiteRequestMapper.FunctionsNamespace, addedCall.FunctionName))
+                { Item: FunctionCallResponseItem addedCall } added)
         {
+            var wireNamespace = callState.Namespaces.GetValueOrDefault(addedCall.CallId);
             update.RawRepresentation = new ProviderToolCallArgumentsDelta(
-                added.OutputIndex, routes.GetValueOrDefault(addedCall.FunctionName).ProviderFlatName,
+                added.OutputIndex, callState.ResolveProviderFlatName(wireNamespace, addedCall.FunctionName),
                 addedCall.CallId, string.Empty);
         }
 
-        foreach (var call in update.Contents.OfType<FunctionCallContent>())
+        if (callState.LiteToolCalls is null && callState.Namespaces.Count == 0 && callState.CustomCalls.Count == 0)
+            return;
+
+        for (var index = 0; index < update.Contents.Count; index++)
         {
+            if (update.Contents[index] is not FunctionCallContent call)
+                continue;
+
             if (callState.CustomCalls.Contains(call.CallId))
                 ProviderFunctionCallMetadata.MarkCustomToolCall(call);
-            if (!callState.Namespaces.TryGetValue(call.CallId, out var functionNamespace)
-                || string.IsNullOrWhiteSpace(functionNamespace))
+            var wireNamespace = callState.Namespaces.GetValueOrDefault(call.CallId);
+            var localNamespace = callState.ResolveNamespace(wireNamespace);
+            if (wireNamespace is not null)
             {
-                continue;
+                call.AdditionalProperties ??= new AdditionalPropertiesDictionary();
+                call.AdditionalProperties[FunctionCallNamespaceMetadataKey] = wireNamespace;
+                call.AdditionalProperties["namespace"] = wireNamespace;
+                call.AdditionalProperties[ProviderFunctionCallMetadata.NamespaceKey] = localNamespace ?? string.Empty;
             }
-
-            call.AdditionalProperties ??= new AdditionalPropertiesDictionary();
-            call.AdditionalProperties[FunctionCallNamespaceMetadataKey] = functionNamespace;
-            call.AdditionalProperties[ProviderFunctionCallMetadata.NamespaceKey] =
-                callState.IsLiteFlatAlias(functionNamespace, call.Name) ? string.Empty : functionNamespace;
-            call.AdditionalProperties["namespace"] = functionNamespace;
+            if (localNamespace is null
+                && callState.ResolveProviderFlatName(wireNamespace, call.Name) is { } flatName
+                && flatName != call.Name)
+            {
+                call.AdditionalProperties ??= new AdditionalPropertiesDictionary();
+                call.AdditionalProperties[FunctionCallNameMetadataKey] = call.Name;
+                update.Contents[index] = new FunctionCallContent(call.CallId, flatName, call.Arguments)
+                {
+                    AdditionalProperties = call.AdditionalProperties,
+                    RawRepresentation = call.RawRepresentation,
+                    Exception = call.Exception,
+                    InformationalOnly = call.InformationalOnly
+                };
+            }
         }
     }
 
@@ -712,7 +726,7 @@ internal static partial class ResponsesToolSearchMapper
         {
             ["type"] = "function_call",
             ["call_id"] = call.CallId,
-            ["name"] = call.Name,
+            ["name"] = ResolveWireCallName(call),
             ["arguments"] = SerializeArguments(call.Arguments)
         };
 

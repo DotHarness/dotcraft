@@ -21,69 +21,39 @@ internal static partial class ResponsesToolSearchMapper
 
         public IReadOnlyDictionary<string, LiteToolCallRoute>? LiteToolCalls { get; } = liteToolCalls;
 
-        public bool IsLiteFlatAlias(string? toolNamespace, string name) =>
-            toolNamespace == OpenAIResponsesLiteRequestMapper.FunctionsNamespace &&
-            LiteToolCalls?.GetValueOrDefault(name).IsFlatAlias == true;
+        public string? ResolveNamespace(string? wireNamespace) =>
+            LiteToolCalls is not null && wireNamespace is not null
+                ? OpenAIResponsesLiteToolIdentity.ResolveNamespace(wireNamespace)
+                : wireNamespace;
+
+        public string? ResolveProviderFlatName(string? wireNamespace, string name) =>
+            LiteToolCalls?.GetValueOrDefault((wireNamespace ?? OpenAIResponsesLiteToolIdentity.FunctionsNamespace) + "/" + name)
+                .ProviderFlatName;
 
         public Dictionary<string, string> Namespaces { get; } = new(StringComparer.Ordinal);
 
         public HashSet<string> CustomCalls { get; } = new(StringComparer.Ordinal);
     }
 
-    internal readonly record struct LiteToolCallRoute(string? ProviderFlatName, bool IsFlatAlias);
+    internal readonly record struct LiteToolCallRoute(string ProviderFlatName);
 
-    internal static IReadOnlyDictionary<string, LiteToolCallRoute> CollectLiteToolCallRoutes(
-        ChatOptions? options,
-        JsonArray input)
+    internal static IReadOnlyDictionary<string, LiteToolCallRoute> CollectLiteToolCallRoutes(ChatOptions? options)
     {
         var routes = new Dictionary<string, LiteToolCallRoute>(StringComparer.Ordinal);
         foreach (var tool in options?.Tools ?? [])
         {
             if (tool.Name == IDeferredToolSearchMarker.CanonicalName)
                 continue;
-            var hasNamespace = ToolNamespaceMetadataResolver.TryGet(tool, out var toolNamespace);
-            if (hasNamespace && toolNamespace != OpenAIResponsesLiteRequestMapper.FunctionsNamespace)
-                continue;
-
-            var hasCanonicalIdentity =
-                CanonicalToolIdentityMetadataResolver.TryGet(tool, out var canonicalName, out var providerFlatName);
-            var name = hasCanonicalIdentity ? canonicalName.Name : tool.Name;
-            if (hasNamespace)
-            {
-                routes[name] = new LiteToolCallRoute(
-                    hasCanonicalIdentity ? providerFlatName : toolNamespace + "__" + name,
-                    IsFlatAlias: false);
-            }
-            else if (!routes.TryAdd(name, new LiteToolCallRoute(tool.Name, IsFlatAlias: true))
-                     && routes[name].IsFlatAlias)
-            {
-                routes[name] = default;
-            }
+            var toolNamespace = ToolNamespaceMetadataResolver.TryGet(tool, out var resolved) ? resolved : null;
+            var wireNamespace = OpenAIResponsesLiteToolIdentity.ProjectNamespace(toolNamespace);
+            var name = LocalToolName(tool);
+            var flatName = CanonicalToolIdentityMetadataResolver.TryGet(tool, out _, out var providerFlatName)
+                ? providerFlatName
+                : toolNamespace is null ? tool.Name : toolNamespace + "__" + name;
+            routes[wireNamespace + "/" + name] = new LiteToolCallRoute(flatName);
         }
-        if (!routes.Values.Any(route => route.IsFlatAlias))
-            return routes;
-
-        foreach (var item in input.OfType<JsonObject>())
-        {
-            if (ReadJsonString(item, "type") != "tool_search_output" || item["tools"] is not JsonArray tools)
-                continue;
-            foreach (var group in tools.OfType<JsonObject>())
-            {
-                if (ReadJsonString(group, "type") != "namespace"
-                    || ReadJsonString(group, "name") != OpenAIResponsesLiteRequestMapper.FunctionsNamespace
-                    || group["tools"] is not JsonArray members)
-                    continue;
-                foreach (var member in members.OfType<JsonObject>())
-                {
-                    if (ReadJsonString(member, "name") is { } name && routes.GetValueOrDefault(name).IsFlatAlias)
-                        routes.Remove(name);
-                }
-            }
-        }
-
         return routes;
     }
-
     internal static IReadOnlyDictionary<string, string> CollectFreeformParameters(ChatOptions? options)
     {
         var parameters = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -142,7 +112,7 @@ internal static partial class ResponsesToolSearchMapper
         {
             ["type"] = "custom_tool_call",
             ["call_id"] = call.CallId,
-            ["name"] = call.Name,
+            ["name"] = ResolveWireCallName(call),
             ["input"] = input
         };
         if (toolNamespace is not null)
@@ -206,9 +176,8 @@ internal static partial class ResponsesToolSearchMapper
         var toolNamespace = TryReadString(raw, "namespace", out var resolved)
             ? resolved
             : callState?.Namespaces.GetValueOrDefault(callId);
-        if (callState?.IsLiteFlatAlias(toolNamespace, name) == true)
-            toolNamespace = null;
-        var parameter = callState?.FreeformParameters.GetValueOrDefault(FreeformKey(toolNamespace, name))
+        var parameter = callState?.FreeformParameters.GetValueOrDefault(
+                            FreeformKey(callState.ResolveNamespace(toolNamespace), name))
             ?? UndeclaredFreeformParameter;
         var arguments = new JsonObject { [parameter] = ReadJsonString(raw, "input") ?? string.Empty };
         functionCall = new FunctionCallResponseItem(

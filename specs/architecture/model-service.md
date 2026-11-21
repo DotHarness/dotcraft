@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.9.1 |
+| Version | 0.14.0 |
 | Status | Living |
-| Date | 2026-10-19 |
+| Date | 2026-11-21 |
 
 DotCraft runtimes select either direct model access or one remote model service. A service exposes
 multiple configured providers. The worker runs the provider adapters, model loop, tools,
@@ -16,7 +16,9 @@ Remote access replaces provider HTTP transport after native request construction
 native request bodies, streaming responses, HTTP status, and protocol headers without translating
 messages or tool calls into another inference format. Responses, Chat Completions, Anthropic,
 native compaction, images, and catalogs use the same transport boundary. Provider-independent
-Runtime startup does not require a reachable model service.
+Runtime startup does not require a reachable model service. The transport preserves the [ChatGPT
+OAuth Responses Lite selector](openai-subscription-auth.md) on sampling and native compaction
+requests.
 
 The caller authenticates separately from the upstream provider. Each caller has a stable identity
 and an allowed provider set. The service selects the upstream address from its configuration and

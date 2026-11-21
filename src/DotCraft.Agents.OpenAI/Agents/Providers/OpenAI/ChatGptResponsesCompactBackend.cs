@@ -32,7 +32,8 @@ internal static class ChatGptResponsesCompactRequestBuilder
         ChatOptions? options,
         bool useResponsesLite,
         IChatClient? rawRepresentationClient = null,
-        string? installationId = null)
+        string? installationId = null,
+        bool supportsFreeformTools = true)
     {
         if (string.IsNullOrWhiteSpace(model))
             throw new ArgumentException("Model must be configured.", nameof(model));
@@ -51,10 +52,11 @@ internal static class ChatGptResponsesCompactRequestBuilder
             options,
             canonicalInput: canonicalInput,
             canonicalItemIdentity: OpenAIResponsesItemIdentityDiagnostics.FromInput(canonicalInput),
-            rawRepresentationClient: rawRepresentationClient);
+            rawRepresentationClient: rawRepresentationClient,
+            supportsFreeformTools: supportsFreeformTools);
         var ordinaryBody = ModelReaderWriter.Write(request.Options);
         var wireBody = useResponsesLite
-            ? OpenAIResponsesLiteRequestMapper.BuildWireBody(ordinaryBody, installationId)
+            ? OpenAIResponsesLiteRequestMapper.BuildWireBody(ordinaryBody, installationId, options)
             : ordinaryBody;
         var compact = JsonSerializer.Deserialize<ChatGptResponsesCompactRequest>(
                           wireBody.ToMemory().Span,
@@ -72,7 +74,8 @@ internal sealed class OpenAIResponsesCompactor(
     bool useResponsesLite,
     IChatGptResponsesCompactTransport transport,
     IChatClient? rawRepresentationClient = null,
-    string? installationId = null) : IProviderNativeCompactor
+    string? installationId = null,
+    bool supportsFreeformTools = true) : IProviderNativeCompactor
 {
     public async Task<ProviderNativeCompactionReplacement> CompactAsync(
         ProviderNativeCompactionInput input,
@@ -100,7 +103,8 @@ internal sealed class OpenAIResponsesCompactor(
             options,
             useResponsesLite,
             rawRepresentationClient,
-            installationId);
+            installationId,
+            supportsFreeformTools);
         using var serviceTierScope = ProviderRequestServiceTierScope.Push(body.ServiceTier);
         var response = await transport.CompactAsync(body, cancellationToken).ConfigureAwait(false);
         var output = ResponsesCompactionHistory.Build(input.Items, ValidateOutput(response).Single());

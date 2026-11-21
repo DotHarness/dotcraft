@@ -183,7 +183,8 @@ runtime scope ends. It is never persisted.
 ChatGPT OAuth uses the Responses Lite HTTP dialect for models with `use_responses_lite=true`
 and standard Responses when the value is false, missing, or unknown. The latest matching
 endpoint/account/client-version catalog entry takes precedence over the bundled catalog. Sampling
-and native compaction use the same dialect. API-key runtimes use standard Responses.
+and native compaction use the same dialect and tool capabilities. API-key runtimes use standard
+Responses.
 
 Both dialects share canonical Responses history, OAuth routing headers, `store=false`,
 `reasoning.encrypted_content` inclusion, a `reasoning` object (empty or with configured effort and
@@ -198,10 +199,15 @@ model's default `parallel_tool_calls`. Lite:
   `reasoning.context=all_turns`.
 - Sends `parallel_tool_calls=false`, including requests without tools.
 
-Tool choice maps `none`, `auto`, `required`, or a required function choice in both dialects.
-Lite exposes otherwise unnamespaced functions under the provider's `functions` namespace. Calls
-to those functions retain the wire namespace in provider history but dispatch to the original
-unnamespaced tool. Explicit tool namespaces keep their own identity.
+Both dialects support `none`, `auto`, `required`, and requesting a specific tool. For a specific
+direct tool, Lite advertises only that tool and requires a call because the upstream named selector
+cannot address arbitrary namespaces. This restriction affects only the current request, not
+canonical history.
+
+Lite exposes otherwise unnamespaced tools under the provider's `functions` namespace. Wire
+identities are stable and distinct for direct and discovered tools, including when a local namespace
+collides with this reserved namespace. Calls dispatch to the original local tool identity and retain
+the provider's wire identity in canonical history.
 
 All `openai-responses` requests, including API-key and compatible endpoints, carry effective base
 instructions in one developer message before the original input and omit top-level
@@ -231,6 +237,9 @@ item contents, credentials, or protected reasoning data.
 
 The OAuth transport omits `max_output_tokens` because the backend rejects it; the value remains a
 local budget (compaction still enforces its summary limit). API-key requests may send it.
+
+A sampling `response.incomplete` event ends the stream with its provider finish reason and usage.
+End of stream before a terminal event is a transport failure.
 
 When an OAuth stream completes with only a `server_error` frame and no delivered output, DotCraft
 replays the sampling request under a bounded budget. Usage, error, and echoed tool-result updates

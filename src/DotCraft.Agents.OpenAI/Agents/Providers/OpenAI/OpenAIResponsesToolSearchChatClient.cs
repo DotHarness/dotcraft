@@ -148,11 +148,20 @@ internal sealed class OpenAIResponsesToolSearchChatClient : IChatClient
                 StreamingResponseIncompleteUpdate incomplete => incomplete.Response,
                 _ => null
             };
-            if (terminalResponse?.Usage is not null && !update.Contents.OfType<UsageContent>().Any())
-                update.Contents.Add(new UsageContent(terminalResponse.AsChatResponse(responseOptions).Usage!));
             if (terminalResponse is not null)
+            {
+                var missingUsage = terminalResponse.Usage is not null && !update.Contents.OfType<UsageContent>().Any();
+                if (missingUsage || update.RawRepresentation is StreamingResponseIncompleteUpdate)
+                {
+                    var terminal = terminalResponse.AsChatResponse(responseOptions);
+                    update.FinishReason ??= terminal.FinishReason;
+                    if (missingUsage)
+                        update.Contents.Add(new UsageContent(terminal.Usage!));
+                }
+
                 costMultiplier = OpenAIServiceTierPricing.GetMultiplier(
                     _model, requestedTier, terminalResponse.ServiceTier?.ToString(), isCodex);
+            }
             if (terminalResponse is not null || update.Contents.OfType<UsageContent>().Any())
                 ProviderCostMultiplier.Attach(update, costMultiplier);
             if (terminalResponse?.Usage?.InputTokenDetails?.CacheWriteTokenCount is { } cacheWrite)

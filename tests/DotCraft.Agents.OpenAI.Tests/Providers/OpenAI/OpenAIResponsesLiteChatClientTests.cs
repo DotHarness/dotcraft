@@ -88,12 +88,12 @@ public sealed class OpenAIResponsesLiteChatClientTests
             (ChatToolMode.None, "\"none\""),
             (ChatToolMode.Auto, "\"auto\""),
             (ChatToolMode.RequireAny, "\"required\""),
-            (ChatToolMode.RequireSpecific("lookup"), """{"type":"function","name":"lookup"}""")
+            (ChatToolMode.RequireSpecific("lookup"), "\"required\"")
         };
 
         foreach (var (mode, expectedJson) in cases)
         {
-            var transport = new EmptyTransport();
+            var transport = new TestTransport();
             using var client = new OpenAIResponsesLiteChatClient(
                 new ResponsesClient("sk-test"),
                 "gpt-test",
@@ -119,7 +119,7 @@ public sealed class OpenAIResponsesLiteChatClientTests
     [Fact]
     public async Task LiteClient_ForcesParallelToolCallsOff()
     {
-        var transport = new EmptyTransport();
+        var transport = new TestTransport();
         using var client = new OpenAIResponsesLiteChatClient(
             new ResponsesClient("sk-test"),
             "gpt-test",
@@ -144,7 +144,7 @@ public sealed class OpenAIResponsesLiteChatClientTests
     [Fact]
     public async Task LiteClient_DisablesParallelCallsEvenWithoutTools()
     {
-        var transport = new EmptyTransport();
+        var transport = new TestTransport();
         using var client = new OpenAIResponsesLiteChatClient(
             new ResponsesClient("sk-test"),
             "gpt-test",
@@ -219,19 +219,23 @@ public sealed class OpenAIResponsesLiteChatClientTests
         Assert.Contains("server_is_overloaded", exception.Message, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public async Task StreamingResponse_TreatsIncompleteAsRetryableStreamFailure()
+    [Theory]
+    [InlineData("max_output_tokens", "length")]
+    [InlineData("content_filter", "content_filter")]
+    public async Task LiteClient_ProjectsIncompleteFinishReasonAndUsage(string reason, string finishReason)
     {
-        var payload = """
-            data: {"type":"response.incomplete","sequence_number":1,"response":{"id":"resp-incomplete","object":"response","created_at":0,"model":"gpt-test","status":"incomplete","incomplete_details":{"reason":"max_output_tokens"},"usage":{"input_tokens":10,"output_tokens":4,"total_tokens":14}}}
+        var payload = $$$$"""
+            data: {"type":"response.incomplete","sequence_number":1,"response":{"id":"resp-incomplete","object":"response","created_at":0,"model":"gpt-test","status":"incomplete","incomplete_details":{"reason":"{{{{reason}}}}"},"usage":{"input_tokens":10,"output_tokens":4,"total_tokens":14}}}
 
             """;
-        await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(payload));
+        using var client = new OpenAIResponsesLiteChatClient(
+            new ResponsesClient("sk-test"), "gpt-test", new TestChatClient(), new TestTransport(payload), "install-1");
 
-        var exception = await Assert.ThrowsAsync<IOException>(async () =>
-            await CollectAsync(OpenAIResponsesLiteTransport.ReadStreamingResponseAsync(stream)));
+        var response = await client.GetResponseAsync([new ChatMessage(ChatRole.User, "hello")]);
 
-        Assert.Contains("response.incomplete", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(finishReason, response.FinishReason?.Value);
+        Assert.Equal(10, response.Usage?.InputTokenCount);
+        Assert.Equal(4, response.Usage?.OutputTokenCount);
     }
 
     [Fact]
@@ -253,7 +257,7 @@ public sealed class OpenAIResponsesLiteChatClientTests
     public async Task LiteClient_SendsOnlyTheMappedWireBody()
     {
         var responsesClient = new ResponsesClient("sk-test");
-        var transport = new EmptyTransport();
+        var transport = new TestTransport();
         using var client = new OpenAIResponsesLiteChatClient(
             responsesClient,
             "gpt-test",
@@ -288,7 +292,7 @@ public sealed class OpenAIResponsesLiteChatClientTests
             name: "lookup",
             description: "Look up a value.");
 
-    private sealed class EmptyTransport : IResponsesLiteTransport
+    private sealed class TestTransport(string? sse = null) : IResponsesLiteTransport
     {
         public List<BinaryData> WireBodies { get; } = [];
 
@@ -298,8 +302,12 @@ public sealed class OpenAIResponsesLiteChatClientTests
         {
             Assert.False(wireBody.ToMemory().IsEmpty);
             WireBodies.Add(wireBody);
-            await Task.CompletedTask;
-            yield break;
+            if (sse is null)
+                yield break;
+
+            await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(sse));
+            await foreach (var update in OpenAIResponsesLiteTransport.ReadStreamingResponseAsync(stream, cancellationToken))
+                yield return update;
         }
     }
 

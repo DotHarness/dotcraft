@@ -47,6 +47,7 @@ public static class ModelServiceProtocol
         name.Equals("Accept", StringComparison.OrdinalIgnoreCase)
         || name.Equals("User-Agent", StringComparison.OrdinalIgnoreCase)
         || name.Equals("OpenAI-Beta", StringComparison.OrdinalIgnoreCase)
+        || name.Equals("x-openai-internal-codex-responses-lite", StringComparison.OrdinalIgnoreCase)
         || name.Equals("anthropic-version", StringComparison.OrdinalIgnoreCase)
         || name.Equals("anthropic-beta", StringComparison.OrdinalIgnoreCase)
         || name.Equals("originator", StringComparison.OrdinalIgnoreCase)
