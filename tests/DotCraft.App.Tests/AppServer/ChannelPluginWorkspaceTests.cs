@@ -1,4 +1,5 @@
 using DotCraft.AppServer;
+using DotCraft.Channels;
 using DotCraft.Configuration;
 using DotCraft.Plugins;
 using DotCraft.Workspaces;
@@ -28,11 +29,16 @@ public sealed class ChannelPluginWorkspaceTests : IDisposable
         var originalGrant = entry.PluginActivationId;
         Assert.Equal(ChannelPluginInstallation.ReadId(installationPath), originalGrant);
         Assert.NotNull(originalGrant);
+        var authorizedPlugin = Assert.Single(service.Discover(), plugin => plugin.Manifest.Id == entry.PluginId);
 
         Directory.Delete(installationPath, recursive: true);
         Assert.Equal("ChannelPluginNotInstalled", service.GetAdmissionFailure(null, entry));
         Assert.Equal("channel-fixture", new LocalPluginInstaller(pluginsRoot).Install(source).PluginId);
         Assert.NotEqual(originalGrant, ChannelPluginInstallation.ReadId(installationPath));
+
+        Assert.Throws<IOException>(() => ChannelPluginLaunch.Stage(authorizedPlugin, originalGrant, paths, "node", runAsNode: false));
+        var launchDirectory = paths.Data.Resolve("tmp", "channel-plugins");
+        Assert.False(Directory.Exists(launchDirectory) && Directory.EnumerateFileSystemEntries(launchDirectory).Any());
         Assert.Contains("configured", File.ReadAllText(paths.Data.Resolve("fixture.json")));
     }
 

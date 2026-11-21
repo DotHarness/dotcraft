@@ -56,19 +56,6 @@ Each layer has a version: `sha256:` followed by the hex digest of the layer's JS
 
 For each field whose value comes from a file layer, the origin of its key path is that layer. Fields at their defaults have no origin.
 
-### 4.1 Channel workspace upgrade
-
-The 0.14.0 workspace upgrade writes channel plugin selections under `Channels`. It recognizes
-existing plugin selections and the five known built-in channel registrations. Enabled built-ins
-can resume from the host-provided official marketplace or a verified deployment seed. Platform
-configuration, credentials, state, and conversation bindings stay in their workspace locations.
-Manual adapter registrations are not converted. In Docker, converted built-in registrations
-remain under the operator's `ENABLED_CHANNELS` selection.
-
-The upgrade skips a workspace that shares the user configuration file and records completion in
-the workspace `upgrade-version` file. It leaves an unreadable workspace unrecorded so the next
-start can retry.
-
 ## 5. Configuration service
 
 Session Core owns one configuration service per workspace runtime. It is the only component that writes the user or workspace configuration file for field-level changes.

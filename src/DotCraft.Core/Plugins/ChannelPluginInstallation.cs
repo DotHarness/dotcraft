@@ -41,25 +41,6 @@ public static class ChannelPluginInstallation
         return marker?.SourceIdentity != null && source?.CanonicalSourceIdentity() == marker.SourceIdentity;
     }
 
-    public static IReadOnlyList<PluginDiagnostic> RestoreFromDefaultMarketplace(
-        string pluginId,
-        string userDataPath,
-        AppConfig.PluginsConfig config)
-    {
-        var source = PluginSourceRegistryCatalog.ArchiveSourcesFor(config).FirstOrDefault(s => s.IsDefault);
-        if (source == null)
-            return [];
-        var diagnostics = new List<PluginDiagnostic>();
-        var candidate = PluginSourceRegistryCatalog.Discover(config, diagnostics, userDataPath)
-            .FirstOrDefault(p => p.Manifest.Channel != null && PluginIds.EqualsCanonical(p.Manifest.Id, pluginId)
-                && p.SourceIdentity == source.CanonicalSourceIdentity());
-        if (candidate == null)
-            return diagnostics;
-
-        return new BuiltInPluginDeployer(Path.Combine(userDataPath, "plugins"), [], config, userDataPath)
-            .DeployPlugin(candidate.Key);
-    }
-
     private static string? NormalizeId(string? value) =>
         Guid.TryParseExact(value?.Trim(), "N", out var id) ? id.ToString("N") : null;
 }

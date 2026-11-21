@@ -9,37 +9,31 @@ namespace DotCraft.Channels;
 
 public sealed partial class ChannelRunner
 {
-    private bool TryRestoreOfficialChannel(ChannelEntry entry, DiscoveredPlugin? installed)
+    private bool TryProvisionDockerChannel(ChannelEntry entry, DiscoveredPlugin? installed)
     {
-        if (!IsOfficialChannel(entry) || _paths.UserData.RootPath is not { } userDataPath)
+        var seedRoot = Environment.GetEnvironmentVariable("DOTCRAFT_CHANNEL_SEEDS");
+        if (!string.Equals(Environment.GetEnvironmentVariable("DOTCRAFT_CONTAINER"), "true", StringComparison.OrdinalIgnoreCase)
+            || string.IsNullOrWhiteSpace(seedRoot) || !Path.IsPathFullyQualified(seedRoot)
+            || !IsOfficialChannel(entry) || _paths.UserData.RootPath is not { } userDataPath)
             return false;
 
-        var seedRoots = Environment.GetEnvironmentVariable("DOTCRAFT_CHANNEL_SEEDS");
         var requested = Environment.GetEnvironmentVariable("ENABLED_CHANNELS")?.Trim() ?? "";
-        var dockerRequested = !string.IsNullOrWhiteSpace(seedRoots) && Path.IsPathFullyQualified(seedRoots)
-            && (requested.Equals("all", StringComparison.OrdinalIgnoreCase)
-                ? !entry.Name.Equals("weixin", StringComparison.OrdinalIgnoreCase)
-                : requested.Split([',', ' ', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                    .Contains(entry.Name, StringComparer.OrdinalIgnoreCase));
-        if (!entry.RestoreChannelPlugin && !dockerRequested)
+        var dockerRequested = requested.Equals("all", StringComparison.OrdinalIgnoreCase)
+            ? !entry.Name.Equals("weixin", StringComparison.OrdinalIgnoreCase)
+            : requested.Split(',', StringSplitOptions.TrimEntries)
+                .Contains(entry.Name, StringComparer.OrdinalIgnoreCase);
+        if (!dockerRequested)
             return false;
 
-        var root = installed?.Manifest.RootPath ?? Path.Combine(userDataPath, "plugins", entry.PluginId);
+        var pluginsRoot = Path.Combine(userDataPath, "plugins");
+        var root = installed?.Manifest.RootPath ?? Path.Combine(pluginsRoot, entry.PluginId);
         var seeded = false;
-        var missingBeforeRestore = installed == null && !Directory.Exists(root);
-        if (missingBeforeRestore)
+        if (installed == null && !Directory.Exists(root))
         {
-            if (dockerRequested)
-            {
-                var candidate = Path.Combine(seedRoots!, entry.PluginId);
-                var manifest = PluginManifestParser.Load(candidate).Manifest;
-                if (manifest?.Channel?.GetCompatibilityError(AppVersion.Informational) == null && manifest?.Channel != null)
-                    seeded = BuiltInPluginDeployer.InstallChannelSeed(candidate, Path.Combine(userDataPath, "plugins"), entry.PluginId, _config.Plugins);
-            }
-            else
-            {
-                ChannelPluginInstallation.RestoreFromDefaultMarketplace(entry.PluginId, userDataPath, _config.Plugins);
-            }
+            var candidate = Path.Combine(seedRoot, entry.PluginId);
+            if (PluginManifestParser.Load(candidate).Manifest?.Channel is { } module
+                && module.GetCompatibilityError(AppVersion.Informational) == null)
+                seeded = BuiltInPluginDeployer.InstallChannelSeed(candidate, pluginsRoot, entry.PluginId, _config.Plugins);
         }
 
         if ((!seeded && !ChannelPluginInstallation.IsFromDefaultMarketplace(root, _config.Plugins))
@@ -60,19 +54,16 @@ public sealed partial class ChannelRunner
                 return;
 
             selection["pluginActivationId"] = activationId;
-            if (AtomicConfigDocument.Key(selection, "restoreChannelPlugin") is { } pending)
-                selection.Remove(pending);
             applied = true;
         });
 
         if (!applied)
             return false;
         entry.PluginActivationId = activationId;
-        entry.RestoreChannelPlugin = false;
         UpdateChannelSelection(entry);
-        if (missingBeforeRestore)
+        if (seeded)
             AppServerManagedPluginRefresher.PublishPluginRevision(userDataPath);
-        _sp.GetService<IAppConfigMonitor>()?.NotifyChanged("channel/restore", [ConfigChangeRegions.Plugins, ConfigChangeRegions.Channels]);
+        _sp.GetService<IAppConfigMonitor>()?.NotifyChanged("channel/provision", [ConfigChangeRegions.Plugins, ConfigChangeRegions.Channels]);
         Interlocked.Increment(ref _pluginConfigRevision);
         return true;
     }

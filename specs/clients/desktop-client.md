@@ -1020,12 +1020,14 @@ tab and detail. If that detail becomes unavailable, Desktop returns to the Chann
   adapters or change conversation bindings.
 - Channel detail presents setup steps and a form driven by the selected module's descriptors.
   Channel configuration is workspace-scoped. A value supplied by the operator as a credential
-  is masked and is not read back by the client. Missing required fields open setup. Saving while
-  connected makes a required restart explicit.
+  is masked and is not read back by the client. Leaving setup without saving discards edits.
+  Connect uses the current saved settings to determine whether required fields are missing.
+  Saving while connected makes a required restart explicit.
 - Detail shows the server's connection state and offers the applicable connect, stop, retry,
   configuration, and log actions. It distinguishes an unavailable installation, incomplete
-  configuration, connection in progress, connected, stopped, and runtime failure. Plugin updates
-  and removal use marketplace lifecycle actions.
+  configuration, connection in progress, connected, stopped, and runtime failure. A selected
+  channel that is enabled can be disconnected even after startup fails. Plugin updates and
+  removal use marketplace lifecycle actions.
 - An interactive channel shows a QR dialog over its detail when the host publishes a sign-in
   artifact. The dialog follows artifact refreshes and reports expiration and completion.
   Canceling sign-in stops the incomplete attempt. Closing Desktop or navigating away releases

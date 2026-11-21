@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Configuration;
@@ -84,11 +85,13 @@ public sealed partial class ChannelPluginWorkspace
                     ApplyOperation(root, descriptor, operation);
                 }
 
-                if (JsonSerializer.SerializeToUtf8Bytes(root).Length > MaxConfigBytes)
-                    throw new PluginConfigException(PluginConfigStore.MutationInvalid, "The workspace channel configuration is too large.");
-
                 if (!JsonNode.DeepEquals(original, root))
-                    AtomicConfigDocument.Write(path, root);
+                {
+                    var contents = AtomicConfigDocument.Serialize(root);
+                    if (Encoding.UTF8.GetByteCount(contents) > MaxConfigBytes)
+                        throw new PluginConfigException(PluginConfigStore.MutationInvalid, "The workspace channel configuration is too large.");
+                    AtomicConfigDocument.Write(path, contents);
+                }
                 snapshot = Project(module, root).Settings;
             });
         }

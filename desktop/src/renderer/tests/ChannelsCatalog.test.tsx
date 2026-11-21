@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ChannelsView } from '../components/channels/ChannelsView'
 import { PluginSurfaceTabs } from '../components/plugins/PluginBrowseSurface'
-import { channelSettingOperations, groupChannelPlugins, isChannelOnlyPlugin, missingChannelSettings, type ChannelPlugin } from '../components/channels/channelPluginModel'
+import { channelSettingOperations, groupChannelPlugins, isChannelOnlyPlugin, missingChannelSettings, type ChannelPlugin, type ChannelStatus } from '../components/channels/channelPluginModel'
 import type { PluginSettingsSnapshot } from '../plugins/desktopPluginSettings'
 import { useConnectionStore } from '../stores/connectionStore'
 import { usePluginStore } from '../stores/pluginStore'
@@ -37,6 +37,19 @@ const config: PluginSettingsSnapshot = {
 }
 const sendRequest = vi.fn()
 let currentPlugin: ChannelPlugin
+let savedSettings: PluginSettingsSnapshot
+let channelStatuses: ChannelStatus[]
+
+function selectInstalledPlugin(): void {
+  currentPlugin = plugin(currentPlugin.id, true)
+  usePluginStore.setState({ plugins: [currentPlugin] })
+  useUIStore.setState({ selectedChannelKey: `channel:${currentPlugin.key}` })
+}
+
+function openManage(): void {
+  fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Manage' }))
+}
 
 function mount(): void {
   render(<LocaleProvider loadSettings={false}>
@@ -46,6 +59,8 @@ function mount(): void {
 
 beforeEach(() => {
   currentPlugin = plugin('channel-fixture', false)
+  savedSettings = config
+  channelStatuses = []
   sendRequest.mockReset()
   sendRequest.mockImplementation(async (method: string) => {
     if (method === 'plugin/install') {
@@ -53,8 +68,9 @@ beforeEach(() => {
       return { outcome: 'applied', plugin: currentPlugin, snapshotRevision: 2 }
     }
     if (method === 'plugin/list') return { plugins: [currentPlugin], snapshotRevision: 2 }
-    if (method === 'plugin/config/get' || method === 'plugin/config/mutate') return config
-    if (method === 'channel/status') return { channels: [] }
+    if (method === 'plugin/config/get' || method === 'plugin/config/mutate') return savedSettings
+    if (method === 'channel/status') return { channels: channelStatuses }
+    if (method === 'channel/setEnabled') return {}
     throw new Error(method)
   })
   installDesktopApiMock({ initialLocale: 'en', appServer: { sendRequest, sendRequestRaw: sendRequest } })
@@ -110,27 +126,158 @@ describe('Channels catalog', () => {
     }))
   })
 
-  it('stops a pending interactive connection when sign-in is cancelled', async () => {
+  it.each([
+    { action: 'Cancel', change: 'replace' },
+    { action: 'Fixture channel', change: 'clear' }
+  ])('discards an unsaved secret $change through $action', async ({ action, change }) => {
+    selectInstalledPlugin()
+    mount()
+    openManage()
+    const secret = await screen.findByLabelText('Robots')
+    if (change === 'replace') {
+      fireEvent.change(secret, { target: { value: '[{"token":"fixture token"}]' } })
+    } else {
+      fireEvent.click(screen.getByRole('button', { name: /clear/i }))
+    }
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '9002' } })
+    fireEvent.click(screen.getByRole('button', { name: action, exact: true }))
+    openManage()
+    const port = screen.getByRole<HTMLInputElement>('spinbutton')
+    expect(port.value).toBe('9000')
+    fireEvent.change(port, { target: { value: '9001' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(sendRequest).toHaveBeenCalledWith('plugin/config/mutate', {
+      id: currentPlugin.id, scope: 'workspace', operations: [{ op: 'set', key: 'wecom.port', value: 9001 }]
+    }))
+  })
+
+  it('connects once when a re-read finds the required settings', async () => {
+    selectInstalledPlugin()
+    savedSettings = { ...config, configuredSecrets: [] }
+    mount()
+    openManage()
+    await screen.findByLabelText('Robots')
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel', exact: true }))
+    savedSettings = config
+
+    const connect = screen.getByRole('button', { name: 'Connect' })
+    fireEvent.click(connect)
+    fireEvent.click(connect)
+
+    await waitFor(() => {
+      expect(sendRequest.mock.calls.filter(([method]) => method === 'channel/setEnabled'))
+        .toEqual([['channel/setEnabled', { name: 'wecom', pluginId: currentPlugin.id, enabled: true }]])
+    })
+  })
+
+  it('does not connect after a settings re-read settles in a different workspace', async () => {
+    selectInstalledPlugin()
+    savedSettings = { ...config, configuredSecrets: [] }
+    mount()
+    openManage()
+    await screen.findByLabelText('Robots')
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel', exact: true }))
+
+    let finishRead = (_settings: PluginSettingsSnapshot) => {}
+    const read = new Promise<PluginSettingsSnapshot>((resolve) => { finishRead = resolve })
+    sendRequest.mockImplementation(async (method: string) => {
+      if (method === 'plugin/config/get') return read
+      if (method === 'channel/status') return { channels: [] }
+      if (method === 'channel/setEnabled') return {}
+      throw new Error(method)
+    })
+    sendRequest.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    expect(sendRequest).toHaveBeenCalledWith('plugin/config/get', { id: currentPlugin.id })
+    await act(async () => {
+      useConnectionStore.setState(({ connectionEpoch }) => ({ connectionEpoch: connectionEpoch + 1 }))
+      finishRead(config)
+    })
+
+    expect(sendRequest.mock.calls.some(([method]) => method === 'channel/setEnabled')).toBe(false)
+  })
+
+  it('keeps an unsaved Manage draft while refreshing settings for a restart', async () => {
+    selectInstalledPlugin()
+    channelStatuses = [{ name: 'wecom', pluginId: currentPlugin.id, enabled: true, running: false, runtimeState: 'failed' }]
+    savedSettings = { ...config, configuredSecrets: [] }
+    mount()
+    await screen.findByRole('button', { name: 'Disconnect' })
+    openManage()
+    await screen.findByLabelText('Robots')
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '9100' } })
+    savedSettings = { ...config, workspace: { 'wecom.port': 9200 }, value: { 'wecom.port': 9200 } }
+    fireEvent.click(screen.getByRole('button', { name: 'Restart', exact: true }))
+
+    await waitFor(() => expect(sendRequest).toHaveBeenCalledWith('channel/setEnabled', {
+      name: 'wecom', pluginId: currentPlugin.id, enabled: true
+    }))
+    expect(screen.getByRole<HTMLInputElement>('spinbutton').value).toBe('9100')
+  })
+
+  it.each([true, false])('disconnects a failed selection with plugin enabled=%s', async (pluginEnabled) => {
+    selectInstalledPlugin()
+    currentPlugin.enabled = pluginEnabled
+    channelStatuses = [{ name: 'wecom', pluginId: currentPlugin.id, enabled: true, running: false, runtimeState: 'failed' }]
+    mount()
+
+    const disconnect = await screen.findByRole('button', { name: 'Disconnect' })
+    await act(async () => { fireEvent.click(disconnect) })
+    expect(sendRequest).toHaveBeenCalledWith('channel/setEnabled', {
+      name: 'wecom', pluginId: currentPlugin.id, enabled: false
+    })
+  })
+
+  it('offers Connect rather than Disconnect while viewing an unselected variant', async () => {
+    selectInstalledPlugin()
+    const activeVariant = plugin('active-variant', true)
+    usePluginStore.setState({ plugins: [currentPlugin, activeVariant] })
+    channelStatuses = [{ name: 'wecom', pluginId: activeVariant.id, enabled: true, running: true }]
+    mount()
+
+    await screen.findByRole('combobox')
+    expect(screen.queryByRole('button', { name: 'Disconnect' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    await waitFor(() => expect(sendRequest).toHaveBeenCalledWith('channel/setEnabled', {
+      name: 'wecom', pluginId: currentPlugin.id, enabled: true
+    }))
+  })
+
+  it.each(['start', 'status refresh'])('stops sign-in cancelled during %s', async (phase) => {
     currentPlugin = plugin(currentPlugin.id, true)
     currentPlugin.channel.requiresInteractiveSetup = true
     usePluginStore.setState({ plugins: [currentPlugin] })
     useUIStore.setState({ selectedChannelKey: `channel:${currentPlugin.key}` })
-    let finishStart = () => {}
-    const start = new Promise<void>((resolve) => { finishStart = resolve })
+    let started = false
+    let statusRefreshStarted = false
+    let finishPending = () => {}
+    const pending = new Promise<void>((resolve) => { finishPending = resolve })
     sendRequest.mockImplementation(async (method: string, params?: { enabled?: boolean }) => {
       if (method === 'plugin/config/get') return config
-      if (method === 'channel/setEnabled' && params?.enabled) return start
+      if (method === 'channel/setEnabled' && params?.enabled) {
+        started = true
+        if (phase === 'start') await pending
+        return {}
+      }
       if (method === 'channel/setEnabled') return {}
       if (method === 'channel/setup/read') return { artifact: null }
-      if (method === 'channel/status') return { channels: [] }
+      if (method === 'channel/status') {
+        if (started && !statusRefreshStarted && phase === 'status refresh') {
+          statusRefreshStarted = true
+          await pending
+        }
+        return { channels: [] }
+      }
       throw new Error(method)
     })
 
     mount()
     await waitFor(() => expect(sendRequest).toHaveBeenCalledWith('plugin/config/get', { id: currentPlugin.id }))
     fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    if (phase === 'status refresh') await waitFor(() => expect(statusRefreshStarted).toBe(true))
     fireEvent.click(await screen.findByRole('button', { name: 'Cancel', exact: true }))
-    finishStart()
+    finishPending()
 
     await waitFor(() => expect(sendRequest).toHaveBeenCalledWith('channel/setEnabled', {
       name: 'wecom', pluginId: currentPlugin.id, enabled: false

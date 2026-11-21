@@ -149,7 +149,7 @@ public sealed partial class ChannelRunner
         }
 
         var plugin = ChannelPluginWorkspace.Find(installed, entry.PluginId);
-        if (entry.PluginActivationId == null && TryRestoreOfficialChannel(entry, plugin))
+        if (entry.PluginActivationId == null && TryProvisionDockerChannel(entry, plugin))
         {
             installed = ChannelPlugins.Discover();
             plugin = ChannelPluginWorkspace.Find(installed, entry.PluginId);
@@ -157,12 +157,13 @@ public sealed partial class ChannelRunner
 
         var failure = ChannelPlugins.GetAdmissionFailure(plugin, entry);
         var module = plugin?.Manifest.Channel;
+        var authorizedInstallationId = entry.PluginActivationId;
         var activationId = plugin == null ? null : ChannelPluginInstallation.ReadId(plugin.Manifest.RootPath);
         if (failure == null)
         {
             if (plugin != null && ChannelPlugins.HasDescriptorConflict(installed, plugin))
                 failure = "ChannelPluginConflictingDescriptor";
-            else if (activationId == null || !string.Equals(activationId, entry.PluginActivationId, StringComparison.Ordinal))
+            else if (activationId == null || !string.Equals(activationId, authorizedInstallationId, StringComparison.Ordinal))
                 failure = "ChannelPluginActivationRequired";
             else if (!WebSocketEnabled())
                 failure = "ChannelPluginWebSocketRequired";
@@ -180,7 +181,7 @@ public sealed partial class ChannelRunner
                 failure = "ChannelPluginConfigMissing";
         }
 
-        if (failure != null || module == null)
+        if (failure != null || module == null || authorizedInstallationId == null)
         {
             await StopPluginChannelAsync(entry.Name);
             SetPluginFailure(entry.Name, failure);
@@ -195,7 +196,7 @@ public sealed partial class ChannelRunner
         }
 
         ChannelPlugins.EnsureConfigFile(module);
-        var launch = ChannelPluginLaunch.Stage(plugin!, _paths, nodePath, runAsNode);
+        var launch = ChannelPluginLaunch.Stage(plugin!, authorizedInstallationId, _paths, nodePath, runAsNode);
         try
         {
             await StopPluginChannelAsync(entry.Name);

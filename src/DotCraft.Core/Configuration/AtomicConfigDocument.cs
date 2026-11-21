@@ -63,7 +63,10 @@ public static class AtomicConfigDocument
     }
 
     public static void Write(string path, JsonObject root) =>
-        Write(path, root.ToJsonString(WriteOptions) + "\n");
+        Write(path, Serialize(root));
+
+    public static string Serialize(JsonObject root) =>
+        root.ToJsonString(WriteOptions) + "\n";
 
     public static string? Key(JsonObject root, string key) =>
         root.Select(p => p.Key).FirstOrDefault(k => string.Equals(k, key, StringComparison.OrdinalIgnoreCase));

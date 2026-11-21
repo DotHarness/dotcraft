@@ -55,17 +55,24 @@ export function ChannelPluginDetail({
   const [logs, setLogs] = useState<string[] | null>(null)
   const [logsLoading, setLogsLoading] = useState(false)
   const [attempted, setAttempted] = useState(false)
+  const mounted = useRef(false)
+  const settingsRead = useRef(0)
+  const draftEdited = useRef(false)
+  const connectionPending = useRef(false)
   const cancelPending = useRef(false)
   const { id, channel } = plugin
   const title = channelTitle(plugin, locale)
   const subtitle = channelSubtitle(plugin, locale)
   const logoPath = channelLogoPath(plugin)
-  const current = (): boolean => useConnectionStore.getState().connectionEpoch === epoch
+  const sameWorkspace = (): boolean => useConnectionStore.getState().connectionEpoch === epoch
+  const current = (): boolean => mounted.current && sameWorkspace()
   const failed = status?.runtimeState === 'failed'
-  const running = Boolean(status?.enabled && (status.running || status.runtimeState === 'starting' ||
+  const enabled = status?.pluginId === id && status.enabled
+  const running = Boolean(enabled && (status.running || status.runtimeState === 'starting' ||
     status.runtimeState === 'running' || status.runtimeState == null))
   const configAllowed = plugin.installed && pluginConfiguration
   const controls = configAllowed && management && plugin.enabled && !channel.compatibilityError
+  const canDisconnect = management && enabled
   const login = useChannelLogin(
     active && controls && channel.requiresInteractiveSetup ? id : null,
     Boolean(running) || attempted,
@@ -74,22 +81,39 @@ export function ChannelPluginDetail({
   )
 
   useEffect(() => {
+    mounted.current = true
+    return () => { mounted.current = false }
+  }, [])
+
+  useEffect(() => {
     if (!configAllowed) return
-    let disposed = false
+    const read = ++settingsRead.current
+    const isCurrent = (): boolean => settingsRead.current === read &&
+      useConnectionStore.getState().connectionEpoch === epoch
     void readDesktopPluginSettings(id).then((result) => {
-      if (!disposed) {
+      if (!isCurrent()) return
+      if (!draftEdited.current) {
         setSnapshot(result)
         setDraft(result.workspace)
-        setConfigError(null)
       }
+      setConfigError(null)
     }).catch((err) => {
-      if (!disposed) setConfigError(errorMessage(err))
+      if (isCurrent()) setConfigError(errorMessage(err))
     })
-    return () => { disposed = true }
-  }, [configAllowed, id, loadingKey])
+    return () => { settingsRead.current += 1 }
+  }, [configAllowed, epoch, id, loadingKey])
+
+  function changeMode(next: ChannelModuleDetailMode): void {
+    if (next === 'preview') {
+      draftEdited.current = false
+      setDraft(snapshot?.workspace ?? {})
+    }
+    setMode(next)
+  }
 
   async function saveConfig(): Promise<void> {
-    if (!configAllowed || !snapshot) return
+    if (!configAllowed || !snapshot || !current()) return
+    settingsRead.current += 1
     setSaving(true)
     try {
       const operations = channelSettingOperations(snapshot, draft)
@@ -97,6 +121,7 @@ export function ChannelPluginDetail({
         ? await mutateDesktopPluginSettings(id, 'workspace', operations)
         : snapshot
       if (!current()) return
+      draftEdited.current = false
       setDraft(result.workspace)
       setSnapshot(result)
       onConfigChange(id, missingChannelSettings(channel, result))
@@ -110,37 +135,52 @@ export function ChannelPluginDetail({
   }
 
   async function setEnabled(next: boolean): Promise<void> {
-    if (busy || !management || (next && !controls)) return
-    const missing = snapshot ? missingChannelSettings(channel, snapshot) : []
-    if (next && (!snapshot || missing.length > 0)) {
-      setMode('manage')
-      if (missing.length > 0) {
-        const labels = missing.map((key) => {
-          const descriptor = channel.configDescriptors?.find((entry) => entry.key === key)
-          return descriptor?.localizedDisplayLabel?.[locale] ?? descriptor?.displayLabel ?? key
-        })
-        addToast(t('channels.modules.missingRequired', { fields: labels.join(', ') }), 'error')
-      }
-      return
-    }
+    if (busy || connectionPending.current || !current() || (next ? !controls : !canDisconnect)) return
+    connectionPending.current = true
     setBusy(true)
     cancelPending.current = false
-    setAttempted(next)
-    if (!next) login.hide()
-    else if (channel.requiresInteractiveSetup) login.show()
     try {
-      await channelRequest('channel/setEnabled', { name: channel.channelName, pluginId: id, enabled: next })
-      if (!current()) return
-      if (next && cancelPending.current) {
-        await channelRequest('channel/setEnabled', { name: channel.channelName, pluginId: id, enabled: false })
+      if (next && (!snapshot || missingChannelSettings(channel, snapshot).length > 0)) {
+        const read = ++settingsRead.current
+        const saved = await readDesktopPluginSettings(id)
+        if (!current() || settingsRead.current !== read) return
+        const connection = useConnectionStore.getState()
+        if (connection.status !== 'connected' || !connection.capabilities?.channelManagement ||
+          !connection.capabilities.pluginConfiguration) return
+        if (!draftEdited.current) {
+          setSnapshot(saved)
+          setDraft(saved.workspace)
+        }
+        setConfigError(null)
+        const missing = missingChannelSettings(channel, saved)
+        onConfigChange(id, missing)
+        if (missing.length > 0) {
+          setMode('manage')
+          const labels = missing.map((key) => {
+            const descriptor = channel.configDescriptors?.find((entry) => entry.key === key)
+            return descriptor?.localizedDisplayLabel?.[locale] ?? descriptor?.displayLabel ?? key
+          })
+          addToast(t('channels.modules.missingRequired', { fields: labels.join(', ') }), 'error')
+          return
+        }
       }
-      if (current()) await onRuntimeChange()
+
+      setAttempted(next)
+      if (!next) login.hide()
+      else if (channel.requiresInteractiveSetup) login.show()
+      await channelRequest('channel/setEnabled', { name: channel.channelName, pluginId: id, enabled: next })
+      if (current() && !cancelPending.current) await onRuntimeChange()
+      if (next && cancelPending.current && sameWorkspace()) {
+        await channelRequest('channel/setEnabled', { name: channel.channelName, pluginId: id, enabled: false })
+        if (current()) await onRuntimeChange()
+      }
     } catch (err) {
       if (!current()) return
       if (next) login.hide()
       setAttempted(false)
       addToast(t('channels.saveFailed', { error: errorMessage(err) }), 'error')
     } finally {
+      connectionPending.current = false
       setBusy(false)
     }
   }
@@ -188,30 +228,31 @@ export function ChannelPluginDetail({
           ...(capabilities.length ? [{ label: t('channels.detail.capabilities'), value: capabilities.join(', ') }] : [])
         ]}
         mode={mode}
-        onModeChange={setMode}
-        onBack={onBack}
+        onModeChange={changeMode}
+        onBack={() => {
+          if (mode === 'manage') changeMode('preview')
+          onBack()
+        }}
         actions={(
           <>
             <PluginDetailActionsMenu
               onManage={configAllowed ? () => setMode('manage') : undefined}
               onRemove={onRemove}
             />
-            {onInstall && !plugin.installed && plugin.installable && (
+            {(canDisconnect || controls) ? (
+              <MorphingActionPill label={t(enabled ? 'appBinding.disconnect' : 'appBinding.connect')}
+                loading={busy} onClick={() => void setEnabled(!enabled)} />
+            ) : !plugin.installed && plugin.installable && onInstall ? (
               <MorphingActionPill label={t('plugins.install')} disabled={Boolean(channel.compatibilityError)}
                 loading={installing} onClick={onInstall} />
-            )}
-            {plugin.installed && !plugin.enabled && onEnable && (
+            ) : plugin.installed && !plugin.enabled && onEnable ? (
               <MorphingActionPill label={t('channels.plugins.enable')} loading={busy}
                 onClick={() => {
                   setBusy(true)
                   void onEnable().finally(() => setBusy(false))
                 }}
               />
-            )}
-            {plugin.installed && plugin.enabled && controls && (
-              <MorphingActionPill label={t(running ? 'appBinding.disconnect' : 'appBinding.connect')}
-                loading={busy} onClick={() => void setEnabled(!running)} />
-            )}
+            ) : null}
           </>
         )}
         details={variants.length > 1 || permissionsNotice ? (
@@ -243,7 +284,10 @@ export function ChannelPluginDetail({
               plugin={plugin}
               config={draft}
               configuredSecrets={snapshot.configuredSecrets ?? []}
-              onChange={setDraft}
+              onChange={(next) => {
+                draftEdited.current = true
+                setDraft(next)
+              }}
               onSave={() => void saveConfig()}
               saving={saving}
               readOnly={!configAllowed}
@@ -270,7 +314,7 @@ export function ChannelPluginDetail({
           onCancel={() => {
             login.hide()
             setAttempted(false)
-            if (busy) cancelPending.current = true
+            if (connectionPending.current) cancelPending.current = true
             else void setEnabled(false)
           }}
           onDone={login.hide}

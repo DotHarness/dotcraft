@@ -102,6 +102,26 @@ public sealed partial class AppServerPluginManagementTests
         Assert.False(File.Exists(Path.Combine(_workspaceCraftPath, PlatformConfigFile)));
     }
 
+    [Fact]
+    public async Task ChannelSettings_RejectOversizedStoredJsonBeforeReplacingSavedSettings()
+    {
+        WriteChannelSettingsFixture();
+        File.WriteAllText(Path.Combine(_workspaceCraftPath, PlatformConfigFile), """{"example":{"mode":"fast"}}""");
+        using var harness = CreateChannelSettingsHarness(_workspaceCraftPath);
+        using var initialized = await harness.InitializeAsync();
+
+        using var rejected = await MutateChannelSettingsAsync(harness, "workspace",
+            new { op = "set", key = "example.accounts", value = Enumerable.Repeat("abc", 100_000).ToArray() },
+            new { op = "set", key = "example.mode", value = "safe" });
+        AssertPluginConfigurationError(rejected, PluginConfigStore.MutationInvalid);
+
+        using var read = await GetChannelSettingsAsync(harness);
+        AppServerTestHarness.AssertIsSuccessResponse(read);
+        var saved = read.RootElement.GetProperty("result");
+        Assert.Equal("fast", saved.GetProperty("workspace").GetProperty("example.mode").GetString());
+        Assert.Empty(saved.GetProperty("configuredSecrets").EnumerateArray());
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

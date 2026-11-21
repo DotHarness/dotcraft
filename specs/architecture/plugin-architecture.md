@@ -412,8 +412,9 @@ not started in parallel. A user must explicitly select a different implementatio
 
 Installing a channel plugin makes it available to configure and does not by itself start an adapter.
 The workspace operator must explicitly enable the channel. The grant applies to the selected
-installation and workspace. Updates from the same managed source retain the installation identity.
-Reinstalling or switching sources requires a new grant. The operator
+installation and workspace. The staged launch bundle must match that grant before starting.
+Updates from the same managed source retain the installation identity. Reinstalling or
+switching sources requires a new grant. The operator
 grants executable access to the workspace and to the channel credentials the adapter needs.
 Child-process isolation is not an operating system sandbox.
 

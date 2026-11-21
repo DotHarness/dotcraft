@@ -80,7 +80,7 @@ internal sealed record ChannelPluginLaunch(
     }
 
     public static ChannelPluginLaunch Stage(
-        DiscoveredPlugin plugin, DotCraftPaths paths, string nodePath, bool runAsNode)
+        DiscoveredPlugin plugin, string authorizedInstallationId, DotCraftPaths paths, string nodePath, bool runAsNode)
     {
         var channel = plugin.Manifest.Channel!;
         var snapshot = paths.Data.Resolve("tmp", "channel-plugins", Guid.NewGuid().ToString("N"));
@@ -93,8 +93,9 @@ internal sealed record ChannelPluginLaunch(
                 || !string.Equals(owned.ChannelName, channel.ChannelName, StringComparison.OrdinalIgnoreCase)
                 || !string.Equals(owned.ConfigFileName, channel.ConfigFileName, StringComparison.OrdinalIgnoreCase)
                 || !string.Equals(owned.ModuleId, channel.ModuleId, StringComparison.OrdinalIgnoreCase)
-                || !string.Equals(ChannelPluginInstallation.ReadId(snapshot), ChannelPluginInstallation.ReadId(plugin.Manifest.RootPath),
-                    StringComparison.Ordinal))
+                || ChannelPluginInstallation.ReadId(snapshot) is not { } stagedInstallationId
+                || !string.Equals(stagedInstallationId, authorizedInstallationId, StringComparison.Ordinal)
+                || !string.Equals(ChannelPluginInstallation.ReadId(plugin.Manifest.RootPath), authorizedInstallationId, StringComparison.Ordinal))
             {
                 throw new IOException("The plugin changed while staging its channel launcher.");
             }

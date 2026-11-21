@@ -12,9 +12,6 @@ public sealed record ChannelEntry
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? PluginActivationId { get; set; }
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public bool RestoreChannelPlugin { get; set; }
 }
 
 public static class ChannelEntryMap
