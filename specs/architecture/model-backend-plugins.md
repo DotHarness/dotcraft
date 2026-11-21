@@ -30,7 +30,10 @@ configuration. Without a backend ID, existing protocol, authentication and endpo
 unchanged. Explicit backends validate their own settings and declared protocol/authentication choices.
 They do not inherit HTTP endpoints, API-key requirements or protocol-based hosted capabilities.
 Their model catalog reports each model's display name and reasoning capability; built-in
-protocol catalogs never describe backend models.
+protocol catalogs never describe backend models. A backend provider may expose
+`IProviderModelRuntimeResolver` through `GetService` so runtime normalization projects per-model
+metadata, output token limits, capabilities and declared protocol selection while the host preserves
+provider identity, configured settings, non-built-in status and generation tracking.
 
 Desktop lists backend instances with every other provider and creates them from the same editor.
 Backend-specific options use typed controls in a plugin settings surface. `BackendSettings` holds
@@ -46,9 +49,9 @@ tool calls and consume the resulting tool messages.
 
 ## Generation lifetime
 
-Factories, clients, authentication and model catalogs cross the generation boundary only through
+Factories, clients, authentication, model runtime resolvers and model catalogs cross the generation boundary only through
 host-owned adapters. Async calls and streaming enumeration hold the gate throughout. Capability
-lookup is limited to model catalogs, authentication and usage; arbitrary plugin service objects and
+lookup is limited to model catalogs, model runtime resolution, authentication and usage; arbitrary plugin service objects and
 raw private SDK values cannot escape through `GetService` or response metadata.
 
 Revocation removes routes before signalling generation stopping. Login, refresh and inference receive
@@ -70,6 +73,9 @@ Plugins receive only a bound partition view.
 
 Backend authenticators join built-in sign-in, including ChatGPT, in one Core coordinator that Desktop
 and CLI share. AppServer projects it through [provider authentication](../protocols/provider-auth.md).
+An authenticator may throw `ProviderAuthenticationException` to report a controlled failure code and
+message. The runtime copies only the text across the generation boundary without retaining plugin
+exception instances, while unexpected exceptions remain redacted to `ProviderLoginFailed`.
 
 Provider-independent startup permits plugin discovery, trust, configuration and login before any
 usable model exists. Standalone ModelService hosts reject local plugin-backend configurations;

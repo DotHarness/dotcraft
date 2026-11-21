@@ -86,6 +86,15 @@ internal sealed class ProviderLoginSession : IProviderLoginInteraction, IDisposa
         {
             Update(state => state with { Status = "cancelled", ErrorCode = "ProviderLoginCancelled" });
         }
+        catch (ProviderAuthenticationException exception)
+        {
+            Update(state => state with
+            {
+                Status = "failed",
+                ErrorCode = string.IsNullOrWhiteSpace(exception.Code) ? "ProviderLoginFailed" : exception.Code.Trim(),
+                ErrorMessage = string.IsNullOrWhiteSpace(exception.Message) ? "Provider sign-in failed. Try again." : exception.Message.Trim()
+            });
+        }
         catch (Exception)
         {
             Update(state => state with

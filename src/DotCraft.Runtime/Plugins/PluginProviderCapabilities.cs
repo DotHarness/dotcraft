@@ -6,12 +6,13 @@ namespace DotCraft.Runtime;
 internal static class PluginProviderCapabilities
 {
     public static bool Supports(Type type) =>
-        type == typeof(IModelCatalogProvider) || type == typeof(IProviderAuthenticator)
-        || type == typeof(IProviderUsageReader);
+        type == typeof(IModelCatalogProvider) || type == typeof(IProviderModelRuntimeResolver)
+        || type == typeof(IProviderAuthenticator) || type == typeof(IProviderUsageReader);
 
     public static object Adapt(object target, Type type, PluginInvocation invocation) => target switch
     {
         IModelCatalogProvider catalog when type == typeof(IModelCatalogProvider) => new Catalog(catalog, invocation),
+        IProviderModelRuntimeResolver runtimeResolver when type == typeof(IProviderModelRuntimeResolver) => new RuntimeResolver(runtimeResolver, invocation),
         IProviderAuthenticator auth when type == typeof(IProviderAuthenticator) => new Authentication(auth, invocation),
         IProviderUsageReader usage when type == typeof(IProviderUsageReader) => new Usage(usage, invocation),
         _ => throw new InvalidOperationException("Unsupported provider capability.")
@@ -34,6 +35,13 @@ internal static class PluginProviderCapabilities
             }));
     }
 
+    private sealed class RuntimeResolver(IProviderModelRuntimeResolver target, PluginInvocation invocation) : IProviderModelRuntimeResolver
+    {
+        private readonly PluginTarget<IProviderModelRuntimeResolver> _target = invocation.Capture(target);
+        public EffectiveModelRuntime ResolveRuntime(EffectiveModelRuntime runtime) =>
+            invocation.Invoke(() => HostOwned(_target.Value.ResolveRuntime(runtime)));
+    }
+
     private sealed class Authentication(IProviderAuthenticator target, PluginInvocation invocation) : IProviderAuthenticator
     {
         private readonly PluginTarget<IProviderAuthenticator> _target = invocation.Capture(target);
@@ -48,12 +56,22 @@ internal static class PluginProviderCapabilities
                 await _target.Value.LogoutAsync(linked.Token).ConfigureAwait(false);
             }));
 
-        private Task<ProviderAuthenticationStatus> CallAsync(Func<CancellationToken, Task<ProviderAuthenticationStatus>> call, CancellationToken ct) =>
-            invocation.InvokeAsync(new Func<Task<ProviderAuthenticationStatus>>(async () =>
+        private async Task<ProviderAuthenticationStatus> CallAsync(Func<CancellationToken, Task<ProviderAuthenticationStatus>> call, CancellationToken ct)
+        {
+            ProviderAuthenticationException? authFailure = null;
+            var result = await invocation.InvokeAsync(new Func<Task<ProviderAuthenticationStatus?>>(async () =>
             {
                 using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, invocation.Stopping);
-                return HostOwned(await call(linked.Token).ConfigureAwait(false));
-            }));
+                try { return HostOwned(await call(linked.Token).ConfigureAwait(false)); }
+                catch (ProviderAuthenticationException exception)
+                {
+                    authFailure = new ProviderAuthenticationException(exception.Code, exception.Message);
+                    return null;
+                }
+            })).ConfigureAwait(false);
+            if (authFailure is not null) throw authFailure;
+            return result!;
+        }
     }
 
     private sealed class LoginInteraction(IProviderLoginInteraction inner) : IProviderLoginInteraction

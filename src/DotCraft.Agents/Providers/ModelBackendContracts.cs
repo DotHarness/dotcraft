@@ -81,3 +81,8 @@ public sealed class ModelBackendUnavailableException(string backendId)
     public const string ErrorCode = "ModelBackendUnavailable";
     public string BackendId { get; } = backendId;
 }
+
+public sealed class ProviderAuthenticationException(string code, string message) : InvalidOperationException(message)
+{
+    public string Code { get; } = code;
+}
