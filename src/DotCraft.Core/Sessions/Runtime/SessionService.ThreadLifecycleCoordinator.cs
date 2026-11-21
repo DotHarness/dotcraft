@@ -209,6 +209,8 @@ public sealed partial class SessionService
             Task<bool> terminalCleanup;
             using (await owner.AcquireThreadAgentLockAsync(thread.Id, ct))
             {
+                if (!loaded || owner.IsMaterialized(thread.Id))
+                    await owner.Persistence.ArchiveStoredThreadAsync(thread.Id, ct);
                 thread.Status = ThreadStatus.Archived;
                 owner._runtimeRegistry.TryGetRuntime(thread.Id, out var runtime);
                 interruptedTurn = InterruptArchiveTurns(thread, runtime);
@@ -221,8 +223,6 @@ public sealed partial class SessionService
             await owner.AgentFactory.ReleaseThreadToolResourcesAsync(thread.Id, ct);
             owner.ForgetContextPages(thread.Id);
 
-            if (!loaded || owner.IsMaterialized(thread.Id))
-                await owner.Persistence.ArchiveStoredThreadAsync(thread.Id, ct);
             PublishThreadStatusChanged(thread.Id, previousStatus, thread.Status);
 
             if (thread.Worktree != null)

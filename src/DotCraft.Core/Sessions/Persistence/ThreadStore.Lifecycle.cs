@@ -12,7 +12,7 @@ public sealed partial class ThreadStore
         if (path is null && !forDeletion)
             return null;
 
-        var thread = _metadataStore.ReadLifecycleMetadata(threadId, path);
+        var thread = _metadataStore.ReadLifecycleMetadata(threadId, path, path is null ? null : new FileInfo(path).Length);
         if (path is null)
             return thread ?? (_metadataStore.GetRolloutPath(threadId) is not null ? NewLifecycleThread(threadId) : null);
 
@@ -61,7 +61,6 @@ public sealed partial class ThreadStore
         thread.OriginChannel = header.OriginChannel;
         thread.ChannelContext = header.ChannelContext;
         thread.ForkedFromId = header.ForkedFromId;
-        thread.Worktree = header.Worktree;
         thread.CreatedAt = header.CreatedAt;
         thread.LastActiveAt = header.LastActiveAt;
         thread.Metadata = header.Metadata;

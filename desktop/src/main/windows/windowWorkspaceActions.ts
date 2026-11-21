@@ -1,5 +1,4 @@
 import { normalizeLocale, translate } from '../../shared/locales'
-import { stopBeforeArchive } from '../../shared/stopBeforeArchive'
 import type { WorkspaceSwitchOptions } from '../../shared/workspaceProjects'
 import type { WorkspaceSetupModelListRequest, WorkspaceSetupRequest } from '../../shared/workspaceSetup'
 import { ensureDefaultChatWorkspace, isDefaultChatWorkspace } from '../defaultChatWorkspace'
@@ -12,7 +11,7 @@ import { invalidateForegroundFileAccess, revokeAllWindowFileAccess } from '../wi
 import { hasRemoteEndpointArg } from '../workspaceArgs'
 import { getForegroundWorkspaceClient } from '../workspaceConnectionRouting'
 import { listSetupModels, loginSetupProvider, runWorkspaceSetup } from '../workspaceSetup'
-import { beginWorkspaceThreadListRequest, getWorkspaceThreadActiveTurnId } from '../workspaceThreadCache'
+import { beginWorkspaceThreadListRequest } from '../workspaceThreadCache'
 import { startLocalProjectConnection } from './windowSecondaryConnections'
 import type { DesktopWindowRuntime } from './windowRuntime'
 import { resolveLocalUsageConnection } from './windowUsageStatistics'
@@ -152,8 +151,10 @@ export function buildCallbacks(ctx: DesktopWindowRuntime): IpcHandlerCallbacks {
       if (!entry || !entry.connected) {
         throw new Error('Workspace connection is not available for archiving.')
       }
-      const activeTurnId = getWorkspaceThreadActiveTurnId(entry.threads, id)
-      await stopBeforeArchive((method, params) => entry.client.sendRequest(method, params), id, activeTurnId)
+      await entry.client.sendRequest('thread/archive', { threadId: id })
+      if (ctx.workspaceConnections.get(entry.key) === entry) {
+        ctx.applyWorkspaceThreadNotification(entry, 'thread/archived', { threadId: id })
+      }
     },
     getUsageConnection: () => resolveLocalUsageConnection(ctx),
     getConnectionKey: (client) => ctx.findWorkspaceConnectionByClient(client)?.key ?? null,

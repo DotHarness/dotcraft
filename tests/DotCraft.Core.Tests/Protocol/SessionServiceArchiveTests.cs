@@ -95,6 +95,40 @@ public sealed class SessionServiceArchiveTests : IDisposable
         AssertNoHydration(service, store, "cold");
     }
 
+    [Fact]
+    public async Task FailedArchiveWrite_RestoresActiveHistoryAndAllowsColdRetry()
+    {
+        const string id = "retry";
+        await SeedAsync(id, 1);
+        var original = await File.ReadAllBytesAsync(ActivePath(id));
+        var writer = new OrderedRolloutWriter(async (path, _, _) =>
+        {
+            await File.AppendAllTextAsync(path, "{");
+            throw new UnauthorizedAccessException("Archive write failed.");
+        });
+        var chat = new RecordingChatClient();
+        await using var factory = CreateFactory(chat, new ThreadResources());
+
+        await using (var failedStore = new ThreadStore(CraftPath, null, null, writer))
+        await using (var failedService = CreateService(factory, chat, failedStore))
+        {
+            var loaded = await failedService.GetThreadAsync(id);
+
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => failedService.ArchiveThreadAsync(id));
+
+            Assert.Equal(ThreadStatus.Active, loaded.Status);
+            Assert.Equal(original, await File.ReadAllBytesAsync(ActivePath(id)));
+            Assert.False(File.Exists(ArchivedPath(id)));
+        }
+
+        await using var store = new ThreadStore(CraftPath);
+        await using var service = CreateService(factory, chat, store);
+        Assert.True(await service.ArchiveThreadAsync(id));
+
+        Assert.Null(service.TryGetLoadedThread(id));
+        Assert.Equal(ThreadStatus.Archived, (await service.ReadThreadSnapshotAsync(id)).Thread.Status);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("root")]

@@ -3,10 +3,9 @@ namespace DotCraft.Sessions;
 internal sealed partial class ThreadRolloutStore
 {
     public async Task<RolloutAppendResult> ArchiveStoredThreadAsync(
-        string threadId, string existingPath, CancellationToken ct)
+        string threadId, string existingPath, long previousOffset, CancellationToken ct)
     {
         var path = GetExpectedPath(threadId, archived: true);
-        File.Move(existingPath, path);
         var record = new ThreadRolloutRecord
         {
             Kind = RolloutKinds.ThreadStatusChanged,
@@ -16,6 +15,23 @@ internal sealed partial class ThreadRolloutStore
                 Status = ThreadStatus.Archived
             }
         };
-        return await AppendRecordsAsync(threadId, path, [record], ct);
+        ct.ThrowIfCancellationRequested();
+        File.Move(existingPath, path);
+        try
+        {
+            return await AppendRecordsAsync(threadId, path, [record], CancellationToken.None);
+        }
+        catch
+        {
+            await _writer.CloseAsync(threadId, discardPending: true);
+            if (new FileInfo(path).Length > previousOffset)
+            {
+                using var stream = new FileStream(path, FileMode.Open, FileAccess.Write, FileShare.Read | FileShare.Delete);
+                stream.SetLength(previousOffset);
+                stream.Flush(flushToDisk: true);
+            }
+            File.Move(path, existingPath);
+            throw;
+        }
     }
 }

@@ -190,7 +190,8 @@ public sealed partial class SessionServiceSetThreadModeTests
         }
 
         public Task<RolloutWriteReceipt> FlushAsync(string threadId, CancellationToken ct = default) => _inner.FlushAsync(threadId, ct);
-        public Task CloseAsync(string threadId, CancellationToken ct = default) => _inner.CloseAsync(threadId, ct);
+        public Task CloseAsync(string threadId, CancellationToken ct = default, bool discardPending = false) =>
+            _inner.CloseAsync(threadId, ct, discardPending);
         public Task ShutdownAllAsync(CancellationToken ct = default) => _inner.ShutdownAllAsync(ct);
     }
 }

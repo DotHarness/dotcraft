@@ -230,12 +230,12 @@ internal sealed partial class ThreadMetadataStore
         }
     }
 
-    public SessionThread? ReadLifecycleMetadata(string threadId, string? expectedPath)
+    public SessionThread? ReadLifecycleMetadata(string threadId, string? expectedPath, long? rolloutLength)
     {
         using var connection = stateRuntime.OpenConnection();
         using var command = connection.CreateCommand();
         command.CommandText = $"""
-            SELECT {SummaryColumns}, rollout_path FROM threads WHERE thread_id = $thread_id
+            SELECT {SummaryColumns}, rollout_path, projected_rollout_offset FROM threads WHERE thread_id = $thread_id
             """;
         command.Parameters.AddWithValue("$thread_id", threadId);
         using var reader = command.ExecuteReader();
@@ -258,7 +258,7 @@ internal sealed partial class ThreadMetadataStore
                 ChannelContext = summary.ChannelContext,
                 ForkedFromId = summary.ForkedFromId,
                 Ephemeral = summary.Ephemeral,
-                Worktree = summary.Worktree,
+                Worktree = rolloutLength == reader.GetInt64(16) ? summary.Worktree : null,
                 CreatedAt = summary.CreatedAt,
                 LastActiveAt = summary.LastActiveAt,
                 Metadata = summary.Metadata

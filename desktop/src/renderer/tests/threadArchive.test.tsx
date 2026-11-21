@@ -52,36 +52,21 @@ describe('archiveThreadWithUndo', () => {
     expect(listedIds()).toEqual(['a', 'b'])
   })
 
-  it('waits for confirmation and interrupts before archive without duplicate requests', async () => {
+  it('waits for confirmation and sends only one archive request for an active thread', async () => {
     setRunning()
     let confirm!: (value: boolean) => void
     vi.mocked(requestConfirmDialog).mockReturnValue({ result: new Promise(resolve => { confirm = resolve }), dismiss: vi.fn() })
     const pending = archiveThreadWithUndo({ threadId: 'a', t })
     expect(sendRequest).not.toHaveBeenCalled()
     expect(await archiveThreadWithUndo({ threadId: 'a', t })).toBe(false)
-    useThreadStore.getState().applyRuntimeSnapshot('a', {
-      running: true, activeTurnId: 'new-turn', waitingOnApproval: false, waitingOnPlanConfirmation: false
-    }, { isDesktopOrigin: true })
     confirm(true)
     expect(await pending).toBe(true)
     expect(requestConfirmDialog).toHaveBeenCalledOnce()
-    expect(sendRequest.mock.calls).toEqual([
-      ['turn/interrupt', { threadId: 'a', turnId: 'new-turn' }],
-      ['thread/archive', { threadId: 'a' }]
-    ])
+    expect(sendRequest).toHaveBeenCalledExactlyOnceWith('thread/archive', { threadId: 'a' })
     useToastStore.getState().toasts[0].action?.onClick()
     await vi.waitFor(() => expect(listedIds()).toContain('a'))
     expect(useThreadStore.getState().threadList.find(thread => thread.id === 'a')?.runtime)
       .toMatchObject({ running: false, activeTurnId: null })
-  })
-
-  it('does not archive when interruption fails', async () => {
-    setRunning()
-    vi.mocked(requestConfirmDialog).mockReturnValue({ result: Promise.resolve(true), dismiss: vi.fn() })
-    sendRequest.mockRejectedValueOnce(new Error('offline'))
-    expect(await archiveThreadWithUndo({ threadId: 'a', t })).toBe(false)
-    expect(sendRequest).toHaveBeenCalledExactlyOnceWith('turn/interrupt', { threadId: 'a', turnId: 'turn-a' })
-    expect(listedIds()).toEqual(['a', 'b'])
   })
 
   it('requires confirmation before routing a secondary workspace archive', async () => {
