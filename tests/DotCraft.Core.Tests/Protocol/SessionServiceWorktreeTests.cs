@@ -6,6 +6,8 @@ using DotCraft.Tools;
 using DotCraft.Security;
 using DotCraft.Sessions;
 using DotCraft.Skills;
+using DotCraft.Tests.Tools;
+using DotCraft.Tools.BackgroundTerminals;
 using SessionIdentity = DotCraft.Sessions.SessionIdentity;
 using Xunit;
 
@@ -47,10 +49,11 @@ public abstract class SessionServiceWorktreeTestBase : IDisposable
             CopyDirtyChanges = false
         })).Worktree!;
 
-    protected SessionService CreateService(AgentFactory agentFactory)
+    protected SessionService CreateService(AgentFactory agentFactory, IBackgroundTerminalService? terminals = null)
     {
         var defaultAgent = agentFactory.CreateAgentForMode(AgentMode.Agent);
-        return new SessionService(agentFactory, defaultAgent, _persistence, new SessionGate());
+        return new SessionService(agentFactory, defaultAgent, _persistence, new SessionGate(),
+            backgroundTerminalService: terminals);
     }
 
     protected AgentFactory CreateAgentFactory(IReadOnlyList<IToolSource>? toolProviders = null)
@@ -617,6 +620,56 @@ public sealed class SessionServiceWorktreeCleanupTests : SessionServiceWorktreeT
         Assert.True(File.Exists(Path.Combine(worktree.Path, "README.md")));
         Assert.Equal("TOKEN=local", File.ReadAllText(Path.Combine(worktree.Path, ".env")));
         Assert.Equal("dotcraft/archive-me", RunGitCapture(worktree.Path, "branch", "--show-current").Trim());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ArchiveThreadAsync_KeepsWorktreeWhenChildTerminalCleanupIsPendingOrFailed(bool cleanupFails)
+    {
+        var cleanup = new TaskCompletionSource<IReadOnlyList<BackgroundTerminalSnapshot>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var cleanupRequested = false;
+        string? childId = null;
+        var terminals = new StubBackgroundTerminalService
+        {
+            CleanHandler = (threadId, _) =>
+            {
+                if (threadId != childId)
+                    return Task.FromResult<IReadOnlyList<BackgroundTerminalSnapshot>>([]);
+                cleanupRequested = true;
+                return cleanup.Task;
+            }
+        };
+        await using var agentFactory = CreateAgentFactory();
+        await using var service = CreateService(agentFactory, terminals);
+        var parent = await service.CreateThreadAsync(MakeIdentity());
+        var worktree = await HandoffAsync(service, parent.Id, "dotcraft/keep-on-archive");
+        var child = await service.CreateThreadAsync(
+            MakeIdentity() with { WorkspacePath = worktree.Path },
+            source: ThreadSource.ForSubAgent(new SubAgentThreadSource
+            {
+                ParentThreadId = parent.Id, RootThreadId = parent.Id, Depth = 1
+            }));
+        childId = child.Id;
+        await service.UpsertThreadSpawnEdgeAsync(new ThreadSpawnEdge
+        {
+            ParentThreadId = parent.Id, ChildThreadId = child.Id, Depth = 1, Status = ThreadSpawnEdgeStatus.Open
+        });
+
+        if (cleanupFails)
+            cleanup.SetException(new IOException("Terminal cleanup failed."));
+        try
+        {
+            await service.ArchiveThreadAsync(parent.Id).WaitAsync(TimeSpan.FromSeconds(10));
+
+            Assert.True(cleanupRequested);
+            Assert.Equal(ThreadStatus.Archived, (await service.ReadThreadSnapshotAsync(parent.Id)).Thread.Status);
+            Assert.True(Directory.Exists(worktree.Path));
+        }
+        finally
+        {
+            cleanup.TrySetResult([]);
+        }
     }
 
     [Fact]

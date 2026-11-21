@@ -168,7 +168,7 @@ public sealed class SessionServiceArchiveTests : IDisposable
     }
 
     [Fact]
-    public async Task LoadedBusyThread_InterruptsTurnBeforeStartingTerminalCleanupWithoutWaitingForIt()
+    public async Task LoadedBusyThread_ArchivesWithoutWaitingForTerminalCleanupEvenIfCancellationCallbackThrows()
     {
         var timeout = TimeSpan.FromSeconds(10);
         var streamStarted = new TaskCompletionSource<CancellationToken>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -182,7 +182,16 @@ public sealed class SessionServiceArchiveTests : IDisposable
             }
         };
         CancellationToken turnCancellation = default;
-        var terminals = new PendingTerminalCleanup(() => turnCancellation.IsCancellationRequested);
+        var cleanupStarted = new TaskCompletionSource<(string ThreadId, bool TurnCancelled)>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var cleanup = new TaskCompletionSource<IReadOnlyList<BackgroundTerminalSnapshot>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var terminals = new StubBackgroundTerminalService
+        {
+            CleanHandler = (threadId, _) =>
+            {
+                cleanupStarted.SetResult((threadId, turnCancellation.IsCancellationRequested));
+                return cleanup.Task;
+            }
+        };
         await SeedAsync("busy", 1);
         await using var store = new ThreadStore(CraftPath);
         await using var factory = CreateFactory(chat, new ThreadResources());
@@ -193,18 +202,25 @@ public sealed class SessionServiceArchiveTests : IDisposable
         try
         {
             turnCancellation = await streamStarted.Task.WaitAsync(timeout);
+            var callbackRan = false;
+            using var registration = turnCancellation.Register(() =>
+            {
+                callbackRan = true;
+                throw new InvalidOperationException("Cancellation callback failed.");
+            });
             var archive = service.ArchiveThreadAsync(thread.Id);
-            Assert.Equal((thread.Id, true), await terminals.Started.Task.WaitAsync(timeout));
+            Assert.Equal((thread.Id, true), await cleanupStarted.Task.WaitAsync(timeout));
             await archive.WaitAsync(timeout);
 
-            Assert.False(terminals.Completion.Task.IsCompleted);
+            Assert.True(callbackRan);
+            Assert.False(cleanup.Task.IsCompleted);
             Assert.Equal(ThreadStatus.Archived, (await service.ReadThreadSnapshotAsync(thread.Id)).Thread.Status);
             Assert.Contains(await run.WaitAsync(timeout), e => e.EventType == SessionEventType.TurnCancelled);
         }
         finally
         {
             releaseStream.TrySetResult();
-            terminals.Completion.TrySetResult([]);
+            cleanup.TrySetResult([]);
         }
     }
 
@@ -303,22 +319,6 @@ public sealed class SessionServiceArchiveTests : IDisposable
         AgentFactory factory, IChatClient chat, ThreadStore store, IBackgroundTerminalService? terminals = null) =>
         new(factory, chat.AsAIAgent(), new SessionPersistenceService(store), new SessionGate(),
             backgroundTerminalService: terminals);
-
-    private sealed class PendingTerminalCleanup(Func<bool> isTurnCancelled)
-        : StubBackgroundTerminalService, IBackgroundTerminalService
-    {
-        public TaskCompletionSource<(string ThreadId, bool TurnCancelled)> Started { get; } =
-            new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public TaskCompletionSource<IReadOnlyList<BackgroundTerminalSnapshot>> Completion { get; } =
-            new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        Task<IReadOnlyList<BackgroundTerminalSnapshot>> IBackgroundTerminalService.CleanThreadAsync(
-            string threadId, CancellationToken ct)
-        {
-            Started.SetResult((threadId, isTurnCancelled()));
-            return Completion.Task;
-        }
-    }
 
     private sealed class ThreadResources : IToolSource, IThreadScopedToolSource
     {
