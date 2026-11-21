@@ -14,101 +14,93 @@ public sealed class WorkspaceConfigUpgradeTests : IDisposable
     public WorkspaceConfigUpgradeTests() => Directory.CreateDirectory(CraftPath);
 
     [Fact]
-    public void RemovesPersonalSettingsAndKeepsProjectData()
+    public void MapsPluginSelectionsAndPreservesPlatformConfiguration()
     {
-        Write(UserConfig, """{ "ProviderId": "global", "ProviderPreferences": { "global": { "model": "g" } } }""");
-        Write(WorkspaceConfig, """
+        File.WriteAllText(WorkspaceConfig, """
             {
-              "providerid": "local",
-              "ProviderPreferences": { "local": { "model": "l" } },
-              "Permissions": { "DefaultApprovalPolicy": "autoApprove" },
-              "Tools": { "Web": { "SearchProvider": "Exa", "ExaApiKey": "secret" } },
-              "SubAgent": { "DisabledProfiles": ["a"], "MaxDepth": 2 },
-              "Plugins": { "DisabledPlugins": ["p"] },
-              "McpServers": { "s": { "command": "x" } }
+              "ProviderId": "local",
+              "ExternalChannels": {
+                "Telegram": { "enabled": true, "transport": "managedWebsocket", "BuiltinModule": "channel-telegram" },
+                "weixin": { "enabled": false, "builtinModule": "channel-weixin" },
+                "qq": { "enabled": true, "transport": "subprocess", "command": "qq-local" },
+                "custom": { "enabled": true, "builtinModule": "channel-custom" },
+                "feishu": { "enabled": true, "pluginId": "community-feishu", "transport": "managedWebsocket", "pluginActivationId": "existing-grant" }
+              },
+              "Channels": { "feishu": { "enabled": true, "pluginId": "community-feishu" } }
             }
             """);
-
+        var authFile = Path.Combine(CraftPath, "telegram.json");
+        File.WriteAllText(authFile, """{ "telegram": { "botToken": "keep" } }""");
+        File.WriteAllText(Path.Combine(CraftPath, "upgrade-version"), "0.14.0\n");
         WorkspaceConfigUpgrade.Apply(CraftPath, UserConfig);
 
-        var workspace = Read(WorkspaceConfig);
-        Assert.Null(workspace["providerid"]);
-        Assert.Null(workspace["ProviderPreferences"]);
-        Assert.Null(workspace["Permissions"]);
-        Assert.Null(workspace["Tools"]!["Web"]!["SearchProvider"]);
-        Assert.Equal("secret", workspace["Tools"]!["Web"]!["ExaApiKey"]!.GetValue<string>());
-        Assert.Null(workspace["SubAgent"]!["DisabledProfiles"]);
-        Assert.Equal(2, workspace["SubAgent"]!["MaxDepth"]!.GetValue<int>());
-        Assert.NotNull(workspace["Plugins"]);
-        Assert.NotNull(workspace["McpServers"]);
-        Assert.Equal("global", Read(UserConfig)["ProviderId"]!.GetValue<string>());
+        var workspace = Read();
+        Assert.Equal("local", workspace["ProviderId"]!.GetValue<string>());
+        var channels = workspace["Channels"]!;
+        var telegram = channels["Telegram"]!;
+        Assert.Equal("channel-telegram", telegram["pluginId"]!.GetValue<string>());
+        Assert.True(telegram["restoreChannelPlugin"]!.GetValue<bool>());
+        Assert.Equal("existing-grant", channels["feishu"]!["pluginActivationId"]!.GetValue<string>());
+        Assert.Equal("channel-weixin", channels["weixin"]!["pluginId"]!.GetValue<string>());
+        Assert.Null(channels["weixin"]!["restoreChannelPlugin"]);
+        Assert.Null(channels["qq"]);
+        Assert.Null(channels["custom"]);
+        Assert.Equal("""{ "telegram": { "botToken": "keep" } }""", File.ReadAllText(authFile));
     }
 
     [Fact]
-    public void MovesTheProviderSelectionWhenTheUserLayerHasNone()
+    public void RetainsDockerOwnershipAndAppliesTheDeploymentSelection()
     {
-        Write(UserConfig, """{ "Providers": { "local": {} } }""");
-        Write(WorkspaceConfig, """{ "ProviderId": "local", "ProviderPreferences": { "local": { "model": "l" }, "other": { "model": "o" } } }""");
+        File.WriteAllText(WorkspaceConfig, """
+            {
+              "ExternalChannels": {
+                "qq": { "enabled": true, "builtinModule": "channel-qq" },
+                "telegram": { "enabled": true, "builtinModule": "channel-telegram" },
+                "feishu": { "enabled": true, "transport": "websocket" }
+              }
+            }
+            """);
+        File.WriteAllText(Path.Combine(CraftPath, "docker-channels.json"), """{ "managed": ["wecom"] }""");
 
-        WorkspaceConfigUpgrade.Apply(CraftPath, UserConfig);
+        WorkspaceConfigUpgrade.Apply(CraftPath, UserConfig, dockerSelection: "qq");
 
-        var user = Read(UserConfig);
-        Assert.Equal("local", user["ProviderId"]!.GetValue<string>());
-        Assert.Equal("l", user["ProviderPreferences"]!["local"]!["model"]!.GetValue<string>());
-        Assert.Null(user["ProviderPreferences"]!["other"]);
-        Assert.Null(Read(WorkspaceConfig)["ProviderId"]);
+        var channels = Read()["Channels"]!;
+        Assert.True(channels["qq"]!["enabled"]!.GetValue<bool>());
+        Assert.False(channels["telegram"]!["enabled"]!.GetValue<bool>());
+        Assert.Null(channels["feishu"]);
+        var tracking = JsonNode.Parse(File.ReadAllText(Path.Combine(CraftPath, "docker-channels.json")))!;
+        Assert.Equal(["qq", "telegram", "wecom"], tracking["managed"]!.AsArray().Select(n => n!.GetValue<string>()).Order());
     }
 
     [Fact]
-    public void RunsOnceSoLaterWorkspaceSettingsSurvive()
+    public void RetriesAnUnreadableConfigButDoesNotReapplyAfterSuccess()
     {
-        Write(WorkspaceConfig, """{ "Permissions": { "DefaultApprovalPolicy": "prompt" } }""");
+        File.WriteAllText(WorkspaceConfig, "{");
         WorkspaceConfigUpgrade.Apply(CraftPath, UserConfig);
+        Assert.Equal("{", File.ReadAllText(WorkspaceConfig));
 
-        Write(WorkspaceConfig, """{ "ProviderId": "pinned", "Permissions": { "DefaultApprovalPolicy": "autoApprove" } }""");
+        const string legacy = """{ "ExternalChannels": { "feishu": { "builtinModule": "channel-feishu" } } }""";
+        File.WriteAllText(WorkspaceConfig, legacy);
         WorkspaceConfigUpgrade.Apply(CraftPath, UserConfig);
+        Assert.Equal("channel-feishu", Read()["Channels"]!["feishu"]!["pluginId"]!.GetValue<string>());
 
-        var workspace = Read(WorkspaceConfig);
-        Assert.Equal("pinned", workspace["ProviderId"]!.GetValue<string>());
-        Assert.Equal("autoApprove", workspace["Permissions"]!["DefaultApprovalPolicy"]!.GetValue<string>());
-    }
-
-    [Fact]
-    public void LeavesAnUnreadableWorkspaceConfigForTheNextStart()
-    {
-        const string broken = """{ "ProviderId": """;
-        Write(WorkspaceConfig, broken);
-
+        File.WriteAllText(WorkspaceConfig, legacy);
         WorkspaceConfigUpgrade.Apply(CraftPath, UserConfig);
-
-        Assert.Equal(broken, File.ReadAllText(WorkspaceConfig));
-        Write(WorkspaceConfig, """{ "Memory": { "Enabled": false } }""");
-        WorkspaceConfigUpgrade.Apply(CraftPath, UserConfig);
-        Assert.Null(Read(WorkspaceConfig)["Memory"]);
+        Assert.Equal(legacy, File.ReadAllText(WorkspaceConfig));
     }
 
     [Fact]
     public void LeavesTheUserConfigAloneWhenItIsTheWorkspaceConfig()
     {
-        Write(WorkspaceConfig, """{ "ProviderId": "global", "Permissions": { "DefaultApprovalPolicy": "prompt" } }""");
+        const string config = """{ "ExternalChannels": { "wecom": { "builtinModule": "channel-wecom" } } }""";
+        File.WriteAllText(WorkspaceConfig, config);
 
         WorkspaceConfigUpgrade.Apply(CraftPath, WorkspaceConfig);
 
-        var config = Read(WorkspaceConfig);
-        Assert.Equal("global", config["ProviderId"]!.GetValue<string>());
-        Assert.NotNull(config["Permissions"]);
+        Assert.Equal(config, File.ReadAllText(WorkspaceConfig));
     }
 
-    public void Dispose()
-    {
-        if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);
-    }
+    private JsonObject Read() => JsonNode.Parse(File.ReadAllText(WorkspaceConfig))!.AsObject();
 
-    private static void Write(string path, string json)
-    {
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        File.WriteAllText(path, json);
-    }
-
-    private static JsonObject Read(string path) => JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+    public void Dispose() => Directory.Delete(_root, recursive: true);
 }

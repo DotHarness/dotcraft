@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.13.1 |
+| **Version** | 0.14.0 |
 | **Status** | Living |
-| **Date** | 2026-11-20 |
+| **Date** | 2026-11-21 |
 
 Purpose: Define DotCraft Hub as a local coordinator that discovers, starts, reuses, monitors, and stops workspace-bound AppServer processes and a small set of product-owned local services, without changing the AppServer Protocol or the per-workspace runtime model. Hub is also the rendezvous point for paired Remote Tool Hosts and the gateway for paired devices; in both roles it relays connections as opaque byte streams.
 
@@ -362,7 +362,7 @@ The satellite listener and the device gateway are the only endpoints that bind a
 
 If optional modules are disabled or unavailable, Hub reports service status as `disabled` or `unavailable` and still starts the AppServer.
 
-Local clients, never a remote client (§9.1), may pass runtime tool hints — bundled `rg` path, Node binary path, run-as-Node flag, bundled TypeScript modules directory, and built-in plugin roots — in ensure or restart requests. Hub persists them in `~/.craft/hub/runtime.json` and forwards them only as AppServer environment variables: `DOTCRAFT_RG_PATH`, `DOTCRAFT_NODE_BIN`, `DOTCRAFT_NODE_RUN_AS_NODE`, `DOTCRAFT_MODULES_DIR`, and `DOTCRAFT_BUILTIN_PLUGIN_ROOTS`. Runtime-tool status never exposes secrets; `serviceStatus.typescriptRuntime` may be `allocated`, `unavailable`, or `restartRequired`.
+Local clients, never a remote client (§9.1), may pass runtime tool hints — bundled `rg` path, Node binary path, run-as-Node flag, and built-in plugin roots — in ensure or restart requests. Hub persists them in `~/.craft/hub/runtime.json` and forwards them only as AppServer environment variables: `DOTCRAFT_RG_PATH`, `DOTCRAFT_NODE_BIN`, `DOTCRAFT_NODE_RUN_AS_NODE`, and `DOTCRAFT_BUILTIN_PLUGIN_ROOTS`. Runtime-tool status omits secrets. `serviceStatus.typescriptRuntime` may be `allocated`, `unavailable`, or `restartRequired`.
 
 Hub serializes the complete read, merge, and save of shared runtime tool hints across concurrent workspace ensure and restart requests, preserving updates to distinct fields.
 

@@ -10,6 +10,16 @@
         "$ref": "./PluginAppInfo.schema.json"
       }
     },
+    "channel": {
+      "anyOf": [
+        {
+          "$ref": "./PluginChannelInfo.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "dependencies": {
       "type": "array",
       "items": {

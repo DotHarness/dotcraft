@@ -26,6 +26,7 @@ export interface ServerCapabilities {
   skillsManagement?: boolean
   toolCatalog?: boolean
   pluginManagement?: boolean
+  pluginConfiguration?: boolean
   pluginMarketplaces?: boolean
   commandManagement?: boolean
   modelCatalogManagement?: boolean
@@ -36,7 +37,8 @@ export interface ServerCapabilities {
   mcpManagement?: boolean
   mcpServerOrigins?: boolean
   subAgentManagement?: boolean
-  externalChannelManagement?: boolean
+  channelManagement?: boolean
+  channelStatus?: boolean
   mcpStatus?: boolean
   usageTelemetry?: boolean
   threadGoals?: boolean

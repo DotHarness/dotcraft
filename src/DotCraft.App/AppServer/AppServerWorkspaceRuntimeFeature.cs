@@ -36,7 +36,7 @@ internal sealed class AppServerWorkspaceRuntimeFeature(IServiceProvider services
 
     public IChannelStatusProvider? ChannelStatusProvider => _channelRunner;
 
-    public IExternalChannelRuntimeProvider? ExternalChannelRuntimeProvider => _channelRunner;
+    public IChannelRuntimeProvider? ChannelRuntimeProvider => _channelRunner;
 
     public string? DashboardUrl => _channelRunner?.DashboardUrl;
 
@@ -194,20 +194,12 @@ internal sealed class AppServerWorkspaceRuntimeFeature(IServiceProvider services
             throw new AggregateException(errors);
     }
 
-    public async Task ApplyExternalChannelUpsertAsync(ExternalChannelEntry entry, CancellationToken ct = default)
+    public async Task ApplyChannelSetEnabledAsync(ChannelEntry entry, CancellationToken ct = default)
     {
         if (_channelRunner == null)
             return;
 
-        await _channelRunner.ApplyExternalChannelUpsertAsync(entry, ct);
-    }
-
-    public async Task ApplyExternalChannelRemoveAsync(string channelName, CancellationToken ct = default)
-    {
-        if (_channelRunner == null)
-            return;
-
-        await _channelRunner.ApplyExternalChannelRemoveAsync(channelName, ct);
+        await _channelRunner.ApplyChannelSetEnabledAsync(entry, ct);
     }
 
     public async ValueTask DisposeAsync()

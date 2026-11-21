@@ -100,13 +100,13 @@ public sealed class LocalPluginInstaller(string pluginsPath)
             }
 
             Directory.CreateDirectory(pluginsPath);
-            CopyDirectoryAtomic(fullSource, fullTarget);
+            CopyDirectoryAtomic(fullSource, fullTarget, parse.Manifest.Channel is not null);
         }
 
         return new LocalPluginInstallResult(pluginId, diagnostics);
     }
 
-    private static void CopyDirectoryAtomic(string sourceRoot, string targetRoot)
+    private static void CopyDirectoryAtomic(string sourceRoot, string targetRoot, bool channel)
     {
         var parent = Path.GetDirectoryName(targetRoot)!;
         var tempRoot = Path.Combine(parent, $".{Path.GetFileName(targetRoot)}.{Guid.NewGuid():N}.tmp");
@@ -115,6 +115,8 @@ public sealed class LocalPluginInstaller(string pluginsPath)
         try
         {
             CopyDirectory(sourceRoot, tempRoot);
+            if (channel)
+                File.WriteAllText(Path.Combine(tempRoot, ChannelPluginInstallation.FileName), Guid.NewGuid().ToString("N"));
             if (Directory.Exists(targetRoot))
                 PluginDirectoryMover.Move(targetRoot, backupRoot);
             try
@@ -158,7 +160,8 @@ public sealed class LocalPluginInstaller(string pluginsPath)
         foreach (var file in Directory.GetFiles(sourceRoot, "*", SearchOption.AllDirectories))
         {
             // Local installs are user-owned; never carry over a built-in source marker.
-            if (string.Equals(Path.GetFileName(file), BuiltInPluginDeployer.MarkerFile, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(Path.GetFileName(file), BuiltInPluginDeployer.MarkerFile, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(Path.GetFileName(file), ChannelPluginInstallation.FileName, StringComparison.OrdinalIgnoreCase))
                 continue;
 
             var targetFile = Path.Combine(targetRoot, Path.GetRelativePath(sourceRoot, file));

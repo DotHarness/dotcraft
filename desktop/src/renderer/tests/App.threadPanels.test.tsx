@@ -24,8 +24,6 @@ it('restores project A panels through B without interpreting the outgoing select
   let projectsChanged: ((payload: ReturnType<typeof projectsPayloadFor>) => void) | undefined
   installApi(readyWorkspaceStatus, {
     settingsGet: vi.fn().mockResolvedValue({}),
-    modulesList: vi.fn().mockResolvedValue([]),
-    modulesRunning: vi.fn().mockResolvedValue({}),
     workspaceGetProjects: vi.fn().mockResolvedValue(projectsPayloadFor(a)),
     onWorkspaceStatusChange: vi.fn(callback => {
       statusChanged = callback

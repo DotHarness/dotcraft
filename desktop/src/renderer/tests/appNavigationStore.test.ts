@@ -26,6 +26,7 @@ beforeEach(() => {
   setRendererTestState({
     activeMainView: 'conversation',
     activeSettingsTab: 'general',
+    pluginCatalogSurface: 'plugins',
     selectedChannelKey: null,
     activeDetailTab: { kind: 'launcher' },
     detailPanelPreferredVisible: false,
@@ -39,7 +40,7 @@ describe('app navigation history', () => {
     const history = useAppNavigationStore.getState()
     history.push(conversationLocation)
     history.push({ kind: 'settings', tab: 'appearance' })
-    history.push({ kind: 'channels', selection: null })
+    history.push({ kind: 'catalog', surface: 'channels', selection: null })
 
     history.goBack()
     expect(useAppNavigationStore.getState()).toMatchObject({
@@ -54,7 +55,7 @@ describe('app navigation history', () => {
 
     history.goForward()
     expect(useAppNavigationStore.getState().index).toBe(2)
-    expect(getRendererTestState().activeMainView).toBe('channels')
+    expect(getRendererTestState()).toMatchObject({ activeMainView: 'skills', pluginCatalogSurface: 'channels' })
 
     history.goBack()
     useAppNavigationStore.getState().push({ kind: 'desktopPlugin', view: 'desktop-plugin:test:replacement' })
@@ -63,6 +64,19 @@ describe('app navigation history', () => {
       canGoForward: false
     })
     expect(useAppNavigationStore.getState().entries).toHaveLength(3)
+  })
+
+  it('restores the channel detail within the catalog', () => {
+    const history = useAppNavigationStore.getState()
+    history.push({ kind: 'catalog', surface: 'channels', selection: { kind: 'channel', id: 'channel:sample' } })
+    history.push({ kind: 'catalog', surface: 'skills', selection: null })
+    history.goBack()
+
+    expect(getRendererTestState()).toMatchObject({
+      activeMainView: 'skills', pluginCatalogSurface: 'channels', selectedChannelKey: 'channel:sample'
+    })
+    history.goForward()
+    expect(getRendererTestState()).toMatchObject({ pluginCatalogSurface: 'skills', selectedChannelKey: null })
   })
 
   it('deduplicates locations and retains only the newest 100 entries', () => {
@@ -107,7 +121,7 @@ describe('app navigation history', () => {
     const history = useAppNavigationStore.getState()
     history.push({ kind: 'settings', tab: 'general' })
     history.push({ ...conversationLocation, threadId: 'missing-thread' })
-    history.push({ kind: 'channels', selection: null })
+    history.push({ kind: 'catalog', surface: 'channels', selection: null })
 
     history.goBack()
 
@@ -115,7 +129,7 @@ describe('app navigation history', () => {
     expect(getRendererTestState().activeMainView).toBe('settings')
 
     history.push({ kind: 'agents' })
-    history.push({ kind: 'channels', selection: null })
+    history.push({ kind: 'catalog', surface: 'channels', selection: null })
     history.goBack()
     expect(getRendererTestState().activeMainView).toBe('agents')
   })

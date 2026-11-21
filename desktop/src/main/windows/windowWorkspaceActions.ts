@@ -122,7 +122,6 @@ export function buildCallbacks(ctx: DesktopWindowRuntime): IpcHandlerCallbacks {
     },
     getHubClient: () => ctx.app.createHubClient(ctx.settings),
     localImportAvailable: !hasRemoteEndpointArg(ctx.argv),
-    getAppServerWsConfig: () => (ctx.lastAppServerWsUrl ? { wsUrl: ctx.lastAppServerWsUrl } : null),
     getLocalProjectPaths: () => ctx.app.localProjects.list().map((project) => project.path),
     getWorkspaceProjects: ctx.getWorkspaceProjectsPayload,
     removeProject: async (workspacePath: string) => {

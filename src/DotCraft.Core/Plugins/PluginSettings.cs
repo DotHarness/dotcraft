@@ -40,7 +40,10 @@ public sealed record PluginConfigSnapshot(
     JsonElement Personal,
     JsonElement Workspace,
     JsonElement Value,
-    IReadOnlyList<string> WritableScopes);
+    IReadOnlyList<string> WritableScopes)
+{
+    public IReadOnlyList<string>? ConfiguredSecrets { get; init; }
+}
 
 public sealed class PluginConfigException : Exception
 {
@@ -358,23 +361,24 @@ internal static class PluginSettingsValidation
 
     public static void ValidateValue(PluginSettingsField field, JsonElement value, string errorCode)
     {
-        var valid = field.Type switch
-        {
-            "text" or "textarea" => value.ValueKind == JsonValueKind.String,
-            "number" => IsValidNumber(field, value),
-            "bool" => value.ValueKind is JsonValueKind.True or JsonValueKind.False,
-            "select" => value.ValueKind == JsonValueKind.String
-                        && field.Options.Contains(value.GetString()!, StringComparer.Ordinal),
-            "stringList" => value.ValueKind == JsonValueKind.Array
-                            && value.EnumerateArray().All(item => item.ValueKind == JsonValueKind.String),
-            "keyValueMap" => value.ValueKind == JsonValueKind.Object
-                             && value.EnumerateObject().All(property => property.Value.ValueKind == JsonValueKind.String),
-            "json" => true,
-            _ => false
-        };
-        if (!valid)
+        if (!IsValidValue(field, value))
             throw new PluginConfigException(errorCode, $"Value for plugin setting '{field.Key}' is invalid for type '{field.Type}'.");
     }
+
+    public static bool IsValidValue(PluginSettingsField field, JsonElement value) => field.Type switch
+    {
+        "text" or "textarea" => value.ValueKind == JsonValueKind.String,
+        "number" => IsValidNumber(field, value),
+        "bool" => value.ValueKind is JsonValueKind.True or JsonValueKind.False,
+        "select" => value.ValueKind == JsonValueKind.String
+                    && field.Options.Contains(value.GetString()!, StringComparer.Ordinal),
+        "stringList" => value.ValueKind == JsonValueKind.Array
+                        && value.EnumerateArray().All(item => item.ValueKind == JsonValueKind.String),
+        "keyValueMap" => value.ValueKind == JsonValueKind.Object
+                        && value.EnumerateObject().All(property => property.Value.ValueKind == JsonValueKind.String),
+        "json" => true,
+        _ => false
+    };
 
     private static bool IsValidNumber(PluginSettingsField field, JsonElement value)
     {

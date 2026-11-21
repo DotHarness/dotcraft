@@ -1,7 +1,7 @@
 using DotCraft.AppBinding;
 using DotCraft.Channels;
 using DotCraft.Context.WorldState;
-using DotCraft.ExternalChannel.Messaging;
+using DotCraft.Channels.Messaging;
 using DotCraft.Sessions;
 using DotCraft.Workspaces;
 using Xunit;

@@ -11,7 +11,7 @@ import { useImportDialogFocus } from '../settings/panels/useImportDialogFocus'
 import { PhonesDialogFailure } from '../settings/panels/phones/PhonesDialog'
 import styles from './ChannelLoginDialog.module.css'
 
-export type ChannelLoginPhase = 'qr' | 'connected' | 'failed'
+export type ChannelLoginPhase = 'qr' | 'connected' | 'failed' | 'expired'
 
 interface ChannelLoginDialogProps {
   channelName: string
@@ -53,11 +53,11 @@ export function ChannelLoginDialog({
         {t('channels.login.done')}
       </Button>
     )
-  } else if (phase === 'failed') {
+  } else if (phase === 'failed' || phase === 'expired') {
     body = (
       <PhonesDialogFailure
         title={t('channels.login.failedTitle')}
-        reason={t('channels.login.failedReason')}
+        reason={t(phase === 'expired' ? 'channels.plugins.qrExpired' : 'channels.login.failedReason')}
       />
     )
     footer = (

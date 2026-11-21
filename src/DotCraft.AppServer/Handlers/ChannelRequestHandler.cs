@@ -1,261 +1,188 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using DotCraft.Configuration;
 using DotCraft.Protocol;
 using Contract = DotCraft.Protocol.AppServer;
 
 namespace DotCraft.AppServer;
 
-/// <summary>
-/// Handles <c>channel/*</c> and <c>externalChannel/*</c> wire methods.
-/// </summary>
 internal sealed class ChannelRequestHandler(
+    AppServerConnection connection,
     IAppServerChannelListContributor channelListContributor,
-    IChannelStatusProvider? channelStatusProvider,
-    WorkspaceConfigEditor workspaceConfig,
-    ExternalChannelConfigService externalChannelConfig,
-    string? workspaceCraftPath,
-    IAppConfigMonitor? appConfigMonitor,
-    Func<ExternalChannelEntry, CancellationToken, Task>? onExternalChannelUpserted,
-    Func<string, CancellationToken, Task>? onExternalChannelRemoved,
-    IExternalChannelRuntimeProvider? externalChannelRuntimeProvider) : IAppServerDomainHandler
+    AppServerConnectionServices services) : IAppServerDomainHandler
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
-        table.Map(Protocol.AppServer.AppServerRpc.ChannelList, HandleChannelListAsync);
-        table.Map(Protocol.AppServer.AppServerRpc.ChannelStatus, HandleChannelStatusAsync);
-        table.Map(Protocol.AppServer.AppServerRpc.ExternalChannelList, HandleExternalChannelListAsync);
-        table.Map(Protocol.AppServer.AppServerRpc.ExternalChannelGet, HandleExternalChannelGetAsync);
-        table.Map(Protocol.AppServer.AppServerRpc.ExternalChannelUpsert, HandleExternalChannelUpsertAsync);
-        table.Map(Protocol.AppServer.AppServerRpc.ExternalChannelRemove, HandleExternalChannelRemoveAsync);
-        table.Map(Protocol.AppServer.AppServerRpc.ExternalChannelLogs, HandleExternalChannelLogsAsync);
-        table.Map(Protocol.AppServer.AppServerRpc.ExternalChannelConfigOptionAvailability, HandleExternalChannelConfigOptionAvailabilityAsync);
+        table.Map(Contract.AppServerRpc.ChannelList, HandleList);
+        table.Map(Contract.AppServerRpc.ChannelStatus, HandleStatus);
+        table.Map(Contract.AppServerRpc.ChannelSetEnabled, (request, ct) =>
+            services.PluginManagementState.RunMutationAsync(token => HandleSetEnabledAsync(request, token), ct));
+        table.Map(Contract.AppServerRpc.ChannelLogs, HandleLogs);
+        table.Map(Contract.AppServerRpc.ChannelConfigOptionAvailability, HandleConfigOptionAvailabilityAsync);
+        table.Map(Contract.AppServerRpc.ChannelSetupRead, HandleSetupRead);
     }
 
-    private Task<AppServerTypedResult<Contract.ChannelListResult>> HandleChannelListAsync(
-        AppServerTypedRequest<Protocol.RpcEmpty> request,
-        CancellationToken ct)
+    private Task<AppServerTypedResult<Contract.ChannelListResult>> HandleList(
+        AppServerTypedRequest<RpcEmpty> request, CancellationToken ct)
     {
-        _ = request;
-        _ = ct;
-
+        ct.ThrowIfCancellationRequested();
         var channels = new List<ChannelDescriptor>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        void Add(string name, string category)
-        {
-            if (!seen.Add(name))
-                return;
-            channels.Add(new ChannelDescriptor { Name = name, Category = category });
-        }
-
         channelListContributor.AppendBaseChannels(channels, seen);
 
-        if (!string.IsNullOrEmpty(workspaceCraftPath))
+        if (services.ChannelStatusProvider is { } provider)
         {
-            var configPath = Path.Combine(workspaceCraftPath, "config.json");
-            if (File.Exists(configPath))
+            foreach (var status in provider.GetChannelStatuses())
             {
-                try
-                {
-                    var cfg = AppConfig.LoadWithGlobalFallback(configPath, workspaceConfig.EffectiveGlobalConfigPath);
-                    foreach (var entry in cfg.ExternalChannels)
-                    {
-                        if (!entry.Enabled || string.IsNullOrWhiteSpace(entry.Name))
-                            continue;
-                        Add(entry.Name, "external");
-                    }
-                }
-                catch
-                {
-                    // Best-effort: invalid config should not fail channel/list.
-                }
+                if (status.Enabled && status.Running && seen.Add(status.Name))
+                    channels.Add(new ChannelDescriptor { Name = status.Name, Category = status.Category });
             }
         }
 
-        channels.Sort((a, b) =>
+        return Task.FromResult(AppServerTypedResult<Contract.ChannelListResult>.FromResult(new()
         {
-            var cmp = CategoryOrder(a.Category).CompareTo(CategoryOrder(b.Category));
-            return cmp != 0 ? cmp : string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase);
-        });
+            Channels = channels
+                .OrderBy(channel => CategoryOrder(channel.Category))
+                .ThenBy(channel => channel.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(channel => new Contract.ChannelInfo { Name = channel.Name, Category = channel.Category })
+                .ToArray()
+        }));
+    }
 
-        return Task.FromResult(AppServerTypedResult<Contract.ChannelListResult>.FromResult(new Contract.ChannelListResult
+    private Task<AppServerTypedResult<Contract.ChannelStatusResult>> HandleStatus(
+        AppServerTypedRequest<RpcEmpty> request, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        var provider = services.ChannelStatusProvider ?? throw AppServerErrors.MethodNotFound(Contract.AppServerRpc.ChannelStatus.Name);
+        return Task.FromResult(AppServerTypedResult<Contract.ChannelStatusResult>.FromResult(new()
         {
-            Channels = channels.Select(channel => new Contract.ChannelInfo
+            Channels = provider.GetChannelStatuses()
+                .OrderBy(channel => CategoryOrder(channel.Category))
+                .ThenBy(channel => channel.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(status => new Contract.ChannelStatusInfo
+                {
+                    Name = status.Name,
+                    Category = status.Category,
+                    PluginId = status.PluginId,
+                    Enabled = status.Enabled,
+                    Running = status.Running,
+                    RuntimeState = status.RuntimeState is { Length: > 0 } runtimeState ? new Optional<string>(runtimeState) : default,
+                    FailureCode = status.FailureCode is { Length: > 0 } failureCode ? new Optional<string>(failureCode) : default
+                }).ToArray()
+        }));
+    }
+
+    private async Task<AppServerTypedResult<RpcEmpty>> HandleSetEnabledAsync(
+        AppServerTypedRequest<Contract.ChannelSetEnabledParams> request, CancellationToken ct)
+    {
+        var provider = RequireManagement(Contract.AppServerRpc.ChannelSetEnabled.Name);
+        if (request.Params.ExtensionData is { Count: > 0 })
+            throw AppServerErrors.ChannelValidationFailed("Only 'name', 'pluginId', and 'enabled' may be supplied.");
+
+        var channel = new ChannelEntry
+        {
+            Name = Required(request.Params.Name, "name"),
+            PluginId = Required(request.Params.PluginId, "pluginId"),
+            Enabled = request.Params.Enabled
+        };
+        var origins = new List<ChannelDescriptor>();
+        channelListContributor.AppendBaseChannels(origins, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+        if (origins.Any(origin => string.Equals(origin.Name, channel.Name, StringComparison.OrdinalIgnoreCase)))
+            throw AppServerErrors.ChannelNameConflict($"'{channel.Name}' conflicts with a session origin.");
+
+        ct.ThrowIfCancellationRequested();
+        SaveSelection(channel, provider.ChannelPlugins!);
+        if (services.OnChannelSetEnabled is { } apply)
+            await apply(channel, CancellationToken.None);
+        services.AppConfigMonitor?.NotifyChanged(Contract.AppServerRpc.ChannelSetEnabled.Name, [ConfigChangeRegions.Channels]);
+
+        return AppServerTypedResult<RpcEmpty>.FromResult(new());
+    }
+
+    private void SaveSelection(ChannelEntry channel, ChannelPluginWorkspace plugins)
+    {
+        try
+        {
+            AtomicConfigDocument.Update(Path.Combine(services.WorkspaceCraftPath!, "config.json"), root =>
             {
-                Name = channel.Name,
-                Category = channel.Category
-            }).ToList()
-        }));
-    }
+                var channels = AtomicConfigDocument.Object(root, "Channels");
+                var key = AtomicConfigDocument.Key(channels, channel.Name) ?? channel.Name;
+                var selectedPluginId = channels[key] is JsonObject selected
+                    && AtomicConfigDocument.Value(selected, "pluginId") is JsonValue id
+                    && id.TryGetValue<string>(out var pluginId) ? pluginId : null;
 
-    private Task<AppServerTypedResult<Contract.ChannelStatusResult>> HandleChannelStatusAsync(
-        AppServerTypedRequest<Protocol.RpcEmpty> request,
-        CancellationToken ct)
-    {
-        _ = request;
-        _ = ct;
+                if (channel.Enabled || !string.Equals(selectedPluginId, channel.PluginId, StringComparison.OrdinalIgnoreCase))
+                    plugins.Authorize(channel);
 
-        if (channelStatusProvider == null)
-            throw AppServerErrors.MethodNotFound(Protocol.AppServer.AppServerMethodNames.ChannelStatus);
-
-        var statuses = channelStatusProvider.GetChannelStatuses();
-        return Task.FromResult(AppServerTypedResult<Contract.ChannelStatusResult>.FromResult(new Contract.ChannelStatusResult
+                var entry = new JsonObject { ["pluginId"] = channel.PluginId, ["enabled"] = channel.Enabled };
+                if (channel.PluginActivationId is { Length: > 0 } activationId)
+                    entry["pluginActivationId"] = activationId;
+                channels[key] = entry;
+            });
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or InvalidDataException)
         {
-            Channels = statuses.Select(status => new Contract.ChannelStatusInfo
-            {
-                Name = status.Name,
-                Category = status.Category,
-                Enabled = status.Enabled,
-                Running = status.Running,
-                RuntimeState = status.RuntimeState is { Length: > 0 } runtimeState
-                    ? new Optional<string>(runtimeState)
-                    : default,
-                FailureCode = status.FailureCode is { Length: > 0 } failureCode
-                    ? new Optional<string>(failureCode)
-                    : default
-            }).ToList()
-        }));
+            throw AppServerErrors.ChannelValidationFailed("The workspace channel selection could not be saved.");
+        }
     }
 
-    private Task<AppServerTypedResult<Contract.ExternalChannelListResult>> HandleExternalChannelListAsync(
-        AppServerTypedRequest<Protocol.RpcEmpty> request,
-        CancellationToken ct)
+    private Task<AppServerTypedResult<Contract.ChannelLogsResult>> HandleLogs(
+        AppServerTypedRequest<Contract.ChannelLogsParams> request, CancellationToken ct)
     {
-        _ = request;
-        _ = ct;
-        var channels = externalChannelConfig.LoadWorkspaceChannels();
-        return Task.FromResult(AppServerTypedResult<Contract.ExternalChannelListResult>.FromResult(new Contract.ExternalChannelListResult
-        {
-            Channels = channels.Select(ExternalChannelWireMapper.ToContract).ToList()
-        }));
-    }
-
-    private Task<AppServerTypedResult<Contract.ExternalChannelGetResult>> HandleExternalChannelGetAsync(
-        AppServerTypedRequest<Contract.ExternalChannelGetParams> request,
-        CancellationToken ct)
-    {
-        _ = ct;
-        var name = RequiredName(request.Params.Name);
-        externalChannelConfig.EnsureManagementAvailable();
-
-        var channel = externalChannelConfig.LoadWorkspaceChannels()
-            .FirstOrDefault(c => string.Equals(c.Name, name, StringComparison.OrdinalIgnoreCase));
-        if (channel == null)
-            throw AppServerErrors.ExternalChannelNotFound(name);
-
-        return Task.FromResult(AppServerTypedResult<Contract.ExternalChannelGetResult>.FromResult(new Contract.ExternalChannelGetResult
-        {
-            Channel = ExternalChannelWireMapper.ToContract(channel)
-        }));
-    }
-
-    private async Task<AppServerTypedResult<Contract.ExternalChannelUpsertResult>> HandleExternalChannelUpsertAsync(
-        AppServerTypedRequest<Contract.ExternalChannelUpsertParams> request,
-        CancellationToken ct)
-    {
-        externalChannelConfig.EnsureManagementAvailable();
-        var wire = request.Params.Channel.IsSet
-            ? request.Params.Channel.Value
-            : throw AppServerErrors.InvalidParams("'channel' is required.");
-        ExternalChannelWireMapper.ValidateContract(wire!);
-
-        var channel = ExternalChannelWireMapper.FromContract(wire!);
-        externalChannelConfig.EnsureNameAvailable(channel.Name);
-
-        var channels = externalChannelConfig.LoadWorkspaceChannels();
-        var existingIndex = channels.FindIndex(c => string.Equals(c.Name, channel.Name, StringComparison.OrdinalIgnoreCase));
-        if (existingIndex >= 0)
-            channels[existingIndex] = channel;
-        else
-            channels.Add(channel);
-
-        externalChannelConfig.SaveWorkspaceChannels(channels);
-        if (onExternalChannelUpserted != null)
-            await onExternalChannelUpserted(channel, ct);
-        appConfigMonitor?.NotifyChanged(
-            Protocol.AppServer.AppServerMethodNames.ExternalChannelUpsert,
-            [ConfigChangeRegions.ExternalChannel]);
-
-        return AppServerTypedResult<Contract.ExternalChannelUpsertResult>.FromResult(new Contract.ExternalChannelUpsertResult
-        {
-            Channel = ExternalChannelWireMapper.ToContract(channel)
-        });
-    }
-
-    private async Task<AppServerTypedResult<Contract.ExternalChannelRemoveResult>> HandleExternalChannelRemoveAsync(
-        AppServerTypedRequest<Contract.ExternalChannelRemoveParams> request,
-        CancellationToken ct)
-    {
-        externalChannelConfig.EnsureManagementAvailable();
-        var name = RequiredName(request.Params.Name);
-
-        var channels = externalChannelConfig.LoadWorkspaceChannels();
-        var removed = channels.RemoveAll(c => string.Equals(c.Name, name, StringComparison.OrdinalIgnoreCase)) > 0;
-        if (!removed)
-            throw AppServerErrors.ExternalChannelNotFound(name);
-
-        externalChannelConfig.SaveWorkspaceChannels(channels);
-        if (onExternalChannelRemoved != null)
-            await onExternalChannelRemoved(name, ct);
-        appConfigMonitor?.NotifyChanged(
-            Protocol.AppServer.AppServerMethodNames.ExternalChannelRemove,
-            [ConfigChangeRegions.ExternalChannel]);
-
-        return AppServerTypedResult<Contract.ExternalChannelRemoveResult>.FromResult(
-            new Contract.ExternalChannelRemoveResult { Removed = true });
-    }
-
-    private Task<AppServerTypedResult<Contract.ExternalChannelLogsResult>> HandleExternalChannelLogsAsync(
-        AppServerTypedRequest<Contract.ExternalChannelLogsParams> request,
-        CancellationToken ct)
-    {
-        _ = ct;
-        var p = request.Params;
-        externalChannelConfig.EnsureManagementAvailable();
-        if (externalChannelRuntimeProvider == null)
-            throw AppServerErrors.InvalidRequest("External channel log retrieval is not available.");
-        var name = RequiredName(p.Name);
-
-        var tail = p.Tail.IsSet ? p.Tail.Value : null;
-        var lines = externalChannelRuntimeProvider.GetRecentExternalChannelLogs(name, tail);
-        return Task.FromResult(AppServerTypedResult<Contract.ExternalChannelLogsResult>.FromResult(new Contract.ExternalChannelLogsResult
+        ct.ThrowIfCancellationRequested();
+        var provider = RequireManagement(Contract.AppServerRpc.ChannelLogs.Name);
+        var name = Required(request.Params.Name, "name");
+        return Task.FromResult(AppServerTypedResult<Contract.ChannelLogsResult>.FromResult(new()
         {
             Name = name,
-            Lines = lines.ToList()
+            Lines = provider.GetRecentChannelLogs(name, request.Params.Tail)
         }));
     }
 
-    private async Task<AppServerTypedResult<Contract.ExternalChannelConfigOptionAvailabilityResult>> HandleExternalChannelConfigOptionAvailabilityAsync(
-        AppServerTypedRequest<Contract.ExternalChannelConfigOptionAvailabilityParams> request,
-        CancellationToken ct)
+    private async Task<AppServerTypedResult<Contract.ChannelConfigOptionAvailabilityResult>> HandleConfigOptionAvailabilityAsync(
+        AppServerTypedRequest<Contract.ChannelConfigOptionAvailabilityParams> request, CancellationToken ct)
     {
-        var p = request.Params;
-        externalChannelConfig.EnsureManagementAvailable();
-        if (externalChannelRuntimeProvider == null)
-            throw AppServerErrors.InvalidRequest("External channel option availability is not available.");
-        var name = RequiredName(p.Name);
-        var key = p.Key.IsSet ? p.Key.Value?.Trim() : null;
-        if (string.IsNullOrWhiteSpace(key))
-            throw AppServerErrors.InvalidParams("'key' is required.");
-
-        var available = await externalChannelRuntimeProvider.GetConfigOptionAvailabilityAsync(name, key, ct);
-        return AppServerTypedResult<Contract.ExternalChannelConfigOptionAvailabilityResult>.FromResult(
-            new Contract.ExternalChannelConfigOptionAvailabilityResult { Name = name, Key = key, Available = available });
+        var provider = RequireManagement(Contract.AppServerRpc.ChannelConfigOptionAvailability.Name);
+        var name = Required(request.Params.Name, "name");
+        var key = Required(request.Params.Key, "key");
+        var available = await provider.GetConfigOptionAvailabilityAsync(name, key, ct);
+        return AppServerTypedResult<Contract.ChannelConfigOptionAvailabilityResult>.FromResult(new()
+        {
+            Name = name,
+            Key = key,
+            Available = available
+        });
     }
 
-    private static string RequiredName(Protocol.Optional<string> value)
+    private Task<AppServerTypedResult<Contract.ChannelSetupReadResult>> HandleSetupRead(
+        AppServerTypedRequest<Contract.ChannelSetupReadParams> request, CancellationToken ct)
     {
-        var name = value.IsSet ? value.Value?.Trim() : null;
-        if (string.IsNullOrWhiteSpace(name))
-            throw AppServerErrors.InvalidParams("'name' is required.");
-        return name;
+        ct.ThrowIfCancellationRequested();
+        var provider = RequireManagement(Contract.AppServerRpc.ChannelSetupRead.Name);
+        var pluginId = Required(request.Params.PluginId, "pluginId");
+        return Task.FromResult(AppServerTypedResult<Contract.ChannelSetupReadResult>.FromResult(new()
+        {
+            Artifact = provider.GetChannelSetupArtifact(pluginId)
+        }));
     }
 
-    private static int CategoryOrder(string c) => c switch
+    private IChannelRuntimeProvider RequireManagement(string method)
+    {
+        if (connection.IsChannelAdapter || connection.IsAppPrincipalAuthenticated)
+            throw AppServerErrors.InvalidRequest("Channel management requires a workspace management connection.");
+        if (string.IsNullOrWhiteSpace(services.WorkspaceCraftPath) || services.ChannelRuntimeProvider?.ChannelPlugins == null)
+            throw AppServerErrors.MethodNotFound(method);
+        return services.ChannelRuntimeProvider;
+    }
+
+    private static string Required(string? value, string field) =>
+        string.IsNullOrWhiteSpace(value) ? throw AppServerErrors.InvalidParams($"'{field}' is required.") : value.Trim();
+
+    private static int CategoryOrder(string category) => category switch
     {
         "builtin" => 0,
         "social" => 1,
         "system" => 2,
-        "external" => 3,
-        _ => 4
+        _ => 3
     };
 }

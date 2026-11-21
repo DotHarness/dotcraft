@@ -4,7 +4,7 @@ using Xunit;
 
 namespace DotCraft.Tests.Plugins;
 
-public sealed class PluginVerifierTests : IDisposable
+public sealed partial class PluginVerifierTests : IDisposable
 {
     private const string SquareIcon =
         """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="#2563EB"/></svg>""";

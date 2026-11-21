@@ -30,7 +30,8 @@ internal sealed partial class PluginRequestHandler(
     Action<IAppServerTransport, Contract.PluginSnapshotUpdatedNotification, Task>?
         broadcastPluginSnapshotUpdated,
     AppServerPluginManagementState managementState,
-    ILogger? logger) : IAppServerDomainHandler
+    ILogger? logger,
+    ChannelPluginWorkspace? channelPlugins = null) : IAppServerDomainHandler
 {
     public void RegisterMethods(AppServerMethodTable table)
     {

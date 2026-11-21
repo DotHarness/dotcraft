@@ -207,6 +207,46 @@ test("fails fast for invalid preference values", async (t) => {
   }
 });
 
+test("controls only Docker-owned channel registrations and preserves credentials", async (t) => {
+  const fixture = await createFixture(t);
+  const craft = path.join(fixture.workspace, ".craft");
+  const configPath = path.join(craft, "config.json");
+  const telegramPath = path.join(craft, "telegram.json");
+  const credentials = { telegram: { botToken: "retained-test-value" } };
+  await writeFile(telegramPath, JSON.stringify(credentials));
+  const selectedQqVariant = { enabled: true, pluginId: "community-qq" };
+  const userInstalled = { enabled: true, pluginId: "channel-weixin" };
+  await writeFile(configPath, JSON.stringify({
+    Channels: {
+      qq: selectedQqVariant,
+      weixin: userInstalled,
+    },
+  }));
+
+  runRenderer(fixture, { ENABLED_CHANNELS: "telegram,qq", TELEGRAM_BOT_TOKEN: "replacement", APPSERVER_TOKEN: "private-test" });
+  let config = await readConfig(configPath);
+  assert.deepEqual(config.Channels.telegram, {
+    enabled: true, pluginId: "channel-telegram",
+  });
+  assert.deepEqual(config.Channels.qq, selectedQqVariant);
+  assert.deepEqual(config.Channels.weixin, userInstalled);
+  assert.deepEqual(await readConfig(telegramPath), credentials);
+
+  runRenderer(fixture, { ENABLED_CHANNELS: "" });
+  config = await readConfig(configPath);
+  assert.equal(config.Channels.telegram.enabled, false);
+  assert.deepEqual(config.Channels.qq, selectedQqVariant);
+  assert.deepEqual(config.Channels.weixin, userInstalled);
+});
+
+test("starts the host configuration even when a selected channel is unconfigured", async (t) => {
+  const fixture = await createFixture(t);
+  runRenderer(fixture, { ENABLED_CHANNELS: "feishu" });
+  const config = await readConfig(path.join(fixture.workspace, ".craft", "config.json"));
+  assert.equal(config.Channels.feishu.pluginId, "channel-feishu");
+  assert.equal(config.AppServer.Mode, "WebSocket");
+});
+
 test("remote mode renders client access and keeps model selection", async (t) => {
   const fixture = await createFixture(t);
   runRenderer(fixture, {

@@ -1,10 +1,10 @@
-# DotCraft External Channel Adapter Specification
+# DotCraft Channel Adapter Specification
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.1 |
+| **Version** | 0.14.0 |
 | **Status** | Living |
-| **Date** | 2026-10-19 |
+| **Date** | 2026-11-21 |
 | **Parent Spec** | [AppServer Protocol](appserver-protocol.md) (Section 15) |
 
 Purpose: Define the architecture, protocol extensions, configuration model, and behavioral contract that allow social channel adapters written in any language to integrate with DotCraft as first-class channels, preserving per-platform capabilities such as the Approval flow.
@@ -29,30 +29,10 @@ An external channel adapter is a full AppServer client. It maps platform convers
 
 ## 2. Connection Modes
 
-### 2.1 Subprocess (managed stdio)
-
-DotCraft spawns the adapter as a child process and communicates over the child's stdin/stdout using the standard JSONL Wire Protocol.
-
-- AppServer controls the adapter's lifecycle (start with the workspace runtime, stop on shutdown).
-- The adapter process does not need a network port.
-- `stderr` from the adapter is forwarded to DotCraft's diagnostic log stream.
-- Built-in TypeScript adapters may be configured with `builtinModule` instead of a persisted absolute `command`. AppServer then expands the command at runtime using Hub-provided `DOTCRAFT_NODE_BIN`, `DOTCRAFT_NODE_RUN_AS_NODE`, and `DOTCRAFT_MODULES_DIR` environment variables.
-
-### 2.2 WebSocket (external connect-out)
-
-The adapter connects to DotCraft's AppServer WebSocket endpoint ([AppServer Protocol](appserver-protocol.md) §15). The same `/ws` endpoint serves regular AppServer clients and external channel adapters; the server distinguishes them by the presence of `channelAdapter` in the `initialize` handshake. No per-channel WebSocket port is needed.
-
-- The adapter manages its own lifecycle, deployment, and reconnection; DotCraft does not spawn it.
-- On connection, the adapter performs the `initialize` handshake with the `channelAdapter` capability (§3), and the server routes the connection to the matching configured channel host.
-
-### 2.3 Managed WebSocket
-
-DotCraft spawns the adapter as a child process but the adapter connects back through the AppServer WebSocket endpoint. This keeps AppServer ownership of the adapter lifecycle with the same WebSocket wire behavior used by externally managed adapters.
-
-- DotCraft controls the adapter's lifecycle, restart policy, and diagnostic log capture.
-- The adapter receives the current AppServer WebSocket endpoint through runtime environment variables.
-- Adapter stdout and stderr are diagnostic logs; JSON-RPC traffic flows only through WebSocket.
-- On process exit, connection loss, or heartbeat failure, DotCraft stops the child process and restarts it with backoff.
+DotCraft starts the plugin's launcher as a child process. The adapter connects back to the
+AppServer WebSocket endpoint through the same `/ws` endpoint regular clients use. The host
+injects the active endpoint and token into the process environment. Adapter stdout and stderr
+are diagnostic logs, not a JSON-RPC transport. DotCraft owns restart, shutdown, and diagnostics.
 
 ## 3. Protocol Extensions
 
@@ -78,11 +58,11 @@ Adapters execute declared tools using the [AppServer channel tool-call contract]
 
 ### 4.3 `ext/channel/heartbeat`
 
-A server → client request with empty params and result that verifies the adapter's full message-processing pipeline is responsive, distinct from transport-layer WebSocket ping/pong. If the adapter does not respond within the configured timeout, the host marks the connection unhealthy and initiates a reconnect cycle (subprocess mode: restart the process; WebSocket mode: close the connection and wait for the adapter to reconnect).
+A server → client request with empty params and result that verifies the adapter's full message-processing pipeline is responsive, distinct from transport-layer WebSocket ping/pong. If the adapter does not respond within the configured timeout, the host marks the connection unhealthy, closes it, and restarts the managed adapter.
 
 ### 4.4 `ext/channel/configOptionAvailability`
 
-A server → client request with params `{ key }`, the dotted key of a configuration field that declares `options` ([TypeScript SDK](../sdk/typescript.md) §15.3). The result is `{ available }`: the option values the platform currently allows for this channel, or `null` when the adapter cannot tell. The adapter answers from live platform state and must not modify configuration. The server relays it for `externalChannel/configOptionAvailability` ([AppServer Protocol](appserver-protocol.md) §23.8).
+A server → client request with params `{ key }`, the dotted key of a configuration field that declares `options` ([TypeScript SDK](../sdk/typescript.md) §15.3). The result is `{ available }`: the option values the platform currently allows for this channel, or `null` when the adapter cannot tell. The adapter answers from live platform state and must not modify configuration. The server relays it for `channel/configOptionAvailability` ([AppServer Protocol](appserver-protocol.md) §23.3).
 
 ### 4.5 `ext/channel/history`
 
@@ -90,13 +70,13 @@ Adapters that declare `history` read a chat's earlier messages using the [AppSer
 
 ## 5. Adapter Host Lifecycle
 
-The workspace AppServer creates one adapter host for each enabled `ExternalChannels` entry. Every transport shares the same workspace Session, provider, command, binding, and extension services, and native and external channels participate in the same workspace lifecycle. Reconnecting an observing client does not restart or replace adapters.
+The workspace AppServer creates one adapter host for each enabled and admitted channel plugin selection. Adapters share the workspace Session, provider, command, binding, and extension services. Reconnecting an observing client does not restart or replace adapters.
 
-The host routes delivery and tool calls, monitors heartbeat responsiveness, and owns subprocess startup/restart when configured. Scheduled results use the ordinary channel delivery path; the adapter does not own a scheduler.
+The host routes delivery and tool calls, monitors heartbeat responsiveness, and owns process startup and restart. Scheduled results use the ordinary channel delivery path; the adapter does not own a scheduler.
 
 ### 5.1 Lifecycle and tool binding
 
-The host starts or accepts the configured transport and waits for `initialize` / `initialized` before publishing the adapter as ready. Stopping closes the connection and terminates only a process owned by the host.
+The host waits for `initialize` / `initialized` from its launched adapter before publishing it as ready. Stopping closes the connection and terminates the adapter process.
 
 An initialized adapter connection becomes the host's current tool binding after the adapter sends `initialized`. The binding owns the connection's immutable `channelTools` declarations and server-to-adapter tool-call route. Disconnecting clears that binding; a reconnect creates a new binding. While no connection is attached, threads keep the declarations of the last initialized connection in their tool lists, so an adapter restart does not change them; dispatch through those registrations fails as unavailable.
 
@@ -104,27 +84,16 @@ An adapter may implement a `channelTool` directly or delegate its execution to a
 
 A Turn freezes the binding selected when its effective tool snapshot is built. If that binding disconnects or the host is replaced, dispatch through the frozen snapshot fails as unavailable and is never redirected to the replacement connection, because the first connection may have performed side effects before disconnecting. The next Turn selects the new ready connection.
 
-### 5.2 Restart behavior (subprocess modes)
+### 5.2 Restart behavior
 
 If the adapter process exits unexpectedly, the host logs the exit code and restarts after a backoff delay. A start attempt succeeds only after the adapter completes the `initialize` / `initialized` handshake; transport EOF or process exit before that point is a failed start and does not reset the consecutive-failure count. After a configurable number of consecutive failed starts, the channel is marked permanently failed and removed from the active channel list. While the adapter is down, delivery is best-effort and returns structured failure results.
 
 ## 6. Configuration
 
-External channels are declared in `config.json` under the `"ExternalChannels"` key. Each property name under `"ExternalChannels"` is the canonical channel name.
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `enabled` | boolean | yes | Whether this channel is active. |
-| `transport` | string | yes | `"subprocess"`, `"websocket"`, or `"managedWebsocket"`. |
-| `command` | string | if `subprocess`/`managedWebsocket` and `builtinModule` is absent | Command to start the adapter process. |
-| `builtinModule` | string | if `subprocess`/`managedWebsocket` and `command` is absent | Built-in TypeScript module directory name; DotCraft expands the runtime command from Hub-provided runtime hints. |
-| `args` | string[] | no | Additional command-line arguments. |
-| `workingDirectory` | string | no | Working directory for the subprocess. Defaults to workspace root. |
-| `env` | object | no | Additional environment variables passed to the subprocess. |
-
-WebSocket-mode channels use the AppServer WebSocket endpoint and its host, port, and token settings (`"AppServer.WebSocket"`); the adapter is identified by `channelAdapter.channelName` during `initialize`. `managedWebsocket` uses the same endpoint, and DotCraft injects the active endpoint into the adapter's process environment, so persisted adapter config is never the source of truth for the current AppServer port or token.
-
-`ExternalChannels` configuration only tells DotCraft how to start or accept the adapter connection. Delivery capabilities and `channelTools` are declared by the adapter during `initialize`, not in `config.json`.
+The workspace's `Channels` object maps canonical names to their selected `pluginId` and
+`enabled` intent. The workspace host owns launch authorization and process settings. Platform
+configuration is defined by [Plugin Architecture](../architecture/plugin-architecture.md).
+Delivery capabilities and `channelTools` come from the adapter's initialize handshake.
 
 ## 7. Adapter Behavioral Contract
 
@@ -227,8 +196,6 @@ Adapters declare risk metadata using the [AppServer approval descriptor](appserv
 
 ## 9. Security
 
-In subprocess mode, security is provided by OS process isolation. Communication is over anonymous pipes, not network-accessible, and needs no authentication token. Adapter code runs with the same privileges as DotCraft; operators must only configure trusted adapter commands.
-
-In WebSocket modes, endpoint authentication follows [AppServer WebSocket authentication](appserver-protocol.md#154-authentication). The server accepts only configured, enabled channel names.
+Endpoint authentication follows [AppServer WebSocket authentication](appserver-protocol.md#154-authentication). The host routes the adapter handshake only to a selected, enabled channel awaiting its adapter connection. Adapter code runs with the same privileges as DotCraft.
 
 Adapters share the workspace Session authority rather than receiving a per-adapter isolation boundary. Operators requiring strict cross-channel isolation use separate DotCraft instances.

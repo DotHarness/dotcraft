@@ -156,32 +156,6 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
         await feature.StopAsync();
     }
 
-    [Fact]
-    public async Task ApplyExternalChannelUpdates_WithRunner_AreForwarded()
-    {
-        using var fixture = new WorkspaceFixture();
-        var runnerFactory = new FakeChannelRunnerFactory(new FakeChannelRunner());
-        await using var provider = CreateProvider(runnerFactory, null);
-        var feature = CreateFeature(provider);
-        var context = CreateContext(fixture);
-
-        await feature.StartAsync(context);
-
-        var entry = new ExternalChannelEntry
-        {
-            Name = "demo",
-            Enabled = true
-        };
-
-        await feature.ApplyExternalChannelUpsertAsync(entry);
-        await feature.ApplyExternalChannelRemoveAsync("demo");
-
-        Assert.Same(entry, runnerFactory.Instance!.LastUpsertedEntry);
-        Assert.Equal("demo", runnerFactory.Instance.LastRemovedChannelName);
-
-        await feature.StopAsync();
-    }
-
     private static IWorkspaceRuntimeAppServerFeature CreateFeature(ServiceProvider provider) =>
         new AppServerWorkspaceRuntimeFeatureFactory().Create(provider);
 
@@ -279,10 +253,11 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
         public int BeginLoopCalls { get; private set; }
         public int DisposeCalls { get; private set; }
         public List<string>? LifecycleCalls { get; init; }
-        public ExternalChannelEntry? LastUpsertedEntry { get; private set; }
-        public string? LastRemovedChannelName { get; private set; }
 
         public string? DashboardUrl => DashboardAddress;
+        public ChannelPluginWorkspace? ChannelPlugins => null;
+
+        public DotCraft.Protocol.AppServer.ChannelSetupArtifact? GetChannelSetupArtifact(string pluginId) => null;
 
         public void Initialize(
             ISessionService sessionService,
@@ -308,19 +283,8 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
             LifecycleCalls?.Add("channel.loops");
         }
 
-        public Task ApplyExternalChannelUpsertAsync(ExternalChannelEntry entry, CancellationToken ct = default)
-        {
-            _ = ct;
-            LastUpsertedEntry = entry;
-            return Task.CompletedTask;
-        }
-
-        public Task ApplyExternalChannelRemoveAsync(string channelName, CancellationToken ct = default)
-        {
-            _ = ct;
-            LastRemovedChannelName = channelName;
-            return Task.CompletedTask;
-        }
+        public Task ApplyChannelSetEnabledAsync(ChannelEntry entry, CancellationToken ct = default) =>
+            Task.CompletedTask;
 
         public IReadOnlyList<ChannelStatusSnapshot> GetChannelStatuses() =>
         [
@@ -333,7 +297,7 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
             }
         ];
 
-        public IReadOnlyList<string> GetRecentExternalChannelLogs(string channelName, int? tail = null)
+        public IReadOnlyList<string> GetRecentChannelLogs(string channelName, int? tail = null)
         {
             _ = channelName;
             _ = tail;

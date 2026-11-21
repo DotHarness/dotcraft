@@ -4,7 +4,7 @@
 |-------|-------|
 | **Version** | 0.14.0 |
 | **Status** | Living |
-| **Date** | 2026-11-20 |
+| **Date** | 2026-11-21 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
 | **Related Specs** | [Plugin Architecture](../architecture/plugin-architecture.md), [.NET Extension Runtime](../architecture/dotnet-extensions.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md) |
 
@@ -38,7 +38,7 @@ Serialized shapes are defined by the `DotCraft.Protocol` C# contracts and the ge
 - [21. Provider And Model Catalog Methods](#21-provider-and-model-catalog-methods)
 - [22. MCP Management Methods](#22-mcp-management-methods)
 - [22A. Hooks Management Methods](#22a-hooks-management-methods)
-- [23. External Channel Management Methods](#23-external-channel-management-methods)
+- [23. Channel Management Methods](#23-channel-management-methods)
 - [23A. Agent Profile Management Methods](#23a-agent-profile-management-methods)
 - [24. SubAgent Profile Management Methods](#24-subagent-profile-management-methods)
 - [25. Configuration Methods](#25-configuration-methods)
@@ -159,7 +159,7 @@ The surface id is the channel of every Turn the connection starts, enqueues, or 
 
 **`channelAdapter`**:
 
-- `channelName`: canonical external channel name (for example `telegram`, `feishu`); `displayName`: platform product name shown to the model and clients.
+- `channelName`: canonical messaging channel name (for example `telegram`, `feishu`); `displayName`: platform product name shown to the model and clients.
 - `deliveryCapabilities`: what the adapter's `ext/channel/send` accepts and whether it serves `ext/channel/history`. Fixed for the connection lifetime.
   - `text.format`: `plain` when the platform shows text as written; `markdown` when the sender writes Markdown and the platform renders it (natively or after adapter conversion). The adapter splits text too long for one platform message.
   - `targets.group`: whether the adapter can send to a group other than the bound chat. `targets.direct`: `any` (any user), `knownOnly` (only users who have messaged the bot), or `none`.
@@ -216,7 +216,7 @@ The surface id is the channel of every Turn the connection starts, enqueues, or 
 | `mcpApps` | `mcpApp/view/*` ([Section 22.10](#2210-mcp-apps-opaque-view-methods)); the client must also advertise `mcpApps`. |
 | `visualizations` | `visualization/view/*` and `visualization/widgetState/updated`; the client must also advertise it. |
 | `generativeUi` | `generativeUi/state/*` and `generativeUi/state/updated`; reported only when the client advertises it. |
-| `externalChannelManagement` | `externalChannel/*`. |
+| `channelManagement` | Workspace channel selection, logs, live configuration options, and setup artifacts (§23). |
 | `agentProfileManagement` | `agent/profiles/*`, including builder drafts and Agent package methods. |
 | `subAgentManagement` | `subagent/profiles/*`, `subagent/settings/update`. |
 | `subAgentSessions` | `subagent/children/list`, `subagent/followupTask`, `subagent/close`, `subagent/board/*`. |
@@ -413,7 +413,7 @@ List threads matching an identity.
 
 List discoverable origin channel names that may appear in thread metadata. Params: none.
 
-**Result**: `{ channels: [{ name, category }] }`, where `name` is the canonical `originChannel` and `category` is `builtin`, `social`, `system` (server-defined) or `external` (configured adapters). Internal-only origins may be omitted. Sorted by category in that order, then by name (ordinal, case-insensitive).
+**Result**: `{ channels: [{ name, category }] }`, where `name` is the canonical `originChannel` and `category` is `builtin`, `social` (messaging), or `system` (server-defined). Internal-only origins may be omitted. Sorted by category in that order, then by name (ordinal, case-insensitive).
 
 ### 4.3.2 `thread/search`
 
@@ -1140,9 +1140,9 @@ Errors use the JSON-RPC 2.0 error object. `error.message` is always an English d
 | `-32073` | MCP server test failed | `mcp/test` probe failed. |
 | `-32074` | MCP server name conflict | Case-insensitive logical key conflict. |
 | `-32075` | MCP server read-only | Write targeted a plugin-origin server. |
-| `-32080` | External channel not found | Unknown external channel. |
-| `-32081` | External channel validation failed | Payload invalid for the transport. |
-| `-32082` | External channel name conflict | Conflicts with an existing key or native channel. |
+| `-32080` | Channel not found | Unknown channel or plugin. |
+| `-32081` | Channel validation failed | Invalid selection or configuration. |
+| `-32082` | Channel name conflict | Name reserved by a session origin. |
 | `-32083` | SubAgent profile not found | Profile or workspace override missing. |
 | `-32084` | SubAgent profile validation failed | Invalid or incompatible profile. |
 | `-32085` | SubAgent profile protected | Targets a protected profile such as `native`. |
@@ -1207,7 +1207,7 @@ The core protocol (Sections 3-10) covers the `ISessionService` surface. Modules 
 
 ### 11.2 Unified Channel Runtime (Remote Projection)
 
-External channel adapters are served through **server → client** requests under `ext/channel/*`, following the same request/response pattern as approvals. Capabilities are negotiated through `capabilities.channelAdapter` ([Section 3.2](#32-initialize)):
+Channel adapters are served through **server → client** requests under `ext/channel/*`, following the same request/response pattern as approvals. Capabilities are negotiated through `capabilities.channelAdapter` ([Section 3.2](#32-initialize)):
 
 - Every adapter implements `ext/channel/send`; `deliveryCapabilities` describes what it accepts, including which media kinds and source forms. An adapter that declares `history` also implements `ext/channel/history`.
 - `channelTools` are validated and registered once per connection and may be injected into threads whose origin channel matches, for the lifetime of the connection. The declared set is immutable for the connection; registration comes from the handshake, not from static configuration. Thread tool construction only filters visibility by origin channel and reserved names.
@@ -1507,6 +1507,7 @@ Params `id`, optional `marketplaceName`. Result `{ plugin, snapshotRevision }`.
 | `workflows` | Safe workflow summaries (`name`, namespaced `command`, `description`, optional `whenToUse`); never script source or paths. |
 | `apps` | App Binding descriptors (`appId`, `displayName`, `developerName`, `description`, optional `category`, `icon`, `nativeApplication`). Catalog metadata only: execution fields (`toolNamespace`, `scopes`, `toolCatalog`, `dynamicToolCatalog`) are invalid; binding capabilities come solely from the binding-scoped MCP session. |
 | `desktop` | Validated Desktop module metadata: optional `description`, manifest-relative `entry` and `styles`, and executable content `revision`. |
+| `channel` | Safe, static metadata for a validated channel contribution, including `moduleId`, `channelName`, localized display metadata, variant, setup steps, interactive setup requirement, configuration descriptors, and host compatibility. Present for catalog entries as well as installed plugins. It contains no launcher path, configuration values, or credentials. |
 | `hooks` | Hook `key` (correlates with `hooks/list`) and `eventName`. |
 | `mcpServers` | Bundled MCP declarations: `name`, `runtimeName` (connection/routing identity, usually `{pluginId}:{name}`; never a model-visible namespace), `transport`, `enabled`, `active` (installed, enabled, and not shadowed), optional `shadowedBy` (`workspace` or `plugin`). Not editable workspace config. |
 | `diagnostics` | Safe discovery, admission, and preflight diagnostics for this plugin. |
@@ -1603,11 +1604,11 @@ Params `id`, `trusted`. Grants or revokes the trust confirmation that lets a `do
 
 ### 18B.2 Plugin Configuration Methods
 
-Gated by `capabilities.pluginConfiguration` alone. Configuration is schema-backed and stored in the personal and workspace `plugin-config.json` documents defined by [Plugin Architecture](../architecture/plugin-architecture.md).
+Gated by `capabilities.pluginConfiguration`. [Plugin Architecture](../architecture/plugin-architecture.md) defines the schema and storage. Channel settings are workspace-only and require a workspace management connection. Channel adapters and App Binding principals cannot read or mutate them.
 
 #### `plugin/config/get`
 
-Params `id`. Result: `schema` (the validated manifest-owned schema), `personal` and `workspace` (the exact validated namespace values from each document, or `{}`), `value` (the recursively merged effective object), and `writableScopes` (`personal` when a user data path is configured, `workspace` when a workspace data path is available).
+Params `id`. Result: `schema` (the validated settings schema), `personal` and `workspace` (the stored values for each scope, or `{}`), `value` (the effective object), and `writableScopes`. A channel plugin returns `["workspace"]`, empty `personal`, and optional `configuredSecrets` containing only the keys of populated secret fields. Secret values never appear in `schema`, `workspace`, or `value`.
 
 #### `plugin/config/mutate`
 
@@ -1617,7 +1618,7 @@ Params `id`, `scope` (`personal` or `workspace`), `operations` (`set` with a val
 - Mutations are serialized with plugin lifecycle changes. An active .NET closure is quiesced before writing, reconciled after success, and restored if the write fails.
 - Success emits `config/changed` with `source: "plugin/config/mutate"` and `regions: ["plugins.config"]`; there is no finer-grained configuration notification.
 
-Errors use `-32099` with `error.data.code`: `PluginConfigurationNotDeclared`, `PluginConfigurationScopeUnavailable`, `PluginConfigurationDocumentInvalid`, `PluginConfigurationNamespaceInvalid`, `PluginConfigurationMutationInvalid`, `PluginConfigurationWriteFailed`. Invalid persisted configuration also appears as a safe plugin diagnostic and does not disable the AppServer or unrelated contributions. The protocol has no revision, etag, conflict payload, secret field, or migration endpoint for plugin configuration.
+Errors use `-32099` with `error.data.code`: `PluginConfigurationNotDeclared`, `PluginConfigurationScopeUnavailable`, `PluginConfigurationDocumentInvalid`, `PluginConfigurationNamespaceInvalid`, `PluginConfigurationMutationInvalid`, `PluginConfigurationWriteFailed`. Invalid persisted configuration also appears as a safe plugin diagnostic and does not disable the AppServer or unrelated contributions. There is no revision, etag, conflict payload, or migration endpoint for plugin configuration.
 
 ### 18B.3 Marketplace Management Methods
 
@@ -1791,18 +1792,19 @@ Notification `{ threadId, reason, initiator?, route }`; honors opt-out.
 
 ### 20.1 Scope
 
-`channel/status` reports configuration and runtime activity of social and external channels; `channel/list` reports only discoverable origin names. Gated by `capabilities.channelStatus` (otherwise `-32601`).
+`channel/status` reports workspace selections and service activity. `channel/list` reports discoverable origin names. Only `channel/status` requires `capabilities.channelStatus`.
 
 ### 20.2 `ChannelStatusInfo` Wire DTO
 
-- `name`: canonical channel name (as in `channel/list`); `category`: `social` or `external`.
-- `enabled`: configuration state. `running`: server-observed activity.
+- `name`: canonical channel name. `category`: `social` for messaging channels.
+- `pluginId`: the selected plugin, omitted for origins without a plugin.
+- `enabled`: workspace activation intent. `running`: server-observed activity.
 - `runtimeState`: `stopped` (disabled or stopped), `starting` (an enabled external adapter is attaching or retrying), `running` (adapter handshake complete), or `failed` (automatic startup retries abandoned). Clients that understand it prefer it over inferring lifecycle from `enabled`/`running`, and preserve unknown values.
-- `failureCode`: stable classification when available; an external adapter that reaches its consecutive-startup-failure limit reports `externalChannelStartFailed`. Diagnostics remain in channel logs.
+- `failureCode`: stable classification when available; an adapter that reaches its consecutive-startup-failure limit reports `channelStartFailed`. Diagnostics remain in channel logs.
 
 ### 20.3 `channel/status`
 
-Params: none. Result `{ channels }`: only channels configured for status reporting, sorted by category (`social`, then `external`) and name (ordinal, case-insensitive); empty when there is no status data.
+Params: none. Result `{ channels }`, including configured selections that are stopped, blocked, or waiting for an installation. Results are sorted by category and case-insensitive ordinal name.
 
 ## 21. Provider And Model Catalog Methods
 
@@ -2102,51 +2104,44 @@ Params `pluginId`. Result: the `hooks/list` shape. Writes each current hook's `c
 
 Both mutation methods rebuild the runtime hook snapshot immediately, invalidate thread agent caches when the effective tool-hook set changes (so future turns rebind), and emit `config/changed` with `source` set to the method name and `regions: ["hooks"]`. Trust is hash-based: a changed hook reports `trustStatus: "modified"` and does not run until the new hash is trusted.
 
-## 23. External Channel Management Methods
+## 23. Channel Management Methods
 
-### 23.1 Scope
+These methods require `capabilities.channelManagement` and a workspace management connection.
+A channel adapter or App Binding principal cannot use them.
 
-A server-authoritative read/write path for external channel configuration. Gated by `capabilities.externalChannelManagement` (otherwise `-32601`).
+### 23.1 `channel/setEnabled`
 
-### 23.2 `ExternalChannelConfig` Wire DTO
+Params `{ name, pluginId, enabled }`. Selects an installed channel plugin whose logical name
+matches `name`, and sets the current workspace's activation intent. The host resolves the
+launcher and owns its authorization. Enabling requires a ready configuration and grants
+execution to that installation in this workspace. A disabled selection does not start a process.
+An unavailable but selected plugin can be disabled. Selecting a different plugin replaces the
+previous selection and stops its process. The client observes status through `channel/status`.
+Result `{}`. On success the workspace emits `config/changed` with region `channels`.
 
-`name`, `enabled`, `transport` (`subprocess`, `websocket`, `managedWebsocket`), and process-launch fields `command`, `builtinModule`, `args`, `workingDirectory`, `env`. Persistence is server-defined.
+### 23.2 `channel/logs`
 
-- `name` is the case-insensitive logical key and must not conflict with a reserved or existing channel name.
-- `subprocess` and `managedWebsocket` require `command` or `builtinModule` and allow the launch fields; `managedWebsocket` activates only when AppServer WebSocket mode is enabled.
-- `websocket` allows no launch fields because the adapter is started independently.
+Params `{ name, tail? }`. Result `{ name, lines }`. Omit `tail` to use the retention window.
 
-### 23.3 `externalChannel/list`
+### 23.3 `channel/configOptionAvailability`
 
-Result `{ channels }`: all configured external channels for the workspace.
+Params `{ name, key }`. Result `{ name, key, available }`, where `available` is the list reported by
+the connected adapter or null if the adapter cannot answer. A null value does not block saving.
 
-### 23.4 `externalChannel/get`
+### 23.4 `channel/setup/read`
 
-Params `name`. Returns one channel.
+Params `{ pluginId }`. Result `{ artifact }`. A current interactive sign-in attempt can expose a
+QR artifact with `revision`, `mimeType: "image/png"`, and base64 `data` limited to 256 KiB decoded.
+Stopped, replaced, expired, and completed attempts yield a null artifact. The method does not
+accept a path and clients do not persist the image.
 
-### 23.5 `externalChannel/upsert`
-
-Params `{ channel }`. Replaces the full logical entry. It is an explicit configuration mutation: replacing an active entry may stop and recreate its host, so clients must not use it to restore display state after reconnecting. Success emits `config/changed` with `source: "externalChannel/upsert"` and `regions: ["externalChannel"]`.
-
-### 23.6 `externalChannel/remove`
-
-Params `name`. Success emits `config/changed` with `source: "externalChannel/remove"` and `regions: ["externalChannel"]`.
-
-### 23.7 `externalChannel/logs`
-
-Params `name`, optional `tail` (default: the log provider's retention window). Result `{ name, lines }`. Hosts without an external channel log provider return `-32601`.
-
-### 23.8 `externalChannel/configOptionAvailability`
-
-Params `name`, `key`. Result `{ name, key, available }`, where `available` lists the option values the connected adapter reports for that configuration field ([External Channel Adapter](external-channel-adapter.md#44-extchannelconfigoptionavailability)), or is `null` when the adapter is not connected, does not answer, or cannot tell. A `null` result never blocks saving the configuration.
-
-### 23.9 Error Codes
+### 23.5 Error Codes
 
 | Code | Constant | When |
 |------|----------|------|
-| `-32080` | `ExternalChannelNotFound` | Unknown channel. |
-| `-32081` | `ExternalChannelValidationFailed` | Payload invalid for the transport. |
-| `-32082` | `ExternalChannelNameConflict` | Case-insensitive conflict with an existing key or native channel. |
+| `-32080` | `ChannelNotFound` | Unknown channel or plugin. |
+| `-32081` | `ChannelValidationFailed` | Invalid selection or configuration. |
+| `-32082` | `ChannelNameConflict` | Channel name is reserved by a session origin. |
 
 ## 23A. Agent Profile Management Methods
 
@@ -2322,7 +2317,7 @@ A board post carries `messageId`, `channelName`, `topicId`, `author` (agent path
 
 ### 25.1 Scope
 
-These methods read and change the connected server's configuration by key path. Layers, descriptors, validation, and how a change takes effect are defined in [Configuration](../architecture/configuration.md). Per-thread overrides use `thread/config/update`. Domain operations that persist configuration as a side effect (skills, plugins, MCP, hooks, external channels, SubAgent settings, source control) keep their own methods. Gated by `capabilities.workspaceConfigManagement` (otherwise `-32601`). Clients may set `capabilities.configChange = false` to suppress `config/changed`.
+These methods read and change the connected server's configuration by key path. Layers, descriptors, validation, and how a change takes effect are defined in [Configuration](../architecture/configuration.md). Per-thread overrides use `thread/config/update`. Domain operations that persist configuration as a side effect (skills, plugins, MCP, hooks, channels, SubAgent settings, source control) keep their own methods. Gated by `capabilities.workspaceConfigManagement` (otherwise `-32601`). Clients may set `capabilities.configChange = false` to suppress `config/changed`.
 
 ### 25.2 `config/schema`
 

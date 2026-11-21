@@ -40,7 +40,7 @@ Do not invent a method, DTO, event, option, or manifest field. If neither the of
 | Client SDK | An Electron app, CLI, service, or bot that connects to an existing workspace. |
 | Harness | A .NET application that owns and runs the agent runtime in-process. |
 | AppServer protocol | A custom client or unsupported language that implements JSON-RPC directly. |
-| Channel adapter or module | A TypeScript integration that connects a messaging platform, optionally packaged for discovery and lifecycle management by DotCraft hosts. |
+| Channel adapter or module | Connect a messaging platform through AppServer, optionally packaged as a plugin for host-managed setup and lifecycle. |
 | Public extension | App Binding, Runtime Dynamic Tools, Desktop extensions, managed .NET extensions, or MCP Apps. |
 
 Configuring an installed DotCraft workspace is a product-usage task rather than API development. Plugin scaffolding belongs to the plugin-creation workflow; this skill explains the public contracts used by the result.

@@ -5,8 +5,10 @@ import type {
   DesktopPluginSettingsSnapshot
 } from '@dotcraft/plugin'
 
-type SettingsSnapshot = DesktopPluginSettingsSnapshot<Record<string, unknown>>
-type SettingsListener = (settings: SettingsSnapshot) => void
+export type PluginSettingsSnapshot = DesktopPluginSettingsSnapshot<Record<string, unknown>> & {
+  configuredSecrets?: readonly string[]
+}
+type SettingsListener = (settings: PluginSettingsSnapshot) => void
 
 interface PluginSettingsEntry {
   readonly listeners: Set<SettingsListener>
@@ -20,22 +22,25 @@ const PLUGIN_CONFIG_REGION = 'plugins.config'
 const entries = new Map<string, PluginSettingsEntry>()
 let stopWatching: (() => void) | null = null
 
-export async function readDesktopPluginSettings(pluginId: string): Promise<SettingsSnapshot> {
-  return await (window.api.appServer.sendRequestRaw('plugin/config/get', { id: pluginId }) as
-    Promise<SettingsSnapshot>)
+function requestSettings(method: 'plugin/config/get' | 'plugin/config/mutate', params: unknown): Promise<PluginSettingsSnapshot> {
+  const { connectionId } = useConnectionStore.getState()
+  const requests = window.api.appServer
+  return (connectionId
+    ? requests.sendRequestRaw(method, params, undefined, { connectionId })
+    : requests.sendRequestRaw(method, params)) as Promise<PluginSettingsSnapshot>
+}
+
+export function readDesktopPluginSettings(pluginId: string): Promise<PluginSettingsSnapshot> {
+  return requestSettings('plugin/config/get', { id: pluginId })
 }
 
 export async function mutateDesktopPluginSettings(
   pluginId: string,
   scope: DesktopPluginSettingsScope,
   operations: readonly DesktopPluginSettingsMutation[]
-): Promise<SettingsSnapshot> {
+): Promise<PluginSettingsSnapshot> {
   const connectionEpoch = useConnectionStore.getState().connectionEpoch
-  const snapshot = await (window.api.appServer.sendRequestRaw('plugin/config/mutate', {
-    id: pluginId,
-    scope,
-    operations
-  }) as Promise<SettingsSnapshot>)
+  const snapshot = await requestSettings('plugin/config/mutate', { id: pluginId, scope, operations })
   const entry = entries.get(pluginId)
   if (entry && useConnectionStore.getState().connectionEpoch === connectionEpoch) {
     entry.issued += 1
@@ -100,7 +105,7 @@ function refresh(pluginId: string, entry: PluginSettingsEntry): void {
   }, (readError) => console.error('Desktop extension settings re-read failed:', readError))
 }
 
-function publish(pluginId: string, snapshot: SettingsSnapshot): void {
+function publish(pluginId: string, snapshot: PluginSettingsSnapshot): void {
   const entry = entries.get(pluginId)
   if (!entry) return
   const serialized = JSON.stringify(snapshot)

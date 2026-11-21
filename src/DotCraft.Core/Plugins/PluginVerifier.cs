@@ -131,7 +131,7 @@ public static partial class PluginVerifier
     {
         var files = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { manifest.ManifestPath };
         files.UnionWith(Directory.EnumerateFiles(manifest.RootPath, "*.json"));
-        foreach (var path in new[] { manifest.McpServersPath, manifest.LspServersPath, manifest.AppsPath })
+        foreach (var path in new[] { manifest.McpServersPath, manifest.LspServersPath, manifest.AppsPath, manifest.Channel?.ManifestPath })
         {
             if (path != null)
                 files.Add(path);

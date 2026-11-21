@@ -35,17 +35,12 @@ interface SettingsNavigationLocation {
 interface CatalogNavigationLocation {
   kind: 'catalog'
   surface: PluginCatalogSurface
-  selection: { kind: 'plugin' | 'skill'; id: string } | null
+  selection: { kind: 'plugin' | 'skill'; id: string } | { kind: 'channel'; id: NonNullable<SelectedChannelKey> } | null
 }
 
 interface AutomationsNavigationLocation {
   kind: 'automations'
   selection: { kind: 'automation'; id: string } | null
-}
-
-interface ChannelsNavigationLocation {
-  kind: 'channels'
-  selection: SelectedChannelKey
 }
 
 interface AgentsNavigationLocation {
@@ -62,7 +57,6 @@ export type AppNavigationLocation =
   | SettingsNavigationLocation
   | CatalogNavigationLocation
   | AutomationsNavigationLocation
-  | ChannelsNavigationLocation
   | AgentsNavigationLocation
   | DesktopPluginNavigationLocation
 
@@ -161,17 +155,15 @@ export function captureAppNavigationLocation(): AppNavigationLocation {
     const skillName = useSkillsStore.getState().selectedSkillName
     const selection = ui.pluginCatalogSurface === 'plugins'
       ? pluginKey ? { kind: 'plugin' as const, id: pluginKey } : null
-      : skillName ? { kind: 'skill' as const, id: skillName } : null
+      : ui.pluginCatalogSurface === 'skills'
+        ? skillName ? { kind: 'skill' as const, id: skillName } : null
+        : ui.selectedChannelKey ? { kind: 'channel' as const, id: ui.selectedChannelKey } : null
     return { kind: 'catalog', surface: ui.pluginCatalogSurface, selection }
   }
 
   if (ui.activeMainView === 'automations') {
     const id = useAutomationsStore.getState().selectedAutomationId
     return { kind: 'automations', selection: id ? { kind: 'automation', id } : null }
-  }
-
-  if (ui.activeMainView === 'channels') {
-    return { kind: 'channels', selection: ui.selectedChannelKey }
   }
 
   if (ui.activeMainView === 'agents') {
@@ -291,6 +283,7 @@ function normalizeLocation(location: AppNavigationLocation): AppNavigationLocati
       const exists = findPluginEntry(usePluginStore.getState().plugins, location.selection.id) != null
       return exists ? location : { ...location, selection: null }
     }
+    if (location.selection.kind === 'channel') return location
     const exists = useSkillsStore.getState().skills.some((skill) => skill.name === location.selection?.id)
     return exists ? location : { ...location, selection: null }
   }
@@ -345,6 +338,7 @@ function restoreLocation(location: AppNavigationLocation): void {
     ui.setActiveMainView('skills')
     usePluginStore.getState().clearSelection()
     useSkillsStore.getState().clearSelection()
+    ui.setSelectedChannelKey(location.selection?.kind === 'channel' ? location.selection.id : null)
     if (location.selection?.kind === 'plugin') {
       void usePluginStore.getState().selectPlugin(location.selection.id)
     } else if (location.selection?.kind === 'skill') {
@@ -356,12 +350,6 @@ function restoreLocation(location: AppNavigationLocation): void {
   if (location.kind === 'automations') {
     ui.setActiveMainView('automations')
     useAutomationsStore.getState().selectAutomation(location.selection?.id ?? null)
-    return
-  }
-
-  if (location.kind === 'channels') {
-    ui.setSelectedChannelKey(location.selection)
-    ui.setActiveMainView('channels')
     return
   }
 

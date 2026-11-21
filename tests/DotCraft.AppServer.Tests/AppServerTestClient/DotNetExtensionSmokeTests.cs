@@ -22,7 +22,7 @@ public sealed class DotNetExtensionSmokeTests
         Assert.False(json.Contains("ApiKey", StringComparison.OrdinalIgnoreCase));
         Assert.Empty(root.GetProperty("McpServers").EnumerateObject());
         Assert.Empty(root.GetProperty("LspServers").EnumerateObject());
-        Assert.Empty(root.GetProperty("ExternalChannels").EnumerateArray());
+        Assert.Empty(root.GetProperty("Channels").EnumerateObject());
         Assert.False(root.GetProperty("Tracing").GetProperty("Enabled").GetBoolean());
         Assert.False(root.GetProperty("Compaction").GetProperty("AutoCompactEnabled").GetBoolean());
     }

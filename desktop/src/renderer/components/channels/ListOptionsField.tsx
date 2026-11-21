@@ -4,6 +4,7 @@ import { useT } from '../../contexts/LocaleContext'
 import { Button } from '../ui/Button'
 import { SettingsRow } from '../settings/SettingsGroup'
 import { ListOptionsDialog, type OptionAvailability } from './ListOptionsDialog'
+import { channelRequest } from './channelPluginRequests'
 import styles from './ModuleConfigForm.module.css'
 
 interface ListOptionsFieldProps {
@@ -32,10 +33,8 @@ export function ListOptionsField({
 
   const open = (): void => {
     setAvailability({ status: 'loading' })
-    window.api.appServer
-      .sendRequest('externalChannel/configOptionAvailability', { name: channelName, key: descriptor.key })
-      .then((result) => {
-        const available = (result as { available?: string[] | null }).available
+    void channelRequest('channel/configOptionAvailability', { name: channelName, key: descriptor.key })
+      .then(({ available }) => {
         setAvailability(available ? { status: 'known', available: new Set(available) } : { status: 'unknown' })
       })
       .catch(() => setAvailability({ status: 'unknown' }))

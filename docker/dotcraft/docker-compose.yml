@@ -5,12 +5,15 @@ services:
     # build:
     #   context: ../..
     #   dockerfile: docker/dotcraft/Dockerfile
+    #   args:
+    #     CHANNEL_SEEDS_RELEASE: ${CHANNEL_SEEDS_RELEASE:-}
+    #     CHANNEL_SEEDS_SHA256: ${CHANNEL_SEEDS_SHA256:-}
     env_file:
       - .env
     environment:
       DOTCRAFT_WORKSPACE: /workspace
       DOTCRAFT_NODE_BIN: /usr/local/bin/node
-      DOTCRAFT_MODULES_DIR: /opt/dotcraft/modules
+      DOTCRAFT_CHANNEL_SEEDS: /opt/dotcraft/channel-seeds
       APPSERVER_LISTEN_HOST: ${APPSERVER_LISTEN_HOST:-0.0.0.0}
       APPSERVER_PORT: ${APPSERVER_PORT:-9100}
       APPSERVER_TOKEN: ${APPSERVER_TOKEN:?set APPSERVER_TOKEN in .env}

@@ -523,6 +523,9 @@ public sealed class ChannelStatusInfo : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> FailureCode { get; init; }
 
+    [JsonPropertyName("pluginId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? PluginId { get; init; }
 }
 
 public sealed class ChannelStatusResult : ExtensibleJsonObject
@@ -2869,6 +2872,10 @@ public sealed class PluginInfo : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyList<PluginAppInfo>> Apps { get; init; }
 
+    [JsonPropertyName("channel")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public PluginChannelInfo? Channel { get; init; }
+
     [JsonPropertyName("description")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> Description { get; init; }
@@ -3089,6 +3096,10 @@ public sealed class PluginConfigSnapshot : ExtensibleJsonObject
 
     [JsonPropertyName("writableScopes")]
     public required IReadOnlyList<string> WritableScopes { get; init; }
+
+    [JsonPropertyName("configuredSecrets")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<string>? ConfiguredSecrets { get; init; }
 }
 
 public sealed class PluginInterface : ExtensibleJsonObject

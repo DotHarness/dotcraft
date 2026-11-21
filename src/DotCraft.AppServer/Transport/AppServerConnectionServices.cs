@@ -73,9 +73,8 @@ public sealed record AppServerConnectionServices
     public AppServerThreadSubscribers? ThreadSubscribers { get; init; }
     public LspServerManager? LspServerManager { get; init; }
     public IEnumerable<IAppServerProtocolExtension>? ProtocolExtensions { get; init; }
-    public Func<ExternalChannelEntry, CancellationToken, Task>? OnExternalChannelUpserted { get; init; }
-    public Func<string, CancellationToken, Task>? OnExternalChannelRemoved { get; init; }
-    public IExternalChannelRuntimeProvider? ExternalChannelRuntimeProvider { get; init; }
+    public Func<ChannelEntry, CancellationToken, Task>? OnChannelSetEnabled { get; init; }
+    public IChannelRuntimeProvider? ChannelRuntimeProvider { get; init; }
     public SessionStreamDebugLogger? StreamDebugLogger { get; init; }
     public ILoggerFactory? LoggerFactory { get; init; }
     public IReadOnlyList<ConfigSchemaSection>? ConfigSchema { get; init; }

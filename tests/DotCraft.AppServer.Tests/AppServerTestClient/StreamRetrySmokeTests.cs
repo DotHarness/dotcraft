@@ -52,7 +52,7 @@ public sealed class StreamRetrySmokeTests
                 var workspace = doc.RootElement;
                 Assert.Empty(workspace.GetProperty("McpServers").EnumerateObject());
                 Assert.Empty(workspace.GetProperty("LspServers").EnumerateObject());
-                Assert.Equal(0, workspace.GetProperty("ExternalChannels").GetArrayLength());
+                Assert.Empty(workspace.GetProperty("Channels").EnumerateObject());
                 var workspaceProvider = workspace.GetProperty("Providers").GetProperty("openai-chat");
                 Assert.False(workspaceProvider.TryGetProperty("ApiKey", out _));
                 Assert.False(workspaceProvider.TryGetProperty("Protocol", out _));

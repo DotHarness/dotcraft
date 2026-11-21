@@ -200,8 +200,8 @@ public sealed partial class AppConfig
     public List<LspServerConfig> LspServers { get; set; } = [];
 
     [ConfigField(Ignore = true)]
-    [JsonConverter(typeof(ExternalChannelConfigListConverter))]
-    public List<ExternalChannelEntry> ExternalChannels { get; set; } = [];
+    [JsonConverter(typeof(ChannelConfigListConverter))]
+    public List<ChannelEntry> Channels { get; set; } = [];
 
     [ConfigField(Ignore = true)]
     [JsonConverter(typeof(SubAgentProfileListConverter))]
@@ -320,6 +320,13 @@ public sealed partial class AppConfig
         JsonNode? workspaceNode = File.Exists(workspacePath)
             ? JsonNode.Parse(File.ReadAllText(workspacePath))
             : new JsonObject();
+        if (globalNode is JsonObject global)
+        {
+            foreach (var key in global.Select(property => property.Key)
+                .Where(key => string.Equals(key, "Channels", StringComparison.OrdinalIgnoreCase)).ToArray())
+                global.Remove(key);
+        }
+
         // Merge workspace config into global config (workspace values take precedence)
         var mergedNode = MergeNodes(globalNode ?? new JsonObject(), workspaceNode ?? new JsonObject());
 

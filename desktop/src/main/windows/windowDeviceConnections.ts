@@ -150,7 +150,6 @@ export function promoteDeviceProject(ctx: DesktopWindowRuntime, entry: Workspace
   ctx.prepareRemoteForeground(device.project)
   entry.lastUsedAt = Date.now()
   ctx.wireClient = entry.client
-  ctx.lastAppServerWsUrl = entry.wsUrl
   ctx.lastDashboardUrl = entry.initializeResult?.dashboardUrl ?? null
   ctx.lastRemoteStackLocalPort = device.bridge?.port ?? null
   ctx.reregisterIpcForWorkspace(device.project.localWorkspacePath)

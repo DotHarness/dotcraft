@@ -1,5 +1,4 @@
 import type { KeyboardEvent } from 'react'
-import { useT } from '../../contexts/LocaleContext'
 import { Button } from '../ui/Button'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { Spinner } from '../ui/Spinner'
@@ -16,7 +15,7 @@ interface ChannelCatalogItemProps {
   statusLabel: string
   active: boolean
   onOpen: () => void
-  onInstall?: () => void
+  action?: { label: string; run: () => void; loading?: boolean }
 }
 
 export function ChannelCatalogItem({
@@ -28,12 +27,10 @@ export function ChannelCatalogItem({
   statusLabel,
   active,
   onOpen,
-  onInstall
+  action
 }: ChannelCatalogItemProps): JSX.Element {
-  const t = useT()
-
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
-    if (event.key !== 'Enter' && event.key !== ' ') return
+    if (event.target !== event.currentTarget || (event.key !== 'Enter' && event.key !== ' ')) return
     event.preventDefault()
     onOpen()
   }
@@ -56,14 +53,14 @@ export function ChannelCatalogItem({
         <span className="dc-channel-catalog-item__description">{subtitle}</span>
       </span>
       <span className="dc-channel-catalog-item__action">
-        {status === 'notConfigured' && onInstall ? (
-          <Button size="sm"
+        {action ? (
+          <Button size="sm" loading={action.loading}
             onClick={(event) => {
               event.stopPropagation()
-              onInstall()
+              action.run()
             }}
           >
-            {t('plugins.install')}
+            {action.label}
           </Button>
         ) : status === 'connecting' ? (
           <Spinner size={14} label={statusLabel} />

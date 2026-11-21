@@ -46,6 +46,8 @@ public sealed record PluginManifest
 
     public DotNetExtensionManifest? Dotnet { get; init; }
 
+    public PluginChannelManifest? Channel { get; init; }
+
     /// <summary>Minimum cross-plugin provider versions keyed by provider id. Only a plugin declaring <see cref="Dotnet"/> may declare dependencies.</summary>
     public IReadOnlyDictionary<string, string> Dependencies { get; init; }
         = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -255,6 +257,16 @@ public static partial class PluginManifestParser
             raw.Id,
             manifestPath,
             diagnostics);
+        var channel = ParseChannel(pluginRoot, raw.Channel, raw.Id, manifestPath, diagnostics);
+        if (channel != null && settings != null)
+            diagnostics.Add(PluginDiagnostic.Error(
+                "PluginChannelSettingsConflict",
+                "Channel contributions declare settings in their configuration descriptors, not a second settings schema.",
+                raw.Id, path: manifestPath));
+        if (channel != null && !(raw.Capabilities ?? []).Contains("channel", StringComparer.Ordinal))
+            diagnostics.Add(PluginDiagnostic.Error(
+                "PluginChannelCapabilityRequired",
+                "A channel contribution requires 'channel' in capabilities.", raw.Id, path: manifestPath));
         AddUnsupportedNativeToolsDiagnostics(raw, manifestPath, diagnostics);
         var dotnetAdmission = DotNetExtensionManifestAdmission.Admit(
             pluginRoot,
@@ -287,6 +299,7 @@ public static partial class PluginManifestParser
             && lspServersPath == null
             && appsPath == null
             && raw.Desktop == null
+            && raw.Channel.ValueKind == JsonValueKind.Undefined
             && workflowsPath == null
             && hooks?.HasAny != true
             && interfaceMetadata == null
@@ -294,7 +307,7 @@ public static partial class PluginManifestParser
         {
             diagnostics.Add(PluginDiagnostic.Error(
                 "MissingPluginCapabilities",
-                "Plugin manifest must declare skills, mcpServers, lspServers, apps, desktop, workflows, hooks, interface metadata, or dotnet.",
+                "Plugin manifest must declare skills, mcpServers, lspServers, apps, desktop, workflows, hooks, interface metadata, dotnet, or channel.",
                 raw.Id,
                 path: manifestPath));
         }
@@ -327,6 +340,7 @@ public static partial class PluginManifestParser
             WorkflowsPath = workflowsPath,
             Hooks = hooks,
             Dotnet = dotnetAdmission.Dotnet,
+            Channel = channel,
             Dependencies = dotnetAdmission.Dependencies,
             RootPath = Path.GetFullPath(pluginRoot),
             ManifestPath = Path.GetFullPath(manifestPath)
@@ -873,6 +887,8 @@ public static partial class PluginManifestParser
         public JsonNode? Processes { get; set; }
 
         public JsonElement Dotnet { get; set; }
+
+        public JsonElement Channel { get; set; }
 
         public JsonElement Dependencies { get; set; }
     }

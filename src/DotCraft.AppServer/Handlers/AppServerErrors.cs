@@ -101,9 +101,9 @@ public static class AppServerErrors
     public const int AppPrincipalUnauthorizedCode = -32077;
     public const int AppBindingConflictCode = -32078;
     public const int AppBindingPolicyDeniedCode = -32079;
-    public const int ExternalChannelNotFoundCode = -32080;
-    public const int ExternalChannelValidationFailedCode = -32081;
-    public const int ExternalChannelNameConflictCode = -32082;
+    public const int ChannelNotFoundCode = -32080;
+    public const int ChannelValidationFailedCode = -32081;
+    public const int ChannelNameConflictCode = -32082;
     public const int SubAgentProfileNotFoundCode = -32083;
     public const int SubAgentProfileValidationFailedCode = -32084;
     public const int SubAgentProfileProtectedCode = -32085;
@@ -399,14 +399,14 @@ public static class AppServerErrors
             "App surface is unavailable",
             new AppSurfaceErrorParams(appId, surfaceId));
 
-    public static AppServerException ExternalChannelNotFound(string name) =>
-        Create(ExternalChannelNotFoundCode, "ExternalChannelNotFound", "errors.externalChannelNotFound", $"External channel not found: {name}", new NamedResourceErrorParams(name));
+    public static AppServerException ChannelNotFound(string name) =>
+        Create(ChannelNotFoundCode, "ChannelNotFound", "errors.channelNotFound", $"Channel not found: {name}", new NamedResourceErrorParams(name));
 
-    public static AppServerException ExternalChannelValidationFailed(string detail) =>
-        Create(ExternalChannelValidationFailedCode, "ExternalChannelValidationFailed", "errors.externalChannelValidationFailed", "External channel validation failed", detail: detail);
+    public static AppServerException ChannelValidationFailed(string detail) =>
+        Create(ChannelValidationFailedCode, "ChannelValidationFailed", "errors.channelValidationFailed", "Channel validation failed", detail: detail);
 
-    public static AppServerException ExternalChannelNameConflict(string detail) =>
-        Create(ExternalChannelNameConflictCode, "ExternalChannelNameConflict", "errors.externalChannelNameConflict", "External channel name conflict", detail: detail);
+    public static AppServerException ChannelNameConflict(string detail) =>
+        Create(ChannelNameConflictCode, "ChannelNameConflict", "errors.channelNameConflict", "Channel name conflict", detail: detail);
 
     public static AppServerException SubAgentProfileNotFound(string name) =>
         Create(SubAgentProfileNotFoundCode, "SubAgentProfileNotFound", "errors.subAgentProfileNotFound", $"SubAgent profile not found: {name}", new NamedResourceErrorParams(name));

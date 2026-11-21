@@ -46,6 +46,7 @@
 | `lspServers` | path | 语言服务器配置。默认读取根目录的 `.lsp.json` |
 | `hooks` | path、array 或 object | 生命周期 hooks。默认读取根目录的 `hooks/hooks.json` |
 | `apps` | path | [App Binding](./app-binding) 描述文件 |
+| `channel` | object | [渠道模块](./channel-modules)描述文件和打包后的启动入口 |
 | `workflows` | path | Dynamic Workflow 目录。默认读取根目录的 `workflows/` |
 | `settings` | path | 设置 schema |
 | `desktop` | object | [桌面扩展](./desktop-extensions)模块 |
@@ -87,7 +88,7 @@
 | `displayName` | 必填，最多 30 个字符。顶层 `displayName` 的上限相同 |
 | `shortDescription` | 必填，单行，最多 48 个字符 |
 | `developerName` | 必填。真实的作者或团队 |
-| `category` | 必填。取值为 `Coding`、`Design`、`Engineering`、`Security`、`Lifestyle`、`Productivity` 或 `Research` |
+| `category` | 必填。取值为 `Coding`、`Design`、`Engineering`、`Security`、`Lifestyle`、`Productivity`、`Research` 或 `Channels`。`Channels` 需要 `channel` 贡献 |
 | `capabilities` | 必填。显示标签 |
 | `defaultPrompt` | 必填，单行，最多 128 个字符 |
 | `logo` | 必填。见下文 |
@@ -109,7 +110,7 @@ dotcraft plugin verify --candidate <plugin-root> [--for-publish] [--json]
 
 该命令不写入任何文件、不访问网络，也不加载插件代码。.NET 项目的校验对象是 `CSharp.Build` 之后的 `plugin/` 目录。
 
-它会检查清单以及声明的每个文件、描述文件、Desktop 产物和插件技能是否符合运行时规则，是否还留有 `[TODO: ...]` 占位符，以及上述字段和图标是否有效。
+它会检查清单以及声明的每个文件、描述文件、Desktop 产物、渠道产物和插件技能是否符合运行时规则，是否还留有 `[TODO: ...]` 占位符，以及上述字段和图标是否有效。
 
 `--for-publish` 会增加面向公开分发的检查：
 

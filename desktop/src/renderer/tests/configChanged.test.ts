@@ -91,7 +91,7 @@ describe('configChanged utils', () => {
     const event = filterConfigChangedRegions(
       {
         source: 'config/batchWrite',
-        regions: ['skills', 'mcp', 'externalChannel'],
+        regions: ['skills', 'mcp', 'channels'],
         changedAt: '2026-04-19T10:15:03.500Z'
       },
       dedupe
@@ -99,7 +99,7 @@ describe('configChanged utils', () => {
 
     expect(event).toEqual({
       source: 'config/batchWrite',
-      regions: ['mcp', 'externalChannel'],
+      regions: ['mcp', 'channels'],
       changedAt: '2026-04-19T10:15:03.500Z'
     })
   })

@@ -1,15 +1,12 @@
 namespace DotCraft.AppServer;
 
 /// <summary>
-/// Provides runtime enabled/running status for all configured social and external channels.
-/// Consumed by <see cref="AppServerRequestHandler"/> to serve the <c>channel/status</c> wire method
-/// (spec Section 20).
+/// Reports workspace activation intent and current channel activity.
 /// </summary>
 public interface IChannelStatusProvider
 {
     /// <summary>
-    /// Returns the current status of every configured social and external channel.
-    /// Results are sorted by category (<c>social</c> before <c>external</c>), then by name.
+    /// Returns status for configured channels, including stopped or blocked selections.
     /// </summary>
     IReadOnlyList<ChannelStatusSnapshot> GetChannelStatuses();
 }
@@ -23,6 +20,7 @@ public sealed record ChannelStatusSnapshot
     public bool Running { get; init; }
     public string? RuntimeState { get; init; }
     public string? FailureCode { get; init; }
+    public string? PluginId { get; init; }
 }
 
 /// <summary>Stable lifecycle values reported by <c>channel/status</c>.</summary>
@@ -37,5 +35,5 @@ public static class ChannelRuntimeStates
 /// <summary>Stable channel failure codes reported by <c>channel/status</c>.</summary>
 public static class ChannelFailureCodes
 {
-    public const string ExternalChannelStartFailed = "externalChannelStartFailed";
+    public const string ChannelStartFailed = "channelStartFailed";
 }

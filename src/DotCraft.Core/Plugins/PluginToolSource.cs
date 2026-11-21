@@ -211,7 +211,7 @@ public sealed class PluginToolRuntime(
 
     private static string ResolveErrorCode(string? sourceErrorCode) => sourceErrorCode switch
     {
-        "PluginFunctionTimeout" or "ExternalChannelToolTimeout" => ToolErrorCodes.Timeout,
+        "PluginFunctionTimeout" or "ChannelToolTimeout" => ToolErrorCodes.Timeout,
         _ => ToolErrorCodes.ExecutionFailed
     };
 

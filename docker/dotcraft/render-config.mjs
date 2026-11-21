@@ -136,12 +136,6 @@ function setIfMissing(target, key, value) {
   }
 }
 
-function ensureDotCraftSection(config) {
-  const dotcraft = objectAt(config, "dotcraft");
-  setIfMissing(dotcraft, "wsUrl", `ws://127.0.0.1:${intEnv("APPSERVER_PORT", 9100)}/ws`);
-  setIfMissing(dotcraft, "token", env.APPSERVER_TOKEN || "");
-}
-
 function requireField(errors, channel, filePath, label, value) {
   if (value === undefined || value === null || value === "") {
     errors.push(`${channel}: missing ${label} for ${filePath}`);
@@ -226,27 +220,57 @@ async function renderWorkspaceConfig(enabledChannels) {
     Port: intEnv("DASHBOARD_PORT", 8080),
   };
 
-  const externalChannels = objectAt(config, "ExternalChannels");
-  for (const name of knownChannels) {
-    if (enabledChannels.includes(name)) {
-      externalChannels[name] = {
-        ...(isObject(externalChannels[name]) ? externalChannels[name] : {}),
-        enabled: true,
-        transport: "managedWebsocket",
-        builtinModule: `channel-${name}`,
-      };
-    } else if (isObject(externalChannels[name])) {
-      externalChannels[name].enabled = false;
-    }
-  }
-
+  const active = Object.hasOwn(env, "ENABLED_CHANNELS")
+    ? await configureManagedChannels(config, enabledChannels)
+    : [];
   await writeJson(filePath, config);
+  return active;
+}
+
+async function configureManagedChannels(config, enabledChannels) {
+  const trackingPath = path.join(craftDir, "docker-channels.json");
+  const previous = (await readJson(trackingPath))?.managed;
+  const tracked = new Set(Array.isArray(previous) ? previous : []);
+  const channels = objectAt(config, matchingKey(config, "Channels") ?? "Channels");
+  const active = [];
+
+  for (const name of knownChannels) {
+    const pluginId = `channel-${name}`;
+    const nameKey = matchingKey(channels, name) ?? name;
+    const current = channels[nameKey];
+    const selected = enabledChannels.includes(name);
+    const dockerManaged = tracked.has(name) && isObject(current) &&
+      current[matchingKey(current, "pluginId")] === pluginId;
+
+    if (isObject(current) && !dockerManaged) {
+      tracked.delete(name);
+      if (selected) console.warn(`Keeping the existing ${name} channel registration.`);
+      continue;
+    }
+    if (!selected && !dockerManaged) continue;
+
+    const entry = { ...current };
+    for (const field of ["pluginId", "enabled"]) {
+      delete entry[matchingKey(entry, field)];
+    }
+    channels[nameKey] = { ...entry, enabled: selected, pluginId };
+    tracked.add(name);
+    if (selected) active.push(name);
+  }
+  if (tracked.size || previous?.length) {
+    await writeJson(trackingPath, { managed: [...tracked].sort() });
+  }
+  return active;
+}
+
+function matchingKey(object, key) {
+  const match = key.toLowerCase();
+  return Object.keys(object).find((candidate) => candidate.toLowerCase() === match);
 }
 
 async function renderTelegram(errors) {
   const filePath = path.join(craftDir, "telegram.json");
   const config = await readJson(filePath);
-  ensureDotCraftSection(config);
   const telegram = objectAt(config, "telegram");
   setIfMissing(telegram, "botToken", trim(env.TELEGRAM_BOT_TOKEN));
   requireField(errors, "telegram", filePath, "TELEGRAM_BOT_TOKEN / telegram.botToken", telegram.botToken);
@@ -256,7 +280,6 @@ async function renderTelegram(errors) {
 async function renderFeishu(errors) {
   const filePath = path.join(craftDir, "feishu.json");
   const config = await readJson(filePath);
-  ensureDotCraftSection(config);
   const feishu = objectAt(config, "feishu");
   setIfMissing(feishu, "appId", trim(env.FEISHU_APP_ID));
   setIfMissing(feishu, "appSecret", trim(env.FEISHU_APP_SECRET));
@@ -268,7 +291,6 @@ async function renderFeishu(errors) {
 async function renderQq() {
   const filePath = path.join(craftDir, "qq.json");
   const config = await readJson(filePath);
-  ensureDotCraftSection(config);
   const qq = objectAt(config, "qq");
   setIfMissing(qq, "host", listenHost("QQ_LISTEN_HOST", "0.0.0.0"));
   setIfMissing(qq, "port", intEnv("QQ_PORT", 6700));
@@ -283,7 +305,6 @@ async function renderQq() {
 async function renderWeCom(errors) {
   const filePath = path.join(craftDir, "wecom.json");
   const config = await readJson(filePath);
-  ensureDotCraftSection(config);
   const wecom = objectAt(config, "wecom");
   setIfMissing(wecom, "host", listenHost("WECOM_LISTEN_HOST", "0.0.0.0"));
   setIfMissing(wecom, "port", intEnv("WECOM_PORT", 9000));
@@ -314,7 +335,6 @@ async function renderWeCom(errors) {
 async function renderWeixin() {
   const filePath = path.join(craftDir, "weixin.json");
   const config = await readJson(filePath);
-  ensureDotCraftSection(config);
   const weixin = objectAt(config, "weixin");
   setIfMissing(weixin, "apiBaseUrl", first(env.WEIXIN_API_BASE_URL, "https://ilinkai.weixin.qq.com"));
   await writeJson(filePath, config);
@@ -340,25 +360,29 @@ async function main() {
 
   const enabledChannels = parseChannels();
   await renderGlobalConfig(authMethod);
-  await renderWorkspaceConfig(enabledChannels);
+  const activeChannels = await renderWorkspaceConfig(enabledChannels);
 
   const errors = [];
-  for (const channel of enabledChannels) {
-    if (channel === "telegram") await renderTelegram(errors);
-    if (channel === "feishu") await renderFeishu(errors);
-    if (channel === "qq") await renderQq(errors);
-    if (channel === "wecom") await renderWeCom(errors);
-    if (channel === "weixin") await renderWeixin(errors);
+  for (const channel of activeChannels) {
+    try {
+      if (channel === "telegram") await renderTelegram(errors);
+      if (channel === "feishu") await renderFeishu(errors);
+      if (channel === "qq") await renderQq(errors);
+      if (channel === "wecom") await renderWeCom(errors);
+      if (channel === "weixin") await renderWeixin(errors);
+    } catch {
+      errors.push(`${channel}: could not prepare its configuration. Check .craft/${channel}.json.`);
+    }
   }
 
   if (errors.length > 0) {
-    throw new Error(`Invalid DotCraft channel configuration:\n- ${errors.join("\n- ")}`);
+    console.warn(`DotCraft channel configuration needs attention:\n- ${errors.join("\n- ")}`);
   }
 
   console.log(
-    enabledChannels.length > 0
-      ? `Enabled DotCraft channels: ${enabledChannels.join(", ")}`
-      : "No DotCraft channels enabled. Set ENABLED_CHANNELS to enable adapters.",
+    activeChannels.length > 0
+      ? `Enabled deployment channels: ${activeChannels.join(", ")}`
+      : "No deployment channels enabled through ENABLED_CHANNELS.",
   );
 }
 

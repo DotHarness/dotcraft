@@ -1,9 +1,6 @@
 import { type ReactNode } from 'react'
-import { Settings } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { CatalogBreadcrumb, CatalogTopBar } from '../catalog/CatalogSurface'
-import { IconButton } from '../ui/IconButton'
-import { MorphingActionPill } from '../plugins/MorphingActionPill'
 import { IdentityMark, type IdentityMarkRole } from '../ui/IdentityMark'
 import { IdentityMarkFallback } from '../ui/IdentityMarkFallback'
 import { ChannelFormPage } from './ChannelFormPage'
@@ -24,13 +21,11 @@ interface ChannelModuleDetailPageProps {
   description: string
   setupSteps?: string[]
   infoItems: ChannelDetailInfoItem[]
-  active: boolean
-  busy: boolean
-  controlsAvailable: boolean
   mode: ChannelModuleDetailMode
   onModeChange: (mode: ChannelModuleDetailMode) => void
   onBack: () => void
-  onToggleConnection: () => void
+  actions: ReactNode
+  details?: ReactNode
   renderManage: (actions: { onCancel: () => void; onSaved: () => void }) => ReactNode
 }
 
@@ -42,13 +37,11 @@ export function ChannelModuleDetailPage({
   description,
   setupSteps = [],
   infoItems,
-  active,
-  busy,
-  controlsAvailable,
   mode,
   onModeChange,
   onBack,
-  onToggleConnection,
+  actions,
+  details,
   renderManage,
 }: ChannelModuleDetailPageProps): JSX.Element {
   const t = useT()
@@ -89,20 +82,10 @@ export function ChannelModuleDetailPage({
             <p>{subtitle}</p>
           </div>
           <div className={styles.actions}>
-            <IconButton
-              icon={<Settings size={16} aria-hidden />}
-              label={t('plugins.manage')}
-              tooltipLabel={t('plugins.manage')}
-              onClick={() => onModeChange('manage')}
-            />
-            <MorphingActionPill
-              label={t(active ? 'appBinding.disconnect' : 'appBinding.connect')}
-              loading={busy}
-              disabled={!controlsAvailable}
-              onClick={onToggleConnection}
-            />
+            {actions}
           </div>
         </div>
+        {details != null && <div className={styles.runtimeDetails}>{details}</div>}
       </header>
       <main className={`${styles.scroll} dc-scrollbar-stable`}>
         <div className={styles.content}>

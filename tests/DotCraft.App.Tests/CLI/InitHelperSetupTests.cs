@@ -413,7 +413,7 @@ public sealed class InitHelperSetupTests : IDisposable
         Assert.Equal(0, result);
         var workspaceNode = JsonNode.Parse(File.ReadAllText(Path.Combine(craftPath, "config.json")))!.AsObject();
         Assert.Equal("local", workspaceNode["ProviderId"]?.GetValue<string>());
-        Assert.Null(workspaceNode["Permissions"]);
+        Assert.Equal("autoApprove", workspaceNode["Permissions"]!["DefaultApprovalPolicy"]!.GetValue<string>());
     }
 
     public void Dispose()

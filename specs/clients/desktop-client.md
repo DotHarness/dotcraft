@@ -4,7 +4,7 @@
 |-------|-------|
 | **Version** | 0.14.0 |
 | **Status** | Living |
-| **Date** | 2026-11-20 |
+| **Date** | 2026-11-21 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
 | **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Hub Architecture](../architecture/hub-architecture.md), [Device Gateway](../protocols/device-gateway.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Goal Design](../features/goal.md), [Session Import](../features/session-import.md), [Desktop DESIGN.md](../architecture/DESIGN.md) |
 
@@ -149,7 +149,7 @@ The update UI reports preparation, prevents duplicate installation, and preserve
 - Users can create named **sections** between Pinned and Projects to group projects and individual chats by purpose without changing their folders. Sections appear in creation order, collapse independently, and are Desktop-local. Each project or chat sits in exactly one place: a section member leaves Projects, its project's thread list, and Recents. Moving a pinned item into a section unpins it, and pinning a section member shows it under Pinned until it is unpinned. Removing a section returns its members to their usual places. A member whose project or thread no longer exists is not shown, and removing a local project drops it and its chats from every section.
 - Recents can optionally also list unpinned threads of loaded projects; a thread shown in two places is highlighted only where it was selected.
 - Selecting a thread in another project highlights its row immediately and removes the previous highlight, before that project is promoted and its thread list reloads. The highlight is withdrawn if the thread cannot be opened.
-- The sidebar highlights exactly one current destination. A thread row is highlighted only while the conversation surface shows it. Opening another main view (Agents, Skills, Plugins, Automations, Channels, Settings, or an extension page) moves the highlight to that destination, and the thread's running and waiting indicators remain. Returning to the thread restores its highlight.
+- The sidebar highlights exactly one current destination. A thread row is highlighted only while the conversation surface shows it. Opening another main view (Agents, Plugins, Automations, Settings, or an extension page) moves the highlight to that destination, and the thread's running and waiting indicators remain. Returning to the thread restores its highlight.
 - A project title's color reflects whether its workspace is started, not whether it is foreground, so switching projects does not recolor the rail.
 - The Projects section is sourced from Hub's project list for local workspaces, remote projects saved for SSH machines and paired computers, and the active remote foreground project. Adding or removing a local project goes through Hub so every window and paired device agree; Desktop re-reads the list on `projects.changed`. Stopped local projects appear without being started eagerly, except for the bounded recent-project startup restore in §3.3.
 - Local and remote projects keep distinct identities so remote threads never appear under the local workspace that initiated the remote connection.
@@ -1002,56 +1002,37 @@ Composers show a usage control for the active provider when `provider/auth/usage
 
 The Providers tab requests usage for every listed provider. A row whose provider reports usage ends with a compact reading (remaining share per window, the first balance, or the API key's allowance or spend) that opens the composer's usage details; rows without usage show nothing.
 
-### 6.8 Channel Modules
+### 6.8 Plugins, Skills, and Channels
 
-This section defines the user-visible workflow for TypeScript channel modules configured from Desktop. The workspace AppServer owns their runtime lifecycle; module and descriptor contracts are defined by [plugin-architecture.md](../architecture/plugin-architecture.md).
+The Plugins destination has three catalog tabs: Plugins, Skills, and Channels. The Channels tab
+owns discovery, setup, and management of messaging channels. Opening a channel from another
+surface selects this tab and opens the same detail view. Navigation history includes the selected
+tab and detail. If that detail becomes unavailable, Desktop returns to the Channels list.
 
-#### 6.8.1 Discovery and Identity
-
-- Desktop may list discoverable channel modules from static metadata without executing module logic.
-- Modules load from bundled and user-installed locations; a user-installed module overrides a bundled one with the same `moduleId`. Identity is canonicalized by `moduleId`, not folder name.
-- Invalid metadata skips that entry without breaking the list.
-- Browse and detail surfaces may use optional `interface` metadata (`shortDescription`, `longDescription`, `previewPrompt`, `setupSteps`), localized with the same fallback rules as display names; technical details (package, source, transport, and readable capabilities such as channel tools or interactive setup) belong in the detail information area; the variant appears only where a channel has several ([6.8.6](#686-variants)). The detail page shows `setupSteps` as a numbered list of what to do outside DotCraft, such as on the platform or in its gateway, to finish connecting.
-
-#### 6.8.2 Configuration Workflow
-
-- Module configuration is workspace-scoped and stored in `.craft/<configFileName>`. Users can view and update values required for runtime startup.
-- Fields meant only for interactive setup are not ordinary manual-entry fields.
-- A module is configured once its config file is readable and no required field is empty. Unconfigured modules offer a setup action that opens configuration directly; configured modules show runtime status.
-
-#### 6.8.3 Enable, Disable, and Runtime Expectations
-
-- Enabling or disabling a module explicitly updates AppServer-owned channel configuration and starts or stops its runtime for the active workspace.
-- Saving configuration while a module runs states when restart or re-enable is required.
-- Desktop reconnect, window teardown, and workspace navigation never implicitly enable, disable, restart, or replace a channel; Desktop releases only its own polling and setup resources. The workspace AppServer stops channel runtimes when it shuts down.
-
-#### 6.8.4 Module Status Semantics
-
-- Status uses user-meaningful states: at least not configured, connecting, connected, stopped, and error.
-- Server-observed `channel/status` is authoritative. Desktop may hold temporary state for an in-flight action but never a competing local process lifecycle.
-- Module status is distinct from AppServer connection state.
-- In Remote mode, local Start/Stop controls that do not control the remote workspace are hidden or disabled.
-
-#### 6.8.5 Interactive Setup and QR-like Flows
-
-- A module declaring possible interactive setup gets a guided workflow, which may read module-produced temporary artifacts from `.craft/tmp/<moduleId>/...`.
-- While the channel's detail page is open, a sign-in artifact such as a QR code opens a modal dialog over the page, whichever mode the page is in. The dialog follows artifact refreshes, shows a success state once the module connects, and offers a retry when the module stops unexpectedly. Dismissing it before sign-in completes stops the module.
-- Setup handles artifact refresh, expiration, and repeated attempts without restart. A module that re-enters a setup-required condition surfaces it again with a recovery path.
-
-#### 6.8.6 Variants
-
-- Multiple variants may exist for one logical `channelName`; exactly one is active at a time. Switching variants updates the active module and its configuration workflow and stops a running previous variant.
-
-#### 6.8.7 Refresh and Startup Restore
-
-- An explicit refresh re-evaluates available modules without restart.
-- Restoring previously enabled modules on launch is best-effort: missing or unconfigured modules are skipped, and nothing blocks startup.
-
-#### 6.8.8 Diagnostics and Preconditions
-
-- Prerequisite failures (such as missing runtime dependencies) are explicit.
-- Before enabling, Desktop validates required fields; an absent config file counts as incomplete configuration, and enabling an incomplete module opens its configuration workflow with the missing fields named.
-- Startup or runtime failures give an understandable signal and a next step (retry, reconfigure, inspect logs), distinguishing setup, connectivity, and runtime failures.
+- The Channels tab shows installed channels before available ones. Selecting **Install** uses
+  plugin installation. **Set up** opens workspace configuration. Channel-only plugins appear
+  only in Channels. A plugin with other contributions can also appear in Plugins and link to its
+  channel detail. Adding a messaging channel requires installing a channel plugin.
+- The workspace AppServer owns installation metadata, configuration, and authoritative runtime
+  status. Desktop does not discover or start adapters from its own filesystem. On a remote
+  workspace, controls apply to that host and appear only when it supports their management
+  operations. Switching workspaces, reconnecting, and closing Desktop do not stop or restart
+  adapters or change conversation bindings.
+- Channel detail presents setup steps and a form driven by the selected module's descriptors.
+  Channel configuration is workspace-scoped. A value supplied by the operator as a credential
+  is masked and is not read back by the client. Missing required fields open setup. Saving while
+  connected makes a required restart explicit.
+- Detail shows the server's connection state and offers the applicable connect, stop, retry,
+  configuration, and log actions. It distinguishes an unavailable installation, incomplete
+  configuration, connection in progress, connected, stopped, and runtime failure. Plugin updates
+  and removal use marketplace lifecycle actions.
+- An interactive channel shows a QR dialog over its detail when the host publishes a sign-in
+  artifact. The dialog follows artifact refreshes and reports expiration and completion.
+  Canceling sign-in stops the incomplete attempt. Closing Desktop or navigating away releases
+  only Desktop's view of the attempt.
+- When several implementations provide one logical channel, detail offers the variants rather
+  than duplicating the channel. Switching the active implementation stops the previous one and
+  updates the setup and controls to match the selection.
 
 ### 6.9 What's New
 

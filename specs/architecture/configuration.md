@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.13.1 |
+| **Version** | 0.14.0 |
 | **Status** | Living |
-| **Date** | 2026-11-19 |
+| **Date** | 2026-11-21 |
 
 Purpose: Define how DotCraft configuration fields are declared, layered, read, written, applied at runtime, and exposed to AppServer clients.
 
@@ -12,7 +12,7 @@ Purpose: Define how DotCraft configuration fields are declared, layered, read, w
 
 This specification covers the root `AppConfig`, its `[ConfigSection]` sections (including module sections stored in extension data), the user and workspace configuration files, the configuration descriptor registry, the configuration service in Session Core, and the AppServer methods and notification that read and change configuration. Model provider definitions (`Providers`) are configuration and follow this specification.
 
-Domain operations that persist configuration as a side effect keep their own methods and semantics: thread settings (`thread/config/update`), skills, plugins, MCP servers, hooks, external channels, SubAgent profiles, and source control. They are out of scope except where they share the change notification.
+Domain operations that persist configuration as a side effect keep their own methods and semantics: thread settings (`thread/config/update`), skills, plugins, MCP servers, hooks, channels, SubAgent profiles, and source control. They are out of scope except where they share the change notification.
 
 ## 2. Goals
 
@@ -56,11 +56,18 @@ Each layer has a version: `sha256:` followed by the hex digest of the layer's JS
 
 For each field whose value comes from a file layer, the origin of its key path is that layer. Fields at their defaults have no origin.
 
-### 4.1 Personal settings left in the workspace layer
+### 4.1 Channel workspace upgrade
 
-Releases before 0.13.1 wrote personal settings to the workspace layer, where they would shadow every later user-layer write. Once per workspace, before a host loads configuration, the 0.13.1 upgrade removes these key paths from the workspace layer: `ProviderId`, `ProviderPreferences`, `Permissions.DefaultApprovalPolicy`, `Memory.Enabled`, `Memory.AutoExtract`, `Dreams.Enabled`, `Dreams.AutoApply`, `Dreams.Interval`, `PromptSuggestions.Enabled`, `Skills.IncludeSharedSkills`, `InstantInterruptEnabled`, `Tools.CodeMode.Mode`, `Tools.ImageGeneration.Enabled`, `Tools.ImageGeneration.Provider`, `Tools.Lsp.Enabled`, `Tools.Web.SearchProvider`, `Tools.Web.DeepSeekCredentialSource`, `Tools.Web.DeepSeekProvider`, `Worktrees.BranchPrefix`, `SubAgent.DisabledProfiles`, `SubAgent.EnableExternalCliSessionResume`, `SubAgent.ProviderPreferences`, and `SubAgent.Models`. Values are removed, not moved, except that when the user layer has no `ProviderId`, the workspace's `ProviderId` and its `ProviderPreferences` entry move to the user layer so the workspace keeps a usable model. MCP servers, SubAgent profiles, credentials, plugin, and channel settings are kept.
+The 0.14.0 workspace upgrade writes channel plugin selections under `Channels`. It recognizes
+existing plugin selections and the five known built-in channel registrations. Enabled built-ins
+can resume from the host-provided official marketplace or a verified deployment seed. Platform
+configuration, credentials, state, and conversation bindings stay in their workspace locations.
+Manual adapter registrations are not converted. In Docker, converted built-in registrations
+remain under the operator's `ENABLED_CHANNELS` selection.
 
-A workspace whose `.craft/config.json` is the user configuration file itself is skipped. The upgrade records its release in `<workspace>/.craft/upgrade-version`. A workspace layer that cannot be read or parsed is left unchanged and unrecorded, so the upgrade runs again on the next start. Workspace setup applies the upgrade before it writes its own provider selection, so a selection that setup deliberately stores in the workspace layer survives. The upgrade is removed in the next release.
+The upgrade skips a workspace that shares the user configuration file and records completion in
+the workspace `upgrade-version` file. It leaves an unreadable workspace unrecorded so the next
+start can retry.
 
 ## 5. Configuration service
 
@@ -173,7 +180,7 @@ Write failures are JSON-RPC invalid-request errors whose `data.configWriteErrorC
 
 ### 6.5 `config/changed`
 
-The notification's `regions` lists the changed configuration key paths for configuration writes and for user-layer changes applied from elsewhere (§5.3.1). A change that includes `Providers` also lists the `providers` domain tag. Domain operations that change persisted state outside field-level configuration (skills, plugins, MCP, hooks, external channels, SubAgent settings, source control) report their own domain tags. Clients refresh configuration views when a key path under a prefix they display appears and refresh provider views on `providers`.
+The notification's `regions` lists the changed configuration key paths for configuration writes and for user-layer changes applied from elsewhere (§5.3.1). A change that includes `Providers` also lists the `providers` domain tag. Domain operations that change persisted state outside field-level configuration (skills, plugins, MCP, hooks, channels, SubAgent settings, source control) report their own domain tags. Clients refresh configuration views when a key path under a prefix they display appears and refresh provider views on `providers`.
 
 Region key paths are the canonical key paths from the descriptor registry. Clients match them against configuration keys case-insensitively, because file layers may spell keys in any case.
 

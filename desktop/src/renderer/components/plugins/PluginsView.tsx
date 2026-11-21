@@ -15,6 +15,8 @@ import { useConversationStore } from '../../stores/conversationStore'
 import { useWorkspaceProjectsStore } from '../../stores/workspaceProjectsStore'
 import { useSkillsStore } from '../../stores/skillsStore'
 import { useUIStore } from '../../stores/uiStore'
+import { ChannelsView } from '../channels/ChannelsView'
+import { isChannelOnlyPlugin } from '../channels/channelPluginModel'
 import { addToast } from '../../stores/toastStore'
 import { stripYamlFrontmatter } from '../../utils/skillMarkdown'
 import { useConfirmDialog } from '../ui/ConfirmDialog'
@@ -105,6 +107,8 @@ export function PluginsView(): JSX.Element {
     toggleSkillEnabled
   } = useSkillsStore()
   const surface = useUIStore((s) => s.pluginCatalogSurface)
+  const catalogActive = useUIStore((s) => s.activeMainView === 'skills')
+  const connectionEpoch = useConnectionStore((s) => s.connectionEpoch)
   const setSurface = useUIStore((s) => s.setPluginCatalogSurface)
   const [mode, setMode] = useState<PluginMode>('browse')
   const [browseQuery, setBrowseQuery] = useState('')
@@ -161,13 +165,14 @@ export function PluginsView(): JSX.Element {
     if (publisherFilter === 'marketplaces' && marketplaces.length === 0) setPublisherFilter('all')
   }, [marketplaces.length, publisherFilter])
 
+  const catalogPlugins = useMemo(() => plugins.filter((plugin) => !isChannelOnlyPlugin(plugin)), [plugins])
   const browsePlugins = useMemo(
-    () => filterPlugins(plugins, browseQuery, publisherFilter, categoryFilter),
-    [plugins, browseQuery, publisherFilter, categoryFilter]
+    () => filterPlugins(catalogPlugins, browseQuery, publisherFilter, categoryFilter),
+    [catalogPlugins, browseQuery, publisherFilter, categoryFilter]
   )
   const managePlugins = useMemo(
-    () => filterPlugins(plugins, managePluginQuery, 'all', 'all'),
-    [managePluginQuery, plugins]
+    () => filterPlugins(catalogPlugins, managePluginQuery, 'all', 'all'),
+    [managePluginQuery, catalogPlugins]
   )
   const manageSkills = useMemo(
     () => filterLocalSkills(skills, skillManageQuery, 'all'),
@@ -180,7 +185,7 @@ export function PluginsView(): JSX.Element {
     ? skills.find((skill) => skill.name === selectedSkillName) ?? null
     : null
   const selectedSkillBody = skillContent != null ? stripYamlFrontmatter(skillContent) : ''
-  const categoryOptions = useMemo(() => buildCategoryOptions(plugins, t), [plugins, t])
+  const categoryOptions = useMemo(() => buildCategoryOptions(catalogPlugins, t), [catalogPlugins, t])
   const sections = useMemo(
     () => buildSections(browsePlugins, categoryFilter, publisherFilter, t, marketplaces, marketplaceNotices, workspaceName, machineName),
     [browsePlugins, categoryFilter, machineName, marketplaceNotices, marketplaces, publisherFilter, t, workspaceName]
@@ -330,11 +335,17 @@ export function PluginsView(): JSX.Element {
     } catch {
       return
     }
-    if (!path) return
+    if (!path || useConnectionStore.getState().connectionEpoch !== connectionEpoch) return
     try {
       const installed = await installLocalPlugin(path)
+      if (useConnectionStore.getState().connectionEpoch !== connectionEpoch) return
       await fetchSkills()
       await fetchPlugins()
+      if (installed && isChannelOnlyPlugin(installed)) {
+        openChannel(installed)
+        addToast(t('plugins.installSuccess', { name: pluginTitle(installed) }), 'success')
+        return
+      }
       if (installed) await selectPlugin(installed.key)
       // Only now is it known whether the folder carried in-process code, and the trust step
       // it owes is the same one a catalog install completes.
@@ -453,6 +464,23 @@ export function PluginsView(): JSX.Element {
       : [])
   ]
 
+  function openChannel(plugin: PluginEntry): void {
+    setMode('browse')
+    useUIStore.getState().setSelectedChannelKey(`channel:${plugin.key}`)
+    setSurface('channels')
+  }
+
+  if (surface === 'channels') {
+    return <ChannelsView
+      key={connectionEpoch}
+      active={catalogActive}
+      navigation={<PluginSurfaceTabs value={surface} onChange={(next) => {
+        setMode('browse')
+        setSurface(next)
+      }} />}
+    />
+  }
+
   if (surface === 'skills' && mode !== 'manage') {
     return (
       <SkillsView
@@ -525,6 +553,7 @@ export function PluginsView(): JSX.Element {
           }}
           onTryInChat={() => stagePluginTryInChat(selectedPlugin)}
           onOpenSkill={(name) => void handleOpenSkill(selectedPlugin, name)}
+          onOpenChannel={selectedPlugin.channel ? () => openChannel(selectedPlugin) : undefined}
         />
         {selectedSkill && (
           <SkillDetailDialog
@@ -575,7 +604,7 @@ export function PluginsView(): JSX.Element {
           diagnostics={visibleDiagnostics}
           plugins={managePlugins}
           pendingPluginIds={togglingPluginIds}
-          pluginCount={plugins.length}
+          pluginCount={catalogPlugins.length}
           pluginQuery={managePluginQuery}
           skills={manageSkills}
           skillsLoading={skillsLoading}

@@ -3,20 +3,24 @@ namespace DotCraft.Plugins;
 internal sealed record ManagedPluginMarker(
     string Fingerprint,
     string? MarketplaceName,
-    string? SourceIdentity = null)
+    string? SourceIdentity = null,
+    string? ChannelInstallationId = null)
 {
     public const string FileName = ".builtin";
     private const string MarketplacePrefix = "marketplace=";
     private const string SourcePrefix = "source=";
+    private const string ChannelInstallationPrefix = "channel-installation=";
 
     public string Format()
     {
-        if (MarketplaceName == null)
-            return Fingerprint;
-
-        return string.IsNullOrWhiteSpace(SourceIdentity)
-            ? $"{Fingerprint}\n{MarketplacePrefix}{MarketplaceName}"
-            : $"{Fingerprint}\n{MarketplacePrefix}{MarketplaceName}\n{SourcePrefix}{SourceIdentity}";
+        var lines = new List<string> { Fingerprint };
+        if (MarketplaceName != null)
+            lines.Add(MarketplacePrefix + MarketplaceName);
+        if (!string.IsNullOrWhiteSpace(SourceIdentity))
+            lines.Add(SourcePrefix + SourceIdentity);
+        if (ChannelInstallationId != null)
+            lines.Add(ChannelInstallationPrefix + ChannelInstallationId);
+        return string.Join('\n', lines);
     }
 
     public static ManagedPluginMarker? Read(string pluginRoot)
@@ -42,14 +46,17 @@ internal sealed record ManagedPluginMarker(
         var lines = text.Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
         string? marketplace = null;
         string? source = null;
+        string? channelInstallationId = null;
         foreach (var line in lines.Skip(1))
         {
             if (line.StartsWith(MarketplacePrefix, StringComparison.Ordinal))
                 marketplace = line[MarketplacePrefix.Length..];
             else if (line.StartsWith(SourcePrefix, StringComparison.Ordinal))
                 source = line[SourcePrefix.Length..];
+            else if (line.StartsWith(ChannelInstallationPrefix, StringComparison.Ordinal))
+                channelInstallationId = line[ChannelInstallationPrefix.Length..];
         }
 
-        return new ManagedPluginMarker(lines.FirstOrDefault() ?? string.Empty, marketplace, source);
+        return new ManagedPluginMarker(lines.FirstOrDefault() ?? string.Empty, marketplace, source, channelInstallationId);
     }
 }

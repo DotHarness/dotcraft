@@ -16,6 +16,16 @@
     "name": {
       "type": "string"
     },
+    "pluginId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "running": {
       "type": "boolean"
     },

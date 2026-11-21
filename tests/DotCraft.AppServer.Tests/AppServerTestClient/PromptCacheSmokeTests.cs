@@ -19,7 +19,7 @@ public sealed class PromptCacheSmokeTests
         Assert.False(root.TryGetProperty("Providers", out _));
         Assert.Empty(root.GetProperty("McpServers").EnumerateObject());
         Assert.Empty(root.GetProperty("LspServers").EnumerateObject());
-        Assert.Equal(0, root.GetProperty("ExternalChannels").GetArrayLength());
+        Assert.Empty(root.GetProperty("Channels").EnumerateObject());
         Assert.True(root.GetProperty("Tracing").GetProperty("Enabled").GetBoolean());
 
         var compaction = root.GetProperty("Compaction");

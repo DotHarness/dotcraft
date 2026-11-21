@@ -5,6 +5,7 @@ public static partial class AppServerRpc
 {
     private const string Spec = "specs/protocols/appserver-protocol.md";
     private static string[] CommonErrors => ["InvalidRequest", "InvalidParams", "MethodNotFound"];
+    private static string[] ChannelSelectionErrors => [.. CommonErrors, "ChannelNotFound", "ChannelValidationFailed", "ChannelNameConflict"];
     private static string[] ThreadRecoveryErrors =>
     [
         .. CommonErrors,

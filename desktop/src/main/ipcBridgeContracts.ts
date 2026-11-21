@@ -49,7 +49,6 @@ export interface IpcHandlerCallbacks {
   /** Absent leaves the satellite channels unregistered. */
   getHubClient?: () => DesktopHubClient
   localImportAvailable?: boolean
-  getAppServerWsConfig?: () => { wsUrl: string; token?: string } | null
   updateSettings: (partial: Partial<AppSettings>) => void | Promise<void>
   getLocalProjectPaths: () => string[]
   getWorkspaceProjects?: () => WorkspaceProjectsPayload

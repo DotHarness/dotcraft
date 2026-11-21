@@ -6,37 +6,12 @@ namespace DotCraft.Persistence.Upgrades;
 
 public static class WorkspaceConfigUpgrade
 {
-    private const string Version = "0.13.1";
+    private const string Version = "0.14.0-channels";
     private const string MarkerFileName = "upgrade-version";
+    private static readonly HashSet<string> OfficialChannels = new(
+        ["telegram", "weixin", "qq", "wecom", "feishu"], StringComparer.OrdinalIgnoreCase);
 
-    private static readonly string[][] PersonalKeyPaths =
-    [
-        ["ProviderId"],
-        ["ProviderPreferences"],
-        ["Permissions", "DefaultApprovalPolicy"],
-        ["Memory", "Enabled"],
-        ["Memory", "AutoExtract"],
-        ["Dreams", "Enabled"],
-        ["Dreams", "AutoApply"],
-        ["Dreams", "Interval"],
-        ["PromptSuggestions", "Enabled"],
-        ["Skills", "IncludeSharedSkills"],
-        ["InstantInterruptEnabled"],
-        ["Tools", "CodeMode", "Mode"],
-        ["Tools", "ImageGeneration", "Enabled"],
-        ["Tools", "ImageGeneration", "Provider"],
-        ["Tools", "Lsp", "Enabled"],
-        ["Tools", "Web", "SearchProvider"],
-        ["Tools", "Web", "DeepSeekCredentialSource"],
-        ["Tools", "Web", "DeepSeekProvider"],
-        ["Worktrees", "BranchPrefix"],
-        ["SubAgent", "DisabledProfiles"],
-        ["SubAgent", "EnableExternalCliSessionResume"],
-        ["SubAgent", "ProviderPreferences"],
-        ["SubAgent", "Models"]
-    ];
-
-    public static void Apply(string craftPath, string userConfigPath)
+    public static void Apply(string craftPath, string userConfigPath, string? dockerSelection = null)
     {
         var markerPath = Path.Combine(craftPath, MarkerFileName);
         if (File.Exists(markerPath) && File.ReadAllText(markerPath).Trim() == Version)
@@ -47,7 +22,7 @@ public static class WorkspaceConfigUpgrade
             return;
         try
         {
-            AtomicConfigDocument.Update(workspaceConfigPath, workspace => Clean(workspace, userConfigPath));
+            AtomicConfigDocument.Update(workspaceConfigPath, workspace => MigrateChannels(workspace, craftPath, dockerSelection));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or InvalidDataException)
         {
@@ -56,44 +31,90 @@ public static class WorkspaceConfigUpgrade
         AtomicConfigDocument.Write(markerPath, Version + "\n");
     }
 
-    private static void Clean(JsonObject workspace, string userConfigPath)
+    private static void MigrateChannels(JsonObject workspace, string craftPath, string? dockerSelection)
     {
-        if (AtomicConfigDocument.Value(workspace, "ProviderId") is JsonValue providerValue
-            && providerValue.TryGetValue<string>(out var providerId)
-            && !string.IsNullOrWhiteSpace(providerId))
+        if (AtomicConfigDocument.Key(workspace, "ExternalChannels") is not { } oldKey
+            || workspace[oldKey] is not JsonObject previous)
+            return;
+
+        var dockerManaged = new List<string>();
+        foreach (var (name, item) in previous)
         {
-            var preference = AtomicConfigDocument.Value(workspace, "ProviderPreferences") is JsonObject preferences
-                && AtomicConfigDocument.Value(preferences, providerId) is { } entry
-                    ? entry.DeepClone()
-                    : null;
-            AtomicConfigDocument.Update(userConfigPath, user =>
+            if (item is not JsonObject entry || HasManualLauncher(entry))
+                continue;
+            var logicalName = name.ToLowerInvariant();
+            var pluginId = ReadString(entry, "pluginId");
+            var bundled = pluginId == null && OfficialChannels.Contains(logicalName)
+                && string.Equals(ReadString(entry, "builtinModule"), "channel-" + logicalName, StringComparison.OrdinalIgnoreCase);
+            if (!bundled && (pluginId == null || !string.Equals(ReadString(entry, "transport"), "managedWebsocket", StringComparison.OrdinalIgnoreCase)))
+                continue;
+            pluginId ??= "channel-" + logicalName;
+            var enabled = ReadFlag(entry, "enabled");
+            if (bundled && dockerSelection != null)
             {
-                if (AtomicConfigDocument.Value(user, "ProviderId") is not null)
-                    return;
-                user["ProviderId"] = providerId;
-                var userPreferences = AtomicConfigDocument.Object(user, "ProviderPreferences");
-                if (preference != null && AtomicConfigDocument.Value(userPreferences, providerId) is null)
-                    userPreferences[providerId] = preference;
-            });
+                enabled = dockerSelection.Trim().Equals("all", StringComparison.OrdinalIgnoreCase)
+                    ? logicalName != "weixin"
+                    : dockerSelection.Split(',', StringSplitOptions.TrimEntries)
+                        .Contains(logicalName, StringComparer.OrdinalIgnoreCase);
+                dockerManaged.Add(logicalName);
+            }
+
+            var channels = AtomicConfigDocument.Object(workspace, "Channels");
+            var key = AtomicConfigDocument.Key(channels, name) ?? name;
+            if (channels[key] is JsonObject current)
+            {
+                if (string.Equals(ReadString(current, "pluginId"), pluginId, StringComparison.OrdinalIgnoreCase))
+                    CopyAuthorization(current, entry, ReadFlag(current, "enabled") && bundled);
+                continue;
+            }
+
+            var selection = new JsonObject { ["pluginId"] = pluginId, ["enabled"] = enabled };
+            CopyAuthorization(selection, entry, enabled && bundled);
+            channels[key] = selection;
         }
 
-        foreach (var keyPath in PersonalKeyPaths)
-            Remove(workspace, keyPath, 0);
+        workspace.Remove(oldKey);
+        if (dockerManaged.Count > 0)
+            TrackDockerChannels(Path.Combine(craftPath, "docker-channels.json"), dockerManaged);
     }
 
-    private static void Remove(JsonObject node, string[] keyPath, int index)
+    private static bool HasManualLauncher(JsonObject entry) =>
+        ReadString(entry, "command") != null || ReadString(entry, "workingDirectory") != null
+        || AtomicConfigDocument.Value(entry, "args") is JsonArray { Count: > 0 }
+        || AtomicConfigDocument.Value(entry, "env") is JsonObject { Count: > 0 };
+
+    private static void CopyAuthorization(JsonObject destination, JsonObject source, bool restoreBuiltIn)
     {
-        if (AtomicConfigDocument.Key(node, keyPath[index]) is not { } key)
+        if (ReadString(destination, "pluginActivationId") != null)
             return;
-        if (index == keyPath.Length - 1)
+        if (ReadString(source, "pluginActivationId") is { } grant)
+            destination["pluginActivationId"] = grant;
+        else if (restoreBuiltIn || ReadFlag(source, "restoreChannelPlugin"))
+            destination["restoreChannelPlugin"] = true;
+    }
+
+    private static string? ReadString(JsonObject item, string key) =>
+        AtomicConfigDocument.Value(item, key) is JsonValue value
+        && value.TryGetValue<string>(out var text) && !string.IsNullOrWhiteSpace(text) ? text : null;
+
+    private static bool ReadFlag(JsonObject item, string key) =>
+        AtomicConfigDocument.Value(item, key) is JsonValue value && value.TryGetValue<bool>(out var flag) && flag;
+
+    private static void TrackDockerChannels(string path, IReadOnlyList<string> names)
+    {
+        AtomicConfigDocument.Update(path, tracking =>
         {
-            node.Remove(key);
-            return;
-        }
-        if (node[key] is not JsonObject child)
-            return;
-        Remove(child, keyPath, index + 1);
-        if (child.Count == 0)
-            node.Remove(key);
+            if (tracking["managed"] is not JsonArray managed)
+            {
+                managed = [];
+                tracking["managed"] = managed;
+            }
+            foreach (var name in names)
+            {
+                if (!managed.Any(node => node is JsonValue value && value.TryGetValue<string>(out var existing)
+                    && string.Equals(existing, name, StringComparison.OrdinalIgnoreCase)))
+                    managed.Add(name);
+            }
+        });
     }
 }

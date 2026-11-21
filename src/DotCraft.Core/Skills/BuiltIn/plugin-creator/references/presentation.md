@@ -10,7 +10,7 @@
 | `description` | One sentence of at most 160 characters |
 | `interface.shortDescription` | One line of at most 48 characters |
 | `interface.developerName` | The real author or team. Use DotCraft or DotHarness only for plugins they author |
-| `interface.category` | Exactly one of `Coding`, `Design`, `Engineering`, `Security`, `Lifestyle`, `Productivity`, or `Research` |
+| `interface.category` | Exactly one of `Coding`, `Design`, `Engineering`, `Security`, `Lifestyle`, `Productivity`, `Research`, or `Channels`. `Channels` requires a channel contribution |
 | `capabilities`, `interface.capabilities` | The contributions the plugin actually ships |
 | `interface.defaultPrompt` | One line of at most 128 characters |
 | `interface.logo`, `interface.composerIcon` | Both are required and may name the same file |

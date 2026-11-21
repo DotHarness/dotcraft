@@ -1,6 +1,6 @@
 # Plugins and tools
 
-Tools decide what the agent can do: edit files, run commands, reach the web, connect to outside services, and follow reusable workflows. Plugins and MCP servers are how you add those capabilities.
+Use plugins and MCP servers to add tools, connect accounts, and share workflows with your agent.
 
 ![Built-in tools, plugins, and MCP servers reach the agent as one list of capabilities, and plugins and MCP servers are reviewed and trusted first](/capability-sources-overview.svg)
 
@@ -11,8 +11,6 @@ Tools decide what the agent can do: edit files, run commands, reach the web, con
 | **Built-in tools** | File editing, shell, web, search, planning, and other core actions |
 | **Plugins** | Packaged skills, tools, workflows, apps, panels, and [lifecycle hooks](./hooks) |
 | **MCP servers** | Tools provided by a local process or a remote service |
-
-Wherever a capability comes from, the agent's tool calls still pass through workspace boundaries, approvals, and security settings. Executable Desktop and .NET extensions are the exception. They have their own trust boundary, described below.
 
 ## Install a plugin
 
@@ -26,34 +24,28 @@ Wherever a capability comes from, the agent's tool calls still pass through work
 6. Complete any app setup shown in the installation dialog.
 7. Select **Try in chat**, or start a chat and describe what you want done.
 
-To install plugins from another catalog, see [Plugin marketplaces](./plugin-marketplaces).
+To install plugins from another catalog, see [Plugin marketplaces](./plugin-marketplaces). To connect a platform such as Telegram or WeChat, use the [Channels tab](./channels/#connect-a-channel).
 
 ## Manage installed plugins
 
-A plugin you install is available in every workspace. To keep it out of the current workspace, turn it off in **Manage**. Its files stay, and you can turn it back on whenever you need it. To remove it from every workspace, open the plugin and select **Uninstall**.
+Plugins you install are available to your workspaces on that host. Turn a plugin off in **Manage** for the current workspace, or select **Uninstall** to remove the shared installation.
 
 Plugins in a project's `.craft/plugins` folder come with that project and appear under **From** followed by the project name.
 
-If a plugin includes an app, **App Settings** manages its account connection, and the app picker in a chat decides whether that chat can use it. See [Connected Apps](./connected-apps).
+Manage plugin app accounts in [App Settings](./connected-apps). Use the chat's app picker to choose which apps it can use.
 
 ## Remote plugin interfaces
 
-When connected to a remote workspace, the Plugins page manages that workspace's plugins. If a plugin provides a desktop interface, DotCraft asks whether to allow that workspace to run plugin interfaces on this computer, then downloads and loads the required files. This permission also covers subsequent plugin installs and updates in that workspace.
-
-The plugin remains installed remotely, without a second installation in your local workspace. Switching workspaces switches the plugin interfaces. From the Plugins page, you can stop running remote interfaces or retry a failed interface without uninstalling the remote plugin.
-
-If the remote server needs an update to support plugin interfaces, the Plugins page tells you. The plugin's other remote features still work.
+Plugins install on the remote host. Authorize the workspace
+to run its plugin interfaces on this computer. That permission covers future installs and
+updates in the workspace. Use the Plugins page to stop or retry an interface.
 
 ## Install from disk
 
-Install straight from a folder when you're developing a plugin or someone sent you one. This entry point is available only for local workspaces.
-
-1. Open **Plugins**.
+1. Open **Plugins** in a local workspace.
 2. Open the menu beside **Create**, then select **Install from disk**.
 3. Choose the plugin folder.
 4. Review the plugin, then verify it with **Try in chat**.
-
-DotCraft keeps its own copy of the plugin for every workspace, and uninstalling removes that copy.
 
 ## Create a plugin
 
@@ -63,7 +55,7 @@ Start with the built-in `$plugin-creator` skill:
 $plugin-creator Create a plugin that packages my project review workflow.
 ```
 
-The skill sets up the plugin structure and walks you through testing it locally. Use a plugin when you want to hand a capability to other people. A workflow that only serves one project is fine as a plain skill.
+The skill creates the plugin and guides you through local testing.
 
 For executable modules, start with [Build a Desktop extension](../extend/desktop-extensions) or [Build a .NET extension](../extend/dotnet-extensions). For packaging and distribution, see the [Plugin Market guide](../extend/plugin-market).
 
@@ -78,11 +70,10 @@ Pass tokens and other secrets through environment variables. Select **Test conne
 
 ## Review trust before installing
 
-Install only plugins you trust, and connect only servers you trust. Check the publisher, the capabilities it declares, the source links, and the account permissions it asks for. Manifest capability labels describe a plugin; they neither grant nor restrict executable permissions.
+Check the publisher, source, and account permissions before installing a plugin or connecting a server.
 
-Agent tool calls keep going through tool policy and approvals. Executable plugins are different. Desktop extension code runs as trusted code in Desktop's renderer once the plugin is enabled. .NET extension code runs inside the DotCraft host with that process's filesystem, network, credential, native interop, and OS authority, requires an explicit grant for the accepted plugin id and fingerprint, and isn't bound by the workspace boundary or approvals that apply to tool calls. Use MCP when executable code needs a process boundary.
-
-Hooks that arrive with a plugin stay inactive until you review and trust them in **Settings → Hooks**.
+Desktop extensions run on this computer. .NET extensions require authorization and run with the
+DotCraft host's permissions. Review and trust plugin hooks in **Settings → Hooks** before running them.
 
 ## Related docs
 

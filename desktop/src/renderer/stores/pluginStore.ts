@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { PluginDesktopInfo } from '@dotcraft/sdk/contracts'
+import type { ChannelPluginInfo } from '../../shared/channelPlugin'
 import {
   findPluginEntry,
   hasOtherEntries,
@@ -192,6 +193,8 @@ export interface PluginEntry {
   skills: PluginSkillInfo[]
   apps?: PluginAppInfo[]
   desktop?: PluginDesktopInfo | null
+  channel?: ChannelPluginInfo | null
+  workflows?: { name: string }[]
   hooks?: PluginHookInfo[]
   mcpServers: PluginMcpServerInfo[]
   lspServers: PluginLspServerInfo[]
@@ -359,9 +362,11 @@ export const usePluginStore = create<PluginState>((set, get) => ({
   // Every mutation returns the Host's final projection, even when rejected, so records are
   // replaced with server truth. Only a complete list can prove a missing plugin record is gone.
   async installPlugin(keyOrId: string) {
+    const epoch = get().workspaceEpoch
     try {
       const key = findPluginEntry(get().plugins, keyOrId)?.key ?? keyOrId
       const result = (await window.api.appServer.sendRequest('plugin/install', pluginKeyParams(key))) as PluginOperationResult
+      if (get().workspaceEpoch !== epoch) return result
       set((state) => operationResultPatch(state, result))
       if (!result.plugin || hasOtherEntries(get().plugins, result.plugin)) await get().fetchPlugins()
       return result
@@ -372,8 +377,10 @@ export const usePluginStore = create<PluginState>((set, get) => ({
   },
 
   async installLocalPlugin(path: string) {
+    const epoch = get().workspaceEpoch
     try {
       const result = (await window.api.appServer.sendRequest('plugin/installLocal', { path })) as PluginOperationResult
+      if (get().workspaceEpoch !== epoch) return undefined
       const updated = result.plugin ? normalizePlugin(result.plugin) : undefined
       set((state) => operationResultPatch(state, result))
       if (!updated) await get().fetchPlugins()
@@ -385,11 +392,14 @@ export const usePluginStore = create<PluginState>((set, get) => ({
   },
 
   async removePlugin(id: string) {
+    const epoch = get().workspaceEpoch
     try {
       const result = (await window.api.appServer.sendRequest('plugin/remove', { id })) as PluginOperationResult
+      if (get().workspaceEpoch !== epoch) return result
       set((state) => operationResultPatch(state, result))
       if (!result.plugin || hasOtherEntries(get().plugins, result.plugin)) {
         await get().fetchPlugins()
+        if (get().workspaceEpoch !== epoch) return result
         const selected = get().selectedPluginKey
         if (selected && !get().plugins.some((plugin) => plugin.key === selected)) {
           set({ selectedPluginKey: null, selectedPlugin: null, detailLoading: false })
@@ -403,11 +413,13 @@ export const usePluginStore = create<PluginState>((set, get) => ({
   },
 
   async togglePluginEnabled(id: string, enabled: boolean) {
+    const epoch = get().workspaceEpoch
     try {
       const result = (await window.api.appServer.sendRequest('plugin/setEnabled', {
         id,
         enabled
       })) as PluginOperationResult
+      if (get().workspaceEpoch !== epoch) return result
       set((state) => operationResultPatch(state, result))
       if (!result.plugin) await get().fetchPlugins()
       return result
@@ -451,12 +463,13 @@ export const usePluginStore = create<PluginState>((set, get) => ({
   },
 
   async refreshMarketplace(name?: string) {
+    const epoch = get().workspaceEpoch
     const result = (await window.api.appServer.sendRequest(
       'marketplace/refresh',
       name ? { name } : {},
       null
     )) as { errors?: MarketplaceFailure[] }
-    await get().fetchPlugins()
+    if (get().workspaceEpoch === epoch) await get().fetchPlugins()
     return result.errors ?? []
   },
 

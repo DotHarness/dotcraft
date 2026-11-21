@@ -61,7 +61,7 @@ Use the [development guide's validation entry points](.agents/skills/dotcraft-de
   `src/DotCraft.Protocol/`, `src/DotCraft.App/`
 - Source generators: `src/DotCraft.Generators/`
 - Feature modules: `src/DotCraft.{Automations,...}/`
-- TypeScript channel packages: `sdk/typescript/packages/channel-{qq,wecom,feishu,weixin,telegram}/`
+- Official messaging channels: the separate `dotcraft-channels` repository.
 - Specs and tests: `specs/`, `tests/`
 - SDKs and clients: `sdk/`, `desktop/`
 - Docs: `docs/` (English root, Chinese under `docs/zh/`)

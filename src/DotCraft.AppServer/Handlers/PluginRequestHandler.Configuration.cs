@@ -12,13 +12,16 @@ internal sealed partial class PluginRequestHandler
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var plugin = RequireConfigurablePlugin(
+        var manifest = RequireConfigurablePlugin(
             request.Params.Id,
             Protocol.AppServer.AppServerMethodNames.PluginConfigGet);
         try
         {
+            var snapshot = manifest.Channel is { } channel
+                ? channelPlugins!.ReadConfig(channel).Settings
+                : pluginConfigStore!.Get(manifest);
             return Task.FromResult(AppServerTypedResult<Contract.PluginConfigSnapshot>.FromResult(
-                MapPluginConfigSnapshot(pluginConfigStore!.Get(plugin.Manifest))));
+                MapPluginConfigSnapshot(snapshot)));
         }
         catch (PluginConfigException exception)
         {
@@ -30,14 +33,15 @@ internal sealed partial class PluginRequestHandler
         AppServerTypedRequest<Contract.PluginConfigMutateParams> request,
         CancellationToken cancellationToken)
     {
-        var plugin = RequireConfigurablePlugin(
+        var manifest = RequireConfigurablePlugin(
             request.Params.Id,
             Protocol.AppServer.AppServerMethodNames.PluginConfigMutate);
         var operations = request.Params.Operations.Select(operation => new PluginConfigMutation(
             operation.Op,
             operation.Key,
             operation.Value.IsSet ? operation.Value.Value : null)).ToArray();
-        if (plugin.Manifest.Dotnet != null && dotnetRuntime == null)
+        var quiesceDotNet = manifest.Channel == null && manifest.Dotnet != null;
+        if (quiesceDotNet && dotnetRuntime == null)
         {
             throw AppServerErrors.PluginConfiguration(
                 PluginConfigStore.WriteFailed,
@@ -45,9 +49,9 @@ internal sealed partial class PluginRequestHandler
         }
         var commitToken = EnterMutationCommit(cancellationToken);
         PluginRuntimeMutationResult? quiesce = null;
-        if (plugin.Manifest.Dotnet != null && dotnetRuntime != null)
+        if (quiesceDotNet && dotnetRuntime != null)
         {
-            quiesce = await dotnetRuntime.QuiesceForMutationAsync(plugin.Manifest.Id, commitToken)
+            quiesce = await dotnetRuntime.QuiesceForMutationAsync(manifest.Id, commitToken)
                 .ConfigureAwait(false);
             if (quiesce.Outcome == PluginRuntimeMutationOutcome.NotApplied)
             {
@@ -61,16 +65,15 @@ internal sealed partial class PluginRequestHandler
         PluginConfigSnapshot snapshot;
         try
         {
-            snapshot = pluginConfigStore!.Mutate(
-                plugin.Manifest,
-                request.Params.Scope,
-                operations);
+            snapshot = manifest.Channel is { } channel
+                ? channelPlugins!.MutateConfig(channel, request.Params.Scope, operations)
+                : pluginConfigStore!.Mutate(manifest, request.Params.Scope, operations);
         }
         catch (PluginConfigException exception)
         {
             if (quiesce != null && dotnetRuntime != null)
             {
-                await dotnetRuntime.ReconcileAfterMutationAsync(plugin.Manifest.Id, commitToken)
+                await dotnetRuntime.ReconcileAfterMutationAsync(manifest.Id, commitToken)
                     .ConfigureAwait(false);
             }
             throw AppServerErrors.PluginConfiguration(exception.Code, exception.Message);
@@ -78,7 +81,7 @@ internal sealed partial class PluginRequestHandler
 
         if (quiesce != null && dotnetRuntime != null)
         {
-            await dotnetRuntime.ReconcileAfterMutationAsync(plugin.Manifest.Id, commitToken)
+            await dotnetRuntime.ReconcileAfterMutationAsync(manifest.Id, commitToken)
                 .ConfigureAwait(false);
         }
         appConfigMonitor?.NotifyChanged(
@@ -87,36 +90,64 @@ internal sealed partial class PluginRequestHandler
         return AppServerTypedResult<Contract.PluginConfigSnapshot>.FromResult(MapPluginConfigSnapshot(snapshot));
     }
 
-    private DiscoveredPlugin RequireConfigurablePlugin(string id, string method)
+    private PluginManifest RequireConfigurablePlugin(string id, string method)
     {
-        if (pluginConfigStore == null)
+        if (pluginConfigStore == null && channelPlugins == null)
             throw AppServerErrors.MethodNotFound(method);
         if (string.IsNullOrWhiteSpace(id))
             throw AppServerErrors.InvalidParams("'id' is required.");
         var canonicalId = PluginIds.Canonicalize(id.Trim());
-        var plugin = RefreshPluginRuntime().Plugins.FirstOrDefault(candidate =>
+        var plugins = RefreshPluginRuntime().Plugins;
+        var plugin = plugins.FirstOrDefault(candidate =>
             candidate.Installed && PluginIds.EqualsCanonical(candidate.Manifest.Id, canonicalId));
         if (plugin == null)
             throw AppServerErrors.InvalidParams($"Plugin '{canonicalId}' was not found or is not installed.");
-        if (plugin.Manifest.Settings == null)
+
+        if (plugin.Manifest.Channel != null)
         {
-            throw AppServerErrors.PluginConfiguration(
-                PluginConfigStore.ConfigurationNotDeclared,
-                $"Plugin '{canonicalId}' does not declare a settings schema.");
+            if (connection.IsChannelAdapter || connection.IsAppPrincipalAuthenticated)
+                throw AppServerErrors.InvalidRequest("Channel settings require a workspace management connection.");
+            if (channelPlugins == null)
+                throw AppServerErrors.MethodNotFound(method);
+            if (channelPlugins.HasDescriptorConflict(plugins, plugin))
+                throw AppServerErrors.PluginConfiguration(
+                    PluginConfigStore.ScopeUnavailable, "Channel settings overlap another installed channel's configuration.");
         }
-        return plugin;
+        else
+        {
+            if (pluginConfigStore == null)
+                throw AppServerErrors.MethodNotFound(method);
+            if (plugin.Manifest.Settings == null)
+                throw AppServerErrors.PluginConfiguration(
+                    PluginConfigStore.ConfigurationNotDeclared,
+                    $"Plugin '{canonicalId}' does not declare a settings schema.");
+        }
+        return plugin.Manifest;
     }
 
     private void AppendPluginConfigDiagnostics(
         PluginDiscoveryResult discovery,
         List<PluginDiagnostic> diagnostics)
     {
-        if (pluginConfigStore == null)
-            return;
-        foreach (var plugin in discovery.Plugins.Where(plugin => plugin.Installed && plugin.Manifest.Settings != null))
+        foreach (var plugin in discovery.Plugins.Where(plugin => plugin.Installed))
         {
-            if (pluginConfigStore.GetDiagnostic(plugin.Manifest) is { } diagnostic)
+            if (plugin.Manifest.Channel is { } channel && channelPlugins != null
+                && !connection.IsChannelAdapter && !connection.IsAppPrincipalAuthenticated
+                && !channelPlugins.HasDescriptorConflict(discovery.Plugins, plugin))
+            {
+                try
+                {
+                    _ = channelPlugins.ReadConfig(channel);
+                }
+                catch (PluginConfigException exception)
+                {
+                    diagnostics.Add(PluginDiagnostic.Error(exception.Code, exception.Message, plugin.Manifest.Id));
+                }
+            }
+            else if (pluginConfigStore?.GetDiagnostic(plugin.Manifest) is { } diagnostic)
+            {
                 diagnostics.Add(diagnostic);
+            }
         }
     }
 
@@ -129,7 +160,8 @@ internal sealed partial class PluginRequestHandler
         Personal = snapshot.Personal,
         Workspace = snapshot.Workspace,
         Value = snapshot.Value,
-        WritableScopes = snapshot.WritableScopes
+        WritableScopes = snapshot.WritableScopes,
+        ConfiguredSecrets = snapshot.ConfiguredSecrets
     };
 
     private static Contract.PluginConfigField MapPluginConfigField(PluginSettingsField field) => new()

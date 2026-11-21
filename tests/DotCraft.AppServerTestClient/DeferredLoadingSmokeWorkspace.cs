@@ -50,7 +50,7 @@ internal static class DeferredLoadingSmokeWorkspace
                 }
             },
             ["LspServers"] = new JsonObject(),
-            ["ExternalChannels"] = new JsonArray(),
+            ["Channels"] = new JsonObject(),
             ["Tools"] = new JsonObject
             {
                 ["DeferredLoading"] = new JsonObject

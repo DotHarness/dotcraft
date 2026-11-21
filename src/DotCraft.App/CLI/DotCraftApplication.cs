@@ -220,7 +220,10 @@ internal static class DotCraftApplication
         AppConfig config;
         try
         {
-            WorkspaceConfigUpgrade.Apply(botPath, InitHelper.GetGlobalConfigPath());
+            var dockerChannels = string.Equals(Environment.GetEnvironmentVariable("DOTCRAFT_CONTAINER"), "true", StringComparison.OrdinalIgnoreCase)
+                ? Environment.GetEnvironmentVariable("ENABLED_CHANNELS")
+                : null;
+            WorkspaceConfigUpgrade.Apply(botPath, InitHelper.GetGlobalConfigPath(), dockerChannels);
             config = AppConfig.LoadWithGlobalFallback(configPath);
         }
         catch (Exception ex)

@@ -1013,6 +1013,19 @@ export interface ChannelChat {
   [key: string]: unknown;
 }
 
+export interface ChannelConfigOptionAvailabilityParams {
+  key: string;
+  name: string;
+  [key: string]: unknown;
+}
+
+export interface ChannelConfigOptionAvailabilityResult {
+  available: string[] | null;
+  key: string;
+  name: string;
+  [key: string]: unknown;
+}
+
 export interface ChannelDeliveryCapabilities {
   history?: ChannelHistoryCapability | null;
   media?: ChannelMediaCapabilitySet | null;
@@ -1044,6 +1057,18 @@ export interface ChannelInfo {
 
 export interface ChannelListResult {
   channels?: ChannelInfo[];
+  [key: string]: unknown;
+}
+
+export interface ChannelLogsParams {
+  name: string;
+  tail?: number | null;
+  [key: string]: unknown;
+}
+
+export interface ChannelLogsResult {
+  lines: string[];
+  name: string;
   [key: string]: unknown;
 }
 
@@ -1085,11 +1110,36 @@ export interface ChannelOutboundMessage {
   [key: string]: unknown;
 }
 
+export interface ChannelSetEnabledParams {
+  enabled: boolean;
+  name: string;
+  pluginId: string;
+  [key: string]: unknown;
+}
+
+export interface ChannelSetupArtifact {
+  data: string;
+  mimeType: string;
+  revision: string;
+  [key: string]: unknown;
+}
+
+export interface ChannelSetupReadParams {
+  pluginId: string;
+  [key: string]: unknown;
+}
+
+export interface ChannelSetupReadResult {
+  artifact: ChannelSetupArtifact | null;
+  [key: string]: unknown;
+}
+
 export interface ChannelStatusInfo {
   category?: string;
   enabled?: boolean;
   failureCode?: string;
   name?: string;
+  pluginId?: string | null;
   running?: boolean;
   runtimeState?: string;
   [key: string]: unknown;
@@ -1662,78 +1712,6 @@ export interface ExtChannelToolContentItem {
   text?: string | null;
   type?: string;
   url?: string | null;
-  [key: string]: unknown;
-}
-
-export interface ExternalChannelConfig {
-  args?: string[] | null;
-  builtinModule?: string | null;
-  command?: string | null;
-  enabled?: boolean;
-  env?: Record<string, string> | null;
-  name?: string;
-  transport?: string;
-  workingDirectory?: string | null;
-  [key: string]: unknown;
-}
-
-export interface ExternalChannelConfigOptionAvailabilityParams {
-  key?: string;
-  name?: string;
-  [key: string]: unknown;
-}
-
-export interface ExternalChannelConfigOptionAvailabilityResult {
-  available: string[] | null;
-  key: string;
-  name: string;
-  [key: string]: unknown;
-}
-
-export interface ExternalChannelGetParams {
-  name?: string;
-  [key: string]: unknown;
-}
-
-export interface ExternalChannelGetResult {
-  channel?: ExternalChannelConfig;
-  [key: string]: unknown;
-}
-
-export interface ExternalChannelListResult {
-  channels?: ExternalChannelConfig[];
-  [key: string]: unknown;
-}
-
-export interface ExternalChannelLogsParams {
-  name?: string;
-  tail?: number | null;
-  [key: string]: unknown;
-}
-
-export interface ExternalChannelLogsResult {
-  lines?: string[];
-  name?: string;
-  [key: string]: unknown;
-}
-
-export interface ExternalChannelRemoveParams {
-  name?: string;
-  [key: string]: unknown;
-}
-
-export interface ExternalChannelRemoveResult {
-  removed?: boolean;
-  [key: string]: unknown;
-}
-
-export interface ExternalChannelUpsertParams {
-  channel?: ExternalChannelConfig;
-  [key: string]: unknown;
-}
-
-export interface ExternalChannelUpsertResult {
-  channel?: ExternalChannelConfig;
   [key: string]: unknown;
 }
 
@@ -2787,6 +2765,33 @@ export interface PluginAppNativeApplication {
   [key: string]: unknown;
 }
 
+export interface PluginChannelCapabilitySummary {
+  capabilitySetMayVaryByEnvironment: boolean;
+  hasChannelTools: boolean;
+  requiresInteractiveSetup: boolean;
+  [key: string]: unknown;
+}
+
+export interface PluginChannelInfo {
+  capabilitySummary: PluginChannelCapabilitySummary;
+  channelContractVersion: string;
+  channelName: string;
+  compatibilityError?: string | null;
+  configDescriptors: JsonValue[];
+  configGroups: JsonValue[];
+  displayName: string;
+  interface?: JsonValue;
+  localizedDisplayName?: Record<string, string> | null;
+  minHostVersion: string;
+  moduleId: string;
+  packageName: string;
+  requiresInteractiveSetup: boolean;
+  supportedChannelProtocolVersions: string[];
+  supportedTransports: string[];
+  variant: string;
+  [key: string]: unknown;
+}
+
 export interface PluginConfigField {
   defaultValue?: JsonValue;
   description?: string;
@@ -2824,6 +2829,7 @@ export interface PluginConfigSchema {
 }
 
 export interface PluginConfigSnapshot {
+  configuredSecrets?: string[] | null;
   personal: JsonValue;
   schema: PluginConfigSchema;
   value: JsonValue;
@@ -2886,6 +2892,7 @@ export interface PluginHookInfo {
 
 export interface PluginInfo {
   apps?: PluginAppInfo[];
+  channel?: PluginChannelInfo | null;
   dependencies?: PluginDependencyInfo[];
   description?: string | null;
   desktop?: PluginDesktopInfo | null;
@@ -3503,6 +3510,7 @@ export interface ServerCapabilities {
   approvalFlow?: boolean;
   automations?: boolean;
   backgroundTerminals?: boolean;
+  channelManagement?: boolean;
   channelStatus?: boolean;
   commandExec?: boolean;
   commandManagement?: boolean;
@@ -3511,7 +3519,6 @@ export interface ServerCapabilities {
   dreams?: boolean;
   dynamicToolRebind?: boolean;
   extensions?: ServerCapabilityExtensions | null;
-  externalChannelManagement?: boolean;
   fileSystem?: boolean;
   generativeUi?: boolean;
   gitWorktrees?: boolean;

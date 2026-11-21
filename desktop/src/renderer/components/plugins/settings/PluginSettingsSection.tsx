@@ -16,12 +16,13 @@ export function PluginSettingsSection({ plugin }: { plugin: PluginEntry }): JSX.
   const t = useT()
   const headingId = useId()
   const active = plugin.installed && plugin.enabled
-  const config = usePluginConfig(plugin.id, active)
+  const genericConfigActive = active && plugin.channel == null
+  const config = usePluginConfig(plugin.id, genericConfigActive)
   const servers = usePluginSettingsServers(plugin.id, active)
   const ownsSettingsUi = useDesktopPluginRegistry((state) =>
     state.settingsPages.some((page) => page.pluginId === plugin.id)
     || state.mainViews.some((view) => view.pluginId === plugin.id))
-  const showConfig = config.declared && !ownsSettingsUi
+  const showConfig = genericConfigActive && config.declared && !ownsSettingsUi
   if (!showConfig && servers.length === 0) return null
   const snapshot = config.snapshot
   const canReset = showConfig

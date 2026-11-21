@@ -205,13 +205,6 @@
         ]
       },
       {
-        "from": "resources/modules",
-        "to": "modules",
-        "filter": [
-          "**/*"
-        ]
-      },
-      {
         "from": "resources/plugins",
         "to": "plugins",
         "filter": [

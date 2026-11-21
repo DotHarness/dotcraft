@@ -6,7 +6,6 @@ using DotCraft.Common;
 using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Dreams;
-using DotCraft.ExternalChannel;
 using DotCraft.Hosting;
 using DotCraft.Logging;
 using DotCraft.Modules;
@@ -21,19 +20,14 @@ using DotCraft.Agents;
 
 namespace DotCraft.Channels;
 
-/// <summary>
-/// Manages native channels, external channels, <see cref="WebHostPool"/>, and DashBoard mounting
-/// for AppServer mode with the shared workspace session.
-/// Also implements <see cref="IChannelStatusProvider"/> for the <c>channel/status</c> wire method
-/// (spec Section 20).
-/// </summary>
-public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IExternalChannelRuntimeProvider
+/// <summary>Owns workspace channel processes and shared web listeners.</summary>
+public sealed partial class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IChannelRuntimeProvider
 {
     private readonly IServiceProvider _sp;
     private readonly AppConfig _config;
     private readonly DotCraftPaths _paths;
     private readonly ModuleRegistry _moduleRegistry;
-    private readonly ExternalChannelRegistry _externalChannelRegistry;
+    private readonly ChannelHostRegistry _channelHostRegistry;
     private readonly MessageRouter _router;
     private readonly List<IChannelService> _nativeChannels;
     private readonly List<IChannelService> _allChannels;
@@ -57,7 +51,7 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
         AppConfig config,
         DotCraftPaths paths,
         ModuleRegistry moduleRegistry,
-        ExternalChannelRegistry externalChannelRegistry,
+        ChannelHostRegistry channelHostRegistry,
         MessageRouter router,
         List<IChannelService> nativeChannels)
     {
@@ -65,16 +59,14 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
         _config = config;
         _paths = paths;
         _moduleRegistry = moduleRegistry;
-        _externalChannelRegistry = externalChannelRegistry;
+        _channelHostRegistry = channelHostRegistry;
         _router = router;
         _nativeChannels = nativeChannels;
         _allChannels = new List<IChannelService>(nativeChannels);
+        ChannelPlugins = new ChannelPluginWorkspace(paths, config, AppVersion.Informational, WebSocketEnabled, ReadChannelSelections);
     }
 
-    /// <summary>
-    /// Creates a runner when native channels, external channels, and/or DashBoard should be hosted in-process.
-    /// </summary>
-    public static ChannelRunner? TryCreateForAppServer(
+    public static ChannelRunner CreateForAppServer(
         IServiceProvider sp,
         AppConfig config,
         DotCraftPaths paths,
@@ -82,21 +74,17 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
     {
         var traceStore = sp.GetService<TraceStore>();
         var native = CollectNativeChannels(sp, config, registry);
-        var hasExternal = ExternalChannelManager.HasEnabledChannels(config);
         var wantDashboard = !ManagedAppServerEnvironment.IsManaged && config.DashBoard.Enabled && traceStore != null;
-
-        if (native.Count == 0 && !hasExternal && !wantDashboard)
-            return null;
 
         ValidateAppServerPortConflict(config, native, wantDashboard);
 
         var router = sp.GetRequiredService<MessageRouter>();
-        var extReg = sp.GetRequiredService<ExternalChannelRegistry>();
+        var channelHosts = sp.GetRequiredService<ChannelHostRegistry>();
 
         foreach (var ch in native)
             router.RegisterChannel(ch);
 
-        return new ChannelRunner(sp, config, paths, registry, extReg, router, native);
+        return new ChannelRunner(sp, config, paths, registry, channelHosts, router, native);
     }
 
     private static List<IChannelService> CollectNativeChannels(
@@ -188,7 +176,7 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
     }
 
     /// <summary>
-    /// External channels, session injection, Kestrel route configuration, and DashBoard routes.
+    /// Configures Kestrel routes once session services are available.
     /// </summary>
     public void CompleteAfterSession(
         ISessionService sessionService,
@@ -200,48 +188,6 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
         var traceStore = _sp.GetService<TraceStore>();
         _sessionService = sessionService;
         _pathBlacklist = _sp.GetRequiredService<PathBlacklist>();
-
-        if (ExternalChannelManager.HasEnabledChannels(_config))
-        {
-            var nativeNames = _nativeChannels.Select(ch => ch.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            var channelServiceMap = _allChannels
-                .Where(ch => ch.ApprovalService != null)
-                .ToDictionary(ch => ch.Name, ch => ch.ApprovalService!);
-            var approvalService = new SessionScopedApprovalService(
-                new ChannelRoutingApprovalService(channelServiceMap, new ConsoleApprovalService(new SpectreApprovalPrompt())));
-            var streamDebugLogger = _sp.GetService<SessionStreamDebugLogger>();
-            var appConfigMonitor = _sp.GetService<IAppConfigMonitor>();
-            var ecManager = new ExternalChannelManager(
-                _config,
-                sessionService,
-                nativeNames,
-                _moduleRegistry,
-                _paths,
-                _sp.GetRequiredService<ChatClientRegistry>(),
-                _sp.GetRequiredService<ModelProviderRegistry>(),
-                _pathBlacklist,
-                approvalService,
-                _externalChannelRegistry,
-                streamDebugLogger,
-                appConfigMonitor,
-                _sp.GetServices<IAppServerProtocolExtension>(),
-                _sp.GetService<AppBindingService>(),
-                _sp.GetServices<IThreadOriginPresentationProvider>(),
-                _sp.GetService<ILoggerFactory>(),
-                _sp.GetRequiredService<WireRuntimeAdditionalContextProvider>(),
-                _sp.GetService<IContextPageManager>(),
-                _sp.GetService<DotCraft.Contributions.IContributionView>(),
-                _sp.GetRequiredService<DotCraft.Commands.Core.CommandRegistry>());
-
-            foreach (var extCh in ecManager.Channels)
-            {
-                lock (_channelsLock)
-                {
-                    _allChannels.Add(extCh);
-                }
-                _router.RegisterChannel(extCh);
-            }
-        }
 
         foreach (var ch in _allChannels.OfType<ISessionServiceConsumer>())
             ch.SetSessionService(sessionService);
@@ -266,7 +212,7 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
     }
 
     /// <summary>
-    /// Builds the web pool, attaches external channels, maps DashBoard, and prepares channel tasks (not yet started).
+    /// Builds the web pool and maps DashBoard routes.
     /// </summary>
     public void Initialize(
         ISessionService sessionService,
@@ -276,110 +222,15 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
         CompleteAfterSession(sessionService, dreamsService);
     }
 
-    /// <summary>
-    /// Applies a single external-channel upsert to in-memory runtime state so WebSocket adapter
-    /// routing and <c>channel/status</c> observe changes immediately without host restart.
-    /// </summary>
-    public async Task ApplyExternalChannelUpsertAsync(ExternalChannelEntry entry, CancellationToken cancellationToken)
+    private ChannelHost CreateChannelHost_NoLock(ChannelEntry channel)
     {
-        ArgumentNullException.ThrowIfNull(entry);
-        cancellationToken.ThrowIfCancellationRequested();
-        UpsertExternalChannelConfig(entry);
-
-        if (_sessionService == null || _pathBlacklist == null)
-            return;
-
-        ExternalChannelHost? replacedHost = null;
-        Task? nextHostTask = null;
-
-        lock (_channelsLock)
-        {
-            replacedHost = RemoveExternalChannelHost_NoLock(entry.Name);
-            if (!entry.Enabled)
-                goto done;
-
-            if (_nativeChannels.Any(ch => string.Equals(ch.Name, entry.Name, StringComparison.OrdinalIgnoreCase)))
-            {
-                AnsiConsole.MarkupLine(
-                    $"[yellow][[ExternalChannel]][/] Skipping runtime upsert for [yellow]{entry.Name}[/]: " +
-                    "name conflicts with a native channel.");
-                goto done;
-            }
-
-            if (entry.Transport is ExternalChannelTransport.Subprocess or ExternalChannelTransport.ManagedWebsocket
-                && string.IsNullOrWhiteSpace(entry.Command)
-                && string.IsNullOrWhiteSpace(entry.BuiltinModule))
-            {
-                AnsiConsole.MarkupLine(
-                    $"[yellow][[ExternalChannel]][/] Skipping runtime upsert for [yellow]{entry.Name}[/]: " +
-                    $"{entry.Transport} channel requires a non-empty command or built-in module.");
-                goto done;
-            }
-
-            if (entry.Transport is ExternalChannelTransport.Websocket or ExternalChannelTransport.ManagedWebsocket)
-            {
-                var appServerConfig = _config.GetSection<AppServerConfig>("AppServer");
-                var wsEnabled = appServerConfig.Mode is AppServerMode.WebSocket or AppServerMode.StdioAndWebSocket;
-                if (!wsEnabled)
-                {
-                    AnsiConsole.MarkupLine(
-                        $"[yellow][[ExternalChannel]][/] Skipping runtime upsert for [yellow]{entry.Name}[/]: " +
-                        $"{entry.Transport} transport requires AppServer WebSocket mode.");
-                    goto done;
-                }
-            }
-
-            var createdHost = CreateExternalChannelHost_NoLock(entry);
-            _allChannels.Add(createdHost);
-            _router.RegisterChannel(createdHost);
-            _externalChannelRegistry.Register(entry.Name, createdHost);
-
-            if (_channelTasks != null && _channelCts is { IsCancellationRequested: false } cts)
-            {
-                nextHostTask = RunChannelAsync(createdHost, cts.Token);
-                _channelTasks.Add(nextHostTask);
-            }
-        }
-
-    done:
-        if (replacedHost != null)
-            await replacedHost.DisposeAsync();
-
-        if (nextHostTask != null)
-            await Task.Yield();
-    }
-
-    /// <summary>
-    /// Applies a single external-channel removal to in-memory runtime state.
-    /// </summary>
-    public async Task ApplyExternalChannelRemoveAsync(string channelName, CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        if (string.IsNullOrWhiteSpace(channelName))
-            return;
-
-        RemoveExternalChannelConfig(channelName);
-
-        ExternalChannelHost? removedHost;
-        lock (_channelsLock)
-        {
-            removedHost = RemoveExternalChannelHost_NoLock(channelName);
-        }
-
-        if (removedHost != null)
-            await removedHost.DisposeAsync();
-    }
-
-    private ExternalChannelHost CreateExternalChannelHost_NoLock(ExternalChannelEntry source)
-    {
-        var channel = source.Clone();
         var channelServiceMap = _allChannels
             .Where(ch => ch.ApprovalService != null)
             .ToDictionary(ch => ch.Name, ch => ch.ApprovalService!);
         var approvalService = new SessionScopedApprovalService(
             new ChannelRoutingApprovalService(channelServiceMap, new ConsoleApprovalService(new SpectreApprovalPrompt())));
 
-        return new ExternalChannelHost(
+        return new ChannelHost(
             channel,
             _sessionService!,
             AppVersion.Informational,
@@ -401,39 +252,19 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
             commandRegistry: _sp.GetRequiredService<DotCraft.Commands.Core.CommandRegistry>());
     }
 
-    private ExternalChannelHost? RemoveExternalChannelHost_NoLock(string channelName)
+    private void UnregisterChannelHost_NoLock(ChannelHost host)
     {
-        var host = _allChannels
-            .OfType<ExternalChannelHost>()
-            .FirstOrDefault(ch => string.Equals(ch.Name, channelName, StringComparison.OrdinalIgnoreCase));
-        if (host == null)
-            return null;
-
         _allChannels.Remove(host);
-        _router.UnregisterChannel(channelName);
-        _externalChannelRegistry.Unregister(channelName);
-        return host;
+        _router.UnregisterChannel(host.Name);
+        _channelHostRegistry.Unregister(host.Name);
     }
 
-    private void UpsertExternalChannelConfig(ExternalChannelEntry entry)
+    private void UpdateChannelSelection(ChannelEntry entry)
     {
         lock (_channelsLock)
         {
-            var existingIndex = _config.ExternalChannels.FindIndex(c =>
-                string.Equals(c.Name, entry.Name, StringComparison.OrdinalIgnoreCase));
-            if (existingIndex >= 0)
-                _config.ExternalChannels[existingIndex] = entry.Clone();
-            else
-                _config.ExternalChannels.Add(entry.Clone());
-        }
-    }
-
-    private void RemoveExternalChannelConfig(string channelName)
-    {
-        lock (_channelsLock)
-        {
-            _config.ExternalChannels.RemoveAll(c =>
-                string.Equals(c.Name, channelName, StringComparison.OrdinalIgnoreCase));
+            _config.Channels.RemoveAll(c => string.Equals(c.Name, entry.Name, StringComparison.OrdinalIgnoreCase));
+            _config.Channels.Add(entry with { });
         }
     }
 
@@ -465,6 +296,8 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
         _channelTasks = snapshot
             .Select(ch => RunChannelAsync(ch, _channelCts.Token))
             .ToList();
+        var pluginToken = _channelCts.Token;
+        _pluginReconciliation = Task.Run(() => WatchPluginChannelsAsync(pluginToken), pluginToken);
     }
 
     /// <summary>
@@ -486,6 +319,15 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
                 // ignored
             }
         }
+
+        if (_pluginReconciliation != null)
+        {
+            try { await _pluginReconciliation; }
+            catch (OperationCanceledException) { }
+            _pluginReconciliation = null;
+        }
+        foreach (var name in _pluginProcesses.Keys.ToArray())
+            await StopPluginChannelAsync(name);
 
         if (_channelTasks is { Count: > 0 })
         {
@@ -522,11 +364,13 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
     {
         var result = new List<ChannelStatusSnapshot>();
         List<IChannelService> channelSnapshot;
-        List<ExternalChannelEntry> externalChannelConfigSnapshot;
+        List<ChannelEntry> channelSelections;
+        Dictionary<string, string> pluginFailures;
         lock (_channelsLock)
         {
             channelSnapshot = _allChannels.ToList();
-            externalChannelConfigSnapshot = _config.ExternalChannels.Select(c => c.Clone()).ToList();
+            channelSelections = _config.Channels.ToList();
+            pluginFailures = new Dictionary<string, string>(_pluginFailures, StringComparer.OrdinalIgnoreCase);
         }
 
         // Native social channels: discovered via modules with "social" category entries.
@@ -554,40 +398,35 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
             }
         }
 
-        // External adapter channels: read all entries from config (including disabled ones).
-        var externalChannels = ExternalChannelEntryMap.ToDictionaryByNameLastWins(externalChannelConfigSnapshot);
+        var selectedChannels = ChannelEntryMap.ToDictionaryByNameLastWins(channelSelections);
 
         // Build a lookup of running external hosts by name.
         var externalHosts = channelSnapshot
-            .OfType<ExternalChannelHost>()
+            .OfType<ChannelHost>()
             .ToDictionary(h => h.Name, StringComparer.OrdinalIgnoreCase);
 
-        foreach (var (name, channelEntry) in externalChannels)
+        foreach (var (name, channelEntry) in selectedChannels)
         {
             externalHosts.TryGetValue(name, out var host);
             result.Add(new ChannelStatusSnapshot
             {
                 Name = name,
-                Category = "external",
+                Category = "social",
+                PluginId = channelEntry.PluginId,
                 Enabled = channelEntry.Enabled,
                 Running = host?.IsAdapterConnected ?? false,
                 RuntimeState = host?.RuntimeState
-                    ?? (channelEntry.Enabled ? ChannelRuntimeStates.Starting : ChannelRuntimeStates.Stopped),
-                FailureCode = host?.FailureCode
+                    ?? (pluginFailures.ContainsKey(name) ? ChannelRuntimeStates.Failed
+                        : channelEntry.Enabled ? ChannelRuntimeStates.Starting : ChannelRuntimeStates.Stopped),
+                FailureCode = host?.FailureCode ?? pluginFailures.GetValueOrDefault(name)
             });
         }
 
-        // Sort: social first, then external; within each group sort by name.
-        result.Sort((a, b) =>
-        {
-            var catOrder = GetCategoryOrder(a.Category).CompareTo(GetCategoryOrder(b.Category));
-            return catOrder != 0 ? catOrder : string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase);
-        });
-
-        return result;
+        return result.OrderBy(c => c.Category, StringComparer.Ordinal)
+            .ThenBy(c => c.Name, StringComparer.OrdinalIgnoreCase).ToArray();
     }
 
-    public IReadOnlyList<string> GetRecentExternalChannelLogs(string channelName, int? tail = null)
+    public IReadOnlyList<string> GetRecentChannelLogs(string channelName, int? tail = null)
     {
         if (string.IsNullOrWhiteSpace(channelName))
             return [];
@@ -595,7 +434,7 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
         lock (_channelsLock)
         {
             var host = _allChannels
-                .OfType<ExternalChannelHost>()
+                .OfType<ChannelHost>()
                 .FirstOrDefault(ch => string.Equals(ch.Name, channelName, StringComparison.OrdinalIgnoreCase));
             return host?.GetRecentLogs(tail) ?? [];
         }
@@ -603,22 +442,15 @@ public sealed class ChannelRunner : IAsyncDisposable, IChannelStatusProvider, IE
 
     public Task<IReadOnlyList<string>?> GetConfigOptionAvailabilityAsync(string channelName, string key, CancellationToken ct)
     {
-        ExternalChannelHost? host;
+        ChannelHost? host;
         lock (_channelsLock)
         {
             host = _allChannels
-                .OfType<ExternalChannelHost>()
+                .OfType<ChannelHost>()
                 .FirstOrDefault(ch => string.Equals(ch.Name, channelName, StringComparison.OrdinalIgnoreCase));
         }
         return host?.GetConfigOptionAvailabilityAsync(key, ct) ?? Task.FromResult<IReadOnlyList<string>?>(null);
     }
-
-    private static int GetCategoryOrder(string category) => category switch
-    {
-        "social" => 0,
-        "external" => 1,
-        _ => 2
-    };
 
     private static async Task RunChannelAsync(IChannelService channel, CancellationToken ct)
     {

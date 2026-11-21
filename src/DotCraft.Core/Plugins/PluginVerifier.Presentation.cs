@@ -17,7 +17,7 @@ public static partial class PluginVerifier
     private const int MinComposerIconPixels = 48;
 
     private static readonly string[] Categories =
-        ["Coding", "Design", "Engineering", "Security", "Lifestyle", "Productivity", "Research"];
+        ["Coding", "Design", "Engineering", "Security", "Lifestyle", "Productivity", "Research", "Channels"];
 
     private static void CheckPresentation(PluginManifest manifest, Findings findings)
     {
@@ -46,6 +46,9 @@ public static partial class PluginVerifier
                 "PluginCategoryInvalid",
                 $"interface.category must be one of: {string.Join(", ", Categories)}.",
                 path);
+
+        if (metadata?.Category == "Channels" && manifest.Channel == null)
+            findings.Error("PluginChannelContributionRequired", "The Channels category requires a channel contribution.", path);
 
         if (manifest.Capabilities.Count == 0)
             findings.Error("PluginMetadataMissing", "capabilities is required.", path);
@@ -90,7 +93,8 @@ public static partial class PluginVerifier
                      (manifest.Hooks?.HasAny == true, ["hooks"]),
                      (manifest.WorkflowsPath != null, ["workflow", "workflows"]),
                      (manifest.Desktop != null, ["desktop"]),
-                     (manifest.Dotnet != null, ["dotnet"])
+                     (manifest.Dotnet != null, ["dotnet"]),
+                     (manifest.Channel != null, ["channel"])
                  })
         {
             if (shipped && !names.Any(name => manifest.Capabilities.Contains(name, StringComparer.OrdinalIgnoreCase)))

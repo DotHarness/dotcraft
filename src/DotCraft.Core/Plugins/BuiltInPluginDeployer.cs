@@ -74,16 +74,40 @@ public sealed class BuiltInPluginDeployer(
                 if (installed.Manifest == null || installed.Manifest.Dotnet != null || source.Manifest.Dotnet != null)
                     continue;
 
-                if (marker != BuildMarker(source))
+                if (source.Manifest.Channel?.GetCompatibilityError() == null && marker != BuildMarker(source, marker))
                     pending.Add(source.Key);
             }
-            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException)
             {
                 diagnostics.Add(DeploymentFailure(source.Manifest.Id, targetRoot, "check", exception));
             }
         }
 
         return pending;
+    }
+
+    public static bool InstallChannelSeed(
+        string sourceRoot, string pluginsRoot, string pluginId, AppConfig.PluginsConfig config)
+    {
+        var source = PluginManifestParser.Load(sourceRoot).Manifest;
+        if (source?.Channel == null || !PluginIds.EqualsCanonical(source.Id, pluginId))
+            return false;
+
+        return WithPluginsRootLock(pluginsRoot, () =>
+        {
+            var destination = Path.Combine(pluginsRoot, PluginIds.Canonicalize(pluginId));
+            if (Directory.Exists(destination))
+                return false;
+            var official = PluginSourceRegistryCatalog.ArchiveSourcesFor(config).FirstOrDefault(s => s.IsDefault);
+            var marker = new ManagedPluginMarker(
+                BuildFingerprint(sourceRoot, channel: true),
+                official == null ? null : "dotcraft-official",
+                official?.CanonicalSourceIdentity(),
+                Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(pluginsRoot);
+            ReplacePluginDirectory(sourceRoot, destination, marker.Format(), CancellationToken.None, channel: true);
+            return true;
+        });
     }
 
     public static bool IsManagedBuiltInPluginRoot(string pluginRoot) =>
@@ -205,6 +229,12 @@ public sealed class BuiltInPluginDeployer(
                     diagnostics.AddRange(installed.Diagnostics);
                     if (installed.Manifest == null || installed.Manifest.Dotnet != null || source.Manifest.Dotnet != null)
                         continue;
+                    if (source.Manifest.Channel?.GetCompatibilityError() is { } reason)
+                    {
+                        diagnostics.Add(PluginDiagnostic.Warning(reason,
+                            "The channel plugin update is not compatible with this host.", pluginId));
+                        continue;
+                    }
                 }
                 else if (installedMarker != null
                     && !MatchesInstalledSource(installedMarker, source, requireSourceIdentity: false))
@@ -218,18 +248,18 @@ public sealed class BuiltInPluginDeployer(
                 }
 
                 timer.Restart();
-                var marker = BuildMarker(source);
+                var marker = BuildMarker(source, installedMarker);
                 fingerprintMs += timer.Elapsed.TotalMilliseconds;
                 fingerprintCount++;
                 if (installedMarker == marker)
                     continue;
 
                 timer.Restart();
-                ReplacePluginDirectory(source.PluginRoot, pluginDir, marker.Format(), cancellationToken);
+                ReplacePluginDirectory(source.PluginRoot, pluginDir, marker.Format(), cancellationToken, source.Manifest.Channel != null);
                 replaceMs += timer.Elapsed.TotalMilliseconds;
                 replaceCount++;
             }
-            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException)
             {
                 diagnostics.Add(DeploymentFailure(pluginId, pluginDir, "replace", exception));
             }
@@ -288,7 +318,8 @@ public sealed class BuiltInPluginDeployer(
         string sourceRoot,
         string targetRoot,
         string markerText,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool channel)
     {
         var parent = Path.GetDirectoryName(targetRoot)!;
         var tempRoot = Path.Combine(parent, $".{Path.GetFileName(targetRoot)}.{Guid.NewGuid():N}.tmp");
@@ -296,7 +327,10 @@ public sealed class BuiltInPluginDeployer(
         var committed = false;
         try
         {
-            CopyDirectory(sourceRoot, tempRoot, cancellationToken);
+            if (channel)
+                PluginContentTree.CopyAndFingerprint(sourceRoot, tempRoot, [], IncludeChannelFile);
+            else
+                CopyDirectory(sourceRoot, tempRoot, cancellationToken);
             File.WriteAllText(Path.Combine(tempRoot, MarkerFile), markerText);
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -357,11 +391,16 @@ public sealed class BuiltInPluginDeployer(
         }
     }
 
-    private static ManagedPluginMarker BuildMarker(BuiltInPluginSource source) =>
-        new(BuildFingerprint(source.PluginRoot), source.MarketplaceName, source.SourceIdentity);
+    private static ManagedPluginMarker BuildMarker(BuiltInPluginSource source, ManagedPluginMarker? existing) =>
+        new(BuildFingerprint(source.PluginRoot, source.Manifest.Channel != null), source.MarketplaceName, source.SourceIdentity,
+            source.Manifest.Channel == null ? null : existing?.ChannelInstallationId ?? Guid.NewGuid().ToString("N"));
 
-    private static string BuildFingerprint(string sourceRoot)
+    private static bool IncludeChannelFile(string relativePath) => relativePath != MarkerFile && relativePath != ChannelPluginInstallation.FileName;
+
+    private static string BuildFingerprint(string sourceRoot, bool channel)
     {
+        if (channel)
+            return "filesystem;sha256:" + PluginContentTree.Fingerprint(sourceRoot, [], IncludeChannelFile);
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         foreach (var sourceFile in Directory.GetFiles(sourceRoot, "*", SearchOption.AllDirectories)
                      .Where(file => !string.Equals(Path.GetFileName(file), MarkerFile, StringComparison.OrdinalIgnoreCase))

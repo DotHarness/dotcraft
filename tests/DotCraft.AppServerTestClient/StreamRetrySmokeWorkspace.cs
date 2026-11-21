@@ -45,7 +45,7 @@ internal static class StreamRetrySmokeWorkspace
             ["ProviderPreferences"] = new JsonObject { [providerId] = SmokeModelPreference.Create(model) },
             ["McpServers"] = new JsonObject(),
             ["LspServers"] = new JsonObject(),
-            ["ExternalChannels"] = new JsonArray(),
+            ["Channels"] = new JsonObject(),
             ["Providers"] = new JsonObject
             {
                 [providerId] = provider

@@ -69,7 +69,6 @@ internal sealed class HubRuntimeToolsStore(string path)
             RipgrepPath = ExistingFileOrDirectory(update.RipgrepPath) ?? current.RipgrepPath,
             NodeBin = ExistingFile(update.NodeBin) ?? current.NodeBin,
             NodeRunAsNode = update.NodeRunAsNode ?? current.NodeRunAsNode,
-            ModulesDir = ExistingDirectory(update.ModulesDir) ?? current.ModulesDir,
             BuiltInPluginRoots = ExistingDirectoryPathList(update.BuiltInPluginRoots) ?? current.BuiltInPluginRoots,
             DefaultPluginRegistryUrl = ValidRegistryUrl(update.DefaultPluginRegistryUrl) ?? current.DefaultPluginRegistryUrl
         };
@@ -79,12 +78,6 @@ internal sealed class HubRuntimeToolsStore(string path)
     {
         var normalized = Normalize(pathValue);
         return normalized != null && File.Exists(normalized) ? normalized : null;
-    }
-
-    private static string? ExistingDirectory(string? pathValue)
-    {
-        var normalized = Normalize(pathValue);
-        return normalized != null && Directory.Exists(normalized) ? normalized : null;
     }
 
     private static string? ExistingFileOrDirectory(string? pathValue)

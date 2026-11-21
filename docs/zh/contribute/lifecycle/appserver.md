@@ -191,7 +191,7 @@ dotcraft app-server --listen ws://127.0.0.1:9100 --token my-secret
 
 ### config.json（替代方案）
 
-适合需要固定配置的部署场景。`ExternalChannels` 写在配置中，告诉 DotCraft 如何启动外部 channel adapter。structured delivery 能力和 `channelTools` 列表不写在配置文件里，由 adapter 在 `initialize` 握手时动态声明。
+固定部署可用工作区配置文件。`Channels` 选择已安装的插件，适配器在 `initialize` 时声明投递能力和 `channelTools`。
 
 **AppServer 配置项**
 

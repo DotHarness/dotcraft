@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.10.4 |
+| **Version** | 0.14.0 |
 | **Status** | Living |
-| **Date** | 2026-11-07 |
+| **Date** | 2026-11-21 |
 | **Related Specs** | [Unified SDK Specification](sdk.md), [AppServer Protocol](../protocols/appserver-protocol.md), [AppServer Protocol Contracts and SDK Generation](protocol-contract-generation.md), [Hub Architecture](../architecture/hub-architecture.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Session Core](../architecture/session-core.md), [Plugin Architecture](../architecture/plugin-architecture.md) |
 
 Purpose: Define the TypeScript binding, package contract, Node.js runtime requirements, channel runtime, and compatibility strategy for `@dotcraft/sdk`.
@@ -284,7 +284,7 @@ Error `code` strings are stable API; message text may evolve.
 
 ### 14.1 Purpose
 
-`@dotcraft/channel` is a repository-internal package, not published to npm. It lets TypeScript packages integrate messaging platforms with DotCraft as external channels. It depends on `@dotcraft/sdk`; the SDK does not depend on it. It owns reusable behavior and leaves platform-specific concerns to subclasses.
+`@dotcraft/channel` is a private workspace package bundled with the official channel plugins. It depends on `@dotcraft/sdk` and supplies reusable adapter behavior, leaving platform-specific concerns to subclasses.
 
 | Entry point | Purpose |
 |-------------|---------|
@@ -298,7 +298,7 @@ Error `code` strings are stable API; message text may evolve.
 
 `ChannelAdapter` owns the AppServer wire client, performs the channel adapter initialize handshake, registers approval, delivery, channel tool, and heartbeat handlers, exposes `handleMessage()` for platform inbound events, and provides the hooks in §14.3.
 
-`ModuleChannelAdapter` adds workspace context, module config loading, state and temp path resolution, lifecycle status reporting, and hosted module startup through Desktop/AppServer module management.
+`ModuleChannelAdapter` adds workspace context, module config loading, state and temp path resolution, lifecycle status reporting, and hosted module startup through AppServer channel management.
 
 The Channel package owns thread resolution and caching, per-identity inbound serialization, slash command routing through `command/execute`, inbound routing to `turn/steer`, `turn/enqueue` or `turn/start` ([External Channel Adapter](../protocols/external-channel-adapter.md#72-thread-and-turn-management)), turn activity reduction, the generic Turn failure notice, `ext/channel/send` and `ext/channel/toolCall` dispatch, approval and user-input dispatch, plain-text approval reply parsing and pending-approval tracking, media source normalization, module config loading and validation, and module lifecycle state. First-party channel packages use these rather than duplicating equivalent logic.
 
@@ -342,7 +342,7 @@ Adapters pass the platform sender separately through `sender`, following [Extern
 
 ### 14.5 Channel Tools
 
-Adapters declare tools through `capabilities.channelAdapter.channelTools` during initialization, following the [AppServer descriptor and approval contract](../protocols/appserver-protocol.md#32-initialize). These are connection capabilities, not `ExternalChannels` configuration. The SDK forwards declarations and returns callback results without making approval-policy decisions.
+Adapters declare tools through `capabilities.channelAdapter.channelTools` during initialization, following the [AppServer descriptor and approval contract](../protocols/appserver-protocol.md#32-initialize). These are connection capabilities, not workspace channel settings. The SDK forwards declarations and returns callback results without making approval-policy decisions.
 
 ### 14.6 Media Source Handling
 
@@ -356,7 +356,7 @@ A tool that accepts both host paths and non-local sources must expose the host p
 
 ### 15.1 First-Party Modules
 
-The first-party channel packages are `@dotcraft/channel-feishu`, `@dotcraft/channel-weixin`, `@dotcraft/channel-telegram`, `@dotcraft/channel-qq`, and `@dotcraft/channel-wecom`. They depend on `@dotcraft/channel`.
+Feishu, QQ, Telegram, WeCom, and Weixin are published as separate channel plugins.
 
 ### 15.2 Module Manifest Contract
 

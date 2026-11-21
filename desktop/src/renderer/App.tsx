@@ -118,8 +118,6 @@ import { normalizeWorkspaceProjectKey } from '../shared/workspaceProjectKey'
 import type {
   BrowserUseApprovalRequestPayload,
   BrowserUseApprovalResponseAction,
-  DiscoveredModule,
-  ModuleStatusMap,
   WindowVisibilityState,
   WorkspaceSetupRequest,
   WorkspaceStatusPayload
@@ -133,7 +131,6 @@ const DEFAULT_WINDOW_VISIBILITY_STATE: WindowVisibilityState = {
   focused: true
 }
 
-const CoreChannelsView = coreMainViews.channels
 const CoreAgentBuilderView = coreMainViews.agents
 const CoreAutomationsView = coreMainViews.automations
 const CorePluginsView = coreMainViews.skills
@@ -482,9 +479,6 @@ export function App(): JSX.Element {
   )
   const workspaceStatusHydratedRef = useRef(hasPreloadedWorkspaceStatusRef.current)
   const configChangedDedupeRef = useRef<Map<string, number>>(new Map())
-  const moduleConnectedSnapshotRef = useRef<Map<string, boolean>>(new Map())
-  const moduleConnectedSnapshotReadyRef = useRef(false)
-  const moduleDisplayNameByIdRef = useRef<Map<string, string>>(new Map())
   const whatsNewAutoCheckedVersionRef = useRef<string | null>(null)
   const whatsNewMediaStatesRef = useRef<Record<string, WhatsNewMediaState>>({})
   const whatsNewDialogOpenRef = useRef(false)
@@ -861,73 +855,6 @@ export function App(): JSX.Element {
   })
 
   useConversationWorkspace(activeConversationWorkspacePath, remoteWorkspaceActive)
-
-  useEffect(() => {
-    moduleConnectedSnapshotRef.current = new Map()
-    moduleConnectedSnapshotReadyRef.current = false
-    moduleDisplayNameByIdRef.current = new Map()
-
-    if (!workspacePath) return
-
-    let disposed = false
-
-    const toConnectedSnapshot = (statusMap: ModuleStatusMap): Map<string, boolean> => {
-      const snapshot = new Map<string, boolean>()
-      for (const [moduleId, entry] of Object.entries(statusMap)) {
-        snapshot.set(moduleId, entry?.connected === true)
-      }
-      return snapshot
-    }
-
-    const hydrateModuleMetadata = async (): Promise<void> => {
-      try {
-        const [modules, statusMap] = await Promise.all([
-          window.api.modules.list(),
-          window.api.modules.running()
-        ])
-        if (disposed) return
-        moduleDisplayNameByIdRef.current = new Map(
-          (modules as DiscoveredModule[]).map((module) => [module.moduleId, module.displayName])
-        )
-        moduleConnectedSnapshotRef.current = toConnectedSnapshot(statusMap)
-        moduleConnectedSnapshotReadyRef.current = true
-      } catch {
-        if (disposed) return
-        moduleConnectedSnapshotRef.current = new Map()
-        moduleConnectedSnapshotReadyRef.current = true
-      }
-    }
-
-    void hydrateModuleMetadata()
-
-    const unsubscribe = window.api.modules.onStatusChanged((statusMap) => {
-      if (disposed) return
-      const nextSnapshot = toConnectedSnapshot(statusMap)
-      if (!moduleConnectedSnapshotReadyRef.current) {
-        moduleConnectedSnapshotRef.current = nextSnapshot
-        moduleConnectedSnapshotReadyRef.current = true
-        return
-      }
-
-      const previousSnapshot = moduleConnectedSnapshotRef.current
-      for (const [moduleId, connected] of nextSnapshot) {
-        const wasConnected = previousSnapshot.get(moduleId) === true
-        if (!wasConnected && connected) {
-          const displayName = moduleDisplayNameByIdRef.current.get(moduleId) ?? moduleId
-          addToast(
-            translate(localeRef.current, 'channels.modules.connectedToast', { name: displayName }),
-            'success'
-          )
-        }
-      }
-      moduleConnectedSnapshotRef.current = nextSnapshot
-    })
-
-    return () => {
-      disposed = true
-      unsubscribe()
-    }
-  }, [workspacePath])
 
   useEffect(() => {
     if (!workspaceLaunchTransition) return
@@ -1698,7 +1625,6 @@ export function App(): JSX.Element {
                     </CoreMainViewBoundary>
                   )
                 }
-                if (view === 'channels') return <CoreMainViewBoundary><CoreChannelsView /></CoreMainViewBoundary>
                 if (view === 'agents') return <CoreMainViewBoundary><CoreAgentBuilderView /></CoreMainViewBoundary>
                 if (view === 'skills') return <CoreMainViewBoundary><CorePluginsView /></CoreMainViewBoundary>
                 if (view === 'automations') return <CoreMainViewBoundary><CoreAutomationsView /></CoreMainViewBoundary>

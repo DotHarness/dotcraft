@@ -39,12 +39,12 @@ const PENDING_WELCOME_TIMEOUT_MS = 30_000
 
 export type ChangesDiffMode = 'inline' | 'split'
 
-export type BuiltInMainView = 'conversation' | 'agents' | 'skills' | 'automations' | 'settings' | 'channels'
+export type BuiltInMainView = 'conversation' | 'agents' | 'skills' | 'automations' | 'settings'
 export type DesktopPluginMainView = `desktop-plugin:${string}:${string}`
 export type ActiveMainView = BuiltInMainView | DesktopPluginMainView
-export type SelectedChannelKey = `module:${string}` | `external:${string}` | null
+export type SelectedChannelKey = `channel:${string}` | `external:${string}` | null
 
-export type PluginCatalogSurface = 'plugins' | 'skills'
+export type PluginCatalogSurface = 'plugins' | 'skills' | 'channels'
 
 export interface ComposerImageAttachmentRequest {
   dataUrl: string
@@ -112,7 +112,6 @@ export interface UIState extends ProjectThreadNavigationState {
   browserDownloadHistoryOpen: boolean
   activeSettingsTab: SettingsTab
   environmentSettingsTarget: EnvironmentSettingsTarget | null
-  /** Selected channel detail, kept outside ChannelsView so app history can restore it. */
   selectedChannelKey: SelectedChannelKey
   settingsCloseRequestSeq: number
   whatsNewOpenRequestSeq: number

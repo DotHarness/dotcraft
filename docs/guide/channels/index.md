@@ -1,19 +1,19 @@
 # Channels & Bots
 
-Put DotCraft in the chat tools your team already uses, so a colleague can ask in the group chat instead of opening Desktop. QQ, WeCom, Feishu / Lark, Telegram, and WeChat all connect, and the resulting chats and memory are shared with every other entry point in the workspace.
+Connect DotCraft to QQ, WeCom, Feishu / Lark, Telegram, or WeChat. Channel chats and Desktop share the workspace's history and memory.
 
-![Available channels in DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/catalog.png)
+![DotCraft channel adapter topology](/channel-adapter-topology.svg)
 
 ## Connect a channel
 
-1. Open a workspace in DotCraft Desktop and go to **Channels**.
-2. Pick the platform you want, and fill in its credentials on the form.
-3. Finish the matching setup in the platform console or bot tool.
-4. Turn the channel on, and send the bot a test message.
+1. Open your workspace in DotCraft Desktop and go to **Plugins → Channels**.
+2. Choose your platform and select **Install**.
+3. Follow the platform's setup steps, then open **Set up** to enter any required credentials.
+4. Select **Connect**. Finish sign-in if prompted, then send the bot a test message.
 
-Desktop hosts the channel process for you — nothing else to deploy. Which credentials each platform needs is on its setup page in the table below. Settings shared by every channel are in the [Channel configuration](../../configuration/channels).
+For other platforms, install a [channel plugin](../../extend/channel-modules).
 
-## Built-in channels
+## Official channel plugins
 
 | Platform | Connection | What the agent can send | While it works | Setup |
 |---|---|---|---|---|
@@ -25,20 +25,13 @@ Desktop hosts the channel process for you — nothing else to deploy. Which cred
 
 ## How the agent talks in a chat
 
-![DotCraft channel adapter topology](/channel-adapter-topology.svg)
-
-- Messages you send to the bot continue one DotCraft chat. A message you send while the agent is working joins the work in progress, so you can add detail or change direction without waiting.
-- The agent replies by sending messages to the chat: text, plus images, files, and voice or video where the platform supports them. People in the chat see only what it sends. Its reasoning, tool calls, and working notes stay in the DotCraft chat, where Desktop shows them.
-- The agent knows which platform and chat it is in and what that chat can display, so it writes plain text where the platform shows no formatting.
-- Ask the agent to post somewhere else, such as another group, and it can send there too. Each new destination asks for approval first.
-- Approvals and follow-up questions appear in the chat, as buttons where the platform has them.
-- Open the same workspace in Desktop to read the history or keep the DotCraft chat going there.
-
-For the model underneath, see [Unified Session Core](../../contribute/architecture/session-core).
+- Send another message while the agent is working to add details or change direction in the same DotCraft chat.
+- Replies use the formats and media listed for each platform. Approve sends to other chats when prompted.
+- Answer approvals and follow-up questions where you sent the request. Open the workspace in Desktop to read the history or continue the DotCraft chat.
 
 ### While the agent works
 
-The bot shows that it is busy in whatever way the platform allows. On Feishu it reacts to your message, and a status card appears when the work runs longer than 20 seconds. The card updates quietly and ends as done, failed, or stopped. On Telegram the bot shows that it is typing. Wherever there is no status card, a failed request gets one short notice in the chat.
+Feishu shows a reaction and adds a status card after 20 seconds. Telegram shows a typing indicator. Failed requests appear on the status card or in a short chat notice.
 
 ## Commands in a chat
 
@@ -61,37 +54,32 @@ Send a command as its own message. Commands run right away, even while the agent
 | `/init` | Create an `AGENTS.md` file with instructions for DotCraft. Admins only. |
 | `/debug` | Toggle debug mode. Admins only. |
 
-`/new` and `/resume` stop the current work before they switch DotCraft chats. `/compact` and `/init` run only when the agent is idle; otherwise the bot says it is busy. Commands also work while the bot is waiting for your answer to a question, so `/stop` is never taken as the answer.
+`/new` and `/resume` stop the current work before switching DotCraft chats. Run `/compact` and `/init` when the agent is idle.
 
-When a command offers choices, such as the models `/model` lists, Feishu and Telegram show them as buttons. Other platforms show a numbered list with the command to send for each choice. Telegram also fills its command menu, showing each sender only the commands they can use.
+For choices such as the models from `/model`, select a button in Feishu or Telegram. On other platforms, send the command next to your choice in the numbered list.
 
-To answer a pending approval by text, reply `/approve`, `/approve session` to allow the same kind of action for the rest of the DotCraft chat, or `/deny`. These replies answer only your own approval, the one raised by work you asked for, so in a group nobody can approve for someone else this way. Each platform's own reply keywords and buttons work as well.
+For a text approval on work you requested, reply `/approve` to allow, `/deny` to decline, or `/approve session` to allow similar actions for that DotCraft chat. You can also reply `yes` or `同意`, `no` or `拒绝`, and `approve all` or `同意全部` respectively. The request expires when its approval window ends.
 
-Admin commands are limited to the senders in the channel's admin list. Set it with `adminUsers` in the [Channel configuration](../../configuration/channels); with an empty list, nobody in the chat can run admin commands. Weixin has no admin list: only the bot's owner can reach it, so every Weixin sender can run admin commands.
+Grant admin commands through `adminUsers` in the [channel configuration](../../configuration/channels). In Weixin, the bot owner has admin access.
 
 ## Automations from a chat
 
-Ask the agent in a chat to do something on a schedule, and the automation it creates belongs to that chat. Each run posts to the chat only when the agent has something to send, so a check that finds nothing stays quiet. If a run fails, the bot posts one short notice naming the automation. Manage these automations with `/automate`, or from **Automations** in Desktop.
+Ask the agent to run a task on a schedule. Results and failure notices return to the chat where you created it. Manage scheduled tasks with `/automate` or in **Automations** in Desktop.
 
 ## Continue a Desktop chat in a chat app
 
 In a Desktop chat, type `/bind` and pick a connected channel. DotCraft shows a command such as `/bind 482913`. Send it in the chat you want within 10 minutes. Messages from that chat then go into the Desktop chat, and the agent sends its replies there.
 
-The binding applies only to that chat; other chats keep their own DotCraft chats. While it lasts, `/new`, `/sessions` and `/resume` reply that the chat is bound and change nothing. To stop, choose **Stop continuing in …** from the Desktop chat's **⋯** menu, or type `/unbind`.
+To use `/new`, `/sessions`, or `/resume` in that chat again, send `/unbind` or choose **Stop continuing in …** from the Desktop chat's **⋯** menu.
 
 ## Before you open a bot to a group
 
-Before putting a bot in a group or public chat:
-
 - Keep file and shell actions behind approval.
 - Limit the channel to trusted users, groups, or chats where the platform supports it.
-- Give admin rights only to the people who should change models or manage automations.
-- Set a strong random AppServer WebSocket token when you run an adapter yourself.
-- Serve production deployments over HTTPS when the platform calls back into DotCraft.
-
-The exact field names are in the [Entry points and services](../../configuration/services).
+- Grant admin rights to the people responsible for model selection and automations.
+- Use HTTPS for public callback endpoints.
 
 ## Related docs
 
 - [Security](../../self-hosting/security) — tighten tools and approvals before a bot faces a group chat
-- [Server Deployment](../../self-hosting/server-deployment) — keep channels running on a server instead of your own machine
+- [Server Deployment](../../self-hosting/server-deployment) — run channels on a server

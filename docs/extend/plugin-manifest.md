@@ -46,6 +46,7 @@ To have the agent write a plugin for you, start with `$plugin-creator`. It uses 
 | `lspServers` | path | Language server config. Defaults to a root `.lsp.json` |
 | `hooks` | path, array, or object | Lifecycle hooks. Defaults to a root `hooks/hooks.json` |
 | `apps` | path | [App Binding](./app-binding) descriptors |
+| `channel` | object | [Channel module](./channel-modules) descriptor and bundled launcher |
 | `workflows` | path | Dynamic Workflow directory. Defaults to a root `workflows/` |
 | `settings` | path | Settings schema |
 | `desktop` | object | [Desktop extension](./desktop-extensions) module |
@@ -87,7 +88,7 @@ DotCraft loads a plugin without most of these fields, but `dotcraft plugin verif
 | `displayName` | Required, at most 30 characters. The top-level `displayName` has the same limit |
 | `shortDescription` | Required, one line, at most 48 characters |
 | `developerName` | Required. The real author or team |
-| `category` | Required. One of `Coding`, `Design`, `Engineering`, `Security`, `Lifestyle`, `Productivity`, or `Research` |
+| `category` | Required. One of `Coding`, `Design`, `Engineering`, `Security`, `Lifestyle`, `Productivity`, `Research`, or `Channels`. `Channels` requires a `channel` contribution |
 | `capabilities` | Required. Display tags |
 | `defaultPrompt` | Required, one line, at most 128 characters |
 | `logo` | Required. See below |
@@ -109,7 +110,7 @@ dotcraft plugin verify --candidate <plugin-root> [--for-publish] [--json]
 
 The command writes nothing, uses no network, and does not load plugin code. For a .NET project, the candidate is its `plugin/` directory after `CSharp.Build`.
 
-It checks that the manifest and every declared file, descriptor, Desktop output, and plugin skill follow runtime rules, that no `[TODO: ...]` placeholder remains, and that the fields and icons above are valid.
+It checks that the manifest and every declared file, descriptor, Desktop output, channel bundle, and plugin skill follow runtime rules, that no `[TODO: ...]` placeholder remains, and that the fields and icons above are valid.
 
 `--for-publish` adds the checks for public distribution:
 

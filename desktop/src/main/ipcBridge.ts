@@ -2,7 +2,6 @@ import { BrowserWindow, Notification } from 'electron'
 import type { ConnectionStatusPayload } from '../shared/connectionStatus'
 import type { AppServerConnectionSource } from '../shared/appServerBoundary'
 import type { WorkspaceStatusPayload } from '../shared/workspaceSetup'
-import { ChannelModuleManager, type ModuleStatusMap } from './channelModuleManager'
 import type { DesktopAppServerClient } from './DesktopAppServerClient'
 import { unregisterDesktopPluginModuleIpc } from './desktopPluginModuleIpc'
 import { getCodexRemoteHubBridge } from './codexRemote/codexRemoteHubBridge'
@@ -10,7 +9,6 @@ import { registerCodexRemoteHandlers } from './codexRemote/codexRemoteIpc'
 import { getMobileHubBridge } from './mobile/mobileHubBridge'
 import { registerMobileHandlers } from './mobile/mobileIpc'
 import { clearDesktopPluginModuleRoutes } from './pluginFileProtocol'
-import type { QrUpdatePayload } from './qrWatcher'
 import { getSatellitesHubBridge } from './satellites/satellitesHubBridge'
 import { registerSatellitesHandlers } from './satellites/satellitesIpc'
 import { registerScreenViewHandlers } from './screenView/screenViewIpc'
@@ -28,7 +26,6 @@ import {
 
 import { registerAppServerHandlers } from './ipcAppServer'
 import type { IpcHandlerCallbacks, WindowIpcContext } from './ipcBridgeContracts'
-import { registerChannelModuleHandlers, type WindowChannelModules } from './ipcChannelModules'
 import { registerDesktopAppHandlers } from './ipcDesktopApps'
 import { registerGitHandlers } from './ipcGit'
 import { cancelWindowServerRequests } from './ipcServerRequests'
@@ -59,19 +56,10 @@ export {
 
 interface WindowRegistration {
   ipc: WindowIpcMain
-  modules: WindowChannelModules
   onClosed: () => void
   disposeProjectActions?: () => void
 }
 const registrations = new Map<BrowserWindow, WindowRegistration>()
-
-export function getChannelModuleManager(owner: BrowserWindow): ChannelModuleManager | null {
-  return registrations.get(owner)?.modules.manager ?? null
-}
-
-export async function restoreModuleTrackingByChannelName(names: string[], owner: BrowserWindow): Promise<void> {
-  await registrations.get(owner)?.modules.restore(names)
-}
 
 export function registerIpcHandlers(
   getWireClient: () => DesktopAppServerClient | null,
@@ -85,9 +73,8 @@ export function registerIpcHandlers(
   const ipc = createWindowIpcMain(owner)
   const handleSafe = ipc.handle.bind(ipc)
   const context: WindowIpcContext = { owner, ipc, handleSafe, workspacePath, callbacks, getWireClient }
-  const modules = registerChannelModuleHandlers(context)
   const onClosed = (): void => unregisterIpcHandlers(owner)
-  const registration: WindowRegistration = { ipc, modules, onClosed }
+  const registration: WindowRegistration = { ipc, onClosed }
   registrations.set(owner, registration)
   owner.once('closed', onClosed)
   registerAppServerHandlers(context)
@@ -161,7 +148,6 @@ export function unregisterIpcHandlers(
   registrations.delete(owner)
   owner.removeListener('closed', registration.onClosed)
   registration.ipc.dispose()
-  registration.modules.dispose()
   registration.disposeProjectActions?.()
   const rebinding = reason === 'rebind'
   if (!rebinding) cancelWindowServerRequests(owner)
@@ -180,18 +166,6 @@ export function broadcastConnectionStatus(win: BrowserWindow, payload: Connectio
 export function broadcastWorkspaceStatus(win: BrowserWindow, payload: WorkspaceStatusPayload): void {
   if (!win.isDestroyed()) {
     win.webContents.send('workspace:status-changed', payload)
-  }
-}
-
-export function broadcastModuleStatus(win: BrowserWindow, payload: ModuleStatusMap): void {
-  if (!win.isDestroyed()) {
-    win.webContents.send('modules:status-changed', payload)
-  }
-}
-
-export function broadcastModuleQrUpdate(win: BrowserWindow, payload: QrUpdatePayload): void {
-  if (!win.isDestroyed()) {
-    win.webContents.send('modules:qr-update', payload)
   }
 }
 

@@ -64,7 +64,7 @@ beforeEach(() => {
     reregisterIpcForWorkspace: () => {}, localProjectId: (path: string) => path,
     clearPendingDeviceOpenRetry: () => {}, flushPendingWorkspaceOpenThread: () => {},
     emitWorkspaceProjects: () => {}, resolveConnectionMode: () => 'local',
-    restoreEnabledModuleTracking: async () => {}, scheduleSecondaryWorkspaceRefresh: () => {},
+    scheduleSecondaryWorkspaceRefresh: () => {}, desktopThreadToolOptions: () => ({ ownerId: 101 }),
     schedulePendingDeviceOpenRetry: () => {}, getThreadTasks: () => ({ handleNotification: () => {} }),
     applyWorkspaceThreadNotification: () => {}
   } as unknown as DesktopWindowRuntime

@@ -45,7 +45,11 @@ export interface ClientRequestMethods {
   "automation/runs/list": { params: Models.AutomationIdParams; result: Models.AutomationRunsResult };
   "automation/runs/read": { params: Models.AutomationRunReadParams; result: Models.AutomationRunsResult };
   "automation/update": { params: Models.AutomationUpdateParams; result: Models.AutomationReadResult };
+  "channel/configOptionAvailability": { params: Models.ChannelConfigOptionAvailabilityParams; result: Models.ChannelConfigOptionAvailabilityResult };
   "channel/list": { params: Models.RpcEmpty; result: Models.ChannelListResult };
+  "channel/logs": { params: Models.ChannelLogsParams; result: Models.ChannelLogsResult };
+  "channel/setEnabled": { params: Models.ChannelSetEnabledParams; result: Models.RpcEmpty };
+  "channel/setup/read": { params: Models.ChannelSetupReadParams; result: Models.ChannelSetupReadResult };
   "channel/status": { params: Models.RpcEmpty; result: Models.ChannelStatusResult };
   "command/exec": { params: Models.CommandExecParams; result: Models.CommandExecResult };
   "command/execute": { params: Models.CommandExecuteParams; result: Models.CommandExecuteResult };
@@ -65,12 +69,6 @@ export interface ClientRequestMethods {
   "dreams/run": { params: Models.DreamsRunParams; result: Models.DreamsStatusResult };
   "dreams/status": { params: Models.DreamsStatusParams; result: Models.DreamsStatusResult };
   "ext/nodeRepl/requestApproval": { params: Models.NodeReplRequestApprovalParams; result: Models.NodeReplRequestApprovalResult };
-  "externalChannel/configOptionAvailability": { params: Models.ExternalChannelConfigOptionAvailabilityParams; result: Models.ExternalChannelConfigOptionAvailabilityResult };
-  "externalChannel/get": { params: Models.ExternalChannelGetParams; result: Models.ExternalChannelGetResult };
-  "externalChannel/list": { params: Models.RpcEmpty; result: Models.ExternalChannelListResult };
-  "externalChannel/logs": { params: Models.ExternalChannelLogsParams; result: Models.ExternalChannelLogsResult };
-  "externalChannel/remove": { params: Models.ExternalChannelRemoveParams; result: Models.ExternalChannelRemoveResult };
-  "externalChannel/upsert": { params: Models.ExternalChannelUpsertParams; result: Models.ExternalChannelUpsertResult };
   "fs/copy": { params: Models.FsCopyParams; result: Models.RpcEmpty };
   "fs/createDirectory": { params: Models.FsCreateDirectoryParams; result: Models.RpcEmpty };
   "fs/getMetadata": { params: Models.FsGetMetadataParams; result: Models.FsGetMetadataResult };

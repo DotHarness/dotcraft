@@ -2,10 +2,10 @@
 
 A channel adapter brings an external messaging platform into DotCraft as a first-class channel. It resolves a thread per conversation, forwards platform messages and commands to it, and serves the deliveries the agent sends with `SendChannelMessage`.
 
-The adapter is the runtime abstraction. To make the same adapter discoverable and manageable by DotCraft hosts such as Desktop, package it as a [Channel module](../channel-modules). A module adds host metadata and lifecycle packaging; it does not replace the adapter.
+Distribute the adapter as a [channel plugin](../channel-modules) to let DotCraft install and manage it.
 
 > [!NOTE]
-> The channel adapter is a language-specific profile, available in **TypeScript** only. The .NET SDK does not ship a channel adapter.
+> The example uses `@dotcraft/channel`, a private library bundled with the official plugins and not published to npm. Channel plugin launchers can also implement the [AppServer channel protocol](../protocols/appserver#channel-adapters) directly.
 
 Subclass the adapter base class when you want the built-in Channel policy: per-identity message queues, thread resolution, command routing, routing input into a running turn, turn activity reduction, server-request handlers, and heartbeat.
 
@@ -13,7 +13,7 @@ The adapter never posts the agent's replies on its own. People in a chat see onl
 
 ![One platform message through a channel adapter: queued per identity, routed to a thread or run as a command, started as a turn or steered into the running one, and only the messages the agent sends are delivered back to the chat](/channel-adapter-loop.svg)
 
-## Minimal adapter
+## First-party source example
 
 ```ts
 import {
@@ -95,12 +95,6 @@ Approvals answered by text accept `/approve`, `/approve session`, and `/deny`, i
 | `renderCommandChoices` | Optional. Present a command result's choices. The default renders a numbered list through `onDeliver`. |
 
 The adapter also handles user-input requests through `onUserInputRequest`; its default returns an empty answer set. The base adapter registers heartbeat replies itself, so a platform subclass never implements them.
-
-## Package
-
-TypeScript Channel authoring uses `@dotcraft/channel`. Import adapter authoring APIs from its root, queues and routing from `/runtime`, media helpers from `/media`, conformance helpers from `/testing`, and Channel contract metadata from `/meta`.
-
-DotCraft uses the same base for its built-in hosted channels. Their setup and configuration are documented in the [channel configuration](../../configuration/channels).
 
 ## Related docs
 

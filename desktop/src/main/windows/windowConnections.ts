@@ -36,7 +36,6 @@ export async function connectViaWebSocket(
   const win = ctx.mainWindow
   const role = options.role ?? 'foreground'
   if (role === 'foreground') {
-    ctx.lastAppServerWsUrl = wsUrl
     ctx.emitConnectionStatus(win, { status: 'connecting' })
     ctx.reregisterIpcForWorkspace(workspacePath)
   }
@@ -188,7 +187,6 @@ export async function connectViaWebSocket(
     }
     if (ctx.wireClient === client) {
       ctx.wireClient = null
-      ctx.lastAppServerWsUrl = null
     }
     entry.connected = false
     entry.connecting = false
@@ -230,14 +228,6 @@ export async function connectViaWebSocket(
       })
       ctx.flushPendingWorkspaceOpenThread(ctx.mainWindow)
       ctx.emitWorkspaceProjects()
-    }
-    if (
-      entry.kind !== 'remote' &&
-      !options.remoteDiagnostic &&
-      !ctx.activeRemoteWorkspace &&
-      ctx.resolveConnectionMode(ctx.settings) === 'local'
-    ) {
-      void ctx.restoreEnabledModuleTracking()
     }
   }
   client.on('ready', (result: InitializeResult) => emitConnected(result))

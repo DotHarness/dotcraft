@@ -403,6 +403,13 @@ slides back out.
 
 ### Catalog pages
 
+- The Plugins catalog uses one shared top band for the Plugins, Skills, and Channels tabs.
+  The Channels tab uses the same two-column catalog grid for installed and installable
+  channel plugins. Channel details use the shared breadcrumb and plugin actions menu for
+  Manage and Uninstall. The morphing primary button shows Connect or Disconnect without
+  a second connection-status badge in the detail header.
+- A channel detail shows the manifest's complete localized setup steps and its package
+  name, source, transports, and declared capabilities.
 - Catalog browse, manage, and detail surfaces share one 48px top control band:
   navigation (tabs or breadcrumb) left, page-level management actions right, on
   one vertical center. Item-scoped actions on a detail page may sit beside the
@@ -411,8 +418,8 @@ slides back out.
   pinned header (`28px 64px 16px`) carrying the hero title and search row, then a
   scrolling body (`28px 64px 48px`), both centered on one 760px column.
 - A group is a `16px`/`700` title over one grid of `58px` rows: two columns at
-  `34px`/`18px` gaps for items the user can add, one column at `4px` for records
-  the user already owns. Every row is a borderless `8px` box with a `40px` leading
+  `34px`/`18px` gaps for catalog cards, one column at `4px` for management rows.
+  Every row is a borderless `8px` box with a `40px` leading
   mark, a `--type-ui` title and one truncating `--type-secondary` line, and fills
   with `--bg-hover` on hover.
 - Owned records compared by several attributes use aligned columns under one

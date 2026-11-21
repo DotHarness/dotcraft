@@ -168,7 +168,7 @@ public sealed class AppServerHostResolutionTests
     {
         public IChannelStatusProvider? ChannelStatusProvider => null;
 
-        public IExternalChannelRuntimeProvider? ExternalChannelRuntimeProvider => null;
+        public IChannelRuntimeProvider? ChannelRuntimeProvider => null;
 
         public string? DashboardUrl => null;
 
@@ -199,11 +199,9 @@ public sealed class AppServerHostResolutionTests
             return Task.CompletedTask;
         }
 
-        public Task ApplyExternalChannelUpsertAsync(ExternalChannelEntry entry, CancellationToken ct = default) =>
+        public Task ApplyChannelSetEnabledAsync(ChannelEntry entry, CancellationToken ct = default) =>
             Task.CompletedTask;
 
-        public Task ApplyExternalChannelRemoveAsync(string channelName, CancellationToken ct = default) =>
-            Task.CompletedTask;
 
         public ValueTask DisposeAsync()
         {

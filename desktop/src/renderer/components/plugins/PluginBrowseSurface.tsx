@@ -48,7 +48,8 @@ export function PluginSurfaceTabs({
       onChange={onChange}
       items={[
         { value: 'plugins', label: t('plugins.tab.plugins') },
-        { value: 'skills', label: t('plugins.tab.skills') }
+        { value: 'skills', label: t('plugins.tab.skills') },
+        { value: 'channels', label: t('channels.title') }
       ]}
     />
   )

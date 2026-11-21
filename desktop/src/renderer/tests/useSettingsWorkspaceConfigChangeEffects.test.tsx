@@ -68,7 +68,7 @@ describe('useSettingsWorkspaceConfigChangeEffects', () => {
       <HookHost
         change={{
           source: 'mcp/upsert',
-          regions: ['mcp', 'externalChannel'],
+          regions: ['mcp', 'channels'],
           changedAt: '2026-04-19T10:15:03Z'
         }}
         changeSeq={1}

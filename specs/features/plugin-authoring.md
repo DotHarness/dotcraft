@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.11.1 |
+| **Version** | 0.14.0 |
 | **Status** | Draft |
-| **Date** | 2026-11-13 |
+| **Date** | 2026-11-21 |
 | **Parent** | [Plugin Architecture](../architecture/plugin-architecture.md) |
 | **Related** | [Skills](../architecture/skills.md), [Plugin Registry](../architecture/plugin-registry.md), [.NET Extensions](../architecture/dotnet-extensions.md), [Desktop Plugins](../architecture/desktop-plugins.md), [Exec CLI](exec-cli.md) |
 
@@ -76,6 +76,7 @@ An id that already exists among discovered plugins moves the work to §8 unless 
 | A scripted multi-agent procedure | Dynamic Workflows | `workflow-authoring` |
 | Language intelligence for a file type | LSP servers | Public documentation |
 | An external application connected to threads | App descriptors | Public documentation |
+| A messaging platform connected to a workspace | Channel | Public documentation |
 | A view, action, or tool presentation in Desktop | Desktop extension | Public documentation |
 | In-process tools or Host contribution points | .NET extension | Public documentation and `CSharp.Inspect` |
 | Options the user changes per installation | Settings | Public documentation |
@@ -94,16 +95,16 @@ The Agent does not write into marketplace snapshots or into plugin directories t
 
 ### 4.4 Write from templates
 
-`plugin-creator` ships a template for the manifest and for each contribution with a fixed file shape. Workflows and app descriptors take their shape from their owners in §4.2. The Agent copies the relevant templates with ordinary file tools and writes real content. Authoring needs no scaffold script and no interpreter beyond what a chosen contribution itself requires, such as Node.js to build a Desktop extension.
+`plugin-creator` ships a template for the manifest and for each contribution with a fixed file shape. Workflows, app descriptors, and channel bundles take their shape from their owners in §4.2. The Agent copies the relevant templates with ordinary file tools. Authoring requires only the tools needed by the selected contributions.
 
 Rules:
 
 - The Agent adds only the directories and files the plugin uses.
 - Values the Agent must supply appear in templates as `[TODO: ...]`. None may remain at completion.
 - Templates contain no icon, so a missing icon cannot pass as a generic one.
-- Host-pinned values, such as the Desktop SDK package version and `dotnet.minHostVersion`, come from the running DotCraft.
+- Host-pinned values, such as the Desktop SDK package version, `dotnet.minHostVersion`, and `channel.minHostVersion`, come from the running DotCraft.
 - Hook commands and MCP launch configuration reference plugin files through plugin-relative paths or plugin root variables, never absolute paths.
-- Secrets stay out of plugin files. Configuration references environment variables, and setup instructions name those variables.
+- Secrets stay out of plugin files. Declare masked channel settings for platform credentials. Where a contribution references environment variables, setup instructions name them.
 
 ## 5. Presentation metadata
 
@@ -117,7 +118,7 @@ Every authored plugin, including a .NET-only plugin, declares these fields:
 | `description` | One sentence of at most 160 characters |
 | `interface.shortDescription` | One line of at most 48 characters |
 | `interface.developerName` | The real author or team. DotCraft or DotHarness appears only on plugins they author |
-| `interface.category` | Exactly one of `Coding`, `Design`, `Engineering`, `Security`, `Lifestyle`, `Productivity`, or `Research` |
+| `interface.category` | Exactly one of `Coding`, `Design`, `Engineering`, `Security`, `Lifestyle`, `Productivity`, `Research`, or `Channels`. `Channels` requires a channel contribution |
 | `capabilities`, `interface.capabilities` | The contributions the plugin actually ships |
 | `interface.defaultPrompt` | One line of at most 128 characters |
 | `interface.logo`, `interface.composerIcon` | See §5.3. Both may name the same file |
@@ -161,7 +162,7 @@ The command checks one plugin root without installing it. It uses the runtime's 
 
 | Group | Applies | Checks |
 |---|---|---|
-| Runtime | Always | Manifest errors, path rules, and declared files. MCP, LSP, hook, app, and settings descriptors. Declared Desktop output. .NET metadata preflight. Every plugin Skill under the rules of `dotcraft skill verify` |
+| Runtime | Always | Manifest errors, path rules, and declared files. MCP, LSP, hook, app, settings, and channel descriptors. Declared Desktop output. .NET metadata preflight. Every plugin Skill under the rules of `dotcraft skill verify` |
 | Completeness | Always | Remaining `[TODO: ...]` in the manifest, descriptors, and plugin Skills. Required fields and limits in §5.1. Icon rules in §5.3 that a file can prove |
 | Publication | `--for-publish` | Strict SemVer `version` and hyphen-case id. No `.git`, `node_modules`, `.builtin`, build intermediates, or symbolic links. No literal credential values in descriptors and no recognizable token in text files. No absolute machine paths in descriptors |
 
@@ -203,6 +204,7 @@ The Agent runs `dotcraft plugin verify`, fixes every error, and then makes the p
 | Dynamic Workflows | The workflow is listed and a bounded run completes |
 | LSP servers | The server starts for a matching file and returns one result |
 | App descriptors | The app appears and its connection flow starts |
+| Channel | After the operator connects the plugin, the bot receives a message and sends a reply |
 | Desktop extension | The build succeeds, and the view opens or the action runs in Desktop |
 | .NET extension | `CSharp.Build` succeeds, and a contributed Tool runs on a later Turn |
 | Settings | The field appears and its value reaches the plugin |
