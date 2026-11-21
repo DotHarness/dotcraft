@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties, type JSX } from 'react'
+import { useEffect, useState, type CSSProperties, type JSX, type ReactNode } from 'react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import type { ProviderUsageBalance, ProviderUsageSnapshot, ProviderUsageWindow } from '../../stores/providersStore'
 import { formatBalanceAmount } from '../../utils/providerBalance'
@@ -22,6 +22,22 @@ interface ProviderUsagePopoverProps {
 const POPOVER_WIDTH = 280
 
 export function ProviderUsagePopover({ title, usage, markKind }: ProviderUsagePopoverProps): JSX.Element {
+  return (
+    <ProviderUsageCard label={title}>
+      <ProviderUsageContent title={title} usage={usage} markKind={markKind} />
+    </ProviderUsageCard>
+  )
+}
+
+export function ProviderUsageCard({ label, children }: { label?: string; children: ReactNode }): JSX.Element {
+  return (
+    <div style={containerStyle()} role={label ? 'dialog' : undefined} aria-label={label}>
+      {children}
+    </div>
+  )
+}
+
+export function ProviderUsageContent({ title, usage, markKind, showFetched = true }: ProviderUsagePopoverProps & { showFetched?: boolean }): JSX.Element {
   const t = useT()
   const locale = useLocale()
   const [now, setNow] = useState(() => Date.now())
@@ -37,7 +53,7 @@ export function ProviderUsagePopover({ title, usage, markKind }: ProviderUsagePo
 
   if (!usage || !usage.available) {
     return (
-      <div style={containerStyle()} role="dialog" aria-label={title}>
+      <div style={contentStyle()}>
         {heading}
         <div style={emptyStateStyle()}>{t(markKind === 'openrouter' ? 'settings.llm.openrouter.usageUnavailable' : 'composer.chatgptUsage.unavailable')}</div>
       </div>
@@ -48,11 +64,11 @@ export function ProviderUsagePopover({ title, usage, markKind }: ProviderUsagePo
   const hasSupplementalUsage = usage.credits?.hasCredits === true || usage.limitReachedKind != null
   const balances = displayWindows.length === 0 ? usage.balances : null
   return (
-    <div style={containerStyle()} role="dialog" aria-label={title}>
+    <div style={contentStyle()}>
       <div style={headerRowStyle()}>
         <div style={headerTextStyle()}>
           {heading}
-          {usage.fetchedAt && (
+          {showFetched && usage.fetchedAt && (
             <span style={subtitleStyle()}>
               {t('composer.chatgptUsage.lastFetched', { time: formatRelative(usage.fetchedAt, now, t) })}
             </span>
@@ -213,11 +229,15 @@ function containerStyle(): CSSProperties {
     boxShadow: '0 10px 32px rgba(0,0,0,0.32)',
     color: 'var(--text-primary)',
     fontSize: 12,
-    lineHeight: 1.45,
+    lineHeight: '16px',
     display: 'flex',
     flexDirection: 'column',
     gap: 10
   }
+}
+
+function contentStyle(): CSSProperties {
+  return { display: 'flex', flexDirection: 'column', gap: 10 }
 }
 
 function headerRowStyle(): CSSProperties {
@@ -283,8 +303,6 @@ function creditsRowStyle(): CSSProperties {
   return {
     display: 'flex',
     justifyContent: 'space-between',
-    padding: '6px 0',
-    borderTop: '1px solid var(--border-default)',
     color: 'var(--text-secondary)',
     fontSize: 11
   }

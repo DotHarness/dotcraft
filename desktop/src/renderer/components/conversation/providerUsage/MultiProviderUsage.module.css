@@ -1,0 +1,168 @@
+.anchor {
+  position: relative;
+}
+
+.pill {
+  display: inline-flex;
+  height: 28px;
+  min-width: 70px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  padding: 0 7px;
+  border: none;
+  border-radius: 999px;
+  color: var(--composer-footer-highlight, var(--text-primary));
+  font-size: var(--type-ui-size);
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.leadMark {
+  display: inline-flex;
+  opacity: 0.86;
+}
+
+.miniTrack {
+  display: block;
+  width: 42px;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--bg-tertiary);
+}
+
+.miniTrack > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+}
+
+.amount {
+  color: var(--composer-footer-text, var(--text-secondary));
+  font-variant-numeric: tabular-nums;
+}
+
+.amount[data-tone="error"] {
+  color: var(--error);
+}
+
+.leadUnreported {
+  display: inline-flex;
+  color: var(--text-dimmed);
+}
+
+.stack {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 2px;
+}
+
+.chip {
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--bg-tertiary);
+  box-shadow: 0 0 0 1.5px var(--bg-primary);
+  color: var(--composer-footer-text, var(--text-secondary));
+}
+
+.chip + .chip {
+  margin-left: -4px;
+}
+
+.chip[data-trouble] {
+  background: var(--error-bg);
+  color: var(--error-text);
+}
+
+.more {
+  font-size: 9px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.layer {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  z-index: 20;
+}
+
+.hover {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  z-index: var(--z-tooltip);
+  display: flex;
+  width: max-content;
+  max-width: min(320px, calc(100vw - 16px));
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--tooltip-border);
+  border-radius: 10px;
+  background: var(--tooltip-bg);
+  box-shadow: var(--tooltip-shadow);
+  color: var(--tooltip-text);
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-line-height);
+  pointer-events: none;
+}
+
+.hoverRow {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.hoverName {
+  overflow: hidden;
+  color: var(--text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hoverValue {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.hoverValue[data-tone="error"] {
+  color: var(--error);
+}
+
+.hoverSeparator {
+  color: var(--text-dimmed);
+}
+
+.separator {
+  height: 1px;
+  flex-shrink: 0;
+  margin: 2px -14px;
+  background: var(--border-default);
+}
+
+.columns {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.probe {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  visibility: hidden;
+  pointer-events: none;
+}

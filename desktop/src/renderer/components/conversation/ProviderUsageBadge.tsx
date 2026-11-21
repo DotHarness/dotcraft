@@ -19,18 +19,47 @@ import {
   type ChatGptUsageWindowKind
 } from '../../utils/chatgptUsageWindows'
 import { formatBalanceAmount } from '../../utils/providerBalance'
-import { ActionTooltip } from '../ui/ActionTooltip'
 import { ProviderMark, type ProviderMarkKind } from '../ui/ProviderMark'
 import { providerPresetMark } from '../settings/providers/providerPresets'
 import { ProviderUsagePopover } from './ProviderUsagePopover'
 import { ApiKeyUsageBadge } from './ApiKeyUsageBadge'
 import { PluginUsageIcon } from './PluginUsageIcon'
+import { MultiProviderUsageBadge } from './providerUsage/MultiProviderUsageBadge'
+import type { UsageEntry } from './providerUsage/MultiProviderUsagePanel'
+import { orderBySeverity, readProviderUsage } from './providerUsage/usageReading'
+import { useUsageProviders } from './providerUsage/useUsageProviders'
+import { UsageHoverCard, useUsageHover } from './providerUsage/UsageHoverCard'
 
 interface ProviderUsageBadgeProps {
   provider: ProviderSummary | null
 }
 
 export function ProviderUsageBadge({ provider }: ProviderUsageBadgeProps): JSX.Element | null {
+  const t = useT()
+  const locale = useLocale()
+  const providers = useUsageProviders(provider)
+  const usageById = useProvidersStore((state) => state.usage)
+  const providerManagement = useConnectionStore((state) => state.capabilities?.providerManagement === true)
+  const refreshUsage = useProvidersStore((state) => state.refreshUsage)
+  const providerIds = providers.map((candidate) => candidate.id).join('\n')
+
+  useEffect(() => {
+    if (!providerManagement) return
+    for (const id of providerIds.split('\n')) if (id) void refreshUsage(id)
+  }, [providerIds, providerManagement, refreshUsage])
+
+  const toEntry = (candidate: ProviderSummary): UsageEntry[] => {
+    const usage = usageById[candidate.id.trim().toLowerCase()] ?? null
+    const reading = readProviderUsage(usage, locale, t)
+    return usage && reading ? [{ provider: candidate, usage, reading }] : []
+  }
+  const [main, ...rest] = providers
+  const others = orderBySeverity(rest.flatMap(toEntry))
+  if (!main || others.length === 0) return <SingleProviderUsageBadge provider={provider} />
+  return <MultiProviderUsageBadge main={main} lead={toEntry(main)[0] ?? null} others={others} />
+}
+
+function SingleProviderUsageBadge({ provider }: ProviderUsageBadgeProps): JSX.Element | null {
   const usage = useProviderUsage(provider?.id ?? null)
   if (provider?.backendId === 'openrouter') return <ApiKeyUsageBadge provider={provider} markKind="openrouter" />
   if (provider && usage?.available && usage.labels?.scope === 'apiKey') return <ApiKeyUsageBadge provider={provider} markKind={null} />
@@ -45,6 +74,7 @@ function ProviderQuotaUsageBadge({ provider }: ProviderUsageBadgeProps): JSX.Ele
   const providerManagement = useConnectionStore((state) => state.capabilities?.providerManagement === true)
   const refreshUsage = useProvidersStore((state) => state.refreshUsage)
   const [open, setOpen] = useState(false)
+  const hover = useUsageHover()
   useEffect(() => {
     if (open && providerId && providerManagement) void refreshUsage(providerId)
   }, [open, providerId, providerManagement, refreshUsage])
@@ -85,46 +115,44 @@ function ProviderQuotaUsageBadge({ provider }: ProviderUsageBadgeProps): JSX.Ele
   const firstBalance = usage.balances?.[0] ?? null
   const balanceText = firstBalance ? formatBalanceAmount(firstBalance.total, firstBalance.currency, locale) : '—'
   const insufficientBalance = usage.limitReachedKind === 'balance'
-  const tooltipLabel = balanceMode
-    ? insufficientBalance
-      ? t('composer.balanceBadge.insufficient')
-      : t('composer.balanceBadge.tooltip', { amount: balanceText })
-    : formatUsageTooltipLabel(displayWindows, t)
+  const balanceLabel = insufficientBalance
+    ? t('composer.balanceBadge.insufficient')
+    : t('composer.balanceBadge.tooltip', { amount: balanceText })
   const markKind = usage.pluginId ? null : providerMarkKind(provider)
+  const reading = readProviderUsage(usage, locale, t)
 
   const ariaParts = [[label, planName].filter(Boolean).join(' ')]
-  if (balanceMode) ariaParts.push(tooltipLabel)
+  if (balanceMode) ariaParts.push(balanceLabel)
   for (const display of displayWindows) {
     ariaParts.push(formatUsageAriaLabel(display.kind, remainingPercent(display.window) ?? 0, t))
   }
-  const badgeButton = (
-    <button
-      type="button"
-      onClick={() => setOpen((current) => !current)}
-      aria-haspopup="dialog"
-      aria-expanded={open}
-      aria-label={ariaParts.join(' – ')}
-      className="dc-composer-pill"
-      style={balanceMode ? balanceBadgeStyle : badgeStyle}
-    >
-      {markKind
-        ? <ProviderMark kind={markKind} size={14} style={iconStyle()} />
-        : <PluginUsageIcon pluginId={usage.pluginId} size={14} style={iconStyle()} />}
-      {balanceMode ? (
-        <span style={balanceTextStyle(insufficientBalance)} aria-hidden>{balanceText}</span>
-      ) : (
-        <span style={miniTrackStyle()} aria-hidden>
-          <span style={{ ...miniFillStyle(), width: `${remaining ?? 0}%`, background: accentColor }} />
-        </span>
-      )}
-    </button>
-  )
 
   return (
-    <div ref={wrapperRef} style={{ position: 'relative' }}>
-      <ActionTooltip label={open ? '' : tooltipLabel} placement="top">
-        {badgeButton}
-      </ActionTooltip>
+    <div ref={wrapperRef} style={{ position: 'relative' }} {...hover.handlers}>
+      <button
+        type="button"
+        onClick={() => {
+          hover.dismiss()
+          setOpen((current) => !current)
+        }}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-label={ariaParts.join(' – ')}
+        className="dc-composer-pill"
+        style={balanceMode ? balanceBadgeStyle : badgeStyle}
+      >
+        {markKind
+          ? <ProviderMark kind={markKind} size={14} style={iconStyle()} />
+          : <PluginUsageIcon pluginId={usage.pluginId} size={14} style={iconStyle()} />}
+        {balanceMode ? (
+          <span style={balanceTextStyle(insufficientBalance)} aria-hidden>{balanceText}</span>
+        ) : (
+          <span style={miniTrackStyle()} aria-hidden>
+            <span style={{ ...miniFillStyle(), width: `${remaining ?? 0}%`, background: accentColor }} />
+          </span>
+        )}
+      </button>
+      {hover.visible && !open && reading && <UsageHoverCard entries={[{ provider, usage, reading }]} />}
       {open && (
         <div style={popoverWrapperStyle()}>
           <ProviderUsagePopover title={title} usage={usage} />
@@ -148,31 +176,6 @@ function selectPressuredWindow(windows: ChatGptUsageDisplayWindow[]): ChatGptUsa
 function remainingPercent(window: ChatGptUsageDisplayWindow['window'] | null): number | null {
   if (!window) return null
   return Math.max(0, Math.min(100, 100 - window.usedPercent))
-}
-
-function formatUsageTooltipLabel(
-  windows: ChatGptUsageDisplayWindow[],
-  t: (key: string, vars?: Record<string, string | number>) => string
-): string {
-  const parts = windows.map((display) => formatUsageTooltipPart(
-    display.kind,
-    Math.round(remainingPercent(display.window) ?? 0),
-    t
-  ))
-  return parts.length > 0 ? parts.join(', ') : t('composer.chatgptBadge.usageUnavailable')
-}
-
-function formatUsageTooltipPart(
-  kind: ChatGptUsageWindowKind,
-  percent: number,
-  t: (key: string, vars?: Record<string, string | number>) => string
-): string {
-  switch (kind) {
-    case 'fiveHour': return t('composer.chatgptBadge.sessionRemaining', { percent })
-    case 'weekly': return t('composer.chatgptBadge.weeklyRemaining', { percent })
-    case 'primary': return t('composer.chatgptBadge.primaryRemaining', { percent })
-    case 'secondary': return t('composer.chatgptBadge.secondaryRemaining', { percent })
-  }
 }
 
 function formatUsageAriaLabel(
@@ -202,7 +205,7 @@ const badgeStyle: CSSProperties = {
   justifyContent: 'center',
   padding: '0 7px',
   height: '28px',
-  width: '70px',
+  minWidth: '70px',
   borderRadius: '999px',
   border: 'none',
   color: 'var(--composer-footer-highlight, var(--text-primary))',
