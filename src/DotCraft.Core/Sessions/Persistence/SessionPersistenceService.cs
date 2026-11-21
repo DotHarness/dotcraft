@@ -46,10 +46,10 @@ public sealed partial class SessionPersistenceService(
         SessionThread thread, ThreadConfiguration configuration, CancellationToken ct)
         => threadStore.CommitConfigurationAsync(thread, configuration, ct);
 
-    internal async Task ArchiveStoredThreadAsync(string threadId, CancellationToken ct)
+    internal async Task ArchiveStoredThreadAsync(SessionThread thread, bool requireRollout, CancellationToken ct)
     {
-        await threadStore.ArchiveStoredThreadAsync(threadId, ct);
-        _tokenUsageStore?.ArchiveThread(threadId);
+        if (await threadStore.ArchiveStoredThreadAsync(thread, requireRollout, ct))
+            _tokenUsageStore?.ArchiveThread(thread.Id);
     }
 
     internal Task<SessionThread?> ReadThreadLifecycleMetadataAsync(

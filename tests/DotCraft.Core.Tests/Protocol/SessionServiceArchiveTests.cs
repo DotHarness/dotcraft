@@ -9,6 +9,7 @@ using DotCraft.Skills;
 using DotCraft.Tests.Tools;
 using DotCraft.Tools;
 using DotCraft.Tools.BackgroundTerminals;
+using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
 using Xunit;
 
@@ -93,6 +94,49 @@ public sealed class SessionServiceArchiveTests : IDisposable
         Assert.Equal(archived, await File.ReadAllBytesAsync(ArchivedPath("cold")));
         Assert.Equal(["cold"], resources.Released);
         AssertNoHydration(service, store, "cold");
+    }
+
+    [Fact]
+    public async Task ArchiveAndQueuedInitialTurnWrite_KeepRolloutArchived()
+    {
+        const string id = "racing-turn";
+        var at = DateTimeOffset.UtcNow;
+        var thread = new SessionThread { Id = id, WorkspacePath = _workspace, CreatedAt = at, LastActiveAt = at };
+        await using var store = new ThreadStore(CraftPath);
+        await store.SaveThreadAsync(thread);
+        var turn = new SessionTurn { Id = "turn_001", ThreadId = id, StartedAt = at, Status = TurnStatus.Running };
+        thread.Turns.Add(turn);
+
+        using var database = new UsageStatisticsDatabase(_workspace);
+        var usage = new UsageStatisticsStore(database, _workspace);
+        usage.ObserveThread(thread);
+        var persistence = new SessionPersistenceService(store, tokenUsageStore: usage);
+        using var connection = database.OpenConnection();
+        using var blockedStatistics = connection.BeginTransaction();
+        Task archive;
+        Task turnWrite;
+        using (await ThreadRolloutWriteGate.AcquireAsync(CraftPath, id))
+        {
+            archive = persistence.ArchiveStoredThreadAsync(thread, requireRollout: true, CancellationToken.None);
+            turnWrite = store.SaveTurnAsync(thread, turn);
+        }
+
+        var timeout = TimeSpan.FromSeconds(10);
+        try
+        {
+            await turnWrite.WaitAsync(timeout);
+            Assert.False(File.Exists(ActivePath(id)));
+        }
+        finally
+        {
+            blockedStatistics.Rollback();
+            await archive.WaitAsync(timeout);
+        }
+
+        var snapshot = await store.ReadThreadSnapshotAsync(id);
+        Assert.Equal(ThreadStatus.Archived, snapshot.Thread.Status);
+        var turns = await store.ListThreadTurnsAsync(id, null, 1, ThreadHistorySortDirection.Ascending);
+        Assert.Equal(turn.Id, Assert.Single(turns.Data).Id);
     }
 
     [Fact]

@@ -209,9 +209,11 @@ public sealed partial class SessionService
             Task<bool> terminalCleanup;
             using (await owner.AcquireThreadAgentLockAsync(thread.Id, ct))
             {
-                if (!loaded || owner.IsMaterialized(thread.Id))
-                    await owner.Persistence.ArchiveStoredThreadAsync(thread.Id, ct);
-                thread.Status = ThreadStatus.Archived;
+                if (thread.Ephemeral)
+                    thread.Status = ThreadStatus.Archived;
+                else
+                    await owner.Persistence.ArchiveStoredThreadAsync(
+                        thread, requireRollout: !loaded || owner.IsMaterialized(thread.Id), ct);
                 owner._runtimeRegistry.TryGetRuntime(thread.Id, out var runtime);
                 interruptedTurn = InterruptArchiveTurns(thread, runtime);
                 terminalCleanup = StopArchivedThreadTerminalsAsync(thread.Id);
