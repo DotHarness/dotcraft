@@ -5637,6 +5637,23 @@
         "version"
       ]
     },
+    "ContextHandoffEndpoint": {
+      "title": "ContextHandoffEndpoint",
+      "type": "object",
+      "properties": {
+        "model": {
+          "type": "string"
+        },
+        "providerId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "model",
+        "providerId"
+      ]
+    },
     "ContextImage": {
       "title": "ContextImage",
       "type": "object",
@@ -16817,6 +16834,26 @@
         "clearedToolResults": {
           "type": "integer"
         },
+        "fallbackText": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "from": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContextHandoffEndpoint"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "hostId": {
           "anyOf": [
             {
@@ -16880,6 +16917,16 @@
           "anyOf": [
             {
               "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "to": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContextHandoffEndpoint"
             },
             {
               "type": "null"

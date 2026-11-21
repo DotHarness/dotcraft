@@ -342,17 +342,27 @@ public sealed partial class SessionService
                 }
             }
 
-            if (owner._runtimeRegistry.TryRemove(threadId, out var removedRuntime))
-                await removedRuntime.DisposeAsync();
-            await owner.AgentFactory.ReleaseThreadToolResourcesAsync(threadId, ct);
+            var closeBroker = owner._runtimeRegistry.TryRemove(threadId, out var removedRuntime);
+            try
+            {
+                // Hidden-thread deletion is delivered only to connections still subscribed at broadcast time.
+                if (closeBroker)
+                    await removedRuntime.DisposeAsync(closeSubscribers: false);
+                await owner.AgentFactory.ReleaseThreadToolResourcesAsync(threadId, ct);
 
-            if (deletingThread?.Ephemeral != true)
-                await owner.Persistence.DeleteThreadCascadeAsync(threadId, ct);
+                if (deletingThread?.Ephemeral != true)
+                    await owner.Persistence.DeleteThreadCascadeAsync(threadId, ct);
+                closeBroker = true;
 
-            owner._sessionApprovalScopes.RemoveThread(threadId);
-            owner.McpAppTransientContexts?.ClearThread(threadId);
-            owner.ThreadDeletedForBroadcast?.Invoke(threadId);
-            owner._runtimeRegistry.ForgetBroker(threadId);
+                owner._sessionApprovalScopes.RemoveThread(threadId);
+                owner.McpAppTransientContexts?.ClearThread(threadId);
+                owner.ThreadDeletedForBroadcast?.Invoke(threadId);
+            }
+            finally
+            {
+                if (closeBroker)
+                    owner._runtimeRegistry.ForgetBroker(threadId);
+            }
             owner.ToolDispatchPolicyRegistry?.Remove(threadId);
             owner.InvalidatePromptRequestSnapshot(threadId, "thread_deleted");
             owner.ClearContextUsageAnchor(threadId);

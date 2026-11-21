@@ -288,7 +288,9 @@ internal sealed class ThreadRuntime(SessionThread thread, ThreadEventBroker brok
     public bool TryRemoveTurn(string turnId, out TurnExecutionState turnRuntime) =>
         Turns.TryRemove(turnId, out turnRuntime!);
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync() => DisposeAsync(closeSubscribers: true);
+
+    internal async ValueTask DisposeAsync(bool closeSubscribers)
     {
         Commands.Close();
         var turns = Turns.Values.ToArray();
@@ -306,7 +308,7 @@ internal sealed class ThreadRuntime(SessionThread thread, ThreadEventBroker brok
             AgentLock.Release();
         }
         await Task.WhenAll(turns.Select(static turn => turn.ExecutionTask)).ConfigureAwait(false);
-        Broker.ReleaseCurrentState(Generation);
+        Broker.ReleaseCurrentState(Generation, closeSubscribers);
         QueueLock.Dispose();
         AgentLock.Dispose();
         Maintenance?.Dispose();

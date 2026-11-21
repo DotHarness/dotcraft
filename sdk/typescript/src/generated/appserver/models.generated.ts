@@ -1418,6 +1418,12 @@ export interface ConfigWriteResult {
   [key: string]: unknown;
 }
 
+export interface ContextHandoffEndpoint {
+  model: string;
+  providerId: string;
+  [key: string]: unknown;
+}
+
 export interface ContextImage {
   fileName: string;
   mimeType: string;
@@ -4224,6 +4230,8 @@ export interface SystemJobTokenUsage {
 export interface SystemNoticePayload {
   channelName?: string | null;
   clearedToolResults: number;
+  fallbackText?: string | null;
+  from?: ContextHandoffEndpoint | null;
   hostId?: string | null;
   hostName?: string | null;
   initiator?: string | null;
@@ -4233,6 +4241,7 @@ export interface SystemNoticePayload {
   reason?: string | null;
   sourceThreadId?: string | null;
   targetName?: string | null;
+  to?: ContextHandoffEndpoint | null;
   tokensAfter: number;
   tokensBefore: number;
   trigger: string;

@@ -70,6 +70,37 @@ public sealed class SessionServiceDeletionTests : IDisposable
         Assert.Equal(projectedBefore, store.ProjectedRolloutBytes);
     }
 
+    [Fact]
+    public async Task ColdDeletion_WhenRolloutDeleteFails_KeepsSubscriptionOpen()
+    {
+        const string threadId = "thread";
+        await using var store = new ThreadStore(CraftPath, stateRuntime: null,
+            beforeRolloutDeleteAsync: (_, _) => throw new IOException("Injected rollout delete failure."));
+        await store.SaveThreadAsync(CreateThread(threadId));
+        await using var factory = new AgentFactory(CraftPath, _workspace, AppConfigTestFactory.CreateOpenAI(),
+            new MemoryStore(CraftPath), new SkillsLoader(CraftPath), new AutoApproveApprovalService(),
+            blacklist: null, chatClientRegistry: TestModelProviderRegistry.Create());
+        await using var service = new SessionService(factory, factory.CreateAgentForMode(AgentMode.Agent),
+            new SessionPersistenceService(store), new SessionGate());
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+
+        var nextEvent = ReadFirstEventAsync();
+        Assert.Null(service.TryGetLoadedThread(threadId));
+        var failure = await Assert.ThrowsAsync<IOException>(() => service.DeleteThreadPermanentlyAsync(threadId, timeout.Token));
+        Assert.Contains("Injected rollout delete failure.", failure.Message);
+
+        await service.ResumeThreadAsync(threadId, timeout.Token);
+
+        Assert.Equal(SessionEventType.ThreadResumed, (await nextEvent)?.EventType);
+
+        async Task<SessionEvent?> ReadFirstEventAsync()
+        {
+            await foreach (var evt in service.SubscribeThreadAsync(threadId, timeout.Token))
+                return evt;
+            return null;
+        }
+    }
+
     private SessionThread CreateThread(string threadId)
     {
         var at = DateTimeOffset.UtcNow;

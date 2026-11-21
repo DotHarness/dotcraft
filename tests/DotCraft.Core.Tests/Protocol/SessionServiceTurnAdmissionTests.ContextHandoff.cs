@@ -37,11 +37,13 @@ public sealed partial class SessionServiceTurnAdmissionTests
         var contract = AppServerContractMapper.ToContract(persisted.Item.ToWire());
         Assert.True(DotCraft.Protocol.SessionItemPayloadParser.Parse(contract)
             .TryGet<Contract.SystemNoticePayload>(out var payload));
-        var data = payload!.ExtensionData!;
-        Assert.Equal("source", data["from"].GetProperty("providerId").GetString());
-        Assert.Equal("initial-model", data["from"].GetProperty("model").GetString());
-        Assert.Equal("source", data["to"].GetProperty("providerId").GetString());
-        Assert.Equal("next-model", data["to"].GetProperty("model").GetString());
+        Assert.NotNull(payload!.From);
+        Assert.Equal("source", payload.From.ProviderId);
+        Assert.Equal("initial-model", payload.From.Model);
+        Assert.NotNull(payload.To);
+        Assert.Equal("source", payload.To.ProviderId);
+        Assert.Equal("next-model", payload.To.Model);
+        Assert.Equal(persisted.Item.AsSystemNotice!.FallbackText, payload.FallbackText);
 
         var rerouted = await StartAsync(coldService, thread.Id, "switch provider",
             new() { ProviderId = "target", Model = "next-model" });

@@ -6951,6 +6951,31 @@
       "variants": []
     },
     {
+      "id": "core.ContextHandoffEndpoint",
+      "name": "ContextHandoffEndpoint",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ContextHandoffEndpoint.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "model",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "providerId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.ContextImage",
       "name": "ContextImage",
       "module": "core",
@@ -21034,6 +21059,20 @@
           "const": null
         },
         {
+          "name": "fallbackText",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "from",
+          "type": "core.ContextHandoffEndpoint",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "hostId",
           "type": "string",
           "required": false,
@@ -21092,6 +21131,13 @@
         {
           "name": "targetName",
           "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "to",
+          "type": "core.ContextHandoffEndpoint",
           "required": false,
           "nullable": true,
           "const": null

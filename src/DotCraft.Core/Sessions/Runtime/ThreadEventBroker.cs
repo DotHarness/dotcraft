@@ -111,7 +111,7 @@ internal sealed class ThreadEventBroker(string threadId)
             return _current.GetRuntimeSnapshot(thread, maintenanceKind);
     }
 
-    public void ReleaseCurrentState(long runtimeGeneration)
+    public void ReleaseCurrentState(long runtimeGeneration, bool closeSubscribers = true)
     {
         lock (_publicationLock)
         {
@@ -120,7 +120,8 @@ internal sealed class ThreadEventBroker(string threadId)
             _publicationGeneration++;
             _current.Clear();
             _thread = null;
-            CloseSubscribers();
+            if (closeSubscribers)
+                CloseSubscribers();
         }
     }
 

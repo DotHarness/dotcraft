@@ -29,21 +29,40 @@ public sealed partial class SessionService
                 controls, runtime.Maintenance?.Kind, view, summaryTools ?? [], ct, runtime.Generation);
             observation.Refresh = async (nextView, tools, respond, refreshCt, selection) =>
             {
+                refreshCt.ThrowIfCancellationRequested();
+                EnsureCurrent();
                 await PrepareObservationStateAsync(runtime, refreshCt);
-                var response = await runtime.Commands.InvokeAsync(refreshCommandCt =>
+
+                Task response;
+                try
                 {
-                    refreshCommandCt.ThrowIfCancellationRequested();
-                    if (!_runtimeRegistry.IsCurrent(id, runtime) || _runtimeRegistry.IsPendingPermanentDeletion(id))
-                        throw new OperationCanceledException($"Thread '{id}' runtime is no longer current.");
-                    return Task.FromResult(observation.QueueRefresh(
-                        new SessionThread
-                        {
-                            Id = id,
-                            Configuration = runtime.Thread.Configuration
-                        },
-                        runtime.Maintenance?.Kind, nextView, tools, respond, refreshCt, selection));
-                }, refreshCt);
+                    response = await runtime.Commands.InvokeAsync(refreshCommandCt =>
+                    {
+                        refreshCommandCt.ThrowIfCancellationRequested();
+                        EnsureCurrent();
+                        return Task.FromResult(observation.QueueRefresh(
+                            new SessionThread
+                            {
+                                Id = id,
+                                Configuration = runtime.Thread.Configuration
+                            },
+                            runtime.Maintenance?.Kind, nextView, tools, respond, refreshCt, selection));
+                    }, refreshCt);
+                }
+                catch (ObjectDisposedException) when (RuntimeInvalidated())
+                {
+                    throw new OperationCanceledException($"Thread '{id}' runtime is no longer current.");
+                }
                 await response;
+
+                bool RuntimeInvalidated() =>
+                    !_runtimeRegistry.IsCurrent(id, runtime) || _runtimeRegistry.IsPendingPermanentDeletion(id);
+
+                void EnsureCurrent()
+                {
+                    if (RuntimeInvalidated())
+                        throw new OperationCanceledException($"Thread '{id}' runtime is no longer current.");
+                }
             };
             return Task.FromResult(observation);
         }, ct);

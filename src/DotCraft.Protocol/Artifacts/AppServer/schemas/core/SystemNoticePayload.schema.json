@@ -17,6 +17,26 @@
     "clearedToolResults": {
       "type": "integer"
     },
+    "fallbackText": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "from": {
+      "anyOf": [
+        {
+          "$ref": "./ContextHandoffEndpoint.schema.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "hostId": {
       "anyOf": [
         {
@@ -80,6 +100,16 @@
       "anyOf": [
         {
           "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "to": {
+      "anyOf": [
+        {
+          "$ref": "./ContextHandoffEndpoint.schema.json"
         },
         {
           "type": "null"

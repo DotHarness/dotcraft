@@ -150,28 +150,44 @@ public sealed partial class DynamicWorkflowServiceTests
     public async Task ResumeFromReplayedRun_ReusesTheCompletedPrefixAcrossGenerations()
     {
         var (service, store, proxy) = CreateCompletionService();
+        var stateChanges = Channel.CreateUnbounded<string>();
+        service.RunChanged += change =>
+        {
+            if (change.Reason == "state") stateChanges.Writer.TryWrite(change.RunId);
+        };
         await service.StartAsync();
         try
         {
-            var acknowledged = ObserveNotificationAck(service, proxy, 1);
             var first = await service.StartInlineAsync(CompletionRequest("await agent('inspect'); return { ok: true };"));
-            await acknowledged.WaitAsync(TimeSpan.FromSeconds(5));
-            acknowledged = ObserveNotificationAck(service, proxy, 2);
+            await AssertSucceededAsync(first.RunId);
             var second = await service.ResumeAsync(first.RunId, proxy.Thread.Id, "turn_parent");
-            await acknowledged.WaitAsync(TimeSpan.FromSeconds(5));
-            acknowledged = ObserveNotificationAck(service, proxy, 3);
+            await AssertSucceededAsync(second.RunId);
             var third = await service.ResumeAsync(second.RunId, proxy.Thread.Id, "turn_parent");
-            await acknowledged.WaitAsync(TimeSpan.FromSeconds(5));
+            await AssertSucceededAsync(third.RunId);
 
             Assert.Single(proxy.Children);
             foreach (var run in new[] { second, third })
             {
-                Assert.Equal(DynamicWorkflowStatuses.Succeeded, (await service.GetRunAsync(run.RunId))?.Status);
                 var journal = await store.ReadJournalAsync(run.RunId, CancellationToken.None);
                 Assert.Single(journal, entry => entry["type"]?.GetValue<string>() == "agent.replayed");
             }
         }
         finally { await service.StopAsync(); }
+
+        async Task AssertSucceededAsync(string runId)
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            while (true)
+            {
+                if (await stateChanges.Reader.ReadAsync(timeout.Token) != runId) continue;
+                var current = await service.GetRunAsync(runId, timeout.Token);
+                Assert.NotNull(current);
+                if (current.Status == DynamicWorkflowStatuses.Running) continue;
+                Assert.True(current.Status == DynamicWorkflowStatuses.Succeeded,
+                    $"Workflow {runId} finished as '{current.Status}': {current.Error}");
+                return;
+            }
+        }
     }
 
     [Fact]
