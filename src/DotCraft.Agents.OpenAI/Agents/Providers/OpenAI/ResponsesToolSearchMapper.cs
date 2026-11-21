@@ -385,7 +385,7 @@ internal static partial class ResponsesToolSearchMapper
         {
             var wireNamespace = callState.Namespaces.GetValueOrDefault(addedCall.CallId);
             update.RawRepresentation = new ProviderToolCallArgumentsDelta(
-                added.OutputIndex, callState.ResolveProviderFlatName(wireNamespace, addedCall.FunctionName),
+                added.OutputIndex, callState.ResolveRoute(wireNamespace, addedCall.FunctionName)?.ProviderFlatName,
                 addedCall.CallId, string.Empty);
         }
 
@@ -400,21 +400,25 @@ internal static partial class ResponsesToolSearchMapper
             if (callState.CustomCalls.Contains(call.CallId))
                 ProviderFunctionCallMetadata.MarkCustomToolCall(call);
             var wireNamespace = callState.Namespaces.GetValueOrDefault(call.CallId);
-            var localNamespace = callState.ResolveNamespace(wireNamespace);
-            if (wireNamespace is not null)
+            var route = callState.ResolveRoute(wireNamespace, call.Name);
+            var localNamespace = route is { } tool ? tool.LocalNamespace : callState.ResolveNamespace(wireNamespace);
+            if (wireNamespace is not null || route is not null)
             {
                 call.AdditionalProperties ??= new AdditionalPropertiesDictionary();
-                call.AdditionalProperties[FunctionCallNamespaceMetadataKey] = wireNamespace;
-                call.AdditionalProperties["namespace"] = wireNamespace;
+                if (wireNamespace is not null)
+                {
+                    call.AdditionalProperties[FunctionCallNamespaceMetadataKey] = wireNamespace;
+                    call.AdditionalProperties["namespace"] = wireNamespace;
+                }
                 call.AdditionalProperties[ProviderFunctionCallMetadata.NamespaceKey] = localNamespace ?? string.Empty;
             }
-            if (localNamespace is null
-                && callState.ResolveProviderFlatName(wireNamespace, call.Name) is { } flatName
-                && flatName != call.Name)
+            var localName = route is { } local
+                ? (localNamespace is null ? local.ProviderFlatName : local.LocalName)
+                : call.Name;
+            if (localName != call.Name)
             {
-                call.AdditionalProperties ??= new AdditionalPropertiesDictionary();
-                call.AdditionalProperties[FunctionCallNameMetadataKey] = call.Name;
-                update.Contents[index] = new FunctionCallContent(call.CallId, flatName, call.Arguments)
+                call.AdditionalProperties![FunctionCallNameMetadataKey] = call.Name;
+                update.Contents[index] = new FunctionCallContent(call.CallId, localName, call.Arguments)
                 {
                     AdditionalProperties = call.AdditionalProperties,
                     RawRepresentation = call.RawRepresentation,

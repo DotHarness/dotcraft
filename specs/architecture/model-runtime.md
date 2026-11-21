@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.12.1 |
+| Version | 0.14.0 |
 | Status | Living |
-| Date | 2026-11-16 |
+| Date | 2026-11-21 |
 | Parent Spec | [Session Core](session-core.md) |
 
 ## 1. Overview
@@ -213,7 +213,8 @@ second public state machine or event hierarchy.
 Tool-call sampling has no fixed iteration limit. It continues while the model emits handleable
 calls and ends through normal model completion, cancellation, the consecutive-error policy, or
 context compaction. Loop control never issues a terminal sampling request with a reduced tool
-surface.
+surface. A provider content-filter finish ends sampling even when the only other update is usage.
+The tool loop preserves the finish reason instead of treating the response as empty.
 
 Retries are sampling-attempt transitions, not recursive agent runs. Two bounded budgets apply.
 The transport budget covers failures raised before any update reaches the runtime and is available

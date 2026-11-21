@@ -452,7 +452,7 @@ public sealed partial class StreamingFunctionInvokingChatClient(IChatClient inne
             var hasProviderError = updates.Any(update => update.Contents.Any(content => content is ErrorContent));
             if (!hasEffectiveProviderOutput
                 && (!hasAnyEffectiveProviderOutput || awaitingPostToolContinuation)
-                && (hasProviderError || !HasNormalProviderStop(updates)))
+                && (hasProviderError || !HasDeliberateProviderStop(updates)))
             {
                 if (hasAnyEffectiveProviderOutput && !hasProviderError)
                     yield break;

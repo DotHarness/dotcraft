@@ -88,7 +88,8 @@ public sealed class OpenAIResponsesLiteChatClientTests
             (ChatToolMode.None, "\"none\""),
             (ChatToolMode.Auto, "\"auto\""),
             (ChatToolMode.RequireAny, "\"required\""),
-            (ChatToolMode.RequireSpecific("lookup"), "\"required\"")
+            (ChatToolMode.RequireSpecific("lookup"),
+                JsonSerializer.Serialize(new { type = "function", name = OpenAIResponsesLiteToolIdentity.RequiredSelector(null, "lookup") }))
         };
 
         foreach (var (mode, expectedJson) in cases)

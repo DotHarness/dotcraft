@@ -216,12 +216,14 @@ internal static partial class ResponsesToolSearchMapper
             responseOptions.StreamingEnabled == true);
     }
 
-    internal static PromptCacheRequestShapeSnapshot WithFinalInputShape(
-        PromptCacheRequestShapeSnapshot shape, JsonArray input)
+    internal static PromptCacheRequestShapeSnapshot WithFinalRequestShape(
+        PromptCacheRequestShapeSnapshot shape, JsonArray input, JsonArray tools)
     {
         var identity = OpenAIResponsesItemIdentityDiagnostics.FromInput(input);
         return shape with
         {
+            ToolsHash = HashJsonNode(tools),
+            ToolCount = tools.Count,
             InputHash = HashJsonNode(input),
             InputItemCount = input.Count,
             InputItemHashes = HashInputItems(input),

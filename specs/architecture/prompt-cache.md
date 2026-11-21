@@ -164,6 +164,9 @@ The names-only inventory is part of the Anthropic message prefix rather than the
 
 For `openai-responses`, each provider request records a `PromptCacheRequestShape` trace event before transport. The event records SHA-256 hashes and counts for provider-visible byte shapes: instructions, tools, reasoning configuration, the full input array, and each ordered input item. Item hashes exclude the item's `id`, which is thread-scoped and not part of the cached token prefix, so equal content hashes equally across threads. It also records the serialized input byte count, the one-based stream attempt number, and aggregate response-item ID coverage (eligible, present, generated, missing, and invalid-source counts) without storing request content.
 
+For Lite, the tool hash and count describe the final `additional_tools.tools` definitions, including
+any projection for a specific required tool.
+
 Adjacent `PromptCacheRequestShape` events are compared by `inputItemHashes` from the start of the array: a long common prefix with only appended tail items means the provider-visible prefix stayed stable, and an early mismatch locates the change. Retries share the request index and increment `attemptNumber`. A changed `promptCacheKeyHash` with stable item hashes means the cache identity changed; when both are stable but cached reads drop, the evidence points to provider cache routing rather than a DotCraft prefix mutation.
 
 When a full-history native SubAgent fork is materialized, tracing captures the parent's latest `PromptCacheRequestShape` as an immutable fork anchor. The parent is still inside the spawning tool call at that point, so the anchor is the request that issued the spawn rather than a later parent request. The child's first request shape produces exactly one `SubAgentPrefixDiagnostic` with one of three statuses:

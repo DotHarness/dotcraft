@@ -199,10 +199,10 @@ model's default `parallel_tool_calls`. Lite:
   `reasoning.context=all_turns`.
 - Sends `parallel_tool_calls=false`, including requests without tools.
 
-Both dialects support `none`, `auto`, `required`, and requesting a specific tool. For a specific
-direct tool, Lite advertises only that tool and requires a call because the upstream named selector
-cannot address arbitrary namespaces. This restriction affects only the current request, not
-canonical history.
+Both dialects support `none`, `auto`, `required`, and requesting a specific tool. To require a
+specific direct tool, Lite uses a distinct wire selector in the `functions` namespace and maps its
+call to the same local tool. The named selector restricts the current call without removing
+historical discovery results from the request.
 
 Lite exposes otherwise unnamespaced tools under the provider's `functions` namespace. Wire
 identities are stable and distinct for direct and discovered tools, including when a local namespace

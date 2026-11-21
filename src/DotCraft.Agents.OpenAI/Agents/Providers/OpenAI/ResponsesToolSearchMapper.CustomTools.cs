@@ -26,18 +26,20 @@ internal static partial class ResponsesToolSearchMapper
                 ? OpenAIResponsesLiteToolIdentity.ResolveNamespace(wireNamespace)
                 : wireNamespace;
 
-        public string? ResolveProviderFlatName(string? wireNamespace, string name) =>
-            LiteToolCalls?.GetValueOrDefault((wireNamespace ?? OpenAIResponsesLiteToolIdentity.FunctionsNamespace) + "/" + name)
-                .ProviderFlatName;
+        public LiteToolCallRoute? ResolveRoute(string? wireNamespace, string name) =>
+            LiteToolCalls?.TryGetValue(
+                (wireNamespace ?? OpenAIResponsesLiteToolIdentity.FunctionsNamespace) + "/" + name, out var route) == true
+                ? route
+                : null;
 
         public Dictionary<string, string> Namespaces { get; } = new(StringComparer.Ordinal);
 
         public HashSet<string> CustomCalls { get; } = new(StringComparer.Ordinal);
     }
 
-    internal readonly record struct LiteToolCallRoute(string ProviderFlatName);
+    internal readonly record struct LiteToolCallRoute(string ProviderFlatName, string? LocalNamespace, string LocalName);
 
-    internal static IReadOnlyDictionary<string, LiteToolCallRoute> CollectLiteToolCallRoutes(ChatOptions? options)
+    internal static Dictionary<string, LiteToolCallRoute> CollectLiteToolCallRoutes(ChatOptions? options)
     {
         var routes = new Dictionary<string, LiteToolCallRoute>(StringComparer.Ordinal);
         foreach (var tool in options?.Tools ?? [])
@@ -50,7 +52,7 @@ internal static partial class ResponsesToolSearchMapper
             var flatName = CanonicalToolIdentityMetadataResolver.TryGet(tool, out _, out var providerFlatName)
                 ? providerFlatName
                 : toolNamespace is null ? tool.Name : toolNamespace + "__" + name;
-            routes[wireNamespace + "/" + name] = new LiteToolCallRoute(flatName);
+            routes[wireNamespace + "/" + name] = new LiteToolCallRoute(flatName, toolNamespace, name);
         }
         return routes;
     }
@@ -176,9 +178,11 @@ internal static partial class ResponsesToolSearchMapper
         var toolNamespace = TryReadString(raw, "namespace", out var resolved)
             ? resolved
             : callState?.Namespaces.GetValueOrDefault(callId);
-        var parameter = callState?.FreeformParameters.GetValueOrDefault(
-                            FreeformKey(callState.ResolveNamespace(toolNamespace), name))
-            ?? UndeclaredFreeformParameter;
+        var route = callState?.ResolveRoute(toolNamespace, name);
+        var parameterKey = route is { } local
+            ? FreeformKey(local.LocalNamespace, local.LocalName)
+            : FreeformKey(callState?.ResolveNamespace(toolNamespace), name);
+        var parameter = callState?.FreeformParameters.GetValueOrDefault(parameterKey) ?? UndeclaredFreeformParameter;
         var arguments = new JsonObject { [parameter] = ReadJsonString(raw, "input") ?? string.Empty };
         functionCall = new FunctionCallResponseItem(
             callId,

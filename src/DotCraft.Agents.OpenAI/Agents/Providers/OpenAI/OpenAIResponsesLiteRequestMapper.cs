@@ -34,53 +34,57 @@ internal static class OpenAIResponsesLiteRequestMapper
             canonicalItemIdentity: canonicalItemIdentity,
             rawRepresentationClient: rawRepresentationClient,
             supportsFreeformTools: supportsFreeformTools);
-        var body = BuildWireObject(ModelReaderWriter.Write(standard.Options), installationId, options);
+        var routes = ResponsesToolSearchMapper.CollectLiteToolCallRoutes(options);
+        var (body, tools) = BuildWireObject(ModelReaderWriter.Write(standard.Options), installationId, options, routes);
         var input = body["input"]!.AsArray();
         return new OpenAIResponsesLiteRequest(
             standard.Options,
             BinaryData.FromString(body.ToJsonString()),
-            ResponsesToolSearchMapper.WithFinalInputShape(standard.Shape, input) with
+            ResponsesToolSearchMapper.WithFinalRequestShape(standard.Shape, input, tools) with
             {
                 InputItemIdGeneratedCount = standard.Shape.InputItemIdGeneratedCount
                                             + input.Count - standard.Shape.InputItemCount,
                 MaxOutputTokensPresentAfterOAuthRewrite = false,
                 MaxOutputTokensRemovedByOAuthRewrite = standard.Shape.MaxOutputTokensRequested.HasValue
             },
-            ResponsesToolSearchMapper.CollectLiteToolCallRoutes(options));
+            routes);
     }
 
     internal static BinaryData BuildWireBody(BinaryData standardBody, string? installationId, ChatOptions? options = null) =>
-        BinaryData.FromString(BuildWireObject(standardBody, installationId, options).ToJsonString());
+        BinaryData.FromString(BuildWireObject(standardBody, installationId, options, null).Body.ToJsonString());
 
-    private static JsonObject BuildWireObject(BinaryData standardBody, string? installationId, ChatOptions? options)
+    private static (JsonObject Body, JsonArray Tools) BuildWireObject(
+        BinaryData standardBody,
+        string? installationId,
+        ChatOptions? options,
+        Dictionary<string, ResponsesToolSearchMapper.LiteToolCallRoute>? routes)
     {
         var canonicalJson = OpenAIResponsesRequestBodyCanonicalizer.NormalizeTopLevelObject(standardBody.ToString())
                             ?? throw new InvalidDataException("Responses request must be a JSON object.");
         var root = JsonNode.Parse(canonicalJson)!.AsObject();
-        ApplyLiteDialect(root, options);
+        var tools = ApplyLiteDialect(root, options, routes);
         if (!string.IsNullOrWhiteSpace(installationId))
         {
             var snapshot = OpenAIResponsesCodexMetadata.CreateSnapshot(installationId);
             MergeClientMetadata(root, OpenAIResponsesCodexMetadata.BuildClientMetadata(snapshot));
         }
-        return root;
+        return (root, tools);
     }
 
-    private static void ApplyLiteDialect(JsonObject root, ChatOptions? options)
+    private static JsonArray ApplyLiteDialect(
+        JsonObject root,
+        ChatOptions? options,
+        Dictionary<string, ResponsesToolSearchMapper.LiteToolCallRoute>? routes)
     {
         var tools = NormalizeTools(root["tools"] as JsonArray);
-        var selected = SelectRequiredTool(root, tools, options);
-        if (selected is not null)
-        {
+        if (SelectRequiredTool(root, tools, options, routes) is { } selected)
             tools = [selected];
-            root["tool_choice"] = "required";
-        }
 
         var input = root["input"] as JsonArray ?? [];
         foreach (var item in input.OfType<JsonObject>())
         {
             if (item["type"]?.GetValue<string>() == "tool_search_output" && item["tools"] is JsonArray discovered)
-                item["tools"] = selected is null ? NormalizeTools(discovered) : new JsonArray();
+                item["tools"] = NormalizeTools(discovered);
         }
         StripImageDetails(input);
         if (tools.Count > 0)
@@ -105,6 +109,7 @@ internal static class OpenAIResponsesLiteRequestMapper
         var reasoning = root["reasoning"] as JsonObject ?? new JsonObject();
         reasoning["context"] = "all_turns";
         root["reasoning"] = reasoning;
+        return tools;
     }
 
     private static JsonArray NormalizeTools(JsonArray? source)
@@ -150,7 +155,11 @@ internal static class OpenAIResponsesLiteRequestMapper
         return result;
     }
 
-    private static JsonObject? SelectRequiredTool(JsonObject root, JsonArray tools, ChatOptions? options)
+    private static JsonObject? SelectRequiredTool(
+        JsonObject root,
+        JsonArray tools,
+        ChatOptions? options,
+        Dictionary<string, ResponsesToolSearchMapper.LiteToolCallRoute>? routes)
     {
         if (root["tool_choice"] is not JsonObject choice
             || choice["type"]?.GetValue<string>() is not ("function" or "custom")
@@ -177,9 +186,24 @@ internal static class OpenAIResponsesLiteRequestMapper
             return null;
         }
 
-        var projection = group.DeepClone().AsObject();
-        projection["tools"] = new JsonArray(member.DeepClone());
-        return projection;
+        var selector = OpenAIResponsesLiteToolIdentity.RequiredSelector(localNamespace, name);
+        var definition = member.DeepClone().AsObject();
+        definition["name"] = selector;
+        choice["name"] = selector;
+        choice["type"] = definition["type"]!.GetValue<string>();
+        choice.Remove("namespace");
+
+        const string functions = OpenAIResponsesLiteToolIdentity.FunctionsNamespace;
+        if (routes?.TryGetValue(wireNamespace + "/" + name, out var route) == true)
+            routes[functions + "/" + selector] = route;
+
+        return new JsonObject
+        {
+            ["type"] = "namespace",
+            ["name"] = functions,
+            ["description"] = group["description"]?.DeepClone() ?? JsonValue.Create(string.Empty),
+            ["tools"] = new JsonArray(definition)
+        };
     }
 
     private static void MergeClientMetadata(
