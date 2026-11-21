@@ -3,6 +3,7 @@ import { ThroughputMeter, type RequestTiming } from './throughput'
 
 export interface UsageState {
   readonly tokensPerSecond: number | null
+  readonly latestRequestTokensPerSecond: number | null
   readonly waitingForSample: boolean
   readonly cacheHitRate: number | null
   /** Mean host-measured first-output latency over the current turn's model requests. */
@@ -32,6 +33,7 @@ interface CacheUsage {
 
 export const EMPTY_USAGE: UsageState = {
   tokensPerSecond: null,
+  latestRequestTokensPerSecond: null,
   waitingForSample: false,
   cacheHitRate: null,
   firstTokenLatencyMs: null,
@@ -78,10 +80,12 @@ export function startUsageFeed(host: DesktopPluginHost): () => void {
 
   const showThroughput = (): void => {
     const tokensPerSecond = meter.tokensPerSecond()
+    const latestRequestTokensPerSecond = meter.latestRequestTokensPerSecond()
     const firstTokenLatencyMs = meter.firstTokenLatencyMs()
     update({
       ...(firstTokenLatencyMs === null ? {} : { firstTokenLatencyMs }),
-      ...(tokensPerSecond === null ? {} : { tokensPerSecond, waitingForSample: false })
+      ...(tokensPerSecond === null ? {} : { tokensPerSecond, waitingForSample: false }),
+      ...(latestRequestTokensPerSecond === null ? {} : { latestRequestTokensPerSecond })
     })
   }
 

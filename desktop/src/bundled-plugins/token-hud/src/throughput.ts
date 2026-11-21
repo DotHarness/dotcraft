@@ -38,11 +38,20 @@ export class ThroughputMeter {
     let tokens = 0
     let generationMs = 0
     for (const request of this.requests) {
-      if (request.timing === null || request.timing.generationMs < MIN_SAMPLE_MS || request.outputTokens <= 0) continue
-      tokens += request.outputTokens
-      generationMs += request.timing.generationMs
+      const sample = speedSample(request)
+      if (sample === null) continue
+      tokens += sample.tokens
+      generationMs += sample.generationMs
     }
     return generationMs > 0 ? tokens / (generationMs / 1000) : null
+  }
+
+  latestRequestTokensPerSecond(): number | null {
+    for (let index = this.requests.length - 1; index >= 0; index--) {
+      const sample = speedSample(this.requests[index])
+      if (sample !== null) return sample.tokens / (sample.generationMs / 1000)
+    }
+    return null
   }
 
   firstTokenLatencyMs(): number | null {
@@ -51,4 +60,10 @@ export class ThroughputMeter {
       ? timed.reduce((total, timing) => total + timing.firstOutputLatencyMs, 0) / timed.length
       : null
   }
+}
+
+function speedSample(request: RequestSample): { tokens: number; generationMs: number } | null {
+  const { timing } = request
+  if (timing === null || timing.generationMs < MIN_SAMPLE_MS || request.outputTokens <= 0) return null
+  return { tokens: request.outputTokens, generationMs: timing.generationMs }
 }
