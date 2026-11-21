@@ -3884,6 +3884,7 @@ export const MESSAGES_KO = {
   'systemNotice.compacted.manual': '컨텍스트가 압축됨',
   'systemNotice.compacted.reactive': '컨텍스트 오버플로에서 복구됨',
   'systemNotice.compacted.detail': '해제된 {{freed}} 토큰 · {{percent}}% 남음',
+  'systemNotice.contextHandoff.title': '컨텍스트 인계',
   'systemNotice.contextHandoff.description': '{{title}}: {{from}}에서 {{to}}(으)로 전환',
   'systemNotice.forked.title': '채팅에서 Fork됨',
   'systemNotice.remoteRoute.connected': '{{host}}에 연결되었습니다',

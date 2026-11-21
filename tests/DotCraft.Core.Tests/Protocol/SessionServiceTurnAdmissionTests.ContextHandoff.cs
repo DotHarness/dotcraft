@@ -52,19 +52,30 @@ public sealed partial class SessionServiceTurnAdmissionTests
     }
 
     [Fact]
-    public async Task ContextHandoff_UninvokedTurnDoesNotChangeBaselineButProviderFailureDoes()
+    public async Task ContextHandoff_CancelWithoutResultLeavesBaselineButProviderFailureChangesIt()
     {
-        var writer = new AdmissionWriter();
-        await using var h = new AdmissionHarness(writer: writer);
+        await using var h = new AdmissionHarness();
         var thread = await h.CreateThreadAsync();
 
         var first = await StartAsync(h.Service, thread.Id, "first");
         await DrainAsync(first.Events!);
 
-        writer.RejectSampledModel = "uninvoked-model";
-        var uninvoked = await StartAsync(h.Service, thread.Id, "stops before invocation", new() { Model = "uninvoked-model" });
-        Assert.DoesNotContain(await uninvoked.Events!.ToListAsync(), IsHandoff);
-        Assert.DoesNotContain(h.Provider.Requests, request => request.Model == "uninvoked-model");
+        var timeout = TimeSpan.FromSeconds(10);
+        h.Provider.BlockedModel = "cancelled-model";
+        var cancelled = await StartAsync(h.Service, thread.Id, "stop before a reply", new() { Model = "cancelled-model" });
+        try
+        {
+            await h.Provider.Blocked.Task.WaitAsync(timeout);
+            await h.Service.CancelTurnAsync(thread.Id, cancelled.Turn.Id).WaitAsync(timeout);
+        }
+        finally
+        {
+            h.Provider.Release.TrySetResult();
+        }
+
+        var cancelledEvents = await cancelled.Events!.ToListAsync().AsTask().WaitAsync(timeout);
+        Assert.Contains(cancelledEvents, e => e.EventType == SessionEventType.TurnCancelled);
+        Assert.DoesNotContain(cancelledEvents, IsHandoff);
 
         h.Provider.FailingModel = "failed-model";
         var failed = await StartAsync(h.Service, thread.Id, "provider receives request", new() { Model = "failed-model" });

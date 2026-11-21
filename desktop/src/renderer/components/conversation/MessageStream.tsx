@@ -166,12 +166,14 @@ function MessageStreamContent({ sendScrollRequest = null, viewportKey }: Message
             const gapId = gapIdBeforeTurn.get(turn.id)
             const response = responses.get(turn.id)
             const absorbed = response?.absorbed === true
+            const showTurn = visibleTurnIds.has(turn.id) &&
+              (!absorbed || turn.items.some(isVisibleUserMessage) || getTurnContextHandoff(turn) != null)
             return (
               <Fragment key={turn.id}>
                 {gapId !== undefined && (
                   <div className="dc-conversation-history-gap" data-history-gap={gapId} aria-hidden="true" />
                 )}
-                {visibleTurnIds.has(turn.id) && !(absorbed && !turn.items.some(isVisibleUserMessage)) && <div
+                {showTurn && <div
                   data-turn-id={turn.id}
                   className="dc-conversation-turn-shell"
                   data-active={isActiveTurn ? 'true' : undefined}

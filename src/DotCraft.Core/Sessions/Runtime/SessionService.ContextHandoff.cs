@@ -9,8 +9,7 @@ public sealed partial class SessionService
         SessionTurn turn,
         ChatClientAgent agent,
         SessionEventChannel events,
-        Func<int> nextItemSequence,
-        CancellationToken ct)
+        Func<int> nextItemSequence)
     {
         if (turn.SampledModel is not null
             || agent.GetService<ChatClientAgentOptions>()?.MessageOrigin is not { } origin)
@@ -18,10 +17,10 @@ public sealed partial class SessionService
             return;
         }
 
-        ct.ThrowIfCancellationRequested();
         var current = new ContextHandoffEndpoint(origin.ProviderId, origin.Model);
         ContextHandoffEndpoint? previous = null;
-        await foreach (var earlier in ReadTurnsAsync(thread, ThreadHistorySortDirection.Descending, includeItems: false, ct))
+        await foreach (var earlier in ReadTurnsAsync(
+                           thread, ThreadHistorySortDirection.Descending, includeItems: false, CancellationToken.None))
         {
             if (earlier.Id == turn.Id || earlier.SampledModel is not { } sample)
                 continue;
@@ -30,7 +29,6 @@ public sealed partial class SessionService
             break;
         }
 
-        ct.ThrowIfCancellationRequested();
         turn.SampledModel = new(current, SessionIdGenerator.LastItemSequence(turn.Items));
         SessionItem? notice = null;
         if (previous is not null

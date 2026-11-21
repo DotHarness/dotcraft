@@ -85,6 +85,8 @@ public sealed partial class SessionServiceTurnAdmissionTests
         public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public string? FailingModel { get; set; }
+        public string? BlockedModel { get; set; }
+        public TaskCompletionSource Blocked { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public IReadOnlyCollection<string> Protocols => [ModelProviderProtocols.OpenAIChatCompletions];
         public IChatClient CreateChatClient(EffectiveModelRuntime runtime) => new Client(this, runtime, blockRequests, requestApprovals);
 
@@ -100,7 +102,10 @@ public sealed partial class SessionServiceTurnAdmissionTests
             {
                 owner.Requests.Enqueue(runtime);
                 owner.Entered.TrySetResult();
-                if (block)
+                var modelBlocked = runtime.Model == owner.BlockedModel;
+                if (modelBlocked)
+                    owner.Blocked.TrySetResult();
+                if (block || modelBlocked)
                     await owner.Release.Task.WaitAsync(cancellationToken);
                 if (runtime.Model == owner.FailingModel)
                     throw new InvalidOperationException("The provider rejected this request.");
@@ -125,18 +130,12 @@ public sealed partial class SessionServiceTurnAdmissionTests
     {
         private readonly OrderedRolloutWriter _inner = new();
         public string? RejectModel { get; set; }
-        public string? RejectSampledModel { get; set; }
 
         public Task AddBatchAsync(string threadId, string path, IReadOnlyList<ThreadRolloutRecord> records,
             CancellationToken ct = default)
         {
             if (RejectModel is { } model && records.Any(record => record.ThreadOpened?.Configuration?.Model == model))
                 throw new RolloutPersistenceException("configuration commit rejected", new IOException("test failure"));
-            if (RejectSampledModel is { } sampled && records.Any(record =>
-                    record.TurnStateReplaced?.Turn.SampledModel?.Identity.Model == sampled))
-            {
-                throw new RolloutPersistenceException("sample commit rejected", new IOException("test failure"));
-            }
             return _inner.AddBatchAsync(threadId, path, records, ct);
         }
 

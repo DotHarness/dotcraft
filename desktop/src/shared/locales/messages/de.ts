@@ -3884,6 +3884,7 @@ export const MESSAGES_DE = {
   'systemNotice.compacted.manual': 'Kontext verdichtet',
   'systemNotice.compacted.reactive': 'Nach Kontextüberlauf wiederhergestellt',
   'systemNotice.compacted.detail': '{{freed}} Token freigegeben · {{percent}} % verbleibend',
+  'systemNotice.contextHandoff.title': 'Kontextübergabe',
   'systemNotice.contextHandoff.description': '{{title}}: von {{from}} zu {{to}}',
   'systemNotice.forked.title': 'Aus einem anderen Chat geforkt',
   'systemNotice.remoteRoute.connected': 'Mit {{host}} verbunden',

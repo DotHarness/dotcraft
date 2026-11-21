@@ -34,8 +34,8 @@ export const TranscriptTurn = memo(function TranscriptTurn({
   const hasFileChanges = useSubAgentTranscriptStore((s) =>
     (s.transcripts.get(threadId)?.turnDiffs.get(turn.id)?.files.length ?? 0) > 0)
   const hasUserMessage = turn.items.some(isVisibleUserMessage)
-  if ((absorbed || isEmptyCompletedTurn(turn, hasFileChanges)) && !hasUserMessage) return null
   const handoff = getTurnContextHandoff(turn)
+  if ((absorbed || isEmptyCompletedTurn(turn, hasFileChanges)) && !hasUserMessage && !handoff) return null
 
   return (
     <div className={styles.turn}>

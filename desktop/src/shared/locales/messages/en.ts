@@ -3193,6 +3193,7 @@ export const MESSAGES_EN = {
   'systemNotice.compacted.manual': 'Context compacted',
   'systemNotice.compacted.reactive': 'Recovered from context overflow',
   'systemNotice.compacted.detail': 'Freed {{freed}} tokens · {{percent}}% remaining',
+  'systemNotice.contextHandoff.title': 'Context handoff',
   'systemNotice.contextHandoff.description': '{{title}}: from {{from}} to {{to}}',
   'systemNotice.forked.title': 'Forked from another chat',
   'systemNotice.remoteRoute.connected': 'Connected to {{host}}',

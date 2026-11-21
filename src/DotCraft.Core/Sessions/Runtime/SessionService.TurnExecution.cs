@@ -734,11 +734,25 @@ public sealed partial class SessionService
             }
 
             ProviderFailure? classifiedProviderFailure = null;
+            ChatClientAgent? agent = null;
 
             async Task FailAndPersistTurnAsync(string errorMsg, string errorCode)
             {
                 itemProjector.FinalizeAgentMessage(AgentMessagePhases.PartialAnswer);
                 FinalizeStreamingReasoning();
+                if (agent is not null && classifiedProviderFailure is not null && !executionCt.IsCancellationRequested)
+                {
+                    try
+                    {
+                        await RecordContextHandoffAsync(thread, turn, agent, eventChannel, NextItemSeq);
+                    }
+                    catch (RolloutPersistenceException ex)
+                    {
+                        PublishTurnPersistenceFailure(thread, turn, turnRuntime, eventChannel, NextItemSeq(), ex);
+                        return;
+                    }
+                }
+
                 var errorItem = CreateErrorItem(turn, NextItemSeq(), errorMsg, errorCode, fatal: true);
                 turn.Items.Add(errorItem);
                 eventChannel.EmitItemStarted(errorItem);
@@ -828,7 +842,7 @@ public sealed partial class SessionService
                 // Resource capture was ordered at admission. It may wait for an in-flight
                 // publication, but later configuration changes cannot overtake it.
                 var executionResources = await turnContext.Resources.WaitAsync(executionCt).ConfigureAwait(false);
-                var agent = executionResources.Agent;
+                agent = executionResources.Agent;
                 turnRuntime.ToolSnapshot = executionResources.ToolSnapshot;
                 var toolLocation = executionResources.ToolLocation ?? new ToolLocation(turnContext.Workspace);
                 toolLocation.MoveTo(turnContext.Workspace);
@@ -1277,7 +1291,7 @@ public sealed partial class SessionService
                             EstimatedInputTokens = tokenTracker.LastInputTokens > 0
                                 ? (int)Math.Min(int.MaxValue, tokenTracker.LastInputTokens)
                                 : null,
-                            CaptureSnapshotAsync = async (snapshot, sampleCt) =>
+                            CaptureSnapshotAsync = async (snapshot, _) =>
                             {
                                 reactiveCompaction.Snapshot = snapshot;
                                 var preparedEstimate = PrepareContextTokenEstimate(
@@ -1308,7 +1322,6 @@ public sealed partial class SessionService
                                         preparedEstimate.Estimate,
                                         ct: CancellationToken.None);
                                 }
-                                await RecordContextHandoffAsync(thread, turn, agent, eventChannel, NextItemSeq, sampleCt);
                             },
                             TryCompactWithSnapshotAsync = TryCompactBeforeSamplingAsync,
                             TryCompactAsync = (history, options, compactCt) =>
@@ -1369,7 +1382,11 @@ public sealed partial class SessionService
 
                         var updateRequestIndex = TokenUsageRequestMetadata.TryGetRequestIndex(chatResponseUpdate);
                         if (updateRequestIndex.HasValue)
+                        {
                             currentUsageRequestIndex = updateRequestIndex;
+                            if (!executionCt.IsCancellationRequested)
+                                await RecordContextHandoffAsync(thread, turn, agent, eventChannel, NextItemSeq);
+                        }
                         turnCost.ObserveUpdate(chatResponseUpdate, currentUsageRequestIndex);
 
                         foreach (var responseContent in update.Contents)

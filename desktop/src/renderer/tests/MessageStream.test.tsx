@@ -126,6 +126,35 @@ describe('MessageStream', () => {
     expect(screen.getByRole('group', { name: 'sonnet', exact: true })).toBeInTheDocument()
   })
 
+  it('keeps a handoff visible when a later task wake continues the response', () => {
+    const turn = { threadId: 'thread-1', status: 'completed' as const, startedAt: '2026-01-01T00:00:00Z' }
+    useConversationStore.getState().setTurns([
+      {
+        ...turn, id: 'switched', items: [{
+          id: 'handoff', type: 'systemNotice', status: 'completed',
+          systemNotice: {
+            kind: 'contextHandoff',
+            contextHandoff: {
+              from: { providerId: 'claude', model: 'opus' },
+              to: { providerId: 'claude', model: 'sonnet' }
+            }
+          }
+        }]
+      },
+      {
+        ...turn, id: 'woken', items: [
+          { id: 'wake', type: 'userMessage', status: 'completed', deliveryMode: 'queued',
+            triggerKind: 'terminal', triggerStatus: 'completed', triggerRefId: 'job', text: 'Background command finished' },
+          { id: 'reply', type: 'agentMessage', status: 'completed', phase: 'final', text: 'Done' }
+        ]
+      }
+    ])
+
+    renderWithLocale(<MessageStream />)
+
+    expect(screen.getByRole('group', { name: 'sonnet', exact: true })).toBeInTheDocument()
+  })
+
   it('sends inline edited text by rolling back before turn/start', async () => {
     appServerSendRequest.mockImplementation(async (method: string) => {
       if (method === 'thread/rollback') {

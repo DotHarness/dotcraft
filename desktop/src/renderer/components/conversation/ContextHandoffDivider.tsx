@@ -16,7 +16,7 @@ export function ContextHandoffDivider({ from, to }: {
   to: ContextHandoffEndpoint
 }): JSX.Element {
   const t = useT()
-  const title = 'Context handoff'
+  const title = t('systemNotice.contextHandoff.title')
   const description = t('systemNotice.contextHandoff.description', {
     title,
     from: `${from.providerName} / ${from.model}`,
