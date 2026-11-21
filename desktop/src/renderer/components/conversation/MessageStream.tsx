@@ -14,6 +14,7 @@ import { ConversationFindSurface } from '../../find/ConversationFindSurface'
 import { useTranscriptViewport } from '../../hooks/useTranscriptViewport'
 import { useScrollToLatestOnSend, type ComposerSendScrollRequest } from '../../hooks/useComposerSendScroll'
 import { UserMessageBlock } from './UserMessageBlock'
+import { ContextHandoffNotice } from './ContextHandoffNotice'
 import { AgentResponseBlock } from './AgentResponseBlock'
 import { placeResponses, sameTurns } from './responseRuns'
 import { ScrollToBottomButton } from './ScrollToBottomButton'
@@ -24,6 +25,7 @@ import { FeedbackSurvey } from './FeedbackSurvey'
 import { SystemStatusDivider } from './SystemStatusDivider'
 import { ConversationColumn } from './ConversationColumn'
 import type { ConversationItem, ConversationTurn } from '../../types/conversation'
+import { getTurnContextHandoff } from '../../types/contextHandoff'
 import { getSpawnedFromThreadId } from '../../utils/subAgentThreads'
 import { findSupersededRetryTurnIds } from '../../utils/failedTurnResume'
 import { isVisibleQueuedInput, isVisibleUserMessage } from '../../utils/visibleUserMessage'
@@ -306,9 +308,11 @@ const TurnBlock = memo(function TurnBlock({
     (i: ConversationItem) => isVisibleUserMessage(i)
   )
   const canEditUserMessage = isLastTurn && !isActiveTurn && userItems.length > 0
+  const handoff = getTurnContextHandoff(turn)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--conversation-block-gap)' }}>
+      {handoff && <ContextHandoffNotice handoff={handoff} />}
       {userItems.map((item: ConversationItem, idx) => {
         const showOrigin = isFirstTurn && idx === 0 && threadOrigin != null && !item.triggerKind
         return (

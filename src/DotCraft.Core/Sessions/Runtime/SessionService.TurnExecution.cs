@@ -1277,7 +1277,7 @@ public sealed partial class SessionService
                             EstimatedInputTokens = tokenTracker.LastInputTokens > 0
                                 ? (int)Math.Min(int.MaxValue, tokenTracker.LastInputTokens)
                                 : null,
-                            CaptureSnapshotAsync = async (snapshot, _) =>
+                            CaptureSnapshotAsync = async (snapshot, sampleCt) =>
                             {
                                 reactiveCompaction.Snapshot = snapshot;
                                 var preparedEstimate = PrepareContextTokenEstimate(
@@ -1308,6 +1308,7 @@ public sealed partial class SessionService
                                         preparedEstimate.Estimate,
                                         ct: CancellationToken.None);
                                 }
+                                await RecordContextHandoffAsync(thread, turn, agent, eventChannel, NextItemSeq, sampleCt);
                             },
                             TryCompactWithSnapshotAsync = TryCompactBeforeSamplingAsync,
                             TryCompactAsync = (history, options, compactCt) =>

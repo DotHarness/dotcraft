@@ -183,25 +183,31 @@ public sealed partial class SessionServiceTurnAdmissionTests
         var barrier = new AdmissionRefresher();
         await using var h = new AdmissionHarness(blockRequests: true, refresher: barrier);
         var thread = await h.CreateThreadAsync();
-        var admission = h.Service.StartOrSteerTurnAsync(thread.Id, [new TextContent("first")],
-            settings: new() { Model = "admitted-model" });
-        await barrier.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        var update = h.Service.UpdateThreadConfigurationAsync(thread.Id, new ThreadConfiguration
-        {
-            ProviderId = "source", Model = "later-model", DeveloperInstructions = "later settings"
-        });
-        Assert.False(update.IsCompleted);
-        barrier.Release.TrySetResult();
-        var accepted = await admission.WaitAsync(TimeSpan.FromSeconds(10));
-        var drain = DrainAsync(accepted.Events!);
+        barrier.Block = true;
+        Task<List<SessionEvent>> drain;
         try
         {
+            var admission = h.Service.StartOrSteerTurnAsync(thread.Id, [new TextContent("first")],
+                settings: new() { Model = "admitted-model" });
+            await barrier.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            var update = h.Service.UpdateThreadConfigurationAsync(thread.Id, new ThreadConfiguration
+            {
+                ProviderId = "source", Model = "later-model", DeveloperInstructions = "later settings"
+            });
+            Assert.False(update.IsCompleted);
+            barrier.Release.TrySetResult();
+            var accepted = await admission.WaitAsync(TimeSpan.FromSeconds(10));
+            drain = DrainAsync(accepted.Events!);
             await update.WaitAsync(TimeSpan.FromSeconds(10));
             await h.Provider.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
             Assert.Equal("later-model", thread.Configuration!.Model);
             Assert.All(h.Provider.Requests, request => Assert.Equal("admitted-model", request.Model));
         }
-        finally { h.Provider.Release.TrySetResult(); }
+        finally
+        {
+            barrier.Release.TrySetResult();
+            h.Provider.Release.TrySetResult();
+        }
         await drain.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.All(h.Provider.Requests, request => Assert.Equal("admitted-model", request.Model));
     }

@@ -3884,6 +3884,7 @@ export const MESSAGES_JA = {
   'systemNotice.compacted.manual': '圧縮されたコンテキスト',
   'systemNotice.compacted.reactive': 'コンテキストオーバーフローから回復',
   'systemNotice.compacted.detail': '解放された {{freed}} トークン · 残り {{percent}}%',
+  'systemNotice.contextHandoff.description': '{{title}}：{{from}} から {{to}} に切り替え',
   'systemNotice.forked.title': 'チャットからフォーク',
   'systemNotice.remoteRoute.connected': '{{host}} に接続しました',
   'systemNotice.remoteRoute.disconnected': '{{host}} との接続が切断されました',

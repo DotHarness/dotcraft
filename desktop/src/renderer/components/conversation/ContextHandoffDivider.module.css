@@ -1,0 +1,95 @@
+.container {
+  container-type: inline-size;
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-block-start: 4px;
+  color: var(--text-secondary);
+  font-size: var(--conversation-font-size);
+  line-height: var(--conversation-line-height);
+}
+
+.divider::before,
+.divider::after {
+  content: '';
+  flex: 1;
+  min-width: 8px;
+  border-top: 1px solid var(--border-default);
+}
+
+.label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  white-space: nowrap;
+}
+
+.route,
+.endpoint {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 6px;
+}
+
+.route > .anchor {
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.arrow {
+  flex: none;
+  color: var(--text-tertiary);
+}
+
+.mark {
+  display: inline-flex;
+  flex: none;
+}
+
+.mark [data-provider-mark='anthropic'] {
+  color: #d97757;
+}
+
+.endpoint:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+.model {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@container (max-width: 440px) {
+  .divider {
+    gap: 3px;
+    font-size: var(--type-hint-size);
+    line-height: var(--type-hint-line-height);
+  }
+
+  .divider::before,
+  .divider::after {
+    min-width: 0;
+  }
+
+  .label {
+    gap: 3px;
+  }
+
+  .label > svg {
+    inline-size: 11px;
+    block-size: 11px;
+  }
+
+  .route,
+  .endpoint {
+    gap: 4px;
+  }
+}

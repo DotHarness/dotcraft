@@ -4,7 +4,7 @@
 |-------|-------|
 | **Version** | 0.13.2 |
 | **Status** | Living |
-| **Date** | 2026-11-20 |
+| **Date** | 2026-11-21 |
 
 Purpose: Define the **server-managed** session model (Thread / Turn / Item), including lifecycle, persistence, event semantics, approval semantics, and adapter boundaries.
 
@@ -400,8 +400,9 @@ An optional `callId` identifies the actual tool invocation that requested approv
 
 #### SystemNotice
 
-`kind` classifies the notice: `compacted`, `forked`, `remoteRoute`, or `channel`. Kind-specific fields:
+`kind` classifies the notice. Kind-specific fields:
 
+- `contextHandoff`: `from` and `to`, each with `providerId` and `model`, and English `fallbackText`.
 - `compacted`: `trigger` (`auto`, `reactive`, `manual`), `mode`, `tokensBefore`, `tokensAfter`, `percentLeftAfter` (fraction of the effective context window, 0.0–1.0), `clearedToolResults`.
 - `forked`: `sourceThreadId`.
 - `remoteRoute`: `reason` (`connected`, `disconnected`, `leaseLost`), `initiator` (`client`, `agent`, or `system` only with `leaseLost`), `hostId`, `hostName`, `workspaceId`, `workspaceName`.
@@ -409,6 +410,7 @@ An optional `callId` identifies the actual tool invocation that requested approv
 
 Notices are persisted through the normal rollout path, survive reload and paged history, and render as inline timeline dividers rather than model conversation.
 
+- Session Core records the effective provider instance and model on a Turn at its first model request boundary. If the pair differs from the most recent surviving Turn with a recorded pair, Core appends one `contextHandoff` notice to the new Turn. A request that fails or yields no response still counts. A Turn that never reaches a model request cannot change the baseline, and retries do not create additional notices. Missing identities are not inferred from the current configuration.
 - Session Core creates a `compacted` notice only for partial compaction (neutral or provider-native), so persisted notices carry `mode = "partial"`. Micro compaction emits only the transient `system/event` that refreshes context usage.
 - `forked` notices are not model-visible and never mutate the source thread.
 - `remoteRoute` notices mark where eligible tools started or stopped running on a remote execution location. They follow the out-of-band placement rule in Section 3.4: appended to the running Turn at the point the route changed, otherwise to the latest completed Turn. Connects and disconnects are recorded only when a person or the model caused them; thread release and process teardown are not recorded. A lost lease is always recorded with `initiator = "system"`. `hostId` and `workspaceId` name the route the change was about, including the route a disconnect removed. Hosts outside Session Core append notices through the Session API with the same placement and never wait for a running Turn.
@@ -743,7 +745,7 @@ User-level usage statistics live at `<UserDataPath>/usage.db`, independently of 
 
 When a release changes the shape of existing workspace data, it may ship one release-scoped upgrade. Its table changes run once when the state database is first opened for writing, before any Thread loads. Code reads only the current table shape, so there are no compatibility readers. Rewriting rollouts takes time proportional to the thread history, so it never blocks startup: it runs in the background after the workspace runtime starts, one Thread at a time while holding that Thread's rollout write gate, and only for changes the current readers can still read in the old form. Each rewrite clears the Thread's history projection, writes a temporary file, and atomically replaces the rollout; a rollout already in the new shape is skipped, so a pass that stops early resumes on the next start. The upgrade is removed in the next release, so a workspace that skips a release keeps that release's old data shape.
 
-A release may also clean the workspace configuration layer before configuration loads. [Configuration §4.1](configuration.md#41-personal-settings-left-in-the-workspace-layer) defines the 0.13.1 cleanup.
+A release may also clean the workspace configuration layer before configuration loads.
 
 ### 9.1.2 Workspace Database Initialization
 

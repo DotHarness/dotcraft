@@ -1,11 +1,13 @@
 import { memo, type ReactNode } from 'react'
 import type { TranscriptLiveText } from '../../stores/subAgentTranscriptEvents'
 import type { ConversationTurn } from '../../types/conversation'
+import { getTurnContextHandoff } from '../../types/contextHandoff'
 import { isVisibleUserMessage } from '../../utils/visibleUserMessage'
 import { isEmptyCompletedTurn } from '../../utils/turnPresentation'
 import { useSubAgentTranscriptStore } from '../../stores/subAgentTranscriptStore'
 import { AgentResponseBlock } from './AgentResponseBlock'
 import { UserMessageBlock } from './UserMessageBlock'
+import { ContextHandoffNotice } from './ContextHandoffNotice'
 import { TranscriptThreadContext } from './transcriptDiffs'
 import styles from './TranscriptTurn.module.css'
 
@@ -33,9 +35,11 @@ export const TranscriptTurn = memo(function TranscriptTurn({
     (s.transcripts.get(threadId)?.turnDiffs.get(turn.id)?.files.length ?? 0) > 0)
   const hasUserMessage = turn.items.some(isVisibleUserMessage)
   if ((absorbed || isEmptyCompletedTurn(turn, hasFileChanges)) && !hasUserMessage) return null
+  const handoff = getTurnContextHandoff(turn)
 
   return (
     <div className={styles.turn}>
+      {handoff && <ContextHandoffNotice handoff={handoff} />}
       {turn.items.filter(isVisibleUserMessage).map((item) => (
         <UserMessageBlock
           key={item.id}

@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace DotCraft.Sessions;
 
 /// <summary>
@@ -65,4 +67,10 @@ public sealed class SessionTurn
     /// Durable metadata describing who initiated this turn.
     /// </summary>
     public TurnInitiatorContext? Initiator { get; set; }
+
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    internal SampledTurnModel? SampledModel { get; set; }
 }
+
+internal sealed record SampledTurnModel(ContextHandoffEndpoint Identity, int AfterItemSequence);

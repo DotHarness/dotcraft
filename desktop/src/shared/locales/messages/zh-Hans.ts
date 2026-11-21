@@ -3140,6 +3140,7 @@ export const MESSAGES_ZH_HANS = {
   'systemNotice.compacted.manual': '上下文已压缩',
   'systemNotice.compacted.reactive': '已在溢出后恢复',
   'systemNotice.compacted.detail': '释放 {{freed}} tokens · 剩余 {{percent}}%',
+  'systemNotice.contextHandoff.description': '{{title}}：从 {{from}} 切换到 {{to}}',
   'systemNotice.forked.title': '从另一个对话 Fork',
   'systemNotice.remoteRoute.connected': '已连接到 {{host}}',
   'systemNotice.remoteRoute.disconnected': '与 {{host}} 的连接已断开',

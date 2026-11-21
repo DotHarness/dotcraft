@@ -4,6 +4,8 @@ import { LocaleProvider } from '../contexts/LocaleContext'
 import { MessageStream } from '../components/conversation/MessageStream'
 import { useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
+import { useProvidersStore } from '../stores/providersStore'
+import { wireTurnToConversationTurn } from '../types/conversation'
 import { installDesktopApiMock } from './desktopApiMock'
 
 const appServerSendRequest = vi.fn()
@@ -49,6 +51,7 @@ describe('MessageStream', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+    act(() => useProvidersStore.setState({ providers: [] }))
   })
 
   it('renders a web URL in a user message as a browser link', () => {
@@ -76,6 +79,51 @@ describe('MessageStream', () => {
     const link = screen.getByRole('link', { name: 'https://example.com/docs' })
     expect(link).toHaveAttribute('href', 'https://example.com/docs')
     expect(link).toHaveAttribute('data-inline-reference-kind', 'browser')
+  })
+
+  it('renders one handoff with focusable provider details in both live and hydrated history', () => {
+    const createdAt = '2026-01-01T00:00:00Z'
+    const threadId = 'thread-1'
+    const rawTurn = {
+      id: 'turn-1', threadId, status: 'running', createdAt,
+      items: [{ id: 'message', type: 'userMessage', status: 'completed', createdAt, payload: { text: 'Continue' } }]
+    }
+    const item = {
+      id: 'handoff', type: 'systemNotice', status: 'completed', createdAt,
+      payload: {
+        kind: 'contextHandoff',
+        from: { providerId: 'claude', model: 'opus' },
+        to: { providerId: 'claude', model: 'sonnet' }
+      }
+    }
+    useProvidersStore.setState({
+      providers: [{ id: 'claude', displayName: 'Anthropic', protocol: 'anthropic', authMethod: 'apiKey' }]
+    })
+    useConversationStore.setState({
+      turns: [wireTurnToConversationTurn(rawTurn)],
+      turnStatus: 'running',
+      activeTurnId: rawTurn.id
+    })
+    renderWithLocale(<MessageStream />)
+    expect(screen.queryByRole('group', { name: 'opus', exact: true })).not.toBeInTheDocument()
+
+    act(() => {
+      const event = { threadId, turnId: rawTurn.id, item }
+      useConversationStore.getState().onItemCompleted(event)
+      useConversationStore.getState().onItemCompleted(event)
+    })
+    fireEvent.focus(screen.getByRole('group', { name: 'sonnet', exact: true }))
+    expect(screen.getByRole('tooltip', { name: 'Anthropic' })).toBeInTheDocument()
+
+    act(() => useConversationStore.setState({
+      turns: [wireTurnToConversationTurn({
+        ...rawTurn, status: 'completed', items: [...rawTurn.items, item]
+      })],
+      turnStatus: 'idle',
+      activeTurnId: null
+    }))
+    expect(screen.getByRole('group', { name: 'opus', exact: true })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'sonnet', exact: true })).toBeInTheDocument()
   })
 
   it('sends inline edited text by rolling back before turn/start', async () => {

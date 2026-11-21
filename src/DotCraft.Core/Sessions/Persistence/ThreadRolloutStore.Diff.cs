@@ -89,6 +89,7 @@ internal sealed partial class ThreadRolloutStore
                 && previousTurn.StartedAt == currentTurn.StartedAt
                 && string.Equals(previousTurn.OriginChannel, currentTurn.OriginChannel, StringComparison.Ordinal)
                 && JsonEquals(previousTurn.Initiator, currentTurn.Initiator)
+                && previousTurn.SampledModel == currentTurn.SampledModel
                 && JsonEquals(previousTurn.Input, currentTurn.Input);
         }
 
@@ -245,6 +246,7 @@ internal sealed partial class ThreadRolloutStore
                     Error = null,
                     OriginChannel = turn.OriginChannel,
                     Initiator = turn.Initiator,
+                    SampledModel = turn.SampledModel,
                     Items = []
                 }
             }

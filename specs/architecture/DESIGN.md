@@ -1333,6 +1333,19 @@ running changes indicator, share one quiet surface: `--bg-primary` at 70% over a
 soft blur with a `--border-default` hairline and no drop shadow, so they read as
 the conversation's own background rather than raised chips.
 
+### Context handoff
+
+A handoff is a single neutral transcript divider before the first user bubble of
+the affected turn, or at the head of the turn when it has no bubble. It centers
+a bidirectional switch glyph and `Context handoff`, the previous provider mark
+and model name, an arrow, and the new provider mark and model name between two
+hairlines. The title, switch glyph, and model names use `--text-secondary`.
+Both ends keep their marks even when they represent the same provider. A provider
+without a known mark uses the generic provider icon. Hover or keyboard focus on
+either end reveals the provider name without adding text to the row. At narrow
+widths the divider uses compact type and ellipsizes long model names rather than
+wrapping.
+
 ### Message markers
 
 A user bubble holds only what the person wrote. Everything the client knows

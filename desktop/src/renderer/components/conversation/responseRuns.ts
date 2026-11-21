@@ -1,4 +1,5 @@
 import type { ConversationTurn } from '../../types/conversation'
+import { getTurnContextHandoff } from '../../types/contextHandoff'
 import { isVisibleUserMessage } from '../../utils/visibleUserMessage'
 import { getActivityElapsedMs, getTaskWake } from './turnActivityModel'
 
@@ -13,6 +14,7 @@ function continuesResponse(previous: ConversationTurn, turn: ConversationTurn): 
   return previous.status === 'completed'
     && getTaskWake(turn) != null
     && !turn.items.some(isVisibleUserMessage)
+    && getTurnContextHandoff(turn) == null
 }
 
 export function placeResponses(

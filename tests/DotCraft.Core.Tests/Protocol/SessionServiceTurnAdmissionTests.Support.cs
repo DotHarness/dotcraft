@@ -54,10 +54,13 @@ public sealed partial class SessionServiceTurnAdmissionTests
                 new AutoApproveApprovalService(), blacklist: null, toolSources: [],
                 chatClientRegistry: new ChatClientRegistry(Provider));
             Store = writer is null ? new ThreadStore(Root) : new ThreadStore(Root, null, null, writer);
-            Service = new SessionService(_factory, _factory.CreateDefaultAgent(),
-                new SessionPersistenceService(Store), new SessionGate(),
-                runtimeRefreshers: refresher is null ? null : [refresher]);
+            Service = CreateService(Store, refresher);
         }
+
+        public SessionService CreateService(ThreadStore store, AdmissionRefresher? refresher = null) =>
+            new(_factory, _factory.CreateDefaultAgent(),
+                new SessionPersistenceService(store), new SessionGate(),
+                runtimeRefreshers: refresher is null ? null : [refresher]);
 
         public Task<SessionThread> CreateThreadAsync(ThreadConfiguration? configuration = null) =>
             Service.CreateThreadAsync(new SessionIdentity
@@ -81,6 +84,7 @@ public sealed partial class SessionServiceTurnAdmissionTests
         public ConcurrentQueue<EffectiveModelRuntime> Requests { get; } = new();
         public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public string? FailingModel { get; set; }
         public IReadOnlyCollection<string> Protocols => [ModelProviderProtocols.OpenAIChatCompletions];
         public IChatClient CreateChatClient(EffectiveModelRuntime runtime) => new Client(this, runtime, blockRequests, requestApprovals);
 
@@ -98,6 +102,8 @@ public sealed partial class SessionServiceTurnAdmissionTests
                 owner.Entered.TrySetResult();
                 if (block)
                     await owner.Release.Task.WaitAsync(cancellationToken);
+                if (runtime.Model == owner.FailingModel)
+                    throw new InvalidOperationException("The provider rejected this request.");
                 if (requestApprovals)
                 {
                     var approvals = new SessionScopedApprovalService(new AutoApproveApprovalService());
@@ -119,12 +125,18 @@ public sealed partial class SessionServiceTurnAdmissionTests
     {
         private readonly OrderedRolloutWriter _inner = new();
         public string? RejectModel { get; set; }
+        public string? RejectSampledModel { get; set; }
 
         public Task AddBatchAsync(string threadId, string path, IReadOnlyList<ThreadRolloutRecord> records,
             CancellationToken ct = default)
         {
             if (RejectModel is { } model && records.Any(record => record.ThreadOpened?.Configuration?.Model == model))
                 throw new RolloutPersistenceException("configuration commit rejected", new IOException("test failure"));
+            if (RejectSampledModel is { } sampled && records.Any(record =>
+                    record.TurnStateReplaced?.Turn.SampledModel?.Identity.Model == sampled))
+            {
+                throw new RolloutPersistenceException("sample commit rejected", new IOException("test failure"));
+            }
             return _inner.AddBatchAsync(threadId, path, records, ct);
         }
 
@@ -135,10 +147,12 @@ public sealed partial class SessionServiceTurnAdmissionTests
 
     private sealed class AdmissionRefresher : ISessionRuntimeRefresher
     {
+        public bool Block { get; set; }
         public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public Task RefreshAsync(CancellationToken ct)
         {
+            if (!Block) return Task.CompletedTask;
             Entered.TrySetResult();
             return Release.Task.WaitAsync(ct);
         }

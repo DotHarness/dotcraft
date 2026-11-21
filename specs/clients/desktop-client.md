@@ -909,6 +909,7 @@ Every result opens by automation id and run id. Follow-ups locate the exact turn
 - Welcome atomically persists `ProviderId` and the selected provider's `ProviderPreferences.<id>` entry in the user layer, so the choice applies to every workspace, then sends the selected mode/model/reasoning/speed/context snapshot (and any explicit approval override) in `thread/start` or `worktree/createAndStart`.
 - Existing threads expose no Default. A provider or preference change sends one full `thread/config/update`, never a configuration write, and updates local state only on success. A provider with no remembered model gets its first listed model; if listing is unavailable, the thread is unchanged and the user is directed to provider settings.
 - Successful provider, model, reasoning, and speed changes are reflected in the picker without success toasts. Failed changes retain error feedback.
+- The transcript shows a Context handoff at the first turn that runs with a different provider instance or model than the previous model-backed turn. The marker comes from turn history, not the current picker selection. Changing selection without running a turn, the thread's first model-backed turn, and changes only to reasoning or speed do not produce a marker. Reloading or paging history preserves the position and endpoints of a recorded handoff.
 - Missing or deleted providers remain visible as missing thread state until the user migrates the thread.
 
 ### 6.6 Archived Chats
