@@ -84,7 +84,7 @@ internal static class InitializeContractMapper
         GenerativeUi = value.GenerativeUi,
         McpElicitation = value.McpElicitation,
         McpServerOrigins = value.McpServerOrigins,
-        ExternalChannelManagement = value.ExternalChannelManagement,
+        ChannelManagement = value.ChannelManagement,
         ToolCatalog = value.ToolCatalog,
         AgentProfileManagement = value.AgentProfileManagement,
         SubAgentManagement = value.SubAgentManagement,

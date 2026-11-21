@@ -18,7 +18,7 @@ public interface IWorkspaceRuntimeAppServerFeature : IAsyncDisposable
 {
     IChannelStatusProvider? ChannelStatusProvider { get; }
 
-    IExternalChannelRuntimeProvider? ExternalChannelRuntimeProvider { get; }
+    IChannelRuntimeProvider? ChannelRuntimeProvider { get; }
 
     string? DashboardUrl { get; }
 
@@ -29,9 +29,8 @@ public interface IWorkspaceRuntimeAppServerFeature : IAsyncDisposable
 
     Task StopAsync(CancellationToken ct = default);
 
-    Task ApplyExternalChannelUpsertAsync(ExternalChannelEntry entry, CancellationToken ct = default);
+    Task ApplyChannelSetEnabledAsync(ChannelEntry entry, CancellationToken ct = default);
 
-    Task ApplyExternalChannelRemoveAsync(string channelName, CancellationToken ct = default);
 }
 
 public sealed class WorkspaceRuntimeAppServerFeatureContext(

@@ -157,7 +157,6 @@ public sealed partial class ManagedAppServerRegistry : IAsyncDisposable
                 entry.StartedInCurrentHubProcess = true;
                 entry.TypeScriptNodeBin = plan.TypeScriptNodeBin;
                 entry.TypeScriptNodeRunAsNode = plan.TypeScriptNodeRunAsNode;
-                entry.TypeScriptModulesDir = plan.TypeScriptModulesDir;
                 entry.BuiltInPluginRoots = plan.BuiltInPluginRoots;
                 entry.DefaultPluginRegistryUrl = plan.DefaultPluginRegistryUrl;
                 entry.RecentStderr = process.RecentStderr;
@@ -413,15 +412,12 @@ public sealed partial class ManagedAppServerRegistry : IAsyncDisposable
         HubRuntimeToolsRequest runtimeTools)
     {
         var nodeBin = NormalizeOptionalPath(runtimeTools.NodeBin);
-        var modulesDir = NormalizeOptionalPath(runtimeTools.ModulesDir);
         var builtInPluginRoots = NormalizeOptionalValue(runtimeTools.BuiltInPluginRoots);
         var defaultPluginRegistryUrl = NormalizeOptionalValue(runtimeTools.DefaultPluginRegistryUrl);
         if (!string.Equals(entry.TypeScriptNodeBin, nodeBin, StringComparison.OrdinalIgnoreCase))
             return "TypeScript channel Node runtime changed; restart the AppServer to apply it.";
         if (entry.TypeScriptNodeRunAsNode != (runtimeTools.NodeRunAsNode == true))
             return "TypeScript channel Node launch mode changed; restart the AppServer to apply it.";
-        if (!string.Equals(entry.TypeScriptModulesDir, modulesDir, StringComparison.OrdinalIgnoreCase))
-            return "TypeScript channel modules directory changed; restart the AppServer to apply it.";
         if (!string.Equals(entry.BuiltInPluginRoots, builtInPluginRoots, StringComparison.OrdinalIgnoreCase))
             return "Built-in plugin roots changed; restart the AppServer to apply them.";
         if (!string.Equals(entry.DefaultPluginRegistryUrl, defaultPluginRegistryUrl, StringComparison.OrdinalIgnoreCase))
@@ -438,7 +434,7 @@ public sealed partial class ManagedAppServerRegistry : IAsyncDisposable
             ? "typescriptRuntime"
             : "builtInPlugins";
         var url = statusKey == "typescriptRuntime"
-            ? NormalizeOptionalPath(runtimeTools.ModulesDir)
+            ? NormalizeOptionalPath(runtimeTools.NodeBin)
             : NormalizeOptionalValue(runtimeTools.DefaultPluginRegistryUrl)
               ?? NormalizeOptionalValue(runtimeTools.BuiltInPluginRoots);
         entry.ServiceStatus = WithServiceStatus(

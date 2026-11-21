@@ -57,24 +57,6 @@ export interface ModuleInterfaceWire {
   localizedSetupSteps?: Partial<Record<AppLocale, string[]>>
 }
 
-export interface DiscoveredModule {
-  moduleId: string
-  channelName: string
-  displayName: string
-  localizedDisplayName?: LocalizedTextMap
-  interface?: ModuleInterfaceWire
-  packageName: string
-  configFileName: string
-  supportedTransports: string[]
-  requiresInteractiveSetup: boolean
-  capabilitySummary?: Record<string, unknown>
-  variant: string
-  source: 'bundled' | 'user'
-  absolutePath: string
-  configGroups?: ConfigGroupDescriptorWire[]
-  configDescriptors: ConfigDescriptorWire[]
-}
-
 export type ModuleProcessState = 'starting' | 'running' | 'stopping' | 'stopped' | 'crashed'
 
 export interface ModuleStatusEntry {
@@ -82,19 +64,3 @@ export interface ModuleStatusEntry {
   connected: boolean
   failureCode?: string
 }
-
-export type ModuleStatusMap = Record<string, ModuleStatusEntry>
-
-export interface QrUpdatePayload {
-  moduleId: string
-  qrDataUrl: string | null
-  timestamp: number
-}
-
-export interface ModuleConfigStatus {
-  exists: boolean
-  /** Display labels, not config keys. */
-  missingRequired: string[]
-}
-
-export type ModuleConfigStatusMap = Record<string, ModuleConfigStatus>

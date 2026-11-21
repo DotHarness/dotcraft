@@ -6,7 +6,7 @@ namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 public sealed class ChannelStatusProtocolTests
 {
     [Fact]
-    public async Task ChannelStatus_ReportsOptionalRuntimeStateAndStableFailureCode()
+    public async Task ChannelStatus_ReportsStoppedAndBlockedSelectionsAndTheirStableFailureCodes()
     {
         using var harness = new CoreAppServerTestHarness(
             channelStatusProvider: new FakeChannelStatusProvider(
@@ -14,24 +14,26 @@ public sealed class ChannelStatusProtocolTests
                 new ChannelStatusSnapshot
                 {
                     Name = "feishu",
-                    Category = "external",
+                    Category = "social",
+                    PluginId = "channel-feishu",
                     Enabled = true,
                     Running = false,
                     RuntimeState = ChannelRuntimeStates.Failed,
-                    FailureCode = ChannelFailureCodes.ExternalChannelStartFailed
+                    FailureCode = ChannelFailureCodes.ChannelStartFailed
                 },
                 new ChannelStatusSnapshot
                 {
                     Name = "telegram",
-                    Category = "external",
-                    Enabled = true,
-                    Running = true,
-                    RuntimeState = ChannelRuntimeStates.Running
+                    Category = "social",
+                    PluginId = "channel-telegram",
+                    Enabled = false,
+                    Running = false,
+                    RuntimeState = ChannelRuntimeStates.Stopped
                 },
                 new ChannelStatusSnapshot
                 {
-                    Name = "legacy",
-                    Category = "external",
+                    Name = "builtin",
+                    Category = "builtin",
                     Enabled = true,
                     Running = false
                 }
@@ -40,25 +42,25 @@ public sealed class ChannelStatusProtocolTests
         await harness.InitializeAsync();
         await harness.ExecuteRequestAsync(harness.BuildRequest("channel/status", new { }));
         using var response = await harness.Transport.ReadNextSentAsync();
-        var channels = response.RootElement.GetProperty("result").GetProperty("channels");
+        var channels = response.RootElement.GetProperty("result").GetProperty("channels")
+            .EnumerateArray().ToDictionary(channel => channel.GetProperty("name").GetString()!);
 
-        var failed = channels[0];
+        var failed = channels["feishu"];
         Assert.True(failed.GetProperty("enabled").GetBoolean());
         Assert.False(failed.GetProperty("running").GetBoolean());
         Assert.Equal("failed", failed.GetProperty("runtimeState").GetString());
-        Assert.Equal("externalChannelStartFailed", failed.GetProperty("failureCode").GetString());
+        Assert.Equal("channelStartFailed", failed.GetProperty("failureCode").GetString());
+        Assert.Equal("channel-feishu", failed.GetProperty("pluginId").GetString());
 
-        var running = channels[1];
-        Assert.True(running.GetProperty("enabled").GetBoolean());
-        Assert.True(running.GetProperty("running").GetBoolean());
-        Assert.Equal("running", running.GetProperty("runtimeState").GetString());
-        Assert.False(running.TryGetProperty("failureCode", out _));
+        var stopped = channels["telegram"];
+        Assert.False(stopped.GetProperty("enabled").GetBoolean());
+        Assert.False(stopped.GetProperty("running").GetBoolean());
+        Assert.Equal("stopped", stopped.GetProperty("runtimeState").GetString());
+        Assert.Equal("channel-telegram", stopped.GetProperty("pluginId").GetString());
+        Assert.False(stopped.TryGetProperty("failureCode", out _));
 
-        var legacy = channels[2];
-        Assert.True(legacy.GetProperty("enabled").GetBoolean());
-        Assert.False(legacy.GetProperty("running").GetBoolean());
-        Assert.False(legacy.TryGetProperty("runtimeState", out _));
-        Assert.False(legacy.TryGetProperty("failureCode", out _));
+        var builtin = channels["builtin"];
+        Assert.False(builtin.TryGetProperty("pluginId", out _));
     }
 
     private sealed class FakeChannelStatusProvider(IReadOnlyList<ChannelStatusSnapshot> statuses)

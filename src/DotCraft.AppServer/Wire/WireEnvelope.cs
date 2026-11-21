@@ -395,12 +395,8 @@ public sealed class ServerCapabilitySnapshot
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool McpServerOrigins { get; set; }
 
-    /// <summary>
-    /// Server supports external channel configuration management methods
-    /// (<c>externalChannel/list</c>, <c>externalChannel/upsert</c>, etc.).
-    /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public bool ExternalChannelManagement { get; set; }
+    public bool ChannelManagement { get; set; }
 
     /// <summary>
     /// Server supports the built-in tool catalog method (<c>tool/list</c>, spec Section 18A).

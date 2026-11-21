@@ -15,7 +15,7 @@ public sealed class HubRuntimeToolsStoreTests : IDisposable
         Directory.CreateDirectory(_tempDir);
         var nodeBin = Path.Combine(_tempDir, "node");
         File.WriteAllText(nodeBin, string.Empty);
-        var modulesDir = Directory.CreateDirectory(Path.Combine(_tempDir, "modules")).FullName;
+        var pluginRoot = Directory.CreateDirectory(Path.Combine(_tempDir, "plugins")).FullName;
         var paths = Enumerable.Range(0, 16)
             .Select(index => Path.Combine(_tempDir, index.ToString(), "runtime.json"))
             .ToArray();
@@ -32,7 +32,7 @@ public sealed class HubRuntimeToolsStoreTests : IDisposable
 
         var results = await Task.WhenAll(
             Update(new HubRuntimeToolsRequest { NodeBin = nodeBin }),
-            Update(new HubRuntimeToolsRequest { ModulesDir = modulesDir }));
+            Update(new HubRuntimeToolsRequest { BuiltInPluginRoots = pluginRoot }));
 
         Assert.All(results.SelectMany(errors => errors), error => Assert.Null(error));
         foreach (var path in paths)
@@ -40,7 +40,7 @@ public sealed class HubRuntimeToolsStoreTests : IDisposable
             var tools = JsonSerializer.Deserialize<HubRuntimeToolsDocument>(
                 File.ReadAllText(path), HubJson.Options)!.RuntimeTools;
             Assert.Equal(nodeBin, tools.NodeBin);
-            Assert.Equal(modulesDir, tools.ModulesDir);
+            Assert.Equal(pluginRoot, tools.BuiltInPluginRoots);
         }
     }
 

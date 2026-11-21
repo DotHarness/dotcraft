@@ -1,56 +1,25 @@
 # 将 DotCraft 接入企业微信
 
-用企业微信管理后台中的回调设置，把企业微信群机器人接成 DotCraft 的一个[渠道](./)。
+通过公网 HTTPS 回调，把企业微信群机器人接入 DotCraft。
 
-## 快速设置
+## 连接机器人
 
-1. 在 DotCraft Desktop 打开目标 workspace。
-2. 打开 **Channels**，选择 **企业微信**，然后选择 **Connect**。
-
-   ![在企业微信渠道详情页开始连接](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/wecom-detail.png)
-
-3. 设置回调监听 host、port 和 scheme。默认本地监听是 `0.0.0.0:9000`。
-4. 添加机器人配置，填写回调 path、Token 和 EncodingAESKey。
-5. 至少添加一个管理员用户、允许用户或允许会话。
+1. 在企业微信管理后台创建或打开群机器人，启用回调模式。
+2. 在 DotCraft Desktop 的目标工作区打开**插件 → 渠道**，安装**企业微信**，点**设置**。
+3. 设置回调监听地址，默认是 `0.0.0.0:9000`。添加机器人并填写回调路径、Token 和 EncodingAESKey。至少添加一个管理员、允许用户或允许会话。
 
    ![在 DotCraft Desktop 中配置企业微信渠道](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/wecom-configuration.png)
 
-6. 保存渠道并启用。
-7. 在企业微信中，将群机器人回调 URL 设置为能访问 DotCraft 监听地址的公网 URL。
-8. 将同一组 Token 和 EncodingAESKey 填入企业微信机器人设置。
+4. 保存设置，点**连接**。
+5. 在企业微信中，把回调 URL 设为转发到 DotCraft 监听地址的公网 HTTPS 地址，并带上机器人的回调路径。本地监听地址可通过 HTTPS 反向代理或隧道接入。Token 和 EncodingAESKey 与 DotCraft 保持一致。
+6. 把机器人加入允许的会话并发一条消息。DotCraft 会在该会话里回复。
 
-企业微信完成回调校验后，Desktop 中的企业微信渠道应显示为 connected。
+## 使用机器人
 
-## 平台设置细节
-
-在企业微信管理后台：
-
-1. 创建或打开要接入 DotCraft 的群机器人。
-2. 启用回调模式。
-3. 将回调 URL 设置为公网 HTTPS 端点加上 Desktop 中的机器人 path。
-4. 将 Token 设置为 Desktop 中的同一个机器人 token。
-5. 将 EncodingAESKey 设置为 Desktop 中的同一个机器人 AES key。
-6. 将机器人添加到需要 DotCraft 响应的会话。
-
-企业微信必须能从公网访问回调地址。本地 Desktop 场景请在 Desktop 监听地址前放一个 HTTPS 反向代理或隧道。
-
-## 测试连接
-
-1. 在允许的企业微信会话中发送消息。
-2. 确认 DotCraft 在同一会话中回复。
-3. 让 DotCraft 执行一个需要审批的操作。
-4. 确认审批请求出现在企业微信中，并且你的回复会被接受。
-
-## 设置后可用能力
-
-- DotCraft 会回复来自允许用户和允许会话的消息。
-- 管理员用户还能执行 `/model` 等管理员命令。其他允许的用户可以使用其他[聊天命令](./#聊天中的命令)，命令选项以编号列表显示。
-- 审批回复支持 `同意`、`允许`、`yes`、`approve`、`拒绝`、`no`、`reject` 和 `deny`。前面带 `/` 也可以，`/yes`、`/no` 同样有效，`/approve`、`/approve session` 和 `/deny` 也都可用。回复 `同意全部` 或 `approve all` 会在本对话内放行同类操作。
-- 审批等待回复期间，你在该聊天里发的其他消息不会转给 DotCraft，机器人会回复一条提醒。超时未回复时，操作会被取消，聊天里也会收到通知。
-- Agent 可以发送文本、图片、文件，以及 AMR 格式的语音消息。
-- 白名单之外的用户或会话消息会被忽略。
+- DotCraft 回复允许的用户和会话。管理员可用 `/model` 等命令，其他允许用户可用其余[聊天命令](./#聊天中的命令)。命令选项以编号列表显示。
+- Agent 可发送文本、图片、文件和 AMR 格式的语音。
 
 ## 相关文档
 
-- [渠道配置](../../configuration/channels)——企业微信配置文件的全部字段、默认值与注册形态。
-- [微信渠道](./weixin)——个人微信走另一条链路，通过腾讯 iLink 扫码接入。
+- [企业微信渠道配置](../../configuration/channels#企业微信-wecom) — 回调设置和白名单。
+- [微信渠道](./weixin) — 扫码接入个人微信账号。

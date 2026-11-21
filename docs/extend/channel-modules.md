@@ -1,121 +1,88 @@
 # Channel modules
 
-A Channel module packages a [Channel adapter](./sdks/channels) so DotCraft hosts such as Desktop can discover, configure, start, and stop it. The adapter still owns message routing and platform delivery. The module adds the host-facing metadata and lifecycle boundary around that adapter.
+Distribute a [channel adapter](./sdks/channels) as a plugin so DotCraft can install, configure, and run it for a workspace. The module supplies a static descriptor and an executable bundle. The adapter still owns the platform connection and message delivery.
 
-![The host-visible lifecycle of a Channel module, from starting through ready and stopped, with configuration, authentication, and degraded states branching from the main path](/typescript-module-lifecycle.svg)
+![The host-visible lifecycle of a channel module, from starting through ready and stopped](/typescript-module-lifecycle.svg)
 
-## Adapter and module layers
+## Declare the channel plugin
 
-The two layers serve one Channel implementation:
+Add a `channel` contribution to the [plugin manifest](./plugin-manifest) in `.craft-plugin/plugin.json`:
 
-| Layer | Responsibility |
-| --- | --- |
-| **Channel adapter** | Connect to AppServer, resolve threads, forward messages and commands, handle approvals, deliver what the agent sends, and show chat activity. |
-| **Channel module** | Describe the implementation, expose configuration metadata, create the adapter instance, and report lifecycle state to the host. |
-
-Use `ModuleChannelAdapter` when an adapter needs module-aware configuration and lifecycle support. A host-loadable package then exposes the module contract from its root and includes a `manifest.json` for discovery.
-
-## Export the module contract
-
-Export these values from the package root:
-
-- `manifest`: stable identity, transport, launcher, and capability metadata
-- `createModule(context)`: a factory that returns the running module boundary
-- `configDescriptors`: fields the host uses to validate and render configuration
-- `configGroups`: optional ordered groups for those fields
-
-The factory wraps the adapter rather than implementing a second Channel runtime:
-
-```ts
-import type { ModuleFactory } from "@dotcraft/channel";
-import { MyChannelAdapter } from "./my-channel-adapter.js";
-
-export const createModule: ModuleFactory = (context) => {
-  const adapter = new MyChannelAdapter();
-
-  return {
-    start: () => adapter.startWithContext(context),
-    stop: () => adapter.stop(),
-    onStatusChange: (handler) => adapter.onStatusChange(handler),
-    getStatus: () => adapter.getStatus(),
-    getError: () => adapter.getError(),
-  };
-};
+```json
+{
+  "schemaVersion": 1,
+  "id": "channel-acme",
+  "version": "0.1.0",
+  "displayName": "Acme Chat",
+  "description": "Connects a workspace to Acme Chat.",
+  "capabilities": ["channel"],
+  "channel": {
+    "manifest": "./channel/manifest.json",
+    "entry": "./channel/dist/cli.bundle.mjs",
+    "minHostVersion": "0.14.0"
+  },
+  "interface": {
+    "displayName": "Acme Chat",
+    "shortDescription": "Send and receive messages in Acme Chat",
+    "developerName": "Acme",
+    "category": "Channels",
+    "capabilities": ["Channel"],
+    "defaultPrompt": "Summarize the status update from Acme Chat.",
+    "websiteUrl": "https://example.com/acme-chat",
+    "logo": "./assets/icon.svg",
+    "composerIcon": "./assets/icon.svg"
+  }
+}
 ```
 
-`WorkspaceContext` supplies `workspaceRoot`, `craftPath`, `channelName`, and `moduleId`. Use those values instead of the current working directory so the same module can run under different hosts.
+`manifest` points to the module descriptor. `entry` points to the bundled Node.js launcher. Both files stay inside the plugin root, with no symbolic links along either path. `minHostVersion` is the earliest DotCraft release that supports the bundle.
 
 ## Describe the module
 
-Define the manifest with the public `ModuleManifest` type. `moduleId` selects one implementation, while `channelName` preserves the logical Channel identity shared by compatible variants.
+Save this descriptor as `channel/manifest.json`:
 
-```ts
-import type { ModuleManifest } from "@dotcraft/channel";
-import { CHANNEL_CONTRACT_VERSION } from "@dotcraft/channel/meta";
-
-export const manifest: ModuleManifest = {
-  moduleId: "acme-chat-standard",
-  channelName: "acme-chat",
-  displayName: "Acme Chat",
-  packageName: "@acme/dotcraft-channel",
-  configFileName: "acme-chat.json",
-  supportedTransports: ["websocket"],
-  requiresInteractiveSetup: false,
-  capabilitySummary: {
-    hasChannelTools: false,
-    requiresInteractiveSetup: false,
-    capabilitySetMayVaryByEnvironment: false,
+```json
+{
+  "moduleId": "acme-chat-standard",
+  "channelName": "acme-chat",
+  "displayName": "Acme Chat",
+  "packageName": "@acme/dotcraft-channel",
+  "configFileName": "acme-chat.json",
+  "variant": "standard",
+  "channelContractVersion": "1.0.0",
+  "supportedChannelProtocolVersions": ["0.2"],
+  "supportedTransports": ["websocket"],
+  "requiresInteractiveSetup": false,
+  "capabilitySummary": {
+    "hasChannelTools": false,
+    "requiresInteractiveSetup": false,
+    "capabilitySetMayVaryByEnvironment": false
   },
-  channelContractVersion: CHANNEL_CONTRACT_VERSION,
-  supportedChannelProtocolVersions: ["0.2"],
-  variant: "standard",
-  launcher: {
-    bin: "dotcraft-channel-acme",
-    supportsWorkspaceFlag: true,
-    supportsConfigOverrideFlag: true,
-  },
-};
+  "launcher": {
+    "bin": "acme-chat",
+    "supportsWorkspaceFlag": true,
+    "supportsConfigOverrideFlag": false
+  }
+}
 ```
 
-Keep package imports on documented entry points. Do not import package-internal files or infer contract fields from a host's source layout.
+`channelName` identifies the messaging route. `moduleId` identifies a particular implementation and its state. Keep both stable across updates. `configFileName` is a non-reserved JSON filename, not a path.
 
-## Expose configuration
+Add `configDescriptors` for editable fields, and `configGroups` to order them. A field uses a dotted `key`, such as `acme.token`, plus a `displayLabel`, `dataKind`, `required`, `masked`, and `interactiveSetupOnly`. Use `dataKind: "secret"` for credentials and `masked: true` for a field that contains credentials inside an object or list. Never ship secret values as defaults. The `dotcraft.*` keys are host-owned and aren't editable. The descriptors are the plugin's settings schema, so don't declare a separate `settings` file.
 
-Hosts use `configGroups` and `configDescriptors` to build configuration UI without knowing platform-specific settings. Group ids must be non-empty and unique, and every descriptor with a `group` must reference a declared group.
+## Launch and verify
 
-Use descriptor fields consistently:
+Build a self-contained Node.js bundle. The host passes `--workspace <path>` and sets `DOTCRAFT_CHANNEL_CRAFT_PATH` to the workspace data directory. Use `DOTCRAFT_CHANNEL_WS_URL` and `DOTCRAFT_CHANNEL_WS_TOKEN` for the [AppServer handshake](./protocols/appserver#channel-adapters). Desktop and Docker supply Node.js. A standalone host requires Node.js 22 or later.
 
-- `required` controls validation.
-- `masked` and `dataKind: "secret"` protect sensitive input.
-- `displayLabel`, `description`, and their localized forms provide user-facing text.
-- `options` describes localized enum choices; `allowCustomValue` permits an additional custom value.
-- `defaultValue` supplies an effective display value when no value is stored.
+Check the packaged plugin:
 
-Displaying a default must not persist it. Save the field only after the user edits it.
-
-## Report lifecycle state
-
-Register status handlers before calling `start()` so the host observes early transitions. A module reports one of the structured states defined by `LifecycleStatus`, including configuration and authentication states that require host interaction.
-
-```ts
-const instance = createModule(context);
-
-instance.onStatusChange((status, error) => {
-  console.log(manifest.moduleId, status, error);
-});
-
-await instance.start();
+```bash
+dotcraft plugin verify --candidate ./channel-acme --for-publish
 ```
 
-Call `stop()` to end the instance. Treat `stopped` as terminal for that instance and create a new instance before restarting it.
-
-## Package for host discovery
-
-The installed module directory contains its package files and a `manifest.json` carrying the discovery metadata and configuration descriptors. Desktop scans its configured modules directory, groups compatible implementations by `channelName`, and selects a concrete variant by `moduleId`.
-
-The package provides the launcher described by its manifest. Host discovery stays separate from the adapter's platform logic, while host selection, startup, and message delivery remain one lifecycle.
+Install the verified candidate. In **Plugins → Channels**, set up the channel and select **Connect** to test that the bot receives and sends messages.
 
 ## Related docs
 
-- [Channel adapters](./sdks/channels) — implement message routing, AppServer interaction, and platform delivery.
-- [Channel configuration](../configuration/channels) — configure installed Channels in DotCraft.
+- [Channel adapters](./sdks/channels) — message routing, AppServer interaction, and platform delivery.
+- [Plugin Market](./plugin-market) — publish a plugin through a marketplace.

@@ -26,7 +26,7 @@ internal static class DotNetExtensionSmokeWorkspace
             },
             ["McpServers"] = new JsonObject(),
             ["LspServers"] = new JsonObject(),
-            ["ExternalChannels"] = new JsonArray(),
+            ["Channels"] = new JsonObject(),
             ["Tracing"] = new JsonObject { ["Enabled"] = false },
             ["Compaction"] = new JsonObject
             {

@@ -4,6 +4,19 @@
   "title": "PluginConfigSnapshot",
   "type": "object",
   "properties": {
+    "configuredSecrets": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "personal": {},
     "schema": {
       "$ref": "./PluginConfigSchema.schema.json"

@@ -1392,6 +1392,39 @@
       ]
     },
     {
+      "name": "channel/configOptionAvailability",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "params",
+          "required": true,
+          "schema": {
+            "$ref": "./schemas/core/ChannelConfigOptionAvailabilityParams.schema.json"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "./schemas/core/ChannelConfigOptionAvailabilityResult.schema.json"
+        }
+      },
+      "x-dotcraft-direction": "clientToServer",
+      "x-dotcraft-kind": "request",
+      "x-dotcraft-module": "core",
+      "x-dotcraft-capability": "channelManagement",
+      "x-dotcraft-scope": "connection",
+      "x-dotcraft-notification-opt-out": false,
+      "x-dotcraft-stability": "stable",
+      "x-dotcraft-since": "1",
+      "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
+      "x-dotcraft-errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ]
+    },
+    {
       "name": "channel/list",
       "paramStructure": "by-name",
       "params": [
@@ -1413,6 +1446,108 @@
       "x-dotcraft-kind": "request",
       "x-dotcraft-module": "core",
       "x-dotcraft-capability": null,
+      "x-dotcraft-scope": "connection",
+      "x-dotcraft-notification-opt-out": false,
+      "x-dotcraft-stability": "stable",
+      "x-dotcraft-since": "1",
+      "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
+      "x-dotcraft-errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ]
+    },
+    {
+      "name": "channel/logs",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "params",
+          "required": true,
+          "schema": {
+            "$ref": "./schemas/core/ChannelLogsParams.schema.json"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "./schemas/core/ChannelLogsResult.schema.json"
+        }
+      },
+      "x-dotcraft-direction": "clientToServer",
+      "x-dotcraft-kind": "request",
+      "x-dotcraft-module": "core",
+      "x-dotcraft-capability": "channelManagement",
+      "x-dotcraft-scope": "connection",
+      "x-dotcraft-notification-opt-out": false,
+      "x-dotcraft-stability": "stable",
+      "x-dotcraft-since": "1",
+      "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
+      "x-dotcraft-errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ]
+    },
+    {
+      "name": "channel/setEnabled",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "params",
+          "required": true,
+          "schema": {
+            "$ref": "./schemas/core/ChannelSetEnabledParams.schema.json"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "./schemas/core/RpcEmpty.schema.json"
+        }
+      },
+      "x-dotcraft-direction": "clientToServer",
+      "x-dotcraft-kind": "request",
+      "x-dotcraft-module": "core",
+      "x-dotcraft-capability": "channelManagement",
+      "x-dotcraft-scope": "connection",
+      "x-dotcraft-notification-opt-out": false,
+      "x-dotcraft-stability": "stable",
+      "x-dotcraft-since": "1",
+      "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
+      "x-dotcraft-errors": [
+        "ChannelNameConflict",
+        "ChannelNotFound",
+        "ChannelValidationFailed",
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ]
+    },
+    {
+      "name": "channel/setup/read",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "params",
+          "required": true,
+          "schema": {
+            "$ref": "./schemas/core/ChannelSetupReadParams.schema.json"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "./schemas/core/ChannelSetupReadResult.schema.json"
+        }
+      },
+      "x-dotcraft-direction": "clientToServer",
+      "x-dotcraft-kind": "request",
+      "x-dotcraft-module": "core",
+      "x-dotcraft-capability": "channelManagement",
       "x-dotcraft-scope": "connection",
       "x-dotcraft-notification-opt-out": false,
       "x-dotcraft-stability": "stable",
@@ -2512,204 +2647,6 @@
       "x-dotcraft-stability": "stable",
       "x-dotcraft-since": "1",
       "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
-      "x-dotcraft-errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ]
-    },
-    {
-      "name": "externalChannel/configOptionAvailability",
-      "paramStructure": "by-name",
-      "params": [
-        {
-          "name": "params",
-          "required": true,
-          "schema": {
-            "$ref": "./schemas/external-channel/ExternalChannelConfigOptionAvailabilityParams.schema.json"
-          }
-        }
-      ],
-      "result": {
-        "name": "result",
-        "schema": {
-          "$ref": "./schemas/external-channel/ExternalChannelConfigOptionAvailabilityResult.schema.json"
-        }
-      },
-      "x-dotcraft-direction": "clientToServer",
-      "x-dotcraft-kind": "request",
-      "x-dotcraft-module": "external-channel",
-      "x-dotcraft-capability": "externalChannelManagement",
-      "x-dotcraft-scope": "connection",
-      "x-dotcraft-notification-opt-out": false,
-      "x-dotcraft-stability": "stable",
-      "x-dotcraft-since": "1",
-      "x-dotcraft-spec-ref": "specs/protocols/external-channel-adapter.md",
-      "x-dotcraft-errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ]
-    },
-    {
-      "name": "externalChannel/get",
-      "paramStructure": "by-name",
-      "params": [
-        {
-          "name": "params",
-          "required": true,
-          "schema": {
-            "$ref": "./schemas/external-channel/ExternalChannelGetParams.schema.json"
-          }
-        }
-      ],
-      "result": {
-        "name": "result",
-        "schema": {
-          "$ref": "./schemas/external-channel/ExternalChannelGetResult.schema.json"
-        }
-      },
-      "x-dotcraft-direction": "clientToServer",
-      "x-dotcraft-kind": "request",
-      "x-dotcraft-module": "external-channel",
-      "x-dotcraft-capability": "externalChannelManagement",
-      "x-dotcraft-scope": "connection",
-      "x-dotcraft-notification-opt-out": false,
-      "x-dotcraft-stability": "stable",
-      "x-dotcraft-since": "1",
-      "x-dotcraft-spec-ref": "specs/protocols/external-channel-adapter.md",
-      "x-dotcraft-errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ]
-    },
-    {
-      "name": "externalChannel/list",
-      "paramStructure": "by-name",
-      "params": [
-        {
-          "name": "params",
-          "required": true,
-          "schema": {
-            "$ref": "./schemas/core/RpcEmpty.schema.json"
-          }
-        }
-      ],
-      "result": {
-        "name": "result",
-        "schema": {
-          "$ref": "./schemas/external-channel/ExternalChannelListResult.schema.json"
-        }
-      },
-      "x-dotcraft-direction": "clientToServer",
-      "x-dotcraft-kind": "request",
-      "x-dotcraft-module": "external-channel",
-      "x-dotcraft-capability": "externalChannelManagement",
-      "x-dotcraft-scope": "connection",
-      "x-dotcraft-notification-opt-out": false,
-      "x-dotcraft-stability": "stable",
-      "x-dotcraft-since": "1",
-      "x-dotcraft-spec-ref": "specs/protocols/external-channel-adapter.md",
-      "x-dotcraft-errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ]
-    },
-    {
-      "name": "externalChannel/logs",
-      "paramStructure": "by-name",
-      "params": [
-        {
-          "name": "params",
-          "required": true,
-          "schema": {
-            "$ref": "./schemas/external-channel/ExternalChannelLogsParams.schema.json"
-          }
-        }
-      ],
-      "result": {
-        "name": "result",
-        "schema": {
-          "$ref": "./schemas/external-channel/ExternalChannelLogsResult.schema.json"
-        }
-      },
-      "x-dotcraft-direction": "clientToServer",
-      "x-dotcraft-kind": "request",
-      "x-dotcraft-module": "external-channel",
-      "x-dotcraft-capability": "externalChannelManagement",
-      "x-dotcraft-scope": "connection",
-      "x-dotcraft-notification-opt-out": false,
-      "x-dotcraft-stability": "stable",
-      "x-dotcraft-since": "1",
-      "x-dotcraft-spec-ref": "specs/protocols/external-channel-adapter.md",
-      "x-dotcraft-errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ]
-    },
-    {
-      "name": "externalChannel/remove",
-      "paramStructure": "by-name",
-      "params": [
-        {
-          "name": "params",
-          "required": true,
-          "schema": {
-            "$ref": "./schemas/external-channel/ExternalChannelRemoveParams.schema.json"
-          }
-        }
-      ],
-      "result": {
-        "name": "result",
-        "schema": {
-          "$ref": "./schemas/external-channel/ExternalChannelRemoveResult.schema.json"
-        }
-      },
-      "x-dotcraft-direction": "clientToServer",
-      "x-dotcraft-kind": "request",
-      "x-dotcraft-module": "external-channel",
-      "x-dotcraft-capability": "externalChannelManagement",
-      "x-dotcraft-scope": "connection",
-      "x-dotcraft-notification-opt-out": false,
-      "x-dotcraft-stability": "stable",
-      "x-dotcraft-since": "1",
-      "x-dotcraft-spec-ref": "specs/protocols/external-channel-adapter.md",
-      "x-dotcraft-errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ]
-    },
-    {
-      "name": "externalChannel/upsert",
-      "paramStructure": "by-name",
-      "params": [
-        {
-          "name": "params",
-          "required": true,
-          "schema": {
-            "$ref": "./schemas/external-channel/ExternalChannelUpsertParams.schema.json"
-          }
-        }
-      ],
-      "result": {
-        "name": "result",
-        "schema": {
-          "$ref": "./schemas/external-channel/ExternalChannelUpsertResult.schema.json"
-        }
-      },
-      "x-dotcraft-direction": "clientToServer",
-      "x-dotcraft-kind": "request",
-      "x-dotcraft-module": "external-channel",
-      "x-dotcraft-capability": "externalChannelManagement",
-      "x-dotcraft-scope": "connection",
-      "x-dotcraft-notification-opt-out": false,
-      "x-dotcraft-stability": "stable",
-      "x-dotcraft-since": "1",
-      "x-dotcraft-spec-ref": "specs/protocols/external-channel-adapter.md",
       "x-dotcraft-errors": [
         "InvalidParams",
         "InvalidRequest",

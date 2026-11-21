@@ -56,6 +56,14 @@
   gap: 8px;
 }
 
+.runtimeDetails {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+
 .header h1 {
   margin: 0;
   font-size: var(--type-detail-title-size);

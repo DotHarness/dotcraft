@@ -21,7 +21,7 @@ using DotCraft.Tools.BackgroundTerminals;
 using DotCraft.Automations.Protocol;
 using DotCraft.Automations;
 using DotCraft.Tracing;
-using DotCraft.ExternalChannel;
+using DotCraft.Channels;
 using DotCraft.DynamicWorkflows;
 using DotCraft.SessionImport;
 using Contract = DotCraft.Protocol.AppServer;
@@ -44,7 +44,7 @@ namespace DotCraft.AppServer;
 /// </summary>
 public sealed partial class AppServerHost(
     WorkspaceRuntime runtime,
-    ExternalChannelRegistry? externalChannelRegistry = null) : IDotCraftHost
+    ChannelHostRegistry? channelHostRegistry = null) : IDotCraftHost
 {
     private readonly IServiceProvider _services = runtime.Services;
     private readonly ILoggerFactory _loggerFactory = runtime.Services.GetRequiredService<ILoggerFactory>();
@@ -246,13 +246,10 @@ public sealed partial class AppServerHost(
                 NotifyAppPrincipal = NotifyAppPrincipal,
                 BroadcastTrustedNotification = BroadcastTrustedNotification,
                 ProtocolExtensions = ProtocolExtensions,
-                OnExternalChannelUpserted = _appServerFeature is null
+                OnChannelSetEnabled = _appServerFeature is null
                     ? null
-                    : (entry, ct) => _appServerFeature.ApplyExternalChannelUpsertAsync(entry, ct),
-                OnExternalChannelRemoved = _appServerFeature is null
-                    ? null
-                    : (name, ct) => _appServerFeature.ApplyExternalChannelRemoveAsync(name, ct),
-                ExternalChannelRuntimeProvider = _appServerFeature?.ExternalChannelRuntimeProvider,
+                    : _appServerFeature.ApplyChannelSetEnabledAsync,
+                ChannelRuntimeProvider = _appServerFeature?.ChannelRuntimeProvider,
                 StreamDebugLogger = _services.GetService<SessionStreamDebugLogger>(),
                 LoggerFactory = _services.GetService<Microsoft.Extensions.Logging.ILoggerFactory>(),
                 ConfigSchema = runtime.ConfigSchema,

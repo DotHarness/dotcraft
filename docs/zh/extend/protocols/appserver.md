@@ -504,7 +504,7 @@ Agent 只能通过 `SendChannelMessage` 工具触达聊天，server 用 `ext/cha
 | Commands | `command/list`, `command/execute` | 命令发现和执行。见[命令](#命令)。 |
 | Models | `model/list` | 模型目录。 |
 | MCP | `mcp/list`, `mcp/get`, `mcp/upsert`, `mcp/test`, `mcpServerStatus/list` | MCP 配置和状态。 |
-| External channels | `externalChannel/list`, `externalChannel/upsert` | 外部 channel 配置。 |
+| 渠道 | `channel/status`、`channel/setEnabled`、`channel/logs`、`channel/configOptionAvailability`、`channel/setup/read` | 工作区渠道选择、连接、诊断和交互式设置。平台设置通过 `plugin/config/get` 和 `plugin/config/mutate` 读写。 |
 | Subagents | `subagent/profiles/list`, `subagent/profiles/upsert` | subagent profile 管理。 |
 | Automations | `automation/list`, `automation/create`, `automation/runs/list` | 本地任务生命周期、绑定和受管工作树清理。 |
 | Worktrees | `worktree/list`, `worktree/status`, `thread/worktree/handoff`, `worktree/remove` | 受管 Git 工作树状态、交接和删除。 |

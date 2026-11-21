@@ -61,7 +61,6 @@ public sealed partial class ManagedAppServerRegistry
             dashboardTarget,
             NormalizeOptionalPath(runtimeTools?.NodeBin),
             runtimeTools?.NodeRunAsNode == true,
-            NormalizeOptionalPath(runtimeTools?.ModulesDir),
             NormalizeOptionalValue(runtimeTools?.BuiltInPluginRoots),
             NormalizeOptionalValue(runtimeTools?.DefaultPluginRegistryUrl));
     }
@@ -75,13 +74,10 @@ public sealed partial class ManagedAppServerRegistry
             environment["DOTCRAFT_RG_PATH"] = runtimeTools.RipgrepPath.Trim();
 
         var nodeBin = NormalizeOptionalPath(runtimeTools?.NodeBin);
-        var modulesDir = NormalizeOptionalPath(runtimeTools?.ModulesDir);
         if (!string.IsNullOrWhiteSpace(nodeBin))
             environment["DOTCRAFT_NODE_BIN"] = nodeBin;
         if (runtimeTools?.NodeRunAsNode == true)
             environment["DOTCRAFT_NODE_RUN_AS_NODE"] = "1";
-        if (!string.IsNullOrWhiteSpace(modulesDir))
-            environment["DOTCRAFT_MODULES_DIR"] = modulesDir;
         if (!string.IsNullOrWhiteSpace(runtimeTools?.BuiltInPluginRoots))
             environment["DOTCRAFT_BUILTIN_PLUGIN_ROOTS"] = runtimeTools.BuiltInPluginRoots.Trim();
         if (!string.IsNullOrWhiteSpace(runtimeTools?.DefaultPluginRegistryUrl))
@@ -90,7 +86,7 @@ public sealed partial class ManagedAppServerRegistry
         if (status != null)
         {
             status["typescriptRuntime"] =
-                !string.IsNullOrWhiteSpace(nodeBin) && !string.IsNullOrWhiteSpace(modulesDir)
+                !string.IsNullOrWhiteSpace(nodeBin)
                     ? new HubServiceStatus("allocated", Reason: "TypeScript channel runtime hints are available.")
                     : new HubServiceStatus("unavailable", Reason: "TypeScript channel runtime is not configured. Launch DotCraft Desktop once or run 'dotcraft hub set-runtime'.");
         }

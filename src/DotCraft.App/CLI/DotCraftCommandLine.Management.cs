@@ -38,14 +38,12 @@ public static partial class DotCraftCommandLine
         });
 
         var nodeBin = StringOption("--node-bin", "Node.js executable path.");
-        var modulesDir = StringOption("--modules-dir", "Node.js modules directory.");
         var ripgrepPath = StringOption("--ripgrep-path", "ripgrep executable path.");
         var registryUrl = StringOption("--default-plugin-registry-url", "Default plugin registry URL.");
         var runAsNode = Flag("--node-run-as-node", "Set ELECTRON_RUN_AS_NODE for the configured runtime.");
         var setRuntime = new Command("set-runtime", "Configure runtime tools used by the Hub.")
         {
             nodeBin,
-            modulesDir,
             ripgrepPath,
             registryUrl,
             runAsNode
@@ -58,7 +56,6 @@ public static partial class DotCraftCommandLine
             var merged = store.MergeAndSave(new HubRuntimeToolsRequest
             {
                 NodeBin = parseResult.GetValue(nodeBin),
-                ModulesDir = parseResult.GetValue(modulesDir),
                 RipgrepPath = parseResult.GetValue(ripgrepPath),
                 DefaultPluginRegistryUrl = parseResult.GetValue(registryUrl),
                 NodeRunAsNode = parseResult.GetValue(runAsNode)
@@ -67,8 +64,6 @@ public static partial class DotCraftCommandLine
             await output.WriteLineAsync($"Saved Hub runtime tools to {paths.RuntimeToolsPath}");
             if (!string.IsNullOrWhiteSpace(merged.NodeBin))
                 await output.WriteLineAsync($"Node: {merged.NodeBin}");
-            if (!string.IsNullOrWhiteSpace(merged.ModulesDir))
-                await output.WriteLineAsync($"Modules: {merged.ModulesDir}");
             return 0;
         });
         hub.Subcommands.Add(setRuntime);

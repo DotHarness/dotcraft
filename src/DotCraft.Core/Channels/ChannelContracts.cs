@@ -5,7 +5,7 @@ namespace DotCraft.Channels;
 
 public sealed class ChannelAdapterRuntimeCapability
 {
-    /// <summary>Must match the channel's <c>ExternalChannels</c> configuration key.</summary>
+    /// <summary>Must match the channel's workspace selection name.</summary>
     public string ChannelName { get; set; } = string.Empty;
 
     public string DisplayName { get; set; } = string.Empty;

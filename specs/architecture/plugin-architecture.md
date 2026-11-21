@@ -8,7 +8,7 @@
 
 Purpose: define the durable architecture for DotCraft plugins, including plugin-contained skills and
 workflows, local plugin manifests, plugin-bundled MCP servers, client-facing plugin metadata, and the
-TypeScript external channel module contract.
+TypeScript channel module contract.
 
 ## 1. Architecture Overview
 
@@ -26,7 +26,8 @@ Contributions:
 6. **Desktop extensions**: optional trusted Desktop modules that contribute views, actions, commands, and tool presentation.
 7. **Dynamic Workflows**: plugin-contained JavaScript workflows registered under the plugin namespace.
 8. **.NET extensions**: plugin-contained managed assemblies admitted by the host runtime.
-9. **Interface Metadata**: optional client-facing plugin metadata.
+9. **Channels**: plugin-contained messaging adapters run as workspace-owned child processes.
+10. **Interface Metadata**: optional client-facing plugin metadata.
 
 Plugin manifests do not declare model-callable native tools. External reusable services use MCP.
 Thread-scoped client callbacks use the Runtime Dynamic Tool contract in
@@ -38,7 +39,7 @@ The manifest lives at `<plugin-root>/.craft-plugin/plugin.json`. The supported `
 
 Manifest fields: `schemaVersion`, `id`, `version`, `displayName`, `description`, `capabilities`,
 `interface`, `skills`, `mcpServers`, `hooks`, `lspServers`, `apps`, `desktop`,
-`workflows`, `paths`, `dotnet`, `dependencies`, `settings`.
+`workflows`, `paths`, `dotnet`, `dependencies`, `settings`, `channel`.
 
 A plugin must declare at least one supported contribution (any of the contributions in §1). Each
 contribution may appear without the others.
@@ -367,9 +368,9 @@ the rename leaves the plugin intact. Removed built-in and registry plugins remai
 installable catalog while their source is configured. Disabling is distinct: a disabled plugin
 stays on disk and can be re-enabled.
 
-## 7. TypeScript External Channel Modules
+## 7. TypeScript Channel Modules
 
-A TypeScript external channel module is the SDK-facing unit for one external channel integration
+A TypeScript channel module is the SDK-facing unit for one messaging integration
 variant, such as a first-party or enterprise Feishu module.
 
 Hosts integrate modules through a stable module contract rather than package-internal layout. A
@@ -388,8 +389,47 @@ The module contract defines:
 - **Lifecycle contract**: structured statuses, errors, diagnostics, interactive setup needs, and restart requirements.
 - **Capability and tool registration**: manifest capability summaries plus runtime channel tool descriptors declared during AppServer `initialize`.
 
-Listing modules never executes module business logic. Bundled and user-installed modules may
-coexist; user-installed content wins for the same `moduleId`.
+### 7.1 Channel contributions
+
+A plugin may declare one `channel` contribution. It contains `manifest` (the static module
+descriptor), `entry` (a bundled Node.js ESM launcher), and `minHostVersion` (the first supported
+DotCraft version). Both paths are relative to and contained in the installed plugin root, including
+after filesystem resolution. The installed bundle is self-contained apart from the host Node
+runtime and declared platform prerequisites. The host never installs npm packages or runs install
+scripts. Discovery and verification read metadata without executing adapter code.
+
+A channel plugin declares `channel` in `capabilities`. The marketplace category `Channels`
+requires a validated channel contribution. A presentation tag never authorizes execution. A plugin
+may combine non-configuration contributions. For a channel plugin, the module's configuration descriptors are its settings schema. The same plugin cannot declare a second `settings` schema. Channel settings are workspace-only, use the module's workspace configuration file as the sole store, and never project saved credentials. Unspecified fields in the platform file are preserved.
+
+### 7.2 Workspace activation
+
+The workspace host resolves a configured channel from the installed, enabled plugin selected for
+its `channelName`. `pluginId` identifies the distributed package, `moduleId` identifies the
+module and its state, and `channelName` identifies the conversation route. The host permits one
+active implementation per workspace and channel name. Conflicting registrations are reported,
+not started in parallel. A user must explicitly select a different implementation.
+
+Installing a channel plugin makes it available to configure and does not by itself start an adapter.
+The workspace operator must explicitly enable the channel. The grant applies to the selected
+installation and workspace. The staged launch bundle must match that grant before starting.
+Updates from the same managed source retain the installation identity. Reinstalling or
+switching sources requires a new grant. The operator
+grants executable access to the workspace and to the channel credentials the adapter needs.
+Child-process isolation is not an operating system sandbox.
+
+The host checks the host version, supported module contract and adapter protocol, workspace
+configuration, and managed WebSocket transport before launch. It uses the host-provided Node
+runtime or an operator-configured Node.js 22 or later on a standalone host. It passes the active
+workspace and connection context to the admitted entry point. A failed or blocked channel does
+not block the workspace host or other channels. Plugin disablement suspends the channel without clearing
+credentials or workspace intent. Plugin removal stops it and retains channel configuration,
+state, and conversation bindings. No catalog entry, listing, or client reconnect starts an adapter.
+
+Plugin mutations reconcile affected channels across running workspaces. Updates validate the
+replacement before committing and keep the current installation available if validation fails.
+On a revision change, the host stops the running process before starting its replacement.
+Runtime failures surface through channel diagnostics without affecting other contributions.
 
 The optional manifest `interface` object is display-only and does not affect startup. Recognized
 fields are `shortDescription`, `longDescription`, `previewPrompt`, and `setupSteps` (an ordered list
@@ -415,7 +455,7 @@ are installable but contribute nothing to agent context.
 
 Installing, removing, enabling, or disabling a plugin publishes the revision of the layer it wrote,
 so every other AppServer of the same user rediscovers plugins and refreshes contributions without a
-restart, including stopping or adopting a .NET extension whose bundle was removed, added, or changed.
+restart, including stopping or adopting affected .NET and channel contributions.
 
 ## 9. Consumer boundaries
 

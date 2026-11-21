@@ -1,78 +1,56 @@
-import { useEffect, useRef, useState } from 'react'
-import type { DiscoveredModule, ModuleStatusEntry, QrUpdatePayload } from '../../../preload/api.d'
+import { useEffect, useState } from 'react'
 import type { ChannelLoginPhase } from './ChannelLoginDialog'
+import { channelRequest } from './channelPluginRequests'
 
-export interface ChannelLogin {
-  open: boolean
-  phase: ChannelLoginPhase
-  qrDataUrl: string | null
-  show: () => void
-  hide: () => void
-}
-
-export function useChannelLogin(
-  module: DiscoveredModule | null,
-  status: ModuleStatusEntry | undefined
-): ChannelLogin {
-  const moduleId = module?.requiresInteractiveSetup ? module.moduleId : null
-  const [qrByModule, setQrByModule] = useState<Record<string, string | null>>({})
-  const [openModuleId, setOpenModuleId] = useState<string | null>(null)
-  const dismissedModuleIdRef = useRef<string | null>(null)
+export function useChannelLogin(pluginId: string | null, active: boolean, connected: boolean, failed: boolean) {
+  const [open, setOpen] = useState(false)
+  const [dismissed, setDismissed] = useState(false)
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
+  const [hasShownCode, setHasShownCode] = useState(false)
 
   useEffect(() => {
-    return window.api.modules.onQrUpdate((payload: QrUpdatePayload) => {
-      setQrByModule((prev) => ({ ...prev, [payload.moduleId]: payload.qrDataUrl }))
-    })
-  }, [])
-
-  useEffect(() => {
-    if (!moduleId) return
-    let cancelled = false
-    window.api.modules
-      .qrStatus(moduleId)
-      .then((state) => {
-        if (!cancelled) setQrByModule((prev) => ({ ...prev, [moduleId]: state.qrDataUrl }))
-      })
-      .catch(() => {})
-    return () => {
-      cancelled = true
+    if (!pluginId || !active || connected || failed || dismissed) return
+    let disposed = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    async function poll(id: string): Promise<void> {
+      try {
+        const { artifact } = await channelRequest('channel/setup/read', { pluginId: id })
+        if (disposed) return
+        const url = artifact?.mimeType === 'image/png' ? `data:image/png;base64,${artifact.data}` : null
+        setQrDataUrl(url)
+        if (url) {
+          setHasShownCode(true)
+          setOpen(true)
+        }
+      } catch {
+        if (!disposed) setQrDataUrl(null)
+      } finally {
+        if (!disposed) timer = setTimeout(() => void poll(id), 1200)
+      }
     }
-  }, [moduleId])
+    void poll(pluginId)
+    return () => {
+      disposed = true
+      clearTimeout(timer)
+    }
+  }, [active, connected, dismissed, failed, pluginId])
 
-  const qrDataUrl = moduleId ? qrByModule[moduleId] ?? null : null
-  const running = status?.processState === 'starting' || status?.processState === 'running'
-  const connected = status?.connected === true
-
-  useEffect(() => {
-    if (!running) dismissedModuleIdRef.current = null
-  }, [running])
-
-  useEffect(() => {
-    if (!moduleId || !running || connected || !qrDataUrl) return
-    if (dismissedModuleIdRef.current === moduleId) return
-    setOpenModuleId(moduleId)
-  }, [moduleId, running, connected, qrDataUrl])
-
-  const open = moduleId !== null && openModuleId === moduleId
-  const phase: ChannelLoginPhase = connected
-    ? 'connected'
-    : status?.processState === 'crashed'
-      ? 'failed'
-      : 'qr'
+  const phase: ChannelLoginPhase = connected ? 'connected' : failed ? 'failed' : hasShownCode && !qrDataUrl ? 'expired' : 'qr'
 
   return {
-    open,
+    open: Boolean(pluginId) && open,
     phase,
     qrDataUrl,
-    show: () => {
-      if (!moduleId) return
-      dismissedModuleIdRef.current = null
-      setQrByModule((prev) => ({ ...prev, [moduleId]: null }))
-      setOpenModuleId(moduleId)
+    show() {
+      setDismissed(false)
+      setHasShownCode(false)
+      setQrDataUrl(null)
+      setOpen(true)
     },
-    hide: () => {
-      dismissedModuleIdRef.current = moduleId
-      setOpenModuleId(null)
-    }
+    hide() {
+      setDismissed(true)
+      setOpen(false)
+      setQrDataUrl(null)
+    },
   }
 }

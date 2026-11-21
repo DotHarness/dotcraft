@@ -9,7 +9,6 @@ public sealed partial class ManagedAppServerRegistry
         DashboardTarget? DashboardTarget,
         string? TypeScriptNodeBin,
         bool TypeScriptNodeRunAsNode,
-        string? TypeScriptModulesDir,
         string? BuiltInPluginRoots,
         string? DefaultPluginRegistryUrl);
 
@@ -38,8 +37,6 @@ public sealed partial class ManagedAppServerRegistry
         public string? TypeScriptNodeBin { get; set; }
 
         public bool TypeScriptNodeRunAsNode { get; set; }
-
-        public string? TypeScriptModulesDir { get; set; }
 
         public string? BuiltInPluginRoots { get; set; }
 

@@ -1,6 +1,5 @@
-import { useState } from 'react'
 import type { CSSProperties, MouseEvent } from 'react'
-import { Code2, ExternalLink, Link, MessageCircle, Plus, Settings, Trash2 } from 'lucide-react'
+import { Code2, ExternalLink, Link, MessageCircle, Plus } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import type { PluginEntry } from '../../stores/pluginStore'
 import { getPluginContentSummaries } from '../../utils/pluginContentSummaries'
@@ -11,8 +10,7 @@ import {
 } from '../catalog/CatalogSurface'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { Button } from '../ui/Button'
-import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
-import { MoreActionsButton } from '../ui/MoreActionsButton'
+import { PluginDetailActionsMenu } from './PluginDetailActionsMenu'
 import { AppBindingPanel } from './AppBindingPanel'
 import { MorphingActionPill } from './MorphingActionPill'
 import { PluginSettingsSection } from './settings/PluginSettingsSection'
@@ -38,7 +36,8 @@ export function PluginDetailView({
   enablingLsp,
   onEnableLsp,
   onTryInChat,
-  onOpenSkill
+  onOpenSkill,
+  onOpenChannel
 }: {
   plugin: PluginEntry
   loading: boolean
@@ -53,9 +52,9 @@ export function PluginDetailView({
   onEnableLsp: () => void
   onTryInChat: () => void
   onOpenSkill: (skillName: string) => void
+  onOpenChannel?: () => void
 }): JSX.Element {
   const t = useT()
-  const [detailMenuPosition, setDetailMenuPosition] = useState<ContextMenuPosition | null>(null)
   const info = plugin.interface
   const shouldOfferLspEnable = plugin.installed
     && plugin.enabled
@@ -85,6 +84,7 @@ export function PluginDetailView({
             <p style={detailSubtitle}>{pluginSubtitle(plugin)}</p>
           </div>
           <div style={detailActions}>
+            {onOpenChannel && <Button variant="secondary" onClick={onOpenChannel}>{t('channels.plugins.open')}</Button>}
             <ActionTooltip label={t('plugins.detail.website')}>
               <a
                 href={resolvePluginExternalUrl(info?.websiteUrl) ?? DOTCRAFT_PLUGIN_FALLBACK_URL}
@@ -95,17 +95,7 @@ export function PluginDetailView({
                 <Link size={15} aria-hidden />
               </a>
             </ActionTooltip>
-            {plugin.installed && (
-              <MoreActionsButton
-                label={t('plugins.moreActions')}
-                open={detailMenuPosition != null}
-                onClick={(event) => {
-                  event.stopPropagation()
-                  const rect = event.currentTarget.getBoundingClientRect()
-                  setDetailMenuPosition({ x: rect.right - 200, y: rect.bottom + 4 })
-                }}
-              />
-            )}
+            {plugin.installed && <PluginDetailActionsMenu onManage={onManage} onRemove={plugin.removable ? onRemove : undefined} />}
             {plugin.installed || plugin.installable ? (
               <PluginPrimaryAction
                 installed={plugin.installed}
@@ -181,27 +171,6 @@ export function PluginDetailView({
           </section>
         </div>
       </main>
-      {detailMenuPosition && (
-        <ContextMenu
-          position={detailMenuPosition}
-          onClose={() => setDetailMenuPosition(null)}
-          items={[
-            {
-              label: t('plugins.manage'),
-              icon: <Settings size={14} />,
-              onClick: onManage
-            },
-            ...(plugin.removable
-              ? [{
-                  label: t('plugins.uninstall'),
-                  icon: <Trash2 size={14} />,
-                  danger: true,
-                  onClick: onRemove
-                }]
-              : [])
-          ]}
-        />
-      )}
     </div>
   )
 }

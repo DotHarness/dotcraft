@@ -3859,6 +3859,54 @@
         "membership"
       ]
     },
+    "ChannelConfigOptionAvailabilityParams": {
+      "title": "ChannelConfigOptionAvailabilityParams",
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "key",
+        "name"
+      ]
+    },
+    "ChannelConfigOptionAvailabilityResult": {
+      "title": "ChannelConfigOptionAvailabilityResult",
+      "type": "object",
+      "properties": {
+        "available": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "key": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "available",
+        "key",
+        "name"
+      ]
+    },
     "ChannelDeliveryCapabilities": {
       "title": "ChannelDeliveryCapabilities",
       "type": "object",
@@ -3994,6 +4042,49 @@
         }
       },
       "additionalProperties": true
+    },
+    "ChannelLogsParams": {
+      "title": "ChannelLogsParams",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "tail": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "name"
+      ]
+    },
+    "ChannelLogsResult": {
+      "title": "ChannelLogsResult",
+      "type": "object",
+      "properties": {
+        "lines": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "lines",
+        "name"
+      ]
     },
     "ChannelMediaCapabilitySet": {
       "title": "ChannelMediaCapabilitySet",
@@ -4237,6 +4328,84 @@
       },
       "additionalProperties": true
     },
+    "ChannelSetEnabledParams": {
+      "title": "ChannelSetEnabledParams",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string"
+        },
+        "pluginId": {
+          "type": "string"
+        },
+        "select": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "enabled",
+        "name",
+        "pluginId"
+      ]
+    },
+    "ChannelSetupArtifact": {
+      "title": "ChannelSetupArtifact",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "string"
+        },
+        "mimeType": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "data",
+        "mimeType",
+        "revision"
+      ]
+    },
+    "ChannelSetupReadParams": {
+      "title": "ChannelSetupReadParams",
+      "type": "object",
+      "properties": {
+        "pluginId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "pluginId"
+      ]
+    },
+    "ChannelSetupReadResult": {
+      "title": "ChannelSetupReadResult",
+      "type": "object",
+      "properties": {
+        "artifact": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChannelSetupArtifact"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "artifact"
+      ]
+    },
     "ChannelStatusInfo": {
       "title": "ChannelStatusInfo",
       "type": "object",
@@ -4252,6 +4421,16 @@
         },
         "name": {
           "type": "string"
+        },
+        "pluginId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "running": {
           "type": "boolean"
@@ -6704,231 +6883,6 @@
               "type": "null"
             }
           ]
-        }
-      },
-      "additionalProperties": true
-    },
-    "ExternalChannelConfig": {
-      "title": "ExternalChannelConfig",
-      "type": "object",
-      "properties": {
-        "args": {
-          "anyOf": [
-            {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "builtinModule": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "command": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "enabled": {
-          "type": "boolean"
-        },
-        "env": {
-          "anyOf": [
-            {
-              "type": "object",
-              "additionalProperties": {
-                "type": "string"
-              }
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "name": {
-          "type": "string"
-        },
-        "transport": {
-          "type": "string"
-        },
-        "workingDirectory": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "additionalProperties": true
-    },
-    "ExternalChannelConfigOptionAvailabilityParams": {
-      "title": "ExternalChannelConfigOptionAvailabilityParams",
-      "type": "object",
-      "properties": {
-        "key": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "ExternalChannelConfigOptionAvailabilityResult": {
-      "title": "ExternalChannelConfigOptionAvailabilityResult",
-      "type": "object",
-      "properties": {
-        "available": {
-          "anyOf": [
-            {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "key": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true,
-      "required": [
-        "available",
-        "key",
-        "name"
-      ]
-    },
-    "ExternalChannelGetParams": {
-      "title": "ExternalChannelGetParams",
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "ExternalChannelGetResult": {
-      "title": "ExternalChannelGetResult",
-      "type": "object",
-      "properties": {
-        "channel": {
-          "$ref": "#/$defs/ExternalChannelConfig"
-        }
-      },
-      "additionalProperties": true
-    },
-    "ExternalChannelListResult": {
-      "title": "ExternalChannelListResult",
-      "type": "object",
-      "properties": {
-        "channels": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ExternalChannelConfig"
-          }
-        }
-      },
-      "additionalProperties": true
-    },
-    "ExternalChannelLogsParams": {
-      "title": "ExternalChannelLogsParams",
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string"
-        },
-        "tail": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "additionalProperties": true
-    },
-    "ExternalChannelLogsResult": {
-      "title": "ExternalChannelLogsResult",
-      "type": "object",
-      "properties": {
-        "lines": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "name": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "ExternalChannelRemoveParams": {
-      "title": "ExternalChannelRemoveParams",
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "ExternalChannelRemoveResult": {
-      "title": "ExternalChannelRemoveResult",
-      "type": "object",
-      "properties": {
-        "removed": {
-          "type": "boolean"
-        }
-      },
-      "additionalProperties": true
-    },
-    "ExternalChannelUpsertParams": {
-      "title": "ExternalChannelUpsertParams",
-      "type": "object",
-      "properties": {
-        "channel": {
-          "$ref": "#/$defs/ExternalChannelConfig"
-        }
-      },
-      "additionalProperties": true
-    },
-    "ExternalChannelUpsertResult": {
-      "title": "ExternalChannelUpsertResult",
-      "type": "object",
-      "properties": {
-        "channel": {
-          "$ref": "#/$defs/ExternalChannelConfig"
         }
       },
       "additionalProperties": true
@@ -10890,6 +10844,120 @@
       },
       "additionalProperties": true
     },
+    "PluginChannelCapabilitySummary": {
+      "title": "PluginChannelCapabilitySummary",
+      "type": "object",
+      "properties": {
+        "capabilitySetMayVaryByEnvironment": {
+          "type": "boolean"
+        },
+        "hasChannelTools": {
+          "type": "boolean"
+        },
+        "requiresInteractiveSetup": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "capabilitySetMayVaryByEnvironment",
+        "hasChannelTools",
+        "requiresInteractiveSetup"
+      ]
+    },
+    "PluginChannelInfo": {
+      "title": "PluginChannelInfo",
+      "type": "object",
+      "properties": {
+        "capabilitySummary": {
+          "$ref": "#/$defs/PluginChannelCapabilitySummary"
+        },
+        "channelContractVersion": {
+          "type": "string"
+        },
+        "channelName": {
+          "type": "string"
+        },
+        "compatibilityError": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "configDescriptors": {
+          "type": "array",
+          "items": {}
+        },
+        "configGroups": {
+          "type": "array",
+          "items": {}
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "interface": {},
+        "localizedDisplayName": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "minHostVersion": {
+          "type": "string"
+        },
+        "moduleId": {
+          "type": "string"
+        },
+        "packageName": {
+          "type": "string"
+        },
+        "requiresInteractiveSetup": {
+          "type": "boolean"
+        },
+        "supportedChannelProtocolVersions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "supportedTransports": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "variant": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "capabilitySummary",
+        "channelContractVersion",
+        "channelName",
+        "configDescriptors",
+        "configGroups",
+        "displayName",
+        "minHostVersion",
+        "moduleId",
+        "packageName",
+        "requiresInteractiveSetup",
+        "supportedChannelProtocolVersions",
+        "supportedTransports",
+        "variant"
+      ]
+    },
     "PluginConfigField": {
       "title": "PluginConfigField",
       "type": "object",
@@ -11001,6 +11069,19 @@
       "title": "PluginConfigSnapshot",
       "type": "object",
       "properties": {
+        "configuredSecrets": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "personal": {},
         "schema": {
           "$ref": "#/$defs/PluginConfigSchema"
@@ -11198,6 +11279,16 @@
           "items": {
             "$ref": "#/$defs/PluginAppInfo"
           }
+        },
+        "channel": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PluginChannelInfo"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "dependencies": {
           "type": "array",
@@ -13766,6 +13857,9 @@
         "backgroundTerminals": {
           "type": "boolean"
         },
+        "channelManagement": {
+          "type": "boolean"
+        },
         "channelStatus": {
           "type": "boolean"
         },
@@ -13796,9 +13890,6 @@
               "type": "null"
             }
           ]
-        },
-        "externalChannelManagement": {
-          "type": "boolean"
         },
         "fileSystem": {
           "type": "boolean"

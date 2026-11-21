@@ -5,8 +5,6 @@ import * as path from 'path'
 import { EventEmitter } from 'events'
 
 const {
-  scanModulesMock,
-  channelModuleManagerStartMock,
   openInTargetMock,
   execFileMock,
   existsSyncMock,
@@ -14,8 +12,6 @@ const {
   listWorkspaceFilesMock,
   notificationShowMock
 } = vi.hoisted(() => ({
-  scanModulesMock: vi.fn(),
-  channelModuleManagerStartMock: vi.fn(),
   openInTargetMock: vi.fn(),
   execFileMock: vi.fn(),
   existsSyncMock: vi.fn(),
@@ -84,31 +80,6 @@ vi.mock('electron', () => {
   }
 }})
 
-vi.mock('../moduleScanner', async () => {
-  const actual = await vi.importActual('../moduleScanner')
-  return {
-    ...actual,
-    scanModules: scanModulesMock
-  }
-})
-
-vi.mock('../channelModuleManager', async () => {
-  const actual = await vi.importActual('../channelModuleManager')
-  class MockChannelModuleManager {
-    start = channelModuleManagerStartMock
-    stop = vi.fn()
-    getStatusMap = vi.fn(() => ({}))
-    restoreModules = vi.fn().mockResolvedValue(undefined)
-    dispose = vi.fn()
-    getRecentLogs = vi.fn(() => [])
-    getQrStatus = vi.fn(() => ({ active: false, qrDataUrl: null }))
-  }
-  return {
-    ...actual,
-    ChannelModuleManager: MockChannelModuleManager
-  }
-})
-
 vi.mock('../openTargets', () => ({
   listOpenTargets: vi.fn().mockResolvedValue([]),
   openInTarget: openInTargetMock
@@ -132,7 +103,6 @@ import {
   resolveServerRequestBridge,
   registerIpcHandlers,
   unregisterIpcHandlers,
-  getChannelModuleManager,
   sanitizeHttpOrHttpsUrl,
   sanitizeExternalUrl,
   openExternalUrl,
@@ -331,8 +301,6 @@ describe('registerIpcHandlers', () => {
     testContentRoots = undefined
     unregisterIpcHandlers(testWindow)
     vi.clearAllMocks()
-    scanModulesMock.mockResolvedValue([])
-    channelModuleManagerStartMock.mockResolvedValue({ ok: true })
     readFileSyncMock.mockReturnValue('{"extensionId":"pekajfcokkicggfjmickmkngmmoojlda"}')
     openInTargetMock.mockResolvedValue(undefined)
     listWorkspaceFilesMock.mockResolvedValue({
@@ -984,87 +952,6 @@ describe('registerIpcHandlers', () => {
     expect(result).toEqual({ ok: true, machineId: 'h1', stackId: 's1', localPort: 51523 })
   })
 
-  it('modules:read-config parses BOM-prefixed JSON and rethrows invalid JSON', async () => {
-    vi.mocked(fs.stat).mockResolvedValue({ size: 32 } as Awaited<ReturnType<typeof fs.stat>>)
-    vi.mocked(fs.readFile)
-      .mockResolvedValueOnce('\uFEFF{"Enabled":true}' as Awaited<ReturnType<typeof fs.readFile>>)
-      .mockResolvedValueOnce('{invalid-json' as Awaited<ReturnType<typeof fs.readFile>>)
-    const readConfig = registerHandlersForTest().get('modules:read-config')!
-
-    await expect(readConfig({}, { configFileName: 'module.json' })).resolves.toEqual({
-      exists: true,
-      config: { Enabled: true }
-    })
-    await expect(readConfig({}, { configFileName: 'module.json' })).rejects.toThrow()
-  })
-
-  describe('modules:start', () => {
-    function scanDemoModule(configDescriptors: unknown[] = []): void {
-      scanModulesMock.mockResolvedValue([
-        {
-          moduleId: 'demo-module',
-          channelName: 'demo',
-          displayName: 'Demo',
-          packageName: 'demo-module',
-          configFileName: 'module.json',
-          supportedTransports: ['stdio'],
-          requiresInteractiveSetup: false,
-          variant: 'default',
-          source: 'user',
-          absolutePath: '/workspace/modules/demo',
-          configDescriptors
-        }
-      ])
-    }
-
-    it('refuses invalid or non-object config JSON without overwriting the file', async () => {
-      scanDemoModule()
-      vi.mocked(fs.readFile)
-        .mockResolvedValueOnce('{invalid-json' as Awaited<ReturnType<typeof fs.readFile>>)
-        .mockResolvedValueOnce('["not-an-object"]' as Awaited<ReturnType<typeof fs.readFile>>)
-      const start = registerHandlersForTest().get('modules:start')!
-
-      await expect(start({}, { moduleId: 'demo-module' })).resolves.toMatchObject({ ok: false })
-      await expect(start({}, { moduleId: 'demo-module' })).resolves.toEqual({
-        ok: false,
-        error: 'Config payload must be a JSON object'
-      })
-      expect(vi.mocked(fs.writeFile)).not.toHaveBeenCalled()
-      expect(channelModuleManagerStartMock).not.toHaveBeenCalled()
-    })
-
-    it('reports missing required fields when no config file exists', async () => {
-      scanDemoModule([
-        {
-          key: 'demo.botToken',
-          displayLabel: 'Bot Token',
-          description: '',
-          required: true,
-          dataKind: 'string',
-          masked: true,
-          interactiveSetupOnly: false
-        }
-      ])
-      vi.mocked(fs.readFile).mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }))
-
-      await expect(
-        registerHandlersForTest().get('modules:start')!({}, { moduleId: 'demo-module' })
-      ).resolves.toMatchObject({ ok: false, missingFields: ['Bot Token'] })
-      expect(channelModuleManagerStartMock).not.toHaveBeenCalled()
-    })
-
-    it('creates the config file when nothing is left to fill in', async () => {
-      scanDemoModule()
-      vi.mocked(fs.readFile).mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }))
-
-      await expect(
-        registerHandlersForTest().get('modules:start')!({}, { moduleId: 'demo-module' })
-      ).resolves.toMatchObject({ ok: true })
-      expect(vi.mocked(fs.writeFile)).toHaveBeenCalled()
-      expect(channelModuleManagerStartMock).toHaveBeenCalledWith('demo-module')
-    })
-  })
-
   it('awaits async updateSettings in settings:set handler', async () => {
     let resolveUpdate: (() => void) | null = null
     const updateSettings = vi.fn(() => new Promise<void>((resolve) => { resolveUpdate = resolve }))
@@ -1250,14 +1137,10 @@ describe('unregisterIpcHandlers', () => {
       webContents: Object.assign(new EventEmitter(), { id: 102, isDestroyed: () => false, send: vi.fn() })
     }) as unknown as Electron.BrowserWindow
     registerIpcHandlers(() => null, '/second', createIpcCallbacks(), other)
-    const firstModules = getChannelModuleManager(testWindow)!
-    const secondModules = getChannelModuleManager(other)!
     try {
       const dispatch = vi.mocked(ipcMain.handle).mock.calls.find(([channel]) => channel === 'window:get-workspace-path')![1]
       expect(dispatch({ sender: other.webContents } as Electron.IpcMainInvokeEvent)).toBe('/second')
       testWindow.emit('closed')
-      expect(firstModules.dispose).toHaveBeenCalledOnce()
-      expect(secondModules.dispose).not.toHaveBeenCalled()
       expect(dispatch({ sender: other.webContents } as Electron.IpcMainInvokeEvent)).toBe('/second')
       expect(() => dispatch({ sender: testWindow.webContents } as Electron.IpcMainInvokeEvent)).toThrow('active Desktop window')
     } finally {

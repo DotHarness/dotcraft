@@ -4,7 +4,7 @@ using System.Text.Json.Nodes;
 using DotCraft.AppBinding;
 using DotCraft.Automations;
 using DotCraft.Channels;
-using DotCraft.ExternalChannel.Messaging;
+using DotCraft.Channels.Messaging;
 using DotCraft.Plugins;
 using DotCraft.Security;
 using DotCraft.Sessions;

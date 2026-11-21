@@ -1,7 +1,6 @@
 using System.Text.Json.Nodes;
 using DotCraft.CLI;
 using DotCraft.Configuration;
-using DotCraft.Persistence.Upgrades;
 using Microsoft.Extensions.AI;
 using ModelPreference = DotCraft.Configuration.ModelPreference;
 using Xunit;
@@ -387,33 +386,6 @@ public sealed class InitHelperSetupTests : IDisposable
         Assert.DoesNotContain("ProviderId", workspaceNode.Select(p => p.Key));
         Assert.False(File.Exists(Path.Combine(craftPath, "AGENTS.md")));
         Assert.False(File.Exists(Path.Combine(craftPath, "USER.md")));
-    }
-
-    [Fact]
-    public void RunSetup_WorkspaceSelection_SurvivesTheNextStartupUpgrade()
-    {
-        var craftPath = Path.Combine(tempRoot, ".craft");
-        var globalConfigPath = Path.Combine(tempRoot, "user", ".craft", "config.json");
-        Directory.CreateDirectory(craftPath);
-        Directory.CreateDirectory(Path.GetDirectoryName(globalConfigPath)!);
-        File.WriteAllText(globalConfigPath, """{ "ProviderId": "openai", "Providers": { "openai": { "ApiKey": "k" }, "local": { "ApiKey": "k" } } }""");
-        File.WriteAllText(Path.Combine(craftPath, "config.json"), """{ "Permissions": { "DefaultApprovalPolicy": "autoApprove" } }""");
-
-        var result = InitHelper.RunSetup(craftPath, new WorkspaceSetupRequest
-        {
-            ApiKey = "",
-            EndPoint = "",
-            Model = "local-model",
-            Preference = new ModelPreference { Model = "local-model" },
-            ProviderMode = WorkspaceSetupProviderMode.Existing,
-            ProviderId = "local"
-        }, globalConfigPath);
-        WorkspaceConfigUpgrade.Apply(craftPath, globalConfigPath);
-
-        Assert.Equal(0, result);
-        var workspaceNode = JsonNode.Parse(File.ReadAllText(Path.Combine(craftPath, "config.json")))!.AsObject();
-        Assert.Equal("local", workspaceNode["ProviderId"]?.GetValue<string>());
-        Assert.Null(workspaceNode["Permissions"]);
     }
 
     public void Dispose()

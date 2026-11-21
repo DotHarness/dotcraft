@@ -169,25 +169,6 @@ export type {
   TaskCompletionNotificationMode
 } from '../shared/desktopSettings'
 import type {
-  DiscoveredModule,
-  ModuleConfigStatusMap,
-  ModuleStatusMap,
-  QrUpdatePayload
-} from '../shared/channelModules'
-export type {
-  ConfigDescriptorWire,
-  ConfigFieldOptionGroupWire,
-  ConfigFieldOptionWire,
-  ConfigGroupDescriptorWire,
-  DiscoveredModule,
-  ModuleConfigStatus,
-  ModuleConfigStatusMap,
-  ModuleInterfaceWire,
-  ModuleStatusEntry,
-  ModuleStatusMap,
-  QrUpdatePayload
-} from '../shared/channelModules'
-import type {
   ConnectionStatusPayload,
   ResolvedBinaryPayload,
   RetryConnectionRequest
@@ -311,13 +292,6 @@ export interface OpenNewChatPayload {
   prompt?: string
 }
 
-export interface ModulesRescanSummaryPayload {
-  addedModuleIds: string[]
-  removedModuleIds: string[]
-  changedModuleIds: string[]
-  changedRunningModuleIds: string[]
-}
-
 export interface ComposerPreferencesChangedPayload {
   followUpQueueMode?: FollowUpQueueMode
   newTaskPrompt?: NewTaskPromptMode
@@ -386,33 +360,6 @@ ipcRenderer.on(
   'workspace:projects-changed',
   (_event: Electron.IpcRendererEvent, payload: WorkspaceProjectsPayload) => {
     activeWorkspaceProjectsCallback?.(payload)
-  }
-)
-
-let moduleStatusToken = 0
-let activeModuleStatusCallback: ((statusMap: ModuleStatusMap) => void) | null = null
-ipcRenderer.on(
-  'modules:status-changed',
-  (_event: Electron.IpcRendererEvent, statusMap: ModuleStatusMap) => {
-    activeModuleStatusCallback?.(statusMap)
-  }
-)
-
-let moduleQrUpdateToken = 0
-let activeModuleQrUpdateCallback: ((payload: QrUpdatePayload) => void) | null = null
-ipcRenderer.on(
-  'modules:qr-update',
-  (_event: Electron.IpcRendererEvent, payload: QrUpdatePayload) => {
-    activeModuleQrUpdateCallback?.(payload)
-  }
-)
-
-let moduleRescanSummaryToken = 0
-let activeModuleRescanSummaryCallback: ((payload: ModulesRescanSummaryPayload) => void) | null = null
-ipcRenderer.on(
-  'modules:rescan-summary',
-  (_event: Electron.IpcRendererEvent, payload: ModulesRescanSummaryPayload) => {
-    activeModuleRescanSummaryCallback?.(payload)
   }
 )
 
@@ -1424,76 +1371,6 @@ const api = {
     }
   },
 
-  modules: {
-    list(): Promise<DiscoveredModule[]> {
-      return ipcRenderer.invoke('modules:list')
-    },
-    pickDirectory(): Promise<string | null> {
-      return ipcRenderer.invoke('modules:pick-directory')
-    },
-    rescan(): Promise<DiscoveredModule[]> {
-      return ipcRenderer.invoke('modules:rescan')
-    },
-    configStatus(): Promise<ModuleConfigStatusMap> {
-      return ipcRenderer.invoke('modules:config-status')
-    },
-    setActiveVariant(params: {
-      channelName: string
-      moduleId: string
-    }): Promise<{ ok: boolean; error?: string }> {
-      return ipcRenderer.invoke('modules:set-active-variant', params)
-    },
-    readConfig(params: {
-      configFileName: string
-    }): Promise<{ exists: boolean; config: Record<string, unknown> | null }> {
-      return ipcRenderer.invoke('modules:read-config', params)
-    },
-    writeConfig(params: {
-      configFileName: string
-      config: Record<string, unknown>
-    }): Promise<{ ok: boolean }> {
-      return ipcRenderer.invoke('modules:write-config', params)
-    },
-    start(params: {
-      moduleId: string
-    }): Promise<{ ok: boolean; error?: string; missingFields?: string[] }> {
-      return ipcRenderer.invoke('modules:start', params)
-    },
-    stop(params: { moduleId: string }): Promise<{ ok: boolean; error?: string }> {
-      return ipcRenderer.invoke('modules:stop', params)
-    },
-    running(): Promise<ModuleStatusMap> {
-      return ipcRenderer.invoke('modules:running')
-    },
-    getLogs(moduleId: string): Promise<{ lines: string[] }> {
-      return ipcRenderer.invoke('modules:get-logs', { moduleId })
-    },
-    qrStatus(moduleId: string): Promise<{ active: boolean; qrDataUrl: string | null }> {
-      return ipcRenderer.invoke('modules:qr-status', { moduleId })
-    },
-    onStatusChanged(callback: (statusMap: ModuleStatusMap) => void): UnsubscribeFn {
-      const token = ++moduleStatusToken
-      activeModuleStatusCallback = callback
-      return () => {
-        if (moduleStatusToken === token) activeModuleStatusCallback = null
-      }
-    },
-    onQrUpdate(callback: (payload: QrUpdatePayload) => void): UnsubscribeFn {
-      const token = ++moduleQrUpdateToken
-      activeModuleQrUpdateCallback = callback
-      return () => {
-        if (moduleQrUpdateToken === token) activeModuleQrUpdateCallback = null
-      }
-    },
-    onRescanSummary(callback: (payload: ModulesRescanSummaryPayload) => void): UnsubscribeFn {
-      const token = ++moduleRescanSummaryToken
-      activeModuleRescanSummaryCallback = callback
-      return () => {
-        if (moduleRescanSummaryToken === token) activeModuleRescanSummaryCallback = null
-      }
-    }
-  },
-
   voice: {
     getMicrophonePermissionStatus(): Promise<VoiceMicrophonePermissionStatus> {
       return ipcRenderer.invoke('voice:get-microphone-permission-status')
@@ -1670,8 +1547,6 @@ const api = {
         machineId: string
         projectId: string
       }
-      modulesDirectory?: string
-      activeModuleVariants?: Record<string, string>
       theme?: 'system' | 'dark' | 'light'
       accent?: string
       codeFontSize?: number
@@ -1764,8 +1639,6 @@ const api = {
         machineId: string
         projectId: string
       }
-      modulesDirectory?: string
-      activeModuleVariants?: Record<string, string>
       theme?: 'system' | 'dark' | 'light'
       accent?: string
       codeFontSize?: number

@@ -1,17 +1,10 @@
 import { useMemo, useState } from 'react'
-import type {
-  ConfigFieldOptionWire,
-  ConfigGroupDescriptorWire,
-  DiscoveredModule,
-  ModuleStatusEntry
-} from '../../../preload/api.d'
-import type { AppLocale } from '../../../shared/locales'
+import type { ConfigDescriptorWire, ConfigFieldOptionWire, ConfigGroupDescriptorWire, ModuleStatusEntry } from '../../../shared/channelModules'
+import { channelTitle, type ChannelPlugin } from './channelPluginModel'
 import { useLocale, useT } from '../../contexts/LocaleContext'
-import type { ChannelConnectionState } from './ChannelCard'
-import { FieldCard, SecretInput, StatusPill, formStyles } from './FormShared'
+import { FieldCard } from './FormShared'
+import { ChannelSecretInput } from './ChannelSecretInput'
 import { Input, Textarea } from '../ui/Input'
-import { FolderIcon } from '../ui/AppIcons'
-import { IconButton } from '../ui/IconButton'
 import { Button } from '../ui/Button'
 import { PillSwitch } from '../ui/PillSwitch'
 import { Select } from '../ui/Select'
@@ -19,30 +12,23 @@ import { SettingsGroup, SettingsRow } from '../settings/SettingsGroup'
 import { SettingsDescriptionWithLearnMore } from '../settings/SettingsLearnMoreLink'
 import { SETTINGS_DOCS_BASE_URL } from '../settings/settingsDocs'
 import { SETTINGS_SURFACE_CLASS } from '../settings/settingsTypography'
-import { IdentityMark } from '../ui/IdentityMark'
-import { IdentityMarkFallback } from '../ui/IdentityMarkFallback'
 import { ListOptionsField } from './ListOptionsField'
 import styles from './ModuleConfigForm.module.css'
 
 interface ModuleConfigFormProps {
-  module: DiscoveredModule
-  variantModules?: DiscoveredModule[]
-  onVariantChange?: (moduleId: string) => void
-  variantSwitching?: boolean
+  plugin: ChannelPlugin
   config: Record<string, unknown>
+  configuredSecrets: readonly string[]
   onChange: (next: Record<string, unknown>) => void
   onSave: () => void
   saving: boolean
-  logoPath?: string
+  readOnly: boolean
   moduleStatus?: ModuleStatusEntry
-  persistedEnabled: boolean
-  localControlsAvailable?: boolean
-  onStart: () => void
-  onCancel?: () => void
-  moduleLogLines: string[]
+  onStart?: () => void
+  onCancel: () => void
+  moduleLogLines: string[] | null
   logsLoading: boolean
-  onLoadLogs: () => void
-  hideHeader?: boolean
+  onLoadLogs?: () => void
 }
 
 const CUSTOM_ENUM_VALUE = '__dotcraft_custom_value__'
@@ -58,119 +44,35 @@ function toText(value: unknown): string {
   }
 }
 
-function getNestedValue(obj: Record<string, unknown>, dottedKey: string): unknown {
-  const parts = dottedKey.split('.').filter(Boolean)
-  if (parts.length === 0) return undefined
-  let current: unknown = obj
-  for (const part of parts) {
-    if (current == null || typeof current !== 'object' || Array.isArray(current)) {
-      return undefined
-    }
-    current = (current as Record<string, unknown>)[part]
-  }
-  return current
-}
-
-function setNestedValue(
-  obj: Record<string, unknown>,
-  dottedKey: string,
-  value: unknown
-): Record<string, unknown> {
-  const parts = dottedKey.split('.').filter(Boolean)
-  if (parts.length === 0) return obj
-  const result: Record<string, unknown> = { ...obj }
-  let current: Record<string, unknown> = result
-  for (let i = 0; i < parts.length - 1; i += 1) {
-    const existing = current[parts[i]]
-    const next =
-      existing != null && typeof existing === 'object' && !Array.isArray(existing)
-        ? { ...(existing as Record<string, unknown>) }
-        : {}
-    current[parts[i]] = next
-    current = next
-  }
-  current[parts[parts.length - 1]] = value
-  return result
-}
-
-function applyValueChange(
-  config: Record<string, unknown>,
-  key: string,
-  value: unknown
-): Record<string, unknown> {
-  return setNestedValue(config, key, value)
-}
-
-function resolveModulePill(
-  status: ModuleStatusEntry | undefined,
-  persistedEnabled: boolean,
-  t: (key: string) => string
-): {
-  status: ChannelConnectionState
-  label: string
-} {
-  if (!status) {
-    if (persistedEnabled) {
-      return { status: 'stopped', label: t('channels.modules.stopped') }
-    }
-    return { status: 'notConfigured', label: t('channels.status.notConfigured') }
-  }
-  if (status.processState === 'crashed') {
-    return { status: 'error', label: t('channels.modules.error') }
-  }
-  if (status.connected) {
-    return { status: 'connected', label: t('channels.status.connected') }
-  }
-  if (status.processState === 'starting') {
-    return { status: 'connecting', label: t('channels.modules.connecting') }
-  }
-  if (status.processState === 'running') {
-    return { status: 'enabledNotConnected', label: t('channels.status.enabledNotConnected') }
-  }
-  if (status.processState === 'stopped') {
-    if (persistedEnabled) {
-      return { status: 'stopped', label: t('channels.modules.stopped') }
-    }
-    return { status: 'notConfigured', label: t('channels.status.notConfigured') }
-  }
-  return { status: 'notConfigured', label: t('channels.status.notConfigured') }
-}
-
-function resolveModuleDisplayName(
-  module: Pick<DiscoveredModule, 'displayName' | 'localizedDisplayName'>,
-  locale: AppLocale
-): string {
-  return module.localizedDisplayName?.[locale] ?? module.displayName
+function applyValueChange(config: Record<string, unknown>, key: string, value: unknown): Record<string, unknown> {
+  return { ...config, [key]: value }
 }
 
 export function ModuleConfigForm({
-  module,
-  variantModules = [],
-  onVariantChange,
-  variantSwitching = false,
+  plugin,
   config,
+  configuredSecrets,
   onChange,
   onSave,
   saving,
-  logoPath,
+  readOnly,
   moduleStatus,
-  persistedEnabled,
-  localControlsAvailable = true,
   onStart,
   onCancel,
   moduleLogLines,
   logsLoading,
-  onLoadLogs,
-  hideHeader = false
+  onLoadLogs
 }: ModuleConfigFormProps): JSX.Element {
+  const module = plugin.channel
   const locale = useLocale()
   const t = useT()
   const [listTextByKey, setListTextByKey] = useState<Record<string, string>>({})
   const [objectTextByKey, setObjectTextByKey] = useState<Record<string, string>>({})
   const [customEnumByKey, setCustomEnumByKey] = useState<Record<string, boolean>>({})
+  const [invalidSecrets, setInvalidSecrets] = useState<ReadonlySet<string>>(() => new Set())
   const descriptors = useMemo(
     () =>
-      module.configDescriptors.filter(
+      (module.configDescriptors ?? []).filter(
         (descriptor) =>
           descriptor.interactiveSetupOnly !== true && !descriptor.key.startsWith('dotcraft.')
       ),
@@ -206,20 +108,18 @@ export function ModuleConfigForm({
     ].filter((entry) => entry.descriptors.length > 0)
     return [...explicit, ...legacy]
   }, [descriptors, module.configGroups, t])
-  const pill = resolveModulePill(moduleStatus, persistedEnabled, t)
-  const hasVariants = variantModules.length > 1
-  const moduleDisplayName = resolveModuleDisplayName(module, locale)
+  const moduleDisplayName = channelTitle(plugin, locale)
 
   const resolveDescriptorLabel = (
-    descriptor: DiscoveredModule['configDescriptors'][number]
+    descriptor: ConfigDescriptorWire
   ): string => descriptor.localizedDisplayLabel?.[locale] ?? descriptor.displayLabel
 
   const resolveDescriptorDescription = (
-    descriptor: DiscoveredModule['configDescriptors'][number]
+    descriptor: ConfigDescriptorWire
   ): string => descriptor.localizedDescription?.[locale] ?? descriptor.description
 
   const resolveDescriptorDocsUrl = (
-    descriptor: DiscoveredModule['configDescriptors'][number]
+    descriptor: ConfigDescriptorWire
   ): string | undefined => {
     const route = descriptor.docsPath?.[locale] ?? descriptor.docsPath?.en
     return route ? `${SETTINGS_DOCS_BASE_URL}${locale === 'zh-Hans' ? '/zh' : ''}${route}` : undefined
@@ -228,8 +128,8 @@ export function ModuleConfigForm({
   const resolveGroupLabel = (group: ConfigGroupDescriptorWire): string =>
     group.localizedDisplayLabel?.[locale] ?? group.displayLabel
 
-  const renderDescriptorField = (descriptor: DiscoveredModule['configDescriptors'][number]): JSX.Element => {
-    const configuredValue = getNestedValue(config, descriptor.key)
+  const renderDescriptorField = (descriptor: ConfigDescriptorWire): JSX.Element => {
+    const configuredValue = Object.hasOwn(config, descriptor.key) ? config[descriptor.key] : undefined
     const value = configuredValue === undefined ? descriptor.defaultValue : configuredValue
     const displayLabel = resolveDescriptorLabel(descriptor)
     const descriptionText = resolveDescriptorDescription(descriptor)
@@ -241,6 +141,33 @@ export function ModuleConfigForm({
     )
     const requiredSuffix = descriptor.required ? ` (${t('channels.modules.required')})` : ''
     const placeholder = descriptor.defaultValue === undefined ? undefined : String(descriptor.defaultValue)
+
+    if (descriptor.masked || descriptor.dataKind === 'secret') {
+      return (
+        <SettingsRow
+          key={descriptor.key}
+          orientation="block"
+          label={`${displayLabel}${requiredSuffix}`}
+          description={description}
+          control={(
+            <ChannelSecretInput
+              label={displayLabel}
+              kind={descriptor.dataKind}
+              configured={configuredSecrets.includes(descriptor.key) && !Object.hasOwn(config, descriptor.key)}
+              onChange={(value, valid) => {
+                setInvalidSecrets((previous) => {
+                  const next = new Set(previous)
+                  if (valid) next.delete(descriptor.key)
+                  else next.add(descriptor.key)
+                  return next
+                })
+                if (valid) onChange(applyValueChange(config, descriptor.key, value))
+              }}
+            />
+          )}
+        />
+      )
+    }
 
     if (descriptor.dataKind === 'boolean') {
       return (
@@ -437,126 +364,25 @@ export function ModuleConfigForm({
       )
     }
 
-    if (descriptor.dataKind === 'path') {
-      return (
-        <SettingsRow
-          key={descriptor.key}
-          orientation="block"
-          label={`${displayLabel}${requiredSuffix}`}
-          description={description}
-          control={(
-            <div className={styles.pathControl}>
-              <Input
-                value={toText(value)}
-                placeholder={placeholder}
-                onChange={(event) => {
-                  onChange(applyValueChange(config, descriptor.key, event.target.value))
-                }}
-                style={{ flex: 1 }}
-              />
-              <IconButton
-                icon={<FolderIcon size={16} />}
-                label={t('settings.modulesDirectoryBrowse')}
-                tooltipLabel={t('settings.modulesDirectoryBrowse')}
-                onClick={() => {
-                  void window.api.modules.pickDirectory().then((pickedPath) => {
-                    if (!pickedPath) return
-                    onChange(applyValueChange(config, descriptor.key, pickedPath))
-                  })
-                }}
-              />
-            </div>
-          )}
-        />
-      )
-    }
-
-    const isSecret = descriptor.dataKind === 'secret' || descriptor.masked
     return (
       <SettingsRow
         key={descriptor.key}
         orientation="block"
         label={`${displayLabel}${requiredSuffix}`}
         description={description}
-        control={isSecret ? (
-            <SecretInput
-              value={toText(value)}
-              placeholder={placeholder}
-              onChange={(nextValue) => {
-                onChange(applyValueChange(config, descriptor.key, nextValue))
-              }}
-            />
-          ) : (
-            <Input
-              value={toText(value)}
-              placeholder={placeholder}
-              onChange={(event) => {
-                onChange(applyValueChange(config, descriptor.key, event.target.value))
-              }}
-            />
-          )}
+        control={(
+          <Input
+            value={toText(value)}
+            placeholder={placeholder}
+            onChange={(event) => onChange(applyValueChange(config, descriptor.key, event.target.value))}
+          />
+        )}
       />
     )
   }
 
   return (
     <div className={`${styles.form} ${SETTINGS_SURFACE_CLASS}`}>
-      {!hideHeader && (
-        <div style={formStyles.header}>
-          <IdentityMark role="list" src={logoPath} fallback={<IdentityMarkFallback kind="channel" />} />
-
-          <div style={{ minWidth: 0 }}>
-            <div style={formStyles.headerTitle}>{moduleDisplayName}</div>
-            <div
-              style={{
-                marginTop: '4px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}
-            >
-              <span
-                style={{
-                  fontSize: '11px',
-                  color: 'var(--text-dimmed)',
-                  border: '1px solid var(--border-default)',
-                  borderRadius: '999px',
-                  padding: '2px 8px'
-                }}
-              >
-                {module.source === 'bundled'
-                  ? t('channels.modules.source.bundled')
-                  : t('channels.modules.source.user')}
-              </span>
-              <StatusPill status={pill.status} label={pill.label} />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {hasVariants && (
-        <FieldCard>
-          <div style={formStyles.fieldGroup}>
-            <label style={formStyles.label}>{t('channels.modules.variant.active')}</label>
-            <Select
-              value={module.moduleId}
-              disabled={variantSwitching}
-              onValueChange={(moduleId) => {
-                onVariantChange?.(moduleId)
-              }}
-              ariaLabel={t('channels.modules.variant.active')}
-              options={variantModules.map((variant) => ({
-                value: variant.moduleId,
-                label: t('channels.modules.variant.option', {
-                  name: resolveModuleDisplayName(variant, locale),
-                  variant: variant.variant
-                })
-              }))}
-            />
-          </div>
-        </FieldCard>
-      )}
-
       {moduleStatus?.processState === 'crashed' && (
         <div
           style={{
@@ -574,20 +400,13 @@ export function ModuleConfigForm({
           <span style={{ fontSize: '12px', color: 'var(--error, #ff453a)' }}>
             {t('channels.modules.crashBanner')}
           </span>
-          {moduleStatus.failureCode === 'externalChannelStartFailed' && (
+          {moduleStatus.failureCode === 'channelStartFailed' && (
             <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-              {t('channels.modules.failure.externalChannelStartFailed')}
+              {t('channels.modules.failure.channelStartFailed')}
             </span>
           )}
           <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-            <Button
-              variant="secondary"
-              onClick={onLoadLogs}
-              loading={logsLoading}
-            >
-              {logsLoading ? t('channels.modules.logs.loading') : t('channels.modules.logs.view')}
-            </Button>
-            {localControlsAvailable && (
+            {onStart && (
               <Button
                 variant="primary"
                 onClick={onStart}
@@ -599,7 +418,12 @@ export function ModuleConfigForm({
         </div>
       )}
 
-      {moduleLogLines.length > 0 && (
+      {onLoadLogs && (
+        <Button variant="secondary" onClick={onLoadLogs} loading={logsLoading}>
+          {t('channels.modules.logs.view')}
+        </Button>
+      )}
+      {moduleLogLines !== null && (
         <FieldCard>
           <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
             {t('channels.modules.logs.title')}
@@ -618,18 +442,18 @@ export function ModuleConfigForm({
               overflow: 'auto'
             }}
           >
-            {moduleLogLines.join('\n')}
+            {moduleLogLines.length ? moduleLogLines.join('\n') : t('channels.plugins.noLogs')}
           </pre>
         </FieldCard>
       )}
 
-      <div className={styles.configurationGroups}>
+      <fieldset className={styles.configurationGroups} disabled={readOnly || saving}>
         {descriptorGroups.map(({ group, descriptors: groupDescriptors }) => (
           <SettingsGroup key={group.id} title={resolveGroupLabel(group)}>
             {groupDescriptors.map((descriptor) => renderDescriptorField(descriptor))}
           </SettingsGroup>
         ))}
-      </div>
+      </fieldset>
 
       <div className={styles.actions}>
         {onCancel && (
@@ -637,9 +461,11 @@ export function ModuleConfigForm({
             {t('common.cancel')}
           </Button>
         )}
-        <Button variant="primary" onClick={onSave} loading={saving}>
-          {saving ? t('channels.saving') : t('channels.save')}
-        </Button>
+        {!readOnly && (
+          <Button variant="primary" onClick={onSave} loading={saving} disabled={invalidSecrets.size > 0}>
+            {saving ? t('channels.saving') : t('channels.save')}
+          </Button>
+        )}
       </div>
     </div>
   )

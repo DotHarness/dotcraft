@@ -278,7 +278,6 @@ describe('SettingsView', () => {
         getResolvedBinary: vi.fn().mockResolvedValue({ path: null }),
         pickBinary: vi.fn()
       },
-      modules: { list: vi.fn().mockResolvedValue([]) },
       workspace: {
         pickFolder: vi.fn(),
         viewer: { browserUse: { clearCookies: vi.fn() } }

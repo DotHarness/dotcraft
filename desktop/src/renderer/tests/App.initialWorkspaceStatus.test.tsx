@@ -86,8 +86,6 @@ describe('App initial workspace status bootstrap', () => {
     })
     installApi(readyWorkspaceStatus, {
       appServerSendRequest,
-      modulesList: vi.fn().mockResolvedValue([]),
-      modulesRunning: vi.fn().mockResolvedValue({}),
       settingsGet: vi.fn().mockResolvedValue({}),
       onWorkspaceStatusChange,
       onProjectsChange,
@@ -168,8 +166,6 @@ describe('App initial workspace status bootstrap', () => {
     })
     installApi(readyWorkspaceStatus, {
       appServerSendRequest,
-      modulesList: vi.fn().mockResolvedValue([]),
-      modulesRunning: vi.fn().mockResolvedValue({}),
       settingsGet: vi.fn().mockResolvedValue({}),
       onWorkspaceStatusChange,
       workspaceGetProjects: vi.fn().mockResolvedValue(projectsPayloadFor(readyWorkspaceStatus.workspacePath, 'A'))
@@ -235,8 +231,6 @@ describe('App initial workspace status bootstrap', () => {
     })
     installApi(readyWorkspaceStatus, {
       appServerSendRequest,
-      modulesList: vi.fn().mockResolvedValue([]),
-      modulesRunning: vi.fn().mockResolvedValue({}),
       settingsGet: vi.fn().mockResolvedValue({}),
       onWorkspaceStatusChange,
       onProjectsChange,
@@ -316,8 +310,6 @@ describe('App initial workspace status bootstrap', () => {
     })
     installApi(readyWorkspaceStatus, {
       appServerSendRequest,
-      modulesList: vi.fn().mockResolvedValue([]),
-      modulesRunning: vi.fn().mockResolvedValue({}),
       settingsGet: vi.fn().mockResolvedValue({}),
       onWorkspaceStatusChange: vi.fn((callback: (payload: WorkspaceStatusPayload) => void) => {
         emitStatus = callback
@@ -384,8 +376,6 @@ describe('App initial workspace status bootstrap', () => {
     })
     installApi(readyWorkspaceStatus, {
       appServerSendRequest,
-      modulesList: vi.fn().mockResolvedValue([]),
-      modulesRunning: vi.fn().mockResolvedValue({}),
       settingsGet: vi.fn().mockResolvedValue({}),
       onWorkspaceStatusChange: vi.fn((callback: (payload: WorkspaceStatusPayload) => void) => {
         emitStatus = callback
@@ -448,8 +438,6 @@ describe('App initial workspace status bootstrap', () => {
     installApi(readyWorkspaceStatus, {
       onNotification,
       settingsGet: vi.fn().mockResolvedValue({}),
-      modulesList: vi.fn().mockResolvedValue([]),
-      modulesRunning: vi.fn().mockResolvedValue({}),
       appServerSendRequest: vi.fn(async (method: string) => method === 'thread/list' ? { data: [] } : {})
     })
 

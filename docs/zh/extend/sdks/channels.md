@@ -2,10 +2,10 @@
 
 渠道适配器把外部消息平台作为一等渠道接入 DotCraft。它为每段会话解析出 thread，把平台消息和命令转发过去，并承接 Agent 用 `SendChannelMessage` 发出的投递。
 
-适配器是运行时抽象。要让 Desktop 等 DotCraft 宿主发现并管理同一个适配器，可将其封装为[渠道模块](../channel-modules)。模块补充宿主所需的元数据和生命周期包装，并不会取代适配器。
+把适配器打包为[渠道插件](../channel-modules)，让 DotCraft 安装和管理它。
 
 > [!NOTE]
-> 渠道适配器是语言特定的 profile，只有 **TypeScript** 提供。.NET SDK 没有渠道适配器。
+> 示例使用 `@dotcraft/channel`，这是随官方插件打包的私有库，不发布到 npm。渠道插件的启动程序也可以直接实现 [AppServer 渠道协议](../protocols/appserver#渠道适配器)。
 
 要用内置的 Channel 策略，继承 adapter 基类即可。基类负责按身份分队的消息队列、thread 解析、命令路由、把输入并入运行中的 turn、turn 活动归并、服务端请求 handler 和心跳。
 
@@ -13,7 +13,7 @@
 
 ![一条平台消息在渠道适配器里的一轮：按身份排队、解析 thread 或直接执行命令、开启新的 turn 或并入运行中的 turn，只有 Agent 主动发送的消息才会回到聊天](/channel-adapter-loop.svg)
 
-## 最小适配器
+## 第一方源码示例
 
 ```ts
 import {
@@ -95,12 +95,6 @@ adapter 本地命令只用于平台设置，例如 `/bind` 和账号授权。平
 | `renderCommandChoices` | 可选。呈现命令结果中的选项。默认实现通过 `onDeliver` 渲染编号列表。 |
 
 适配器还通过 `onUserInputRequest` 处理用户输入请求，默认返回空答案集。heartbeat 响应由基类自行注册，平台子类不需要实现。
-
-## 包
-
-TypeScript Channel authoring 使用 `@dotcraft/channel`。Adapter authoring API 从根入口导入，队列与路由从 `/runtime` 导入，媒体 helper 从 `/media` 导入，conformance helper 从 `/testing` 导入，Channel contract 元数据从 `/meta` 导入。
-
-DotCraft 的内置托管渠道也使用这套基类。安装与配置见[渠道配置](../../configuration/channels)。
 
 ## 相关文档
 

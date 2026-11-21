@@ -22,6 +22,9 @@
     "backgroundTerminals": {
       "type": "boolean"
     },
+    "channelManagement": {
+      "type": "boolean"
+    },
     "channelStatus": {
       "type": "boolean"
     },
@@ -52,9 +55,6 @@
           "type": "null"
         }
       ]
-    },
-    "externalChannelManagement": {
-      "type": "boolean"
     },
     "fileSystem": {
       "type": "boolean"

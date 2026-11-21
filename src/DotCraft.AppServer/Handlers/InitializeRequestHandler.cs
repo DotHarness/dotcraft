@@ -31,6 +31,9 @@ internal sealed class InitializeRequestHandler(
             throw AppServerErrors.AlreadyInitialized();
 
         var workspaceCraftPath = services.WorkspaceCraftPath;
+        var channelManagement = !string.IsNullOrWhiteSpace(workspaceCraftPath)
+            && services.ChannelRuntimeProvider?.ChannelPlugins != null
+            && !connection.IsChannelAdapter && !connection.IsAppPrincipalAuthenticated;
         var capabilities = new ServerCapabilitySnapshot
         {
             ThreadManagement = true,
@@ -50,7 +53,7 @@ internal sealed class InitializeRequestHandler(
             SkillsManagement = services.SkillsLoader != null,
             PluginManagement = !string.IsNullOrWhiteSpace(workspaceCraftPath),
             DesktopPluginArtifacts = !string.IsNullOrWhiteSpace(workspaceCraftPath),
-            PluginConfiguration = services.PluginConfigStore != null,
+            PluginConfiguration = services.PluginConfigStore != null || channelManagement,
             PluginMarketplaces = !string.IsNullOrWhiteSpace(workspaceCraftPath),
             CommandManagement = true,
             Automations = services.AutomationsHandler != null,
@@ -73,7 +76,7 @@ internal sealed class InitializeRequestHandler(
                 && clientCapabilities?.GenerativeUi == true,
             McpElicitation = services.McpClientManager != null && clientCapabilities?.McpElicitation == true,
             McpServerOrigins = services.McpClientManager != null,
-            ExternalChannelManagement = !string.IsNullOrWhiteSpace(workspaceCraftPath),
+            ChannelManagement = channelManagement,
             AgentProfileManagement = true,
             ToolCatalog = true,
             SubAgentManagement = !string.IsNullOrWhiteSpace(workspaceCraftPath),

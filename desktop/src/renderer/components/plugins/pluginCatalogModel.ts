@@ -198,6 +198,7 @@ function categoryLabel(category: string, t: ReturnType<typeof useT>): string {
   if (category === 'lifestyle') return t('plugins.filter.category.lifestyle')
   if (category === 'productivity') return t('plugins.filter.category.productivity')
   if (category === 'research') return t('plugins.filter.category.research')
+  if (category === 'channels') return t('channels.title')
   if (category === 'uncategorized') return t('plugins.filter.category.uncategorized')
   return category
     .split('-')

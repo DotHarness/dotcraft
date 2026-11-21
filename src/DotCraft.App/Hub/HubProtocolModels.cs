@@ -42,8 +42,6 @@ public sealed class HubRuntimeToolsRequest
 
     public bool? NodeRunAsNode { get; set; }
 
-    public string? ModulesDir { get; set; }
-
     public string? BuiltInPluginRoots { get; set; }
 
     public string? DefaultPluginRegistryUrl { get; set; }

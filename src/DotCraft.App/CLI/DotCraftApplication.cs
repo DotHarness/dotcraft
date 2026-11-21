@@ -6,7 +6,6 @@ using DotCraft.CSharp;
 using DotCraft.Hub;
 using DotCraft.Hosting;
 using DotCraft.Harness;
-using DotCraft.Persistence.Upgrades;
 using DotCraft.Runtime;
 using DotCraft.Text;
 using DotCraft.Modules;
@@ -220,7 +219,6 @@ internal static class DotCraftApplication
         AppConfig config;
         try
         {
-            WorkspaceConfigUpgrade.Apply(botPath, InitHelper.GetGlobalConfigPath());
             config = AppConfig.LoadWithGlobalFallback(configPath);
         }
         catch (Exception ex)

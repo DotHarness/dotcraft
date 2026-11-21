@@ -402,9 +402,9 @@ public sealed class ServerCapabilities : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool McpServerOrigins { get; init; }
 
-    [JsonPropertyName("externalChannelManagement")]
+    [JsonPropertyName("channelManagement")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public bool ExternalChannelManagement { get; init; }
+    public bool ChannelManagement { get; init; }
 
     [JsonPropertyName("toolCatalog")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

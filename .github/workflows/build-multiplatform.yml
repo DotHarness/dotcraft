@@ -34,9 +34,9 @@ jobs:
       with:
         node-version: '22'
 
-    - name: Test Docker configuration rendering
+    - name: Test Docker deployment inputs
       if: matrix.suite == 'core'
-      run: node --test docker/dotcraft/render-config.test.mjs
+      run: node --test docker/dotcraft/*.test.mjs
 
     - name: Setup .NET
       uses: actions/setup-dotnet@v5
@@ -75,14 +75,12 @@ jobs:
             os_name: windows
             runtime_id: win-x64
             output_name: DotCraft-win-x64
-            companion_platform: win32
             companion_arch: x64
             electron_builder_args: --win --x64
           - os: windows-latest
             os_name: windows
             runtime_id: win-arm64
             output_name: DotCraft-win-arm64
-            companion_platform: win32
             companion_arch: arm64
             electron_builder_args: --win --arm64
           - os: macos-15-intel
@@ -90,7 +88,6 @@ jobs:
             runtime_id: osx-x64
             output_name: DotCraft-macos-x64
             file_arch: x86_64
-            companion_platform: darwin
             companion_arch: x64
             electron_builder_args: --mac --x64
           - os: macos-15
@@ -98,7 +95,6 @@ jobs:
             runtime_id: osx-arm64
             output_name: DotCraft-macos-arm64
             file_arch: arm64
-            companion_platform: darwin
             companion_arch: arm64
             electron_builder_args: --mac --arm64
 
@@ -199,21 +195,13 @@ jobs:
       run: npm run build:all
       working-directory: sdk/typescript
 
-    - name: Restore companion archives
-      if: runner.os != 'Linux'
+    - name: Restore computer use driver archive
+      if: runner.os == 'Windows'
       id: companion-cache
       uses: actions/cache/restore@v4
       with:
         path: cache/downloads
-        key: companion-archives-v1-${{ matrix.runtime_id }}-${{ hashFiles('sdk/typescript/packages/channel-feishu/official-cli/lark-cli.lock.json', 'desktop/src/main/computerUse/cua-driver.lock.json') }}
-
-    - name: Stage Feishu CLI companion for desktop
-      if: runner.os != 'Linux'
-      run: >-
-        node sdk/typescript/packages/channel-feishu/scripts/stage-official-cli.mjs
-        --platform ${{ matrix.companion_platform }}
-        --arch ${{ matrix.companion_arch }}
-        --output desktop/resources/modules/channel-feishu/vendor
+        key: cua-driver-archive-v1-${{ matrix.runtime_id }}-${{ hashFiles('desktop/src/main/computerUse/cua-driver.lock.json') }}
 
     - name: Stage embedded binary for desktop - Windows
       if: runner.os == 'Windows'
@@ -229,8 +217,8 @@ jobs:
       if: runner.os == 'Windows'
       run: node desktop/scripts/stage-cua-driver.mjs --platform win32 --arch ${{ matrix.companion_arch }}
 
-    - name: Save companion archives
-      if: runner.os != 'Linux' && steps.companion-cache.outputs.cache-hit != 'true'
+    - name: Save computer use driver archive
+      if: runner.os == 'Windows' && steps.companion-cache.outputs.cache-hit != 'true'
       uses: actions/cache/save@v4
       with:
         path: cache/downloads
@@ -243,39 +231,6 @@ jobs:
         rm -rf desktop/resources/bin
         mkdir -p desktop/resources/bin
         cp publish/${{ matrix.output_name }}/dotcraft desktop/resources/bin/dotcraft
-
-    - name: Stage bundled modules for desktop - Windows
-      if: runner.os == 'Windows'
-      shell: pwsh
-      run: |
-        $modules = @('channel-feishu', 'channel-qq', 'channel-wecom', 'channel-weixin', 'channel-telegram')
-        foreach ($mod in $modules) {
-          $src = "sdk/typescript/packages/$mod"
-          $dst = "desktop/resources/modules/$mod"
-          New-Item -ItemType Directory -Force -Path $dst | Out-Null
-          Copy-Item -Path "$src/manifest.json" -Destination "$dst/manifest.json" -Force
-          Copy-Item -Path "$src/package.json" -Destination "$dst/package.json" -Force
-          Copy-Item -Path "$src/dist" -Destination "$dst/dist" -Recurse -Force
-          if (Test-Path "$src/assets") {
-            Copy-Item -Path "$src/assets" -Destination "$dst/assets" -Recurse -Force
-          }
-        }
-
-    - name: Stage bundled modules for desktop - macOS
-      if: runner.os == 'macOS'
-      shell: bash
-      run: |
-        for mod in channel-feishu channel-qq channel-wecom channel-weixin channel-telegram; do
-          src="sdk/typescript/packages/$mod"
-          dst="desktop/resources/modules/$mod"
-          mkdir -p "$dst"
-          cp "$src/manifest.json" "$dst/manifest.json"
-          cp "$src/package.json" "$dst/package.json"
-          cp -r "$src/dist" "$dst/dist"
-          if [ -d "$src/assets" ]; then
-            cp -r "$src/assets" "$dst/assets"
-          fi
-        done
 
     # Match build.bat: avoid stale dist confusing electron-builder; safe on fresh checkouts too.
     - name: Clean desktop dist

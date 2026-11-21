@@ -5,8 +5,6 @@ import { lazyWithPrefetch } from '../utils/lazyWithPrefetch'
 import { MainViewLoading } from './MainViewLoading'
 
 export const coreMainViews = {
-  channels: lazyWithPrefetch(() => import('../components/channels/ChannelsView')
-    .then((module) => module.ChannelsView)),
   agents: lazyWithPrefetch(() => import('../components/agents/AgentBuilderView')
     .then((module) => module.AgentBuilderView)),
   automations: lazyWithPrefetch(() => import('../components/automations/AutomationsView')

@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { parseConfigInput } from '../components/plugins/settings/pluginConfigModel'
 import { PluginConfigSettings } from '../components/plugins/settings/PluginConfigSettings'
+import { PluginSettingsSection } from '../components/plugins/settings/PluginSettingsSection'
 import { usePluginConfig, type PluginConfigState } from '../components/plugins/settings/usePluginConfig'
 import { useConnectionStore } from '../stores/connectionStore'
 import { installDesktopApiMock } from './desktopApiMock'
@@ -42,7 +43,9 @@ function notDeclared(): Error {
 beforeEach(() => {
   useConnectionStore.setState((state) => ({
     capabilities: { ...state.capabilities, pluginConfiguration: true } as typeof state.capabilities,
-    connectionEpoch: state.connectionEpoch + 1
+    connectionEpoch: state.connectionEpoch + 1,
+    connectionId: null,
+    connectionKey: null
   }))
 })
 
@@ -146,6 +149,29 @@ describe('plugin configuration settings', () => {
     fireEvent.blur(first, { relatedTarget: document.body })
 
     expect(state.set).not.toHaveBeenCalled()
+  })
+
+  it('keeps channel credentials out of hybrid plugin settings while querying its MCP settings', async () => {
+    const sendRequestRaw = vi.fn(async () => snapshot)
+    const sendConnectionRequest = vi.fn(async () => ({ data: [] }))
+    installDesktopApiMock({ appServer: { sendRequestRaw, sendConnectionRequest } })
+    useConnectionStore.setState({ status: 'connected', connectionKey: 'local', connectionId: 'fixture-connection' })
+
+    render(<LocaleProvider loadSettings={false}><PluginSettingsSection plugin={{
+      id: 'fixture', key: 'fixture', displayName: 'Fixture', source: 'userglobal', rootPath: '/fixtures',
+      installed: true, enabled: true, installable: false, removable: true,
+      skills: [], functions: [], mcpServers: [], lspServers: [],
+      channel: {
+        moduleId: 'fixture-standard', channelName: 'fixture', displayName: 'Fixture',
+        packageName: '@example/channel', variant: 'standard', requiresInteractiveSetup: false,
+        supportedTransports: ['websocket']
+      }
+    }} /></LocaleProvider>)
+
+    await waitFor(() => expect(sendConnectionRequest).toHaveBeenCalledWith(
+      'local', 'mcpServerStatus/list', { detail: 'toolsAndAuthOnly' }, undefined, { connectionId: 'fixture-connection' }
+    ))
+    expect(sendRequestRaw).not.toHaveBeenCalled()
   })
 
   it('validates typed numbers and JSON before saving', () => {

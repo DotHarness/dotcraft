@@ -9,8 +9,7 @@ import { createReplWorkerFixture } from './helpers/replWorkerFixture'
 
 vi.mock('electron', () => ({ app: { getAppPath: () => process.cwd() }, BrowserWindow: vi.fn() }))
 vi.mock('../ipcBridge', () => ({
-  getChannelModuleManager: vi.fn(), registerIpcHandlers: vi.fn(),
-  restoreModuleTrackingByChannelName: vi.fn(), unregisterIpcHandlers: vi.fn()
+  registerIpcHandlers: vi.fn(), unregisterIpcHandlers: vi.fn()
 }))
 vi.mock('../desktopPet', () => ({ restoreDesktopPet: vi.fn() }))
 

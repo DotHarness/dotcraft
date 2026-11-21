@@ -191,7 +191,7 @@ dotcraft app-server --listen ws://127.0.0.1:9100 --token my-secret
 
 ### config.json (alternative)
 
-Suitable for fixed deployments. `ExternalChannels` tells DotCraft how to launch an external adapter; structured delivery capabilities and `channelTools` are not in config — adapters declare them dynamically during `initialize`.
+For fixed deployments, use the workspace configuration file. The `Channels` section selects installed plugins. Adapters declare delivery capabilities and `channelTools` when they initialize.
 
 **AppServer config**
 

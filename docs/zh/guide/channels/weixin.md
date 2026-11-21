@@ -1,54 +1,25 @@
 # 将 DotCraft 接入微信
 
-通过腾讯 iLink 把微信接成 DotCraft 的一个[渠道](./)。首次登录需要扫码，普通回复以纯文本发送。
+在微信中扫码，把微信机器人接入 DotCraft。
 
-## 快速设置
+## 连接机器人
 
-1. 确认微信账号具备腾讯 iLink 机器人接入能力。
-2. 在 DotCraft Desktop 打开目标 workspace。
-3. 打开 **Channels**，选择 **微信**，然后选择 **Connect**。
+1. 在手机微信中打开**我 → 设置 → 插件**，启用 **微信 ClawBot**。
+2. 在 DotCraft Desktop 的目标工作区打开**插件 → 渠道**，安装**微信**。
 
-   ![在微信渠道详情页开始连接](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/weixin-detail.png)
+   ![在 DotCraft Desktop 中查看微信渠道设置](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/weixin-configuration.png)
 
-4. 除非腾讯提供了不同端点，否则保持默认 iLink API 地址。
+3. 点**连接**，用微信扫描二维码。
+4. 在微信 ClawBot 聊天里发一条消息。DotCraft 会在该聊天里回复。
 
-   ![在 DotCraft Desktop 中检查微信渠道设置](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/weixin-configuration.png)
+重新连接时会复用登录状态。收到重新登录提示时，扫描新的二维码。
 
-5. 保存渠道并启用。
-6. 扫描 Desktop 中显示的二维码。
-7. 等到 Desktop 中的微信渠道显示为 connected。
-8. 给微信机器人账号发送一条消息。
+## 使用机器人
 
-## 平台设置细节
-
-微信渠道以认证为主：
-
-1. 使用已被腾讯 iLink 授权接入机器人的微信账号。
-2. 首次二维码登录完成前，保持 Desktop 打开。
-3. 正常重启 Desktop 会复用已保存会话。
-4. 当 Desktop 要求重新认证时，扫描新的二维码。
-
-Desktop 托管的微信渠道不需要公网回调 URL。
-
-## 测试连接
-
-1. 给微信机器人账号发送 `hello`。
-2. 确认 DotCraft 在同一聊天中回复。
-3. 发送 `/new`，再发送一条消息，确认它开启新的对话。
-4. 让 DotCraft 执行一个需要审批的操作，并用审批关键词回复。
-5. 如果工作流依赖 Agent 发送媒体，让它发一个文件或一张图片试试。
-
-## 设置后可用能力
-
-- `/new` 会在当前微信聊天中开启新的 DotCraft 对话，其他[聊天命令](./#聊天中的命令)也都可用。只有你这个机器人所有者能联系到机器人，所以 `/model` 等管理员命令同样可用。命令选项以编号列表显示。
-- 登录会话会保存下来，正常重启时可复用。
-- 会话过期时，Desktop 会显示新的二维码。
-- 微信不渲染 Markdown，回复以纯文本显示。
-- Agent 可以发送文本、图片和文件。它只能发给曾给机器人发过消息的微信用户。
-- 审批回复支持 `同意`、`允许`、`yes`、`approve`、`拒绝`、`no`、`reject` 和 `deny` 等纯聊天关键词。前面带 `/` 也可以，`/yes`、`/no` 同样有效，`/approve`、`/approve session` 和 `/deny` 也都可用。回复 `同意全部` 或 `approve all` 会在本对话内放行同类操作。
-- 审批等待回复期间，你在该聊天里发的其他消息不会转给 DotCraft，机器人会回复一条提醒。超时未回复时，操作会被取消，聊天里也会收到通知。
+- 机器人所有者可用[聊天命令](./#聊天中的命令)，包括 `/model` 等管理员命令。命令选项以编号列表显示。
+- Agent 可发送纯文本、图片和文件，也可发给曾给机器人发过消息的微信用户。
 
 ## 相关文档
 
-- [渠道配置](../../configuration/channels)——微信配置文件的全部字段、默认值与注册形态。
-- [企业微信渠道](./wecom)——企业内部会话走另一条链路，通过回调 URL 接入。
+- [微信渠道配置](../../configuration/channels#微信-weixin) — API 地址和超时设置。
+- [企业微信渠道](./wecom) — 使用回调 URL 接入企业聊天机器人。

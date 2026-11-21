@@ -54,8 +54,6 @@ describe('App conversation delivery', () => {
       onServerRequest,
       onWindowVisibilityChanged,
       settingsGet: vi.fn().mockResolvedValue({}),
-      modulesList: vi.fn().mockResolvedValue([]),
-      modulesRunning: vi.fn().mockResolvedValue({})
     })
     useConnectionStore.getState().setStatus({
       status: 'connected', connectionKey: readyWorkspaceStatus.workspacePath, connectionId: 'connection-fixture'
@@ -131,8 +129,6 @@ describe('App conversation delivery', () => {
       appServerSendRequest,
       onNotification,
       settingsGet: vi.fn().mockResolvedValue({}),
-      modulesList: vi.fn().mockResolvedValue([]),
-      modulesRunning: vi.fn().mockResolvedValue({})
     })
     useConnectionStore.getState().setStatus({
       status: 'connected', connectionKey: readyWorkspaceStatus.workspacePath, connectionId: 'connection-fixture'

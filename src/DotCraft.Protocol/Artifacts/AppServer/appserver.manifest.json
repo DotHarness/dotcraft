@@ -4980,6 +4980,63 @@
       "variants": []
     },
     {
+      "id": "core.ChannelConfigOptionAvailabilityParams",
+      "name": "ChannelConfigOptionAvailabilityParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ChannelConfigOptionAvailabilityParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "key",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ChannelConfigOptionAvailabilityResult",
+      "name": "ChannelConfigOptionAvailabilityResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ChannelConfigOptionAvailabilityResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "available",
+          "type": "array<string>",
+          "required": true,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "key",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.ChannelDeliveryCapabilities",
       "name": "ChannelDeliveryCapabilities",
       "module": "core",
@@ -5126,6 +5183,56 @@
           "name": "channels",
           "type": "array<core.ChannelInfo>",
           "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ChannelLogsParams",
+      "name": "ChannelLogsParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ChannelLogsParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "tail",
+          "type": "integer",
+          "required": false,
+          "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ChannelLogsResult",
+      "name": "ChannelLogsResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ChannelLogsResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "lines",
+          "type": "array<string>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
           "nullable": false,
           "const": null
         }
@@ -5333,6 +5440,113 @@
       "variants": []
     },
     {
+      "id": "core.ChannelSetEnabledParams",
+      "name": "ChannelSetEnabledParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ChannelSetEnabledParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "enabled",
+          "type": "boolean",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "pluginId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "select",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ChannelSetupArtifact",
+      "name": "ChannelSetupArtifact",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ChannelSetupArtifact.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "data",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "mimeType",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "revision",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ChannelSetupReadParams",
+      "name": "ChannelSetupReadParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ChannelSetupReadParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "pluginId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.ChannelSetupReadResult",
+      "name": "ChannelSetupReadResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/ChannelSetupReadResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "artifact",
+          "type": "core.ChannelSetupArtifact",
+          "required": true,
+          "nullable": true,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.ChannelStatusInfo",
       "name": "ChannelStatusInfo",
       "module": "core",
@@ -5366,6 +5580,13 @@
           "type": "string",
           "required": false,
           "nullable": false,
+          "const": null
+        },
+        {
+          "name": "pluginId",
+          "type": "string",
+          "required": false,
+          "nullable": true,
           "const": null
         },
         {
@@ -8227,306 +8448,6 @@
           "type": "string",
           "required": false,
           "nullable": true,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "external-channel.ExternalChannelConfig",
-      "name": "ExternalChannelConfig",
-      "module": "external-channel",
-      "kind": "object",
-      "schema": "schemas/external-channel/ExternalChannelConfig.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "args",
-          "type": "array<string>",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "builtinModule",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "command",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "enabled",
-          "type": "boolean",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "env",
-          "type": "map<string>",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "name",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "transport",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "workingDirectory",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "external-channel.ExternalChannelConfigOptionAvailabilityParams",
-      "name": "ExternalChannelConfigOptionAvailabilityParams",
-      "module": "external-channel",
-      "kind": "object",
-      "schema": "schemas/external-channel/ExternalChannelConfigOptionAvailabilityParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "key",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "name",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "external-channel.ExternalChannelConfigOptionAvailabilityResult",
-      "name": "ExternalChannelConfigOptionAvailabilityResult",
-      "module": "external-channel",
-      "kind": "object",
-      "schema": "schemas/external-channel/ExternalChannelConfigOptionAvailabilityResult.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "available",
-          "type": "array<string>",
-          "required": true,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "key",
-          "type": "string",
-          "required": true,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "name",
-          "type": "string",
-          "required": true,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "external-channel.ExternalChannelGetParams",
-      "name": "ExternalChannelGetParams",
-      "module": "external-channel",
-      "kind": "object",
-      "schema": "schemas/external-channel/ExternalChannelGetParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "name",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "external-channel.ExternalChannelGetResult",
-      "name": "ExternalChannelGetResult",
-      "module": "external-channel",
-      "kind": "object",
-      "schema": "schemas/external-channel/ExternalChannelGetResult.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "channel",
-          "type": "external-channel.ExternalChannelConfig",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "external-channel.ExternalChannelListResult",
-      "name": "ExternalChannelListResult",
-      "module": "external-channel",
-      "kind": "object",
-      "schema": "schemas/external-channel/ExternalChannelListResult.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "channels",
-          "type": "array<external-channel.ExternalChannelConfig>",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "external-channel.ExternalChannelLogsParams",
-      "name": "ExternalChannelLogsParams",
-      "module": "external-channel",
-      "kind": "object",
-      "schema": "schemas/external-channel/ExternalChannelLogsParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "name",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "tail",
-          "type": "integer",
-          "required": false,
-          "nullable": true,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "external-channel.ExternalChannelLogsResult",
-      "name": "ExternalChannelLogsResult",
-      "module": "external-channel",
-      "kind": "object",
-      "schema": "schemas/external-channel/ExternalChannelLogsResult.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "lines",
-          "type": "array<string>",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "name",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "external-channel.ExternalChannelRemoveParams",
-      "name": "ExternalChannelRemoveParams",
-      "module": "external-channel",
-      "kind": "object",
-      "schema": "schemas/external-channel/ExternalChannelRemoveParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "name",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "external-channel.ExternalChannelRemoveResult",
-      "name": "ExternalChannelRemoveResult",
-      "module": "external-channel",
-      "kind": "object",
-      "schema": "schemas/external-channel/ExternalChannelRemoveResult.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "removed",
-          "type": "boolean",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "external-channel.ExternalChannelUpsertParams",
-      "name": "ExternalChannelUpsertParams",
-      "module": "external-channel",
-      "kind": "object",
-      "schema": "schemas/external-channel/ExternalChannelUpsertParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "channel",
-          "type": "external-channel.ExternalChannelConfig",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "external-channel.ExternalChannelUpsertResult",
-      "name": "ExternalChannelUpsertResult",
-      "module": "external-channel",
-      "kind": "object",
-      "schema": "schemas/external-channel/ExternalChannelUpsertResult.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "channel",
-          "type": "external-channel.ExternalChannelConfig",
-          "required": false,
-          "nullable": false,
           "const": null
         }
       ],
@@ -13667,6 +13588,161 @@
       "variants": []
     },
     {
+      "id": "core.PluginChannelCapabilitySummary",
+      "name": "PluginChannelCapabilitySummary",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/PluginChannelCapabilitySummary.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "capabilitySetMayVaryByEnvironment",
+          "type": "boolean",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "hasChannelTools",
+          "type": "boolean",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "requiresInteractiveSetup",
+          "type": "boolean",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.PluginChannelInfo",
+      "name": "PluginChannelInfo",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/PluginChannelInfo.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "capabilitySummary",
+          "type": "core.PluginChannelCapabilitySummary",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "channelContractVersion",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "channelName",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "compatibilityError",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "configDescriptors",
+          "type": "array<json>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "configGroups",
+          "type": "array<json>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "displayName",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "interface",
+          "type": "json",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "localizedDisplayName",
+          "type": "map<string>",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "minHostVersion",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "moduleId",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "packageName",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "requiresInteractiveSetup",
+          "type": "boolean",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "supportedChannelProtocolVersions",
+          "type": "array<string>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "supportedTransports",
+          "type": "array<string>",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "variant",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.PluginConfigField",
       "name": "PluginConfigField",
       "module": "core",
@@ -13841,6 +13917,13 @@
       "schema": "schemas/core/PluginConfigSnapshot.schema.json",
       "additionalProperties": true,
       "fields": [
+        {
+          "name": "configuredSecrets",
+          "type": "array<string>",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
         {
           "name": "personal",
           "type": "json",
@@ -14141,6 +14224,13 @@
           "type": "array<core.PluginAppInfo>",
           "required": false,
           "nullable": false,
+          "const": null
+        },
+        {
+          "name": "channel",
+          "type": "core.PluginChannelInfo",
+          "required": false,
+          "nullable": true,
           "const": null
         },
         {
@@ -17264,6 +17354,13 @@
           "const": null
         },
         {
+          "name": "channelManagement",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
           "name": "channelStatus",
           "type": "boolean",
           "required": false,
@@ -17317,13 +17414,6 @@
           "type": "core.ServerCapabilityExtensions",
           "required": false,
           "nullable": true,
-          "const": null
-        },
-        {
-          "name": "externalChannelManagement",
-          "type": "boolean",
-          "required": false,
-          "nullable": false,
           "const": null
         },
         {
@@ -31151,6 +31241,26 @@
       "stability": "stable"
     },
     {
+      "name": "channel/configOptionAvailability",
+      "descriptorMember": "ChannelConfigOptionAvailability",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.ChannelConfigOptionAvailabilityParams",
+      "resultType": "core.ChannelConfigOptionAvailabilityResult",
+      "module": "core",
+      "capability": "channelManagement",
+      "scope": "connection",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
       "name": "channel/list",
       "descriptorMember": "ChannelList",
       "kind": "request",
@@ -31159,6 +31269,69 @@
       "resultType": "core.ChannelListResult",
       "module": "core",
       "capability": null,
+      "scope": "connection",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "channel/logs",
+      "descriptorMember": "ChannelLogs",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.ChannelLogsParams",
+      "resultType": "core.ChannelLogsResult",
+      "module": "core",
+      "capability": "channelManagement",
+      "scope": "connection",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "channel/setEnabled",
+      "descriptorMember": "ChannelSetEnabled",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.ChannelSetEnabledParams",
+      "resultType": "core.RpcEmpty",
+      "module": "core",
+      "capability": "channelManagement",
+      "scope": "connection",
+      "notificationOptOut": false,
+      "errors": [
+        "ChannelNameConflict",
+        "ChannelNotFound",
+        "ChannelValidationFailed",
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "channel/setup/read",
+      "descriptorMember": "ChannelSetupRead",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.ChannelSetupReadParams",
+      "resultType": "core.ChannelSetupReadResult",
+      "module": "core",
+      "capability": "channelManagement",
       "scope": "connection",
       "notificationOptOut": false,
       "errors": [
@@ -31849,126 +32022,6 @@
       ],
       "since": "1",
       "specRef": "specs/protocols/appserver-protocol.md",
-      "stability": "stable"
-    },
-    {
-      "name": "externalChannel/configOptionAvailability",
-      "descriptorMember": "ExternalChannelConfigOptionAvailability",
-      "kind": "request",
-      "direction": "clientToServer",
-      "paramsType": "external-channel.ExternalChannelConfigOptionAvailabilityParams",
-      "resultType": "external-channel.ExternalChannelConfigOptionAvailabilityResult",
-      "module": "external-channel",
-      "capability": "externalChannelManagement",
-      "scope": "connection",
-      "notificationOptOut": false,
-      "errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ],
-      "since": "1",
-      "specRef": "specs/protocols/external-channel-adapter.md",
-      "stability": "stable"
-    },
-    {
-      "name": "externalChannel/get",
-      "descriptorMember": "ExternalChannelGet",
-      "kind": "request",
-      "direction": "clientToServer",
-      "paramsType": "external-channel.ExternalChannelGetParams",
-      "resultType": "external-channel.ExternalChannelGetResult",
-      "module": "external-channel",
-      "capability": "externalChannelManagement",
-      "scope": "connection",
-      "notificationOptOut": false,
-      "errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ],
-      "since": "1",
-      "specRef": "specs/protocols/external-channel-adapter.md",
-      "stability": "stable"
-    },
-    {
-      "name": "externalChannel/list",
-      "descriptorMember": "ExternalChannelList",
-      "kind": "request",
-      "direction": "clientToServer",
-      "paramsType": "core.RpcEmpty",
-      "resultType": "external-channel.ExternalChannelListResult",
-      "module": "external-channel",
-      "capability": "externalChannelManagement",
-      "scope": "connection",
-      "notificationOptOut": false,
-      "errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ],
-      "since": "1",
-      "specRef": "specs/protocols/external-channel-adapter.md",
-      "stability": "stable"
-    },
-    {
-      "name": "externalChannel/logs",
-      "descriptorMember": "ExternalChannelLogs",
-      "kind": "request",
-      "direction": "clientToServer",
-      "paramsType": "external-channel.ExternalChannelLogsParams",
-      "resultType": "external-channel.ExternalChannelLogsResult",
-      "module": "external-channel",
-      "capability": "externalChannelManagement",
-      "scope": "connection",
-      "notificationOptOut": false,
-      "errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ],
-      "since": "1",
-      "specRef": "specs/protocols/external-channel-adapter.md",
-      "stability": "stable"
-    },
-    {
-      "name": "externalChannel/remove",
-      "descriptorMember": "ExternalChannelRemove",
-      "kind": "request",
-      "direction": "clientToServer",
-      "paramsType": "external-channel.ExternalChannelRemoveParams",
-      "resultType": "external-channel.ExternalChannelRemoveResult",
-      "module": "external-channel",
-      "capability": "externalChannelManagement",
-      "scope": "connection",
-      "notificationOptOut": false,
-      "errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ],
-      "since": "1",
-      "specRef": "specs/protocols/external-channel-adapter.md",
-      "stability": "stable"
-    },
-    {
-      "name": "externalChannel/upsert",
-      "descriptorMember": "ExternalChannelUpsert",
-      "kind": "request",
-      "direction": "clientToServer",
-      "paramsType": "external-channel.ExternalChannelUpsertParams",
-      "resultType": "external-channel.ExternalChannelUpsertResult",
-      "module": "external-channel",
-      "capability": "externalChannelManagement",
-      "scope": "connection",
-      "notificationOptOut": false,
-      "errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ],
-      "since": "1",
-      "specRef": "specs/protocols/external-channel-adapter.md",
       "stability": "stable"
     },
     {

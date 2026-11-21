@@ -32,7 +32,7 @@ export function useSidebarDestinations(): { pinned: SidebarDestination[]; more: 
   const desktopMainViews = useDesktopPluginRegistry((s) => s.mainViews)
   const pins = useSidebarDestinationsStore((s) => s.pins)
 
-  const core = (view: 'channels' | 'agents' | 'automations' | 'skills', label: string): SidebarDestination => ({
+  const core = (view: 'agents' | 'automations' | 'skills', label: string): SidebarDestination => ({
     id: view,
     label,
     icon: <SidebarNavIcon name={view} />,
@@ -43,7 +43,6 @@ export function useSidebarDestinations(): { pinned: SidebarDestination[]; more: 
   })
 
   const destinations: SidebarDestination[] = [
-    core('channels', t('sidebar.channels')),
     ...desktopMainViews.map((entry) => ({
       id: entry.viewKey,
       label: resolveDesktopPluginLabel(entry.label, locale),

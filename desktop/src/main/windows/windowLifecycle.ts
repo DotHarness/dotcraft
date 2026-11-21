@@ -1,14 +1,8 @@
 import type { BrowserWindow } from 'electron'
-import { getEnabledEmbeddedModuleChannelNames } from '../../shared/channelModulePersistence'
 import { sameWorkspaceProjectKey } from '../../shared/workspaceProjectKey'
 import type { DesktopAppServerClient } from '../DesktopAppServerClient'
 import { restoreDesktopPet } from '../desktopPet'
-import {
-  getChannelModuleManager,
-  registerIpcHandlers,
-  restoreModuleTrackingByChannelName,
-  unregisterIpcHandlers
-} from '../ipcBridge'
+import { registerIpcHandlers, unregisterIpcHandlers } from '../ipcBridge'
 import { nodeReplManager } from '../nodeReplManager'
 import { viewerBrowserManager } from '../viewerBrowser'
 import type { DesktopWindowRuntime } from './windowRuntime'
@@ -21,28 +15,6 @@ export function registerDesktopIpcHandlers(
   const win = ctx.mainWindow
   if (!win || win.isDestroyed()) return
   registerIpcHandlers(getWireClient, workspacePath, ctx.buildCallbacks(), win)
-}
-
-export async function restoreEnabledModuleTracking(ctx: DesktopWindowRuntime): Promise<void> {
-  const client = ctx.wireClient
-  const win = ctx.mainWindow
-  if (!client || !win) return
-  try {
-    const response = await client.sendRequest<{
-      channels?: Array<{
-        name?: string
-        enabled?: boolean
-        transport?: string | null
-        builtinModule?: string | null
-      }>
-    }>('externalChannel/list', {})
-    await restoreModuleTrackingByChannelName(
-      getEnabledEmbeddedModuleChannelNames(response.channels ?? []),
-      win
-    )
-  } catch (error) {
-    console.warn('[desktop] failed to restore channel module tracking', error)
-  }
 }
 
 export async function teardownRuntime(
@@ -60,7 +32,6 @@ export async function teardownRuntime(
     ctx.sshMachinesManager = null
   }
   if (win) await nodeReplManager.disposeOwner(win.webContents.id)
-  if (win) getChannelModuleManager(win)?.dispose()
   ctx.hubEventAbortController?.abort()
   ctx.hubEventAbortController = null
   if (ctx.secondaryRefreshTimer) clearTimeout(ctx.secondaryRefreshTimer)
@@ -77,7 +48,6 @@ export async function teardownRuntime(
   ctx.wireClient = null
   ctx.setActiveRemoteProject(null)
   ctx.previousLocalForegroundWorkspacePath = null
-  ctx.lastAppServerWsUrl = null
   ctx.prewarmedAppServer = null
   if (options?.clearWorkspace) ctx.currentWorkspacePath = ''
   console.info('[desktop] window runtime stopped', { reason, windowId: win?.id })

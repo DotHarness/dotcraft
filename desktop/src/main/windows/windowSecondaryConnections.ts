@@ -188,7 +188,6 @@ export async function promoteWorkspaceConnection(ctx: DesktopWindowRuntime, entr
   ctx.wireClient = entry.client
   const workspacePath = project?.localWorkspacePath ?? entry.workspacePath
   ctx.currentWorkspacePath = workspacePath
-  ctx.lastAppServerWsUrl = entry.wsUrl
   ctx.lastDashboardUrl = entry.initializeResult?.dashboardUrl ?? null
   ctx.setActiveRemoteProject(project ?? null)
   if (!project) ctx.previousLocalForegroundWorkspacePath = null

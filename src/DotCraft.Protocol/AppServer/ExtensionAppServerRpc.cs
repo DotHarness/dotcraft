@@ -89,18 +89,6 @@ public static partial class AppServerRpc
 
     public static readonly RpcRequest<NodeReplRequestApprovalParams, NodeReplRequestApprovalResult> ExtNodeReplRequestApproval = new("ext/nodeRepl/requestApproval", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", module: "node-repl", scope: "connection", capability: "nodeRepl", errors: CommonErrors);
 
-    public static readonly RpcRequest<ExternalChannelConfigOptionAvailabilityParams, ExternalChannelConfigOptionAvailabilityResult> ExternalChannelConfigOptionAvailability = new("externalChannel/configOptionAvailability", RpcDirection.ClientToServer, "1", "specs/protocols/external-channel-adapter.md", module: "external-channel", scope: "connection", capability: "externalChannelManagement", errors: CommonErrors);
-
-    public static readonly RpcRequest<ExternalChannelGetParams, ExternalChannelGetResult> ExternalChannelGet = new("externalChannel/get", RpcDirection.ClientToServer, "1", "specs/protocols/external-channel-adapter.md", module: "external-channel", scope: "connection", capability: "externalChannelManagement", errors: CommonErrors);
-
-    public static readonly RpcRequest<global::DotCraft.Protocol.RpcEmpty, ExternalChannelListResult> ExternalChannelList = new("externalChannel/list", RpcDirection.ClientToServer, "1", "specs/protocols/external-channel-adapter.md", module: "external-channel", scope: "connection", capability: "externalChannelManagement", errors: CommonErrors);
-
-    public static readonly RpcRequest<ExternalChannelLogsParams, ExternalChannelLogsResult> ExternalChannelLogs = new("externalChannel/logs", RpcDirection.ClientToServer, "1", "specs/protocols/external-channel-adapter.md", module: "external-channel", scope: "connection", capability: "externalChannelManagement", errors: CommonErrors);
-
-    public static readonly RpcRequest<ExternalChannelRemoveParams, ExternalChannelRemoveResult> ExternalChannelRemove = new("externalChannel/remove", RpcDirection.ClientToServer, "1", "specs/protocols/external-channel-adapter.md", module: "external-channel", scope: "connection", capability: "externalChannelManagement", errors: CommonErrors);
-
-    public static readonly RpcRequest<ExternalChannelUpsertParams, ExternalChannelUpsertResult> ExternalChannelUpsert = new("externalChannel/upsert", RpcDirection.ClientToServer, "1", "specs/protocols/external-channel-adapter.md", module: "external-channel", scope: "connection", capability: "externalChannelManagement", errors: CommonErrors);
-
     public static readonly RpcNotification<ThreadAppBindingsChangedNotification> ThreadAppBindingsChanged = new("thread/appBindings/changed", RpcDirection.ServerToClient, "1", "specs/protocols/app-binding.md", module: "app-binding", scope: "thread", capability: "appBindingVersion:1");
 
     public static readonly RpcRequest<ThreadAppBindingConfirmCapabilitiesParams, AppBinding> ThreadAppBindingConfirmCapabilities = new("thread/appBindings/confirmCapabilities", RpcDirection.ClientToServer, "1", "specs/protocols/app-binding.md", module: "app-binding", scope: "thread", capability: "appBindingVersion:1", errors: CommonErrors);

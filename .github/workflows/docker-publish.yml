@@ -93,6 +93,15 @@ jobs:
           docker logs relay-smoke 2>&1 || true
           docker rm -f relay-no-token relay-smoke 2>/dev/null || true
 
+      - name: Require pinned channel seed artifacts
+        if: matrix.target == 'runtime'
+        env:
+          CHANNEL_SEEDS_RELEASE: ${{ vars.CHANNEL_SEEDS_RELEASE }}
+          CHANNEL_SEEDS_SHA256: ${{ vars.CHANNEL_SEEDS_SHA256 }}
+        run: |
+          : "${CHANNEL_SEEDS_RELEASE:?Set CHANNEL_SEEDS_RELEASE from the dotcraft-channels release.}"
+          : "${CHANNEL_SEEDS_SHA256:?Set CHANNEL_SEEDS_SHA256 from that release.}"
+
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
@@ -100,6 +109,9 @@ jobs:
           file: docker/dotcraft/Dockerfile
           platforms: linux/amd64
           target: ${{ matrix.target }}
+          build-args: |
+            CHANNEL_SEEDS_RELEASE=${{ vars.CHANNEL_SEEDS_RELEASE }}
+            CHANNEL_SEEDS_SHA256=${{ vars.CHANNEL_SEEDS_SHA256 }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

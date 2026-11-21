@@ -12,7 +12,6 @@ export interface DotCraftRuntimeTools {
   ripgrepPath?: string
   nodeBin?: string
   nodeRunAsNode?: boolean
-  modulesDir?: string
   builtInPluginRoots?: string
   defaultPluginRegistryUrl?: string
 }
@@ -26,7 +25,6 @@ export function resolveDotCraftRuntimeTools(): DotCraftRuntimeTools {
     ripgrepPath: resolveBundledRipgrepPath(),
     nodeBin: resolveBundledNodePath(),
     nodeRunAsNode: true,
-    modulesDir: resolveBundledModulesDir(),
     builtInPluginRoots: resolveBundledBuiltInPluginRoot(),
     defaultPluginRegistryUrl: DOTCRAFT_DEFAULT_PLUGIN_REGISTRY_URL
   }
@@ -42,13 +40,6 @@ export function buildDotCraftRuntimeEnv(): NodeJS.ProcessEnv {
 
 export function resolveBundledNodePath(): string {
   return process.execPath
-}
-
-export function resolveBundledModulesDir(): string {
-  if (app.isPackaged) {
-    return path.join(process.resourcesPath, 'modules')
-  }
-  return path.resolve(__dirname, '../../../sdk/typescript/packages')
 }
 
 export function resolveBundledBuiltInPluginRoot(): string {

@@ -807,8 +807,8 @@
       "name": "external-channel",
       "tags": ["clientRequest", "serverRequest", "firstPartyExtension", "externalChannel"],
       "messages": [
-        { "jsonrpc": "2.0", "id": 40, "method": "externalChannel/list", "params": {} },
-        { "jsonrpc": "2.0", "id": 40, "result": { "channels": [] } },
+        { "jsonrpc": "2.0", "id": 40, "method": "channel/setEnabled", "params": { "name": "fixture", "pluginId": "channel-fixture", "enabled": true } },
+        { "jsonrpc": "2.0", "id": 40, "result": {} },
         {
           "jsonrpc": "2.0",
           "id": "channel_send_fixture",

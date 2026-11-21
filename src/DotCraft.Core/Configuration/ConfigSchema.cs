@@ -25,7 +25,7 @@ public sealed class ConfigSchemaSection
     public string[]? Path { get; init; }
 
     /// <summary>
-    /// For top-level collection keys (e.g. McpServers, ExternalChannels), the root key name.
+    /// For top-level collection keys (e.g. McpServers), the root key name.
     /// When set, <see cref="Path"/> is ignored.
     /// </summary>
     public string? RootKey { get; init; }

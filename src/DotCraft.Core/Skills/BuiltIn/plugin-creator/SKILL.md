@@ -1,6 +1,6 @@
 ---
 name: plugin-creator
-description: "Create, update, verify, or share a DotCraft plugin that bundles skills, MCP or LSP servers, hooks, workflows, apps, settings, Desktop UI, or .NET extensions, including contributing one to the official registry. Not for a standalone skill or for installing an existing plugin."
+description: "Create, update, verify, or share a DotCraft plugin that bundles skills, MCP or LSP servers, hooks, workflows, apps, messaging channels, settings, Desktop UI, or .NET extensions, including contributing one to the official registry. Not for a standalone skill or for installing an existing plugin."
 ---
 
 # Plugin Creator
@@ -28,6 +28,7 @@ Choose the contributions with the least execution authority that meet the need. 
 | A scripted multi-agent procedure | `"workflows": "./workflows"` | | Follow `$workflow-authoring` |
 | Language intelligence | `"lspServers": "./.lsp.json"` | `assets/template-lsp.json` | |
 | An application connected to threads | `"apps": "./apps.json"` | | See `https://www.dotcraft.net/extend/app-binding` |
+| A messaging platform connected to a workspace | `"channel"` | | Follow `https://www.dotcraft.net/extend/channel-modules` |
 | User options | `"settings": "./settings.schema.json"` | `assets/template-settings.json` | |
 | A view or action in Desktop | `"desktop"` | `assets/template-desktop-*` | Read `references/desktop-authoring.md` |
 | In-process tools or Host contribution points | `"dotnet"` | `assets/template-dotnet-extension.txt` | Read `references/dotnet-authoring.md` |
@@ -46,7 +47,7 @@ Copy `assets/template-plugin.json` to `.craft-plugin/plugin.json`, add the manif
 
 Manifest fields are documented at `https://www.dotcraft.net/extend/plugin-manifest`. Replace every `[TODO: ...]` with real content. The `.builtin` file in this skill's directory holds the running DotCraft version, which is the value for host-pinned fields.
 
-Reference plugin files with plugin-relative paths or `${PLUGIN_ROOT}`, never absolute paths. Use `${PLUGIN_DATA}` for writable state shared by the plugin's hooks, MCP servers, and LSP processes. Plugin stdio MCP declarations expand these variables in `command`, `arguments`, `environmentVariables` values, and `cwd`, not HTTP URLs or headers. Keep secrets out of plugin files: reference environment variables and name them in the setup instructions.
+Reference plugin files with plugin-relative paths or `${PLUGIN_ROOT}`, never absolute paths. Use `${PLUGIN_DATA}` for writable state shared by the plugin's hooks, MCP servers, and LSP processes. Plugin stdio MCP declarations expand these variables in `command`, `arguments`, `environmentVariables` values, and `cwd`, not HTTP URLs or headers. Keep secrets out of plugin files. Mask channel credential fields and name any required environment variables in the setup instructions.
 
 Read `references/presentation.md` before writing the name, descriptions, default prompt, or icons. Every plugin needs them, including a .NET-only plugin.
 
@@ -70,6 +71,7 @@ Passing verification does not show that a plugin works. Make it active and exerc
 | Workflows | The workflow is listed and a bounded run completes |
 | LSP servers | The server starts for a matching file and returns one result |
 | Apps | The app appears and its connection flow starts |
+| Channel | After the user connects it in Desktop > Plugins > Channels, the bot receives a test message and sends a reply |
 | Desktop extension | The build succeeds, and the view opens or the action runs in Desktop |
 | .NET extension | `CSharp.Build` succeeds, and a contributed tool runs on a later turn |
 | Settings | The field appears and its value reaches the plugin |

@@ -224,8 +224,6 @@ function installApi(
     onNotification?: ReturnType<typeof vi.fn>
     onServerRequest?: ReturnType<typeof vi.fn>
     onServerRequestRaw?: ReturnType<typeof vi.fn>
-    modulesList?: ReturnType<typeof vi.fn>
-    modulesRunning?: ReturnType<typeof vi.fn>
     getReleases?: ReturnType<typeof vi.fn>
     getMediaStates?: ReturnType<typeof vi.fn>
     prefetchMedia?: ReturnType<typeof vi.fn>
@@ -268,8 +266,6 @@ function installApi(
   const onNotification = overrides.onNotification ?? vi.fn(() => vi.fn())
   const onServerRequest = overrides.onServerRequest ?? vi.fn(() => vi.fn())
   const onServerRequestRaw = overrides.onServerRequestRaw ?? vi.fn(() => vi.fn())
-  const modulesList = overrides.modulesList ?? vi.fn(() => pending)
-  const modulesRunning = overrides.modulesRunning ?? vi.fn(() => pending)
   const getReleases = overrides.getReleases ?? vi.fn().mockResolvedValue(WHATS_NEW_TEST_RELEASES)
   const getMediaStates = overrides.getMediaStates ?? vi.fn().mockResolvedValue([])
   const prefetchMedia = overrides.prefetchMedia ?? vi.fn().mockResolvedValue([])
@@ -377,11 +373,6 @@ function installApi(
             sendApprovalResponse: vi.fn().mockResolvedValue(undefined)
           }
         }
-      },
-      modules: {
-        list: modulesList,
-        running: modulesRunning,
-        onStatusChanged: vi.fn(() => vi.fn())
       },
       file: {
         readFile: vi.fn().mockResolvedValue('')

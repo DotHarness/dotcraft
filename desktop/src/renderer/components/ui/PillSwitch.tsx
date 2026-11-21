@@ -19,7 +19,6 @@ const SIZE_MAP: Record<PillSwitchSize, { track: [number, number]; thumb: number;
 
 /**
  * A compact pill-style toggle. Visual-only: renders a single button without wrapping label.
- * For a labelled variant with description, use `ToggleSwitch` in the channels panel.
  */
 export function PillSwitch({
   checked,

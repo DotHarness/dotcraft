@@ -1,54 +1,25 @@
 # Connect DotCraft to Weixin
 
-Connect Weixin to DotCraft as a [channel](./) through Tencent iLink. The first login uses a QR code, and normal replies are sent as plain text.
+Connect Weixin to DotCraft by scanning a QR code in WeChat.
 
-## Quick setup
+## Connect the bot
 
-1. Confirm the Weixin account has Tencent iLink bot access.
-2. Open the target workspace in DotCraft Desktop.
-3. Open **Channels**, select **WeChat**, then select **Connect**.
+1. In WeChat on your phone, turn on **WeChat ClawBot** under **Me → Settings → Plugins**.
+2. In the target DotCraft Desktop workspace, go to **Plugins → Channels** and install **WeChat**.
 
-   ![Connect the WeChat channel from its details page](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/weixin-detail.png)
+   ![Review the WeChat channel settings in DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/weixin-configuration.png)
 
-4. Keep the default iLink API address unless Tencent gave you a different endpoint.
+3. Select **Connect** and scan the QR code with WeChat.
+4. Send a message in the WeChat ClawBot chat. DotCraft replies there.
 
-   ![Review the Weixin channel settings in DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/weixin-configuration.png)
+DotCraft reuses your sign-in on reconnect. Scan a new QR code when asked to sign in again.
 
-5. Save the channel and turn it on.
-6. Scan the QR code shown in Desktop.
-7. Wait until Desktop shows the Weixin channel as connected.
-8. Send a message to the Weixin bot account.
+## Using the bot
 
-## Platform setup details
-
-Weixin setup is authentication-first:
-
-1. Use the Weixin account that Tencent iLink authorizes for bot access.
-2. Keep Desktop open while the first QR login completes.
-3. Restarting Desktop normally reuses the saved session.
-4. Scan a new QR code when Desktop asks you to re-authenticate.
-
-No public callback URL is required for the Desktop-managed Weixin channel.
-
-## Test the connection
-
-1. Send `hello` to the Weixin bot account.
-2. Confirm DotCraft replies in the same chat.
-3. Send `/new`, then send another message and confirm it starts a fresh chat.
-4. Ask DotCraft to do something that needs approval and reply with an approval keyword.
-5. Ask for a file or image if your workflow depends on the agent sending media.
-
-## What works after setup
-
-- `/new` starts a fresh DotCraft chat in the current Weixin chat, and the other [chat commands](./#commands-in-a-chat) work as well. Only you, the bot's owner, can reach the bot, so admin commands such as `/model` work too. Command choices appear as a numbered list.
-- The login session is saved for normal restarts.
-- If the session expires, Desktop shows a new QR code.
-- Replies are plain text because Weixin does not render Markdown.
-- The agent sends text, images, and files. It can reach only Weixin users who have messaged the bot.
-- Approval replies accept plain chat keywords such as `同意`, `允许`, `yes`, `approve`, `拒绝`, `no`, `reject`, and `deny`. A leading `/` also works, so `/yes` and `/no` are accepted, as do `/approve`, `/approve session`, and `/deny`. Replying `同意全部` or `approve all` allows the same kind of action for the rest of the DotCraft chat.
-- While an approval waits for you, the bot answers your other messages in that chat with a reminder instead of passing them on. If you don't answer in time, the action is cancelled and the chat tells you.
+- The bot owner can run [chat commands](./#commands-in-a-chat), including admin commands such as `/model`. Command choices appear as a numbered list.
+- The agent sends plain text, images, and files. It can reach Weixin users who have messaged the bot.
 
 ## Related docs
 
-- [Channel configuration](../../configuration/channels) — every field, default, and registration shape for the Weixin config file.
-- [WeCom channel](./wecom) — enterprise chats take a different route, through a callback URL.
+- [Weixin channel configuration](../../configuration/channels#weixin) — API address and timeouts.
+- [WeCom channel](./wecom) — connect a bot for enterprise chats through a callback URL.

@@ -9,9 +9,6 @@ namespace DotCraft.AppServer;
 public sealed class ModuleRegistryChannelListContributor(
     ModuleRegistry moduleRegistry, AppConfig? config = null) : IAppServerChannelListContributor
 {
-    private readonly Lazy<IReadOnlyList<ChannelDescriptor>> _bundledTypeScriptChannels =
-        new(BundledTypeScriptModuleScanner.ScanFromEnvironment);
-
     /// <inheritdoc />
     public void AppendBaseChannels(List<ChannelDescriptor> channels, HashSet<string> seen)
     {
@@ -27,9 +24,6 @@ public sealed class ModuleRegistryChannelListContributor(
             foreach (var e in module.GetSessionChannelListEntries())
                 Add(e.Name, e.Category);
         }
-
-        foreach (var channel in _bundledTypeScriptChannels.Value)
-            Add(channel.Name, channel.Category);
 
     }
 }

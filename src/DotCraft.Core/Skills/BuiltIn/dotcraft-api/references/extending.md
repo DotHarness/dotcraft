@@ -4,8 +4,8 @@ Choose an extension surface by where the code runs and who owns its lifecycle.
 
 | Surface | Contract source | Official documentation |
 | --- | --- | --- |
-| Channel adapter | `@dotcraft/channel` declarations | `https://www.dotcraft.net/extend/sdks/channels` |
-| Channel module | `@dotcraft/channel` declarations and module manifest | `https://www.dotcraft.net/extend/channel-modules` |
+| Channel adapter | AppServer channel-adapter protocol | `https://www.dotcraft.net/extend/sdks/channels` |
+| Channel module | Plugin contribution and static module descriptor | `https://www.dotcraft.net/extend/channel-modules` |
 | Desktop extension | Installed `@dotcraft/plugin` declarations | `https://www.dotcraft.net/extend/desktop-extensions` and `https://www.dotcraft.net/extend/desktop-extension-api` |
 | Managed .NET extension | Installed `DotCraft.Core` declarations | `https://www.dotcraft.net/extend/dotnet-extensions` and `https://www.dotcraft.net/extend/dotnet-extension-api` |
 | Runtime Dynamic Tools | Installed SDK declarations | `https://www.dotcraft.net/extend/sdks/tools` |
@@ -15,4 +15,4 @@ Choose an extension surface by where the code runs and who owns its lifecycle.
 
 Plugin scaffolding is a separate workflow. When editing an existing extension, use only its published package declarations and the official documentation above.
 
-A Channel module packages a Channel adapter with the metadata and lifecycle entry points a host needs. Runtime Dynamic Tools execute in a connected client process. App Binding connects an external application to a workspace. Desktop and managed plugins execute inside DotCraft. MCP Apps render UI resources returned by an MCP server. Do not substitute one surface's manifest or callback model for another.
+Package an independent AppServer channel adapter with a static descriptor and a Node.js launcher. `@dotcraft/channel` is not published to npm. Runtime Dynamic Tools execute in a connected client process. App Binding connects an external application to a workspace. Desktop and managed plugins execute inside DotCraft. MCP Apps render UI resources returned by an MCP server. Do not substitute one surface's manifest or callback model for another.

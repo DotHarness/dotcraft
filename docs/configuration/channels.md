@@ -1,55 +1,17 @@
 # Channel configuration
 
-This page documents how TypeScript channels are registered in Desktop-managed and standalone deployments, and the fields and defaults of every adapter config file.
+Find the settings for each channel plugin in your workspace.
 
-## Registration modes
+## Connect a channel
 
-### Desktop-managed built-in modules
+In **Plugins → Channels**, install and set up the plugin, then select **Connect**.
 
-Use this shape when DotCraft owns the bundled module process:
+With the official Docker image, set `ENABLED_CHANNELS` in `.env` (for example, `qq,feishu`). Set credentials in
+`.env` and allowlists in the channel's workspace file.
 
-```json
-{
-  "ExternalChannels": {
-    "qq": {
-      "enabled": true,
-      "transport": "managedWebsocket",
-      "builtinModule": "channel-qq"
-    }
-  }
-}
-```
+## Official channel plugins
 
-Desktop writes this registration for bundled modules and injects the AppServer endpoint into the adapter config at runtime.
-
-### Standalone adapters
-
-Use this shape when you run the adapter process yourself:
-
-```json
-{
-  "AppServer": {
-    "Mode": "WebSocket",
-    "WebSocket": {
-      "Host": "127.0.0.1",
-      "Port": 9100,
-      "Token": ""
-    }
-  },
-  "ExternalChannels": {
-    "qq": {
-      "enabled": true,
-      "transport": "websocket"
-    }
-  }
-}
-```
-
-Standalone adapters read `dotcraft.wsUrl` and `dotcraft.token` from their adapter config file.
-
-## Built-in module names
-
-| Channel | Built-in module | Adapter config |
+| Channel | Plugin ID | Adapter config |
 |---|---|---|
 | **[QQ](../guide/channels/qq)** | `channel-qq` | `.craft/qq.json` |
 | **[WeCom](../guide/channels/wecom)** | `channel-wecom` | `.craft/wecom.json` |
@@ -59,18 +21,13 @@ Standalone adapters read `dotcraft.wsUrl` and `dotcraft.token` from their adapte
 
 ## Adapter config files
 
-Every TypeScript channel config has a `dotcraft` section and a platform section. Desktop hides `dotcraft.*` fields in the UI and supplies them automatically for managed modules.
-
-The QQ, WeCom, Feishu, and Telegram sections have an `adminUsers` list. Only senders on it can run admin commands such as `/model`, `/automate`, `/init`, and `/debug`; everyone else the channel lets through chats as an ordinary user. With an empty list, admin commands are unavailable in the chat. A Weixin bot is reachable only by its owner, so Weixin has no admin list and every Weixin sender can run admin commands. On QQ and WeCom, the allowlists decide who reaches the bot at all, and messages from anyone outside them are ignored.
+Set `adminUsers` to grant access to commands such as `/model` and `/automate`. QQ and WeCom
+also use allowlists to admit regular users. The Weixin bot owner can run admin commands.
 
 ### QQ
 
 ```json
 {
-  "dotcraft": {
-    "wsUrl": "ws://127.0.0.1:9100/ws",
-    "token": ""
-  },
   "qq": {
     "host": "127.0.0.1",
     "port": 6700,
@@ -87,8 +44,6 @@ The QQ, WeCom, Feishu, and Telegram sections have an `adminUsers` list. Only sen
 
 | Field | Description | Default |
 |---|---|---|
-| `dotcraft.wsUrl` | AppServer WebSocket endpoint for standalone adapters. Desktop-managed runtime overrides this value. | `ws://127.0.0.1:9100/ws` |
-| `dotcraft.token` | AppServer WebSocket token for standalone adapters. Desktop-managed runtime overrides this value. | Empty |
 | `qq.host` | OneBot reverse WebSocket listen host. | `127.0.0.1` |
 | `qq.port` | OneBot reverse WebSocket listen port. | `6700` |
 | `qq.accessToken` | Optional OneBot access token. Must match NapCat when set. | Empty |
@@ -103,10 +58,6 @@ The QQ, WeCom, Feishu, and Telegram sections have an `adminUsers` list. Only sen
 
 ```json
 {
-  "dotcraft": {
-    "wsUrl": "ws://127.0.0.1:9100/ws",
-    "token": ""
-  },
   "wecom": {
     "host": "0.0.0.0",
     "port": 9000,
@@ -128,11 +79,9 @@ The QQ, WeCom, Feishu, and Telegram sections have an `adminUsers` list. Only sen
 
 | Field | Description | Default |
 |---|---|---|
-| `dotcraft.wsUrl` | AppServer WebSocket endpoint for standalone adapters. Desktop-managed runtime overrides this value. | `ws://127.0.0.1:9100/ws` |
-| `dotcraft.token` | AppServer WebSocket token for standalone adapters. Desktop-managed runtime overrides this value. | Empty |
 | `wecom.host` | Callback server listen host. | `0.0.0.0` |
 | `wecom.port` | Callback server listen port. | `9000` |
-| `wecom.scheme` | Callback server scheme. Use `https` only when TLS cert and key paths are configured. | `http` |
+| `wecom.scheme` | Callback server scheme. For `https`, set the TLS certificate and key paths. | `http` |
 | `wecom.tls.certPath` | TLS certificate path for direct HTTPS callback serving. | Empty |
 | `wecom.tls.keyPath` | TLS private key path for direct HTTPS callback serving. | Empty |
 | `wecom.robots` | Robot callback credentials: `path`, `token`, and `aesKey`. | `[]` |
@@ -146,10 +95,6 @@ The QQ, WeCom, Feishu, and Telegram sections have an `adminUsers` list. Only sen
 
 ```json
 {
-  "dotcraft": {
-    "wsUrl": "ws://127.0.0.1:9100/ws",
-    "token": ""
-  },
   "feishu": {
     "appId": "cli_your_app_id",
     "appSecret": "your_app_secret",
@@ -168,8 +113,6 @@ The QQ, WeCom, Feishu, and Telegram sections have an `adminUsers` list. Only sen
 
 | Field | Description | Default |
 |---|---|---|
-| `dotcraft.wsUrl` | AppServer WebSocket endpoint for standalone adapters. Desktop-managed runtime overrides this value. | `ws://127.0.0.1:9100/ws` |
-| `dotcraft.token` | AppServer WebSocket token for standalone adapters. Desktop-managed runtime overrides this value. | Empty |
 | `feishu.appId` | Feishu / Lark app ID. | Required |
 | `feishu.appSecret` | Feishu / Lark app secret. | Required |
 | `feishu.verificationToken` | Optional verification token for event payloads that require it. | Empty |
@@ -180,25 +123,18 @@ The QQ, WeCom, Feishu, and Telegram sections have an `adminUsers` list. Only sen
 | `feishu.groupMentionRequired` | Require @mention in Feishu groups. | `true` |
 | `feishu.ackReactionEmoji` | Emoji type used to acknowledge handled messages. | `GLANCE` |
 | `feishu.adminUsers` | Feishu user open_ids that can run admin commands. | `[]` |
-| `feishu.cli.enabled` | Expose the bundled official Feishu CLI to chats created by this Channel. | `false` |
+| `feishu.cli.enabled` | Offer the official Feishu CLI in chats from this channel. | `false` |
 | `feishu.cli.userScopes` | Feishu user scopes requested when authorizing an account for read-only personal access. Empty keeps every command on the bot identity. | Empty |
 
-When `feishu.cli.enabled` is `true`, Feishu-origin chats receive the `FeishuCli` tool. Every invocation requests approval. The adapter exchanges its configured app credentials for a cached tenant access token and runs the bundled CLI as the bot. The CLI child receives the App ID and an access token, never the App Secret.
-
-The adapter injects a usage policy into the Feishu chat context. Read a known Skill directly, and call `skills list` only when you do not know which Skill applies. When a Skill links a reference, load it with `skills read <skill-name> <relative-path>` before running the business command. Identity comes from the tool's `identity` input rather than `--as`, which the adapter rejects. `whoami` reports the effective identity and token status.
-
-`feishu.cli.userScopes` lists the Feishu user scopes to request, and stays empty until an operator opts in. Desktop offers the scopes the pinned CLI's read commands declare, grouped by product, and drops saved values outside that list; only scopes already enabled for the app can be granted, and Desktop marks the ones the app still lacks while the Channel is running. DotCraft appends `offline_access` and runs the device authorization itself, so the CLI's own `auth` and `config` commands stay unavailable. One authorized account serves the whole Channel, which is why `identity: "user"` is accepted only for read-only commands. The authorization is stored in the Channel's module state directory in plain text, alongside the App Secret already kept there. [Personal access](../guide/channels/feishu#personal-access) covers the operator's side.
-
-The bundled CLI runs only through `FeishuCli`, never from a shell. CLI file arguments must stay inside the workspace. Document, wiki, file, media, and page tokens are business resource identifiers and are allowed. Raw `api`, CLI `auth`/`config`/`profile` management, `--profile`, caller-supplied `--yes`, runtime installation, and self-update are unavailable. The adapter appends `--yes` only after DotCraft approval and the pinned CLI's risk classification identify a `high-risk-write` operation. `--help` returns plain-text help without requesting a tenant token. Business commands still return structured JSON.
+Enable `feishu.cli.enabled` to use `FeishuCli` in Feishu chats. Each call requires approval.
+The tool uses the bot account by default. For read-only personal access, set
+`feishu.cli.userScopes` and [authorize a Feishu account](../guide/channels/feishu#personal-access).
+Keep CLI file arguments inside the workspace.
 
 ### Telegram
 
 ```json
 {
-  "dotcraft": {
-    "wsUrl": "ws://127.0.0.1:9100/ws",
-    "token": ""
-  },
   "telegram": {
     "botToken": "123456:telegram-bot-token",
     "adminUsers": [123456789],
@@ -211,8 +147,6 @@ The bundled CLI runs only through `FeishuCli`, never from a shell. CLI file argu
 
 | Field | Description | Default |
 |---|---|---|
-| `dotcraft.wsUrl` | AppServer WebSocket endpoint for standalone adapters. Desktop-managed runtime overrides this value. | `ws://127.0.0.1:9100/ws` |
-| `dotcraft.token` | AppServer WebSocket token for standalone adapters. Desktop-managed runtime overrides this value. | Empty |
 | `telegram.botToken` | Bot token issued by BotFather. | Required |
 | `telegram.adminUsers` | Numeric Telegram user IDs that can run admin commands. They also see admin commands in the bot's command menu. | `[]` |
 | `telegram.httpsProxy` | Optional HTTPS proxy for Telegram Bot API requests. | Empty |
@@ -223,10 +157,6 @@ The bundled CLI runs only through `FeishuCli`, never from a shell. CLI file argu
 
 ```json
 {
-  "dotcraft": {
-    "wsUrl": "ws://127.0.0.1:9100/ws",
-    "token": ""
-  },
   "weixin": {
     "apiBaseUrl": "https://ilinkai.weixin.qq.com",
     "pollIntervalMs": 3000,
@@ -239,8 +169,6 @@ The bundled CLI runs only through `FeishuCli`, never from a shell. CLI file argu
 
 | Field | Description | Default |
 |---|---|---|
-| `dotcraft.wsUrl` | AppServer WebSocket endpoint for standalone adapters. Desktop-managed runtime overrides this value. | `ws://127.0.0.1:9100/ws` |
-| `dotcraft.token` | AppServer WebSocket token for standalone adapters. Desktop-managed runtime overrides this value. | Empty |
 | `weixin.apiBaseUrl` | Tencent iLink API base URL. | `https://ilinkai.weixin.qq.com` |
 | `weixin.pollIntervalMs` | Delay between polling cycles in milliseconds. | `3000` |
 | `weixin.pollTimeoutMs` | Long-poll timeout in milliseconds. | `30000` |
@@ -250,4 +178,3 @@ The bundled CLI runs only through `FeishuCli`, never from a shell. CLI file argu
 ## Related docs
 
 - [Channels overview](../guide/channels/) — what channels do and how to connect one.
-- [Entry points and services](./services) — the AppServer fields standalone adapters connect to.

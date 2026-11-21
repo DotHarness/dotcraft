@@ -196,7 +196,6 @@ export interface HubRuntimeToolsRequest {
   ripgrepPath?: string;
   nodeBin?: string;
   nodeRunAsNode?: boolean;
-  modulesDir?: string;
   builtInPluginRoots?: string;
   defaultPluginRegistryUrl?: string;
 }

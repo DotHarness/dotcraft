@@ -1,52 +1,25 @@
 # Connect DotCraft to Telegram
 
-Connect a Telegram bot to DotCraft as a [channel](./) with a BotFather token. No public URL is needed.
+Connect a Telegram bot to DotCraft with a BotFather token.
 
-## Quick setup
+## Connect the bot
 
-1. Open Telegram and start a chat with `@BotFather`.
-2. Send `/newbot` and follow BotFather's prompts.
-3. Copy the bot token.
-4. Open the target workspace in DotCraft Desktop.
-5. Open **Channels**, select **Telegram**, then select **Connect**.
-
-   ![Connect the Telegram channel from its details page](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/telegram-detail.png)
-
-6. Paste the bot token. Add your numeric Telegram user ID to **Admin Users** if you want to run admin commands such as `/model`, then review the optional proxy and timeout settings.
+1. Send `/newbot` to `@BotFather` in Telegram, follow its prompts, and copy the bot token.
+2. In the target DotCraft Desktop workspace, go to **Plugins → Channels**, install **Telegram**, and select **Set up**.
+3. Paste the token. Add numeric Telegram user IDs to **Admin Users** for commands such as `/model`. Assign the bot token to one DotCraft instance at a time.
 
    ![Configure the Telegram bot in DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/telegram-configuration.png)
 
-7. Save the channel and turn it on.
-8. Send a message to the Telegram bot.
+4. Save the settings, select **Connect**, and send the bot a direct message.
 
-Desktop should show the Telegram channel as connected once it reaches Telegram.
+To use the bot in a group, add it to the group and @mention it or reply to it. To receive every group message, turn off privacy mode in BotFather.
 
-## Platform setup details
+## Using the bot
 
-Telegram setup lives mostly in BotFather:
-
-1. Use `/setdescription`, `/setabouttext`, and `/setuserpic` if you want the bot profile to look finished.
-2. Add the bot to a group if DotCraft should answer there.
-3. Review BotFather privacy mode for group chats.
-
-With Telegram privacy mode enabled, the bot may only receive commands, replies, and messages that mention it. If you need DotCraft to see every group message, change the bot privacy setting in BotFather.
-
-## Test the connection
-
-1. Send `hello` in a direct chat with the bot.
-2. Confirm DotCraft replies.
-3. Send `/help` to confirm commands are registered.
-4. Send `/new`, then send another message and confirm it starts a fresh chat.
-5. In a group, mention or reply to the bot if privacy mode is enabled.
-
-## What works after setup
-
-- DotCraft answers direct messages and group messages that Telegram delivers to the bot. In a group, each member has their own chat with the agent.
+- Each group member has their own DotCraft chat with the bot.
 - The agent sends formatted text, images, files, audio, and video. The bot shows that it is typing while the agent works.
-- The Telegram command menu lists the [chat commands](./#commands-in-a-chat) each sender can use, including the workspace's own commands. Admin commands appear only for the users in **Admin Users**.
-- Approvals, user-input prompts, and command choices such as the models `/model` lists use Telegram inline buttons.
-- Only one DotCraft instance can use the same bot token at a time.
+- The bot menu lists each sender's available [chat commands](./#commands-in-a-chat), including workspace commands. Approvals, follow-up questions, and command choices use inline buttons.
 
 ## Related docs
 
-- [Channel configuration](../../configuration/channels) — every field, default, and registration shape for the Telegram config file.
+- [Telegram channel configuration](../../configuration/channels#telegram) — bot token, proxy, and timeouts.

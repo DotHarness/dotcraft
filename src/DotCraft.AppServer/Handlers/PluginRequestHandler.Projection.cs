@@ -93,6 +93,7 @@ internal sealed partial class PluginRequestHandler
             }).ToArray() ?? [],
             Skills = MapPluginSkillsToWire(plugin, skillIndex),
             Apps = apps,
+            Channel = MapPluginChannelToWire(manifest.Channel),
             Desktop = manifest.Desktop is { } desktop
                 ? Protocol.Optional<Contract.PluginDesktopInfo?>.FromValue(new Contract.PluginDesktopInfo
                 {
@@ -124,6 +125,33 @@ internal sealed partial class PluginRequestHandler
             Diagnostics = pluginDiagnostics
         };
     }
+
+    private static Contract.PluginChannelInfo? MapPluginChannelToWire(PluginChannelManifest? channel) => channel == null
+        ? null
+        : new Contract.PluginChannelInfo
+        {
+            ModuleId = channel.ModuleId,
+            ChannelName = channel.ChannelName,
+            DisplayName = channel.DisplayName,
+            LocalizedDisplayName = channel.LocalizedDisplayName,
+            Interface = channel.Interface,
+            PackageName = channel.PackageName,
+            Variant = channel.Variant,
+            RequiresInteractiveSetup = channel.RequiresInteractiveSetup,
+            CapabilitySummary = new Contract.PluginChannelCapabilitySummary
+            {
+                HasChannelTools = channel.HasChannelTools,
+                RequiresInteractiveSetup = channel.RequiresInteractiveSetup,
+                CapabilitySetMayVaryByEnvironment = channel.CapabilitySetMayVaryByEnvironment,
+            },
+            SupportedTransports = channel.SupportedTransports,
+            ChannelContractVersion = channel.ChannelContractVersion,
+            SupportedChannelProtocolVersions = channel.SupportedChannelProtocolVersions,
+            MinHostVersion = channel.MinHostVersion,
+            CompatibilityError = channel.GetCompatibilityError(),
+            ConfigDescriptors = channel.ConfigDescriptors.Select(descriptor => descriptor.Metadata).ToArray(),
+            ConfigGroups = channel.ConfigGroups,
+        };
 
     private Contract.PluginOperationResult BuildOperationResult(
         PluginDiscoveryResult discovery,

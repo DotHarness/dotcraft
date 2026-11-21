@@ -1,6 +1,6 @@
 using System.Text.Json.Nodes;
 using DotCraft.Channels;
-using DotCraft.ExternalChannel.Messaging;
+using DotCraft.Channels.Messaging;
 using DotCraft.Tools;
 using Xunit;
 

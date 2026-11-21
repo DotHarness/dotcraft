@@ -1,55 +1,17 @@
 # 渠道配置
 
-本页记录 TypeScript 渠道在 Desktop 托管和独立部署两种模式下的注册方式，以及各适配器配置文件的字段与默认值。
+查看各渠道插件在工作区中的设置。
 
-## 注册模式
+## 连接渠道
 
-### Desktop 托管的内置模块
+在**插件 → 渠道**安装并设置插件，然后点**连接**。
 
-当 DotCraft 负责托管内置模块进程时，使用下面的形态：
+使用官方 Docker 镜像时，在 `.env` 中设置 `ENABLED_CHANNELS`，例如 `qq,feishu`。
+平台凭据填在 `.env`，白名单填在对应的工作区文件。
 
-```json
-{
-  "ExternalChannels": {
-    "qq": {
-      "enabled": true,
-      "transport": "managedWebsocket",
-      "builtinModule": "channel-qq"
-    }
-  }
-}
-```
+## 官方渠道插件
 
-Desktop 会为内置模块写入该注册信息，并在运行时把 AppServer 端点注入适配器配置。
-
-### 独立适配器
-
-当你自己运行适配器进程时，使用下面的形态：
-
-```json
-{
-  "AppServer": {
-    "Mode": "WebSocket",
-    "WebSocket": {
-      "Host": "127.0.0.1",
-      "Port": 9100,
-      "Token": ""
-    }
-  },
-  "ExternalChannels": {
-    "qq": {
-      "enabled": true,
-      "transport": "websocket"
-    }
-  }
-}
-```
-
-独立适配器会从自身适配器配置文件读取 `dotcraft.wsUrl` 和 `dotcraft.token`。
-
-## 内置模块名称
-
-| 渠道 | 内置模块 | 适配器配置 |
+| 渠道 | 插件 ID | 适配器配置 |
 |---|---|---|
 | **[QQ](../guide/channels/qq)** | `channel-qq` | `.craft/qq.json` |
 | **[企业微信 / WeCom](../guide/channels/wecom)** | `channel-wecom` | `.craft/wecom.json` |
@@ -59,18 +21,12 @@ Desktop 会为内置模块写入该注册信息，并在运行时把 AppServer �
 
 ## 适配器配置文件
 
-每个 TypeScript 渠道配置都有一个 `dotcraft` 段和一个平台段。Desktop UI 会隐藏 `dotcraft.*` 字段，并在托管模块运行时自动提供这些值。
-
-QQ、企业微信、飞书和 Telegram 段都有一个 `adminUsers` 列表。只有列表里的人能执行 `/model`、`/automate`、`/init` 和 `/debug` 等管理员命令，渠道放行的其他人都以普通用户身份聊天。列表为空时，聊天里无法使用管理员命令。微信机器人只有其所有者能联系到，因此微信没有管理员列表，每个微信发送者都能执行管理员命令。在 QQ 和企业微信上，白名单决定谁能接触到机器人，白名单之外的消息会被忽略。
+通过 `adminUsers` 授予 `/model`、`/automate` 等管理员命令权限。QQ 和企业微信通过白名单放行普通用户。微信机器人的所有者可执行管理员命令。
 
 ### QQ
 
 ```json
 {
-  "dotcraft": {
-    "wsUrl": "ws://127.0.0.1:9100/ws",
-    "token": ""
-  },
   "qq": {
     "host": "127.0.0.1",
     "port": 6700,
@@ -87,8 +43,6 @@ QQ、企业微信、飞书和 Telegram 段都有一个 `adminUsers` 列表。只
 
 | 字段 | 说明 | 默认值 |
 |---|---|---|
-| `dotcraft.wsUrl` | 独立适配器使用的 AppServer WebSocket 端点。Desktop 托管运行时会覆盖该值。 | `ws://127.0.0.1:9100/ws` |
-| `dotcraft.token` | 独立适配器使用的 AppServer WebSocket token。Desktop 托管运行时会覆盖该值。 | 空 |
 | `qq.host` | OneBot 反向 WebSocket 监听 host。 | `127.0.0.1` |
 | `qq.port` | OneBot 反向 WebSocket 监听端口。 | `6700` |
 | `qq.accessToken` | 可选 OneBot access token。设置后必须与 NapCat 一致。 | 空 |
@@ -103,10 +57,6 @@ QQ、企业微信、飞书和 Telegram 段都有一个 `adminUsers` 列表。只
 
 ```json
 {
-  "dotcraft": {
-    "wsUrl": "ws://127.0.0.1:9100/ws",
-    "token": ""
-  },
   "wecom": {
     "host": "0.0.0.0",
     "port": 9000,
@@ -128,8 +78,6 @@ QQ、企业微信、飞书和 Telegram 段都有一个 `adminUsers` 列表。只
 
 | 字段 | 说明 | 默认值 |
 |---|---|---|
-| `dotcraft.wsUrl` | 独立适配器使用的 AppServer WebSocket 端点。Desktop 托管运行时会覆盖该值。 | `ws://127.0.0.1:9100/ws` |
-| `dotcraft.token` | 独立适配器使用的 AppServer WebSocket token。Desktop 托管运行时会覆盖该值。 | 空 |
 | `wecom.host` | 回调服务监听 host。 | `0.0.0.0` |
 | `wecom.port` | 回调服务监听端口。 | `9000` |
 | `wecom.scheme` | 回调服务协议。只有配置 TLS 证书和 key 路径时才直接使用 `https`。 | `http` |
@@ -146,10 +94,6 @@ QQ、企业微信、飞书和 Telegram 段都有一个 `adminUsers` 列表。只
 
 ```json
 {
-  "dotcraft": {
-    "wsUrl": "ws://127.0.0.1:9100/ws",
-    "token": ""
-  },
   "feishu": {
     "appId": "cli_your_app_id",
     "appSecret": "your_app_secret",
@@ -168,8 +112,6 @@ QQ、企业微信、飞书和 Telegram 段都有一个 `adminUsers` 列表。只
 
 | 字段 | 说明 | 默认值 |
 |---|---|---|
-| `dotcraft.wsUrl` | 独立适配器使用的 AppServer WebSocket 端点。Desktop 托管运行时会覆盖该值。 | `ws://127.0.0.1:9100/ws` |
-| `dotcraft.token` | 独立适配器使用的 AppServer WebSocket token。Desktop 托管运行时会覆盖该值。 | 空 |
 | `feishu.appId` | 飞书 / Lark 应用 ID。 | 必填 |
 | `feishu.appSecret` | 飞书 / Lark 应用 Secret。 | 必填 |
 | `feishu.verificationToken` | 需要校验事件 payload 时使用的可选 verification token。 | 空 |
@@ -180,25 +122,17 @@ QQ、企业微信、飞书和 Telegram 段都有一个 `adminUsers` 列表。只
 | `feishu.groupMentionRequired` | 飞书群聊是否需要 @ 机器人。 | `true` |
 | `feishu.ackReactionEmoji` | 标记已处理消息的 emoji 类型。 | `GLANCE` |
 | `feishu.adminUsers` | 可以执行管理员命令的飞书用户 open_id。 | `[]` |
-| `feishu.cli.enabled` | 是否向此 Channel 创建的 Thread 提供内置官方飞书 CLI。 | `false` |
+| `feishu.cli.enabled` | 是否在此渠道发起的对话中提供官方飞书 CLI。 | `false` |
 | `feishu.cli.userScopes` | 授权账号只读访问个人资源时请求的飞书 scope。留空则所有命令都以机器人身份运行。 | 空 |
 
-启用 `feishu.cli.enabled` 后，飞书来源的 Thread 会获得 `FeishuCli` 工具，每次调用都需要审批。适配器会使用配置的应用凭据换取并缓存 tenant access token，再以机器人身份运行内置 CLI。CLI 子进程只接收 App ID 和一个 access token，不接收 App Secret。
-
-适配器会向飞书 Thread context 注入一份调用策略。已知该用哪个 Skill 时直接读取，不确定时才先调用 `skills list`。Skill 链接了参考文件时，先用 `skills read <skill-name> <relative-path>` 加载，再执行业务命令。身份来自工具的 `identity` 入参而非 `--as`，后者会被适配器拒绝。`whoami` 可以查看当前生效的身份和 token 状态。
-
-`feishu.cli.userScopes` 列出要请求的飞书 user scope，默认为空，需要操作者主动开启。Desktop 按产品分组列出内置 CLI 只读命令声明的 scope，保存时会移除不在列表中的值；只有应用后台已开通的 scope 才能授权成功，渠道运行时 Desktop 会标出应用尚未开通的项。DotCraft 会追加 `offline_access` 并自行完成设备码授权，因此 CLI 自带的 `auth` 和 `config` 命令仍然不可用。一个授权账号服务于整个 Channel，所以 `identity: "user"` 只接受只读命令。授权信息以明文保存在 Channel 的模块状态目录，与已经存放在那里的 App Secret 同级。操作者一侧的流程见[个人资源访问](../guide/channels/feishu#个人资源访问)。
-
-内置 CLI 只能通过 `FeishuCli` 调用，不能从 Shell 启动。CLI 的文件参数必须位于 workspace 内。文档、知识库、文件、媒体和分页 token 属于业务资源标识，可以正常传入。`api` 原始命令、CLI 的 `auth`/`config`/`profile` 管理、`--profile`、调用方传入的 `--yes`、运行时安装和自更新都不可用。只有 DotCraft 审批通过、且固定版本 CLI 的风险分类判定操作为 `high-risk-write` 时，适配器才会追加 `--yes`。`--help` 不获取 tenant token，直接返回纯文本帮助。业务命令仍返回结构化 JSON。
+启用 `feishu.cli.enabled` 后，可在飞书对话中使用 `FeishuCli`，每次调用都需要审批。
+工具默认使用机器人身份。要只读访问个人资源，设置 `feishu.cli.userScopes` 并[授权飞书账号](../guide/channels/feishu#个人资源访问)。
+CLI 的文件参数须指向工作区内的文件。
 
 ### Telegram
 
 ```json
 {
-  "dotcraft": {
-    "wsUrl": "ws://127.0.0.1:9100/ws",
-    "token": ""
-  },
   "telegram": {
     "botToken": "123456:telegram-bot-token",
     "adminUsers": [123456789],
@@ -211,8 +145,6 @@ QQ、企业微信、飞书和 Telegram 段都有一个 `adminUsers` 列表。只
 
 | 字段 | 说明 | 默认值 |
 |---|---|---|
-| `dotcraft.wsUrl` | 独立适配器使用的 AppServer WebSocket 端点。Desktop 托管运行时会覆盖该值。 | `ws://127.0.0.1:9100/ws` |
-| `dotcraft.token` | 独立适配器使用的 AppServer WebSocket token。Desktop 托管运行时会覆盖该值。 | 空 |
 | `telegram.botToken` | BotFather 签发的 bot token。 | 必填 |
 | `telegram.adminUsers` | 可以执行管理员命令的 Telegram 数字用户 ID。这些用户也会在 Bot 命令菜单里看到管理员命令。 | `[]` |
 | `telegram.httpsProxy` | Telegram Bot API 请求使用的可选 HTTPS proxy。 | 空 |
@@ -223,10 +155,6 @@ QQ、企业微信、飞书和 Telegram 段都有一个 `adminUsers` 列表。只
 
 ```json
 {
-  "dotcraft": {
-    "wsUrl": "ws://127.0.0.1:9100/ws",
-    "token": ""
-  },
   "weixin": {
     "apiBaseUrl": "https://ilinkai.weixin.qq.com",
     "pollIntervalMs": 3000,
@@ -239,8 +167,6 @@ QQ、企业微信、飞书和 Telegram 段都有一个 `adminUsers` 列表。只
 
 | 字段 | 说明 | 默认值 |
 |---|---|---|
-| `dotcraft.wsUrl` | 独立适配器使用的 AppServer WebSocket 端点。Desktop 托管运行时会覆盖该值。 | `ws://127.0.0.1:9100/ws` |
-| `dotcraft.token` | 独立适配器使用的 AppServer WebSocket token。Desktop 托管运行时会覆盖该值。 | 空 |
 | `weixin.apiBaseUrl` | 腾讯 iLink API 基础地址。 | `https://ilinkai.weixin.qq.com` |
 | `weixin.pollIntervalMs` | 轮询周期之间的等待时间，单位毫秒。 | `3000` |
 | `weixin.pollTimeoutMs` | long-poll 超时时间，单位毫秒。 | `30000` |
@@ -250,4 +176,3 @@ QQ、企业微信、飞书和 Telegram 段都有一个 `adminUsers` 列表。只
 ## 相关文档
 
 - [渠道概览](../guide/channels/)——渠道能做什么，以及如何接入一个渠道。
-- [入口与服务](./services)——独立适配器连接的 AppServer 字段。

@@ -10,7 +10,7 @@ using DotCraft.Sessions;
 
 namespace DotCraft.AppServer;
 
-public interface IAppServerChannelRunner : IChannelStatusProvider, IExternalChannelRuntimeProvider, IAsyncDisposable
+public interface IAppServerChannelRunner : IChannelStatusProvider, IChannelRuntimeProvider, IAsyncDisposable
 {
     string? DashboardUrl { get; }
 
@@ -22,9 +22,8 @@ public interface IAppServerChannelRunner : IChannelStatusProvider, IExternalChan
 
     void BeginChannelLoops(CancellationToken ct);
 
-    Task ApplyExternalChannelUpsertAsync(ExternalChannelEntry entry, CancellationToken ct = default);
+    Task ApplyChannelSetEnabledAsync(ChannelEntry entry, CancellationToken ct = default);
 
-    Task ApplyExternalChannelRemoveAsync(string channelName, CancellationToken ct = default);
 }
 
 public interface IAppServerChannelRunnerFactory
@@ -44,14 +43,18 @@ internal sealed class DefaultAppServerChannelRunnerFactory : IAppServerChannelRu
         DotCraftPaths paths,
         ModuleRegistry moduleRegistry)
     {
-        var runner = ChannelRunner.TryCreateForAppServer(services, config, paths, moduleRegistry);
-        return runner == null ? null : new ChannelRunnerAdapter(runner);
+        return new ChannelRunnerAdapter(ChannelRunner.CreateForAppServer(services, config, paths, moduleRegistry));
     }
 }
 
 internal sealed class ChannelRunnerAdapter(ChannelRunner inner) : IAppServerChannelRunner
 {
     public string? DashboardUrl => inner.DashBoardUrl;
+
+    public ChannelPluginWorkspace ChannelPlugins => inner.ChannelPlugins;
+
+    public DotCraft.Protocol.AppServer.ChannelSetupArtifact? GetChannelSetupArtifact(string pluginId) =>
+        inner.GetChannelSetupArtifact(pluginId);
 
     public void Initialize(
         ISessionService sessionService,
@@ -62,16 +65,13 @@ internal sealed class ChannelRunnerAdapter(ChannelRunner inner) : IAppServerChan
 
     public void BeginChannelLoops(CancellationToken ct) => inner.BeginChannelLoops(ct);
 
-    public Task ApplyExternalChannelUpsertAsync(ExternalChannelEntry entry, CancellationToken ct = default) =>
-        inner.ApplyExternalChannelUpsertAsync(entry, ct);
-
-    public Task ApplyExternalChannelRemoveAsync(string channelName, CancellationToken ct = default) =>
-        inner.ApplyExternalChannelRemoveAsync(channelName, ct);
+    public Task ApplyChannelSetEnabledAsync(ChannelEntry entry, CancellationToken ct = default) =>
+        inner.ApplyChannelSetEnabledAsync(entry, ct);
 
     public IReadOnlyList<ChannelStatusSnapshot> GetChannelStatuses() => inner.GetChannelStatuses();
 
-    public IReadOnlyList<string> GetRecentExternalChannelLogs(string channelName, int? tail = null) =>
-        inner.GetRecentExternalChannelLogs(channelName, tail);
+    public IReadOnlyList<string> GetRecentChannelLogs(string channelName, int? tail = null) =>
+        inner.GetRecentChannelLogs(channelName, tail);
 
     public Task<IReadOnlyList<string>?> GetConfigOptionAvailabilityAsync(string channelName, string key, CancellationToken ct) =>
         inner.GetConfigOptionAvailabilityAsync(channelName, key, ct);

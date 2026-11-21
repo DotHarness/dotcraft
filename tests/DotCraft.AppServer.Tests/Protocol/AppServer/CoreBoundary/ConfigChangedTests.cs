@@ -73,11 +73,6 @@ public sealed class ConfigChangedTests : IDisposable
                          server = new { name = "demo", enabled = false, transport = "streamableHttp", url = "https://example.com/mcp" }
                      }, ConfigChangeRegions.Mcp),
                      (DotCraft.Protocol.AppServer.AppServerMethodNames.McpRemove, new { name = "demo", scope = "workspace" }, ConfigChangeRegions.Mcp),
-                     (DotCraft.Protocol.AppServer.AppServerMethodNames.ExternalChannelUpsert, new
-                     {
-                         channel = new { name = "telegram", enabled = true, transport = "websocket" }
-                     }, ConfigChangeRegions.ExternalChannel),
-                     (DotCraft.Protocol.AppServer.AppServerMethodNames.ExternalChannelRemove, new { name = "telegram" }, ConfigChangeRegions.ExternalChannel),
                      (DotCraft.Protocol.AppServer.AppServerMethodNames.SubAgentProfileSetEnabled, new { name = "cursor-cli", enabled = false }, ConfigChangeRegions.SubAgent),
                      (DotCraft.Protocol.AppServer.AppServerMethodNames.SubAgentProfileUpsert, new { name = "codex-cli", definition = subAgentDefinition }, ConfigChangeRegions.SubAgent),
                      (DotCraft.Protocol.AppServer.AppServerMethodNames.SubAgentProfileRemove, new { name = "codex-cli" }, ConfigChangeRegions.SubAgent)

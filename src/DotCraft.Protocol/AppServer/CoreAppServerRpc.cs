@@ -18,7 +18,15 @@ public static partial class AppServerRpc
 
     public static readonly RpcRequest<AgentProfileValidateParams, AgentProfileValidateResult> AgentProfileValidate = new("agent/profiles/validate", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);
 
+    public static readonly RpcRequest<ChannelConfigOptionAvailabilityParams, ChannelConfigOptionAvailabilityResult> ChannelConfigOptionAvailability = new("channel/configOptionAvailability", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "channelManagement", errors: CommonErrors);
+
     public static readonly RpcRequest<global::DotCraft.Protocol.RpcEmpty, ChannelListResult> ChannelList = new("channel/list", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);
+
+    public static readonly RpcRequest<ChannelLogsParams, ChannelLogsResult> ChannelLogs = new("channel/logs", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "channelManagement", errors: CommonErrors);
+
+    public static readonly RpcRequest<ChannelSetEnabledParams, global::DotCraft.Protocol.RpcEmpty> ChannelSetEnabled = new("channel/setEnabled", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "channelManagement", errors: ChannelSelectionErrors);
+
+    public static readonly RpcRequest<ChannelSetupReadParams, ChannelSetupReadResult> ChannelSetupRead = new("channel/setup/read", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", capability: "channelManagement", errors: CommonErrors);
 
     public static readonly RpcRequest<global::DotCraft.Protocol.RpcEmpty, ChannelStatusResult> ChannelStatus = new("channel/status", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);
 

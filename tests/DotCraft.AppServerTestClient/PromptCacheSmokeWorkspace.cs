@@ -29,7 +29,7 @@ internal static class PromptCacheSmokeWorkspace
             ["ProviderPreferences"] = new JsonObject { [providerId] = SmokeModelPreference.Create(model) },
             ["McpServers"] = new JsonObject(),
             ["LspServers"] = new JsonObject(),
-            ["ExternalChannels"] = new JsonArray(),
+            ["Channels"] = new JsonObject(),
             ["Tracing"] = new JsonObject
             {
                 ["Enabled"] = true

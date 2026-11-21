@@ -16,7 +16,13 @@ RUN dotnet publish src/DotCraft.App/DotCraft.App.csproj \
     -p:PublishProfile=ReleaseProfile \
     -o /out/dotcraft
 
-FROM node:22-bookworm-slim AS channels-build
+FROM node:22-bookworm-slim AS channel-seeds
+ARG CHANNEL_SEEDS_RELEASE
+ARG CHANNEL_SEEDS_SHA256
+COPY docker/dotcraft/stage-channel-seeds.mjs /stage-channel-seeds.mjs
+RUN node /stage-channel-seeds.mjs /out/channel-seeds
+
+FROM node:22-bookworm-slim AS sdk-build
 WORKDIR /src/sdk/typescript
 
 COPY sdk/typescript/package.json sdk/typescript/package-lock.json ./
@@ -28,7 +34,7 @@ COPY sdk/typescript/scripts ./scripts
 COPY sdk/typescript/src ./src
 RUN npm run build:all
 
-FROM channels-build AS desktop-plugins-build
+FROM sdk-build AS desktop-plugins-build
 WORKDIR /src/desktop
 
 COPY desktop/package.json desktop/package-lock.json ./
@@ -58,21 +64,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=dotcraft-build /out/dotcraft/dotcraft /opt/dotcraft/bin/dotcraft
-COPY --from=channels-build /src/sdk/typescript/packages/channel-feishu/manifest.json /opt/dotcraft/modules/channel-feishu/manifest.json
-COPY --from=channels-build /src/sdk/typescript/packages/channel-feishu/package.json /opt/dotcraft/modules/channel-feishu/package.json
-COPY --from=channels-build /src/sdk/typescript/packages/channel-feishu/dist /opt/dotcraft/modules/channel-feishu/dist
-COPY --from=channels-build /src/sdk/typescript/packages/channel-qq/manifest.json /opt/dotcraft/modules/channel-qq/manifest.json
-COPY --from=channels-build /src/sdk/typescript/packages/channel-qq/package.json /opt/dotcraft/modules/channel-qq/package.json
-COPY --from=channels-build /src/sdk/typescript/packages/channel-qq/dist /opt/dotcraft/modules/channel-qq/dist
-COPY --from=channels-build /src/sdk/typescript/packages/channel-telegram/manifest.json /opt/dotcraft/modules/channel-telegram/manifest.json
-COPY --from=channels-build /src/sdk/typescript/packages/channel-telegram/package.json /opt/dotcraft/modules/channel-telegram/package.json
-COPY --from=channels-build /src/sdk/typescript/packages/channel-telegram/dist /opt/dotcraft/modules/channel-telegram/dist
-COPY --from=channels-build /src/sdk/typescript/packages/channel-wecom/manifest.json /opt/dotcraft/modules/channel-wecom/manifest.json
-COPY --from=channels-build /src/sdk/typescript/packages/channel-wecom/package.json /opt/dotcraft/modules/channel-wecom/package.json
-COPY --from=channels-build /src/sdk/typescript/packages/channel-wecom/dist /opt/dotcraft/modules/channel-wecom/dist
-COPY --from=channels-build /src/sdk/typescript/packages/channel-weixin/manifest.json /opt/dotcraft/modules/channel-weixin/manifest.json
-COPY --from=channels-build /src/sdk/typescript/packages/channel-weixin/package.json /opt/dotcraft/modules/channel-weixin/package.json
-COPY --from=channels-build /src/sdk/typescript/packages/channel-weixin/dist /opt/dotcraft/modules/channel-weixin/dist
+COPY --from=channel-seeds /out/channel-seeds /opt/dotcraft/channel-seeds
 
 COPY --from=desktop-plugins-build /src/desktop/resources/plugins/dotcraft-bundled/plugins /opt/dotcraft/plugins
 
@@ -84,7 +76,7 @@ RUN chmod +x /opt/dotcraft/bin/dotcraft /opt/dotcraft/entrypoint.sh /opt/dotcraf
 
 ENV PATH="/opt/dotcraft/bin:${PATH}" \
     DOTCRAFT_NODE_BIN="/usr/local/bin/node" \
-    DOTCRAFT_MODULES_DIR="/opt/dotcraft/modules" \
+    DOTCRAFT_CHANNEL_SEEDS="/opt/dotcraft/channel-seeds" \
     DOTCRAFT_BUILTIN_PLUGIN_ROOTS="/opt/dotcraft/plugins" \
     DOTCRAFT_DEFAULT_PLUGIN_REGISTRY_URL="https://github.com/DotHarness/dotcraft-plugins/archive/refs/heads/main.zip" \
     DOTCRAFT_CONTAINER="true"

@@ -38,7 +38,6 @@ export interface DesktopWindowState {
   userInputAutoResolution: UserInputAutoResolutionCoordinator
   currentWorkspacePath: string
   lastDashboardUrl: string | null
-  lastAppServerWsUrl: string | null
   lastConnectionStatus: ConnectionStatusPayload
   activeRemoteWorkspace: WorkspaceStatusPayload['remote'] | null
   activeRemoteProject: ActiveRemoteProject | null
@@ -121,7 +120,6 @@ export function createWindowRuntime(app: DesktopApplicationServices, argv: strin
     }),
     currentWorkspacePath: '',
     lastDashboardUrl: null,
-    lastAppServerWsUrl: null,
     lastConnectionStatus: { status: 'disconnected' },
     activeRemoteWorkspace: null,
     activeRemoteProject: null,

@@ -1,56 +1,25 @@
 # Connect DotCraft to WeCom
 
-Connect a WeCom group bot to DotCraft as a [channel](./) with the callback settings from your enterprise admin console.
+Connect a WeCom group bot to DotCraft through a public HTTPS callback.
 
-## Quick setup
+## Connect the bot
 
-1. Open the target workspace in DotCraft Desktop.
-2. Open **Channels**, select **WeCom**, then select **Connect**.
-
-   ![Connect the WeCom channel from its details page](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/wecom-detail.png)
-
-3. Set the callback listen host, port, and scheme. The default local listener is `0.0.0.0:9000`.
-4. Add a robot entry with a callback path, Token, and EncodingAESKey.
-5. Add at least one admin user, allowed user, or allowed chat.
+1. In the WeCom admin console, create or open a group bot and enable callback mode.
+2. In the target DotCraft Desktop workspace, go to **Plugins → Channels**, install **WeCom**, and select **Set up**.
+3. Set the callback listener (default: `0.0.0.0:9000`). Add a bot entry with a callback path, Token, and EncodingAESKey. Add at least one admin user, allowed user, or allowed chat.
 
    ![Configure the WeCom channel in DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/channels/wecom-configuration.png)
 
-6. Save the channel and turn it on.
-7. In WeCom, set the group bot callback URL to the public URL that reaches the DotCraft listener.
-8. Paste the same Token and EncodingAESKey into the WeCom bot settings.
+4. Save the settings and select **Connect**.
+5. In WeCom, set the callback URL to a public HTTPS address that forwards to the DotCraft listener, including the bot's callback path. For a local listener, use an HTTPS reverse proxy or tunnel. Set the Token and EncodingAESKey to match DotCraft.
+6. Add the bot to an allowed chat and send a message. DotCraft replies in that chat.
 
-Desktop should show the WeCom channel as connected after WeCom verifies the callback.
+## Using the bot
 
-## Platform setup details
-
-In the WeCom admin console:
-
-1. Create or open the group bot that should call DotCraft.
-2. Enable callback mode.
-3. Set the callback URL to your public HTTPS endpoint plus the robot path from Desktop.
-4. Set Token to the same robot token from Desktop.
-5. Set EncodingAESKey to the same robot AES key from Desktop.
-6. Add the bot to the chats where DotCraft should respond.
-
-WeCom must reach the callback from the public internet. For local Desktop use, put an HTTPS reverse proxy or tunnel in front of the Desktop listener.
-
-## Test the connection
-
-1. Send a message in an allowed WeCom chat.
-2. Confirm DotCraft replies in the same chat.
-3. Ask DotCraft to do something that needs approval.
-4. Confirm the approval request appears in WeCom and that your reply is accepted.
-
-## What works after setup
-
-- DotCraft answers messages from allowed users and chats.
-- Admin users can also run admin commands such as `/model`. Other allowed users use the other [chat commands](./#commands-in-a-chat), and command choices appear as a numbered list.
-- Approval replies accept `同意`, `允许`, `yes`, `approve`, `拒绝`, `no`, `reject`, and `deny`. A leading `/` also works, so `/yes` and `/no` are accepted, as do `/approve`, `/approve session`, and `/deny`. Replying `同意全部` or `approve all` allows the same kind of action for the rest of the DotCraft chat.
-- While an approval waits for you, the bot answers your other messages in that chat with a reminder instead of passing them on. If you don't answer in time, the action is cancelled and the chat tells you.
-- The agent sends text, images, files, and voice messages in AMR format.
-- Messages from users or chats outside the allowlist are ignored.
+- DotCraft responds to allowed users and chats. Admin users can run commands such as `/model`. Other allowed users can use the remaining [chat commands](./#commands-in-a-chat). Command choices appear as a numbered list.
+- The agent sends text, images, files, and AMR voice messages.
 
 ## Related docs
 
-- [Channel configuration](../../configuration/channels) — every field, default, and registration shape for the WeCom config file.
-- [Weixin channel](./weixin) — personal WeChat takes a different route, through a Tencent iLink QR login.
+- [WeCom channel configuration](../../configuration/channels#wecom) — callback settings and allowlists.
+- [Weixin channel](./weixin) — connect a personal WeChat account by scanning a QR code.

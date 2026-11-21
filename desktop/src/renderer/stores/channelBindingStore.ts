@@ -34,7 +34,6 @@ interface ChannelBindingStore {
 
 const CHANNEL_STATUS_TTL_MS = 30_000
 const CHANNEL_APP_ID_PREFIX = 'com.dotharness.channel.'
-const BINDABLE_CATEGORIES = new Set(['social', 'external'])
 
 let channelsLoadedFor: ServerCapabilities | null = null
 let channelsLoadedAt = 0
@@ -123,7 +122,7 @@ export const useChannelBindingStore = create<ChannelBindingStore>((set, get) => 
 }))
 
 export function bindableChannels(channels: ChannelRuntimeStatus[]): ChannelRuntimeStatus[] {
-  return channels.filter((channel) => channel.running && BINDABLE_CATEGORIES.has(channel.category.toLowerCase()))
+  return channels.filter((channel) => channel.running && channel.category.toLowerCase() === 'social')
 }
 
 export function isChannelBinding(binding: ThreadAppBinding): boolean {

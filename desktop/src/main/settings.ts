@@ -124,8 +124,6 @@ export interface AppSettings extends SidebarThreadOrderSettings {
   newChatApprovalPolicy?: 'prompt' | 'autoApprove'
   lastWorkspacePath?: string
   lastForegroundEntry?: LastForegroundEntry
-  modulesDirectory?: string
-  activeModuleVariants?: Record<string, string>
   binarySource?: BinarySource
   appServerBinaryPath?: string
   connectionMode?: ConnectionMode
@@ -189,12 +187,6 @@ function normalizeBinarySource(settings: AppSettings): BinarySource {
     return source
   }
   return 'bundled'
-}
-
-function normalizeModulesDirectory(settings: AppSettings): string | undefined {
-  const raw = settings.modulesDirectory?.trim()
-  if (!raw) return undefined
-  return normalize(raw)
 }
 
 function normalizeBrowserUseApprovalMode(value: unknown): BrowserUseApprovalMode {
@@ -268,22 +260,6 @@ function normalizeNotificationSettings(settings: AppSettings): NotificationSetti
     approvalRequests: source.approvalRequests !== false,
     questions: source.questions !== false
   }
-}
-
-function normalizeActiveModuleVariants(settings: AppSettings): Record<string, string> | undefined {
-  const raw = settings.activeModuleVariants
-  if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) {
-    return undefined
-  }
-  const normalized: Record<string, string> = {}
-  for (const [key, value] of Object.entries(raw)) {
-    if (typeof value !== 'string') continue
-    const trimmedKey = key.trim().toLowerCase()
-    const trimmedValue = value.trim()
-    if (!trimmedKey || !trimmedValue) continue
-    normalized[trimmedKey] = trimmedValue
-  }
-  return Object.keys(normalized).length > 0 ? normalized : undefined
 }
 
 /** GitHub logins are 1–39 chars of alphanumerics or single hyphens (not leading/trailing). */
@@ -639,14 +615,12 @@ export function loadSettings(): AppSettings {
       raw.lastForegroundEntry = normalizeLastForegroundEntry(raw)
       raw.binarySource = normalizeBinarySource(raw)
       raw.connectionMode = normalizeConnectionMode(raw)
-      raw.modulesDirectory = normalizeModulesDirectory(raw)
       raw.openTargetPreferences = normalizeOpenTargetPreferences(raw.openTargetPreferences)
       raw.projectActionPreferences = normalizeProjectActionPreferences(raw.projectActionPreferences)
       raw.browserUse = normalizeBrowserUseSettings(raw)
       raw.linkPreferences = normalizeLinkPreferences(raw.linkPreferences)
       raw.computerUse = normalizeComputerUseSettings(raw)
       raw.notifications = normalizeNotificationSettings(raw)
-      raw.activeModuleVariants = normalizeActiveModuleVariants(raw)
       raw.showThinkingContent = normalizeShowThinkingContent(raw)
       raw.newTaskPrompt = normalizeNewTaskPromptSetting(raw)
       raw.newChatApprovalPolicy = normalizeNewChatApprovalPolicy(raw)
@@ -710,14 +684,12 @@ export function saveSettings(settings: AppSettings): void {
     settings.binarySource = normalizeBinarySource(settings)
     settings.lastForegroundEntry = normalizeLastForegroundEntry(settings)
     settings.connectionMode = normalizeConnectionMode(settings)
-    settings.modulesDirectory = normalizeModulesDirectory(settings)
     settings.openTargetPreferences = normalizeOpenTargetPreferences(settings.openTargetPreferences)
     settings.projectActionPreferences = normalizeProjectActionPreferences(settings.projectActionPreferences)
     settings.browserUse = normalizeBrowserUseSettings(settings)
     settings.linkPreferences = normalizeLinkPreferences(settings.linkPreferences)
     settings.computerUse = normalizeComputerUseSettings(settings)
     settings.notifications = normalizeNotificationSettings(settings)
-    settings.activeModuleVariants = normalizeActiveModuleVariants(settings)
     settings.showThinkingContent = normalizeShowThinkingContent(settings)
     settings.newTaskPrompt = normalizeNewTaskPromptSetting(settings)
     settings.newChatApprovalPolicy = normalizeNewChatApprovalPolicy(settings)

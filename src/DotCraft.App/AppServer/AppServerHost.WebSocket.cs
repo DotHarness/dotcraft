@@ -1,5 +1,5 @@
 using System.Net.WebSockets;
-using DotCraft.ExternalChannel;
+using DotCraft.Channels;
 using DotCraft.GenerativeUi;
 using DotCraft.Logging;
 using DotCraft.Sessions;
@@ -71,7 +71,7 @@ public sealed partial class AppServerHost
         Action<string> publishEndpoint,
         CancellationToken cancellationToken)
     {
-        var (app, url) = BuildWebSocketApp(wsConfig, cancellationToken, externalChannelRegistry);
+        var (app, url) = BuildWebSocketApp(wsConfig, cancellationToken, channelHostRegistry);
         try
         {
             app.Urls.Add(url);
@@ -94,7 +94,7 @@ public sealed partial class AppServerHost
     private (WebApplication App, string Url) BuildWebSocketApp(
         WebSocketServerConfig wsConfig,
         CancellationToken hostCt,
-        ExternalChannelRegistry? channelRegistry = null)
+        ChannelHostRegistry? channelRegistry = null)
     {
         var isLoopback = wsConfig.Host is "127.0.0.1" or "::1" or "[::1]" or "localhost";
         if (!isLoopback && string.IsNullOrEmpty(wsConfig.Token))
@@ -161,50 +161,24 @@ public sealed partial class AppServerHost
 
                             if (channelRegistry.TryGet(channelName, out var host) && host != null)
                             {
-                                // Stdio subprocess channels are registered for discovery but must not accept
-                                // WebSocket adapter attach; websocket and managedWebsocket entries use /ws handover.
-                                if (!host.AcceptsWebSocketAdapterAttach)
-                                {
-                                    _logger.LogWarning(
-                                        "Rejected channel adapter {Channel}: subprocess-only channels cannot attach over WebSocket",
-                                        channelName);
-                                    AnsiConsole.MarkupLine(
-                                        $"[yellow][[AppServer]][/] Rejected channel adapter '{channelName}': " +
-                                        "channel uses subprocess transport; connect the adapter via stdio, not WebSocket.");
-
-                                    await wsTransport.NotifyContractAsync(
-                                        Contract.AppServerRpc.SystemEvent,
-                                        new Contract.SystemEventNotification
-                                        {
-                                            Kind = "channelRejected",
-                                            ChannelName = channelName,
-                                            Message =
-                                                $"Channel '{channelName}' is subprocess-only; WebSocket adapter attach is not supported."
-                                        },
-                                        hostCt);
-
-                                    return;
-                                }
-
                                 var initdMsg = await wsTransport.ReadMessageAsync(hostCt);
                                 if (initdMsg is { IsNotification: true, Method: DotCraft.Protocol.AppServer.AppServerMethodNames.Initialized })
                                 {
                                     wsHandler.HandleNotification(initdMsg);
+                                    if (host.TryAttachTransport(wsTransport, wsConnection))
+                                    {
+                                        await wsTransport.Completed;
+                                        return;
+                                    }
                                 }
-
-                                host.AttachTransport(wsTransport, wsConnection);
-
-                                // Keeps the 'using'-scoped WebSocket alive without another ReceiveAsync on it.
-                                await wsTransport.Completed;
-                                return;
                             }
 
                             _logger.LogWarning(
-                                "Rejected unregistered channel adapter {Channel}",
+                                "Rejected channel adapter {Channel} without an awaiting plugin process",
                                 channelName);
                             AnsiConsole.MarkupLine(
                                 $"[yellow][[AppServer]][/] Rejected channel adapter '{channelName}': " +
-                                "not registered in ExternalChannels configuration.");
+                                "no active plugin process is awaiting this adapter.");
 
                             await wsTransport.NotifyContractAsync(
                                 Contract.AppServerRpc.SystemEvent,
@@ -212,7 +186,7 @@ public sealed partial class AppServerHost
                                 {
                                     Kind = "channelRejected",
                                     ChannelName = channelName,
-                                    Message = $"Channel '{channelName}' is not registered in server configuration."
+                                    Message = $"Channel '{channelName}' is not awaiting an adapter connection."
                                 },
                                 hostCt);
 
