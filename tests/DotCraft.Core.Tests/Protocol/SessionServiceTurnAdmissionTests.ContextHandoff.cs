@@ -1,5 +1,6 @@
 using DotCraft.AppServer;
 using DotCraft.Configuration;
+using DotCraft.Persistence;
 using DotCraft.Sessions;
 using DotCraft.Sessions.Wire;
 using Microsoft.Extensions.AI;
@@ -85,6 +86,54 @@ public sealed partial class SessionServiceTurnAdmissionTests
 
         var next = await StartAsync(h.Service, thread.Id, "after failure", new() { Model = "next-model" });
         AssertHandoff(await DrainAsync(next.Events!), "source", "failed-model", "source", "next-model");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ContextHandoff_UnavailableHistoryPreservesTurnOutcomeAndNewBaseline(bool providerFails)
+    {
+        await using var h = new AdmissionHarness();
+        var thread = await h.CreateThreadAsync();
+        var first = await StartAsync(h.Service, thread.Id, "first");
+        await DrainAsync(first.Events!);
+
+        const string observedModel = "observed-model";
+        h.Provider.BlockedModel = observedModel;
+        if (providerFails)
+            h.Provider.FailingModel = observedModel;
+        var observed = await StartAsync(h.Service, thread.Id, "switch models", new() { Model = observedModel });
+
+        using var database = new WorkspaceStateDatabase(h.Root);
+        using var connection = database.OpenConnection();
+        using var command = connection.CreateCommand();
+        var timeout = TimeSpan.FromSeconds(10);
+        try
+        {
+            await h.Provider.Blocked.Task.WaitAsync(timeout);
+            thread.OmittedTurnCount += thread.Turns.RemoveAll(turn => turn.Id == first.Turn.Id);
+            command.CommandText = """
+                DELETE FROM thread_history_projection_state;
+                CREATE TRIGGER reject_history_projection BEFORE INSERT ON thread_history_projection_state
+                BEGIN SELECT RAISE(ABORT, 'projection unavailable'); END;
+                """;
+            command.ExecuteNonQuery();
+            await Assert.ThrowsAsync<ThreadHistoryUnavailableException>(() =>
+                h.Store.ListThreadTurnsAsync(thread.Id, null, 10, ThreadHistorySortDirection.Descending));
+        }
+        finally
+        {
+            h.Provider.Release.TrySetResult();
+        }
+
+        var events = await observed.Events!.ToListAsync().AsTask().WaitAsync(timeout);
+        Assert.Contains(events, e => e.EventType == (providerFails ? SessionEventType.TurnFailed : SessionEventType.TurnCompleted));
+        Assert.DoesNotContain(events, IsHandoff);
+
+        command.CommandText = "DROP TRIGGER reject_history_projection";
+        command.ExecuteNonQuery();
+        var next = await StartAsync(h.Service, thread.Id, "switch again", new() { Model = "next-model" });
+        AssertHandoff(await DrainAsync(next.Events!), "source", observedModel, "source", "next-model");
     }
 
     [Fact]

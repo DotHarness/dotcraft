@@ -1,4 +1,5 @@
 using DotCraft.Agents;
+using Microsoft.Extensions.Logging;
 
 namespace DotCraft.Sessions;
 
@@ -19,14 +20,21 @@ public sealed partial class SessionService
 
         var current = new ContextHandoffEndpoint(origin.ProviderId, origin.Model);
         ContextHandoffEndpoint? previous = null;
-        await foreach (var earlier in ReadTurnsAsync(
-                           thread, ThreadHistorySortDirection.Descending, includeItems: false, CancellationToken.None))
+        try
         {
-            if (earlier.Id == turn.Id || earlier.SampledModel is not { } sample)
-                continue;
+            await foreach (var earlier in ReadTurnsAsync(
+                               thread, ThreadHistorySortDirection.Descending, includeItems: false, CancellationToken.None))
+            {
+                if (earlier.Id == turn.Id || earlier.SampledModel is not { } sample)
+                    continue;
 
-            previous = sample.Identity;
-            break;
+                previous = sample.Identity;
+                break;
+            }
+        }
+        catch (ThreadHistoryUnavailableException ex)
+        {
+            logger?.LogWarning(ex, "Could not read the previous model for context handoff on thread {ThreadId}", thread.Id);
         }
 
         turn.SampledModel = new(current, SessionIdGenerator.LastItemSequence(turn.Items));
