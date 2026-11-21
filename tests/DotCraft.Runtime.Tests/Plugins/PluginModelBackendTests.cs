@@ -96,6 +96,13 @@ public sealed class PluginModelBackendTests
             resolved.ModelMetadata?.Reasoning?.SupportedEfforts);
         Assert.True(resolved.Capabilities.ExtendedThinking);
 
+        var clients = new ChatClientRegistry(new ModelProviderRegistry([]), resolver);
+        Assert.Same(clients.GetChatClient(config, "demo", "model"), clients.GetChatClient(config, "demo", "model"));
+
+        resolver.Normalize(baseRuntime with { Model = "mutate" });
+        Assert.Equal(500_000, resolved.ModelMetadata?.ContextWindow);
+        Assert.Equal(["backend-test"], resolved.ModelMetadata?.SupportedProtocols);
+
         Assert.Throws<PluginContributionException>(() => resolver.Normalize(baseRuntime with { Model = "unsafe" }));
 
         var remnant = await generation.BeginCleanup();
@@ -166,6 +173,8 @@ public sealed class PluginModelBackendTests
         internal sealed class TestBackend : IModelBackendSource, IModelBackend, IModelProvider, IModelCatalogProvider,
             IProviderModelRuntimeResolver, IProviderAuthenticator
         {
+            private ModelCatalogEntry? _retained;
+            private List<string>? _retainedProtocols;
             public IModelBackend Backend => this;
             public ModelBackendDescriptor Descriptor => new("test.backend", "Test", "backend-test", new[] { "backend-test" },
                 new[]
@@ -181,37 +190,41 @@ public sealed class PluginModelBackendTests
             {
                 if (runtime.Model == "unsafe")
                 {
-                    return runtime with
+                    return runtime with { RemoteModels = new UnsafeDictionary() };
+                }
+                if (runtime.Model == "mutate")
+                {
+                    if (_retained is not null)
                     {
-                        ModelMetadata = new ModelCatalogEntry
-                        {
-                            Id = "unsafe",
-                            Reasoning = new ModelReasoningSupport(
-                                true,
-                                new UnsafeList(),
-                                ProviderReasoningEffort.High,
-                                true)
-                        }
-                    };
+                        _retained.ContextWindow = 1;
+                        _retainedProtocols?.Add("mutated");
+                        _retained.SupportedProtocols = new UnsafeList();
+                    }
+                    return runtime;
                 }
                 if (runtime.Model == "model")
                 {
+                    var protocols = new List<string> { "backend-test" };
+                    var entry = new ModelCatalogEntry
+                    {
+                        Id = "model",
+                        ContextWindow = 500_000,
+                        MaxOutputTokens = 16_384,
+                        SupportedProtocols = protocols,
+                        Reasoning = new ModelReasoningSupport(
+                            true,
+                            new[] { ProviderReasoningEffort.Low, ProviderReasoningEffort.High },
+                            ProviderReasoningEffort.High,
+                            true)
+                    };
+                    _retained ??= entry;
+                    _retainedProtocols ??= protocols;
                     return runtime with
                     {
                         IsBuiltInBackend = true,
                         MaxOutputTokens = 16_384,
                         Capabilities = new ModelProviderCapabilities { ExtendedThinking = true },
-                        ModelMetadata = new ModelCatalogEntry
-                        {
-                            Id = "model",
-                            ContextWindow = 500_000,
-                            MaxOutputTokens = 16_384,
-                            Reasoning = new ModelReasoningSupport(
-                                true,
-                                new[] { ProviderReasoningEffort.Low, ProviderReasoningEffort.High },
-                                ProviderReasoningEffort.High,
-                                true)
-                        }
+                        ModelMetadata = entry
                     };
                 }
                 return runtime;
@@ -227,7 +240,8 @@ public sealed class PluginModelBackendTests
                 return new ProviderAuthenticationStatus(true);
             }
             public Task LogoutAsync(CancellationToken ct) => Task.CompletedTask;
-            private sealed class UnsafeList : List<ProviderReasoningEffort>;
+            private sealed class UnsafeList : List<string>;
+            private sealed class UnsafeDictionary : Dictionary<string, ProviderRequestAdaptation>;
         }
         internal sealed class Client : IChatClient
         {

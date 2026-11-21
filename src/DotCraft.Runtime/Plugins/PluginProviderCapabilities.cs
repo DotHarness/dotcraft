@@ -39,7 +39,32 @@ internal static class PluginProviderCapabilities
     {
         private readonly PluginTarget<IProviderModelRuntimeResolver> _target = invocation.Capture(target);
         public EffectiveModelRuntime ResolveRuntime(EffectiveModelRuntime runtime) =>
-            invocation.Invoke(() => HostOwned(_target.Value.ResolveRuntime(runtime)));
+            invocation.Invoke(() =>
+            {
+                var resolved = _target.Value.ResolveRuntime(runtime);
+                return HostOwned(resolved with { ModelMetadata = SnapshotMetadata(resolved.ModelMetadata) });
+            });
+
+        private static ModelCatalogEntry? SnapshotMetadata(ModelCatalogEntry? metadata) =>
+            metadata is null
+                ? null
+                : new ModelCatalogEntry
+                {
+                    Id = metadata.Id,
+                    DisplayName = metadata.DisplayName,
+                    OwnedBy = metadata.OwnedBy,
+                    CreatedAt = metadata.CreatedAt,
+                    Reasoning = metadata.Reasoning is { } reasoning
+                        ? reasoning with { SupportedEfforts = reasoning.SupportedEfforts.ToArray() }
+                        : null,
+                    ContextWindow = metadata.ContextWindow,
+                    MaxOutputTokens = metadata.MaxOutputTokens,
+                    SupportedProtocols = metadata.SupportedProtocols?.ToArray(),
+                    DefaultProtocol = metadata.DefaultProtocol,
+                    InputModalities = metadata.InputModalities?.ToArray(),
+                    Pricing = metadata.Pricing,
+                    SpeedModes = metadata.SpeedModes?.ToArray()
+                };
     }
 
     private sealed class Authentication(IProviderAuthenticator target, PluginInvocation invocation) : IProviderAuthenticator

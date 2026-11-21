@@ -30,10 +30,11 @@ configuration. Without a backend ID, existing protocol, authentication and endpo
 unchanged. Explicit backends validate their own settings and declared protocol/authentication choices.
 They do not inherit HTTP endpoints, API-key requirements or protocol-based hosted capabilities.
 Their model catalog reports each model's display name and reasoning capability; built-in
-protocol catalogs never describe backend models. A backend provider may expose
-`IProviderModelRuntimeResolver` through `GetService` so runtime normalization projects per-model
-metadata, output token limits, capabilities and declared protocol selection while the host preserves
-provider identity, configured settings, non-built-in status and generation tracking.
+protocol catalogs never describe backend models. When a model is selected, a backend provider may
+expose `IProviderModelRuntimeResolver` through `GetService` so runtime normalization projects
+per-model metadata, capabilities, declared protocol selection and output token limits bounded by any
+configured maximum while the host preserves provider identity, configured settings, non-built-in
+status and generation tracking.
 
 Desktop lists backend instances with every other provider and creates them from the same editor.
 Backend-specific options use typed controls in a plugin settings surface. `BackendSettings` holds

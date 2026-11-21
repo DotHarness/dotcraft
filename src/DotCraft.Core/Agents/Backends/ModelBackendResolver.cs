@@ -12,6 +12,7 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
     private readonly IReadOnlyDictionary<string, IModelBackend> officialBackends;
     private readonly List<IContributionHandle> _officialRegistrations = [];
     private readonly ConcurrentDictionary<EffectiveModelRuntime, Lazy<IModelProvider>> _providers = new();
+    private readonly ConcurrentDictionary<(string Instance, string Model), ModelCatalogEntry> _pluginMetadata = new();
     private readonly ConcurrentDictionary<string, long> _authenticationRevisions = new(StringComparer.Ordinal);
     private long _chatGptRevision;
     public event Action? Changed;
@@ -62,6 +63,8 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
         }
         var entry = Find(runtime.BackendId);
         var normalized = NormalizePluginBase(runtime, entry);
+        if (string.IsNullOrWhiteSpace(normalized.Model))
+            return normalized;
         var pluginProvider = ResolvePlugin(normalized, entry);
         if (pluginProvider.GetService(typeof(IProviderModelRuntimeResolver)) is not IProviderModelRuntimeResolver modelResolver)
             return normalized;
@@ -127,7 +130,7 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
         }, LazyThreadSafetyMode.ExecutionAndPublication)).Value;
     }
 
-    private static EffectiveModelRuntime ApplyPluginResolvedRuntime(
+    private EffectiveModelRuntime ApplyPluginResolvedRuntime(
         EffectiveModelRuntime baseRuntime, EffectiveModelRuntime resolved, ModelBackendDescriptor descriptor)
     {
         var protocol = string.IsNullOrWhiteSpace(resolved.Protocol) ? baseRuntime.Protocol : resolved.Protocol;
@@ -136,11 +139,43 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
         return baseRuntime with
         {
             Protocol = protocol,
-            ModelMetadata = resolved.ModelMetadata,
-            MaxOutputTokens = resolved.MaxOutputTokens,
+            ModelMetadata = InternPluginMetadata(baseRuntime, resolved.ModelMetadata),
+            MaxOutputTokens = (baseRuntime.ConfiguredMaxOutputTokens, resolved.MaxOutputTokens) switch
+            {
+                (int configured, int modelLimit) when configured > 0 && modelLimit > 0 => Math.Min(configured, modelLimit),
+                (int configured, _) when configured > 0 => configured,
+                (_, int modelLimit) when modelLimit > 0 => modelLimit,
+                _ => null
+            },
             Capabilities = resolved.Capabilities
         };
     }
+
+    private ModelCatalogEntry? InternPluginMetadata(EffectiveModelRuntime baseRuntime, ModelCatalogEntry? metadata) =>
+        metadata is null
+            ? null
+            : _pluginMetadata.AddOrUpdate(
+                (InstanceKey(baseRuntime), baseRuntime.Model),
+                metadata,
+                (_, existing) => MetadataEquals(existing, metadata) ? existing : metadata);
+
+    private static bool MetadataEquals(ModelCatalogEntry a, ModelCatalogEntry b) =>
+        a.Id == b.Id && a.DisplayName == b.DisplayName && a.OwnedBy == b.OwnedBy
+        && a.CreatedAt == b.CreatedAt && a.ContextWindow == b.ContextWindow
+        && a.MaxOutputTokens == b.MaxOutputTokens && a.DefaultProtocol == b.DefaultProtocol
+        && a.Pricing == b.Pricing && ReasoningEquals(a.Reasoning, b.Reasoning)
+        && SequenceEquals(a.SupportedProtocols, b.SupportedProtocols)
+        && SequenceEquals(a.InputModalities, b.InputModalities)
+        && SequenceEquals(a.SpeedModes, b.SpeedModes);
+
+    private static bool ReasoningEquals(ModelReasoningSupport? a, ModelReasoningSupport? b) =>
+        ReferenceEquals(a, b) || (a is not null && b is not null
+            && a.SupportsDisable == b.SupportsDisable && a.DefaultEffort == b.DefaultEffort
+            && a.DefaultEnabled == b.DefaultEnabled && a.UpstreamDefaultEffort == b.UpstreamDefaultEffort
+            && SequenceEquals(a.SupportedEfforts, b.SupportedEfforts));
+
+    private static bool SequenceEquals<T>(IReadOnlyList<T>? a, IReadOnlyList<T>? b) =>
+        ReferenceEquals(a, b) || (a is not null && b is not null && a.SequenceEqual(b));
 
     private IModelProvider ResolveOfficial(EffectiveModelRuntime runtime, IModelBackend backend)
     {
@@ -164,9 +199,12 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
             Changed?.Invoke();
             return;
         }
-        _authenticationRevisions.AddOrUpdate(InstanceKey(runtime), 1, (_, revision) => revision + 1);
-        foreach (var key in _providers.Keys.Where(key => InstanceKey(key) == InstanceKey(runtime)))
+        var instanceKey = InstanceKey(runtime);
+        _authenticationRevisions.AddOrUpdate(instanceKey, 1, (_, revision) => revision + 1);
+        foreach (var key in _providers.Keys.Where(key => InstanceKey(key) == instanceKey))
             _providers.TryRemove(key, out _);
+        foreach (var key in _pluginMetadata.Keys.Where(key => key.Instance == instanceKey))
+            _pluginMetadata.TryRemove(key, out _);
         Changed?.Invoke();
     }
 
@@ -187,6 +225,7 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
     {
         if (!args.Includes<IModelBackendSource>()) return;
         _providers.Clear();
+        _pluginMetadata.Clear();
         Changed?.Invoke();
     }
 
@@ -195,6 +234,7 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
         if (contributions is IContributionRegistry registry) registry.Changed -= OnContributionsChanged;
         foreach (var handle in _officialRegistrations) handle.Dispose();
         _providers.Clear();
+        _pluginMetadata.Clear();
         Changed = null;
     }
 

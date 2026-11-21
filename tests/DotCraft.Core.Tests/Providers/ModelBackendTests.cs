@@ -121,9 +121,9 @@ public sealed class ModelBackendTests : IDisposable
     }
 
     [Fact]
-    public void PluginRuntimeResolverProjectsMetadataPreservesHostInvariantsAndValidatesProtocol()
+    public async Task PluginRuntimeResolverProjectsMetadataPreservesHostInvariantsAndCachesClients()
     {
-        var metadata = new ModelCatalogEntry
+        static ModelCatalogEntry BuildMetadata() => new()
         {
             Id = "reasoner-4",
             DisplayName = "Reasoner 4",
@@ -138,27 +138,37 @@ public sealed class ModelBackendTests : IDisposable
         var backend = new Backend("alpha")
         {
             Protocols = ["anthropic", "gemini"],
-            RuntimeResolver = runtime => runtime.Model switch
+            RuntimeResolver = runtime =>
             {
-                "reasoner-4" => runtime with
+                if (string.IsNullOrWhiteSpace(runtime.Model))
+                    throw new ArgumentException("Model id is required.");
+                return runtime.Model switch
                 {
-                    ProviderId = "spoofed-provider",
-                    BackendId = "spoofed-backend",
-                    IsBuiltInBackend = true,
-                    AuthMethod = "spoofed-auth",
-                    Protocol = "gemini",
-                    ModelMetadata = metadata,
-                    MaxOutputTokens = 32_768,
-                    Capabilities = new ModelProviderCapabilities { ExtendedThinking = true }
-                },
-                "bad-protocol" => runtime with { Protocol = "undeclared" },
-                _ => runtime
+                    "reasoner-4" => runtime with
+                    {
+                        ProviderId = "spoofed-provider",
+                        BackendId = "spoofed-backend",
+                        IsBuiltInBackend = true,
+                        AuthMethod = "spoofed-auth",
+                        Protocol = "gemini",
+                        ModelMetadata = BuildMetadata(),
+                        MaxOutputTokens = 32_768,
+                        Capabilities = new ModelProviderCapabilities { ExtendedThinking = true }
+                    },
+                    "no-limit" => runtime with { MaxOutputTokens = null },
+                    "bad-protocol" => runtime with { Protocol = "undeclared" },
+                    _ => runtime
+                };
             }
         };
         _contributions.Add<IModelBackendSource>(new Source(backend));
         var resolver = Resolver();
         var config = Config(("a", "alpha"));
         config.RuntimeResolver = resolver;
+
+        var providerOnly = resolver.Normalize(ModelProviderResolver.ResolveProvider(config, "a"));
+        Assert.Equal("anthropic", providerOnly.Protocol);
+        Assert.Equal("alpha", Assert.Single((await ModelProviderCatalog.FetchAsync(config, resolver, "a")).Models).Id);
 
         var raw = ModelProviderResolver.ResolveProvider(config, "a") with { Model = "reasoner-4" };
         var resolved = resolver.Normalize(raw);
@@ -171,6 +181,13 @@ public sealed class ModelBackendTests : IDisposable
         Assert.Equal(1_000_000, resolved.ModelMetadata?.ContextWindow);
         Assert.Equal(32_768, resolved.MaxOutputTokens);
         Assert.True(resolved.Capabilities.ExtendedThinking);
+
+        var clients = new ChatClientRegistry(new ModelProviderRegistry([]), resolver);
+        Assert.Same(clients.GetChatClient(config, "a", "reasoner-4"), clients.GetChatClient(config, "a", "reasoner-4"));
+
+        config.Providers["a"].MaxOutputTokens = 4_096;
+        Assert.Equal(4_096, resolver.Normalize(ModelProviderResolver.ResolveProvider(config, "a") with { Model = "reasoner-4" }).MaxOutputTokens);
+        Assert.Equal(4_096, resolver.Normalize(ModelProviderResolver.ResolveProvider(config, "a") with { Model = "no-limit" }).MaxOutputTokens);
 
         var reasoning = ModelThinkingAdapterResolver.ResolveReasoningCapability(config, resolved);
         Assert.NotNull(reasoning);
