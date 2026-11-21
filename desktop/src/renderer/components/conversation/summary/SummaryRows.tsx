@@ -1,4 +1,4 @@
-import { useState, type JSX, type ReactNode } from 'react'
+import { useState, type JSX, type ReactNode, type Ref } from 'react'
 import { DisclosureChevron } from '../../ui/DisclosureChevron'
 
 export const GLYPH = { size: 16, strokeWidth: 1.75 } as const
@@ -64,12 +64,14 @@ export function Section({
   title,
   actions,
   hideWhenEmpty,
+  listRef,
   children
 }: {
   title?: string
   actions?: ReactNode
   /** Hides the section while its rows render nothing, for rows contributed by plugins. */
   hideWhenEmpty?: boolean
+  listRef?: Ref<HTMLUListElement>
   children: ReactNode
 }): JSX.Element {
   const heading = title ? <h3 className="conversation-summary-section__title">{title}</h3> : null
@@ -81,7 +83,7 @@ export function Section({
           <div className="conversation-summary-section__actions">{actions}</div>
         </div>
       ) : heading}
-      <ul className="conversation-summary-rows">{children}</ul>
+      <ul ref={listRef} className="conversation-summary-rows">{children}</ul>
     </section>
   )
 }

@@ -513,3 +513,7 @@ li[data-on-demand] > .conversation-summary-context__row .conversation-summary-co
 .conversation-summary-section[data-hide-empty]:not(:has(.conversation-summary-rows li)) {
   display: none;
 }
+
+.conversation-summary-rows [data-source-overflow] {
+  display: none;
+}

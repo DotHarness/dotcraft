@@ -307,7 +307,7 @@ The plan is the thread's saved snapshot. `implementsPlan` identifies the executi
 
 The seat stays mounted after the turn ends, so a contribution decides from how the turn ended whether its status still applies. Content renders in the reading column with the transcript's spacing, and an empty contribution takes no space.
 
-`summary.sections` mounts wherever the Summary shows a thread, pinned or as a popover, once the Summary has loaded, and receives the thread surface context. A contribution builds its section from the UI kit's `SummarySection` and `SummaryRow`, so it matches Core's sections, and renders nothing when it has nothing to show. `summary.sources` mounts in the same places and renders `SummaryRow`s alone. The Sources section is hidden while neither Core nor any contribution has a row.
+`summary.sections` mounts wherever the Summary shows a thread, pinned or as a popover, once the Summary has loaded, and receives the thread surface context. A contribution builds its section from the UI kit's `SummarySection` and `SummaryRow`, so it matches Core's sections, and renders nothing when it has nothing to show. `summary.sources` mounts in the same places and renders `SummaryRow`s alone. The Sources section is hidden while neither Core nor any contribution has a row. Contributed rows count toward the section's row limit together with Core's, so past the limit they collapse behind the same View all row.
 
 ## Convenience contributions
 

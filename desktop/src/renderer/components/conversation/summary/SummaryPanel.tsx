@@ -1,6 +1,6 @@
 import type { DesktopPluginThreadSurfaceContext } from '@dotcraft/plugin'
 import { Box, ChevronUp, Clock, FileText, Globe, Lightbulb, Link, Server } from 'lucide-react'
-import { useEffect, useMemo, useState, type JSX, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type JSX, type ReactNode, type RefObject } from 'react'
 import { useLocale, useT } from '../../../contexts/LocaleContext'
 import { useSkillIconUrl } from '../../../utils/skillIcon'
 import { RobotAvatar } from '../../agents/RobotAvatar'
@@ -113,7 +113,29 @@ function SourceIcon({ services, source }: { services: SummaryServices; source: S
   return <Glyph {...GLYPH} />
 }
 
-function SourceRows({ services, sources, webSearch, contributed }: {
+const SOURCE_ROWS = ':scope > [data-summary-sources] > li, :scope > [data-dotcraft-plugin-surface] > li'
+
+function useSourceRowLimit(list: RefObject<HTMLUListElement | null>, expanded: boolean): number {
+  const [count, setCount] = useState(0)
+  useLayoutEffect(() => {
+    const element = list.current
+    if (!element) return
+    const apply = (): void => {
+      const rows = element.querySelectorAll<HTMLElement>(SOURCE_ROWS)
+      rows.forEach((row, index) => {
+        row.toggleAttribute('data-source-overflow', !expanded && index >= SOURCE_LIMIT)
+      })
+      setCount(rows.length)
+    }
+    apply()
+    const observer = new MutationObserver(apply)
+    observer.observe(element, { childList: true, subtree: true })
+    return () => observer.disconnect()
+  }, [list, expanded])
+  return count
+}
+
+function SourcesSection({ services, sources, webSearch, contributed }: {
   services: SummaryServices
   sources: readonly Source[]
   webSearch: boolean
@@ -121,8 +143,9 @@ function SourceRows({ services, sources, webSearch, contributed }: {
 }): JSX.Element {
   const t = useT()
   const [expanded, setExpanded] = useState(false)
+  const list = useRef<HTMLUListElement>(null)
+  const count = useSourceRowLimit(list, expanded)
   const rows = webSearch ? [...sources, null] : sources
-  const visible = expanded ? rows : rows.slice(0, SOURCE_LIMIT)
   const open = (source: Source): (() => void) | undefined => {
     const target = source.target
     if (!target) return undefined
@@ -132,21 +155,23 @@ function SourceRows({ services, sources, webSearch, contributed }: {
     return undefined
   }
   return (
-    <>
-      {visible.map((source) => {
-        if (!source) return <Row key="web-search" leading={<Globe {...GLYPH} />} label={t('summary.webSearch')} />
-        return (
-          <Row
-            key={`${source.kind}:${source.id}`}
-            leading={<SourceIcon services={services} source={source} />}
-            label={source.title}
-            title={source.kind === 'skill' || source.kind === 'mcp' ? source.title : source.id}
-            onClick={open(source)}
-          />
-        )
-      })}
+    <Section title={t('summary.sources')} hideWhenEmpty={sources.length === 0 && !webSearch} listRef={list}>
+      <div data-summary-sources style={{ display: 'contents' }}>
+        {rows.map((source) => {
+          if (!source) return <Row key="web-search" leading={<Globe {...GLYPH} />} label={t('summary.webSearch')} />
+          return (
+            <Row
+              key={`${source.kind}:${source.id}`}
+              leading={<SourceIcon services={services} source={source} />}
+              label={source.title}
+              title={source.kind === 'skill' || source.kind === 'mcp' ? source.title : source.id}
+              onClick={open(source)}
+            />
+          )
+        })}
+      </div>
       {contributed}
-      {rows.length > SOURCE_LIMIT ? (
+      {count > SOURCE_LIMIT ? (
         <Row
           leading={expanded ? <ChevronUp {...GLYPH} /> : <Link {...GLYPH} />}
           label={expanded ? t('summary.showLess') : t('summary.viewAll')}
@@ -155,7 +180,7 @@ function SourceRows({ services, sources, webSearch, contributed }: {
           onClick={() => setExpanded((value) => !value)}
         />
       ) : null}
-    </>
+    </Section>
   )
 }
 
@@ -243,14 +268,12 @@ export function SummaryPanel({
       ) : null}
 
       {sources.length > 0 || webSearch || pluginSources ? (
-        <Section title={t('summary.sources')} hideWhenEmpty={sources.length === 0 && !webSearch}>
-          <SourceRows
-            services={services}
-            sources={sources}
-            webSearch={webSearch}
-            contributed={<DesktopPluginSurface name="summary.sources" context={pluginContext} />}
-          />
-        </Section>
+        <SourcesSection
+          services={services}
+          sources={sources}
+          webSearch={webSearch}
+          contributed={<DesktopPluginSurface name="summary.sources" context={pluginContext} />}
+        />
       ) : null}
 
       <DesktopPluginSurface name="summary.sections" context={pluginContext} />
