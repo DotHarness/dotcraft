@@ -68,7 +68,9 @@ A connection cannot inspect or control another connection's login.
 
 An instance can have only one login in progress. Explicit cancel, connection closure, generation
 stopping and a fifteen-minute timeout cancel pending prompts and provider work. Logout waits for
-cancelled login to terminate before removing credentials.
+cancelled login to terminate before removing credentials. When login fails with a controlled
+`ProviderAuthenticationException`, the terminal `failed` snapshot surfaces its `errorCode` and
+`errorMessage`. Unexpected failures report `ProviderLoginFailed` with a generic message.
 
 ## Status
 

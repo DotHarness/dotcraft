@@ -12,6 +12,7 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
     private readonly IReadOnlyDictionary<string, IModelBackend> officialBackends;
     private readonly List<IContributionHandle> _officialRegistrations = [];
     private readonly ConcurrentDictionary<EffectiveModelRuntime, Lazy<IModelProvider>> _providers = new();
+    private readonly ConcurrentDictionary<(string Instance, string Model), ModelCatalogEntry> _pluginMetadata = new();
     private readonly ConcurrentDictionary<string, long> _authenticationRevisions = new(StringComparer.Ordinal);
     private long _chatGptRevision;
     public event Action? Changed;
@@ -61,8 +62,37 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
                 ? resolver.ResolveRuntime(configured) : configured;
         }
         var entry = Find(runtime.BackendId);
+        var normalized = NormalizePluginBase(runtime, entry);
+        if (string.IsNullOrWhiteSpace(normalized.Model))
+            return normalized;
+        var pluginProvider = ResolvePlugin(normalized, entry);
+        if (pluginProvider.GetService(typeof(IProviderModelRuntimeResolver)) is not IProviderModelRuntimeResolver modelResolver)
+            return normalized;
+        return ApplyPluginResolvedRuntime(normalized, modelResolver.ResolveRuntime(normalized), entry.Contribution.Backend.Descriptor);
+    }
+
+    public IModelProvider Resolve(EffectiveModelRuntime runtime)
+    {
+        if (string.IsNullOrWhiteSpace(runtime.BackendId))
+            return builtins.Resolve(runtime);
+        if (officialBackends.TryGetValue(runtime.BackendId, out var official))
+            return ResolveOfficial(runtime, official);
+        var entry = Find(runtime.BackendId);
+        return ResolvePlugin(NormalizePluginBase(runtime, entry), entry);
+    }
+
+    public CancellationToken GetStopping(EffectiveModelRuntime runtime) =>
+        string.IsNullOrWhiteSpace(runtime.BackendId) ? CancellationToken.None
+            : officialBackends.TryGetValue(runtime.BackendId, out var official) ? official.Stopping
+            : Find(runtime.BackendId).Contribution.Backend.Stopping;
+
+    private EffectiveModelRuntime NormalizePluginBase(EffectiveModelRuntime runtime, ContributionEntry<IModelBackendSource> entry)
+    {
         var descriptor = entry.Contribution.Backend.Descriptor;
-        var protocol = string.IsNullOrWhiteSpace(runtime.Protocol) ? descriptor.DefaultProtocol : runtime.Protocol;
+        var configured = string.IsNullOrWhiteSpace(runtime.ConfiguredProtocol)
+            ? runtime.Protocol
+            : runtime.ConfiguredProtocol.Trim().ToLowerInvariant();
+        var protocol = string.IsNullOrWhiteSpace(configured) ? descriptor.DefaultProtocol : configured;
         if (!descriptor.Protocols.Contains(protocol, StringComparer.Ordinal))
             throw new ArgumentException($"Backend '{descriptor.Id}' does not support protocol '{protocol}'.");
         var method = string.IsNullOrWhiteSpace(runtime.AuthMethod)
@@ -72,32 +102,80 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
             throw new ArgumentException($"Backend '{descriptor.Id}' does not support authentication method '{method}'.");
         return runtime with
         {
+            IsBuiltInBackend = false,
             Protocol = protocol,
+            ConfiguredProtocol = string.IsNullOrWhiteSpace(runtime.ConfiguredProtocol) ? protocol : configured,
+            ConfiguredEndPoint = runtime.ConfiguredEndPoint ?? runtime.EndPoint,
             AuthMethod = method,
             Capabilities = descriptor.Capabilities,
             BackendGeneration = entry.Id.Value + ":" + _authenticationRevisions.GetValueOrDefault(InstanceKey(runtime))
         };
     }
 
-    public IModelProvider Resolve(EffectiveModelRuntime runtime)
+    private IModelProvider ResolvePlugin(EffectiveModelRuntime baseRuntime, ContributionEntry<IModelBackendSource> entry)
     {
-        if (string.IsNullOrWhiteSpace(runtime.BackendId))
-            return builtins.Resolve(runtime);
-        if (officialBackends.TryGetValue(runtime.BackendId, out var official))
-            return ResolveOfficial(runtime, official);
-        var normalized = Normalize(runtime) with { Model = string.Empty };
-        return _providers.GetOrAdd(normalized, key => new Lazy<IModelProvider>(() =>
+        var key = baseRuntime with
         {
-            var backend = Find(key.BackendId!).Contribution.Backend;
-            var store = new ProviderCredentialStore(credentialRoot, key.BackendId!, key.ProviderId);
-            return backend.CreateProvider(new ModelBackendContext(key, store, backend.Stopping));
+            Model = string.Empty,
+            ModelMetadata = null,
+            RequestAdaptation = null,
+            MaxOutputTokens = baseRuntime.ConfiguredMaxOutputTokens,
+            Capabilities = entry.Contribution.Backend.Descriptor.Capabilities
+        };
+        return _providers.GetOrAdd(key, value => new Lazy<IModelProvider>(() =>
+        {
+            var backend = entry.Contribution.Backend;
+            var store = new ProviderCredentialStore(credentialRoot, value.BackendId!, value.ProviderId);
+            return backend.CreateProvider(new ModelBackendContext(value, store, backend.Stopping));
         }, LazyThreadSafetyMode.ExecutionAndPublication)).Value;
     }
 
-    public CancellationToken GetStopping(EffectiveModelRuntime runtime) =>
-        string.IsNullOrWhiteSpace(runtime.BackendId) ? CancellationToken.None
-            : officialBackends.TryGetValue(runtime.BackendId, out var official) ? official.Stopping
-            : Find(runtime.BackendId).Contribution.Backend.Stopping;
+    private EffectiveModelRuntime ApplyPluginResolvedRuntime(
+        EffectiveModelRuntime baseRuntime, EffectiveModelRuntime resolved, ModelBackendDescriptor descriptor)
+    {
+        var protocol = string.IsNullOrWhiteSpace(resolved.Protocol) ? baseRuntime.Protocol : resolved.Protocol;
+        if (!descriptor.Protocols.Contains(protocol, StringComparer.Ordinal))
+            throw new ArgumentException($"Backend '{descriptor.Id}' does not support protocol '{protocol}'.");
+        return baseRuntime with
+        {
+            Protocol = protocol,
+            ModelMetadata = InternPluginMetadata(baseRuntime, resolved.ModelMetadata),
+            MaxOutputTokens = (baseRuntime.ConfiguredMaxOutputTokens, resolved.MaxOutputTokens) switch
+            {
+                (int configured, int modelLimit) when configured > 0 && modelLimit > 0 => Math.Min(configured, modelLimit),
+                (int configured, _) when configured > 0 => configured,
+                (_, int modelLimit) when modelLimit > 0 => modelLimit,
+                _ => null
+            },
+            Capabilities = resolved.Capabilities
+        };
+    }
+
+    private ModelCatalogEntry? InternPluginMetadata(EffectiveModelRuntime baseRuntime, ModelCatalogEntry? metadata) =>
+        metadata is null
+            ? null
+            : _pluginMetadata.AddOrUpdate(
+                (InstanceKey(baseRuntime), baseRuntime.Model),
+                metadata,
+                (_, existing) => MetadataEquals(existing, metadata) ? existing : metadata);
+
+    private static bool MetadataEquals(ModelCatalogEntry a, ModelCatalogEntry b) =>
+        a.Id == b.Id && a.DisplayName == b.DisplayName && a.OwnedBy == b.OwnedBy
+        && a.CreatedAt == b.CreatedAt && a.ContextWindow == b.ContextWindow
+        && a.MaxOutputTokens == b.MaxOutputTokens && a.DefaultProtocol == b.DefaultProtocol
+        && a.Pricing == b.Pricing && ReasoningEquals(a.Reasoning, b.Reasoning)
+        && SequenceEquals(a.SupportedProtocols, b.SupportedProtocols)
+        && SequenceEquals(a.InputModalities, b.InputModalities)
+        && SequenceEquals(a.SpeedModes, b.SpeedModes);
+
+    private static bool ReasoningEquals(ModelReasoningSupport? a, ModelReasoningSupport? b) =>
+        ReferenceEquals(a, b) || (a is not null && b is not null
+            && a.SupportsDisable == b.SupportsDisable && a.DefaultEffort == b.DefaultEffort
+            && a.DefaultEnabled == b.DefaultEnabled && a.UpstreamDefaultEffort == b.UpstreamDefaultEffort
+            && SequenceEquals(a.SupportedEfforts, b.SupportedEfforts));
+
+    private static bool SequenceEquals<T>(IReadOnlyList<T>? a, IReadOnlyList<T>? b) =>
+        ReferenceEquals(a, b) || (a is not null && b is not null && a.SequenceEqual(b));
 
     private IModelProvider ResolveOfficial(EffectiveModelRuntime runtime, IModelBackend backend)
     {
@@ -121,9 +199,12 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
             Changed?.Invoke();
             return;
         }
-        _authenticationRevisions.AddOrUpdate(InstanceKey(runtime), 1, (_, revision) => revision + 1);
-        foreach (var key in _providers.Keys.Where(key => InstanceKey(key) == InstanceKey(runtime)))
+        var instanceKey = InstanceKey(runtime);
+        _authenticationRevisions.AddOrUpdate(instanceKey, 1, (_, revision) => revision + 1);
+        foreach (var key in _providers.Keys.Where(key => InstanceKey(key) == instanceKey))
             _providers.TryRemove(key, out _);
+        foreach (var key in _pluginMetadata.Keys.Where(key => key.Instance == instanceKey))
+            _pluginMetadata.TryRemove(key, out _);
         Changed?.Invoke();
     }
 
@@ -144,6 +225,7 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
     {
         if (!args.Includes<IModelBackendSource>()) return;
         _providers.Clear();
+        _pluginMetadata.Clear();
         Changed?.Invoke();
     }
 
@@ -152,6 +234,7 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
         if (contributions is IContributionRegistry registry) registry.Changed -= OnContributionsChanged;
         foreach (var handle in _officialRegistrations) handle.Dispose();
         _providers.Clear();
+        _pluginMetadata.Clear();
         Changed = null;
     }
 

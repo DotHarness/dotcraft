@@ -8,11 +8,6 @@ public sealed record ProviderLoginState(
     ProviderLoginEvent? Event = null, string? PromptId = null, ProviderLoginPrompt? Prompt = null,
     ProviderAuthenticationStatus? Authentication = null, string? ErrorCode = null, string? ErrorMessage = null);
 
-public sealed class ProviderAuthenticationException(string code, string message) : InvalidOperationException(message)
-{
-    public string Code { get; } = code;
-}
-
 public sealed class ProviderAuthenticationCoordinator(
     ModelBackendResolver resolver, HttpClient? balanceClient = null, TimeProvider? time = null) : IAsyncDisposable
 {

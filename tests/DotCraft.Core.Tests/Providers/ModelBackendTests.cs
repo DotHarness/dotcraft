@@ -120,6 +120,111 @@ public sealed class ModelBackendTests : IDisposable
         Assert.Contains(updates.SelectMany(update => update.Contents).OfType<TextContent>(), text => text.Text == "received-tool-result");
     }
 
+    [Fact]
+    public async Task PluginRuntimeResolverProjectsMetadataPreservesHostInvariantsAndCachesClients()
+    {
+        static ModelCatalogEntry BuildMetadata() => new()
+        {
+            Id = "reasoner-4",
+            DisplayName = "Reasoner 4",
+            ContextWindow = 1_000_000,
+            MaxOutputTokens = 32_768,
+            Reasoning = new ModelReasoningSupport(
+                SupportsDisable: true,
+                SupportedEfforts: [ProviderReasoningEffort.Low, ProviderReasoningEffort.Medium, ProviderReasoningEffort.High],
+                DefaultEffort: ProviderReasoningEffort.Medium,
+                DefaultEnabled: true)
+        };
+        var backend = new Backend("alpha")
+        {
+            Protocols = ["anthropic", "gemini"],
+            RuntimeResolver = runtime =>
+            {
+                if (string.IsNullOrWhiteSpace(runtime.Model))
+                    throw new ArgumentException("Model id is required.");
+                return runtime.Model switch
+                {
+                    "reasoner-4" => runtime with
+                    {
+                        ProviderId = "spoofed-provider",
+                        BackendId = "spoofed-backend",
+                        IsBuiltInBackend = true,
+                        AuthMethod = "spoofed-auth",
+                        Protocol = "gemini",
+                        ModelMetadata = BuildMetadata(),
+                        MaxOutputTokens = 32_768,
+                        Capabilities = new ModelProviderCapabilities { ExtendedThinking = true }
+                    },
+                    "no-limit" => runtime with { MaxOutputTokens = null },
+                    "bad-protocol" => runtime with { Protocol = "undeclared" },
+                    _ => runtime
+                };
+            }
+        };
+        _contributions.Add<IModelBackendSource>(new Source(backend));
+        var resolver = Resolver();
+        var config = Config(("a", "alpha"));
+        config.RuntimeResolver = resolver;
+
+        var providerOnly = resolver.Normalize(ModelProviderResolver.ResolveProvider(config, "a"));
+        Assert.Equal("anthropic", providerOnly.Protocol);
+        Assert.Equal("alpha", Assert.Single((await ModelProviderCatalog.FetchAsync(config, resolver, "a")).Models).Id);
+
+        var raw = ModelProviderResolver.ResolveProvider(config, "a") with { Model = "reasoner-4" };
+        var resolved = resolver.Normalize(raw);
+
+        Assert.Equal("a", resolved.ProviderId);
+        Assert.Equal("alpha", resolved.BackendId);
+        Assert.False(resolved.IsBuiltInBackend);
+        Assert.Equal("oauth", resolved.AuthMethod);
+        Assert.Equal("gemini", resolved.Protocol);
+        Assert.Equal(1_000_000, resolved.ModelMetadata?.ContextWindow);
+        Assert.Equal(32_768, resolved.MaxOutputTokens);
+        Assert.True(resolved.Capabilities.ExtendedThinking);
+
+        var clients = new ChatClientRegistry(new ModelProviderRegistry([]), resolver);
+        Assert.Same(clients.GetChatClient(config, "a", "reasoner-4"), clients.GetChatClient(config, "a", "reasoner-4"));
+
+        config.Providers["a"].MaxOutputTokens = 4_096;
+        Assert.Equal(4_096, resolver.Normalize(ModelProviderResolver.ResolveProvider(config, "a") with { Model = "reasoner-4" }).MaxOutputTokens);
+        Assert.Equal(4_096, resolver.Normalize(ModelProviderResolver.ResolveProvider(config, "a") with { Model = "no-limit" }).MaxOutputTokens);
+
+        var reasoning = ModelThinkingAdapterResolver.ResolveReasoningCapability(config, resolved);
+        Assert.NotNull(reasoning);
+        Assert.Equal(
+            [ProviderReasoningEffort.Low, ProviderReasoningEffort.Medium, ProviderReasoningEffort.High],
+            reasoning.SupportedEfforts.Select(effort => effort.Effort).ToArray());
+        var compaction = ModelCatalog.ResolveCompactionConfig(
+            config, resolved.Model, resolved.ModelMetadata?.ContextWindow);
+        Assert.Equal(1_000_000, compaction.ContextWindow);
+
+        Assert.Throws<ArgumentException>(() => resolver.Normalize(raw with { Model = "bad-protocol" }));
+    }
+
+    [Fact]
+    public async Task LoginSurfacesControlledFailureAndRedactsUnexpectedExceptions()
+    {
+        Exception? failure = new ProviderAuthenticationException("AccountNotEligible", "Sign in with an eligible account.");
+        var backend = new Backend("alpha")
+        {
+            LoginHandler = (_, _, _) => Task.FromException<ProviderAuthenticationStatus>(failure!)
+        };
+        _contributions.Add<IModelBackendSource>(new Source(backend));
+        await using var auth = new ProviderAuthenticationCoordinator(Resolver());
+        var config = Config(("a", "alpha"));
+
+        var controlled = auth.Login(config, "a", "oauth", "owner");
+        var controlledFailed = await WaitStatusAsync(auth, controlled.Id, "failed");
+        Assert.Equal("AccountNotEligible", controlledFailed.ErrorCode);
+        Assert.Equal("Sign in with an eligible account.", controlledFailed.ErrorMessage);
+
+        failure = new InvalidOperationException("internal secret token=abc");
+        var unexpected = auth.Login(config, "a", "oauth", "owner");
+        var unexpectedFailed = await WaitStatusAsync(auth, unexpected.Id, "failed");
+        Assert.Equal("ProviderLoginFailed", unexpectedFailed.ErrorCode);
+        Assert.Equal("Provider sign-in failed. Try again.", unexpectedFailed.ErrorMessage);
+    }
+
     private ModelBackendResolver Resolver() => _resolver ??= new(new ModelProviderRegistry([]), _contributions, _root);
     private AppConfig Config(params (string Id, string Backend)[] entries) => new()
     {
@@ -140,6 +245,17 @@ public sealed class ModelBackendTests : IDisposable
         }
     }
 
+    private static async Task<ProviderLoginState> WaitStatusAsync(ProviderAuthenticationCoordinator auth, string id, string status)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        while (true)
+        {
+            var state = auth.Get(id, "owner");
+            if (state.Status == status) return state;
+            await Task.Delay(10, timeout.Token);
+        }
+    }
+
     public void Dispose()
     {
         _resolver?.Dispose();
@@ -150,23 +266,32 @@ public sealed class ModelBackendTests : IDisposable
     private sealed class Backend(string id) : IModelBackend
     {
         public Func<IChatClient>? ClientFactory { get; init; }
-        public ModelBackendDescriptor Descriptor => new(id, id, "anthropic", ["anthropic"],
+        public IReadOnlyList<string> Protocols { get; init; } = ["anthropic"];
+        public Func<EffectiveModelRuntime, EffectiveModelRuntime>? RuntimeResolver { get; init; }
+        public Func<string, IProviderLoginInteraction, CancellationToken, Task<ProviderAuthenticationStatus>>? LoginHandler { get; init; }
+        public ModelBackendDescriptor Descriptor => new(id, id, Protocols[0], Protocols,
             [new("oauth", "Sign in", "oauth")], new ModelProviderCapabilities());
         public IModelProvider CreateProvider(ModelBackendContext context) => new Provider(this, id, context.Credentials);
     }
 
     private sealed class Provider(Backend backend, string id, IProviderCredentialStore credentials)
-        : IModelProvider, IModelCatalogProvider, IProviderAuthenticator
+        : IModelProvider, IModelCatalogProvider, IProviderAuthenticator, IProviderModelRuntimeResolver
     {
-        public IReadOnlyCollection<string> Protocols => ["anthropic"];
+        public IReadOnlyCollection<string> Protocols => backend.Protocols;
         public IChatClient CreateChatClient(EffectiveModelRuntime runtime) => backend.ClientFactory?.Invoke() ?? new Client(id);
-        public object? GetService(Type type, object? key = null) => type.IsInstanceOfType(this) ? this : null;
+        public object? GetService(Type type, object? key = null) =>
+            type == typeof(IProviderModelRuntimeResolver)
+                ? (backend.RuntimeResolver is not null ? this : null)
+                : (type.IsInstanceOfType(this) ? this : null);
+        public EffectiveModelRuntime ResolveRuntime(EffectiveModelRuntime runtime) => backend.RuntimeResolver!(runtime);
         public Task<ModelCatalogResult> FetchModelsAsync(EffectiveModelRuntime runtime, CancellationToken ct) =>
             Task.FromResult(new ModelCatalogResult { Success = true, Models = [new() { Id = id }] });
         public async Task<ProviderAuthenticationStatus> GetStatusAsync(CancellationToken ct) =>
             new(await credentials.ReadAsync(ct) is not null);
         public async Task<ProviderAuthenticationStatus> LoginAsync(string method, IProviderLoginInteraction interaction, CancellationToken ct)
         {
+            if (backend.LoginHandler is not null)
+                return await backend.LoginHandler(method, interaction, ct);
             var secret = await interaction.PromptAsync(new("secret", "Enter a test secret"), ct);
             await credentials.ModifyAsync((_, _) => Task.FromResult<JsonElement?>(JsonSerializer.SerializeToElement(secret)), ct);
             return new ProviderAuthenticationStatus(true);
