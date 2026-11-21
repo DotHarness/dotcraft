@@ -4,6 +4,7 @@ using DotCraft.Context.Compaction;
 using DotCraft.Context.WorldState;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.AI;
+using Microsoft.Data.Sqlite;
 using DotCraft.GenerativeUi;
 using DotCraft.Visualizations;
 
@@ -48,8 +49,17 @@ public sealed partial class SessionPersistenceService(
 
     internal async Task ArchiveStoredThreadAsync(SessionThread thread, bool requireRollout, CancellationToken ct)
     {
-        if (await threadStore.ArchiveStoredThreadAsync(thread, requireRollout, ct))
+        if (!await threadStore.ArchiveStoredThreadAsync(thread, requireRollout, ct))
+            return;
+
+        try
+        {
             _tokenUsageStore?.ArchiveThread(thread.Id);
+        }
+        catch (SqliteException ex)
+        {
+            System.Diagnostics.Trace.TraceWarning($"Usage statistics update failed after archiving thread '{thread.Id}': {ex.Message}");
+        }
     }
 
     internal Task<SessionThread?> ReadThreadLifecycleMetadataAsync(

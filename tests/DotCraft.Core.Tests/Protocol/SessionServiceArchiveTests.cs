@@ -269,8 +269,10 @@ public sealed class SessionServiceArchiveTests : IDisposable
         Assert.True(service.TryGetLoadedThread("root") is null or { Status: ThreadStatus.Archived });
     }
 
-    [Fact]
-    public async Task LoadedBusyThread_ArchivesWithoutWaitingForTerminalCleanupEvenIfCancellationCallbackThrows()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task LoadedBusyThread_ArchivesWithoutWaitingForTerminalCleanupWhenASideEffectFails(bool failUsageUpdate)
     {
         var timeout = TimeSpan.FromSeconds(10);
         var streamStarted = new TaskCompletionSource<CancellationToken>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -297,8 +299,27 @@ public sealed class SessionServiceArchiveTests : IDisposable
         await SeedAsync("busy", 1);
         await using var store = new ThreadStore(CraftPath);
         await using var factory = CreateFactory(chat, new ThreadResources());
-        await using var service = CreateService(factory, chat, store, terminals);
+        using var database = new UsageStatisticsDatabase(_workspace);
+        var usage = new UsageStatisticsStore(database, _workspace);
+        await using var service = new SessionService(factory, chat.AsAIAgent(),
+            new SessionPersistenceService(store, tokenUsageStore: usage), new SessionGate(), backgroundTerminalService: terminals);
         var thread = await service.GetThreadAsync("busy");
+        usage.ObserveThread(thread);
+        if (failUsageUpdate)
+        {
+            using var connection = database.OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                CREATE TRIGGER fail_archive_statistics BEFORE UPDATE OF archived ON usage_threads
+                WHEN NEW.archived = 1 BEGIN
+                    SELECT RAISE(ABORT, 'Archive statistics write failed.');
+                END;
+                """;
+            command.ExecuteNonQuery();
+        }
+
+        ThreadStatus? announcedStatus = null;
+        service.ThreadStatusChangedForBroadcast = (_, _, status) => announcedStatus = status;
         var run = service.SubmitInputAsync(thread.Id, [new TextContent("run")]).ToListAsync().AsTask();
 
         try
@@ -308,14 +329,15 @@ public sealed class SessionServiceArchiveTests : IDisposable
             using var registration = turnCancellation.Register(() =>
             {
                 callbackRan = true;
-                throw new InvalidOperationException("Cancellation callback failed.");
+                if (!failUsageUpdate)
+                    throw new InvalidOperationException("Cancellation callback failed.");
             });
-            var archive = service.ArchiveThreadAsync(thread.Id);
+            Assert.True(await service.ArchiveThreadAsync(thread.Id).WaitAsync(timeout));
             Assert.Equal((thread.Id, true), await cleanupStarted.Task.WaitAsync(timeout));
-            await archive.WaitAsync(timeout);
 
             Assert.True(callbackRan);
             Assert.False(cleanup.Task.IsCompleted);
+            Assert.Equal(ThreadStatus.Archived, announcedStatus);
             Assert.Equal(ThreadStatus.Archived, (await service.ReadThreadSnapshotAsync(thread.Id)).Thread.Status);
             Assert.Contains(await run.WaitAsync(timeout), e => e.EventType == SessionEventType.TurnCancelled);
         }
