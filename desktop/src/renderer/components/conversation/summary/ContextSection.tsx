@@ -120,6 +120,7 @@ export function ContextSection({ services, threadId }: { services: SummaryServic
           autoCompactThreshold={usage.autoCompactThreshold}
           canCompact={canCompact}
           onCompact={() => void services.context.compact(threadId)}
+          onOpenFile={(path) => void services.navigation.openFile(path)}
         />
       ) : null}
     </section>
@@ -142,7 +143,8 @@ function ContextDetail({
   contextWindow,
   autoCompactThreshold,
   canCompact,
-  onCompact
+  onCompact,
+  onOpenFile
 }: {
   breakdown: BreakdownResult
   usedTokens: number
@@ -150,6 +152,7 @@ function ContextDetail({
   autoCompactThreshold: number
   canCompact: boolean
   onCompact: () => void
+  onOpenFile: (path: string) => void
 }): JSX.Element {
   const t = useT()
   const view = useMemo(
@@ -211,6 +214,7 @@ function ContextDetail({
               share={percent(row.tokens)}
               swatch={seriesColor(row)}
               items={row.items}
+              onOpenItem={row.id === 'memoryFiles' ? onOpenFile : undefined}
             />
           ))}
           {view.sinceLastUpdate > 0 ? (
@@ -261,7 +265,8 @@ function LegendItem({
   share,
   swatch,
   items = [],
-  onDemand = false
+  onDemand = false,
+  onOpenItem
 }: {
   label: string
   tokens: number
@@ -269,6 +274,7 @@ function LegendItem({
   swatch: string
   items?: ContextRow['items']
   onDemand?: boolean
+  onOpenItem?: (name: string) => void
 }): JSX.Element {
   const [expanded, setExpanded] = useState(false)
   const expandable = items.length > 0
@@ -304,18 +310,33 @@ function LegendItem({
       )}
       {expandable && expanded ? (
         <ul className="conversation-summary-context__legend" data-nested>
-          {items.map((item) => (
-            <li key={item.name}>
-              <div className="conversation-summary-context__row">
+          {items.map((item) => {
+            const itemContent = (
+              <>
                 <span className="conversation-summary-context__swatch" />
                 <span className="conversation-summary-context__name" title={item.name}>
                   <span className="conversation-summary-context__label">{shortenPath(item.name)}</span>
                 </span>
                 <span className="conversation-summary-context__value">{formatCompactCount(item.tokens)}</span>
                 <span className="conversation-summary-context__share" />
-              </div>
-            </li>
-          ))}
+              </>
+            )
+            return (
+              <li key={item.name}>
+                {onOpenItem ? (
+                  <button
+                    type="button"
+                    className="conversation-summary-context__row conversation-summary-context__row--action"
+                    onClick={() => onOpenItem(item.name)}
+                  >
+                    {itemContent}
+                  </button>
+                ) : (
+                  <div className="conversation-summary-context__row">{itemContent}</div>
+                )}
+              </li>
+            )
+          })}
         </ul>
       ) : null}
     </li>
