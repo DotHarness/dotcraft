@@ -25,15 +25,12 @@ public sealed partial class SessionService : ISubAgentStartupLifecycleService, I
             await PersistThreadWithMaterializationAsync(child, token);
         }, ct);
 
-    async Task ISubAgentStartupLifecycleService.DiscardFailedSubAgentAsync(
+    Task ISubAgentStartupLifecycleService.DiscardFailedSubAgentAsync(
         string parentThreadId, string childThreadId, CancellationToken ct)
     {
-        if (!_runtimeRegistry.TryGetThread(childThreadId, out _)
-            && !Persistence.ThreadExists(childThreadId)) return;
-        var deleteOrder = await InvokeThreadCommandAsync(childThreadId,
-            token => ThreadLifecycle.PrepareFailedSubAgentDeletionAsync(parentThreadId, childThreadId, token), ct);
-        await ThreadLifecycle.ExecutePermanentDeletionAsync(deleteOrder, ct);
-        _sessionApprovalScopes.RemoveThread(childThreadId);
-        McpAppTransientContexts?.ClearThread(childThreadId);
+        childThreadId = NormalizeRequiredThreadId(childThreadId);
+        return !_runtimeRegistry.TryGetThread(childThreadId, out _) && !Persistence.ThreadExists(childThreadId)
+            ? Task.CompletedTask
+            : ThreadLifecycle.DeletePermanentlyAsync(childThreadId, ct, failedStartupParentId: parentThreadId);
     }
 }

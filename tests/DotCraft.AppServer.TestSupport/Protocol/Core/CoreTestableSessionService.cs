@@ -502,16 +502,18 @@ internal sealed partial class CoreTestableSessionService : ISessionService, IThr
         return await ThreadWorktreeManager.GetStatusAsync(thread.Id, thread.Worktree, ct);
     }
 
-    public async Task ArchiveThreadAsync(string threadId, CancellationToken ct = default)
+    public async Task<bool> ArchiveThreadAsync(string threadId, CancellationToken ct = default)
     {
         var root = await GetOrLoadAsync(threadId, ct);
         ThrowIfDirectSubAgentLifecycleOperation(root, "archive");
+        var archived = root.Status != ThreadStatus.Archived;
         foreach (var id in await CollectSubAgentSubtreeIdsAsync(root.Id, includeClosed: true, ct))
         {
             var thread = await GetOrLoadAsync(id, ct);
             if (thread.Status == ThreadStatus.Archived) continue;
             await ArchiveCoreAsync(thread, ct);
         }
+        return archived;
     }
 
     public async Task ArchiveSubAgentTreeForCloseAsync(string childThreadId, CancellationToken ct = default)

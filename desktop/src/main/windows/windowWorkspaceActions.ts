@@ -12,7 +12,7 @@ import { invalidateForegroundFileAccess, revokeAllWindowFileAccess } from '../wi
 import { hasRemoteEndpointArg } from '../workspaceArgs'
 import { getForegroundWorkspaceClient } from '../workspaceConnectionRouting'
 import { listSetupModels, loginSetupProvider, runWorkspaceSetup } from '../workspaceSetup'
-import { beginWorkspaceThreadListRequest } from '../workspaceThreadCache'
+import { beginWorkspaceThreadListRequest, getWorkspaceThreadActiveTurnId } from '../workspaceThreadCache'
 import { startLocalProjectConnection } from './windowSecondaryConnections'
 import type { DesktopWindowRuntime } from './windowRuntime'
 import { resolveLocalUsageConnection } from './windowUsageStatistics'
@@ -152,8 +152,8 @@ export function buildCallbacks(ctx: DesktopWindowRuntime): IpcHandlerCallbacks {
       if (!entry || !entry.connected) {
         throw new Error('Workspace connection is not available for archiving.')
       }
-      await stopBeforeArchive((method, params) => entry.client.sendRequest(method, params), id)
-      await ctx.refreshConnectionThreadList(entry)
+      const activeTurnId = getWorkspaceThreadActiveTurnId(entry.threads, id)
+      await stopBeforeArchive((method, params) => entry.client.sendRequest(method, params), id, activeTurnId)
     },
     getUsageConnection: () => resolveLocalUsageConnection(ctx),
     getConnectionKey: (client) => ctx.findWorkspaceConnectionByClient(client)?.key ?? null,

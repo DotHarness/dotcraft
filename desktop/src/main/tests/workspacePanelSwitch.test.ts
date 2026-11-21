@@ -118,16 +118,23 @@ describe('panel resources on foreground workspace changes', () => {
     expect(ctx.connectToAppServer).not.toHaveBeenCalled()
   })
 
-  it('archives through the requested remote connection instead of a local workspace with the same path', async () => {
+  it('archives through the requested remote connection using its active turn', async () => {
     const ctx = fixture()
-    const sendRequest = vi.fn(async () => ({}))
+    const sendRequest = vi.fn().mockResolvedValue({})
     const key = 'remote:device:computer:project'
-    ctx.workspaceConnections = new Map([[key, { key, connected: true, client: { sendRequest } } as never]])
+    const threads = [{ id: 'thread', runtime: { activeTurnId: 'remote-turn' } }]
+    ctx.workspaceConnections = new Map([[key, { key, connected: true, threads, client: { sendRequest } } as never]])
     ctx.getWorkspaceConnection = vi.fn()
     ctx.refreshConnectionThreadList = vi.fn(async () => {})
+
     await buildCallbacks(ctx).archiveThreadInWorkspace?.('/same/path', 'thread', key)
+
+    expect(sendRequest.mock.calls).toEqual([
+      ['turn/interrupt', { threadId: 'thread', turnId: 'remote-turn' }],
+      ['thread/archive', { threadId: 'thread' }]
+    ])
     expect(ctx.getWorkspaceConnection).not.toHaveBeenCalled()
-    expect(sendRequest).toHaveBeenCalledWith('thread/archive', { threadId: 'thread' })
+    expect(ctx.refreshConnectionThreadList).not.toHaveBeenCalled()
   })
 
   it('keeps explicit workspace clearing as a real teardown with grant revocation', async () => {

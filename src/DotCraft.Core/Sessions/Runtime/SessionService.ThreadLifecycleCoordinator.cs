@@ -33,12 +33,17 @@ public sealed partial class SessionService
             return thread;
         }
 
-        public Task ArchiveAsync(string threadId, CancellationToken ct) =>
-            owner.WithThreadForArchiveAsync(threadId, async (root, loaded, commandCt) =>
+        public async Task<bool> ArchiveAsync(string threadId, CancellationToken ct)
+        {
+            var archived = false;
+            await owner.WithThreadForArchiveAsync(threadId, async (root, loaded, commandCt) =>
             {
                 ThrowIfDirectSubAgentLifecycleOperation(root, "archive");
+                archived = root.Status != ThreadStatus.Archived;
                 await ArchiveTreeAsync(root, loaded, commandCt);
             }, ct);
+            return archived;
+        }
 
         public async Task UnarchiveAsync(string threadId, CancellationToken ct)
         {
@@ -52,14 +57,14 @@ public sealed partial class SessionService
             }
         }
 
-        public async Task ArchiveSubAgentTreeForCloseAsync(string childThreadId, CancellationToken ct)
-        {
-            var root = await owner.GetOrLoadThreadAsync(childThreadId, ct);
-            if (!IsSubAgentThread(root))
-                throw new InvalidOperationException($"Thread '{childThreadId}' is not a SubAgent child thread.");
+        public Task ArchiveSubAgentTreeForCloseAsync(string childThreadId, CancellationToken ct) =>
+            owner.WithThreadForArchiveAsync(childThreadId, async (root, loaded, commandCt) =>
+            {
+                if (!IsSubAgentThread(root))
+                    throw new InvalidOperationException($"Thread '{childThreadId}' is not a SubAgent child thread.");
 
-            await ArchiveTreeAsync(root, loaded: true, ct);
-        }
+                await ArchiveTreeAsync(root, loaded, commandCt);
+            }, ct);
 
         private async Task ArchiveTreeAsync(SessionThread root, bool loaded, CancellationToken ct)
         {
@@ -81,54 +86,60 @@ public sealed partial class SessionService
             }
         }
 
-        public async Task<IReadOnlyList<string>> PreparePermanentDeletionAsync(string threadId, CancellationToken ct)
+        public async Task DeletePermanentlyAsync(string threadId, CancellationToken ct, string? failedStartupParentId = null)
         {
-            var normalizedThreadId = threadId.Trim();
-            if (normalizedThreadId.Length == 0)
-                throw new ArgumentException("threadId is required.", nameof(threadId));
-
-            var root = await owner.GetOrLoadThreadAsync(normalizedThreadId, ct);
-            ThrowIfDirectSubAgentLifecycleOperation(root, "delete");
-            var subtreeIds = await CollectSubAgentSubtreeIdsAsync(normalizedThreadId, includeClosed: true, ct);
-            var deleteOrder = subtreeIds.Reverse().ToList();
-            foreach (var id in deleteOrder)
-            {
-                var thread = await owner.GetOrLoadThreadAsync(id, ct);
-                owner._runtimeRegistry.SetThread(thread);
-                owner._runtimeRegistry.MarkPendingPermanentDeletion(id);
-            }
-
-            return deleteOrder;
-        }
-
-        public async Task<IReadOnlyList<string>> PrepareFailedSubAgentDeletionAsync(
-            string parentThreadId, string childThreadId, CancellationToken ct)
-        {
-            var child = owner._runtimeRegistry.TryGetThread(childThreadId, out var loaded)
-                ? loaded : await owner.Persistence.LoadThreadWorkingSetAsync(childThreadId, ct);
-            if (child == null) return [];
-            if (!IsSubAgentThread(child)
-                || !string.Equals(GetSubAgentParentThreadId(child), parentThreadId, StringComparison.Ordinal))
-                throw new InvalidOperationException("Failed startup cleanup requires the owning parent thread.");
-            await owner.Persistence.SetThreadSpawnEdgeStatusAsync(parentThreadId, childThreadId, ThreadSpawnEdgeStatus.Closed, ct);
-            owner._runtimeRegistry.SetThread(child);
-            owner._runtimeRegistry.MarkPendingPermanentDeletion(childThreadId);
-            return [childThreadId];
-        }
-
-        public async Task ExecutePermanentDeletionAsync(IReadOnlyList<string> deleteOrder, CancellationToken ct)
-        {
+            var prepared = new List<(string Id, SessionThread? Thread)>();
             try
             {
-                foreach (var id in deleteOrder)
-                    await DeleteCoreAsync(id, ct);
+                await PrepareAsync(threadId, isRoot: true);
+                if (failedStartupParentId is null)
+                {
+                    var subtree = await CollectSubAgentSubtreeIdsAsync(threadId, includeClosed: true, ct);
+                    foreach (var childId in subtree.Skip(1))
+                        await PrepareAsync(childId, isRoot: false);
+                }
+
+                while (prepared.Count != 0)
+                {
+                    var (id, thread) = prepared[^1];
+                    await DeleteCoreAsync(id, thread, ct);
+                    prepared.RemoveAt(prepared.Count - 1);
+                }
             }
-            catch
+            finally
             {
-                foreach (var id in deleteOrder)
+                foreach (var (id, _) in prepared)
                     owner._runtimeRegistry.ClearPendingPermanentDeletion(id);
-                throw;
             }
+
+            Task PrepareAsync(string id, bool isRoot) =>
+                owner.WithExistingThreadAsync(id, async (thread, _, commandCt) =>
+                {
+                    if (isRoot)
+                    {
+                        if (thread is null)
+                        {
+                            if (failedStartupParentId is not null)
+                                return;
+                            throw new ThreadNotFoundException(id);
+                        }
+
+                        var parentId = owner.Persistence.GetSubAgentParentThreadId(id)
+                            ?? (IsSubAgentThread(thread) ? GetSubAgentParentThreadId(thread) : null);
+                        if (failedStartupParentId is null)
+                            ThrowIfDirectSubAgentLifecycleOperation(id, parentId, "delete");
+                        else
+                        {
+                            if (!string.Equals(parentId, failedStartupParentId, StringComparison.Ordinal))
+                                throw new InvalidOperationException("Failed startup cleanup requires the owning parent thread.");
+                            await owner.Persistence.SetThreadSpawnEdgeStatusAsync(
+                                failedStartupParentId, id, ThreadSpawnEdgeStatus.Closed, commandCt);
+                        }
+                    }
+
+                    owner._runtimeRegistry.MarkPendingPermanentDeletion(id);
+                    prepared.Add((id, thread));
+                }, ct, forDeletion: true);
         }
 
         public async Task RenameAsync(string threadId, string displayName, CancellationToken ct)
@@ -152,13 +163,15 @@ public sealed partial class SessionService
 
         private static void ThrowIfDirectSubAgentLifecycleOperation(SessionThread thread, string operation)
         {
-            if (!IsSubAgentThread(thread))
-                return;
-            var parentId = GetSubAgentParentThreadId(thread);
-            if (string.IsNullOrWhiteSpace(parentId))
-                return;
-            throw new InvalidOperationException(
-                $"SubAgent child thread '{thread.Id}' cannot be {operation}d directly; manage its parent thread '{parentId}' instead.");
+            if (IsSubAgentThread(thread))
+                ThrowIfDirectSubAgentLifecycleOperation(thread.Id, GetSubAgentParentThreadId(thread), operation);
+        }
+
+        private static void ThrowIfDirectSubAgentLifecycleOperation(string threadId, string? parentId, string operation)
+        {
+            if (!string.IsNullOrWhiteSpace(parentId))
+                throw new InvalidOperationException(
+                    $"SubAgent child thread '{threadId}' cannot be {operation}d directly; manage its parent thread '{parentId}' instead.");
         }
 
         private async Task<IReadOnlyList<string>> CollectSubAgentSubtreeIdsAsync(
@@ -208,9 +221,7 @@ public sealed partial class SessionService
             await owner.AgentFactory.ReleaseThreadToolResourcesAsync(thread.Id, ct);
             owner.ForgetContextPages(thread.Id);
 
-            if (loaded)
-                await owner.PersistThreadStatusAsync(thread, ct);
-            else
+            if (!loaded || owner.IsMaterialized(thread.Id))
                 await owner.Persistence.ArchiveStoredThreadAsync(thread.Id, ct);
             PublishThreadStatusChanged(thread.Id, previousStatus, thread.Status);
 
@@ -280,16 +291,12 @@ public sealed partial class SessionService
             PublishThreadStatusChanged(thread.Id, previousStatus, thread.Status);
         }
 
-        private async Task DeleteCoreAsync(string threadId, CancellationToken ct)
+        private async Task DeleteCoreAsync(string threadId, SessionThread? deletingThread, CancellationToken ct)
         {
-            var ephemeral = false;
-            string? workspacePath = null;
+            ct.ThrowIfCancellationRequested();
             if (owner._runtimeRegistry.TryGetRuntime(threadId, out var runtime))
             {
-                var thread = runtime.Thread;
-                ephemeral = thread.Ephemeral;
-                workspacePath = thread.WorkspacePath;
-                foreach (var turn in thread.Turns.Where(t => t.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput))
+                foreach (var turn in runtime.Thread.Turns.Where(t => t.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput))
                 {
                     if (runtime.TryRemoveTurn(turn.Id, out var turnRuntime))
                     {
@@ -300,28 +307,19 @@ public sealed partial class SessionService
                 }
             }
 
-            if (workspacePath is null)
-            {
-                var persisted = await owner.Persistence.LoadThreadWorkingSetAsync(threadId, ct);
-                if (persisted is not null)
-                {
-                    ephemeral = persisted.Ephemeral;
-                    workspacePath = persisted.WorkspacePath;
-                }
-            }
-
-            var deletingThread = owner._runtimeRegistry.TryGetRuntime(threadId, out var deletingRuntime)
-                ? deletingRuntime.Thread
-                : await owner.Persistence.LoadThreadWorkingSetAsync(threadId, ct);
             if (deletingThread != null)
+            {
+                if (IsSubAgentThread(deletingThread))
+                    SubAgentSessionControl.InterruptRunningChild(threadId);
                 await owner.ContributionLifecycle.ThreadDeletingAsync(deletingThread, ct);
+            }
 
             if (owner.BackgroundTerminalService != null)
                 await owner.BackgroundTerminalService.DeleteThreadArtifactsAsync(threadId, ct);
             if (deletingThread != null)
                 await owner.Worktrees.ReleaseOnDeleteAsync(deletingThread, ct);
 
-            if (!string.IsNullOrWhiteSpace(workspacePath))
+            if (deletingThread?.WorkspacePath is { Length: > 0 } workspacePath)
             {
                 var cleanup = ToolResultProcessor.CleanupThreadArtifacts(workspacePath, owner.DataPath, threadId);
                 if (cleanup.Errors > 0)
@@ -342,15 +340,18 @@ public sealed partial class SessionService
                 }
             }
 
-            if (!ephemeral)
-                await owner.Persistence.DeleteThreadCascadeAsync(threadId, ct);
-
-            owner.ThreadDeletedForBroadcast?.Invoke(threadId);
             if (owner._runtimeRegistry.TryRemove(threadId, out var removedRuntime))
                 await removedRuntime.DisposeAsync();
+            await owner.AgentFactory.ReleaseThreadToolResourcesAsync(threadId, ct);
+
+            if (deletingThread?.Ephemeral != true)
+                await owner.Persistence.DeleteThreadCascadeAsync(threadId, ct);
+
+            owner._sessionApprovalScopes.RemoveThread(threadId);
+            owner.McpAppTransientContexts?.ClearThread(threadId);
+            owner.ThreadDeletedForBroadcast?.Invoke(threadId);
             owner._runtimeRegistry.ForgetBroker(threadId);
             owner.ToolDispatchPolicyRegistry?.Remove(threadId);
-            await owner.AgentFactory.ReleaseThreadToolResourcesAsync(threadId, ct);
             owner.InvalidatePromptRequestSnapshot(threadId, "thread_deleted");
             owner.ClearContextUsageAnchor(threadId);
             owner.ForgetContextPages(threadId);

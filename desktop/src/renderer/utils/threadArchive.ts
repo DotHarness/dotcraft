@@ -31,7 +31,7 @@ export function archiveThreadWithUndo({ threadId, t }: ArchiveThreadOptions): Pr
   const running = needsThreadTreeArchiveConfirmation(threadId, state.threadList, state.runningTurnThreadIds)
   return confirmThreadArchive(JSON.stringify([projectKey, threadId]), running, t, () => performThreadArchive({
     projectKey, threadId, threads: state.threadList, t,
-    archive: () => stopBeforeArchive(send, threadId),
+    archive: (activeTurnId) => stopBeforeArchive(send, threadId, activeTurnId),
     unarchive: () => send('thread/unarchive', { threadId })
   }))
 }
@@ -40,7 +40,7 @@ export async function performThreadArchive({ projectKey, threadId, threads, arch
   projectKey: string
   threadId: string
   threads: ThreadSummary[]
-  archive: () => Promise<unknown>
+  archive: (activeTurnId: string | null | undefined) => Promise<unknown>
   unarchive: () => Promise<unknown>
   t: Translate
 }): Promise<boolean> {
@@ -57,6 +57,9 @@ export async function performThreadArchive({ projectKey, threadId, threads, arch
     .find(entry => normalizeWorkspaceProjectKey(entry.projectId ?? entry.path) === projectKey)
   const projectRows = (project?.threads ?? []) as ThreadSummary[]
   const projectCaptured = projectRows.filter(thread => ids.has(thread.id))
+  const runtime = ownsForeground()
+    ? before.runtimeSnapshots.get(threadId) ?? captured.find(thread => thread.id === threadId)?.runtime
+    : projectCaptured.find(thread => thread.id === threadId)?.runtime
 
   beginPendingThreadArchive(projectKey, threadId, ids)
   if (ownsForeground()) {
@@ -109,7 +112,7 @@ export async function performThreadArchive({ projectKey, threadId, threads, arch
   }
 
   let toastId: string
-  const archived = Promise.resolve().then(archive).then(() => {
+  const archived = Promise.resolve().then(() => archive(runtime?.activeTurnId)).then(() => {
     endPendingThreadArchive(projectKey, threadId)
     if (ownsForeground()) {
       for (const id of ids) useThreadStore.getState().removeThread(id)

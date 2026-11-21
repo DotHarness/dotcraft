@@ -2,6 +2,7 @@ using System.Text.Json;
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Memory;
+using DotCraft.Persistence;
 using DotCraft.Security;
 using DotCraft.Sessions;
 using DotCraft.Skills;
@@ -25,21 +26,41 @@ public sealed class SessionServiceArchiveTests : IDisposable
         if (Directory.Exists(_workspace)) Directory.Delete(_workspace, recursive: true);
     }
 
-    [Fact]
-    public async Task ColdLongThread_ArchivesWithoutHydratingAndPreservesHistory()
+    [Theory]
+    [InlineData("current")]
+    [InlineData("missing")]
+    [InlineData("stale")]
+    public async Task ColdLongThread_ArchivesWithoutHydratingAndPreservesHistory(string projection)
     {
         const int turns = 128;
         var attachment = Path.Combine(CraftPath, "attachments", "images", "kept.png");
         Directory.CreateDirectory(Path.GetDirectoryName(attachment)!);
         await File.WriteAllBytesAsync(attachment, [1, 2, 3]);
         await SeedAsync("cold", turns, attachment: attachment);
-        var original = await File.ReadAllBytesAsync(ActivePath("cold"));
         await using var store = new ThreadStore(CraftPath);
         var chat = new RecordingChatClient();
         var resources = new ThreadResources();
         await using var factory = CreateFactory(chat, resources);
         var service = CreateService(factory, chat, store);
         var before = await service.ReadThreadSnapshotAsync("cold");
+        if (projection == "missing")
+        {
+            using var connection = new WorkspaceStateDatabase(CraftPath).OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = "DELETE FROM threads WHERE thread_id = 'cold'";
+            command.ExecuteNonQuery();
+        }
+        else if (projection == "stale")
+        {
+            var rename = new ThreadRolloutRecord
+            {
+                Kind = RolloutKinds.ThreadNameUpdated,
+                ThreadNameUpdated = new ThreadNameUpdatedPayload { ThreadId = "cold", DisplayName = "Renamed" }
+            };
+            await File.AppendAllLinesAsync(ActivePath("cold"), [JsonSerializer.Serialize(rename, SessionJsonOptions.Default)]);
+        }
+
+        var original = await File.ReadAllBytesAsync(ActivePath("cold"));
         var projectedBefore = store.ProjectedRolloutBytes;
 
         await service.ArchiveThreadAsync("cold");
@@ -52,9 +73,12 @@ public sealed class SessionServiceArchiveTests : IDisposable
         Assert.Equal(original, archived[..original.Length]);
         var record = JsonSerializer.Deserialize<ThreadRolloutRecord>(archived.AsSpan(original.Length), SessionJsonOptions.Default)!;
         Assert.Equal(RolloutKinds.ThreadStatusChanged, record.Kind);
-        Assert.Equal(archived.Length - original.Length, store.ProjectedRolloutBytes - projectedBefore);
+        Assert.Equal(projection == "current" ? archived.Length - original.Length : 0L,
+            store.ProjectedRolloutBytes - projectedBefore);
         var snapshot = await service.ReadThreadSnapshotAsync("cold");
         Assert.Equal(ThreadStatus.Archived, snapshot.Thread.Status);
+        if (projection == "stale")
+            Assert.Equal("Renamed", snapshot.Thread.DisplayName);
         Assert.Equal(before.Thread.LastActiveAt, snapshot.Thread.LastActiveAt);
         Assert.Equal(turns, Assert.Single(await store.LoadIndexAsync(), summary => summary.Id == "cold").TurnCount);
         Assert.Empty(snapshot.Thread.Turns);

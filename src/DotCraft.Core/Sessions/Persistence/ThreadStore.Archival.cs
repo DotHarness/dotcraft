@@ -6,14 +6,14 @@ public sealed partial class ThreadStore
     {
         using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, threadId, ct);
         var path = ResolvePersistedHistoryPath(threadId);
-        var snapshot = await _historyProjectionStore.ReadSnapshotAsync(threadId, path, repair: true, ct);
-        var persisted = snapshot.Thread;
-        if (persisted.Status == ThreadStatus.Archived && _rolloutStore.IsArchivedPath(path))
+        if (_rolloutStore.IsArchivedPath(path))
             return;
 
+        await _rolloutStore.CloseThreadAsync(threadId, ct);
+        var previousOffset = new FileInfo(path).Length;
         var result = await TrackPersistedAsync(
             threadId,
-            () => _rolloutStore.ArchiveStoredThreadAsync(persisted, path, ct));
-        await TryProjectHistoryAsync(threadId, result, ct);
+            () => _rolloutStore.ArchiveStoredThreadAsync(threadId, path, ct));
+        _historyProjectionStore.ProjectArchive(threadId, path, previousOffset, result);
     }
 }

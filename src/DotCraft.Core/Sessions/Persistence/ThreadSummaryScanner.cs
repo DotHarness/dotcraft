@@ -27,15 +27,20 @@ internal static class ThreadSummaryScanner
 
     public static string? ReadThreadId(string path)
     {
-        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-        using var line = new MemoryStream();
-        int next;
-        while ((next = stream.ReadByte()) >= 0 && next != '\n')
-            line.WriteByte((byte)next);
+        var id = ReadHeader(path)?.ThreadId;
+        return string.IsNullOrWhiteSpace(id) ? null : id;
+    }
+
+    public static ThreadOpenedPayload? ReadHeader(string path)
+    {
+        using var reader = new StreamReader(new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete));
+        if (reader.ReadLine() is not { } line)
+            return null;
+
         try
         {
-            var threadId = JsonSerializer.Deserialize<SummaryRecord>(line.ToArray(), JsonOptions)?.ThreadOpened?.ThreadId;
-            return string.IsNullOrWhiteSpace(threadId) ? null : threadId;
+            var record = JsonSerializer.Deserialize<SummaryRecord>(line, JsonOptions);
+            return record?.Kind == RolloutKinds.ThreadOpened ? record.ThreadOpened : null;
         }
         catch (JsonException)
         {
@@ -92,7 +97,8 @@ internal static class ThreadSummaryScanner
                     break;
                 case RolloutKinds.ThreadStatusChanged when record?.ThreadStatusChanged is { } status:
                     Thread.Status = status.Status;
-                    Thread.LastActiveAt = status.LastActiveAt;
+                    if (status.LastActiveAt is { } statusActivity)
+                        Thread.LastActiveAt = statusActivity;
                     break;
                 case RolloutKinds.TurnStateReplaced when record?.TurnStateReplaced is { } replaced:
                     AddTurn(replaced.Turn?.Id);
@@ -151,6 +157,7 @@ internal static class ThreadSummaryScanner
 
     private sealed class SummaryRecord
     {
+        public string? Kind { get; init; }
         public ThreadOpenedPayload? ThreadOpened { get; init; }
 
         public ThreadNameUpdatedPayload? ThreadNameUpdated { get; init; }

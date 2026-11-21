@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 
 namespace DotCraft.Sessions;
 
@@ -125,7 +126,8 @@ internal sealed class RolloutThreadStatusChangedPayload
 
     public ThreadStatus Status { get; init; }
 
-    public DateTimeOffset LastActiveAt { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DateTimeOffset? LastActiveAt { get; init; }
 }
 
 internal sealed class ThreadNameUpdatedPayload

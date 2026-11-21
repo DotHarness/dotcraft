@@ -7,7 +7,9 @@ using System.Text.Json.Nodes;
 using DotCraft.AppServer;
 using DotCraft.Common;
 using DotCraft.Hub;
+using DotCraft.Sessions;
 using DotCraft.Sessions.Wire;
+using DotCraft.Tracing;
 using Xunit;
 
 namespace DotCraft.Tests.Hub;
@@ -25,6 +27,10 @@ public sealed class HubDashboardTests : IDisposable
         var alpha = CreateWorkspace("alpha", "alpha-pass", port);
         var beta = CreateWorkspace("beta", "beta-pass", port);
         var stopped = CreateWorkspace("stopped", "stopped-pass", port);
+        var singleLegacy = await SeedSessionAsync(alpha, "thread_legacy_single", missingSource: true);
+        var bulkLegacy = await SeedSessionAsync(alpha, "thread_legacy_bulk", missingSource: true);
+        var current = await SeedSessionAsync(alpha, "thread_current", missingSource: false);
+        var otherWorkspace = await SeedSessionAsync(beta, "thread_legacy_bulk", missingSource: false);
         var paths = HubPaths.Resolve(_profile);
         new ProjectRegistry(paths).Open(stopped);
         using var ct = new CancellationTokenSource(TimeSpan.FromSeconds(75));
@@ -111,6 +117,20 @@ public sealed class HubDashboardTests : IDisposable
         Assert.True(onDiskAlpha["Tools"]!["Lsp"]!["Enabled"]!.GetValue<bool>());
         Assert.Equal(betaConfigBefore, File.ReadAllText(betaConfigPath));
 
+        using (var deleted = await http.DeleteAsync(new Uri(alphaPage, "api/sessions/thread_legacy_single"), ct.Token))
+            Assert.True(deleted.IsSuccessStatusCode, await deleted.Content.ReadAsStringAsync(ct.Token));
+        Assert.False(File.Exists(singleLegacy));
+        Assert.True(File.Exists(bulkLegacy));
+
+        using (var cleared = await http.DeleteAsync(new Uri(alphaPage, "api/sessions"), ct.Token))
+            Assert.True(cleared.IsSuccessStatusCode, await cleared.Content.ReadAsStringAsync(ct.Token));
+        Assert.False(File.Exists(bulkLegacy));
+        Assert.False(File.Exists(current));
+        Assert.True(File.Exists(otherWorkspace));
+        Assert.Empty((await http.GetFromJsonAsync<JsonArray>(new Uri(alphaPage, "api/sessions"), ct.Token))!);
+        var remaining = Assert.Single((await http.GetFromJsonAsync<JsonArray>(new Uri(betaPage, "api/sessions"), ct.Token))!);
+        Assert.Equal("thread_legacy_bulk", remaining!["sessionKey"]!.GetValue<string>());
+
         using (var stream = await http.GetAsync(new Uri(alphaPage, "api/events/stream"),
             HttpCompletionOption.ResponseHeadersRead, ct.Token))
         {
@@ -179,6 +199,30 @@ public sealed class HubDashboardTests : IDisposable
         Assert.Equal(["Chat · sandbox", "Chat · workspaces", "repo · left/shared", "repo · right/shared", "unique"], names);
     }
 
+    private static async Task<string> SeedSessionAsync(string workspace, string threadId, bool missingSource)
+    {
+        var data = Path.Combine(workspace, ".craft");
+        await using (var store = new ThreadStore(data))
+        {
+            await store.SaveThreadAsync(new SessionThread { Id = threadId, WorkspacePath = workspace });
+            var traces = new TraceStore(store.StateDatabase, 5000, synchronousPersist: true);
+            traces.BindThreadMainSession(threadId);
+            traces.Record(new TraceEvent { SessionKey = threadId, Type = TraceEventType.Request, Content = "request" });
+        }
+
+        var path = Path.Combine(data, "threads", "active", $"{threadId}.jsonl");
+        if (missingSource)
+        {
+            var lines = await File.ReadAllLinesAsync(path);
+            var record = JsonNode.Parse(lines[0])!;
+            record["threadOpened"]!.AsObject().Remove("source");
+            lines[0] = record.ToJsonString();
+            await File.WriteAllLinesAsync(path, lines);
+        }
+
+        return path;
+    }
+
     private string CreateWorkspace(string name, string password, int dashboardPort)
     {
         var workspace = Path.Combine(_profile, name);
@@ -195,5 +239,9 @@ public sealed class HubDashboardTests : IDisposable
         return workspace;
     }
 
-    public void Dispose() => Directory.Delete(_profile, recursive: true);
+    public void Dispose()
+    {
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        Directory.Delete(_profile, recursive: true);
+    }
 }

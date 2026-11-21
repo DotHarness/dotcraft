@@ -88,7 +88,8 @@ internal sealed class ThreadReplay
 
             case RolloutKinds.ThreadStatusChanged when _thread != null && record.ThreadStatusChanged != null:
                 _thread.Status = record.ThreadStatusChanged.Status;
-                _thread.LastActiveAt = record.ThreadStatusChanged.LastActiveAt;
+                if (record.ThreadStatusChanged.LastActiveAt is { } lastActiveAt)
+                    _thread.LastActiveAt = lastActiveAt;
                 break;
 
             case RolloutKinds.TurnStateReplaced when _thread != null && record.TurnStateReplaced != null:

@@ -66,6 +66,12 @@ function getThreadId(thread: unknown): string {
   return isRecord(thread) ? stringField(thread.id) : ''
 }
 
+export function getWorkspaceThreadActiveTurnId(threads: unknown[], threadId: string): string | undefined {
+  const thread = threads.find(candidate => getThreadId(candidate) === threadId)
+  const runtime = isRecord(thread) ? thread.runtime : null
+  return isRecord(runtime) ? stringField(runtime.activeTurnId) || undefined : undefined
+}
+
 function getThreadStatus(thread: unknown): string {
   return isRecord(thread) ? stringField(thread.status).toLowerCase() : ''
 }

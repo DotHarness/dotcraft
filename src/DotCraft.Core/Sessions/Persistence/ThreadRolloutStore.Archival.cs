@@ -3,23 +3,19 @@ namespace DotCraft.Sessions;
 internal sealed partial class ThreadRolloutStore
 {
     public async Task<RolloutAppendResult> ArchiveStoredThreadAsync(
-        SessionThread thread,
-        string existingPath,
-        CancellationToken ct)
+        string threadId, string existingPath, CancellationToken ct)
     {
-        await _writer.CloseAsync(thread.Id, ct);
-        var path = MoveToTargetPath(thread.Id, archived: true, existingPath);
+        var path = GetExpectedPath(threadId, archived: true);
+        File.Move(existingPath, path);
         var record = new ThreadRolloutRecord
         {
             Kind = RolloutKinds.ThreadStatusChanged,
-            Timestamp = thread.LastActiveAt,
             ThreadStatusChanged = new RolloutThreadStatusChangedPayload
             {
-                ThreadId = thread.Id,
-                Status = ThreadStatus.Archived,
-                LastActiveAt = thread.LastActiveAt
+                ThreadId = threadId,
+                Status = ThreadStatus.Archived
             }
         };
-        return await AppendRecordsAsync(thread.Id, path, [record], ct);
+        return await AppendRecordsAsync(threadId, path, [record], ct);
     }
 }

@@ -46,11 +46,17 @@ public sealed partial class SessionPersistenceService(
         SessionThread thread, ThreadConfiguration configuration, CancellationToken ct)
         => threadStore.CommitConfigurationAsync(thread, configuration, ct);
 
-    internal async Task ArchiveStoredThreadAsync(string threadId, CancellationToken ct = default)
+    internal async Task ArchiveStoredThreadAsync(string threadId, CancellationToken ct)
     {
         await threadStore.ArchiveStoredThreadAsync(threadId, ct);
         _tokenUsageStore?.ArchiveThread(threadId);
     }
+
+    internal Task<SessionThread?> ReadThreadLifecycleMetadataAsync(
+        string threadId, CancellationToken ct, bool forDeletion) =>
+        threadStore.ReadThreadLifecycleMetadataAsync(threadId, ct, forDeletion);
+
+    internal string? GetSubAgentParentThreadId(string threadId) => threadStore.GetSubAgentParentThreadId(threadId);
 
     internal bool ThreadExists(string threadId) => threadStore.ThreadExists(threadId);
 
@@ -432,10 +438,10 @@ public sealed partial class SessionPersistenceService(
         ct.ThrowIfCancellationRequested();
 
         var sessionKeys = _traceStore.GetBoundSessionKeys(threadId);
+        threadStore.DeleteThread(threadId);
         foreach (var sessionKey in sessionKeys)
             _traceStore.ClearSession(sessionKey);
 
-        threadStore.DeleteThread(threadId);
         _tokenUsageStore?.DeleteThread(threadId);
         return Task.CompletedTask;
     }

@@ -2,24 +2,35 @@ namespace DotCraft.Sessions;
 
 public sealed partial class SessionService
 {
-    private async Task WithThreadForArchiveAsync(
+    private Task WithThreadForArchiveAsync(
         string threadId,
         Func<SessionThread, bool, CancellationToken, Task> archive,
-        CancellationToken ct)
+        CancellationToken ct) =>
+        WithExistingThreadAsync(threadId, (thread, loaded, commandCt) =>
+            archive(thread ?? throw new ThreadNotFoundException(threadId), loaded, commandCt), ct);
+
+    private async Task WithExistingThreadAsync(
+        string threadId,
+        Func<SessionThread?, bool, CancellationToken, Task> action,
+        CancellationToken ct,
+        bool forDeletion = false)
     {
         threadId = NormalizeRequiredThreadId(threadId);
         for (var attempt = 0; ; attempt++)
         {
             ct.ThrowIfCancellationRequested();
-            if (_runtimeRegistry.IsPendingPermanentDeletion(threadId))
-                throw new InvalidOperationException($"Thread '{threadId}' is being permanently deleted.");
+            ThrowIfPendingPermanentDeletion(threadId);
 
             if (_runtimeRegistry.TryGetRuntime(threadId, out var runtime))
             {
                 runtime.Touch();
                 try
                 {
-                    await runtime.Commands.InvokeAsync(commandCt => archive(runtime.Thread, true, commandCt), ct);
+                    await runtime.Commands.InvokeAsync(commandCt =>
+                    {
+                        ThrowIfPendingPermanentDeletion(threadId);
+                        return action(runtime.Thread, true, commandCt);
+                    }, ct);
                     return;
                 }
                 catch (ObjectDisposedException) when (attempt == 0 && runtime.Commands.IsClosed)
@@ -34,13 +45,12 @@ public sealed partial class SessionService
             {
                 await loadGate.Semaphore.WaitAsync(ct);
                 gateAcquired = true;
-                if (_runtimeRegistry.IsPendingPermanentDeletion(threadId))
-                    throw new InvalidOperationException($"Thread '{threadId}' is being permanently deleted.");
+                ThrowIfPendingPermanentDeletion(threadId);
                 if (_runtimeRegistry.TryGetRuntime(threadId, out _))
                     continue;
 
-                var thread = (await persistence.ReadThreadSnapshotAsync(threadId, ct)).Thread;
-                await archive(thread, false, ct);
+                var thread = await persistence.ReadThreadLifecycleMetadataAsync(threadId, ct, forDeletion);
+                await action(thread, false, ct);
                 return;
             }
             finally
@@ -50,5 +60,11 @@ public sealed partial class SessionService
                 ReleaseThreadLoadGateReference(threadId, loadGate);
             }
         }
+    }
+
+    private void ThrowIfPendingPermanentDeletion(string threadId)
+    {
+        if (_runtimeRegistry.IsPendingPermanentDeletion(threadId))
+            throw new InvalidOperationException($"Thread '{threadId}' is being permanently deleted.");
     }
 }
