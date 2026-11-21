@@ -581,6 +581,17 @@ re-wraps mid-animation. Closing keeps the content mounted and inert until the
 shell has closed. Drag-resizing follows the pointer with no transition, and
 reduced motion snaps.
 
+### Live readouts
+
+A number that keeps updating while work runs, such as the Token HUD generation
+speed, counts to each new value over about half a second, easing out, instead of
+swapping. When a sample moves 8% or more from the previous one in the same turn, a
+small chevron at the number's leading edge points up or down, then fades after
+`1.8s`. Smaller moves show none, and a new turn starts without a previous sample.
+The chevron uses the readout's own ink, never a status colour, and sits outside
+the layout so the unit and neighbouring readouts never shift. Reduced motion
+swaps the number and shows the chevron without travel or fade.
+
 ### Sidebar selection
 
 The current sidebar destination takes `--sidebar-control-active` behind it and

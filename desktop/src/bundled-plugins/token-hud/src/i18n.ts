@@ -11,6 +11,8 @@ export interface TokenHudStrings {
   readonly cacheLabel: string
   readonly latencyLabel: string
   readonly speedPending: string
+  readonly speedFaster: string
+  readonly speedSlower: string
   readonly toggleCommand: string
   readonly toggleDescription: string
   readonly shownToast: string
@@ -31,6 +33,8 @@ const CATALOG: Record<TokenHudLocale, TokenHudStrings> = {
     cacheLabel: 'Cache hit rate in this chat',
     latencyLabel: 'Time to first token',
     speedPending: 'Generation speed is being measured',
+    speedFaster: 'faster',
+    speedSlower: 'slower',
     toggleCommand: 'Toggle Token HUD',
     toggleDescription: 'Shows or hides the performance readout.',
     shownToast: 'Token HUD is on.',
@@ -49,6 +53,8 @@ const CATALOG: Record<TokenHudLocale, TokenHudStrings> = {
     cacheLabel: '本线程缓存命中率',
     latencyLabel: '首 token 延迟',
     speedPending: '正在测量生成速度',
+    speedFaster: '变快',
+    speedSlower: '变慢',
     toggleCommand: '切换 Token 状态条',
     toggleDescription: '显示或隐藏性能读数。',
     shownToast: 'Token 状态条已开启。',
@@ -67,6 +73,8 @@ const CATALOG: Record<TokenHudLocale, TokenHudStrings> = {
     cacheLabel: 'このチャットのキャッシュヒット率',
     latencyLabel: '最初のトークンまでの時間',
     speedPending: '生成速度を測定中',
+    speedFaster: '速くなりました',
+    speedSlower: '遅くなりました',
     toggleCommand: 'トークン HUD を切り替え',
     toggleDescription: 'パフォーマンス表示を切り替えます。',
     shownToast: 'トークン HUD をオンにしました。',
@@ -85,6 +93,8 @@ const CATALOG: Record<TokenHudLocale, TokenHudStrings> = {
     cacheLabel: '이 채팅의 캐시 적중률',
     latencyLabel: '첫 토큰까지 걸린 시간',
     speedPending: '생성 속도를 측정하는 중',
+    speedFaster: '빨라짐',
+    speedSlower: '느려짐',
     toggleCommand: '토큰 HUD 전환',
     toggleDescription: '성능 표시를 켜거나 끕니다.',
     shownToast: '토큰 HUD를 켰습니다.',
@@ -103,6 +113,8 @@ const CATALOG: Record<TokenHudLocale, TokenHudStrings> = {
     cacheLabel: 'Tasa de aciertos de caché de este chat',
     latencyLabel: 'Tiempo hasta el primer token',
     speedPending: 'Midiendo la velocidad de generación',
+    speedFaster: 'más rápida',
+    speedSlower: 'más lenta',
     toggleCommand: 'Mostrar u ocultar el HUD de tokens',
     toggleDescription: 'Muestra u oculta el indicador de rendimiento.',
     shownToast: 'HUD de tokens activado.',
@@ -121,6 +133,8 @@ const CATALOG: Record<TokenHudLocale, TokenHudStrings> = {
     cacheLabel: 'Taux de réussite du cache dans cette discussion',
     latencyLabel: 'Temps jusqu’au premier jeton',
     speedPending: 'Mesure de la vitesse de génération',
+    speedFaster: 'plus rapide',
+    speedSlower: 'plus lente',
     toggleCommand: 'Afficher ou masquer le HUD des jetons',
     toggleDescription: 'Affiche ou masque le relevé de performances.',
     shownToast: 'HUD des jetons activé.',
@@ -139,6 +153,8 @@ const CATALOG: Record<TokenHudLocale, TokenHudStrings> = {
     cacheLabel: 'Cache-Trefferquote in diesem Chat',
     latencyLabel: 'Zeit bis zum ersten Token',
     speedPending: 'Generierungstempo wird gemessen',
+    speedFaster: 'schneller',
+    speedSlower: 'langsamer',
     toggleCommand: 'Token-HUD ein- oder ausblenden',
     toggleDescription: 'Blendet die Leistungsanzeige ein oder aus.',
     shownToast: 'Token-HUD ist an.',
