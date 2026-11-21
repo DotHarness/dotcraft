@@ -65,7 +65,8 @@ internal sealed class OpenAIResponsesLiteChatClient : IChatClient
                 return new OpenAIResponsesToolSearchChatClient.PreparedResponseStream(
                     request.Options,
                     transport.CreateResponseStreamingAsync(request.WireBody, cancellationToken),
-                    request.Shape);
+                    request.Shape,
+                    request.ToolCallRoutes);
             });
     }
 
@@ -149,13 +150,11 @@ internal sealed class OpenAIResponsesLiteTransport(ResponsesClient responsesClie
         Stream stream,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        var terminalObserved = false;
         await foreach (var update in ParseSseUpdatesAsync(stream, cancellationToken).ConfigureAwait(false))
         {
-            terminalObserved |= update is StreamingResponseCompletedUpdate;
             yield return update;
-            if (update is StreamingResponseIncompleteUpdate)
-                throw new IOException("Responses stream ended with response.incomplete.");
+            if (update is StreamingResponseCompletedUpdate or StreamingResponseIncompleteUpdate)
+                yield break;
             if (update is StreamingResponseFailedUpdate failed)
             {
                 throw new IOException(failed.Response?.Error is { } failure
@@ -166,8 +165,7 @@ internal sealed class OpenAIResponsesLiteTransport(ResponsesClient responsesClie
                 throw new IOException($"Responses stream ended with {error.Code}: {error.Message}");
         }
 
-        if (!terminalObserved)
-            throw new IOException("Responses SSE stream ended before a terminal event.");
+        throw new IOException("Responses SSE stream ended before a terminal event.");
     }
 
     internal static async IAsyncEnumerable<StreamingResponseUpdate> ParseSseUpdatesAsync(

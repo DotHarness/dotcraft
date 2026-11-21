@@ -25,8 +25,9 @@ public static class ProviderFunctionCallMetadata
     public static bool TryGetNamespace(FunctionCallContent call, out string toolNamespace)
     {
         ArgumentNullException.ThrowIfNull(call);
-        if (TryRead(call.AdditionalProperties, NamespaceKey, out toolNamespace)
-            || TryRead(call.AdditionalProperties, "namespace", out toolNamespace))
+        if (TryRead(call.AdditionalProperties, NamespaceKey, out toolNamespace, allowEmpty: true))
+            return toolNamespace.Length > 0;
+        if (TryRead(call.AdditionalProperties, "namespace", out toolNamespace))
             return true;
         if (call.RawRepresentation is JsonElement { ValueKind: JsonValueKind.Object } element
             && element.TryGetProperty("namespace", out var value)
@@ -43,7 +44,8 @@ public static class ProviderFunctionCallMetadata
     private static bool TryRead(
         AdditionalPropertiesDictionary? properties,
         string key,
-        out string value)
+        out string value,
+        bool allowEmpty = false)
     {
         value = string.Empty;
         if (properties == null || !properties.TryGetValue(key, out var raw))
@@ -54,7 +56,7 @@ public static class ProviderFunctionCallMetadata
             JsonElement { ValueKind: JsonValueKind.String } item => item.GetString(),
             _ => null
         };
-        if (string.IsNullOrWhiteSpace(text))
+        if (text is null || !allowEmpty && string.IsNullOrWhiteSpace(text))
             return false;
         value = text.Trim();
         return true;

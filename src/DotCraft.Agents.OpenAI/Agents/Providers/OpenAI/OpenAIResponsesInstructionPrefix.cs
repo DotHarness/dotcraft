@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-using System.Text.Json;
 using System.Text.Json.Nodes;
 using OpenAI.Responses;
 
@@ -29,20 +27,14 @@ internal static class OpenAIResponsesInstructionPrefix
         return string.IsNullOrWhiteSpace(instructions) ? null : instructions;
     }
 
-    internal static JsonObject Create(string instructions)
+    internal static JsonObject Create(string instructions) => new()
     {
-        var threadId = OpenAIResponsesCodexMetadata.ResolveRoutingIdentity().ThreadId ?? string.Empty;
-        var payload = JsonSerializer.SerializeToUtf8Bytes(new[] { IdentityDomain, threadId, instructions });
-        var suffix = Convert.ToHexString(SHA256.HashData(payload)).ToLowerInvariant()[..32];
-        return new JsonObject
+        ["id"] = OpenAIResponsesItemIdentity.GenerateThreadPrefix("msg", IdentityDomain, instructions),
+        ["type"] = "message",
+        ["role"] = "developer",
+        ["content"] = new JsonArray
         {
-            ["id"] = $"msg_{suffix}",
-            ["type"] = "message",
-            ["role"] = "developer",
-            ["content"] = new JsonArray
-            {
-                new JsonObject { ["type"] = "input_text", ["text"] = instructions }
-            }
-        };
-    }
+            new JsonObject { ["type"] = "input_text", ["text"] = instructions }
+        }
+    };
 }

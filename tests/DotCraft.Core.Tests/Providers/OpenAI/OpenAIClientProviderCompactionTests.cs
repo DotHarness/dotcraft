@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using DotCraft.Agents;
 using DotCraft.Auth.OpenAI;
+using DotCraft.Tools;
 using Microsoft.Extensions.AI;
 using Xunit;
 
@@ -57,7 +58,11 @@ public sealed partial class OpenAIClientProviderTests
             1, "turn-v2");
         var replacement = await ((IProviderNativeCompactorFactory)provider).CreateCompactor(runtime)
             .CompactAsync(input, [new ChatMessage(ChatRole.User, "keep this")],
-                new ChatOptions { Instructions = "stable instruction" }, CancellationToken.None);
+                new ChatOptions
+                {
+                    Instructions = "stable instruction",
+                    Tools = [AIFunctionFactory.Create(() => "ok", name: "lookup")]
+                }, CancellationToken.None);
 
         var request = Assert.Single(server.Requests);
         Assert.Equal("/backend-api/codex/responses", request.Path);
@@ -72,6 +77,38 @@ public sealed partial class OpenAIClientProviderTests
         Assert.True(replacement.Items[1].Payload.GetProperty("future_field").GetBoolean());
         Assert.Equal("YWJj", replacement.Items[1].Payload.GetProperty("encrypted_content").GetString());
         Assert.Single(input.Items);
+    }
+
+    [Fact]
+    public async Task LiteCompactionUsesTheSameToolPrefixAsSamplingWithoutFreeformSupport()
+    {
+        const string installationId = "11111111-2222-4333-8444-555555555555";
+        await using var server = RecordingHttpServer.Start(CompactSseResponse());
+        var provider = CreateOAuthProvider(installationId, "account-test");
+        var runtime = OAuthRuntime($"{server.Endpoint}/backend-api/codex", useResponsesLite: true)
+            with { SupportsFreeformTools = false };
+        using var scope = OpenAIResponsesCodexRuntimeScope.Set(CreateCodexRuntimeContext(
+            "thread-prefix", "turn-v2", "window-v2", requestKind: ProviderRequestKind.Compaction));
+
+        ChatMessage[] messages = [new(ChatRole.User, "keep this")];
+        var options = new ChatOptions { Tools = [new FreeformToolDeclaration()] };
+        using var samplingClient = provider.GetOpenAIResponsesChatClient(runtime);
+        var samplingRequest = OpenAIResponsesLiteRequestMapper.CreateResponseRequest(
+            runtime.Model, messages, options, null, null, samplingClient, installationId,
+            supportsFreeformTools: runtime.SupportsFreeformTools);
+        using var samplingBody = JsonDocument.Parse(samplingRequest.WireBody);
+        var samplingPrefix = samplingBody.RootElement.GetProperty("input")[0];
+
+        var input = new ProviderNativeCompactionInput(
+            [new ProviderHistoryItem("user", ReadObject("""{"type":"message","role":"user","content":[{"type":"input_text","text":"keep this"}]}"""))],
+            1, "turn-v2");
+        await ((IProviderNativeCompactorFactory)provider).CreateCompactor(runtime)
+            .CompactAsync(input, messages, options, CancellationToken.None);
+        using var compactBody = JsonDocument.Parse(Assert.Single(server.Requests).Body);
+        var compactPrefix = compactBody.RootElement.GetProperty("input")[0];
+
+        Assert.Equal("function", compactPrefix.GetProperty("tools")[0].GetProperty("tools")[0].GetProperty("type").GetString());
+        Assert.Equal(samplingPrefix.GetRawText(), compactPrefix.GetRawText());
     }
 
     [Theory]
@@ -271,6 +308,15 @@ public sealed partial class OpenAIClientProviderTests
                 .CompactAsync(compactRequest, CancellationToken.None));
 
         Assert.StartsWith("provider_compaction_invalid_response:", error.Message);
+    }
+
+    private sealed class FreeformToolDeclaration : AITool, IOpenAIResponsesFunctionToolMetadata
+    {
+        public override string Name => "lookup";
+        public override string Description => "Look up a value.";
+        public bool? Strict => null;
+        public bool ReservedSchema => false;
+        public ToolFreeformInput FreeformInput { get; } = new("value", "lark", "start: /.+/");
     }
 
     private const string CompactSseBody = "data: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"compaction\",\"encrypted_content\":\"YWJj\",\"future_field\":true}}\n\n"

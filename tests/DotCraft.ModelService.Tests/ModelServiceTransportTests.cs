@@ -54,6 +54,39 @@ public sealed class ModelServiceTransportTests
         Assert.Equal("priority", call.Context.RequestedServiceTier);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ResponsesLiteSelectorReachesUpstreamForSamplingAndCompaction(bool compact)
+    {
+        const string selector = "x-openai-internal-codex-responses-lite";
+        const string otherHeader = "x-openai-internal-codex-responses-lite-extra";
+        const string endpoint = "https://upstream.example/v1/responses";
+        var body = compact
+            ? """{"model":"test-model","input":[{"type":"compaction_trigger"}],"stream":true}"""
+            : """{"model":"test-model","input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"Hello"}]}],"stream":true}""";
+        await using var fixture = await Fixture.CreateAsync(async upstream =>
+        {
+            Assert.Equal(endpoint, upstream.RequestUri!.AbsoluteUri);
+            Assert.Equal("true", Assert.Single(upstream.Headers.GetValues(selector)));
+            Assert.False(upstream.Headers.Contains(otherHeader));
+            Assert.Equal("Bearer upstream-secret", upstream.Headers.Authorization?.ToString());
+            Assert.Equal(body, await upstream.Content!.ReadAsStringAsync());
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        }, authMethod: ModelProviderAuthMethods.ChatGptOAuth);
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
+        {
+            Content = new StringContent(body, Encoding.UTF8, "application/json")
+        };
+        request.Headers.Authorization = new("Bearer", "sdk-placeholder");
+        request.Headers.Add("X-OpenAI-Internal-Codex-Responses-Lite", "true");
+        request.Headers.Add(otherHeader, "not-allowlisted");
+        using var response = await fixture.ProviderClient.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
     [Fact]
     public async Task StreamWithoutContentTypeRecordsUsageAndRetainsResponse()
     {

@@ -10,11 +10,6 @@ namespace DotCraft.Agents;
 /// </summary>
 public sealed class ChatClientRegistry
 {
-    // Responses Lite currently disables parallel tool calls. Keep the dialect available for
-    // targeted development, but leave normal runtime resolution on standard Responses until the
-    // Lite endpoint can support the tool concurrency expected by current Codex models.
-    private const bool EnableChatGptResponsesLite = false;
-
     private readonly ModelProviderRegistry _providerRegistry;
     private readonly IModelRuntimeResolver _runtimeResolver;
     private readonly ConcurrentDictionary<EffectiveModelRuntime, IChatClient> _chatClients = new();
@@ -62,7 +57,7 @@ public sealed class ChatClientRegistry
         string? modelOverride = null)
     {
         config.RuntimeResolver = _runtimeResolver;
-        return ResolveRuntimeMetadata(config, ModelProviderResolver.ResolveMain(config, providerIdOverride, modelOverride));
+        return ResolveRuntimeMetadata(ModelProviderResolver.ResolveMain(config, providerIdOverride, modelOverride));
     }
 
     /// <summary>
@@ -87,7 +82,6 @@ public sealed class ChatClientRegistry
     {
         config.RuntimeResolver = _runtimeResolver;
         return ResolveRuntimeMetadata(
-            config,
             ModelProviderResolver.ResolveSubAgent(config, effectiveMainProviderId, effectiveMainModel));
     }
 
@@ -194,7 +188,7 @@ public sealed class ChatClientRegistry
         return model.Trim();
     }
 
-    private EffectiveModelRuntime ResolveRuntimeMetadata(AppConfig config, EffectiveModelRuntime runtime)
+    private EffectiveModelRuntime ResolveRuntimeMetadata(EffectiveModelRuntime runtime)
     {
         runtime = _runtimeResolver.Normalize(runtime);
         if (!runtime.IsChatGptOAuth)
@@ -212,7 +206,7 @@ public sealed class ChatClientRegistry
         return runtime with
         {
             AccountId = accountId,
-            UseResponsesLite = EnableChatGptResponsesLite && metadata.UseLightweightResponses
+            UseResponsesLite = metadata.UseLightweightResponses
         };
     }
 

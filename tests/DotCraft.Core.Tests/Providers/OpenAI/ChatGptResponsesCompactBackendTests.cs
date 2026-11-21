@@ -142,7 +142,7 @@ public sealed class ChatGptResponsesCompactBackendTests
         Assert.Null(body.Tools);
         Assert.False(body.ParallelToolCalls);
         Assert.Equal(
-            ["additional_tools", "retained", "compaction_trigger"],
+            ["retained", "compaction_trigger"],
             body.Input.Select(item => item.GetProperty("type").GetString()!).ToArray());
         Assert.False(wire.TryGetProperty("instructions", out _));
         Assert.False(wire.TryGetProperty("tools", out _));

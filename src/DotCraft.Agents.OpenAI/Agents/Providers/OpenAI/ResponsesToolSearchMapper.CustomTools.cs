@@ -13,15 +13,49 @@ internal static partial class ResponsesToolSearchMapper
 
     internal readonly record struct ResponsesCallReference(string Name, bool Custom);
 
-    internal sealed class ResponsesOutputCallState(IReadOnlyDictionary<string, string> freeformParameters)
+    internal sealed class ResponsesOutputCallState(
+        IReadOnlyDictionary<string, string> freeformParameters,
+        IReadOnlyDictionary<string, LiteToolCallRoute>? liteToolCalls = null)
     {
         public IReadOnlyDictionary<string, string> FreeformParameters { get; } = freeformParameters;
+
+        public IReadOnlyDictionary<string, LiteToolCallRoute>? LiteToolCalls { get; } = liteToolCalls;
+
+        public string? ResolveNamespace(string? wireNamespace) =>
+            LiteToolCalls is not null && wireNamespace is not null
+                ? OpenAIResponsesLiteToolIdentity.ResolveNamespace(wireNamespace)
+                : wireNamespace;
+
+        public LiteToolCallRoute? ResolveRoute(string? wireNamespace, string name) =>
+            LiteToolCalls?.TryGetValue(
+                (wireNamespace ?? OpenAIResponsesLiteToolIdentity.FunctionsNamespace) + "/" + name, out var route) == true
+                ? route
+                : null;
 
         public Dictionary<string, string> Namespaces { get; } = new(StringComparer.Ordinal);
 
         public HashSet<string> CustomCalls { get; } = new(StringComparer.Ordinal);
     }
 
+    internal readonly record struct LiteToolCallRoute(string ProviderFlatName, string? LocalNamespace, string LocalName);
+
+    internal static Dictionary<string, LiteToolCallRoute> CollectLiteToolCallRoutes(ChatOptions? options)
+    {
+        var routes = new Dictionary<string, LiteToolCallRoute>(StringComparer.Ordinal);
+        foreach (var tool in options?.Tools ?? [])
+        {
+            if (tool.Name == IDeferredToolSearchMarker.CanonicalName)
+                continue;
+            var toolNamespace = ToolNamespaceMetadataResolver.TryGet(tool, out var resolved) ? resolved : null;
+            var wireNamespace = OpenAIResponsesLiteToolIdentity.ProjectNamespace(toolNamespace);
+            var name = LocalToolName(tool);
+            var flatName = CanonicalToolIdentityMetadataResolver.TryGet(tool, out _, out var providerFlatName)
+                ? providerFlatName
+                : toolNamespace is null ? tool.Name : toolNamespace + "__" + name;
+            routes[wireNamespace + "/" + name] = new LiteToolCallRoute(flatName, toolNamespace, name);
+        }
+        return routes;
+    }
     internal static IReadOnlyDictionary<string, string> CollectFreeformParameters(ChatOptions? options)
     {
         var parameters = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -80,7 +114,7 @@ internal static partial class ResponsesToolSearchMapper
         {
             ["type"] = "custom_tool_call",
             ["call_id"] = call.CallId,
-            ["name"] = call.Name,
+            ["name"] = ResolveWireCallName(call),
             ["input"] = input
         };
         if (toolNamespace is not null)
@@ -141,9 +175,14 @@ internal static partial class ResponsesToolSearchMapper
         if (string.IsNullOrWhiteSpace(callId) || string.IsNullOrWhiteSpace(name))
             return false;
 
-        var toolNamespace = TryReadString(raw, "namespace", out var resolved) ? resolved : null;
-        var parameter = callState?.FreeformParameters.GetValueOrDefault(FreeformKey(toolNamespace, name))
-            ?? UndeclaredFreeformParameter;
+        var toolNamespace = TryReadString(raw, "namespace", out var resolved)
+            ? resolved
+            : callState?.Namespaces.GetValueOrDefault(callId);
+        var route = callState?.ResolveRoute(toolNamespace, name);
+        var parameterKey = route is { } local
+            ? FreeformKey(local.LocalNamespace, local.LocalName)
+            : FreeformKey(callState?.ResolveNamespace(toolNamespace), name);
+        var parameter = callState?.FreeformParameters.GetValueOrDefault(parameterKey) ?? UndeclaredFreeformParameter;
         var arguments = new JsonObject { [parameter] = ReadJsonString(raw, "input") ?? string.Empty };
         functionCall = new FunctionCallResponseItem(
             callId,

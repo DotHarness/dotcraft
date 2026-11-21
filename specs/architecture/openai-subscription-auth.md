@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.12.1 |
+| Version | 0.14.0 |
 | Status | Living |
-| Date | 2026-11-17 |
+| Date | 2026-11-21 |
 
 DotCraft can authenticate outgoing model requests against a user's ChatGPT subscription (Plus,
 Pro, Team, Business, Enterprise, Edu) as an alternative to a pay-as-you-go OpenAI API key. This
@@ -180,26 +180,34 @@ runtime scope ends. It is never persisted.
 
 ## Responses request contract
 
-ChatGPT OAuth model metadata selects between two HTTP dialects. A `/models` entry with
-`use_responses_lite=true` marks a model as Responses Lite capable; `false`, missing, or unknown
-selects standard Responses. The latest matching endpoint/account/client-version cache entry takes
-precedence over the bundled catalog, which supplies the same metadata offline. An internal
-developer gate keeps Lite disabled so eligible models retain parallel tool execution; it is not
-user-configurable and never applies to API-key runtimes.
+ChatGPT OAuth uses the Responses Lite HTTP dialect for models with `use_responses_lite=true`
+and standard Responses when the value is false, missing, or unknown. The latest matching
+endpoint/account/client-version catalog entry takes precedence over the bundled catalog. Sampling
+and native compaction use the same dialect and tool capabilities. API-key runtimes use standard
+Responses.
 
 Both dialects share canonical Responses history, OAuth routing headers, `store=false`,
 `reasoning.encrypted_content` inclusion, a `reasoning` object (empty or with configured effort and
 summary), stable item ids, and prompt-cache identity. Standard uses top-level `tools` and the
 model's default `parallel_tool_calls`. Lite:
 
-- carries `x-openai-internal-codex-responses-lite: true`;
-- moves tool definitions into a leading developer `additional_tools` input item before the
-  base-instruction prefix and history;
-- removes top-level `tools` and `max_output_tokens`, strips image `detail`, and sets
-  `reasoning.context=all_turns`;
-- always sends `parallel_tool_calls=false`, including requests without tools.
+- Carries `x-openai-internal-codex-responses-lite: true`.
+- Moves tool definitions, when present, into a leading developer `additional_tools` input item
+  before the base-instruction prefix and history. Its `at_` id is stable for unchanged tool
+  definitions within the current thread.
+- Removes top-level `tools` and `max_output_tokens`, strips image `detail`, and sets
+  `reasoning.context=all_turns`.
+- Sends `parallel_tool_calls=false`, including requests without tools.
 
-Tool choice maps `none`, `auto`, `required`, or a required function choice in both dialects.
+Both dialects support `none`, `auto`, `required`, and requesting a specific tool. To require a
+specific direct tool, Lite uses a distinct wire selector in the `functions` namespace and maps its
+call to the same local tool. The named selector restricts the current call without removing
+historical discovery results from the request.
+
+Lite exposes otherwise unnamespaced tools under the provider's `functions` namespace. Wire
+identities are stable and distinct for direct and discovered tools, including when a local namespace
+collides with this reserved namespace. Calls dispatch to the original local tool identity and retain
+the provider's wire identity in canonical history.
 
 All `openai-responses` requests, including API-key and compatible endpoints, carry effective base
 instructions in one developer message before the original input and omit top-level
@@ -229,6 +237,9 @@ item contents, credentials, or protected reasoning data.
 
 The OAuth transport omits `max_output_tokens` because the backend rejects it; the value remains a
 local budget (compaction still enforces its summary limit). API-key requests may send it.
+
+A sampling `response.incomplete` event ends the stream with its provider finish reason and usage.
+End of stream before a terminal event is a transport failure.
 
 When an OAuth stream completes with only a `server_error` frame and no delivered output, DotCraft
 replays the sampling request under a bounded budget. Usage, error, and echoed tool-result updates

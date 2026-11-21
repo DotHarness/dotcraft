@@ -23,8 +23,11 @@ public sealed partial class StreamingFunctionInvokingChatClient
         }
     }
 
-    private static bool HasNormalProviderStop(IEnumerable<ChatResponseUpdate> updates) =>
-        updates.LastOrDefault(update => update.FinishReason.HasValue)?.FinishReason == ChatFinishReason.Stop;
+    private static bool HasDeliberateProviderStop(IEnumerable<ChatResponseUpdate> updates)
+    {
+        var finishReason = updates.LastOrDefault(update => update.FinishReason.HasValue)?.FinishReason;
+        return finishReason == ChatFinishReason.Stop || finishReason == ChatFinishReason.ContentFilter;
+    }
 
     private static bool HasEffectiveProviderOutput(IEnumerable<ChatResponseUpdate> updates)
     {

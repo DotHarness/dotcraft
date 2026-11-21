@@ -214,32 +214,37 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
             RequestedServiceTier(Runtime("acct_memory", "memory-model", persistCache: false), "Ultrafast"));
     }
 
-    [Fact]
-    public async Task RuntimeResolution_KeepsLiteDisabledForAllModels()
+    [Theory]
+    [InlineData("lite-model", true)]
+    [InlineData("standard-model", false)]
+    [InlineData("unmarked-model", false)]
+    [InlineData("unlisted-model", false)]
+    public async Task RuntimeResolution_SelectsResponsesDialectFromEachModel(string model, bool expectedLite)
     {
         var handler = new RecordingHandler((HttpStatusCode.OK, """
             {
               "models": [
-                { "slug": "main-model", "visibility": "list", "priority": 1, "use_responses_lite": true },
-                { "slug": "subagent-model", "visibility": "list", "priority": 2, "use_responses_lite": true }
+                { "slug": "lite-model", "visibility": "list", "priority": 1, "use_responses_lite": true },
+                { "slug": "standard-model", "visibility": "list", "priority": 2, "use_responses_lite": false },
+                { "slug": "unmarked-model", "visibility": "list", "priority": 3 }
               ]
             }
             """));
-        var provider = new OpenAIClientProvider(new FakeOpenAIAuthService("acct_runtime"), handler);
-        await OpenAIModelCatalog.FetchAsync(
-            Runtime(accountId: "acct_runtime"),
-            openAIClientProvider: provider);
+        var accountId = $"acct_runtime_{model}";
+        var provider = new OpenAIClientProvider(new FakeOpenAIAuthService(accountId), handler);
+        await OpenAIModelCatalog.FetchAsync(Runtime(accountId: accountId), openAIClientProvider: provider);
 
-        var config = OAuthConfig("main-model");
-        config.SubAgent.ProviderPreferences["chatgpt"] = new SubAgentModelPreference { Model = "subagent-model" };
+        var config = OAuthConfig(model);
         var registry = new ChatClientRegistry(provider);
-
         var main = registry.ResolveMainRuntime(config);
-        var subAgent = registry.ResolveSubAgentRuntime(config, main.ProviderId, main.Model);
+        Assert.Equal(expectedLite, main.UseResponsesLite);
+        Assert.Equal(accountId, main.AccountId);
 
-        Assert.False(main.UseResponsesLite);
-        Assert.False(subAgent.UseResponsesLite);
-        Assert.Equal("acct_runtime", main.AccountId);
+        config.ProviderPreferences["chatgpt"] = new ModelPreference { Model = "standard-model" };
+        config.SubAgent.ProviderPreferences["chatgpt"] = new SubAgentModelPreference { Model = model };
+        var standard = registry.ResolveMainRuntime(config);
+        var subAgent = registry.ResolveSubAgentRuntime(config, standard.ProviderId, standard.Model);
+        Assert.Equal(expectedLite, subAgent.UseResponsesLite);
     }
 
     public void Dispose()

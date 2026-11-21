@@ -19,7 +19,8 @@ public sealed class OpenAIResponsesLiteChatClientTests
         var options = ResponsesToolSearchMapper.CreateResponseOptions(
             "gpt-test",
             [
-                new ChatMessage(ChatRole.System, "developer guidance"),
+                new ChatMessage(ChatRole.System, "base instructions"),
+                new ChatMessage(new ChatRole("developer"), "thread guidance"),
                 new ChatMessage(ChatRole.User, "hello")
             ],
             new ChatOptions
@@ -38,7 +39,7 @@ public sealed class OpenAIResponsesLiteChatClientTests
             });
         var standardBody = JsonNode.Parse(ModelReaderWriter.Write(options).ToString())!.AsObject();
         var patchedInput = standardBody["input"]!.AsArray();
-        patchedInput[1]!["content"]!.AsArray().Add(JsonNode.Parse(
+        patchedInput[2]!["content"]!.AsArray().Add(JsonNode.Parse(
             """{"type":"input_image","image_url":"data:image/png;base64,AA==","detail":"high"}"""));
         standardBody["tools"] = JsonNode.Parse(
             """[{"type":"function","name":"nullable","parameters":{"type":"object","properties":{"value":{"type":["string","null"]}}}}]""");
@@ -69,10 +70,11 @@ public sealed class OpenAIResponsesLiteChatClientTests
         Assert.Equal("functions", functions.GetProperty("name").GetString());
         Assert.Equal(string.Empty, functions.GetProperty("description").GetString());
         Assert.Equal("nullable", functions.GetProperty("tools")[0].GetProperty("name").GetString());
-        Assert.Equal("message", input[1].GetProperty("type").GetString());
-        Assert.Equal("developer guidance", input[1].GetProperty("content")[0].GetProperty("text").GetString());
-        Assert.Equal("message", input[2].GetProperty("type").GetString());
-        Assert.False(input[2].GetProperty("content")[1].TryGetProperty("detail", out _));
+        Assert.Equal("base instructions", input[1].GetProperty("content")[0].GetProperty("text").GetString());
+        Assert.Equal("developer", input[2].GetProperty("role").GetString());
+        Assert.Equal("thread guidance", input[2].GetProperty("content")[0].GetProperty("text").GetString());
+        Assert.Equal("user", input[3].GetProperty("role").GetString());
+        Assert.False(input[3].GetProperty("content")[1].TryGetProperty("detail", out _));
         Assert.Equal(
             "install-1",
             root.GetProperty("client_metadata").GetProperty("x-codex-installation-id").GetString());
@@ -86,12 +88,13 @@ public sealed class OpenAIResponsesLiteChatClientTests
             (ChatToolMode.None, "\"none\""),
             (ChatToolMode.Auto, "\"auto\""),
             (ChatToolMode.RequireAny, "\"required\""),
-            (ChatToolMode.RequireSpecific("lookup"), """{"type":"function","name":"lookup"}""")
+            (ChatToolMode.RequireSpecific("lookup"),
+                JsonSerializer.Serialize(new { type = "function", name = OpenAIResponsesLiteToolIdentity.RequiredSelector(null, "lookup") }))
         };
 
         foreach (var (mode, expectedJson) in cases)
         {
-            var transport = new EmptyTransport();
+            var transport = new TestTransport();
             using var client = new OpenAIResponsesLiteChatClient(
                 new ResponsesClient("sk-test"),
                 "gpt-test",
@@ -117,7 +120,7 @@ public sealed class OpenAIResponsesLiteChatClientTests
     [Fact]
     public async Task LiteClient_ForcesParallelToolCallsOff()
     {
-        var transport = new EmptyTransport();
+        var transport = new TestTransport();
         using var client = new OpenAIResponsesLiteChatClient(
             new ResponsesClient("sk-test"),
             "gpt-test",
@@ -142,7 +145,7 @@ public sealed class OpenAIResponsesLiteChatClientTests
     [Fact]
     public async Task LiteClient_DisablesParallelCallsEvenWithoutTools()
     {
-        var transport = new EmptyTransport();
+        var transport = new TestTransport();
         using var client = new OpenAIResponsesLiteChatClient(
             new ResponsesClient("sk-test"),
             "gpt-test",
@@ -163,28 +166,6 @@ public sealed class OpenAIResponsesLiteChatClientTests
         using var document = JsonDocument.Parse(Assert.Single(transport.WireBodies));
         Assert.False(document.RootElement.TryGetProperty("tool_choice", out _));
         Assert.False(document.RootElement.GetProperty("parallel_tool_calls").GetBoolean());
-    }
-
-    [Fact]
-    public void RequestMapper_PreservesDeveloperGuidanceAsInputItem()
-    {
-        var options = ResponsesToolSearchMapper.CreateResponseOptions(
-            "gpt-test",
-            [
-                new ChatMessage(ChatRole.System, "stable base"),
-                new ChatMessage(new ChatRole("developer"), "subagent guidance"),
-                new ChatMessage(ChatRole.User, "task")
-            ],
-            new ChatOptions());
-
-        using var document = JsonDocument.Parse(
-            OpenAIResponsesLiteRequestMapper.BuildWireBody(options, "install-1"));
-        var input = document.RootElement.GetProperty("input");
-
-        Assert.Equal("stable base", input[1].GetProperty("content")[0].GetProperty("text").GetString());
-        Assert.Equal("developer", input[2].GetProperty("role").GetString());
-        Assert.Equal("subagent guidance", input[2].GetProperty("content")[0].GetProperty("text").GetString());
-        Assert.Equal("user", input[3].GetProperty("role").GetString());
     }
 
     [Fact]
@@ -239,19 +220,23 @@ public sealed class OpenAIResponsesLiteChatClientTests
         Assert.Contains("server_is_overloaded", exception.Message, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public async Task StreamingResponse_TreatsIncompleteAsRetryableStreamFailure()
+    [Theory]
+    [InlineData("max_output_tokens", "length")]
+    [InlineData("content_filter", "content_filter")]
+    public async Task LiteClient_ProjectsIncompleteFinishReasonAndUsage(string reason, string finishReason)
     {
-        var payload = """
-            data: {"type":"response.incomplete","sequence_number":1,"response":{"id":"resp-incomplete","object":"response","created_at":0,"model":"gpt-test","status":"incomplete","incomplete_details":{"reason":"max_output_tokens"},"usage":{"input_tokens":10,"output_tokens":4,"total_tokens":14}}}
+        var payload = $$$$"""
+            data: {"type":"response.incomplete","sequence_number":1,"response":{"id":"resp-incomplete","object":"response","created_at":0,"model":"gpt-test","status":"incomplete","incomplete_details":{"reason":"{{{{reason}}}}"},"usage":{"input_tokens":10,"output_tokens":4,"total_tokens":14}}}
 
             """;
-        await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(payload));
+        using var client = new OpenAIResponsesLiteChatClient(
+            new ResponsesClient("sk-test"), "gpt-test", new TestChatClient(), new TestTransport(payload), "install-1");
 
-        var exception = await Assert.ThrowsAsync<IOException>(async () =>
-            await CollectAsync(OpenAIResponsesLiteTransport.ReadStreamingResponseAsync(stream)));
+        var response = await client.GetResponseAsync([new ChatMessage(ChatRole.User, "hello")]);
 
-        Assert.Contains("response.incomplete", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(finishReason, response.FinishReason?.Value);
+        Assert.Equal(10, response.Usage?.InputTokenCount);
+        Assert.Equal(4, response.Usage?.OutputTokenCount);
     }
 
     [Fact]
@@ -273,7 +258,7 @@ public sealed class OpenAIResponsesLiteChatClientTests
     public async Task LiteClient_SendsOnlyTheMappedWireBody()
     {
         var responsesClient = new ResponsesClient("sk-test");
-        var transport = new EmptyTransport();
+        var transport = new TestTransport();
         using var client = new OpenAIResponsesLiteChatClient(
             responsesClient,
             "gpt-test",
@@ -283,7 +268,7 @@ public sealed class OpenAIResponsesLiteChatClientTests
 
         await foreach (var _ in client.GetStreamingResponseAsync([
                            new ChatMessage(ChatRole.User, "hello")
-                       ]))
+                       ], new ChatOptions { Tools = [CreateLookupTool()] }))
         {
         }
 
@@ -308,7 +293,7 @@ public sealed class OpenAIResponsesLiteChatClientTests
             name: "lookup",
             description: "Look up a value.");
 
-    private sealed class EmptyTransport : IResponsesLiteTransport
+    private sealed class TestTransport(string? sse = null) : IResponsesLiteTransport
     {
         public List<BinaryData> WireBodies { get; } = [];
 
@@ -318,8 +303,12 @@ public sealed class OpenAIResponsesLiteChatClientTests
         {
             Assert.False(wireBody.ToMemory().IsEmpty);
             WireBodies.Add(wireBody);
-            await Task.CompletedTask;
-            yield break;
+            if (sse is null)
+                yield break;
+
+            await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(sse));
+            await foreach (var update in OpenAIResponsesLiteTransport.ReadStreamingResponseAsync(stream, cancellationToken))
+                yield return update;
         }
     }
 

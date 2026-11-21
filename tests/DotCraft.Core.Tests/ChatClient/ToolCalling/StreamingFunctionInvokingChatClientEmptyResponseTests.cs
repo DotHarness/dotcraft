@@ -27,6 +27,35 @@ public sealed partial class StreamingFunctionInvokingChatClientTests
     }
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task GetStreamingResponseAsync_PreservesTerminalContentFilter(bool afterTool)
+    {
+        var terminal = new ChatResponseUpdate(ChatRole.Assistant,
+            [new UsageContent(new UsageDetails { InputTokenCount = 10, OutputTokenCount = 0 })])
+        {
+            FinishReason = ChatFinishReason.ContentFilter
+        };
+        var inner = afterTool
+            ? new ScriptedStreamChatClient(([ToolCall("call-1", "GetStatus")], null), ([terminal], null))
+            : new ScriptedStreamChatClient(([terminal], null));
+        using var client = new StreamingFunctionInvokingChatClient(inner)
+        {
+            AdditionalTools = [AIFunctionFactory.Create(() => "tool ok", name: "GetStatus")]
+        };
+
+        var updates = await CollectAsync(client.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "start")]));
+
+        Assert.Equal(ChatFinishReason.ContentFilter, updates.Last().FinishReason);
+        var usage = Assert.Single(updates.SelectMany(update => update.Contents).OfType<UsageContent>());
+        Assert.Equal(10, usage.Details.InputTokenCount);
+        Assert.Equal(afterTool ? 2 : 1, inner.Requests.Count);
+        if (afterTool)
+            Assert.Equal("call-1", Assert.Single(inner.Requests[1].SelectMany(message => message.Contents)
+                .OfType<FunctionResultContent>()).CallId);
+    }
+
+    [Theory]
     [InlineData("provider error")]
     [InlineData("")]
     public async Task GetStreamingResponseAsync_ThrowsWhenEmptyStopContainsProviderError(string message)

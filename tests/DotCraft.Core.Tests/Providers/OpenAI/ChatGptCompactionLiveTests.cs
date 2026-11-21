@@ -21,7 +21,7 @@ public sealed class ChatGptCompactionLiveTests
         var model = Environment.GetEnvironmentVariable("DOTCRAFT_CHATGPT_SMOKE_MODEL")!;
         var workspace = Path.Combine(Path.GetTempPath(), "ChatGptCompact_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(workspace, ".git"));
-        await File.WriteAllTextAsync(Path.Combine(workspace, "AGENTS.md"), "Answer briefly. The project color is blue.");
+        await File.WriteAllTextAsync(Path.Combine(workspace, "AGENTS.md"), "Answer briefly.");
         using var cancellation = new CancellationTokenSource(TimeSpan.FromMinutes(5));
         try
         {
@@ -32,7 +32,7 @@ public sealed class ChatGptCompactionLiveTests
             var auth = new OpenAIAuthManager(new OpenAITokenStore(userData));
             Assert.True(auth.IsAuthenticated);
             var registry = new ChatClientRegistry(new OpenAIClientProvider(auth, new OpenAIInstallationIdProvider(userData)));
-            const string threadId = "live-native-compaction";
+            var threadId = $"live-native-compaction-{Guid.NewGuid():N}";
             for (var pass = 0; pass < 2; pass++)
             {
                 await using var factory = new AgentFactory(workspace, workspace, config,
@@ -48,16 +48,20 @@ public sealed class ChatGptCompactionLiveTests
                 else
                     await service.GetThreadAsync(threadId, cancellation.Token);
 
+                var prompt = pass == 0
+                    ? "The project color is blue. Confirm with one word."
+                    : "Recall the project color before compaction. Reply with one word.";
                 await foreach (var _ in service.SubmitInputAsync(threadId,
-                                   [new TextContent("The project color is blue. Confirm with one word.")], ct: cancellation.Token)) { }
+                                   [new TextContent(prompt)], ct: cancellation.Token)) { }
                 var compact = await service.CompactThreadAsync(threadId, cancellation.Token);
                 Assert.True(compact.Outcome == "partial", compact.Message ?? compact.Outcome);
                 await foreach (var _ in service.SubmitInputAsync(threadId,
                                    [new TextContent("What is the project color? Reply with one word.")], ct: cancellation.Token)) { }
                 var history = await persistence.LoadModelHistoryAsync(threadId, cancellation.Token);
-                Assert.Single(history, AgentInstructionsHistory.IsInstructions);
-                Assert.Contains("blue", history.Last(message => message.Role == ChatRole.Assistant).Text,
-                    StringComparison.OrdinalIgnoreCase);
+                Assert.Contains(history, message => AgentInstructionsHistory.IsInstructions(message)
+                    && message.Text.Contains("Answer briefly.", StringComparison.Ordinal));
+                Assert.Equal(ChatRole.Assistant, history[^1].Role);
+                Assert.Contains("blue", history[^1].Text, StringComparison.OrdinalIgnoreCase);
             }
         }
         finally
