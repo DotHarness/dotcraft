@@ -1114,6 +1114,7 @@ export interface ChannelSetEnabledParams {
   enabled: boolean;
   name: string;
   pluginId: string;
+  select?: boolean;
   [key: string]: unknown;
 }
 

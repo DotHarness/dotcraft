@@ -152,7 +152,7 @@ export function ChannelsView({ navigation, active }: { navigation: ReactNode; ac
     try {
       if (previous?.pluginId !== plugin.id) {
         await channelRequest('channel/setEnabled', {
-          name: plugin.channel.channelName, pluginId: plugin.id, enabled: false
+          name: plugin.channel.channelName, pluginId: plugin.id, enabled: false, select: true
         })
       }
       if (!current()) return

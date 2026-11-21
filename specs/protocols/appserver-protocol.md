@@ -2111,13 +2111,15 @@ A channel adapter or App Binding principal cannot use them.
 
 ### 23.1 `channel/setEnabled`
 
-Params `{ name, pluginId, enabled }`. Selects an installed channel plugin whose logical name
-matches `name`, and sets the current workspace's activation intent. The host resolves the
-launcher and owns its authorization. Enabling requires a ready configuration and grants
-execution to that installation in this workspace. A disabled selection does not start a process.
-An unavailable but selected plugin can be disabled. Selecting a different plugin replaces the
-previous selection and stops its process. The client observes status through `channel/status`.
-Result `{}`. On success the workspace emits `config/changed` with region `channels`.
+Params `{ name, pluginId, enabled, select? }`. Enabling selects the installed plugin for
+`name`, requires a ready configuration, and grants execution to that installation in the workspace.
+Disabling applies only if `pluginId` is still selected when the request is committed, even if the
+plugin is unavailable. A mismatch is a no-op. To explicitly select an installed variant without
+starting it, send `enabled: false` with `select: true`. Replacing a selection stops its previous
+process. Use `channel/status` to observe the selection.
+
+Result `{}`. An applied request emits `config/changed` with region `channels`. A no-op emits no
+notification.
 
 ### 23.2 `channel/logs`
 

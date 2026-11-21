@@ -5467,6 +5467,13 @@
           "required": true,
           "nullable": false,
           "const": null
+        },
+        {
+          "name": "select",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
+          "const": null
         }
       ],
       "variants": []

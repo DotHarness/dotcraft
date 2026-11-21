@@ -62,6 +62,10 @@ public sealed class ChannelSetEnabledParams : ExtensibleJsonObject
     [JsonPropertyName("pluginId")] public required string PluginId { get; init; }
 
     [JsonPropertyName("enabled")] public required bool Enabled { get; init; }
+
+    [JsonPropertyName("select")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool Select { get; init; }
 }
 
 public sealed class ChannelLogsParams : ExtensibleJsonObject

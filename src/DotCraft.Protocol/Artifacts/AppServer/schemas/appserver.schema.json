@@ -4340,6 +4340,9 @@
         },
         "pluginId": {
           "type": "string"
+        },
+        "select": {
+          "type": "boolean"
         }
       },
       "additionalProperties": true,

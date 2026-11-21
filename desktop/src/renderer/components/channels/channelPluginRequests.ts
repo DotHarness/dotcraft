@@ -3,7 +3,7 @@ import type { ChannelStatus } from './channelPluginModel'
 
 interface ChannelPluginMethods {
   'channel/status': { params: Record<string, never>; result: { channels: ChannelStatus[] } }
-  'channel/setEnabled': { params: { name: string; pluginId: string; enabled: boolean }; result: Record<string, never> }
+  'channel/setEnabled': { params: { name: string; pluginId: string; enabled: boolean; select?: boolean }; result: Record<string, never> }
   'channel/logs': { params: { name: string; tail?: number }; result: { name: string; lines: string[] } }
   'channel/configOptionAvailability': {
     params: { name: string; key: string }

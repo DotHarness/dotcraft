@@ -77,7 +77,7 @@ internal sealed class ChannelRequestHandler(
     {
         var provider = RequireManagement(Contract.AppServerRpc.ChannelSetEnabled.Name);
         if (request.Params.ExtensionData is { Count: > 0 })
-            throw AppServerErrors.ChannelValidationFailed("Only 'name', 'pluginId', and 'enabled' may be supplied.");
+            throw AppServerErrors.ChannelValidationFailed("Only 'name', 'pluginId', 'enabled', and 'select' may be supplied.");
 
         var channel = new ChannelEntry
         {
@@ -91,34 +91,43 @@ internal sealed class ChannelRequestHandler(
             throw AppServerErrors.ChannelNameConflict($"'{channel.Name}' conflicts with a session origin.");
 
         ct.ThrowIfCancellationRequested();
-        SaveSelection(channel, provider.ChannelPlugins!);
-        if (services.OnChannelSetEnabled is { } apply)
-            await apply(channel, CancellationToken.None);
-        services.AppConfigMonitor?.NotifyChanged(Contract.AppServerRpc.ChannelSetEnabled.Name, [ConfigChangeRegions.Channels]);
+        if (SaveSelection(channel, provider.ChannelPlugins!, request.Params.Select))
+        {
+            if (services.OnChannelSetEnabled is { } apply)
+                await apply(channel, CancellationToken.None);
+            services.AppConfigMonitor?.NotifyChanged(Contract.AppServerRpc.ChannelSetEnabled.Name, [ConfigChangeRegions.Channels]);
+        }
 
         return AppServerTypedResult<RpcEmpty>.FromResult(new());
     }
 
-    private void SaveSelection(ChannelEntry channel, ChannelPluginWorkspace plugins)
+    private bool SaveSelection(ChannelEntry channel, ChannelPluginWorkspace plugins, bool select)
     {
+        var applied = false;
         try
         {
             AtomicConfigDocument.Update(Path.Combine(services.WorkspaceCraftPath!, "config.json"), root =>
             {
-                var channels = AtomicConfigDocument.Object(root, "Channels");
-                var key = AtomicConfigDocument.Key(channels, channel.Name) ?? channel.Name;
-                var selectedPluginId = channels[key] is JsonObject selected
+                var channels = AtomicConfigDocument.Value(root, "Channels") as JsonObject;
+                var key = (channels == null ? null : AtomicConfigDocument.Key(channels, channel.Name)) ?? channel.Name;
+                var selectedPluginId = channels?[key] is JsonObject selected
                     && AtomicConfigDocument.Value(selected, "pluginId") is JsonValue id
                     && id.TryGetValue<string>(out var pluginId) ? pluginId : null;
+                var matchesSelection = string.Equals(selectedPluginId, channel.PluginId, StringComparison.OrdinalIgnoreCase);
 
-                if (channel.Enabled || !string.Equals(selectedPluginId, channel.PluginId, StringComparison.OrdinalIgnoreCase))
+                if (!channel.Enabled && !select && !matchesSelection)
+                    return;
+
+                if (channel.Enabled || !matchesSelection)
                     plugins.Authorize(channel);
 
                 var entry = new JsonObject { ["pluginId"] = channel.PluginId, ["enabled"] = channel.Enabled };
                 if (channel.PluginActivationId is { Length: > 0 } activationId)
                     entry["pluginActivationId"] = activationId;
-                channels[key] = entry;
+                (channels ?? AtomicConfigDocument.Object(root, "Channels"))[key] = entry;
+                applied = true;
             });
+            return applied;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or InvalidDataException)
         {

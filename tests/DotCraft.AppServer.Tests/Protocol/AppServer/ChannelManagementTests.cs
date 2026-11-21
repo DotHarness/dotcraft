@@ -55,7 +55,7 @@ public sealed class ChannelManagementTests : IDisposable
         using (await harness.InitializeAsync()) { }
 
         using var wrongPlugin = await CallAsync(harness, Contract.AppServerRpc.ChannelSetEnabled.Name,
-            new { name = "example", enabled = false, pluginId = "channel-unknown" });
+            new { name = "example", enabled = false, pluginId = "channel-unknown", select = true });
         AppServerTestHarness.AssertIsErrorResponse(wrongPlugin, AppServerErrors.ChannelNotFoundCode);
         Assert.True(ReadSelection().Enabled);
 
@@ -63,6 +63,40 @@ public sealed class ChannelManagementTests : IDisposable
             new { name = "example", enabled = false, pluginId = "channel-example" });
         AppServerTestHarness.AssertIsSuccessResponse(disabled);
         Assert.False(ReadSelection().Enabled);
+    }
+
+    [Fact]
+    public async Task StaleDisableLeavesReplacementRunningAndExplicitSelectionCanStillSwitch()
+    {
+        CreateChannelPlugin();
+        CreateChannelPlugin("channel-replacement");
+        var applied = new List<ChannelEntry>();
+        using var harness = CreateHarness(applied.Add);
+        using (await harness.InitializeAsync()) { }
+
+        using var started = await CallAsync(harness, Contract.AppServerRpc.ChannelSetEnabled.Name,
+            new { name = "example", enabled = true, pluginId = "channel-example" });
+        AppServerTestHarness.AssertIsSuccessResponse(started);
+        using var replaced = await CallAsync(harness, Contract.AppServerRpc.ChannelSetEnabled.Name,
+            new { name = "example", enabled = true, pluginId = "channel-replacement" });
+        AppServerTestHarness.AssertIsSuccessResponse(replaced);
+        var replacement = ReadSelection();
+
+        var changes = new List<AppConfigChangedEventArgs>();
+        harness.Monitor.Changed += (_, change) => changes.Add(change);
+        using var stale = await CallAsync(harness, Contract.AppServerRpc.ChannelSetEnabled.Name,
+            new { name = "example", enabled = false, pluginId = "channel-example" });
+        AppServerTestHarness.AssertIsSuccessResponse(stale);
+        Assert.Equal(replacement, ReadSelection());
+        Assert.Equal(2, applied.Count);
+        Assert.Empty(changes);
+
+        using var selected = await CallAsync(harness, Contract.AppServerRpc.ChannelSetEnabled.Name,
+            new { name = "example", enabled = false, pluginId = "channel-example", select = true });
+        AppServerTestHarness.AssertIsSuccessResponse(selected);
+        Assert.Equal("channel-example", ReadSelection().PluginId);
+        Assert.False(ReadSelection().Enabled);
+        Assert.Equal(ReadSelection(), applied.Last());
     }
 
     [Fact]
@@ -130,20 +164,20 @@ public sealed class ChannelManagementTests : IDisposable
             channelListContributor: channelListContributor);
     }
 
-    private void CreateChannelPlugin()
+    private void CreateChannelPlugin(string pluginId = "channel-example")
     {
-        var plugin = Path.Combine(CraftPath, "plugins", "channel-example");
+        var plugin = Path.Combine(CraftPath, "plugins", pluginId);
         var metadata = Directory.CreateDirectory(Path.Combine(plugin, ".craft-plugin"));
-        File.WriteAllText(Path.Combine(metadata.FullName, "plugin.json"), """
+        File.WriteAllText(Path.Combine(metadata.FullName, "plugin.json"), $$"""
             {
-              "schemaVersion":1,"id":"channel-example","displayName":"Example","capabilities":["channel"],
+              "schemaVersion":1,"id":"{{pluginId}}","displayName":"Example","capabilities":["channel"],
               "channel":{"manifest":"./manifest.json","entry":"./entry.mjs","minHostVersion":"0.14.0"}
             }
             """);
-        File.WriteAllText(Path.Combine(plugin, "manifest.json"), """
+        File.WriteAllText(Path.Combine(plugin, "manifest.json"), $$"""
             {
-              "moduleId":"example-standard","channelName":"example","displayName":"Example",
-              "packageName":"example-channel","variant":"standard","configFileName":"example.json",
+              "moduleId":"{{pluginId}}-standard","channelName":"example","displayName":"Example",
+              "packageName":"example-channel","variant":"standard","configFileName":"{{pluginId}}.json",
               "supportedTransports":["websocket"],"channelContractVersion":"1.0.0","supportedChannelProtocolVersions":["0.2"],
               "requiresInteractiveSetup":false,"capabilitySummary":{
                 "requiresInteractiveSetup":false,"hasChannelTools":false,"capabilitySetMayVaryByEnvironment":false
