@@ -4,7 +4,7 @@
 |-------|-------|
 | **Version** | 0.13.2 |
 | **Status** | Living |
-| **Date** | 2026-11-20 |
+| **Date** | 2026-11-21 |
 
 Purpose: Define the **server-managed** session model (Thread / Turn / Item), including lifecycle, persistence, event semantics, approval semantics, and adapter boundaries.
 
@@ -158,8 +158,8 @@ Moving a thread:
 
 Lifecycle:
 
-- Archiving a thread removes its worktree when it has no uncommitted changes and keeps the branch; a worktree with uncommitted changes stays on disk. Unarchiving checks the branch out again at the recorded path.
-- Deleting a thread removes its worktree under the same rule and deletes the branch only when it has no commits beyond its base.
+- Archiving a thread removes its clean worktree and keeps the branch. It leaves the checkout on disk if a Turn in the subtree needed interruption or terminal cleanup is pending or failed. Unarchiving checks the branch out again at the recorded path if needed.
+- Deleting a thread removes its worktree if it has no uncommitted changes and deletes the branch only when it has no commits beyond its base.
 - A Turn that starts in a bound worktree whose directory is missing first checks its branch out again; if that fails, the Turn fails with the reason.
 - A worktree no thread is bound to stays until it is removed explicitly. Removing a worktree with uncommitted changes or commits beyond its base requires an explicit discard.
 - Before any removal of a worktree that records an environment, its cleanup script runs in the environment root inside the worktree the same way, without the setup variables; a missing file or empty script skips it. A failed cleanup keeps the worktree: explicit removal and handoff to local fail unchanged (explicit removal may skip cleanup), while archive and delete complete and leave the worktree on disk.
@@ -453,7 +453,7 @@ Thread-owned runtime artifacts are not a second source of conversation authority
 - Background terminal metadata and output logs are owned by the originating Thread and stay addressable after the process ends until the owner is permanently deleted or retention removes them.
 - Oversized tool-result spill files are owned by the originating Thread. The model-visible message holds a preview of at most 2,000 characters and a workspace-relative reference; the spill file is not reconstructable from the rollout.
 - One tool round's text results, including tool and MCP results made only of text items, together hold at most 200,000 characters. When a round exceeds that, its largest results spill the same way until it fits. A result that carries an image stays whole and is not counted. The decision is made once, when the round's results are built, so a result the model has seen never changes and the prompt-cache prefix stays stable.
-- Archive is not deletion. Archiving stops or invalidates active terminal processes but preserves terminal metadata, logs, and spill files for inspection, export, and tool-result reads.
+- Archiving closes Turn admission and requests interruption of any running Turn, including external SubAgent Turns, before requesting termination of active local background terminals. A cancellation callback failure does not skip terminal cleanup or archival. Archiving does not wait for those processes to exit. It preserves terminal metadata, logs, and spill files for inspection, export, and tool-result reads.
 - Permanent deletion removes the complete owned subtree: it stops active terminals, removes terminal and spill artifacts for the thread and all descendant SubAgent threads, then removes durable state. Cleanup is idempotent and retryable per filesystem operation. A child artifact never survives deletion of its parent because the child is hidden from default lists.
 - Compaction may replace or clear model-visible tool-result content but never deletes a spill file a current rollout or retained view may reference. Spill cleanup is retention maintenance, not a compaction side effect.
 - Graceful shutdown stops active terminals, flushes metadata and rollout writers, and releases handles; it never deletes persistent history or artifacts. The next startup marks persisted `running` terminals as `lost` before retention processing.
@@ -743,7 +743,7 @@ User-level usage statistics live at `<UserDataPath>/usage.db`, independently of 
 
 When a release changes the shape of existing workspace data, it may ship one release-scoped upgrade. Its table changes run once when the state database is first opened for writing, before any Thread loads. Code reads only the current table shape, so there are no compatibility readers. Rewriting rollouts takes time proportional to the thread history, so it never blocks startup: it runs in the background after the workspace runtime starts, one Thread at a time while holding that Thread's rollout write gate, and only for changes the current readers can still read in the old form. Each rewrite clears the Thread's history projection, writes a temporary file, and atomically replaces the rollout; a rollout already in the new shape is skipped, so a pass that stops early resumes on the next start. The upgrade is removed in the next release, so a workspace that skips a release keeps that release's old data shape.
 
-A release may also clean the workspace configuration layer before configuration loads. [Configuration §4.1](configuration.md#41-personal-settings-left-in-the-workspace-layer) defines the 0.13.1 cleanup.
+A release may also clean the workspace configuration layer before configuration loads.
 
 ### 9.1.2 Workspace Database Initialization
 

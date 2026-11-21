@@ -1,5 +1,11 @@
 using DotCraft.Agents;
+using DotCraft.Configuration;
+using DotCraft.Hooks;
+using DotCraft.Memory;
+using DotCraft.Security;
 using DotCraft.Sessions;
+using DotCraft.Skills;
+using SessionIdentity = DotCraft.Sessions.SessionIdentity;
 using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol;
@@ -125,6 +131,74 @@ public sealed partial class SubAgentSessionControlTests
         Assert.Equal(BackgroundTaskStatus.Stopped, ending.Status);
         Assert.True(ending.StoppedByUser);
         Assert.True(ending.MayWake);
+    }
+
+    [Fact]
+    public async Task ArchiveIdleParent_InterruptsAndArchivesRunningExternalChild()
+    {
+        var timeout = TimeSpan.FromSeconds(10);
+        var releaseCancellation = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var pendingResult = new TaskCompletionSource<DotCraft.Agents.SubAgentRunResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var runtime = new FakeRuntime(CliOneshotRuntime.RuntimeTypeName, "unused")
+        {
+            PendingResult = pendingResult,
+            CancellationGate = releaseCancellation
+        };
+        var coordinator = CreateCoordinator(runtime, supportsResume: false, resumeEnabled: false);
+        await using var factory = new AgentFactory(
+            dotcraftPath: _tempDir,
+            workspacePath: _tempDir,
+            config: AppConfigTestFactory.CreateOpenAI(),
+            memoryStore: new MemoryStore(_tempDir),
+            skillsLoader: new SkillsLoader(_tempDir),
+            approvalService: new AutoApproveApprovalService(),
+            blacklist: null,
+            chatClientRegistry: TestModelProviderRegistry.Create());
+        await using var service = new SessionService(
+            factory, factory.CreateDefaultAgent(), new SessionPersistenceService(_store), new SessionGate());
+        var parent = await service.CreateThreadAsync(new SessionIdentity
+        {
+            WorkspacePath = _tempDir,
+            UserId = "user",
+            ChannelName = "desktop"
+        });
+        var childStopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var context = new SubAgentSessionContext
+        {
+            SessionService = service,
+            ParentThread = parent,
+            ParentTurnId = "turn_001",
+            RootThreadId = parent.Id,
+            LifecycleHook = (request, _) =>
+            {
+                if (request.Event == HookEvent.SubagentStop)
+                    childStopped.TrySetResult();
+                return Task.CompletedTask;
+            }
+        };
+        var spawned = await SubAgentSessionControl.SpawnAgentAsync(
+            context,
+            new SubAgentSpawnOptions { AgentPrompt = "inspect code", TaskName = "inspect", ProfileName = "cli-run" },
+            waitForCompletion: false,
+            coordinator,
+            CancellationToken.None);
+
+        try
+        {
+            await service.ArchiveThreadAsync(parent.Id).WaitAsync(timeout);
+            await runtime.CancellationStarted.Task.WaitAsync(timeout);
+            Assert.Equal(ThreadStatus.Archived, (await service.ReadThreadSnapshotAsync(spawned.ChildThreadId)).Thread.Status);
+
+            releaseCancellation.SetResult();
+            await childStopped.Task.WaitAsync(timeout);
+            var child = await service.GetThreadAsync(spawned.ChildThreadId);
+            Assert.Equal(TurnStatus.Cancelled, Assert.Single(child.Turns).Status);
+        }
+        finally
+        {
+            releaseCancellation.TrySetResult();
+            pendingResult.TrySetResult(new DotCraft.Agents.SubAgentRunResult { Text = "unused" });
+        }
     }
 
     [Fact]

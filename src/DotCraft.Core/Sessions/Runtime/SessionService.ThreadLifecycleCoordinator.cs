@@ -37,13 +37,7 @@ public sealed partial class SessionService
             owner.WithThreadForArchiveAsync(threadId, async (root, loaded, commandCt) =>
             {
                 ThrowIfDirectSubAgentLifecycleOperation(root, "archive");
-                var subtree = await CollectSubAgentSubtreeIdsAsync(root.Id, includeClosed: true, commandCt);
-                await ArchiveCoreAsync(root, commandCt, loaded);
-                foreach (var id in subtree.Skip(1))
-                {
-                    await owner.WithThreadForArchiveAsync(id,
-                        (thread, childLoaded, childCt) => ArchiveCoreAsync(thread, childCt, childLoaded), commandCt);
-                }
+                await ArchiveTreeAsync(root, loaded, commandCt);
             }, ct);
 
         public async Task UnarchiveAsync(string threadId, CancellationToken ct)
@@ -64,10 +58,26 @@ public sealed partial class SessionService
             if (!IsSubAgentThread(root))
                 throw new InvalidOperationException($"Thread '{childThreadId}' is not a SubAgent child thread.");
 
-            foreach (var id in await CollectSubAgentSubtreeIdsAsync(root.Id, includeClosed: true, ct))
+            await ArchiveTreeAsync(root, loaded: true, ct);
+        }
+
+        private async Task ArchiveTreeAsync(SessionThread root, bool loaded, CancellationToken ct)
+        {
+            var subtree = await CollectSubAgentSubtreeIdsAsync(root.Id, includeClosed: true, ct);
+            var worktrees = new List<SessionThread>();
+            var canRemoveWorktrees = await ArchiveCoreAsync(root, loaded, worktrees, ct);
+            foreach (var id in subtree.Skip(1))
             {
-                var thread = await owner.GetOrLoadThreadAsync(id, ct);
-                await ArchiveCoreAsync(thread, ct, loaded: true);
+                await owner.WithThreadForArchiveAsync(id, async (thread, childLoaded, childCt) =>
+                {
+                    canRemoveWorktrees &= await ArchiveCoreAsync(thread, childLoaded, worktrees, childCt);
+                }, ct);
+            }
+
+            if (canRemoveWorktrees)
+            {
+                foreach (var thread in worktrees)
+                    await owner.Worktrees.ReleaseOnArchiveAsync(thread, ct);
             }
         }
 
@@ -175,31 +185,77 @@ public sealed partial class SessionService
             return result;
         }
 
-        private async Task ArchiveCoreAsync(SessionThread thread, CancellationToken ct, bool loaded)
+        private async Task<bool> ArchiveCoreAsync(
+            SessionThread thread, bool loaded, List<SessionThread> worktrees, CancellationToken ct)
         {
             if (thread.Status == ThreadStatus.Archived)
-                return;
+                return true;
 
             var previousStatus = thread.Status;
+            bool interruptedTurn;
+            Task<bool> terminalCleanup;
             using (await owner.AcquireThreadAgentLockAsync(thread.Id, ct))
             {
                 thread.Status = ThreadStatus.Archived;
+                owner._runtimeRegistry.TryGetRuntime(thread.Id, out var runtime);
+                interruptedTurn = InterruptArchiveTurns(thread, runtime);
+                terminalCleanup = StopArchivedThreadTerminalsAsync(thread.Id);
                 owner.ClearThreadAgentCaches(thread.Id);
-                if (owner._runtimeRegistry.TryGetRuntime(thread.Id, out var runtime))
+                if (runtime != null)
                     await runtime.ReleaseMcpAsync();
             }
             owner.ToolDispatchPolicyRegistry?.Remove(thread.Id);
             await owner.AgentFactory.ReleaseThreadToolResourcesAsync(thread.Id, ct);
             owner.ForgetContextPages(thread.Id);
-            if (owner.BackgroundTerminalService != null)
-                await owner.BackgroundTerminalService.CleanThreadAsync(thread.Id, ct);
-            await owner.Worktrees.ReleaseOnArchiveAsync(thread, ct);
 
             if (loaded)
                 await owner.PersistThreadStatusAsync(thread, ct);
             else
                 await owner.Persistence.ArchiveStoredThreadAsync(thread.Id, ct);
             PublishThreadStatusChanged(thread.Id, previousStatus, thread.Status);
+
+            if (thread.Worktree != null)
+                worktrees.Add(thread);
+            return !interruptedTurn && terminalCleanup.IsCompletedSuccessfully && terminalCleanup.Result;
+        }
+
+        private bool InterruptArchiveTurns(SessionThread thread, ThreadRuntime? runtime)
+        {
+            var interruptedTurn = false;
+            if (runtime != null)
+            {
+                foreach (var turn in runtime.Turns.Values)
+                {
+                    interruptedTurn = true;
+                    try
+                    {
+                        turn.Interrupt();
+                    }
+                    catch (AggregateException ex)
+                    {
+                        owner.Logger?.LogWarning(ex, "A turn cancellation callback failed while archiving thread {ThreadId}.", thread.Id);
+                    }
+                }
+            }
+
+            return interruptedTurn || IsSubAgentThread(thread) && SubAgentSessionControl.InterruptRunningChild(thread.Id);
+        }
+
+        private async Task<bool> StopArchivedThreadTerminalsAsync(string threadId)
+        {
+            if (owner.BackgroundTerminalService is not { } terminals)
+                return true;
+
+            try
+            {
+                await terminals.CleanThreadAsync(threadId);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                owner.Logger?.LogWarning(ex, "Could not stop all background terminals for archived thread {ThreadId}.", threadId);
+                return false;
+            }
         }
 
         private async Task UnarchiveCoreAsync(SessionThread thread, CancellationToken ct)

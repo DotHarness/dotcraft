@@ -99,6 +99,7 @@ public sealed partial class BackgroundTerminalService : IBackgroundTerminalServi
             this);
 
         _active[sessionId] = terminal;
+        var cancelledDuringLaunch = ct.IsCancellationRequested;
         _metadata[sessionId] = terminal.ToMetadata(BackgroundTerminalStatus.Running);
         try
         {
@@ -111,11 +112,19 @@ public sealed partial class BackgroundTerminalService : IBackgroundTerminalServi
             process.Dispose();
             _active.TryRemove(sessionId, out _);
             _metadata.TryRemove(sessionId, out _);
+            terminal.StartupCompleted.TrySetResult(false);
             throw;
         }
         Raise("started", terminal.CreateSnapshot(maxOutputChars: request.MaxOutputChars), null);
 
         terminal.BeginReading();
+        terminal.StartupCompleted.TrySetResult(true);
+
+        if (cancelledDuringLaunch)
+        {
+            await KillAsync(terminal, BackgroundTerminalStatus.Killed, CancellationToken.None).ConfigureAwait(false);
+            ct.ThrowIfCancellationRequested();
+        }
 
         if (!OperatingSystem.IsWindows())
         {
@@ -298,13 +307,11 @@ public sealed partial class BackgroundTerminalService : IBackgroundTerminalServi
         var targets = _active.Values
             .Where(t => string.Equals(t.ThreadId, threadId, StringComparison.Ordinal))
             .ToArray();
-        var snapshots = new List<BackgroundTerminalSnapshot>();
-        foreach (var target in targets)
+        return await Task.WhenAll(targets.Select(target =>
         {
             SettleModelRead(target.SessionId);
-            snapshots.Add(await StopAsync(target.SessionId, ct).ConfigureAwait(false));
-        }
-        return snapshots;
+            return StopAsync(target.SessionId, ct);
+        })).ConfigureAwait(false);
     }
 
     public async Task<IReadOnlyList<string>> DeleteThreadArtifactsAsync(
@@ -395,22 +402,12 @@ public sealed partial class BackgroundTerminalService : IBackgroundTerminalServi
 
     private async Task KillAsync(ActiveTerminal terminal, string status, CancellationToken ct)
     {
-        if (!terminal.TryBeginCompletion())
+        if (!await terminal.StartupCompleted.Task.WaitAsync(ct).ConfigureAwait(false))
+            return;
+        if (!terminal.TryBeginCompletion(terminateProcess: true))
         {
             await terminal.WaitForCompletionMetadataAsync(ct).ConfigureAwait(false);
             return;
-        }
-
-        if (!terminal.Process.HasExited)
-        {
-            try
-            {
-                terminal.Process.Kill(entireProcessTree: true);
-            }
-            catch (InvalidOperationException)
-            {
-                // Already exited.
-            }
         }
 
         try

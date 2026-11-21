@@ -5,7 +5,9 @@ using DotCraft.Memory;
 using DotCraft.Security;
 using DotCraft.Sessions;
 using DotCraft.Skills;
+using DotCraft.Tests.Tools;
 using DotCraft.Tools;
+using DotCraft.Tools.BackgroundTerminals;
 using Microsoft.Extensions.AI;
 using Xunit;
 
@@ -165,6 +167,63 @@ public sealed class SessionServiceArchiveTests : IDisposable
         Assert.True(service.TryGetLoadedThread("root") is null or { Status: ThreadStatus.Archived });
     }
 
+    [Fact]
+    public async Task LoadedBusyThread_ArchivesWithoutWaitingForTerminalCleanupEvenIfCancellationCallbackThrows()
+    {
+        var timeout = TimeSpan.FromSeconds(10);
+        var streamStarted = new TaskCompletionSource<CancellationToken>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseStream = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var chat = new RecordingChatClient
+        {
+            BeforeStreaming = ct =>
+            {
+                streamStarted.TrySetResult(ct);
+                return releaseStream.Task.WaitAsync(ct);
+            }
+        };
+        CancellationToken turnCancellation = default;
+        var cleanupStarted = new TaskCompletionSource<(string ThreadId, bool TurnCancelled)>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var cleanup = new TaskCompletionSource<IReadOnlyList<BackgroundTerminalSnapshot>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var terminals = new StubBackgroundTerminalService
+        {
+            CleanHandler = (threadId, _) =>
+            {
+                cleanupStarted.SetResult((threadId, turnCancellation.IsCancellationRequested));
+                return cleanup.Task;
+            }
+        };
+        await SeedAsync("busy", 1);
+        await using var store = new ThreadStore(CraftPath);
+        await using var factory = CreateFactory(chat, new ThreadResources());
+        await using var service = CreateService(factory, chat, store, terminals);
+        var thread = await service.GetThreadAsync("busy");
+        var run = service.SubmitInputAsync(thread.Id, [new TextContent("run")]).ToListAsync().AsTask();
+
+        try
+        {
+            turnCancellation = await streamStarted.Task.WaitAsync(timeout);
+            var callbackRan = false;
+            using var registration = turnCancellation.Register(() =>
+            {
+                callbackRan = true;
+                throw new InvalidOperationException("Cancellation callback failed.");
+            });
+            var archive = service.ArchiveThreadAsync(thread.Id);
+            Assert.Equal((thread.Id, true), await cleanupStarted.Task.WaitAsync(timeout));
+            await archive.WaitAsync(timeout);
+
+            Assert.True(callbackRan);
+            Assert.False(cleanup.Task.IsCompleted);
+            Assert.Equal(ThreadStatus.Archived, (await service.ReadThreadSnapshotAsync(thread.Id)).Thread.Status);
+            Assert.Contains(await run.WaitAsync(timeout), e => e.EventType == SessionEventType.TurnCancelled);
+        }
+        finally
+        {
+            releaseStream.TrySetResult();
+            cleanup.TrySetResult([]);
+        }
+    }
+
     private async Task SeedAsync(string id, int turnCount, string? parentId = null, bool closed = false, string? attachment = null)
     {
         var created = DateTimeOffset.Parse("2026-01-01T00:00:00Z");
@@ -256,8 +315,10 @@ public sealed class SessionServiceArchiveTests : IDisposable
         chatClient: chat,
         toolSources: [resources]);
 
-    private static SessionService CreateService(AgentFactory factory, IChatClient chat, ThreadStore store) =>
-        new(factory, chat.AsAIAgent(), new SessionPersistenceService(store), new SessionGate());
+    private static SessionService CreateService(
+        AgentFactory factory, IChatClient chat, ThreadStore store, IBackgroundTerminalService? terminals = null) =>
+        new(factory, chat.AsAIAgent(), new SessionPersistenceService(store), new SessionGate(),
+            backgroundTerminalService: terminals);
 
     private sealed class ThreadResources : IToolSource, IThreadScopedToolSource
     {
@@ -285,6 +346,7 @@ public sealed class SessionServiceArchiveTests : IDisposable
     private sealed class RecordingChatClient : IChatClient
     {
         public int RequestCount { get; private set; }
+        public Func<CancellationToken, Task>? BeforeStreaming { get; init; }
 
         public Task<ChatResponse> GetResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null,
             CancellationToken cancellationToken = default)
@@ -297,8 +359,9 @@ public sealed class SessionServiceArchiveTests : IDisposable
             ChatOptions? options = null, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             RequestCount++;
+            if (BeforeStreaming is { } beforeStreaming)
+                await beforeStreaming(cancellationToken);
             yield return new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("answer")]);
-            await Task.CompletedTask;
         }
 
         public object? GetService(Type serviceType, object? serviceKey = null) => null;
