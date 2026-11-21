@@ -377,10 +377,12 @@ public sealed class BackgroundTerminalServiceTests : IAsyncLifetime
             MaxOutputChars = 1000
         });
 
-        await WaitForFileAsync(Path.ChangeExtension(started.OutputPath, ".json"));
-        await Service.CleanThreadAsync("thread_archive");
+        var stopped = Assert.Single(await Service.CleanThreadAsync("thread_archive"));
 
-        Assert.True(File.Exists(Path.ChangeExtension(started.OutputPath, ".json")));
+        Assert.Equal(started.SessionId, stopped.SessionId);
+        Assert.Equal(BackgroundTerminalStatus.Killed, stopped.Status);
+        Assert.True(File.Exists(stopped.OutputPath));
+        Assert.True(File.Exists(Path.ChangeExtension(stopped.OutputPath, ".json")));
     }
 
     [Fact]

@@ -184,15 +184,19 @@ public sealed partial class SessionService
             using (await owner.AcquireThreadAgentLockAsync(thread.Id, ct))
             {
                 thread.Status = ThreadStatus.Archived;
-                owner.ClearThreadAgentCaches(thread.Id);
                 if (owner._runtimeRegistry.TryGetRuntime(thread.Id, out var runtime))
+                {
+                    foreach (var turn in runtime.Turns.Values)
+                        turn.Interrupt();
+                }
+                _ = StopArchivedThreadTerminalsAsync(thread.Id);
+                owner.ClearThreadAgentCaches(thread.Id);
+                if (runtime != null)
                     await runtime.ReleaseMcpAsync();
             }
             owner.ToolDispatchPolicyRegistry?.Remove(thread.Id);
             await owner.AgentFactory.ReleaseThreadToolResourcesAsync(thread.Id, ct);
             owner.ForgetContextPages(thread.Id);
-            if (owner.BackgroundTerminalService != null)
-                await owner.BackgroundTerminalService.CleanThreadAsync(thread.Id, ct);
             await owner.Worktrees.ReleaseOnArchiveAsync(thread, ct);
 
             if (loaded)
@@ -200,6 +204,21 @@ public sealed partial class SessionService
             else
                 await owner.Persistence.ArchiveStoredThreadAsync(thread.Id, ct);
             PublishThreadStatusChanged(thread.Id, previousStatus, thread.Status);
+        }
+
+        private async Task StopArchivedThreadTerminalsAsync(string threadId)
+        {
+            if (owner.BackgroundTerminalService is not { } terminals)
+                return;
+
+            try
+            {
+                await terminals.CleanThreadAsync(threadId);
+            }
+            catch (Exception ex)
+            {
+                owner.Logger?.LogWarning(ex, "Could not stop all background terminals for archived thread {ThreadId}.", threadId);
+            }
         }
 
         private async Task UnarchiveCoreAsync(SessionThread thread, CancellationToken ct)

@@ -59,6 +59,8 @@ public sealed partial class BackgroundTerminalService
 
         public ShellStdinSession StdinSession { get; }
 
+        public TaskCompletionSource<bool> StartupCompleted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public TaskCompletionSource MetadataCompleted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public SemaphoreSlim MetadataGate { get; } = new(1, 1);
@@ -152,12 +154,23 @@ public sealed partial class BackgroundTerminalService
             }
         }
 
-        public bool TryBeginCompletion()
+        public bool TryBeginCompletion(bool terminateProcess = false)
         {
             lock (_sync)
             {
                 if (_completionStarted)
                     return false;
+
+                if (terminateProcess && !Process.HasExited)
+                {
+                    try
+                    {
+                        Process.Kill(entireProcessTree: true);
+                    }
+                    catch (InvalidOperationException)
+                    {
+                    }
+                }
 
                 _completionStarted = true;
                 return true;
