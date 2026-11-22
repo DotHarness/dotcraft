@@ -6,7 +6,7 @@ import type {
 import { OratorioSettingsSurface } from './OratorioSettingsSurface'
 import { OratorioView } from './OratorioView'
 import { OratorioBatonIcon } from './OratorioBatonIcon'
-import { ConductorMascot, ConductorPermissions, conductorSpace, findConductor, reconcileConductorBinding } from './conductor'
+import { ConductorMascot, ConductorPermissions, conductorSpace, settleConductorOpen } from './conductor'
 import { ConductorIntro } from './ConductorIntro'
 import { parseOratorioNavigationUrl, requestOratorioNavigation } from './oratorio-navigation'
 import { installOratorioHost } from './runtime'
@@ -67,10 +67,7 @@ export const activate: DesktopPluginActivate = (host) => {
   host.ui.wrap('composer.mascot', ConductorMascot)
   host.ui.wrap('composer.toolbar.permissions', ConductorPermissions)
   host.ui.add('conversation.empty', ConductorIntro)
-  host.session.onChange((session) => {
-    const conductor = findConductor(host)?.threadId
-    if (conductor && session.threadId === conductor) reconcileConductorBinding(host, conductor)
-  })
+  host.session.onChange(() => settleConductorOpen(host))
   // Resolving the context is what asks Hub to start the Oratorio server; a missing executable
   // is normal in a Desktop-only checkout.
   void host.oratorio.getContext().catch(() => {})

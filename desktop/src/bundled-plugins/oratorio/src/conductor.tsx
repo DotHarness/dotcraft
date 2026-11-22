@@ -35,13 +35,22 @@ export async function openConductor(host: DesktopPluginHost): Promise<void> {
       approvalPolicy: 'autoApprove'
     }
   })
+  openingConductor = conductor.threadId
   await host.navigation.openThread(conductor.threadId, conductor.workspacePath)
-  if (host.session.threadId === conductor.threadId) reconcileConductorBinding(host, conductor.threadId)
+  settleConductorOpen(host)
 }
 
+let openingConductor: string | null = null
 let bindingConductor: string | null = null
 
-export function reconcileConductorBinding(host: DesktopPluginHost, threadId: string): void {
+export function settleConductorOpen(host: DesktopPluginHost): void {
+  if (!openingConductor || host.session.threadId !== openingConductor) return
+  const threadId = openingConductor
+  openingConductor = null
+  reconcileConductorBinding(host, threadId)
+}
+
+function reconcileConductorBinding(host: DesktopPluginHost, threadId: string): void {
   if (bindingConductor === threadId) return
   bindingConductor = threadId
   void bindConductor(host, threadId).catch((error: unknown) => {
