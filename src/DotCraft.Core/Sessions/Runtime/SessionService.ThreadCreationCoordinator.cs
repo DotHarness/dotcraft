@@ -320,14 +320,19 @@ public sealed partial class SessionService
 
         private static string? FirstUserMessageDisplayName(IReadOnlyList<SessionTurn> turns)
         {
+            static string? EligibleText(UserMessagePayload? payload) =>
+                payload != null && !string.Equals(payload.TriggerKind, TurnTriggerInfo.KickoffKind, StringComparison.Ordinal)
+                    ? payload.Text
+                    : null;
+
             foreach (var turn in turns)
             {
-                var text = (turn.Input?.Payload as UserMessagePayload)?.Text;
+                var text = EligibleText(turn.Input?.Payload as UserMessagePayload);
                 if (string.IsNullOrWhiteSpace(text))
                 {
                     text = turn.Items
                         .Where(item => item.Type == ItemType.UserMessage)
-                        .Select(item => (item.Payload as UserMessagePayload)?.Text)
+                        .Select(item => EligibleText(item.Payload as UserMessagePayload))
                         .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
                 }
 

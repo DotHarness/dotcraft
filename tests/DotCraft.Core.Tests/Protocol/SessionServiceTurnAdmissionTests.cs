@@ -322,22 +322,53 @@ public sealed partial class SessionServiceTurnAdmissionTests
     }
 
     [Fact]
-    public async Task KickoffTurn_RecordsTriggerAndLeavesNamingToFirstUserMessage()
+    public async Task KickoffTurn_IsolatesQueuedFollowupAndExcludesPromptFromTitles()
     {
-        await using var h = new AdmissionHarness();
+        await using var h = new AdmissionHarness(blockRequests: true);
         var thread = await h.CreateThreadAsync();
 
         TurnStartOrEnqueueAdmission kickoff;
+        Task<List<SessionEvent>> kickoffDrain;
         using (TurnTriggerScope.Set(new TurnTriggerInfo { Kind = TurnTriggerInfo.KickoffKind }))
+        {
             kickoff = await h.Service.StartOrEnqueueTurnAsync(thread.Id, [new TextContent("Greet them in zh-Hans.")]);
-        var kickoffEvents = await DrainAsync(kickoff.Events!);
+            kickoffDrain = DrainAsync(kickoff.Events!);
+        }
+        await h.Provider.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
-        Assert.Contains(kickoffEvents, e => e.ItemPayload?.AsUserMessage?.TriggerKind == TurnTriggerInfo.KickoffKind);
-        Assert.True(string.IsNullOrEmpty(thread.DisplayName));
+        var followup = await h.Service.StartOrEnqueueTurnAsync(thread.Id, [new TextContent("Ship the conductor")]);
+        Assert.NotNull(followup.QueuedInput);
+        Assert.Null(followup.QueuedInput.TriggerKind);
 
-        var first = await h.Service.StartOrSteerTurnAsync(thread.Id, [new TextContent("Ship the conductor")]);
-        await DrainAsync(first.Events!);
+        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        h.Service.ThreadRuntimeSignalForBroadcast = (id, signal, turn) =>
+        {
+            if (id == thread.Id && signal == SessionThreadRuntimeSignal.TurnCompleted && turn?.Id != kickoff.Turn!.Id)
+                completed.TrySetResult();
+        };
 
-        Assert.Equal("Ship the conductor", thread.DisplayName);
+        h.Provider.Release.TrySetResult();
+        await kickoffDrain.WaitAsync(TimeSpan.FromSeconds(10));
+        await completed.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        var saved = (await h.Store.LoadThreadAsync(thread.Id))!;
+        Assert.Equal(2, saved.Turns.Count);
+        Assert.Equal(TurnTriggerInfo.KickoffKind, saved.Turns[0].Input?.AsUserMessage?.TriggerKind);
+        Assert.Null(saved.Turns[1].Input?.AsUserMessage?.TriggerKind);
+        Assert.Equal("Ship the conductor", saved.DisplayName);
+
+        var kickoffOnlyFork = await h.Service.ForkThreadAsync(thread.Id, new ThreadForkOptions
+        {
+            ForkPoint = new ThreadForkPoint { TurnId = kickoff.Turn!.Id, Position = "after" }
+        });
+        var unnamedSource = await h.CreateThreadAsync();
+        using (TurnTriggerScope.Set(new TurnTriggerInfo { Kind = TurnTriggerInfo.KickoffKind }))
+        {
+            var onlyKickoff = await h.Service.StartOrEnqueueTurnAsync(unnamedSource.Id, [new TextContent("Greet them.")]);
+            await DrainAsync(onlyKickoff.Events!);
+        }
+        var unnamedFork = await h.Service.ForkThreadAsync(unnamedSource.Id);
+        Assert.Equal("Ship the conductor", kickoffOnlyFork.DisplayName);
+        Assert.True(string.IsNullOrEmpty(unnamedFork.DisplayName));
     }
 }

@@ -944,7 +944,7 @@ public sealed partial class SessionService
                 EnsureHookRewakeHandler();
 
                 var stopHookActive = string.Equals(turnContext.Trigger?.Kind, "hook", StringComparison.Ordinal);
-                var promptHookContext = turnContext.Trigger?.Kind is ThreadReportTriggerKind or TurnTriggerInfo.KickoffKind
+                var promptHookContext = turnContext.Trigger?.Kind == ThreadReportTriggerKind
                     ? new HookResult()
                     : await RunPromptLifecycleHookAsync(
                         HookEvent.UserPromptSubmit,

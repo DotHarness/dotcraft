@@ -40,7 +40,7 @@ public static class TurnTriggerScope
 
     public static TurnTriggerInfo? Current => CurrentContext.Value;
 
-    public static IDisposable Set(TurnTriggerInfo info)
+    public static IDisposable Set(TurnTriggerInfo? info)
     {
         var previous = CurrentContext.Value;
         CurrentContext.Value = info;

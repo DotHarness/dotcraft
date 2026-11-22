@@ -499,19 +499,16 @@ public sealed partial class SessionService
             return reordered;
         }
 
-        private static IDisposable? CreateQueuedInputTriggerScope(QueuedTurnInput queued)
-        {
-            if (string.IsNullOrWhiteSpace(queued.TriggerKind))
-                return null;
-
-            return TurnTriggerScope.Set(new TurnTriggerInfo
-            {
-                Kind = queued.TriggerKind!,
-                Label = queued.TriggerLabel,
-                RefId = queued.TriggerRefId,
-                Status = queued.TriggerStatus
-            });
-        }
+        private static IDisposable CreateQueuedInputTriggerScope(QueuedTurnInput queued) =>
+            TurnTriggerScope.Set(string.IsNullOrWhiteSpace(queued.TriggerKind)
+                ? null
+                : new TurnTriggerInfo
+                {
+                    Kind = queued.TriggerKind,
+                    Label = queued.TriggerLabel,
+                    RefId = queued.TriggerRefId,
+                    Status = queued.TriggerStatus
+                });
 
     }
 }
