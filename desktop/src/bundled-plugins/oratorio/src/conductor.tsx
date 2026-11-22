@@ -39,30 +39,27 @@ export async function openConductor(host: DesktopPluginHost): Promise<void> {
   if (host.session.threadId === conductor.threadId) reconcileConductorBinding(host, conductor.threadId)
 }
 
-let boundConductor: string | null = null
+let bindingConductor: string | null = null
 
 export function reconcileConductorBinding(host: DesktopPluginHost, threadId: string): void {
-  if (boundConductor === threadId) return
-  boundConductor = threadId
-  void bindConductor(host, threadId).then((settled) => {
-    if (!settled) boundConductor = null
-  }, (error: unknown) => {
-    boundConductor = null
+  if (bindingConductor === threadId) return
+  bindingConductor = threadId
+  void bindConductor(host, threadId).catch((error: unknown) => {
     host.ui.showToast({ message: error instanceof Error ? error.message : String(error), tone: 'error' })
+  }).finally(() => {
+    if (bindingConductor === threadId) bindingConductor = null
   })
 }
 
-async function bindConductor(host: DesktopPluginHost, threadId: string): Promise<boolean> {
+async function bindConductor(host: DesktopPluginHost, threadId: string): Promise<void> {
   const { bindings } = await host.appServer.request('thread/appBindings/list', { threadId })
   const existing = (bindings ?? []).find((binding) => binding.appId === ORATORIO_APP_ID
     && binding.state !== 'revoked' && binding.state !== 'cancelled')
-  if (existing?.state === 'active') return true
-  if (existing && existing.state !== 'failed') return false
+  if (existing && existing.state !== 'failed') return
   const status = await host.appBindings.getConnectionStatus(ORATORIO_APP_ID)
-  if (status.state !== 'connected') return false
+  if (status.state !== 'connected') return
   if (existing) await host.appServer.request('thread/appBindings/revoke', { threadId, bindingId: existing.bindingId, reason: 'activation_failed' })
   await host.appBindings.enableThread(threadId, ORATORIO_APP_ID)
-  return true
 }
 
 export function conductorSpace(label: DesktopLocalizedText): DesktopPluginSpaceContribution {
