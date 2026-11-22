@@ -362,7 +362,7 @@ export function ConversationPanel({
           }}
         />
       ) : (
-        <EmptyConversation context={threadSurfaceContext} cover={cover} />
+        <EmptyConversation context={threadSurfaceContext} cover={cover} covered={covered} />
       )}
 
       {covered ? null : !restoring && composerApproval ? (
@@ -454,9 +454,10 @@ const loadErrorDetailStyle: CSSProperties = {
   overflowWrap: 'anywhere'
 }
 
-function EmptyConversation({ context, cover }: {
+function EmptyConversation({ context, cover, covered }: {
   context: DesktopPluginThreadSurfaceContext | null
   cover: () => DesktopPluginDispose
+  covered: boolean
 }): JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
   const workspacePath = context?.workspacePath ?? null
@@ -469,7 +470,7 @@ function EmptyConversation({ context, cover }: {
   return (
     <div ref={ref} style={emptyConversationStyle}>
       {emptyContext && <DesktopPluginSurface name="conversation.empty" context={emptyContext} />}
-      <ConversationAsides scrollRef={ref} />
+      {!covered && <ConversationAsides scrollRef={ref} />}
     </div>
   )
 }

@@ -2012,8 +2012,10 @@ surface share one glass layer. Its color is the requested tint, or
 the backdrop behind it by the requested radius. The glass never drops below 30%
 coverage. The readability floors are 88% for a tint that does not suit the
 applied appearance, 70% without GPU compositing, and 100% under reduced
-transparency, increased contrast, forced colors, and print. Elevated overlays
-stay on their solid surface as everywhere else.
+transparency, increased contrast, forced colors, and print. Main views and
+full-panel empty-conversation surfaces stay transparent inside the shell main
+frame so both its inset frame border and the shared backdrop glass show through.
+Elevated overlays stay on their solid surface as everywhere else.
 
 #### Conversation side surfaces
 

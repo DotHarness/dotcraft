@@ -143,7 +143,9 @@ so Oratorio adds one place to Desktop instead of a chat and a separate view.
   its background tasks, and its context usage. Sections about project work
   stay hidden, because the conductor leaves that work to its chats.
 - **Introduction.** While the conductor has no messages, the introduction
-  takes its conversation panel, in place of the thread header and Composer. A
+  takes its conversation panel in place of the thread header, asides, and
+  Composer, keeping a transparent root over the shared main surface so the frame
+  border and any active theme backdrop show through. A
   gold line writes a treble clef and flows into the baton the person's mascot
   holds. The mascot waves, a thought bubble cycles through what the conductor
   does, and a title, one sentence, and Continue appear. Continue starts the

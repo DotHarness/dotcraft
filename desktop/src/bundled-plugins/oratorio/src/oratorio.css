@@ -123,9 +123,7 @@
 .ora-detail__main > .ora-rail .ora-rail__section > :not(h2) { grid-column: 2; }
 
 /* Task detail */
-/* Opaque because it replaces the board, but on the surface colour the rest of
-   the app uses rather than a second one. */
-.ora-detail { position: absolute; z-index: 25; inset: 0; display: grid; height: 100%; min-height: 0; grid-template-rows: auto minmax(0, 1fr); color: var(--text-primary); background: var(--main-surface, var(--bg-primary)); font-family: var(--font-ui); }
+.ora-detail { position: absolute; z-index: 25; inset: 0; display: grid; height: 100%; min-height: 0; grid-template-rows: auto minmax(0, 1fr); color: var(--text-primary); background: transparent; font-family: var(--font-ui); }
 .ora-detail__header { display: flex; min-width: 0; min-height: 52px; align-items: center; gap: 8px; padding: 0 16px; }
 .ora-detail__source { display: inline-flex; min-width: 0; flex: 1; align-items: center; gap: 6px; color: var(--text-secondary); font-size: var(--type-ui-size); line-height: var(--type-ui-line-height); white-space: nowrap; }
 .ora-detail__source > svg { flex: none; }
