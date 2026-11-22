@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import type { PluginEntry } from '../stores/pluginStore'
 import type { ConversationItem } from '../types/conversation'
+import { resolveToolPluginIconUrl } from '../utils/mcpPluginIcon'
 import {
   CORE_TOOL_PRESENTATION_IDS,
   ToolRendererRegistry,
@@ -46,6 +48,16 @@ describe('ToolRendererRegistry', () => {
     expect(resolve(CORE_TOOL_PRESENTATION_IDS.deferredSearch)).toMatchObject({ family: 'deferredSearch' })
     expect(resolve(CORE_TOOL_PRESENTATION_IDS.lsp)).toMatchObject({ family: 'lsp', groupCategory: 'explore' })
     expect(resolve(CORE_TOOL_PRESENTATION_IDS.commitSuggest)).toMatchObject({ family: 'commitSuggest' })
+    expect(resolve(CORE_TOOL_PRESENTATION_IDS.worktree, 'CoreNative', { operation: 'enter' })).toMatchObject({
+      family: 'worktree',
+      mode: 'standalone',
+      options: { operation: 'enter' }
+    })
+    expect(resolve(CORE_TOOL_PRESENTATION_IDS.worktree, 'CoreNative', { operation: 'exit' })).toMatchObject({
+      family: 'worktree',
+      mode: 'standalone',
+      options: { operation: 'exit' }
+    })
   })
 
   it.each(['Mcp', 'PluginNative', 'RuntimeDynamic', 'LegacyAppBinding'])(
@@ -53,6 +65,7 @@ describe('ToolRendererRegistry', () => {
     (kind) => {
       expect(resolve(CORE_TOOL_PRESENTATION_IDS.shell, kind)).toBeNull()
       expect(resolve(CORE_TOOL_PRESENTATION_IDS.channel, kind)).toBeNull()
+      expect(resolve(CORE_TOOL_PRESENTATION_IDS.worktree, kind, { operation: 'enter' })).toBeNull()
       expect(resolve('core.automation', kind)).toBeNull()
     }
   )
@@ -74,6 +87,8 @@ describe('ToolRendererRegistry', () => {
     expect(resolve(CORE_TOOL_PRESENTATION_IDS.channel, 'CoreNative', { operation: 'send' })).toBeNull()
     expect(resolve(CORE_TOOL_PRESENTATION_IDS.agentBuilder, 'CoreNative', { field: 'avatar' })).toBeNull()
     expect(resolve(CORE_TOOL_PRESENTATION_IDS.agentBuilder, 'CoreNative')).toBeNull()
+    expect(resolve(CORE_TOOL_PRESENTATION_IDS.worktree, 'CoreNative', { operation: 'delete' })).toBeNull()
+    expect(resolve(CORE_TOOL_PRESENTATION_IDS.worktree, 'CoreNative')).toBeNull()
   })
 
   it('rejects duplicate presentation ids at construction', () => {
@@ -157,5 +172,49 @@ describe('ToolRendererRegistry', () => {
       'Mcp',
       { operation: 'write', skill: 'create', skillName: 'demo' }
     ))).toBeNull()
+  })
+})
+
+describe('resolveToolPluginIconUrl', () => {
+  const plugins: PluginEntry[] = [
+    {
+      key: 'builtin:oratorio',
+      id: 'oratorio',
+      displayName: 'Oratorio',
+      version: '1.0.0',
+      description: 'Board tools',
+      source: 'builtin',
+      enabled: true,
+      installed: true,
+      installable: false,
+      removable: false,
+      rootPath: '/plugins/oratorio',
+      interface: {
+        composerIconDataUrl: 'data:image/svg+xml,composer',
+        logoDataUrl: 'data:image/svg+xml,logo'
+      },
+      functions: [],
+      skills: [],
+      mcpServers: [{ name: 'board', runtimeName: 'oratorio:board', transport: 'streamableHttp', enabled: true, active: true }],
+      lspServers: [],
+      hooks: [],
+      apps: [{ appId: 'oratorio.board', name: 'Board', transport: 'streamableHttp', enabled: true }]
+    }
+  ]
+
+  it('resolves plugin icons via pluginId and app bindings while ignoring CoreNative tools', () => {
+    expect(resolveToolPluginIconUrl(
+      { type: 'mcpToolCall', source: { kind: 'Mcp', sourceId: 'oratorio:board', pluginId: 'oratorio' } },
+      plugins
+    )).toBe('data:image/svg+xml,composer')
+    expect(resolveToolPluginIconUrl(
+      { type: 'mcpToolCall', source: { kind: 'Mcp', sourceId: 'binding:b1' } },
+      plugins,
+      [{ bindingId: 'b1', appId: 'oratorio.board', name: 'Board', enabled: true, transport: 'streamableHttp' }]
+    )).toBe('data:image/svg+xml,composer')
+    expect(resolveToolPluginIconUrl(
+      { type: 'toolCall', source: { kind: 'CoreNative', sourceId: 'worktree', pluginId: 'oratorio' } },
+      plugins
+    )).toBeNull()
   })
 })

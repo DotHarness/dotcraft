@@ -170,7 +170,11 @@ export function formatToolGroupLabel(
 }
 
 export function getToolGroupIconItem(items: readonly ConversationItem[]): ConversationItem | undefined {
-  return groupByPart(items).values().next().value?.[0] ?? items.find((item) => item.type !== 'reasoningContent')
+  const firstPart = groupByPart(items).values().next().value
+  if (firstPart) {
+    return firstPart.find((item) => item.type === 'mcpToolCall' || item.source?.pluginId != null) ?? firstPart[0]
+  }
+  return items.find((item) => item.type !== 'reasoningContent')
 }
 
 export function formatActiveToolLabel(item: ConversationItem, locale: AppLocale): string {

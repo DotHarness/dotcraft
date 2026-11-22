@@ -26,6 +26,7 @@ type Line =
   | { kind: 'read'; paths: string[] }
   | { kind: 'searched'; pattern: string }
   | { kind: 'edited'; files: { path: string; added: number; removed: number }[] }
+  | { kind: 'worktree'; branch: string; path: string }
   | { kind: 'codeMode'; lines: Line[]; running?: boolean }
   | { kind: 'image'; prompt: string }
   | { kind: 'chart'; text: string }
@@ -131,6 +132,7 @@ const CHATS: ChatSeed[] = [
     minutesAgo: 4,
     lines: [
       { kind: 'user', text: 'Walk me through @scripts/release.ps1 with $release-notes and try a Windows publish.' },
+      { kind: 'worktree', branch: 'feat/win-publish', path: 'D:/Projects/dotcraft/.craft/worktrees/win-publish' },
       { kind: 'codeMode', lines: [{ kind: 'read', paths: ['scripts/release.ps1'] }, { kind: 'searched', pattern: 'Publish-Runtime' }] },
       { kind: 'ran', command: PUBLISH_COMMAND, output: PUBLISH_OUTPUT },
       { kind: 'chart', text: 'Publish time per runtime' },
@@ -576,6 +578,19 @@ function buildThread(chat: ChatSeed, now: Date): FakeThread {
           })
         }
         break
+      case 'worktree':
+        tool('EnterWorktree', { name: line.branch }, {
+          result: `Now working in ${line.path} on branch ${line.branch}.`,
+          structuredContent: {
+            operation: 'enter',
+            outcome: 'entered',
+            branchName: line.branch,
+            path: line.path,
+            checkoutPath: 'D:/Projects/dotcraft',
+            baseRef: 'main',
+          },
+        })
+        break
       case 'codeMode': {
         const callId = nextCall()
         const wrapper = { toolName: 'CodeMode', providerFlatName: 'CodeMode', callId, arguments: { code: 'await tools.ReadFile({ path })' } }
@@ -754,6 +769,8 @@ const PRESENTATIONS: Record<string, { presentationId: string; options?: { operat
   FindFiles: { presentationId: 'core.read-file', options: { operation: 'find' } },
   SpawnAgent: { presentationId: 'core.subagent', options: { operation: 'spawn' } },
   TaskStop: { presentationId: 'core.task', options: { operation: 'stop' } },
+  EnterWorktree: { presentationId: 'core.worktree', options: { operation: 'enter' } },
+  ExitWorktree: { presentationId: 'core.worktree', options: { operation: 'exit' } },
 }
 
 function apiChecksBackground(now: Date): FakeBackgroundSeed {

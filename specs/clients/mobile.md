@@ -241,6 +241,8 @@ resting frame while focused or typing, and the caret is the focus cue. No field 
   is restored from `userInputRequest` and `userInputResponse` paired by Turn and request id.
 - Desktop's runtime thread tools read as Desktop names them, in progress, done, or failed, with no
   details; a line for reading or messaging a chat opens that chat when it is on this computer's list.
+- `EnterWorktree` and `ExitWorktree` (`core.worktree`) render on their own row with the split-branch
+  icon naming the branch and transition outcome, expanding on tap to the worktree paths or failure reason.
 - A file tool call marked as a Skill operation ([Skills](../architecture/skills.md#51-presentation))
   reads as Desktop words it, naming the Skill. Tapping the line shows its target and output, and
   the Skill name opens the `skillFile` it carries in File.

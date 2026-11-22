@@ -22,6 +22,7 @@ import { formatSkillOperationLabel } from './skillOperationDisplay'
 import { formatNodeReplLabel } from './nodeReplToolDisplay'
 import { formatTaskStopRunningLabel } from './taskStopDisplay'
 import { formatChannelMessageRunningLabel } from './channelMessageDisplay'
+import { formatWorktreeStreamingLabel } from './worktreeToolDisplay'
 
 /**
  * Parsed preview extracted from the streaming JSON delta for a tool call.
@@ -225,6 +226,10 @@ function getTrustedStreamingToolDisplay(
       return { label: formatTaskStopRunningLabel(extractPartialJsonStringValue(rawArgs, 'taskId'), locale) }
     case 'channelMessage':
       return { label: formatChannelMessageRunningLabel(locale) }
+    case 'worktreeEnter':
+      return { label: formatWorktreeStreamingLabel('enter', rawArgs, locale) }
+    case 'worktreeExit':
+      return { label: formatWorktreeStreamingLabel('exit', rawArgs, locale) }
     case 'lsp': {
       const op = extractPartialJsonStringValue(rawArgs, 'operation')
       const filePath = extractPartialJsonStringValue(rawArgs, 'filePath')

@@ -15,6 +15,7 @@ type ToolKind =
   | 'read' | 'grep' | 'find' | 'explore' | 'edit' | 'shell' | 'writeStdin'
   | 'webSearch' | 'webFetch' | 'skillView' | 'requestUserInput' | 'createPlan'
   | 'subagentSpawn' | 'subagentMessage' | 'subagentList' | 'taskStop' | 'todo'
+  | 'worktreeEnter' | 'worktreeExit'
 
 type TaskKind = 'shell' | 'agent' | 'workflow'
 
@@ -90,6 +91,37 @@ interface ToolShape {
   details?: ToolDetail[]
 }
 
+function structuredObject(result: HistoryItem | undefined): Record<string, unknown> {
+  const value = result?.payload.structuredContent
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {}
+}
+
+function worktreeShape(kind: 'worktreeEnter' | 'worktreeExit', input: Record<string, unknown>, result: HistoryItem | undefined): ToolShape {
+  const structured = structuredObject(result)
+  const failed = result?.payload.success === false || result?.status === 'failed'
+  const branch = str(structured.branchName).trim() || str(input.name).trim()
+  const worktreePath = str(structured.path).trim() || str(input.path).trim()
+  const checkoutPath = str(structured.checkoutPath).trim()
+  const baseRef = str(structured.baseRef).trim()
+  const removing = str(structured.outcome) === 'removed' || str(input.action) === 'remove'
+  const verb: ToolVerb = kind === 'worktreeEnter' ? 'worktreeEntered' : removing ? 'worktreeRemoved' : 'worktreeExited'
+  const target = branch || (kind === 'worktreeEnter' && worktreePath ? baseName(worktreePath) : '')
+  if (failed) {
+    const reason = (str(result?.payload.errorMessage).trim() || outputOf(result) || '').replace(/^Error:\s*/i, '')
+    return { verb, target, details: reason ? [{ target: branch || worktreePath || 'worktree', output: reason }] : [] }
+  }
+  if (!result) return { verb, target, details: [] }
+  const detailTarget = branch ? (baseRef ? `${branch} (${baseRef})` : branch) : worktreePath || checkoutPath
+  const detailOutput = kind === 'worktreeExit' && checkoutPath
+    ? (worktreePath ? `${worktreePath}\n→ ${checkoutPath}` : checkoutPath)
+    : worktreePath || outputOf(result)
+  return {
+    verb,
+    target,
+    details: detailTarget || detailOutput ? [{ target: detailTarget || 'worktree', output: detailOutput || null }] : [],
+  }
+}
+
 function taskStopShape(toolName: string, input: Record<string, unknown>, result: HistoryItem | undefined): ToolShape {
   if (result?.payload.success === false) return { verb: 'used', target: toolName }
   const value = resultObject(result)
@@ -119,6 +151,9 @@ function toolShape(kind: ToolKind | null, toolName: string, input: Record<string
       return { verb: 'listedAgents', target: '', details: [] }
     case 'taskStop':
       return taskStopShape(toolName, input, result)
+    case 'worktreeEnter':
+    case 'worktreeExit':
+      return worktreeShape(kind, input, result)
     case 'shell':
       return { verb: 'ran', target: firstLine(str(input.command)), full: str(input.command) }
     case 'read':
@@ -165,6 +200,9 @@ function toolIcon(kind: ToolKind | null, result: HistoryItem | undefined): ToolI
       return 'agent'
     case 'taskStop':
       return result?.payload.success === false ? 'other' : 'stopped'
+    case 'worktreeEnter':
+    case 'worktreeExit':
+      return 'worktree'
     default:
       return 'other'
   }
@@ -309,6 +347,8 @@ function toolKind(item: HistoryItem, result: HistoryItem | undefined): ToolKind 
       return operation === 'spawn' ? 'subagentSpawn' : operation === 'sendMessage' ? 'subagentMessage' : operation === 'list' ? 'subagentList' : null
     case 'core.task':
       return operation === 'stop' ? 'taskStop' : null
+    case 'core.worktree':
+      return operation === 'exit' ? 'worktreeExit' : 'worktreeEnter'
     default:
       return null
   }
@@ -332,6 +372,9 @@ const OPTIONAL_SUBJECT = new Set<ToolVerb>([
   'stoppingShell',
   'stoppingAgent',
   'stoppingWorkflow',
+  'worktreeEntered',
+  'worktreeExited',
+  'worktreeRemoved',
 ])
 
 function shellBackground(execution: HistoryItem | undefined, result: HistoryItem | undefined): 'running' | 'stopped' | null {

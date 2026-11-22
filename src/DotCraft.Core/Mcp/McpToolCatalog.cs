@@ -27,4 +27,5 @@ public sealed record McpToolCatalog(
     string? DeclaredName,
     string Origin,
     IReadOnlyList<McpCatalogTool> Tools,
-    Func<ToolDefinitionId, string, ToolRuntimeBinding> BindRuntime);
+    Func<ToolDefinitionId, string, ToolRuntimeBinding> BindRuntime,
+    string? PluginId = null);

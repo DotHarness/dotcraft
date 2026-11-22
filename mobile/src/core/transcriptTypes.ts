@@ -44,8 +44,11 @@ export type ToolVerb =
   | 'stoppingWorkflow'
   | 'agentFinished'
   | 'agentInterrupted'
+  | 'worktreeEntered'
+  | 'worktreeExited'
+  | 'worktreeRemoved'
 
-export type ToolIcon = 'terminal' | 'declined' | 'stopped' | 'read' | 'search' | 'folder' | 'edit' | 'web' | 'agent' | 'chat' | 'newChat' | 'archive' | 'dismiss' | 'other'
+export type ToolIcon = 'terminal' | 'declined' | 'stopped' | 'read' | 'search' | 'folder' | 'edit' | 'web' | 'agent' | 'chat' | 'newChat' | 'archive' | 'dismiss' | 'worktree' | 'other'
 
 export type TaskWakeKind = 'terminal' | 'subagent' | 'workflow' | 'thread'
 

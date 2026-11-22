@@ -20,6 +20,9 @@ const OWN_ROW_VERBS = new Set<ToolVerb>([
   'stoppingWorkflow',
   'agentFinished',
   'agentInterrupted',
+  'worktreeEntered',
+  'worktreeExited',
+  'worktreeRemoved',
 ])
 
 function isGroupedSend(item: ToolEntry): boolean {

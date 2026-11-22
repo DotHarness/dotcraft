@@ -14,6 +14,7 @@ export interface Source {
   readonly title: string
   readonly target: string | null
   readonly image?: boolean
+  readonly pluginId?: string | null
 }
 
 const SOURCE_ITEM_TYPES = new Set(['userMessage', 'toolCall', 'toolResult', 'mcpToolCall', 'webSearch'])
@@ -120,8 +121,10 @@ export function extractSources(items: readonly SummaryItem[], workspacePath: str
     }
 
     if (item.type === 'mcpToolCall') {
-      const server = stringOf(payload.server)
-      if (server) add({ kind: 'mcp', id: server, title: server, target: null })
+      const source = isRecord(payload.source) ? payload.source : null
+      const server = stringOf(payload.server) ?? (source ? stringOf(source.sourceId) : null)
+      const pluginId = source ? stringOf(source.pluginId) : null
+      if (server) add({ kind: 'mcp', id: server, title: server, target: null, ...(pluginId ? { pluginId } : {}) })
       continue
     }
 
@@ -129,7 +132,8 @@ export function extractSources(items: readonly SummaryItem[], workspacePath: str
       calls.set(callId, { kind: sourceKindOf(payload), args: isRecord(payload.arguments) ? payload.arguments : {} })
       const source = isRecord(payload.source) ? payload.source : null
       const server = source && stringOf(source.kind)?.toLowerCase() === 'mcp' ? stringOf(source.sourceId) : null
-      if (server) add({ kind: 'mcp', id: server, title: server, target: null })
+      const pluginId = source ? stringOf(source.pluginId) : null
+      if (server) add({ kind: 'mcp', id: server, title: server, target: null, ...(pluginId ? { pluginId } : {}) })
       continue
     }
 

@@ -1481,8 +1481,11 @@ reduced motion.
 | Web search or fetch | globe |
 | Discussion board read or change | speech bubbles |
 | Remote machine tools | satellite dish |
+| Worktree enter or exit | split branch |
 | Question to the user | speech bubble with question mark |
 | Any other tool | wrench |
+
+A plugin-contributed MCP or native tool row, including an MCP App's leading row, leads with its owning plugin's 16px unframed icon (`composerIcon` preferred over `logo`, 2px radius) and falls back to the row's default glyph when the plugin has no icon or the image fails to load.
 
 A message a subagent sends is activity, not an event: a successful send joins the
 tool group around it, named last as `Sent a message` / `Sent messages`, so a subagent

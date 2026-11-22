@@ -1,0 +1,51 @@
+.branch {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-code-size);
+  line-height: 1.35;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.key {
+  flex-shrink: 0;
+  color: var(--text-dimmed);
+}
+
+.value {
+  min-width: 0;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--text-code-size);
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: var(--conversation-secondary-size);
+}
+
+.error {
+  color: var(--error-text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

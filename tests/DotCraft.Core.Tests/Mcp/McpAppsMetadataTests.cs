@@ -179,6 +179,35 @@ public sealed class McpAppsMetadataTests
         Assert.Contains("no longer active", error.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task McpToolSource_PreservesPluginIdOnToolProvenance()
+    {
+        await using var manager = new McpClientManager((_, _) => Task.FromResult(
+            new McpConnectionResult(new FakeClient(), [new FakeFunction("lookup")])));
+        await manager.ConnectAsync(
+        [
+            new McpServerConfig
+            {
+                Name = "oratorio:board",
+                Enabled = true,
+                Transport = "streamableHttp",
+                Url = "https://example.test/mcp",
+                Origin = McpServerOrigin.Plugin("oratorio", "Oratorio", "board")
+            }
+        ]);
+        await manager.WaitForStartupCompletionAsync();
+        var config = new DotCraft.Configuration.AppConfig();
+        config.Tools.DeferredLoading.Strategy = DotCraft.Configuration.AppConfig.DeferredLoadingStrategy.Off;
+        var context = new ToolPlanningContext("thread-1", null, "/repo", "/repo/.craft", "agent", null, null, 1);
+
+        var registration = Assert.Single(await new McpToolSource(manager, config).GetRegistrationsAsync(context));
+
+        Assert.Equal(ToolSourceKind.Mcp, registration.Definition.Provenance.Kind);
+        Assert.Equal("oratorio:board", registration.Definition.Provenance.SourceId);
+        Assert.Equal("plugin", registration.Definition.Provenance.Origin);
+        Assert.Equal("oratorio", registration.Definition.Provenance.PluginId);
+    }
+
     private sealed class FakeClient : IAsyncDisposable
     {
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;

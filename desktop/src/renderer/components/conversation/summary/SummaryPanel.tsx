@@ -3,6 +3,7 @@ import { Box, ChevronUp, Clock, FileText, Globe, Lightbulb, Link, Server } from 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type JSX, type ReactNode, type RefObject } from 'react'
 import { useLocale, useT } from '../../../contexts/LocaleContext'
 import { useSkillIconUrl } from '../../../utils/skillIcon'
+import { useMcpSourceIconUrl } from '../../../utils/mcpPluginIcon'
 import { RobotAvatar } from '../../agents/RobotAvatar'
 import { DesktopPluginSurface } from '../../desktopPlugins/DesktopPluginSurface'
 import { useDesktopPluginRegistry } from '../../../plugins/desktopPluginRegistry'
@@ -107,9 +108,22 @@ function SourceThumbnail({ services, path }: { services: SummaryServices; path: 
   return src ? <img className="conversation-summary-thumbnail" src={src} alt="" draggable={false} /> : <FileText {...GLYPH} />
 }
 
-function SourceIcon({ services, source }: { services: SummaryServices; source: Source }): JSX.Element {
+function SourceIcon({ services, source, threadId }: { services: SummaryServices; source: Source; threadId: string }): JSX.Element {
   const skillIconUrl = useSkillIconUrl(source.kind === 'skill' ? source.id : null)
-  if (skillIconUrl) return <img className="conversation-summary-skill-icon" src={skillIconUrl} alt="" draggable={false} />
+  const mcpIconUrl = useMcpSourceIconUrl(source.kind === 'mcp' ? source.id : null, source.pluginId, threadId)
+  const [failedSrc, setFailedSrc] = useState<string | null>(null)
+  const customIconUrl = skillIconUrl || mcpIconUrl
+  if (customIconUrl && failedSrc !== customIconUrl) {
+    return (
+      <img
+        className="conversation-summary-skill-icon"
+        src={customIconUrl}
+        alt=""
+        draggable={false}
+        onError={() => setFailedSrc(customIconUrl)}
+      />
+    )
+  }
   if (source.image && source.target) return <SourceThumbnail services={services} path={source.target} />
   const Glyph = SOURCE_GLYPHS[source.kind]
   return <Glyph {...GLYPH} />
@@ -137,8 +151,9 @@ function useSourceRowLimit(list: RefObject<HTMLUListElement | null>, expanded: b
   return count
 }
 
-function SourcesSection({ services, sources, webSearch, contributed }: {
+function SourcesSection({ services, threadId, sources, webSearch, contributed }: {
   services: SummaryServices
+  threadId: string
   sources: readonly Source[]
   webSearch: boolean
   contributed: ReactNode
@@ -164,7 +179,7 @@ function SourcesSection({ services, sources, webSearch, contributed }: {
           return (
             <Row
               key={`${source.kind}:${source.id}`}
-              leading={<SourceIcon services={services} source={source} />}
+              leading={<SourceIcon services={services} source={source} threadId={threadId} />}
               label={source.title}
               title={source.kind === 'skill' || source.kind === 'mcp' ? source.title : source.id}
               onClick={open(source)}
@@ -297,6 +312,7 @@ export function SummaryPanel({
       {sources.length > 0 || webSearch || pluginSources ? (
         <SourcesSection
           services={services}
+          threadId={threadId}
           sources={sources}
           webSearch={webSearch}
           contributed={<DesktopPluginSurface name="summary.sources" context={pluginContext} />}

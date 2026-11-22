@@ -58,7 +58,8 @@ internal static class McpLiveToolCatalogReader
                     new McpToolRuntime(manager, status.Name, rawName, generation),
                     new McpGenerationLease(manager, status.Name, generation),
                     $"mcp:{status.Name}:{generation}", generation,
-                    timeout: config?.ToolTimeoutSec is > 0 ? TimeSpan.FromSeconds(config.ToolTimeoutSec.Value) : null)));
+                    timeout: config?.ToolTimeoutSec is > 0 ? TimeSpan.FromSeconds(config.ToolTimeoutSec.Value) : null),
+                PluginId: config?.Origin.PluginId));
         }
         return catalogs;
     }

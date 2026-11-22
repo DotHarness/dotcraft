@@ -39,6 +39,7 @@ import { findSideChat } from '../../utils/sideChat'
 import { isSideChatMainMessage } from './SideChatMainMessageRow'
 import { resolveDesktopPluginToolRenderer, useDesktopPluginRegistry } from '../../plugins/desktopPluginRegistry'
 import { ToolDisclosure } from './ToolDisclosure'
+import { ToolRowPluginIcon } from './ToolRowPluginIcon'
 import { useToolCallRevealTarget } from '../../stores/toolCallRevealStore'
 import { useTranscriptItemDiffs, useTranscriptTurnHasFileChanges } from './transcriptDiffs'
 import { isMidTurnTaskNotice } from '../../utils/visibleUserMessage'
@@ -662,10 +663,11 @@ function ToolActivityRow({
   const working = liveTool != null
   const iconItem = liveTool ?? getToolGroupIconItem(tools)
   const rowIcon = iconItem ? getToolRowIcon(iconItem) : undefined
-  const { label, icon } = useHeldRowHeader({
+  const { label, icon, item: heldIconItem } = useHeldRowHeader({
     label: liveTool ? formatActiveToolLabel(liveTool, locale)
       : formatToolGroupLabel(tools, locale, itemDiffs),
-    icon: rowIcon
+    icon: rowIcon,
+    item: iconItem
   }, active)
 
   return (
@@ -673,6 +675,7 @@ function ToolActivityRow({
       expanded={expanded}
       onToggle={() => setExpanded((v) => !v)}
       icon={icon}
+      iconNode={heldIconItem && icon ? <ToolRowPluginIcon item={heldIconItem} fallback={icon} threadId={threadId} /> : undefined}
       title={<RunningShimmer active={working} className="dc-tool-row-running-label">{label}</RunningShimmer>}
     >
       <div className="dc-tool-children">
@@ -687,10 +690,11 @@ function ToolActivityRow({
 interface RowHeader {
   label: string
   icon?: ToolRowIcon
+  item?: ConversationItem
 }
 
 function sameRowHeader(a: RowHeader, b: RowHeader): boolean {
-  return a.label === b.label && a.icon?.icon === b.icon?.icon && a.icon?.tone === b.icon?.tone
+  return a.label === b.label && a.icon?.icon === b.icon?.icon && a.icon?.tone === b.icon?.tone && a.item?.id === b.item?.id
 }
 
 function useHeldRowHeader(header: RowHeader, hold: boolean): RowHeader {
@@ -712,7 +716,7 @@ function useHeldRowHeader(header: RowHeader, hold: boolean): RowHeader {
     }
     const timer = setTimeout(show, wait)
     return () => clearTimeout(timer)
-  }, [header.label, header.icon?.icon, header.icon?.tone, held, hold])
+  }, [header.label, header.icon?.icon, header.icon?.tone, header.item?.id, held, hold])
 
   return hold ? held : header
 }
@@ -888,6 +892,7 @@ function hydrateToolCallItems(items: ConversationItem[]): ConversationItem[] {
         ...hydrated,
         status: 'completed',
         result: resultItem.result ?? hydrated.result,
+        structuredResult: resultItem.structuredResult ?? hydrated.structuredResult,
         contentItems: resultItem.contentItems ?? hydrated.contentItems,
         success: resultItem.success ?? hydrated.success ?? true,
         errorCode: resultItem.errorCode ?? hydrated.errorCode,

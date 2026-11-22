@@ -21,7 +21,7 @@ interface ToolItemLiveContext {
 
 type ToolRunRole = 'grouped' | 'own' | 'subagent'
 
-const OWN_ROW_FAMILIES = new Set(['createPlan', 'automation', 'agentBuilder', 'requestUserInput', 'task', 'channel'])
+const OWN_ROW_FAMILIES = new Set(['createPlan', 'automation', 'agentBuilder', 'requestUserInput', 'task', 'channel', 'worktree'])
 
 function getToolRunRole(item: ConversationItem): ToolRunRole {
   if (isMcpAppCandidate(item)) return 'own'

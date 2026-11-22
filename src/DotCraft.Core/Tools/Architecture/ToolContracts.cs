@@ -159,13 +159,14 @@ public readonly record struct PresentationId
 public sealed record ToolProvenance
 {
     /// <summary>Creates safe provenance.</summary>
-    public ToolProvenance(ToolSourceKind kind, string sourceId, string? origin = null)
+    public ToolProvenance(ToolSourceKind kind, string sourceId, string? origin = null, string? pluginId = null)
     {
         if (string.IsNullOrWhiteSpace(sourceId))
             throw new ArgumentException("A source identifier is required.", nameof(sourceId));
         Kind = kind;
         SourceId = sourceId;
         Origin = origin;
+        PluginId = string.IsNullOrWhiteSpace(pluginId) ? null : pluginId;
     }
 
     /// <summary>Gets the source family.</summary>
@@ -174,6 +175,7 @@ public sealed record ToolProvenance
     public string SourceId { get; }
     /// <summary>Gets an optional safe origin such as workspace, plugin, thread, or binding.</summary>
     public string? Origin { get; }
+    public string? PluginId { get; }
 }
 
 /// <summary>Source-provided hints consumed by server-authoritative policy.</summary>

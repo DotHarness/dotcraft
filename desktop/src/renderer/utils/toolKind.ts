@@ -13,6 +13,7 @@ export type ToolKind =
   | 'spawnAgent' | 'sendMessage' | 'listAgents'
   | 'taskStop'
   | 'channelMessage'
+  | 'worktreeEnter' | 'worktreeExit'
   | 'lsp' | 'requestUserInput' | 'commitSuggest' | 'createPlan'
   | 'todoWrite' | 'todo'
   | 'skillView'
@@ -56,6 +57,8 @@ export function resolveToolKind(item: ToolKindSource): ToolKind | null {
       return 'taskStop'
     case 'channel':
       return 'channelMessage'
+    case 'worktree':
+      return operation === 'exit' ? 'worktreeExit' : 'worktreeEnter'
     case 'lsp':
     case 'requestUserInput':
     case 'commitSuggest':

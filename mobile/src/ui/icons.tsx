@@ -237,6 +237,12 @@ const ICONS = {
     ['path', { d: 'M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9' }],
     ['path', { d: 'M12 12v3' }],
   ],
+  split: [
+    ['path', { d: 'M16 3h5v5' }],
+    ['path', { d: 'M8 3H3v5' }],
+    ['path', { d: 'M12 22v-8.3a4 4 0 0 0-1.172-2.872L3 3' }],
+    ['path', { d: 'm15 9 6-6' }],
+  ],
   archive: [
     ['rect', { width: 20, height: 5, x: 2, y: 3, rx: 1 }],
     ['path', { d: 'M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8' }],

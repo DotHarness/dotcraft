@@ -38,7 +38,7 @@ public sealed class McpToolSource(
                 id, identities[index].ToolName, tool.Description,
                 ToolSchemaSanitizer.SanitizeJsonSchema(tool.InputSchema), tool.ReturnSchema,
                 annotations: annotations, policyHints: tool.PolicyHints,
-                provenance: new ToolProvenance(ToolSourceKind.Mcp, sourceId, catalog.Origin),
+                provenance: new ToolProvenance(ToolSourceKind.Mcp, sourceId, catalog.Origin, catalog.PluginId),
                 namespaceDescription: tool.NamespaceDescription);
             var isDeferred = tool.AppMetadata.Visibility.HasFlag(McpAppVisibility.Model)
                              && deferredConfig.Strategy != AppConfig.DeferredLoadingStrategy.Off

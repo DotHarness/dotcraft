@@ -11,6 +11,8 @@ const CORE_PRESENTATIONS: Record<string, { presentationId: string; options?: { o
   SpawnAgent: { presentationId: 'core.subagent', options: { operation: 'spawn' } },
   SendMessage: { presentationId: 'core.subagent', options: { operation: 'sendMessage' } },
   TaskStop: { presentationId: 'core.task', options: { operation: 'stop' } },
+  EnterWorktree: { presentationId: 'core.worktree', options: { operation: 'enter' } },
+  ExitWorktree: { presentationId: 'core.worktree', options: { operation: 'exit' } },
   SendUserMessageAsync: { presentationId: 'core.send-user-message-async' },
 }
 
@@ -245,6 +247,46 @@ describe('turn layout', () => {
     expect(spawn).toMatchObject({ verb: 'spawned', subject: 'Reviewer', icon: 'agent', details: [{ target: 'Review the diff', output: null }] })
     expect(stopped).toMatchObject({ verb: 'stoppedAgent', subject: 'Reviewer', icon: 'stopped', details: [{ target: 'Half done', output: null }] })
     expect(stopping).toMatchObject({ verb: 'stoppingShell', subject: null, live: true })
+  })
+
+  it('projects trusted worktree transitions as standalone rows and rejects untrusted spoofs', () => {
+    const items = [
+      item('userMessage', { text: 'Isolate on a worktree' }),
+      ...read('a.ts', 'r1'),
+      ...read('b.ts', 'r2'),
+      item('toolCall', { ...core('EnterWorktree'), callId: 'w1', arguments: { name: 'feat/isolate' } }),
+      item('toolResult', {
+        ...core('EnterWorktree'),
+        callId: 'w1',
+        result: 'Now working in /repo/.worktrees/feat-isolate on branch feat/isolate.',
+        structuredContent: { operation: 'enter', outcome: 'entered', branchName: 'feat/isolate', path: '/repo/.worktrees/feat-isolate' },
+        success: true,
+      }),
+      item('toolCall', { ...core('ExitWorktree'), callId: 'w2', arguments: { action: 'remove' } }),
+      item('toolResult', {
+        ...core('ExitWorktree'),
+        callId: 'w2',
+        result: 'Back in /repo. The worktree on branch feat/isolate was removed.',
+        structuredContent: { operation: 'exit', outcome: 'removed', branchName: 'feat/isolate', path: '/repo/.worktrees/feat-isolate', checkoutPath: '/repo' },
+        success: true,
+      }),
+      item('toolCall', {
+        toolName: 'EnterWorktree',
+        source: { kind: 'Mcp', sourceId: 'spoof' },
+        presentation: { presentationId: 'core.worktree', options: { operation: 'enter' } },
+        callId: 'w3',
+        arguments: { name: 'spoofed' },
+      }),
+      item('toolResult', { toolName: 'EnterWorktree', source: { kind: 'Mcp', sourceId: 'spoof' }, callId: 'w3', result: 'ok', success: true }),
+      ...read('c.ts', 'r3'),
+      item('agentMessage', { text: 'Done.', phase: 'final' }),
+    ]
+    const [, activity] = buildTranscript(history(items, 'completed'))
+    expect(activity.kind === 'activity' && activity.children.map((entry) => entry.kind)).toEqual(['toolGroup', 'tool', 'tool', 'toolGroup'])
+    const [, entered, removed, spoofed] = activity.kind === 'activity' ? activity.children : []
+    expect(entered).toMatchObject({ kind: 'tool', verb: 'worktreeEntered', subject: 'feat/isolate', icon: 'worktree' })
+    expect(removed).toMatchObject({ kind: 'tool', verb: 'worktreeRemoved', subject: 'feat/isolate', icon: 'worktree' })
+    expect(spoofed && spoofed.kind === 'toolGroup' && spoofed.children[0]).toMatchObject({ verb: 'used', icon: 'other' })
   })
 
   it('marks a stopped turn and drops reasoning that never finished', () => {

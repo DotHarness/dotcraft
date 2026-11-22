@@ -12,6 +12,7 @@ import { IconButton } from '../ui/IconButton'
 import { RunningShimmer } from '../ui/RunningShimmer'
 import { useAppBindingStore } from '../../stores/appBindingStore'
 import { ToolDisclosure } from './ToolDisclosure'
+import { ToolRowPluginIcon } from './ToolRowPluginIcon'
 import { THEME_CHANGED_EVENT } from '../../../shared/theme'
 import {
   MCP_APP_SANDBOX_BRIDGE_VIOLATION_METHOD,
@@ -581,6 +582,7 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
       onToggle={() => setExpanded((value) => !value)}
       callId={item.toolCallId}
       icon={{ icon: AppWindow }}
+      iconNode={<ToolRowPluginIcon item={item} fallback={{ icon: AppWindow }} threadId={threadId} />}
       title={rowTitle}
       accessory={status === 'ready' && !fullscreen
         ? <span onClick={(event) => event.stopPropagation()}>{fullscreenToggle}</span>

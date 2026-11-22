@@ -199,6 +199,7 @@
 .conversation-summary-skill-icon {
   width: 16px;
   height: 16px;
+  border-radius: 2px;
   object-fit: contain;
 }
 

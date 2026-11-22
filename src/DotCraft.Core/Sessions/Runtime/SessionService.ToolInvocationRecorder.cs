@@ -445,7 +445,7 @@ public sealed partial class SessionService
         SourceToolId = definition.Id.SourceToolId.Value,
         PluginId = definition.Provenance.Kind == ToolSourceKind.PluginNative
             ? definition.Provenance.SourceId
-            : null,
+            : definition.Provenance.PluginId,
         FunctionId = definition.Provenance.Kind == ToolSourceKind.PluginNative
             ? definition.Id.SourceToolId.Value
             : null

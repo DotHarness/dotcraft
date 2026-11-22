@@ -63,6 +63,9 @@ import { TaskStopToolRow } from './TaskStopToolRow'
 import { getTaskStopDisplay } from '../../utils/taskStopDisplay'
 import { ChannelMessageToolRow } from './ChannelMessageToolRow'
 import { getChannelMessageDisplay } from '../../utils/channelMessageDisplay'
+import { WorktreeToolRow } from './WorktreeToolRow'
+import { getWorktreeToolDisplay } from '../../utils/worktreeToolDisplay'
+import { ToolRowPluginIcon } from './ToolRowPluginIcon'
 import type { BoardOperation } from '../../utils/boardToolDisplay'
 import {
   formatRequestUserInputResultLines,
@@ -392,6 +395,11 @@ export const ToolCallCard = memo(function ToolCallCard({
     return <ChannelMessageToolRow item={item} display={getChannelMessageDisplay(item, isRunning, locale)} running={isRunning} locale={locale} />
   }
 
+  if (rendererFamily === 'worktree') {
+    const operation = rendererOperation === 'exit' ? 'exit' : 'enter'
+    return <WorktreeToolRow item={item} display={getWorktreeToolDisplay(item, operation, isRunning, locale)} running={isRunning} locale={locale} />
+  }
+
   const sideChat = rendererFamily === 'subagent' && isSideChatMainMessage(rendererOperation, args)
     ? findSideChat(useSideChatStore.getState().chats, threadId)
     : null
@@ -420,6 +428,7 @@ export const ToolCallCard = memo(function ToolCallCard({
   }
 
   const rowIcon = rendererFamily === 'subagent' ? undefined : toolRowIcon
+  const rowIconNode = rowIcon ? <ToolRowPluginIcon item={item} fallback={rowIcon} threadId={threadId} /> : undefined
 
   if (isRunning) {
     const runningExpanded = expanded && canExpandWhileRunning
@@ -459,6 +468,7 @@ export const ToolCallCard = memo(function ToolCallCard({
         onHoverChange={setHovered}
         callId={item.toolCallId}
         icon={rowIcon}
+        iconNode={rowIconNode}
         title={runningTitle}
         accessory={runningAccessory}
       >
@@ -584,6 +594,7 @@ export const ToolCallCard = memo(function ToolCallCard({
       onHoverChange={setHovered}
       callId={item.toolCallId}
       icon={rowIcon}
+      iconNode={rowIconNode}
       title={completedTitle}
       accessory={completedAccessory}
     >

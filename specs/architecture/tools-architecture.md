@@ -305,13 +305,13 @@ A stall watchdog checks running terminals every 5 seconds. A terminal stalls whe
 
 ### 7.5 Worktree tools
 
-`EnterWorktree` and `ExitWorktree` let the agent move its own thread into and out of a managed worktree ([Session Core §4.1.1.2](session-core.md#41112-worktrees)). They are exposed to top-level threads whose state workspace is a local Git repository, so their presence does not change with mode or worktree state; Plan mode rejects them at execution time. A native full-history SubAgent inherits them with its parent's schema and has its calls rejected.
+`EnterWorktree` and `ExitWorktree` let the agent move its own thread into and out of a managed worktree ([Session Core §4.1.1.2](session-core.md#4112-worktrees)). They are exposed to top-level threads whose state workspace is a local Git repository, so their presence does not change with mode or worktree state; Plan mode rejects them at execution time. A native full-history SubAgent inherits them with its parent's schema and has its calls rejected.
 
 - `EnterWorktree` takes an optional `name` or an optional `path`. Without `path` it creates a worktree on a new branch from the current `HEAD`, named from `name` when given; uncommitted changes are not copied. `path` re-enters a managed worktree of this workspace that no other thread is bound to. It fails when the thread is already in a worktree.
 - `ExitWorktree` takes `action` (`keep` or `remove`) and optional `discardChanges`. `keep` leaves the worktree and its branch on disk; `remove` deletes both and is refused, listing what would be lost, when the worktree has uncommitted changes or commits beyond its base unless `discardChanges` is true. Neither moves changes into the local checkout. `remove` is refused while a background terminal started in the worktree is running.
 - Either tool runs alone: other tool calls of the same model response run before it, against the previous location. Calls that still overlap, such as concurrent calls from a Code Mode cell, move the thread one at a time.
 - After success, later tool calls in the Turn resolve relative paths, default search roots, and the default shell working directory against the new location. File and shell boundaries keep the Turn's admitted roots plus the worktree. LSP, Code Mode cells already running, background terminals, and SubAgents keep the location they started with. The next Turn rebuilds the agent at the new location.
-- The result states the new working directory and branch. The location change also reaches the model through the `environment` world-state section ([Prompt Composition §4b](prompt-composition.md#4b-thread-context-items)).
+- The result states the new working directory and branch, projects trusted presentation `core.worktree` (`enter` or `exit`) with structured client fields (`operation`, `outcome`, `branchName`, `path`, `checkoutPath`, `baseRef`), and reports validation or dirty-worktree refusal as a tool failure. The location change also reaches the model through the `environment` world-state section ([Prompt Composition §4b](prompt-composition.md#4b-thread-context-items)).
 
 ## 8. Snapshot and invalidation semantics
 
@@ -360,7 +360,7 @@ Each registration declares exactly one projection shape; the recorder never infe
 | Core Native image generation | one `ImageGeneration` lifecycle item; no companion `ToolCall` or `ToolResult` |
 | Core Native subscription web search | one `WebSearch` lifecycle item; no companion `ToolCall` or `ToolResult` |
 
-Plugin provenance (`pluginId`, `functionId`, namespace) remains available on the standard projection.
+Plugin provenance (`pluginId` on Plugin Native and plugin-contributed MCP items, plus `functionId` and namespace on Plugin Native) remains available on the projected source provenance.
 
 Items record canonical `ToolName`, `ProviderFlatName`, definition identity, runtime-binding identity and revisions where applicable, snapshot revision, safe source provenance, trusted presentation, call identifier, arguments, status, duration, success, stable failure data, and audience-safe result fields. MCP items also record the runtime server name used for routing. Credentials and raw connection state are never persisted.
 

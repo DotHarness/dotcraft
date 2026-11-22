@@ -10,6 +10,7 @@ export type ToolRendererFamily =
   | 'subagent'
   | 'task'
   | 'channel'
+  | 'worktree'
   | 'board'
   | 'shell'
   | 'fileWrite'
@@ -182,6 +183,7 @@ export const CORE_TOOL_PRESENTATION_IDS = {
   subagent: 'core.subagent',
   task: 'core.task',
   channel: 'core.channel',
+  worktree: 'core.worktree',
   board: 'core.board',
   shell: 'core.shell',
   fileWrite: 'core.file-write',
@@ -208,6 +210,7 @@ export const coreToolRendererRegistry = new ToolRendererRegistry([
   }, hasOperation('spawn', 'sendMessage', 'list')),
   registration(CORE_TOOL_PRESENTATION_IDS.task, 'task', { mode: 'standalone' }, isTaskStop),
   registration(CORE_TOOL_PRESENTATION_IDS.channel, 'channel', { mode: 'standalone' }),
+  registration(CORE_TOOL_PRESENTATION_IDS.worktree, 'worktree', { mode: 'standalone' }, hasOperation('enter', 'exit')),
   registration(CORE_TOOL_PRESENTATION_IDS.board, 'board', {
     mode: 'standalone', groupCategory: 'board'
   }, hasOperation(...BOARD_OPERATIONS)),

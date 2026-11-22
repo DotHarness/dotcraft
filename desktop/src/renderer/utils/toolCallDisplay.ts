@@ -11,6 +11,7 @@ import {
   Search,
   Send,
   ShieldAlert,
+  Split,
   SquareTerminal,
   Wrench,
   type LucideIcon
@@ -321,6 +322,7 @@ export function getToolRowIcon(
   if (kind === 'requestUserInput') return { icon: MessageCircleQuestionMark }
   if (kind === 'taskStop') return { icon: CircleStop }
   if (kind === 'channelMessage') return { icon: Send }
+  if (kind === 'worktreeEnter' || kind === 'worktreeExit') return { icon: Split }
   if (resolveMemoryOperation(item) === 'update') return { icon: Brain }
   const exploreIcon = kind ? EXPLORE_ICONS[kind] : undefined
   if (exploreIcon) return { icon: exploreIcon }

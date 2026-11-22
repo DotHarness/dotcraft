@@ -48,6 +48,7 @@ const TOOL_ICON: Record<ToolIcon, IconName> = {
   newChat: 'messageSquarePlus',
   archive: 'archive',
   dismiss: 'x',
+  worktree: 'split',
   other: 'wrench',
 }
 
@@ -86,6 +87,9 @@ const TOOL_TEXT: Record<ToolVerb, MessageId> = {
   terminalRead: 'tool.terminalRead',
   terminalsListed: 'tool.terminalsListed',
   suggestionDismissed: 'tool.suggestionDismissed',
+  worktreeEntered: 'tool.worktreeEntered',
+  worktreeExited: 'tool.worktreeExited',
+  worktreeRemoved: 'tool.worktreeRemoved',
 }
 
 const TOOL_LIVE_TEXT: Record<ToolVerb, MessageId> = {
@@ -114,9 +118,12 @@ const TOOL_LIVE_TEXT: Record<ToolVerb, MessageId> = {
   terminalRead: 'tool.live.terminalRead',
   terminalsListed: 'tool.live.terminalsListed',
   suggestionDismissed: 'tool.live.suggestionDismissed',
+  worktreeEntered: 'tool.live.worktreeEntered',
+  worktreeExited: 'tool.live.worktreeExited',
+  worktreeRemoved: 'tool.live.worktreeRemoved',
 }
 
-const TOOL_FAILED_TEXT: Record<DesktopToolVerb, MessageId> = {
+const TOOL_FAILED_TEXT: Record<DesktopToolVerb | 'worktreeEntered' | 'worktreeExited' | 'worktreeRemoved', MessageId> = {
   chatRead: 'tool.failed.chatRead',
   chatsListed: 'tool.failed.chatsListed',
   chatsSearched: 'tool.failed.chatsSearched',
@@ -130,6 +137,9 @@ const TOOL_FAILED_TEXT: Record<DesktopToolVerb, MessageId> = {
   terminalRead: 'tool.failed.terminalRead',
   terminalsListed: 'tool.failed.terminalsListed',
   suggestionDismissed: 'tool.failed.suggestionDismissed',
+  worktreeEntered: 'tool.failed.worktreeEntered',
+  worktreeExited: 'tool.failed.worktreeExited',
+  worktreeRemoved: 'tool.failed.worktreeRemoved',
 }
 
 const TOOL_PENDING_TEXT: Partial<Record<ToolVerb, MessageId>> = {
@@ -146,6 +156,15 @@ const TOOL_PENDING_TEXT: Partial<Record<ToolVerb, MessageId>> = {
   stoppingShell: 'tool.stoppingShell.generic',
   stoppingAgent: 'tool.stoppingAgent.generic',
   stoppingWorkflow: 'tool.stoppingWorkflow.generic',
+  worktreeEntered: 'tool.worktreeEntered.generic',
+  worktreeExited: 'tool.worktreeExited.generic',
+  worktreeRemoved: 'tool.worktreeRemoved.generic',
+}
+
+const TOOL_LIVE_PENDING_TEXT: Partial<Record<ToolVerb, MessageId>> = {
+  worktreeEntered: 'tool.live.worktreeEntered.generic',
+  worktreeExited: 'tool.live.worktreeExited.generic',
+  worktreeRemoved: 'tool.live.worktreeRemoved.generic',
 }
 
 export function toolText(verb: ToolVerb, subject: string | null, t: I18n['t']): string {
@@ -449,8 +468,10 @@ function ToolLine({ entry }: { entry: ToolEntry }) {
   const links = useContext(ThreadLinksContext)
   const textStyle = [type.text, styles.line, { color: colors.textSecondary }]
   const pendingText = entry.failed && entry.verb in TOOL_FAILED_TEXT
-    ? TOOL_FAILED_TEXT[entry.verb as DesktopToolVerb]
-    : entry.subject === null ? TOOL_PENDING_TEXT[entry.verb] : undefined
+    ? TOOL_FAILED_TEXT[entry.verb as keyof typeof TOOL_FAILED_TEXT]
+    : entry.subject === null
+      ? (entry.live ? TOOL_LIVE_PENDING_TEXT[entry.verb] : undefined) ?? TOOL_PENDING_TEXT[entry.verb]
+      : undefined
   const threadId = links ? entry.threadId : undefined
   const subject = entry.skill ? (
     <SkillChip name={entry.skill.name} path={entry.skill.file ?? undefined} />
