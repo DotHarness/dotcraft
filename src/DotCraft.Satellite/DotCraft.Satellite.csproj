@@ -26,8 +26,8 @@
     <!-- Velopack ships the published directory, so the launcher must stay a plain executable. -->
     <PublishSingleFile>false</PublishSingleFile>
     <PublishReadyToRun>false</PublishReadyToRun>
-    <AssemblyVersion>0.13.2</AssemblyVersion>
-    <Version>0.13.2</Version>
+    <AssemblyVersion>0.14.0</AssemblyVersion>
+    <Version>0.14.0</Version>
     <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
     <DefaultItemExcludes>$(DefaultItemExcludes);Pages\node_modules\**;Pages\dist\**</DefaultItemExcludes>
   </PropertyGroup>

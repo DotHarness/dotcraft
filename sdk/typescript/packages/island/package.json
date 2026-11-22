@@ -1,6 +1,6 @@
 {
   "name": "@dotcraft/island",
-  "version": "0.13.2",
+  "version": "0.14.0",
   "description": "The DotCraft island and edge glow that show an Agent working on a machine",
   "type": "module",
   "main": "./dist/index.js",
