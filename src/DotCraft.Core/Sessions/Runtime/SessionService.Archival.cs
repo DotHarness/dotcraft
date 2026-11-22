@@ -64,10 +64,10 @@ public sealed partial class SessionService
 
     private void ThrowIfPendingPermanentDeletion(string threadId, bool forDeletion = false)
     {
-        if (!_runtimeRegistry.TryGetPermanentDeletion(threadId, out var completed))
+        if (_runtimeRegistry.GetPermanentDeletion(threadId) is not { } deletion)
             return;
 
-        if (completed && forDeletion)
+        if (deletion.IsCompleted && forDeletion)
             throw new ThreadNotFoundException(threadId);
 
         throw new InvalidOperationException($"Thread '{threadId}' is being permanently deleted.");

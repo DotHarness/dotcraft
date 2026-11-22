@@ -88,7 +88,7 @@ public sealed partial class SessionService
 
         public async Task DeletePermanentlyAsync(string threadId, CancellationToken ct, string? failedStartupParentId = null)
         {
-            var prepared = new List<(string Id, SessionThread? Thread)>();
+            var prepared = new List<(string Id, SessionThread? Thread, ThreadManager.PermanentDeletion Deletion)>();
             try
             {
                 await PrepareAsync(threadId, isRoot: true);
@@ -101,16 +101,16 @@ public sealed partial class SessionService
 
                 while (prepared.Count != 0)
                 {
-                    var (id, thread) = prepared[^1];
+                    var (id, thread, deletion) = prepared[^1];
                     await DeleteCoreAsync(id, thread, ct);
-                    owner._runtimeRegistry.MarkPermanentDeletionCompleted(id);
+                    deletion.Complete();
                     prepared.RemoveAt(prepared.Count - 1);
                 }
             }
             finally
             {
-                foreach (var (id, _) in prepared)
-                    owner._runtimeRegistry.ClearPendingPermanentDeletion(id);
+                foreach (var (id, _, deletion) in prepared)
+                    owner._runtimeRegistry.ClearPendingPermanentDeletion(id, deletion);
             }
 
             Task PrepareAsync(string id, bool isRoot) =>
@@ -138,8 +138,8 @@ public sealed partial class SessionService
                         }
                     }
 
-                    owner._runtimeRegistry.MarkPendingPermanentDeletion(id);
-                    prepared.Add((id, thread));
+                    var deletion = owner._runtimeRegistry.MarkPendingPermanentDeletion(id);
+                    prepared.Add((id, thread, deletion));
                 }, ct, forDeletion: true);
         }
 
