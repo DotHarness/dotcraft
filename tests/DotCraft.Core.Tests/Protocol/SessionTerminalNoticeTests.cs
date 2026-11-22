@@ -7,6 +7,7 @@ using DotCraft.Memory;
 using DotCraft.Security;
 using DotCraft.Sessions;
 using DotCraft.Skills;
+using DotCraft.Tests.Tools;
 using DotCraft.Tools;
 using DotCraft.Tools.BackgroundTerminals;
 using Microsoft.Extensions.AI;
@@ -61,29 +62,78 @@ public sealed class SessionTerminalNoticeTests : IAsyncLifetime
     [Fact]
     public async Task SequentialBackgroundCommands_KeepWakingTheThreadWithoutUserInput()
     {
-        var commands = Enumerable.Range(0, 4).Select(_ =>
+        string[] commands = ["echo first", "echo second", "echo third", "echo fourth"];
+        var snapshots = new ConcurrentDictionary<string, BackgroundTerminalSnapshot>();
+        var terminals = new StubBackgroundTerminalService
         {
-            var command = GatedEchoCommand("done", out var releasePath);
-            return (Command: command, ReleasePath: releasePath);
-        }).ToArray();
-        var chatClient = new NoticeAwareChatClient(
-            commands[0].Command,
-            OperatingSystem.IsWindows() ? "powershell" : "sh",
-            commands.Skip(1).Select(command => command.Command).ToArray());
-        await using var harness = await CreateHarnessAsync(chatClient);
-        await harness.RunTurnAsync();
+            StartHandler = (request, _) =>
+            {
+                var terminal = new BackgroundTerminalSnapshot
+                {
+                    SessionId = "term_" + Guid.NewGuid().ToString("N")[..12],
+                    ThreadId = request.ThreadId,
+                    TurnId = request.TurnId,
+                    CallId = request.CallId,
+                    Command = request.Command,
+                    WorkingDirectory = request.WorkingDirectory,
+                    StartedAt = DateTimeOffset.UtcNow,
+                    IsBackground = request.RunInBackground,
+                    CompletionNoticeArmed = request.NotifyOnCompletion
+                };
+                snapshots[terminal.SessionId] = terminal;
+                return Task.FromResult(terminal);
+            },
+            ReadHandler = (sessionId, _) => Task.FromResult(snapshots[sessionId])
+        };
+        var chatClient = new NoticeAwareChatClient(commands[0], followupCommands: commands[1..]);
+        await using var harness = await CreateHarnessAsync(chatClient, terminals);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        using var observation = await harness.Service.ObserveThreadAsync(harness.ThreadId, ct: timeout.Token);
+        await using var events = observation.Events.GetAsyncEnumerator();
 
-        for (var index = 0; index < commands.Length; index++)
+        await harness.RunTurnAsync(timeout.Token);
+        var completedTurnId = await ReadCompletedTurnIdAsync();
+        var terminalIds = new List<string>();
+        foreach (var command in commands)
         {
-            await File.WriteAllTextAsync(commands[index].ReleasePath, "");
-            await WaitForThreadAsync(harness,
-                t => t.TurnCount == index + 2 && t.Turns[^1].Status == TurnStatus.Completed);
+            var running = Assert.Single(snapshots.Values, terminal => terminal.TurnId == completedTurnId);
+            Assert.Equal(command, running.Command);
+            Assert.True(running.CompletionNoticeArmed);
+            var completed = running with
+            {
+                Status = BackgroundTerminalStatus.Completed,
+                CompletedAt = DateTimeOffset.UtcNow,
+                ExitCode = 0
+            };
+            snapshots[completed.SessionId] = completed;
+            terminalIds.Add(completed.SessionId);
+            terminals.Raise(new BackgroundTerminalEvent { EventType = BackgroundTerminalEventTypes.CompletionNotice, Terminal = completed });
+            terminals.Raise(new BackgroundTerminalEvent { EventType = BackgroundTerminalEventTypes.Completed, Terminal = completed });
+            completedTurnId = await ReadCompletedTurnIdAsync();
         }
 
-        var thread = await harness.Service.GetThreadAsync(harness.ThreadId);
+        var turns = await harness.Service.ListThreadTurnsAsync(
+            harness.ThreadId, null, commands.Length + 2, ThreadHistorySortDirection.Ascending, timeout.Token);
+        Assert.Equal(commands.Length + 1, turns.Data.Count);
+        Assert.All(turns.Data, turn => Assert.Equal(TurnStatus.Completed, turn.Status));
+        Assert.Equal(terminalIds, turns.Data.Skip(1).Select(turn => turn.Input?.AsUserMessage?.TriggerRefId));
         Assert.Equal(commands.Length, chatClient.ReceivedNotices.Count);
-        Assert.All(thread.Turns, turn => Assert.Equal(TurnStatus.Completed, turn.Status));
-        Assert.Empty(thread.QueuedInputs);
+        Assert.Equal(commands.Length, snapshots.Count);
+        var thread = await harness.Service.ReadThreadSnapshotAsync(harness.ThreadId, timeout.Token);
+        Assert.Empty(thread.Thread.QueuedInputs);
+
+        async Task<string> ReadCompletedTurnIdAsync()
+        {
+            while (await events.MoveNextAsync())
+            {
+                var evt = events.Current;
+                if (evt.EventType is not (SessionEventType.TurnCompleted or SessionEventType.TurnFailed or SessionEventType.TurnCancelled))
+                    continue;
+                Assert.Equal(SessionEventType.TurnCompleted, evt.EventType);
+                return evt.TurnId!;
+            }
+            throw new InvalidOperationException("The thread observation ended before the turn completed.");
+        }
     }
 
     [Fact]
@@ -145,9 +195,9 @@ public sealed class SessionTerminalNoticeTests : IAsyncLifetime
         Assert.Equal(BackgroundTerminalStatus.Running, (await harness.Terminals.ReadAsync(running.SessionId)).Status);
     }
 
-    private async Task<Harness> CreateHarnessAsync(IChatClient chatClient)
+    private async Task<Harness> CreateHarnessAsync(IChatClient chatClient, IBackgroundTerminalService? terminals = null)
     {
-        var terminals = new BackgroundTerminalService(_tempDir, new AppConfig.ShellBackgroundConfig());
+        terminals ??= new BackgroundTerminalService(_tempDir, new AppConfig.ShellBackgroundConfig());
         var config = AppConfigTestFactory.CreateOpenAI();
         var recorder = new ToolInvocationRecorderRouter();
         var agentFactory = new AgentFactory(
@@ -208,19 +258,19 @@ public sealed class SessionTerminalNoticeTests : IAsyncLifetime
 
     private sealed class Harness(
         SessionService service,
-        BackgroundTerminalService terminals,
+        IBackgroundTerminalService terminals,
         AgentFactory agentFactory,
         string threadId) : IAsyncDisposable
     {
         public SessionService Service { get; } = service;
 
-        public BackgroundTerminalService Terminals { get; } = terminals;
+        public IBackgroundTerminalService Terminals { get; } = terminals;
 
         public string ThreadId { get; } = threadId;
 
-        public async Task RunTurnAsync()
+        public async Task RunTurnAsync(CancellationToken ct = default)
         {
-            await foreach (var _ in Service.SubmitInputAsync(ThreadId, [new TextContent("run the build")]))
+            await foreach (var _ in Service.SubmitInputAsync(ThreadId, [new TextContent("run the build")], ct: ct))
             {
             }
         }
@@ -228,7 +278,8 @@ public sealed class SessionTerminalNoticeTests : IAsyncLifetime
         public async ValueTask DisposeAsync()
         {
             await Service.DrainTerminalNoticesAsync();
-            await Terminals.DisposeAsync();
+            if (Terminals is IAsyncDisposable disposable)
+                await disposable.DisposeAsync();
             await agentFactory.DisposeAsync();
         }
     }

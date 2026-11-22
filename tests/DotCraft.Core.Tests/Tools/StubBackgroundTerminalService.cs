@@ -9,6 +9,7 @@ internal class StubBackgroundTerminalService : IBackgroundTerminalService
     public event Action<BackgroundTerminalEvent>? TerminalEvent;
 
     public Func<BackgroundTerminalStartRequest, CancellationToken, Task<BackgroundTerminalSnapshot>>? StartHandler { get; init; }
+    public Func<string, CancellationToken, Task<BackgroundTerminalSnapshot>>? ReadHandler { get; init; }
     public Func<string, CancellationToken, Task<IReadOnlyList<BackgroundTerminalSnapshot>>>? CleanHandler { get; init; }
 
     public Task<BackgroundTerminalSnapshot> StartAsync(
@@ -34,7 +35,7 @@ internal class StubBackgroundTerminalService : IBackgroundTerminalService
         });
 
     public Task<BackgroundTerminalSnapshot> ReadAsync(string sessionId, int waitMs = 0, int? maxOutputChars = null, CancellationToken ct = default) =>
-        throw new NotSupportedException();
+        ReadHandler?.Invoke(sessionId, ct) ?? throw new NotSupportedException();
 
     public virtual Task<BackgroundTerminalSnapshot> WriteStdinAsync(string sessionId, string input, int yieldTimeMs = 1000, int? maxOutputChars = null, CancellationToken ct = default) =>
         throw new NotSupportedException();
