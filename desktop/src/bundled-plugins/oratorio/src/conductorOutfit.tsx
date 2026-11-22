@@ -1,22 +1,11 @@
 import type { MascotOutfitProps } from '@dotcraft/plugin'
 
 const INK = '#23252c'
-const SATIN = '#454a56'
 const GOLD = '#f2b630'
 const GLEAM = '#fff6bd'
 
 function Contoured({ d, fill, contour = 14 }: { d: string; fill: string; contour?: number }): JSX.Element {
   return <path d={d} fill={fill} stroke="#fff" strokeWidth={contour} strokeLinejoin="round" paintOrder="stroke fill" />
-}
-
-function BowTie(): JSX.Element {
-  return (
-    <>
-      <Contoured d="M512 816 602 788q18-5 18 13v58q0 18-18 13L512 844 422 872q-18 5-18-13v-58q0-18 18-13Z" fill={INK} />
-      <path d="M560 810 598 800M560 850 598 860M464 810 426 800M464 850 426 860" stroke={SATIN} strokeWidth="7" strokeLinecap="round" />
-      <circle cx="512" cy="830" r="22" fill={SATIN} stroke="#fff" strokeWidth="10" paintOrder="stroke fill" />
-    </>
-  )
 }
 
 function Baton(): JSX.Element {
@@ -37,9 +26,8 @@ export const CONDUCTOR_OUTFIT: Omit<MascotOutfitProps, 'children'> = {
     namespace: 'oratorio',
     label: 'Oratorio',
     items: [
-      { id: 'oratorio:bow-tie', slot: 'face', kind: 'accessory', rarity: 'rare', series: 'costume', zones: ['rim'], render: BowTie },
       { id: 'oratorio:baton', slot: 'hand', rarity: 'rare', series: 'costume', zones: ['hand'], workStory: 'conduct', render: Baton }
     ]
   },
-  wear: { face: 'oratorio:bow-tie', hand: 'oratorio:baton' }
+  wear: { hand: 'oratorio:baton' }
 }

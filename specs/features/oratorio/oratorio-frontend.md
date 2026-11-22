@@ -136,9 +136,9 @@ so Oratorio adds one place to Desktop instead of a chat and a separate view.
   card, closes the space as Back does, without returning.
 - **Conductor.** The conductor is Desktop's conversation panel with its usual
   Composer and Detail Panel, without the approval control, since the conductor
-  runs with full access. On the Composer, the person's own mascot wears
-  Oratorio's black bow tie and holds its baton, and the rest of the mascot
-  stays theirs. The Summary shows the chats the conductor started
+  runs with full access. On the Composer, the person's own mascot holds
+  Oratorio's baton, and the rest of the mascot stays theirs. The Summary
+  shows the chats the conductor started
   ([Desktop client, Following chats](../../clients/desktop-client.md#514-desktop-runtime-thread-tools)),
   its background tasks, and its context usage. Sections about project work
   stay hidden, because the conductor leaves that work to its chats.

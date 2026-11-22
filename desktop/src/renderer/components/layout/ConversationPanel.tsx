@@ -31,7 +31,7 @@ import {
 } from '../desktopPlugins/DesktopPluginConversationView'
 import { useDesktopPluginRegistry } from '../../plugins/desktopPluginRegistry'
 import { DesktopPluginSurface } from '../desktopPlugins/DesktopPluginSurface'
-import { ConversationAsideProvider } from '../conversation/conversationAside/ConversationAside'
+import { ConversationAsideProvider, ConversationAsides } from '../conversation/conversationAside/ConversationAside'
 import { useComposerProvider } from '../conversation/useComposerProvider'
 import { Spinner } from '../ui/Spinner'
 import { isDefaultChatWorkspacePathCandidate } from '../../../shared/defaultChatWorkspace'
@@ -345,7 +345,7 @@ export function ConversationPanel({
           }}
         />
       ) : (
-        <div style={centeredStyle} />
+        <EmptyConversation />
       )}
 
       {!restoring && composerApproval ? (
@@ -437,6 +437,15 @@ const loadErrorDetailStyle: CSSProperties = {
   overflowWrap: 'anywhere'
 }
 
+function EmptyConversation(): JSX.Element {
+  const ref = useRef<HTMLDivElement>(null)
+  return (
+    <div ref={ref} style={emptyConversationStyle}>
+      <ConversationAsides scrollRef={ref} />
+    </div>
+  )
+}
+
 const centeredStyle: CSSProperties = {
   display: 'flex',
   flex: 1,
@@ -445,3 +454,5 @@ const centeredStyle: CSSProperties = {
   justifyContent: 'center',
   background: 'transparent'
 }
+
+const emptyConversationStyle: CSSProperties = { ...centeredStyle, position: 'relative' }
