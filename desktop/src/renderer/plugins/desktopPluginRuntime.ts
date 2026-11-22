@@ -10,6 +10,7 @@ import { DesktopPluginCatalogPage } from '../components/desktopPlugins/DesktopPl
 import { DesktopPluginInlineDiff } from '../components/desktopPlugins/DesktopPluginInlineDiff'
 import { DesktopPluginMarkdown } from '../components/desktopPlugins/DesktopPluginMarkdown'
 import { DesktopPluginUserAvatar } from '../components/desktopPlugins/DesktopPluginUserAvatar'
+import { DesktopPluginPersonalMascot } from '../components/desktopPlugins/DesktopPluginPersonalMascot'
 import { DesktopPluginMenu } from '../components/desktopPlugins/DesktopPluginMenu'
 import { DesktopPluginSegmentedControl } from '../components/desktopPlugins/DesktopPluginSegmentedControl'
 import { DesktopPluginSplitButton } from '../components/desktopPlugins/DesktopPluginSplitButton'
@@ -74,6 +75,7 @@ export function startDesktopPluginRuntime(): () => void {
       InlineDiff: DesktopPluginInlineDiff,
       Markdown: DesktopPluginMarkdown,
       UserAvatar: DesktopPluginUserAvatar,
+      PersonalMascot: DesktopPluginPersonalMascot,
       AgentAvatar: RobotAvatar,
       Menu: DesktopPluginMenu,
       SplitButton: DesktopPluginSplitButton,

@@ -124,6 +124,8 @@ Rows and tables inside a group remain plugin code built from theme tokens.
 
 `MascotOutfit` (`{ pack, wear, children }`) dresses the Composer character it wraps in a `composer.mascot` wrapper. The person's own mascot wears the `wear` items in place of its own for those slots and keeps its palette, other slots, expressions, and motion. `pack` is an avatar extension pack holding the plugin's items ([Avatar System §5.1](../features/avatar-system.md#51-extension-packs-registries-and-outfit-presets)).
 
+`PersonalMascot` (`{ size?, greeting? }`) renders the person's own mascot as the Composer shows it, with motion. `greeting` plays a wave. Inside `MascotOutfit` it wears the outfit.
+
 `AgentAvatar` (`{ name, size?, animated? }`) renders the avatar Core shows for an agent nickname,
 so a plugin and Core draw the same character for the same agent. `UserAvatar` (`{ size? }`) renders
 the Desktop user's Profile avatar with Core's fallbacks. `Markdown` (`{ content }`) renders with
@@ -215,6 +217,7 @@ The Core surfaces are:
 | `conversation.aside.trailing` | A seat beside the trailing edge of the conversation reading column, for panels that accompany the conversation. Core supplies the pinned Summary card. |
 | `summary.sources` | Additive rows inside a thread's Summary Sources section, after Core's sources. Empty by default. |
 | `summary.sections` | Additive sections inside a thread's Summary, after its sources and before its context and environment sections. Empty by default. |
+| `conversation.empty` | The conversation area of an open thread that has no messages yet, behind the Composer. Empty by default. Receives the thread surface context. |
 | `conversation.turn.status` | A seat inside the last visible turn, for status that belongs to the conversation's current work: above the reply's actions once the turn has a reply, otherwise directly above its working line. Empty by default. |
 | `settings.<section>` | Each built-in Settings section (`general`, `import`, `profile`, `appearance`, `archived-threads`, `voice`, `personalization`, `pet`, `usage`, `model-providers`, `browser`, `computer-use`, `connections`, `mcp`, `hooks`, `source-control`, `worktrees`). Additions append groups with the Settings section spacing, and wrappers can swap in a Settings subpage using the context `{ section, title }`. |
 

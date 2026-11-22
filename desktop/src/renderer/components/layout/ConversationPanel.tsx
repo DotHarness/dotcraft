@@ -345,7 +345,7 @@ export function ConversationPanel({
           }}
         />
       ) : (
-        <EmptyConversation />
+        <EmptyConversation context={threadSurfaceContext} />
       )}
 
       {!restoring && composerApproval ? (
@@ -437,10 +437,11 @@ const loadErrorDetailStyle: CSSProperties = {
   overflowWrap: 'anywhere'
 }
 
-function EmptyConversation(): JSX.Element {
+function EmptyConversation({ context }: { context: DesktopPluginThreadSurfaceContext | null }): JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
   return (
     <div ref={ref} style={emptyConversationStyle}>
+      {context && <DesktopPluginSurface name="conversation.empty" context={context} />}
       <ConversationAsides scrollRef={ref} />
     </div>
   )

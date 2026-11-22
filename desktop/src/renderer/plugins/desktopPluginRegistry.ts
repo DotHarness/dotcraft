@@ -156,6 +156,7 @@ const CORE_SURFACES: ReadonlySet<string> = new Set<keyof DesktopPluginSurfaceCon
   'conversation.aside.leading',
   'conversation.aside.trailing',
   'conversation.turn.status',
+  'conversation.empty',
   'summary.sources',
   'summary.sections',
   ...CORE_SETTINGS_SURFACES

@@ -7,6 +7,7 @@ import { OratorioSettingsSurface } from './OratorioSettingsSurface'
 import { OratorioView } from './OratorioView'
 import { OratorioBatonIcon } from './OratorioBatonIcon'
 import { bindConductor, ConductorMascot, ConductorPermissions, conductorSpace, findConductor } from './conductor'
+import { ConductorIntro } from './ConductorIntro'
 import { parseOratorioNavigationUrl, requestOratorioNavigation } from './oratorio-navigation'
 import { installOratorioHost } from './runtime'
 
@@ -65,6 +66,7 @@ export const activate: DesktopPluginActivate = (host) => {
   })
   host.ui.wrap('composer.mascot', ConductorMascot)
   host.ui.wrap('composer.toolbar.permissions', ConductorPermissions)
+  host.ui.add('conversation.empty', ConductorIntro)
   let boundConductor: string | null = null
   host.session.onChange((session) => {
     const conductor = findConductor(host)?.threadId

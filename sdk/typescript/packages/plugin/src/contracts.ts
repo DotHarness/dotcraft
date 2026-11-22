@@ -232,6 +232,7 @@ export interface DesktopPluginSurfaceContextMap {
   readonly "conversation.aside.trailing": DesktopPluginConversationAsideContext;
   readonly "summary.sources": DesktopPluginThreadSurfaceContext;
   readonly "summary.sections": DesktopPluginThreadSurfaceContext;
+  readonly "conversation.empty": DesktopPluginThreadSurfaceContext;
   readonly "conversation.turn.status": DesktopPluginTurnStatusContext;
   readonly "settings.general": DesktopPluginSettingsSectionContext;
   readonly "settings.import": DesktopPluginSettingsSectionContext;

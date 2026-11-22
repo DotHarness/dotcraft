@@ -124,6 +124,7 @@ DotCraft's formal surfaces cover the application, the Composer, and the active c
 | **`conversation.turn.status`** | A seat inside the last visible turn: above the reply's actions once the turn has a reply, otherwise directly above its working line. |
 | **`summary.sources`** | Rows in a thread's Summary Sources section, after its own sources. |
 | **`summary.sections`** | Sections inside a thread's Summary, after its sources and before its context and environment. |
+| **`conversation.empty`** | The conversation area of a thread that has no messages yet. |
 | **`settings.<section>`** | Built-in Settings sections (`general`, `import`, `profile`, `appearance`, `archived-threads`, `voice`, `personalization`, `pet`, `usage`, `model-providers`, `browser`, `computer-use`, `connections`, `mcp`, `hooks`, `source-control`, `worktrees`). Context carries `{ section, title }`. |
 
 Target these Core controls when a region is too broad:
@@ -787,7 +788,7 @@ Import shared UI components from `@dotcraft/plugin` so a plugin page looks like 
 | Group | Components |
 |---|---|
 | **Controls** | `Button`, `IconButton`, `SplitButton`, `Menu`, `Input`, `Textarea`, `Select`, `SegmentedControl`, `Combobox`, `Checkbox`, `PillSwitch`, `Slider` |
-| **Presentation** | `Spinner`, `Skeleton`, `ActionTooltip`, `ModalHeader`, `InlineDiff`, `Markdown`, `AgentAvatar`, `UserAvatar`, `MascotOutfit` |
+| **Presentation** | `Spinner`, `Skeleton`, `ActionTooltip`, `ModalHeader`, `InlineDiff`, `Markdown`, `AgentAvatar`, `UserAvatar`, `PersonalMascot`, `MascotOutfit` |
 | **Settings layout** | `SettingsPanelShell`, `SettingsBreadcrumb`, `SettingsGroup`, `SettingsRow` |
 | **Catalog layout** | `CatalogPage`, `CatalogSection`, `CatalogToolbarButton` |
 | **Summary layout** | `SummarySection`, `SummaryRow` |
@@ -802,6 +803,8 @@ Import shared UI components from `@dotcraft/plugin` so a plugin page looks like 
 `CatalogPage` gives a main view the same frame as Desktop's Plugins and Agents pages: pass a `title`, optional `actions` for the top bar (`CatalogToolbarButton` for icon-only commands such as Refresh, `Button` or `SplitButton` for the principal one), an optional `search` and `filters`, and render your groups as children with `CatalogSection`. A group's own commands go in its `actions`, which appear at the end of its title row on hover or focus. In each filter group, put the unfiltered choice first. To switch between sibling views, pass `tabs: { value, items, onValueChange }`. They appear at the left of the top bar, like Plugins and Skills in Desktop. For a page reached from another, such as a settings or detail page, pass `breadcrumb: { parentLabel, currentLabel, onBack }` instead, adding `trail: [{ label, onClick }]` for any pages in between. It takes the place of the tabs, like Plugins › Manage. A page that edits one record can pass `titleEditor` and `descriptionEditor` (`{ value, placeholder, ariaLabel, onValueChange }`) so its name and one-line description are edited in place as the title and subtitle, and pass `meta` for controls under them, such as its tags.
 
 `AgentAvatar` draws the character Desktop shows for an agent. Pass the SubAgent's `nickname` as `name`, plus an optional `size` and `animated`, and your plugin draws the same character as the Subagents tab. Desktop supplies the component, so do not bundle the avatar package yourself.
+
+`PersonalMascot` draws the person's own mascot, the one on their Composer. Pass `greeting` to play a wave. Wrap it in `MascotOutfit` to dress it in your items.
 
 `UserAvatar` draws the Desktop user's own Profile avatar, with an optional `size`. Use it beside things the user wrote, such as their comments, so they look the same as in Desktop.
 

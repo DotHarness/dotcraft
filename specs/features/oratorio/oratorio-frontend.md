@@ -142,6 +142,12 @@ so Oratorio adds one place to Desktop instead of a chat and a separate view.
   ([Desktop client, Following chats](../../clients/desktop-client.md#514-desktop-runtime-thread-tools)),
   its background tasks, and its context usage. Sections about project work
   stay hidden, because the conductor leaves that work to its chats.
+- **Introduction.** While the conductor has no messages, its conversation
+  area shows an introduction instead of an empty page. A gold line writes a
+  treble clef and flows into the baton the person's mascot holds. The mascot
+  waves, a thought bubble cycles through what the conductor does, and a title,
+  one sentence, and Continue appear. Continue reveals the empty conversation.
+  With reduced motion the final frame shows at once.
 - **Board.** The board is the surface below, unchanged. The Detail Panel is not
   shown on it, as on any full view.
 

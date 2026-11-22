@@ -29,6 +29,7 @@ export function installOratorioTestHost(overrides: Partial<DesktopPluginHost> = 
         return () => removeToast(id)
       },
       async confirm() { return true },
+      add() { return () => undefined },
       wrap() { return () => undefined }
     } as DesktopPluginHost['ui'],
     session: { workspacePath: null, threadId: null, mode: 'agent', busy: false, onChange() { return () => undefined } },

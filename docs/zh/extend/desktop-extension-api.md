@@ -120,6 +120,7 @@ DotCraft 的正式 surface 覆盖 application、Composer 与当前会话。Compo
 | **`conversation.turn.status`** | 最后一个可见轮次内的座位：轮次有回复后位于回复的操作行上方，此前紧贴工作行上方。 |
 | **`summary.sources`** | thread 摘要「来源」分区中的行，位于自带来源之后。 |
 | **`summary.sections`** | thread 摘要中的分区，位于来源之后、上下文与环境之前。 |
+| **`conversation.empty`** | 还没有消息的 thread 的会话区域。 |
 | **`settings.<section>`** | 内置设置分区（`general`、`import`、`profile`、`appearance`、`archived-threads`、`voice`、`personalization`、`pet`、`usage`、`model-providers`、`browser`、`computer-use`、`connections`、`mcp`、`hooks`、`source-control`、`worktrees`）。context 包含 `{ section, title }`。 |
 
 当区域范围过大时，可以直接定位这些 Core 控件：
@@ -783,7 +784,7 @@ if (!result.isError) showItems(result.structuredContent);
 | 分组 | 组件 |
 |---|---|
 | **控件** | `Button`、`IconButton`、`SplitButton`、`Menu`、`Input`、`Textarea`、`Select`、`SegmentedControl`、`Combobox`、`Checkbox`、`PillSwitch`、`Slider` |
-| **展示** | `Spinner`、`Skeleton`、`ActionTooltip`、`ModalHeader`、`InlineDiff`、`Markdown`、`AgentAvatar`、`UserAvatar`、`MascotOutfit` |
+| **展示** | `Spinner`、`Skeleton`、`ActionTooltip`、`ModalHeader`、`InlineDiff`、`Markdown`、`AgentAvatar`、`UserAvatar`、`PersonalMascot`、`MascotOutfit` |
 | **Settings 布局** | `SettingsPanelShell`、`SettingsBreadcrumb`、`SettingsGroup`、`SettingsRow` |
 | **目录页布局** | `CatalogPage`、`CatalogSection`、`CatalogToolbarButton` |
 | **摘要布局** | `SummarySection`、`SummaryRow` |
@@ -798,6 +799,8 @@ if (!result.isError) showItems(result.structuredContent);
 `CatalogPage` 让主视图使用与 Desktop 的插件页、智能体页相同的页面框架：传入 `title`，可选传入顶栏 `actions`（刷新这类仅图标的命令用 `CatalogToolbarButton`，主要操作用 `Button` 或 `SplitButton`），可选传入 `search` 与 `filters`，再用 `CatalogSection` 把各组内容作为 children 渲染。某一组自己的命令放进它的 `actions`，在悬停或聚焦时显示在标题行末尾。每个筛选组都把不筛选的选项放在第一位。要在同级视图之间切换，传入 `tabs: { value, items, onValueChange }`，它们显示在顶栏左侧，和 Desktop 中插件与技能的切换一致。从另一页进入的页面（如设置页或详情页）改为传入 `breadcrumb: { parentLabel, currentLabel, onBack }`，中间还有页面时再加 `trail: [{ label, onClick }]`，它会取代标签页，和插件 › 管理一致。编辑单条记录的页面可以传入 `titleEditor` 与 `descriptionEditor`（`{ value, placeholder, ariaLabel, onValueChange }`），让名称和一行描述直接作为标题和副标题原地编辑，并可通过 `meta` 在其下方放置标签等控件。
 
 `AgentAvatar` 绘制 Desktop 为某个 agent 显示的角色。把 SubAgent 的 `nickname` 作为 `name` 传入，可选传入 `size` 与 `animated`，你的插件就会画出与 Subagents 标签页相同的角色。该组件由 Desktop 提供，不要自行打包 avatar 包。
+
+`PersonalMascot` 绘制用户自己的 mascot，也就是 Composer 上那个。传入 `greeting` 会播放挥手动作。用 `MascotOutfit` 包住它，就能换上你的物品。
 
 `UserAvatar` 绘制 Desktop 用户自己在 Profile 里的头像，可选传入 `size`。用在用户自己写的内容旁边（比如他们的评论），让它和 Desktop 里看起来一致。
 

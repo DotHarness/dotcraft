@@ -140,6 +140,7 @@ export type {
   InputProps,
   MarkdownProps,
   UserAvatarProps,
+  PersonalMascotProps,
   MenuEntry,
   MenuItem,
   MenuLabel,
@@ -199,6 +200,7 @@ export const InlineDiff = ui.InlineDiff;
 export const Markdown = ui.Markdown;
 export const AgentAvatar = ui.AgentAvatar;
 export const UserAvatar = ui.UserAvatar;
+export const PersonalMascot = ui.PersonalMascot;
 export const Menu = ui.Menu;
 export const SplitButton = ui.SplitButton;
 export const CatalogPage = ui.CatalogPage;

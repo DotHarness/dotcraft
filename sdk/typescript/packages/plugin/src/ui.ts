@@ -201,6 +201,11 @@ export interface UserAvatarProps {
   readonly size?: number;
 }
 
+export interface PersonalMascotProps {
+  readonly size?: number;
+  readonly greeting?: boolean;
+}
+
 export interface AgentAvatarProps {
   readonly name: string;
   readonly size?: number;
@@ -434,6 +439,7 @@ export interface DesktopPluginUiComponents {
   readonly Markdown: ComponentType<MarkdownProps>;
   readonly AgentAvatar: ComponentType<AgentAvatarProps>;
   readonly UserAvatar: ComponentType<UserAvatarProps>;
+  readonly PersonalMascot: ComponentType<PersonalMascotProps>;
   readonly Menu: ComponentType<MenuProps>;
   readonly SplitButton: ComponentType<SplitButtonProps>;
   readonly CatalogPage: ComponentType<CatalogPageProps>;
