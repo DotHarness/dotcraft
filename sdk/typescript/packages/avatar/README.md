@@ -97,5 +97,9 @@ export function BrandedCompanion() {
 }
 ```
 
+A hand item that sets `workStory: 'conduct'` stays in hand while the avatar works and conducts
+instead of typing at the laptop. `<AvatarOutfitProvider pack wear>` dresses every avatar below it in
+a pack's items without changing the stored appearance.
+
 See the [TypeScript SDK reference](https://www.dotcraft.net/extend/sdks/typescript) for the
 available entry points.

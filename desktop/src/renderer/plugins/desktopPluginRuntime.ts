@@ -1,4 +1,5 @@
 import { installDesktopPluginRuntime as installAuthoringRuntime } from '@dotcraft/plugin/runtime'
+import { AvatarOutfitProvider } from '@dotcraft/avatar/react'
 import * as React from 'react'
 import { createPortal } from 'react-dom'
 import * as JsxRuntime from 'react/jsx-runtime'
@@ -13,6 +14,7 @@ import { DesktopPluginMenu } from '../components/desktopPlugins/DesktopPluginMen
 import { DesktopPluginSegmentedControl } from '../components/desktopPlugins/DesktopPluginSegmentedControl'
 import { DesktopPluginSplitButton } from '../components/desktopPlugins/DesktopPluginSplitButton'
 import { DesktopPluginSummaryRow, DesktopPluginSummarySection } from '../components/desktopPlugins/DesktopPluginSummary'
+import { DesktopPluginSidebarRow } from '../components/desktopPlugins/DesktopPluginSidebarRow'
 import { DesktopPluginSurface } from '../components/desktopPlugins/DesktopPluginSurface'
 import { SettingsBreadcrumb } from '../components/settings/SettingsBreadcrumb'
 import { SettingsGroup, SettingsRow } from '../components/settings/SettingsGroup'
@@ -80,6 +82,8 @@ export function startDesktopPluginRuntime(): () => void {
       CatalogSection,
       SummarySection: DesktopPluginSummarySection,
       SummaryRow: DesktopPluginSummaryRow,
+      SidebarRow: DesktopPluginSidebarRow,
+      MascotOutfit: AvatarOutfitProvider,
       PluginSurface: DesktopPluginSurface
     }
   })

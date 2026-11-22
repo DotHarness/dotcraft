@@ -6,6 +6,8 @@ type Locale = (typeof locales)[number]
 type Row = readonly [string, string, string, string, string, string, string]
 
 const rows = {
+  conductor: ['Conductor', '指挥家', '指揮者', '지휘자', 'Director', 'Chef d’orchestre', 'Dirigent'],
+  board: ['Board', '看板', 'ボード', '보드', 'Tablero', 'Tableau', 'Board'],
   boardLabel: ['Oratorio task board', 'Oratorio 任务看板', 'Oratorio タスクボード', 'Oratorio 작업 보드', 'Tablero de tareas de Oratorio', 'Tableau des tâches Oratorio', 'Oratorio-Aufgabenboard'],
   boardControls: ['Board controls', '看板控件', 'ボードの操作', '보드 컨트롤', 'Controles del tablero', 'Commandes du tableau', 'Board-Steuerung'],
   taskView: ['Task view', '任务视图', 'タスク表示', '작업 보기', 'Vista de tareas', 'Vue des tâches', 'Aufgabenansicht'],

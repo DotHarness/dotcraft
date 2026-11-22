@@ -1,10 +1,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { WORK_STORY_CHANNELS, workStoryKeyframes } from '../dist/workStory.js'
+import { CONDUCT_STORY_CHANNELS, conductStoryKeyframes } from '../dist/conductStory.js'
 
-test('every work story channel spans the loop in order and closes without a seam', () => {
-  for (const [channel, { property }] of Object.entries(WORK_STORY_CHANNELS)) {
-    const frames = workStoryKeyframes(channel)
+for (const [name, channels, keyframes] of [['laptop', WORK_STORY_CHANNELS, workStoryKeyframes], ['conduct', CONDUCT_STORY_CHANNELS, conductStoryKeyframes]]) test(`every ${name} story channel spans the loop in order and closes without a seam`, () => {
+  for (const [channel, { property }] of Object.entries(channels)) {
+    const frames = keyframes(channel)
     const offsets = frames.map(frame => frame.offset)
     assert.equal(offsets[0], 0, channel)
     assert.equal(offsets.at(-1), 1, channel)

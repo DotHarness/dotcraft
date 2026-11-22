@@ -30,6 +30,8 @@ export function useSidebarDestinations(): { pinned: SidebarDestination[]; more: 
   const setActiveMainView = useUIStore((s) => s.setActiveMainView)
   const automationsAvailable = useConnectionStore((s) => s.capabilities?.automations === true)
   const desktopMainViews = useDesktopPluginRegistry((s) => s.mainViews)
+  const spaces = useDesktopPluginRegistry((s) => s.spaces)
+  const spaceViews = new Set(spaces.flatMap((space) => space.viewKeys))
   const pins = useSidebarDestinationsStore((s) => s.pins)
 
   const core = (view: 'agents' | 'automations' | 'skills', label: string): SidebarDestination => ({
@@ -43,7 +45,7 @@ export function useSidebarDestinations(): { pinned: SidebarDestination[]; more: 
   })
 
   const destinations: SidebarDestination[] = [
-    ...desktopMainViews.map((entry) => ({
+    ...desktopMainViews.filter((entry) => !spaceViews.has(entry.viewKey)).map((entry) => ({
       id: entry.viewKey,
       label: resolveDesktopPluginLabel(entry.label, locale),
       icon: <DesktopPluginIcon icon={entry.icon} />,

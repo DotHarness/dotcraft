@@ -12,7 +12,7 @@ import { HandDecoration } from './HandDecorations.js'
 import { BackDecoration, BackFrontDecoration, hasFrontPart } from './BackDecorations.js'
 import { SkinOverlay, SkinPaintSurface, skinPaint } from './SkinDecorations.js'
 import { materialBounds } from './RigMaterial.js'
-import { useAvatarCatalog, type AvatarCatalog } from './pack.js'
+import { useAvatarCatalog, useOutfit, type AvatarCatalog } from './pack.js'
 import { useMotionEnvironment, useOnscreen, useTransitionPause } from './environment.js'
 import { useGesture } from './useGesture.js'
 import { useEventReplay } from './useEventReplay.js'
@@ -37,8 +37,8 @@ export interface AppearanceAvatarProps {
   gestureSequence?: number
   onGestureComplete?: (sequence: number) => void
 }
-export function AppearanceAvatar({ appearance, catalog, state = 'idle', size = 44, motion = 'off', paused = false, label, eventSequence = 0, className, expression, gesture, gestureSequence = 0, onGestureComplete }: AppearanceAvatarProps) {
-  const activeCatalog = useAvatarCatalog(catalog)
+export function AppearanceAvatar({ appearance: storedAppearance, catalog, state = 'idle', size = 44, motion = 'off', paused = false, label, eventSequence = 0, className, expression, gesture, gestureSequence = 0, onGestureComplete }: AppearanceAvatarProps) {
+  const { appearance, catalog: activeCatalog } = useOutfit(storedAppearance, useAvatarCatalog(catalog))
   const { registry } = activeCatalog
   const ref = useRef<HTMLSpanElement>(null)
   const tier = sizeTier(size)
@@ -62,6 +62,8 @@ export function AppearanceAvatar({ appearance, catalog, state = 'idle', size = 4
   const skinId = resolveSlot('skin', appearance.skin)
 
   const held = !compact && handId !== 'none'
+  const heldComponent = held ? activeCatalog.componentOf(handId) : undefined
+  const conducts = heldComponent?.slot === 'hand' && heldComponent.workStory === 'conduct'
   const [shownExpression, setShownExpression] = useState(expression)
   useEffect(() => { if (!animated || (!paused && visible)) setShownExpression(expression) }, [expression, animated, paused, visible])
   useGesture(ref, gesture, gestureSequence, animated, paused || !visible, onGestureComplete)
@@ -85,12 +87,12 @@ export function AppearanceAvatar({ appearance, catalog, state = 'idle', size = 4
   }, [state, displayed, animated, paused, visible, identity, eventSequence, displayedSequence, exiting, captureHandoff])
 
   const pose = animated ? displayed : state
-  useWorkStory(ref, animated && pose === 'working' && !exiting, paused || !visible)
+  useWorkStory(ref, animated && pose === 'working' && !exiting, paused || !visible, conducts ? 'conduct' : 'laptop')
   const effects = compact ? 'off' : tier === 'full' && animated ? 'live' : 'static'
   const classes = [
     'dca-rig',
     !compact && pose === 'waiting' ? 'dca-action-hold-sign' : '',
-    !compact && pose === 'working' ? 'dca-action-prop-laptop' : '',
+    !compact && pose === 'working' && !conducts ? 'dca-action-prop-laptop' : '',
     !compact && pose === 'done' ? 'dca-action-celebrate' : '',
     !compact && pose === 'greeting' && !exiting ? 'dca-action-wave' : '',
   ].filter(Boolean).join(' ')
@@ -173,7 +175,7 @@ export function AppearanceAvatar({ appearance, catalog, state = 'idle', size = 4
     data-pose={pose} data-mode={motion} data-motion={animated ? 'on' : 'off'} data-paused={paused || !visible} data-exiting={exiting} data-compact={compact}
     data-size-tier={tier} data-effects={effects}
     data-head={headId} data-face={faceId} data-hand={handId} data-back={backId} data-skin={skinId} data-base-face={appearance.baseFace}
-    data-gesture={animated ? gesture : undefined} data-held-state={held ? (pose === 'working' || pose === 'waiting' ? 'stowed' : 'holding') : undefined}>
+    data-gesture={animated ? gesture : undefined} data-held-state={held ? ((pose === 'working' && !conducts) || pose === 'waiting' ? 'stowed' : 'holding') : undefined}>
     <svg className="dca-canvas" width={size} height={size} viewBox="0 0 1024 1024" fill="none" role={label ? 'img' : undefined} aria-hidden={label ? undefined : true}
       aria-label={label}>
       <g className="dca-body-motion"><g className={classes}>

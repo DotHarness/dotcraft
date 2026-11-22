@@ -7,6 +7,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const project = mkdtempSync(join(tmpdir(), "dotcraft-plugin-"));
+const NOTES = "### Notes\nKeep `this` text as written.\n";
 
 try {
   mkdirSync(join(project, "src"));
@@ -15,9 +16,11 @@ try {
     import { Button } from "@dotcraft/plugin";
     import type { DesktopPluginActivate } from "@dotcraft/plugin";
     import logo from "./logo.svg";
+    import notes from "./notes.md?raw";
     import "./style.css";
 
     export const logoUrl: string = logo;
+    export const notesText: string = notes;
 
     function View() {
       const [count, setCount] = useState(0);
@@ -36,6 +39,7 @@ try {
     join(project, "src", "style.css"),
     ".sample { color: var(--text-primary); background-image: url(\"./logo.svg\"); }\n",
   );
+  writeFileSync(join(project, "src", "notes.md"), NOTES);
   writeFileSync(
     join(project, "src", "logo.svg"),
     "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 8 8\"><rect width=\"8\" height=\"8\" /></svg>\n",
@@ -86,6 +90,7 @@ try {
 
   assert.match(plugin.logoUrl, /^file:\/\/.*\/assets\/logo-[A-Z0-9]+\.svg$/);
   assert.equal(existsSync(fileURLToPath(plugin.logoUrl)), true);
+  assert.equal(plugin.notesText, NOTES);
 
   writeFileSync(join(project, "src", "index.tsx"), "export const activate = (");
   const failedBuild = spawnSync(

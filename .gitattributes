@@ -16,3 +16,5 @@ src/DotCraft.Core/Skills/BuiltIn/visualize/assets/preview.html text eol=lf lingu
 # GitHub Linguist language stats
 desktop/src/shared/locales/messages/*.ts text eol=lf linguist-generated=true
 sdk/typescript/src/generated/appserver/** text eol=lf linguist-generated=true
+# Model instructions imported with ?raw must reach the prompt with LF line endings on every platform.
+desktop/src/**/prompts/*.md text eol=lf

@@ -59,6 +59,7 @@ import {
   onDesktopPluginSessionChange,
   readDesktopPluginSession
 } from './desktopPluginSession'
+import { createDesktopPluginThreads } from './desktopPluginThreads'
 import {
   listDesktopPluginSubAgents,
   onDesktopPluginSubAgentsChange
@@ -157,6 +158,7 @@ export function createDesktopPluginHost(
         else void host.navigation.openThread(parentThreadId).then(show)
       }
     },
+    threads: createDesktopPluginThreads(pluginId, (cleanup) => own(cleanups, cleanup)),
     projectActions: {
       list(workspacePath) {
         return listDesktopPluginProjectActions(workspacePath)

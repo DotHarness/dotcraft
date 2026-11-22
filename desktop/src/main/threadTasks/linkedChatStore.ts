@@ -1,5 +1,8 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
+import type { LinkedChatOutcome, LinkedChatStatus, LinkedChatWait } from '../../shared/linkedChats'
+
+export type { LinkedChatOutcome, LinkedChatStatus, LinkedChatWait }
 
 export interface LinkedChatRef {
   threadId: string
@@ -12,14 +15,11 @@ export interface LinkedChatChild extends LinkedChatRef {
   title: string
 }
 
-export type LinkedChatOutcome = 'completed' | 'failed' | 'stopped'
-export type LinkedChatStatus = 'idle' | 'running' | 'waitingForInput' | LinkedChatOutcome
-export type LinkedChatWait = 'approval' | 'input' | 'planConfirmation'
-
 export interface LinkedChat {
   parent: LinkedChatRef
   child: LinkedChatChild
   status: LinkedChatStatus
+  waitingFor?: LinkedChatWait
   createdAt: string
 }
 
@@ -46,8 +46,8 @@ export function linkedChatRefKey(ref: LinkedChatRef): string {
   return JSON.stringify([ref.projectId, ref.threadId])
 }
 
-export function viewLinkedChat({ parent, child, status, createdAt }: StoredLinkedChat): LinkedChat {
-  return { parent: { ...parent }, child: { ...child }, status, createdAt }
+export function viewLinkedChat({ parent, child, status, waitingFor, createdAt }: StoredLinkedChat): LinkedChat {
+  return { parent: { ...parent }, child: { ...child }, status, ...(waitingFor ? { waitingFor } : {}), createdAt }
 }
 
 function linkKey({ parent, child }: Pick<LinkedChat, 'parent' | 'child'>): string {
@@ -57,7 +57,7 @@ function linkKey({ parent, child }: Pick<LinkedChat, 'parent' | 'child'>): strin
 export class LinkedChatStore {
   private readonly links = new Map<string, StoredLinkedChat>()
 
-  constructor(private readonly filePath: string | null) {
+  constructor(private readonly filePath: string | null, private readonly onSaved?: () => void) {
     if (!filePath) return
     try {
       const { links } = JSON.parse(readFileSync(filePath, 'utf8')) as { links: StoredLinkedChat[] }
@@ -106,6 +106,7 @@ export class LinkedChatStore {
   }
 
   save(): void {
+    this.onSaved?.()
     if (!this.filePath) return
     try {
       mkdirSync(dirname(this.filePath), { recursive: true })

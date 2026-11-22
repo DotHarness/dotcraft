@@ -1,0 +1,7 @@
+.ora-space-icon { display: block; flex-shrink: 0; overflow: visible; }
+:is([data-nav-icon-host]:hover:not(:disabled), [data-nav-icon-host]:focus-visible, [data-nav-icon-play]) .ora-space-icon--conductor .ora-space-icon__handoff { animation: ora-space-icon-handoff 640ms; }
+:is([data-nav-icon-host]:hover:not(:disabled), [data-nav-icon-host]:focus-visible, [data-nav-icon-play]) .ora-space-icon--board .ora-space-icon__column { animation: ora-space-icon-column-settle 420ms both; }
+:is([data-nav-icon-host]:hover:not(:disabled), [data-nav-icon-host]:focus-visible, [data-nav-icon-play]) .ora-space-icon--board .ora-space-icon__column:nth-child(3) { animation-delay: 90ms; }
+:is([data-nav-icon-host]:hover:not(:disabled), [data-nav-icon-host]:focus-visible, [data-nav-icon-play]) .ora-space-icon--board .ora-space-icon__column:nth-child(4) { animation-delay: 180ms; }
+@keyframes ora-space-icon-handoff { 0% { translate: 0 0; opacity: 1; animation-timing-function: cubic-bezier(0.4, 0, 1, 1); } 22% { translate: 0 0; opacity: 0; animation-timing-function: step-end; } 24% { translate: -3px -3px; opacity: 0; animation-timing-function: cubic-bezier(0.2, 0, 0, 1); } 100% { translate: 0 0; opacity: 1; } }
+@keyframes ora-space-icon-column-settle { 0% { translate: 0 0; animation-timing-function: cubic-bezier(0.2, 0, 0, 1); } 45% { translate: 0 1.75px; animation-timing-function: cubic-bezier(0.6, 0, 0.4, 1); } 100% { translate: 0 0; } }

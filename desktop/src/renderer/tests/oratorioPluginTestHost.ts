@@ -28,8 +28,11 @@ export function installOratorioTestHost(overrides: Partial<DesktopPluginHost> = 
         })
         return () => removeToast(id)
       },
-      async confirm() { return true }
-    },
+      async confirm() { return true },
+      wrap() { return () => undefined }
+    } as DesktopPluginHost['ui'],
+    session: { workspacePath: null, threadId: null, mode: 'agent', busy: false, onChange() { return () => undefined } },
+    threads: { findOwned: () => null } as unknown as DesktopPluginHost['threads'],
     appServer: { request: async () => { throw new Error('Unexpected AppServer request.') }, onNotification: () => () => undefined },
     appBindings: {
       getConnectionStatus: async () => { throw new Error('Unexpected app binding request.') },

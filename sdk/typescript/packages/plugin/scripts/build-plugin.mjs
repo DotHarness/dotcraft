@@ -57,7 +57,7 @@ async function buildDesktopPlugin(projectRoot = process.cwd()) {
       metafile: true,
       logLevel: "silent",
       loader: assetLoaders,
-      plugins: [runtimeProxyPlugin(), assetUrlPlugin()],
+      plugins: [runtimeProxyPlugin(), rawTextPlugin(), assetUrlPlugin()],
     });
 
     const bundledReact = Object.keys(result.metafile.inputs).find((input) =>
@@ -123,6 +123,22 @@ function assetUrlPlugin() {
           + "export default new URL(assetPath, import.meta.url).href;\n",
         resolveDir: dirname(args.path),
         loader: "js",
+      }));
+    },
+  };
+}
+
+function rawTextPlugin() {
+  return {
+    name: "dotcraft-plugin-raw-text",
+    setup(buildContext) {
+      buildContext.onResolve({ filter: /\?raw$/ }, (args) => ({
+        path: resolve(args.resolveDir, args.path.slice(0, -"?raw".length)),
+        namespace: "dotcraft-plugin-raw",
+      }));
+      buildContext.onLoad({ filter: /.*/, namespace: "dotcraft-plugin-raw" }, (args) => ({
+        contents: readFileSync(args.path, "utf8"),
+        loader: "text",
       }));
     },
   };

@@ -59,6 +59,9 @@ import { CustomMenuBar } from './components/layout/CustomMenuBar'
 import { MacSidebarTitleBar } from './components/layout/MacSidebarTitleBar'
 import { Sidebar } from './components/layout/Sidebar'
 import { SettingsSidebar } from './components/layout/SettingsSidebar'
+import { SpaceSidebar } from './components/layout/SpaceSidebar'
+import { startOwnedThreadsSync } from './stores/ownedThreadsStore'
+import { startSpaceTracking, useActiveSpace } from './stores/spaceStore'
 import { ConversationPanel } from './components/layout/ConversationPanel'
 import { DetailPanel } from './components/layout/DetailPanel'
 import { ErrorScreen } from './components/ErrorScreen'
@@ -504,6 +507,10 @@ export function App(): JSX.Element {
   }, [])
 
   const lastSeenWhatsNewVersionRef = useRef<string | undefined>(undefined)
+
+  useEffect(() => startOwnedThreadsSync(), [])
+  useEffect(() => startSpaceTracking(), [])
+  const activeSpace = useActiveSpace()
 
   useEffect(() => {
     let firstFrame = 0
@@ -1593,7 +1600,9 @@ export function App(): JSX.Element {
           sidebar={
             activeMainView === 'settings'
               ? <SettingsSidebar localImport={localImport} />
-              : (
+              : activeSpace
+                ? <SpaceSidebar active={activeSpace} />
+                : (
                   <Sidebar
                     workspaceName={displayWorkspaceName}
                     workspacePath={workspaceStatus.remote?.workspaceDir?.trim() || workspacePath}

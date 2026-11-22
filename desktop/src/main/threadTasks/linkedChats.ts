@@ -70,8 +70,8 @@ export class DesktopLinkedChats {
   private readonly store: LinkedChatStore
   private readonly projects = new Map<string, Map<LinkedChatConnection, ProjectConnection>>()
   private readonly observations = new WeakMap<StoredLinkedChat, Observation>()
-  constructor(filePath: string | null, private readonly onConnectionNeedsChanged?: () => void) {
-    this.store = new LinkedChatStore(filePath)
+  constructor(filePath: string | null, private readonly onConnectionNeedsChanged?: () => void, onLinksChanged?: () => void) {
+    this.store = new LinkedChatStore(filePath, onLinksChanged)
   }
 
   link(parent: LinkedChatRef, child: LinkedChatChild): void {
@@ -82,6 +82,10 @@ export class DesktopLinkedChats {
 
   list(parent: LinkedChatRef): LinkedChat[] {
     return this.store.all().filter(link => sameChat(link.parent, parent)).reverse().map(viewLinkedChat)
+  }
+
+  listForThread(threadId: string): LinkedChat[] {
+    return this.store.all().filter(link => link.parent.threadId === threadId).reverse().map(viewLinkedChat)
   }
 
   find(parent: LinkedChatRef, threadId: string): LinkedChat | undefined {
@@ -335,13 +339,19 @@ export class DesktopLinkedChats {
 
   private updateStatus(link: StoredLinkedChat, state: Observation): void {
     const runtime = state.runtime
-    const status: LinkedChatStatus = runtime?.waitingOnApproval || runtime?.waitingOnInput || runtime?.waitingOnPlanConfirmation
+    const waitingFor: LinkedChatWait | undefined = runtime?.waitingOnApproval ? 'approval'
+      : runtime?.waitingOnInput ? 'input'
+        : runtime?.waitingOnPlanConfirmation ? 'planConfirmation'
+          : undefined
+    const status: LinkedChatStatus = waitingFor
       ? 'waitingForInput'
       : runtime?.activeTurnId || runtime?.running || runtime?.hasBackgroundWork
         ? 'running'
         : link.lastOutcome ?? 'idle'
-    if (link.status !== status) {
+    if (link.status !== status || link.waitingFor !== waitingFor) {
       link.status = status
+      if (waitingFor) link.waitingFor = waitingFor
+      else delete link.waitingFor
       this.store.save()
       this.onConnectionNeedsChanged?.()
     }

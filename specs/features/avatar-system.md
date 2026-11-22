@@ -95,7 +95,7 @@ names an item missing from the active registry, rendering treats that slot as `'
 |------|--------|-------|
 | `head` | Head top (replacing the antenna and its status light), with an optional behind-body drape layer | Hats, novelty objects, hair silhouettes, and costume hoods. The optional behind-body layer renders in front of `back` items and behind the body outline so twin-tails, long hair, and hood collars frame the silhouette without covering moving arms or consuming `back`. |
 | `face` | Brow band, a faceplate over the screen, or a rim site | Brow and rim items never paint on the screen. Rim items mount at one of two rim sites (section 6), combine with every hat, and are exclusive with brow items and faceplates because they share the slot. A faceplate replaces the native face with its own expression layers and stays visible at compact size because it defines the head silhouette. |
-| `hand` | Screen-left hand | Follows the arm and stows for laptop and question-sign work props. |
+| `hand` | Screen-left hand | Follows the arm and stows for laptop and question-sign work props. A conducting item stays in hand while working (section 8.1). |
 | `back` | Behind the body, with an optional front layer under the work props | Wings, capes, packs, ribbons, rings, orbits, and auras. An orbiting body renders its far half behind and its near half in front, switching layer only where it is clear of the robot silhouette. A creature that holds on to the robot draws its gripping parts in the front layer. |
 | `skin` | Body and arm material | Overlay skins keep the palette paint, whereas paint skins replace it. Face marks keep the palette in both kinds. |
 
@@ -147,6 +147,10 @@ External applications extend `@dotcraft/avatar` without forking the package by c
   and the shared SVG authoring primitives (`Silhouette`, `Plane`, `Detail`, `Glow`, `useClipId`, rig
   bounds, and head motion helpers) so external slot components inherit size-tier degradation,
   effect gating, reduced-motion rules, and prop stowing automatically.
+- `<AvatarOutfitProvider pack wear>` dresses every `AppearanceAvatar` below it for one context, such
+  as a role, without changing the stored appearance. Each `wear` item replaces its slot through
+  `equip`, so conflicting slots clear as usual, and the pack joins the avatar's catalog. The palette,
+  the other slots, expressions, and motion stay the appearance's own.
 
 ## 6. Zone Compatibility
 
@@ -235,6 +239,18 @@ items the agent runs, and leaving the pose ends it at once.
   loop is phased so the story takes over on its first frame.
 - A click wave during a turn plays to its last frame, then the avatar returns to the laptop. The
   composer keeps the working pose's host motion for the length of the wave.
+
+A hand item that declares `workStory: "conduct"` stays in hand while working and plays the
+conducting story instead, with no laptop.
+
+- The story opens with both arms down while the antenna glows as if listening, so a short turn
+  shows only that. The holding arm then rises into a four-beat pattern of down, in, out, and up,
+  drawn by the wrist turning the item. A quiet phrase grows into a wider crescendo in which the
+  other arm cues, the item holds high for a fermata, and both arms lower before the loop repeats.
+- Raised arms use the wave's hinge, so the shoulder end stays inside the body. The holding arm stays
+  between 60° and 117° while raised, and an arm rises or lowers within 240 ms.
+- The other working-story rules apply: one continuous seamless timeline, the operator expression,
+  a 160 ms blend on leaving the pose, and no outer host loop.
 
 The package drives the story with the Web Animations API from a single exported timeline and applies
 the avatar's motion-off, reduced-motion, paused, and offscreen rules to it. The design catalog

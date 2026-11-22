@@ -1,4 +1,5 @@
 import type { AppServerRequestClient, DesktopThreadToolSettingsHost, DynamicToolCallResult } from '../desktopRuntimeThreadTools'
+import { isOwnedThreadId } from '../../shared/ownedThreads'
 import { submitThreadMessage } from '../desktopThreadMessageTool'
 import { normalizeWorkspaceProjectKey } from '../../shared/workspaceProjectKey'
 import { desktopIdentity, type ThreadTaskConnection } from './childThreads'
@@ -156,8 +157,10 @@ async function listThreadsTool(
     nextCursor?: string | null
     totalMatched?: number | null
   }>('thread/list', request)
-  const threads = (result.data ?? []).map(summarizeThread)
-  return threadListResult(threads, result.totalMatched ?? threads.length, result.nextCursor ?? null)
+  const data = result.data ?? []
+  const threads = data.filter((thread) => !isOwnedThreadId(thread.id)).map(summarizeThread)
+  const total = (result.totalMatched ?? data.length) - (data.length - threads.length)
+  return threadListResult(threads, total, result.nextCursor ?? null)
 }
 
 function threadListResult(threads: JsonObject[], totalMatched: number, nextCursor: string | null): DynamicToolCallResult {

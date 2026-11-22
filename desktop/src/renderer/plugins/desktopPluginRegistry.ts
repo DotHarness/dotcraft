@@ -11,6 +11,7 @@ import type {
   DesktopPluginMainViewContribution,
   DesktopPluginMessageActionContribution,
   DesktopPluginSettingsPageContribution,
+  DesktopPluginSpaceContribution,
   DesktopPluginSurfaceComponent,
   DesktopPluginSurfaceContextMap,
   DesktopPluginSurfaceWrapper,
@@ -43,6 +44,11 @@ export interface ActiveDesktopPluginMainView extends DesktopPluginMainViewContri
   viewKey: DesktopPluginMainView
 }
 
+export interface ActiveDesktopPluginSpace extends DesktopPluginSpaceContribution, ActiveDesktopPluginContribution {
+  spaceKey: string
+  viewKeys: readonly DesktopPluginMainView[]
+}
+
 export interface ActiveDesktopPluginSettingsPage extends DesktopPluginSettingsPageContribution, ActiveDesktopPluginContribution {
   settingsKey: DesktopPluginSettingsTab
 }
@@ -68,6 +74,7 @@ export interface DesktopPluginGeneration {
   version: string
   revision: string
   mainViews: readonly ActiveDesktopPluginMainView[]
+  spaces: readonly ActiveDesktopPluginSpace[]
   settingsPages: readonly ActiveDesktopPluginSettingsPage[]
   conversationViews: readonly ActiveDesktopPluginConversationView[]
   commands: readonly ActiveDesktopPluginCommand[]
@@ -78,6 +85,7 @@ export interface DesktopPluginGeneration {
 interface DesktopPluginRegistryState {
   generations: ReadonlyMap<string, DesktopPluginGeneration>
   mainViews: readonly ActiveDesktopPluginMainView[]
+  spaces: readonly ActiveDesktopPluginSpace[]
   settingsPages: readonly ActiveDesktopPluginSettingsPage[]
   conversationViews: readonly ActiveDesktopPluginConversationView[]
   commands: readonly ActiveDesktopPluginCommand[]
@@ -234,6 +242,10 @@ export function buildDesktopPluginMainViewKey(pluginId: string, contributionId: 
   return `desktop-plugin:${encodeURIComponent(pluginId)}:${encodeURIComponent(contributionId)}`
 }
 
+export function findDesktopPluginSpaceForView(view: string): ActiveDesktopPluginSpace | null {
+  return useDesktopPluginRegistry.getState().spaces.find((space) => space.viewKeys.includes(view as DesktopPluginMainView)) ?? null
+}
+
 export function buildDesktopPluginSettingsKey(pluginId: string, contributionId: string): DesktopPluginSettingsTab {
   return `desktop-plugin-settings:${encodeURIComponent(pluginId)}:${encodeURIComponent(contributionId)}`
 }
@@ -332,6 +344,7 @@ function registryState(
   return {
     generations,
     mainViews: values.flatMap((generation) => generation.mainViews).sort(compareContribution),
+    spaces: values.flatMap((generation) => generation.spaces).sort(compareContribution),
     settingsPages: values.flatMap((generation) => generation.settingsPages).sort(compareContribution),
     conversationViews,
     commands: values.flatMap((generation) => generation.commands).sort(compareContribution),

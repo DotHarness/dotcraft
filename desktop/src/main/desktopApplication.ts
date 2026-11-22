@@ -39,6 +39,8 @@ import { createWindowAttentionNotifier } from './windowAttentionNotifier'
 import type { DesktopWindowRuntime } from './windows/windowRuntime'
 import { applyNativeChromeTheme, resolveInitialTheme, resolveThemeSurface } from './windowTheme'
 import { DesktopLinkedChats } from './threadTasks/linkedChats'
+import { DesktopOwnedThreads } from './threadTasks/ownedThreads'
+import { LINKED_CHATS_CHANGED_CHANNEL, OWNED_THREADS_CHANGED_CHANNEL, setOwnedThreadIds } from '../shared/ownedThreads'
 import { hasRemoteEndpointArg, NO_WORKSPACE_ARG } from './workspaceArgs'
 
 const WINDOW_CONNECTION_SETTINGS = new Set<keyof AppSettings>([
@@ -72,7 +74,7 @@ export class DesktopApplication implements DesktopApplicationServices {
       for (const window of this.windows.values()) {
         if (!window.runtimeIsStopping()) window.scheduleSecondaryWorkspaceRefresh()
       }
-    }),
+    }, () => this.broadcast(LINKED_CHATS_CHANGED_CHANNEL, null)),
     filePath: join(app.getPath('userData'), 'thread-tasks.json'),
     getNewTaskPrompt: () => normalizeNewTaskPromptMode(this.settings.newTaskPrompt),
     notifyOffer: (task, ownerId) => {
@@ -81,6 +83,10 @@ export class DesktopApplication implements DesktopApplicationServices {
     notifyWrapUpQuestion: (threadId, turnId, callId, ownerId) => {
       if (ownerId !== undefined) this.windows.get(ownerId)?.notifyWrapUpQuestion(threadId, turnId, callId)
     }
+  })
+  readonly ownedThreads = new DesktopOwnedThreads(join(app.getPath('userData'), 'owned-threads.json'), (records) => {
+    setOwnedThreadIds(records.map((record) => record.threadId))
+    this.broadcast(OWNED_THREADS_CHANGED_CHANNEL, records)
   })
   private readonly hubs = new Map<string, DesktopHubClient>()
   private readonly catalog = new WhatsNewCatalog()
@@ -92,6 +98,7 @@ export class DesktopApplication implements DesktopApplicationServices {
   private disposing: Promise<void> | null = null
 
   constructor() {
+    setOwnedThreadIds(this.ownedThreads.list().map((record) => record.threadId))
     browserUseManager.setPolicyHost({
       getSettings: () => this.settings,
       updateSettings: this.updateSharedSettings

@@ -8,6 +8,7 @@ import type {
   ReactNode,
   TextareaHTMLAttributes,
 } from "react";
+import type { AvatarComponentPack, AvatarOutfitWear } from "@dotcraft/avatar/react";
 import type { DesktopPluginSurfaceContext } from "./contracts.js";
 
 export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "accent" | "outline";
@@ -352,6 +353,20 @@ export interface SummaryRowProps {
   readonly onClick?: () => void;
 }
 
+export interface MascotOutfitProps {
+  readonly pack: AvatarComponentPack;
+  readonly wear: AvatarOutfitWear;
+  readonly children: ReactNode;
+}
+
+export interface SidebarRowProps {
+  readonly icon: ReactNode;
+  readonly label: string;
+  readonly active?: boolean;
+  readonly threadId?: string;
+  readonly onClick: () => void;
+}
+
 export interface PluginSurfaceProps<Surface extends string = string> {
   readonly name: Surface;
   readonly context: DesktopPluginSurfaceContext<Surface>;
@@ -426,4 +441,6 @@ export interface DesktopPluginUiComponents {
   readonly CatalogSection: ComponentType<CatalogSectionProps>;
   readonly SummarySection: ComponentType<SummarySectionProps>;
   readonly SummaryRow: ComponentType<SummaryRowProps>;
+  readonly SidebarRow: ComponentType<SidebarRowProps>;
+  readonly MascotOutfit: ComponentType<MascotOutfitProps>;
 }

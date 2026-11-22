@@ -80,7 +80,7 @@ npm install
 npm run build
 ```
 
-构建脚本先做 TypeScript 类型检查，再运行 `dotcraft-plugin build`，把 `src/index.tsx`、导入的 CSS、chunk 与 asset 打包进 `dist/`，并把 React 与共享组件接到 Desktop 自己的 React runtime 上。
+构建脚本先做 TypeScript 类型检查，再运行 `dotcraft-plugin build`，把 `src/index.tsx`、导入的 CSS、chunk 与 asset 打包进 `dist/`，并把 React 与共享组件接到 Desktop 自己的 React runtime 上。在导入路径后加上 `?raw`，例如 `import instructions from "./instructions.md?raw"`，即可把文件的文本作为字符串打包进来。
 
 请在 DotCraft 发现插件或打包插件之前完成构建。刷新插件列表，然后启用插件。源码变更后重新构建，再刷新或重新启用插件。
 

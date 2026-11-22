@@ -346,6 +346,47 @@ export interface DesktopPluginSubAgents {
   reveal(parentThreadId: string, childThreadId: string): void;
 }
 
+export interface DesktopPluginOwnedThreadConfig {
+  readonly developerInstructions: string;
+  readonly approvalPolicy?: "prompt" | "autoApprove";
+}
+
+export interface DesktopPluginOwnedThreadRequest {
+  readonly key: string;
+  readonly space?: string;
+  readonly title: string;
+  readonly config: DesktopPluginOwnedThreadConfig;
+}
+
+export interface DesktopPluginOwnedThread {
+  readonly threadId: string;
+  readonly workspacePath: string;
+}
+
+export type DesktopPluginLinkedChatState = "idle" | "working" | "waiting" | "done" | "failed" | "stopped";
+
+export interface DesktopPluginLinkedChat {
+  readonly threadId: string;
+  readonly projectId: string;
+  readonly projectName: string;
+  readonly workspacePath: string;
+  readonly title: string;
+  readonly state: DesktopPluginLinkedChatState;
+  readonly createdAt: string;
+}
+
+export interface DesktopPluginThreads {
+  /** Returns the plugin's thread for the key, creating it in the default Chat workspace the first time. */
+  ensureOwned(request: DesktopPluginOwnedThreadRequest): Promise<DesktopPluginOwnedThread>;
+  findOwned(key: string): DesktopPluginOwnedThread | null;
+  linked(parentThreadId: string): Promise<readonly DesktopPluginLinkedChat[]>;
+  /** Notifies with the complete list when a linked chat is added, removed, renamed, or changes state, and never fires on subscribe. */
+  onLinkedChange(
+    parentThreadId: string,
+    listener: (chats: readonly DesktopPluginLinkedChat[]) => void,
+  ): DesktopPluginDispose;
+}
+
 export type DesktopPluginProjectActionIcon = "tool" | "run" | "debug" | "test";
 
 export interface DesktopPluginProjectAction {
@@ -640,6 +681,7 @@ export interface DesktopPluginHost {
   readonly appearance: DesktopPluginAppearance;
   readonly session: DesktopPluginSession;
   readonly subagents: DesktopPluginSubAgents;
+  readonly threads: DesktopPluginThreads;
   readonly projectActions: DesktopPluginProjectActions;
   effect(setup: DesktopPluginEffectSetup): DesktopPluginDispose;
   readonly services: DesktopPluginServices;
@@ -774,8 +816,29 @@ export interface DesktopPluginMessageActionContribution {
   ) => void | Promise<void>;
 }
 
+export type DesktopPluginSpaceLocation =
+  | { readonly kind: "view"; readonly viewId: string }
+  | { readonly kind: "thread"; readonly threadId: string };
+
+export interface DesktopPluginSpaceSidebarProps extends DesktopPluginViewProps {
+  readonly location: DesktopPluginSpaceLocation;
+}
+
+export interface DesktopPluginSpaceContribution {
+  readonly id: string;
+  readonly label: DesktopLocalizedText;
+  readonly icon?: DesktopPluginContributionIcon;
+  readonly order?: number;
+  /** Ids of this plugin's main views that are reached only through the space. */
+  readonly views: readonly string[];
+  readonly sidebar: ComponentType<DesktopPluginSpaceSidebarProps>;
+  /** Called when the entry is selected and no location in the space was open before. */
+  open(host: DesktopPluginHost): void | Promise<void>;
+}
+
 export interface DesktopPluginActivation {
   readonly mainViews?: readonly DesktopPluginMainViewContribution[];
+  readonly spaces?: readonly DesktopPluginSpaceContribution[];
   readonly settingsPages?: readonly DesktopPluginSettingsPageContribution[];
   readonly conversationViews?: readonly DesktopPluginConversationViewContribution[];
   readonly commands?: readonly DesktopPluginCommandContribution[];

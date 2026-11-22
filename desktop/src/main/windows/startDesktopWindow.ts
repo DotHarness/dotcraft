@@ -21,6 +21,7 @@ import { registerThemeIpc } from '../themes/themeIpc'
 import { installThemeNavigationGuard } from '../themes/themeNavigation'
 import { hasRemoteEndpointArg, NO_WORKSPACE_ARG, resolveStartupWorkspacePath } from '../workspaceArgs'
 import { createWindowRuntime, type DesktopWindowRuntime } from './windowRuntime'
+import { ensureOwnedThread } from '../threadTasks/ownedThreadsWindow'
 import { remoteViewerFilesFor } from '../remoteViewerFiles'
 
 export function startDesktopWindow(
@@ -86,6 +87,8 @@ export function startDesktopWindow(
   registerThreadTasksIpc(
     {
       tasks: application.tasks,
+      ownedThreads: application.ownedThreads,
+      ensureOwnedThread: (request) => ensureOwnedThread(ctx, application.ownedThreads, request),
       getConnection: (threadId) => {
         const entry = threadId
           ? [...ctx.workspaceConnections.values()].find(
