@@ -130,6 +130,11 @@ export interface DesktopPluginThreadSurfaceContext {
   readonly busy: boolean;
 }
 
+export interface DesktopPluginEmptyConversationContext extends DesktopPluginThreadSurfaceContext {
+  /** Hides the thread header and Composer until disposed, so the contribution has the whole conversation panel. */
+  cover(): DesktopPluginDispose;
+}
+
 export type DesktopPluginConversationAsideLayout = "gutter" | "shift" | "overlay";
 
 export interface DesktopPluginConversationAsideContext extends DesktopPluginThreadSurfaceContext {
@@ -232,7 +237,7 @@ export interface DesktopPluginSurfaceContextMap {
   readonly "conversation.aside.trailing": DesktopPluginConversationAsideContext;
   readonly "summary.sources": DesktopPluginThreadSurfaceContext;
   readonly "summary.sections": DesktopPluginThreadSurfaceContext;
-  readonly "conversation.empty": DesktopPluginThreadSurfaceContext;
+  readonly "conversation.empty": DesktopPluginEmptyConversationContext;
   readonly "conversation.turn.status": DesktopPluginTurnStatusContext;
   readonly "settings.general": DesktopPluginSettingsSectionContext;
   readonly "settings.import": DesktopPluginSettingsSectionContext;

@@ -14,8 +14,6 @@ const SCALE = 0.9
 const TIP = { x: 0.007, y: 0.39 }
 const RISE_OFFSET = 10
 
-const dismissed = new Set<string>()
-
 interface Geometry {
   width: number
   height: number
@@ -55,12 +53,16 @@ function Trace({ geometry }: { geometry: Geometry }): JSX.Element {
 
 export function ConductorIntro({ host, context }: DesktopPluginSurfaceProps<'conversation.empty'>): JSX.Element | null {
   const { t } = useOratorioI18n()
-  const conductor = context.threadId === findConductor(host)?.threadId
-  const [open, setOpen] = useState(() => conductor && !dismissed.has(context.threadId))
+  const [starting, setStarting] = useState(false)
+  const [failed, setFailed] = useState(false)
+  const open = !failed && context.threadId === findConductor(host)?.threadId
   const rootRef = useRef<HTMLDivElement>(null)
   const mascotRef = useRef<HTMLSpanElement>(null)
   const [geometry, setGeometry] = useState<Geometry | null>(null)
   const [greeting, setGreeting] = useState(false)
+  const { cover, threadId } = context
+
+  useLayoutEffect(() => (open ? cover() : undefined), [open, cover])
 
   useLayoutEffect(() => {
     const root = rootRef.current?.getBoundingClientRect()
@@ -94,7 +96,13 @@ export function ConductorIntro({ host, context }: DesktopPluginSurfaceProps<'con
         </div>
         <h2 className="ora-intro__title">{t('introTitle')}</h2>
         <p className="ora-intro__description">{t('introDescription')}</p>
-        <button type="button" className="ora-intro__continue" onClick={() => { dismissed.add(context.threadId); setOpen(false) }}>
+        <button type="button" className="ora-intro__continue" disabled={starting} onClick={() => {
+          setStarting(true)
+          host.appServer.request('turn/start', { threadId, input: [] }).catch((error: unknown) => {
+            setFailed(true)
+            host.ui.showToast({ message: error instanceof Error ? error.message : String(error), tone: 'error' })
+          })
+        }}>
           {t('introContinue')}
         </button>
       </div>

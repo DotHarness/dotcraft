@@ -97,6 +97,7 @@ export type {
   DesktopPluginToolPresentationModel,
   DesktopPluginToolRendererContribution,
   DesktopPluginToolRendererProps,
+  DesktopPluginEmptyConversationContext,
   DesktopPluginThreadSurfaceContext,
   DesktopPluginToastOptions,
   DesktopPluginPlanTodo,

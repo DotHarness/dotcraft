@@ -1,5 +1,10 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
-import type { DesktopPluginComposerSurfaceContext, DesktopPluginThreadSurfaceContext } from '@dotcraft/plugin'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import type {
+  DesktopPluginComposerSurfaceContext,
+  DesktopPluginDispose,
+  DesktopPluginEmptyConversationContext,
+  DesktopPluginThreadSurfaceContext
+} from '@dotcraft/plugin'
 import { useT } from '../../contexts/LocaleContext'
 import { useThreadStore } from '../../stores/threadStore'
 import { selectLatestCreatePlanTurnId, useConversationStore, type PendingApproval } from '../../stores/conversationStore'
@@ -196,6 +201,16 @@ export function ConversationPanel({
   const waitForThread = useCallback((): void => {
     throw new Error(t('conversation.loadingThread'))
   }, [t])
+  const [covers, setCovers] = useState(0)
+  const cover = useCallback((): DesktopPluginDispose => {
+    let held = true
+    setCovers((count) => count + 1)
+    return () => {
+      if (!held) return
+      held = false
+      setCovers((count) => count - 1)
+    }
+  }, [])
 
   if (!creating && activeThreadId && activeThreadLoadError?.threadId === activeThreadId) {
     return (
@@ -261,9 +276,11 @@ export function ConversationPanel({
           busy: desktopPluginSurfaceContext.busy
         }
 
+  const covered = covers > 0 && !hasContent
+
   return (
     <ConversationAsideProvider thread={threadSurfaceContext} style={panelStyle}>
-      {!isAgentBuilder && (
+      {!isAgentBuilder && !covered && (
         <ThreadHeader
           threadName={threadName}
           threadId={thread.id}
@@ -315,7 +332,7 @@ export function ConversationPanel({
         </div>
       )}
 
-      {!isAgentBuilder && <DesktopPluginConversationTabs threadId={thread.id} />}
+      {!isAgentBuilder && !covered && <DesktopPluginConversationTabs threadId={thread.id} />}
 
       {selectedConversationView ? (
         <DesktopPluginConversationViewOutlet
@@ -345,10 +362,10 @@ export function ConversationPanel({
           }}
         />
       ) : (
-        <EmptyConversation context={threadSurfaceContext} />
+        <EmptyConversation context={threadSurfaceContext} cover={cover} />
       )}
 
-      {!restoring && composerApproval ? (
+      {covered ? null : !restoring && composerApproval ? (
         <DesktopPluginSurface name="composer" context={desktopPluginSurfaceContext}>
           <ApprovalDecisionComposer
             key={approvalComposerKey(composerApproval)}
@@ -437,11 +454,21 @@ const loadErrorDetailStyle: CSSProperties = {
   overflowWrap: 'anywhere'
 }
 
-function EmptyConversation({ context }: { context: DesktopPluginThreadSurfaceContext | null }): JSX.Element {
+function EmptyConversation({ context, cover }: {
+  context: DesktopPluginThreadSurfaceContext | null
+  cover: () => DesktopPluginDispose
+}): JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
+  const workspacePath = context?.workspacePath ?? null
+  const threadId = context?.threadId
+  const busy = context?.busy ?? false
+  const emptyContext = useMemo<DesktopPluginEmptyConversationContext | null>(
+    () => threadId ? { workspacePath, threadId, busy, cover } : null,
+    [workspacePath, threadId, busy, cover]
+  )
   return (
     <div ref={ref} style={emptyConversationStyle}>
-      {context && <DesktopPluginSurface name="conversation.empty" context={context} />}
+      {emptyContext && <DesktopPluginSurface name="conversation.empty" context={emptyContext} />}
       <ConversationAsides scrollRef={ref} />
     </div>
   )

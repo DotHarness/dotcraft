@@ -124,7 +124,7 @@ DotCraft's formal surfaces cover the application, the Composer, and the active c
 | **`conversation.turn.status`** | A seat inside the last visible turn: above the reply's actions once the turn has a reply, otherwise directly above its working line. |
 | **`summary.sources`** | Rows in a thread's Summary Sources section, after its own sources. |
 | **`summary.sections`** | Sections inside a thread's Summary, after its sources and before its context and environment. |
-| **`conversation.empty`** | The conversation area of a thread that has no messages yet. |
+| **`conversation.empty`** | The conversation area of a thread that has no messages yet. Its context's `cover()` hides the thread header and Composer until you call the dispose it returns. |
 | **`settings.<section>`** | Built-in Settings sections (`general`, `import`, `profile`, `appearance`, `archived-threads`, `voice`, `personalization`, `pet`, `usage`, `model-providers`, `browser`, `computer-use`, `connections`, `mcp`, `hooks`, `source-control`, `worktrees`). Context carries `{ section, title }`. |
 
 Target these Core controls when a region is too broad:

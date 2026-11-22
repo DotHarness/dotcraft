@@ -3,6 +3,7 @@ import type { DesktopPluginHost } from '@dotcraft/plugin'
 import { validateActivation } from '../plugins/desktopPluginValidation'
 import { publishDesktopPluginGeneration, withdrawDesktopPluginGeneration } from '../plugins/desktopPluginRegistry'
 import { useOwnedThreadsStore } from '../stores/ownedThreadsStore'
+import { beginPendingThreadArchive, endPendingThreadArchive } from '../stores/pendingThreadArchives'
 import { leaveSpace, resolveActiveSpace, startSpaceTracking, useSpaceStore } from '../stores/spaceStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
@@ -83,5 +84,23 @@ describe('Desktop extension spaces', () => {
     stop()
 
     expect(useSpaceStore.getState().returnTo).toEqual(target)
+  })
+
+  it('goes back to where the space was entered from when its thread is archived', async () => {
+    publishDesktopPluginGeneration(validateActivation('oratorio', '1.0.0', 'r1', host, activation(['board'])))
+    useOwnedThreadsStore.getState().setRecords([RECORD])
+    useUIStore.getState().setActiveMainView('conversation')
+    useThreadStore.getState().setActiveThreadId(RECORD.threadId)
+    const stop = startSpaceTracking()
+    useSpaceStore.setState({ returnTo: { projectKey: null, location: { kind: 'agents' } } })
+
+    const projectKey = useThreadStore.getState().threadListProjectKey
+    beginPendingThreadArchive(projectKey ?? '', RECORD.threadId, new Set([RECORD.threadId]))
+    useThreadStore.getState().setActiveThreadId(null)
+    await Promise.resolve()
+    stop()
+    endPendingThreadArchive(projectKey ?? '', RECORD.threadId)
+
+    expect(useUIStore.getState().activeMainView).toBe('agents')
   })
 })

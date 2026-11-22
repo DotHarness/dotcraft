@@ -217,7 +217,7 @@ The Core surfaces are:
 | `conversation.aside.trailing` | A seat beside the trailing edge of the conversation reading column, for panels that accompany the conversation. Core supplies the pinned Summary card. |
 | `summary.sources` | Additive rows inside a thread's Summary Sources section, after Core's sources. Empty by default. |
 | `summary.sections` | Additive sections inside a thread's Summary, after its sources and before its context and environment sections. Empty by default. |
-| `conversation.empty` | The conversation area of an open thread that has no messages yet, behind the Composer. Empty by default. Receives the thread surface context. |
+| `conversation.empty` | The conversation area of an open thread that has no messages yet, behind the Composer. Empty by default. Receives the thread surface context and `cover()`, which hides the thread header and Composer until its returned dispose runs, so the contribution has the whole conversation panel. |
 | `conversation.turn.status` | A seat inside the last visible turn, for status that belongs to the conversation's current work: above the reply's actions once the turn has a reply, otherwise directly above its working line. Empty by default. |
 | `settings.<section>` | Each built-in Settings section (`general`, `import`, `profile`, `appearance`, `archived-threads`, `voice`, `personalization`, `pet`, `usage`, `model-providers`, `browser`, `computer-use`, `connections`, `mcp`, `hooks`, `source-control`, `worktrees`). Additions append groups with the Settings section spacing, and wrappers can swap in a Settings subpage using the context `{ section, title }`. |
 
@@ -361,7 +361,7 @@ interface DesktopPluginSpaceSidebarProps extends DesktopPluginViewProps {
 - A space's entry is a sidebar destination like a plugin main view, ordered with them by `order`. It is pinned by default, and the person can unpin it to More and pin it again. Selecting the entry returns to the view last open in the space. Otherwise it calls `open`, which navigates with the ordinary Host operations, so a plugin reaching an owned thread confirms it through `threads.ensureOwned` each time.
 - A main view named in a space is reached only through it: it is not a sidebar destination, a More item, or a pin, and `openMainView` on it opens the space.
 - While the active location belongs to a space, the Host replaces the sidebar with a Back row followed by the contribution's `sidebar`. The Host owns the frame, the Back row, and the sidebar's width and collapse. The contribution renders its rows with `SidebarRow`.
-- On entering a space, the Host records the location it left, including its workspace. Back returns there, switching workspace when an owned thread's workspace replaced it. Moving between the space's own locations keeps the record, including while a workspace switch is in progress. Opening a location outside the space leaves the space without returning, and the record is dropped.
+- On entering a space, the Host records the location it left, including its workspace. Back returns there, switching workspace when an owned thread's workspace replaced it. Moving between the space's own locations keeps the record, including while a workspace switch is in progress. Opening a location outside the space leaves the space without returning, and the record is dropped. Archiving the open owned thread leaves the space as Back does.
 
 ## Runtime lifecycle
 

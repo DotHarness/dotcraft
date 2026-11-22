@@ -8,7 +8,9 @@ import {
   useDesktopPluginRegistry,
   type ActiveDesktopPluginSpace
 } from '../plugins/desktopPluginRegistry'
+import { isPendingThreadArchive } from './pendingThreadArchives'
 import { addToast } from './toastStore'
+import { useConnectionStore } from './connectionStore'
 import {
   captureAppNavigationLocation,
   returnToAppNavigationLocation,
@@ -138,6 +140,11 @@ export async function leaveSpace(): Promise<void> {
   if (currentActiveSpace()) openNewChat()
 }
 
+function archiving(threadId: string): boolean {
+  const projectKey = useThreadStore.getState().threadListProjectKey ?? useConnectionStore.getState().connectionKey
+  return isPendingThreadArchive(projectKey, threadId)
+}
+
 export function startSpaceTracking(): () => void {
   let previous: ActiveSpace | null = currentActiveSpace()
   const update = (): void => {
@@ -145,7 +152,9 @@ export function startSpaceTracking(): () => void {
     const state = useSpaceStore.getState()
     if (!active && useUIStore.getState().pendingProjectThreadOpen) return
     if (!active) {
-      if (previous) {
+      if (previous?.location.kind === 'thread' && archiving(previous.location.threadId)) {
+        void leaveSpace()
+      } else if (previous) {
         if (state.returnTo) useSpaceStore.setState({ returnTo: null })
       } else if (!state.entering) {
         const outside = captureOutside()

@@ -11,6 +11,7 @@
 .ora-intro__title { margin: 12px 0 0; color: var(--text-primary); font-size: 22px; font-weight: var(--type-heading-weight); line-height: 28px; animation: ora-intro-rise 600ms var(--ease-standard) 3300ms both; }
 .ora-intro__description { margin: 0; color: var(--text-secondary); font-size: var(--type-ui-size); line-height: var(--type-ui-line-height); animation: ora-intro-rise 600ms var(--ease-standard) 3450ms both; }
 .ora-intro__continue { width: 320px; margin-top: 16px; padding: 9px 16px; border: 0; border-radius: 999px; color: var(--bg-primary); background: var(--text-primary); font: inherit; font-size: var(--type-ui-size); font-weight: var(--type-ui-emphasis-weight); cursor: pointer; animation: ora-intro-rise 600ms var(--ease-standard) 3600ms both; }
+.ora-intro__continue:disabled { cursor: progress; }
 @keyframes ora-intro-draw { to { stroke-dashoffset: 0; } }
 @keyframes ora-intro-trace { from { offset-distance: 0%; opacity: 1; } to { offset-distance: 100%; opacity: 1; } }
 @keyframes ora-intro-fade { to { opacity: 0; } }
