@@ -60,7 +60,7 @@ internal sealed class ThreadManager : IAsyncDisposable
     private readonly ConcurrentDictionary<string, ThreadRuntime> _runtimes = new(StringComparer.Ordinal);
     private readonly Lock _registrationLock = new();
     private readonly ConcurrentDictionary<string, ThreadEventBroker> _brokers = new(StringComparer.Ordinal);
-    private readonly ConcurrentDictionary<string, byte> _pendingPermanentDeletion = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, PermanentDeletion> _permanentDeletions = new(StringComparer.Ordinal);
 
     public int Count => _runtimes.Count;
 
@@ -120,16 +120,33 @@ internal sealed class ThreadManager : IAsyncDisposable
         if (_brokers.TryRemove(threadId, out var broker)) broker.Close();
     }
 
-    public void MarkPendingPermanentDeletion(string threadId) =>
-        _pendingPermanentDeletion[threadId] = 0;
-
-    public void ClearPendingPermanentDeletion(string threadId)
+    public PermanentDeletion MarkPendingPermanentDeletion(string threadId)
     {
-        _pendingPermanentDeletion.TryRemove(threadId, out _);
+        var deletion = new PermanentDeletion();
+        _permanentDeletions[threadId] = deletion;
+        return deletion;
     }
 
+    public void ClearPendingPermanentDeletion(string threadId) =>
+        _permanentDeletions.TryRemove(threadId, out _);
+
+    public void ClearPendingPermanentDeletion(string threadId, PermanentDeletion deletion) =>
+        _permanentDeletions.TryRemove(new KeyValuePair<string, PermanentDeletion>(threadId, deletion));
+
+    public PermanentDeletion? GetPermanentDeletion(string threadId) =>
+        _permanentDeletions.GetValueOrDefault(threadId);
+
     public bool IsPendingPermanentDeletion(string threadId) =>
-        _pendingPermanentDeletion.ContainsKey(threadId);
+        _permanentDeletions.ContainsKey(threadId);
+
+    public sealed class PermanentDeletion
+    {
+        private volatile bool _completed;
+
+        public bool IsCompleted => _completed;
+
+        public void Complete() => _completed = true;
+    }
 }
 
 internal sealed class ThreadRuntime(SessionThread thread, ThreadEventBroker broker) : IAsyncDisposable

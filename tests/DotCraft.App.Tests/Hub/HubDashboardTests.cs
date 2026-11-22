@@ -180,6 +180,93 @@ public sealed class HubDashboardTests : IDisposable
         }
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task DeleteAllSessions_DeletesOverlappingThreadTargetsRegardlessOfTraceOrder(bool parentFirst)
+    {
+        const string parent = "thread_parent";
+        const string child = "thread_child";
+        const string unrelated = "thread_unrelated";
+        const string withoutTrace = "thread_without_trace";
+
+        var workspace = CreateWorkspace("sessions", "sessions-pass", SatelliteHubFixture.GetAvailablePort());
+        var data = Path.Combine(workspace, ".craft");
+        string[] traceOrder = parentFirst ? [parent, child, unrelated] : [child, parent, unrelated];
+        await using (var store = new ThreadStore(data))
+        {
+            var traces = new TraceStore(store.StateDatabase, 5000, synchronousPersist: true);
+            var now = DateTimeOffset.UtcNow;
+            for (var i = 0; i < traceOrder.Length; i++)
+            {
+                var id = traceOrder[i];
+                await store.SaveThreadAsync(new SessionThread
+                {
+                    Id = id,
+                    WorkspacePath = workspace,
+                    Source = id == child
+                        ? ThreadSource.ForSubAgent(new SubAgentThreadSource { ParentThreadId = parent, RootThreadId = parent, Depth = 1 })
+                        : ThreadSource.User()
+                });
+                traces.BindThreadMainSession(id);
+                traces.Record(new TraceEvent { SessionKey = id, Type = TraceEventType.Request, Timestamp = now.AddMinutes(-i) });
+            }
+
+            await store.UpsertThreadSpawnEdgeAsync(new ThreadSpawnEdge
+            {
+                ParentThreadId = parent,
+                ChildThreadId = child,
+                Status = ThreadSpawnEdgeStatus.Closed,
+                Depth = 1
+            });
+            await store.SaveThreadAsync(new SessionThread { Id = withoutTrace, WorkspacePath = workspace });
+        }
+
+        var paths = HubPaths.Resolve(_profile);
+        using var ct = new CancellationTokenSource(TimeSpan.FromSeconds(75));
+        await using var host = new HubHost(new HubConfig { Port = 0 }, paths, typeof(HubHost).Assembly.Location);
+        var running = host.RunAsync(ct.Token);
+        var hub = await HubTestStartup.WaitForReadyAsync(paths.LockFilePath, running, ct.Token);
+        using var http = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
+        {
+            BaseAddress = new Uri(hub.ApiBaseUrl)
+        };
+        using var ensure = new HttpRequestMessage(HttpMethod.Post, "/v1/appservers/ensure")
+        {
+            Content = JsonContent.Create(new { workspacePath = workspace, startIfMissing = true })
+        };
+        ensure.Headers.Authorization = new AuthenticationHeaderValue("Bearer", hub.Token);
+        using var ensured = await http.SendAsync(ensure, ct.Token);
+        var content = await ensured.Content.ReadAsStringAsync(ct.Token);
+        Assert.True(ensured.IsSuccessStatusCode, content);
+        var page = new Uri(JsonNode.Parse(content)!["endpoints"]!["dashboard"]!.GetValue<string>());
+        using (var login = await http.PostAsJsonAsync(new Uri(page, "login"),
+            new { username = "operator", password = "sessions-pass" }, ct.Token))
+            login.EnsureSuccessStatusCode();
+
+        var sessions = new Uri(page, "api/sessions");
+        var before = await http.GetFromJsonAsync<JsonArray>(sessions, ct.Token);
+        Assert.NotNull(before);
+        Assert.Equal(traceOrder, before.Select(item => item!["sessionKey"]!.GetValue<string>()));
+        var childSession = Assert.Single(before, item => item!["sessionKey"]!.GetValue<string>() == child)!;
+        Assert.Equal(child, childSession["rootThreadId"]!.GetValue<string>());
+
+        using (var cleared = await http.DeleteAsync(sessions, ct.Token))
+            Assert.True(cleared.IsSuccessStatusCode, await cleared.Content.ReadAsStringAsync(ct.Token));
+
+        Assert.All(traceOrder, id => Assert.False(File.Exists(RolloutPath(id))));
+        Assert.Empty((await http.GetFromJsonAsync<JsonArray>(sessions, ct.Token))!);
+        using (var repeated = await http.DeleteAsync(sessions, ct.Token))
+            Assert.True(repeated.IsSuccessStatusCode, await repeated.Content.ReadAsStringAsync(ct.Token));
+
+        Assert.True(File.Exists(RolloutPath(withoutTrace)));
+        using (var missing = await http.DeleteAsync(new Uri(page, $"api/sessions/{withoutTrace}"), ct.Token))
+            Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
+        Assert.True(File.Exists(RolloutPath(withoutTrace)));
+
+        string RolloutPath(string id) => Path.Combine(data, "threads", "active", $"{id}.jsonl");
+    }
+
     [Fact]
     public async Task WorkspaceList_DisambiguatesDuplicateNamesWithRelativePathSuffixes()
     {

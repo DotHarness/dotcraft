@@ -116,11 +116,27 @@ public sealed class ThreadRecoveryTests : IAsyncLifetime
             Assert.Equal(JsonValueKind.Object, snapshot.RootElement.ValueKind);
         }
 
-        await service.DeleteThreadPermanentlyAsync(thread.Id);
-        Assert.Null(await Store.LoadThreadAsync(thread.Id));
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var finishDeletion = new ManualResetEventSlim();
+        var deletionBroadcast = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        service.ThreadDeletedForBroadcast = _ =>
+        {
+            deletionBroadcast.SetResult();
+            finishDeletion.Wait(timeout.Token);
+        };
+        var deletion = Task.Run(() => service.DeleteThreadPermanentlyAsync(thread.Id, timeout.Token));
+        try
+        {
+            await deletionBroadcast.Task.WaitAsync(timeout.Token);
+            Assert.Null(await Store.LoadThreadAsync(thread.Id, timeout.Token));
+            Assert.Equal(thread.Id, await service.RestoreThreadRecoveryAsync(package.PackagePath, thread.Id, timeout.Token));
+        }
+        finally
+        {
+            finishDeletion.Set();
+            await deletion;
+        }
 
-        var restoredId = await service.RestoreThreadRecoveryAsync(package.PackagePath, thread.Id);
-        Assert.Equal(thread.Id, restoredId);
         var restored = (await Store.LoadThreadAsync(thread.Id))!;
         Assert.Single(restored.Turns);
         Assert.Equal(terminalTurn.Id, restored.Turns[0].Id);

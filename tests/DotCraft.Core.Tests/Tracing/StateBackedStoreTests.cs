@@ -708,7 +708,7 @@ public sealed class StateBackedStoreTests : IDisposable
     }
 
     [Fact]
-    public async Task ThreadTraceDeletionService_DeleteTraceSessionsAsync_RemovesThreadsAndTraces()
+    public async Task ThreadTraceDeletionService_DeleteAllTraceSessionsAsync_RemovesThreadsAndTraces()
     {
         var threadStore = new ThreadStore(_craftPath, _stateRuntime);
         var traceStore = new TraceStore(_stateRuntime, 5000);
@@ -730,7 +730,7 @@ public sealed class StateBackedStoreTests : IDisposable
         });
         traceStore.WaitForPendingPersistence();
 
-        await persistence.DeleteTraceSessionsAsync([thread.Id, "standalone:trace"]);
+        await persistence.DeleteAllTraceSessionsAsync();
         var compacted = persistence.CompactStateIfWorthwhile(force: true);
 
         Assert.True(compacted);

@@ -248,7 +248,7 @@ public static class DashBoardMiddleware
 
             var deleted = traceStore.ClearSession(sessionKey);
 
-            if (capturedHandler != null)
+            if (deleted && capturedHandler != null)
             {
                 try
                 {
@@ -273,15 +273,14 @@ public static class DashBoardMiddleware
         {
             // Align with on-disk state when the dashboard process is not the trace producer (e.g. CLI + AppServer subprocess).
             RefreshTraceFromDiskIfEnabled();
-            // Capture keys before clearing so we can delete the underlying threads.
-            var sessionKeys = traceStore.GetSessions().Select(s => s.SessionKey).ToList();
             if (persistence != null)
             {
-                await persistence.DeleteTraceSessionsAsync(sessionKeys, deleteThreadAsync, http.RequestAborted);
+                await persistence.DeleteAllTraceSessionsAsync(deleteThreadAsync, http.RequestAborted);
                 persistence.CompactStateIfWorthwhile();
                 return Results.Json(new { cleared = true }, JsonOptions);
             }
 
+            var sessionKeys = traceStore.GetSessions().Select(s => s.SessionKey).ToList();
             traceStore.ClearAll();
 
             if (capturedHandler != null)

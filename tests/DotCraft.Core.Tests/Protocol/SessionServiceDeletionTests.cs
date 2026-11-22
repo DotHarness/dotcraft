@@ -6,6 +6,7 @@ using DotCraft.Sessions;
 using DotCraft.Skills;
 using DotCraft.Tests.Tools;
 using DotCraft.Tools.BackgroundTerminals;
+using DotCraft.Tracing;
 using Xunit;
 
 namespace DotCraft.Tests.Sessions.Protocol;
@@ -50,6 +51,7 @@ public sealed class SessionServiceDeletionTests : IDisposable
             Assert.Null(service.TryGetLoadedThread("child"));
             await Assert.ThrowsAsync<InvalidOperationException>(() => service.ResumeThreadAsync("root").WaitAsync(timeout));
             await Assert.ThrowsAsync<InvalidOperationException>(() => service.ResumeThreadAsync("child").WaitAsync(timeout));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => service.DeleteThreadPermanentlyAsync("root").WaitAsync(timeout));
         }
         finally
         {
@@ -65,6 +67,7 @@ public sealed class SessionServiceDeletionTests : IDisposable
         Assert.Equal(["child", "root"], deleted);
         Assert.False(store.ThreadExists("root"));
         Assert.False(store.ThreadExists("child"));
+        await Assert.ThrowsAsync<ThreadNotFoundException>(() => service.DeleteThreadPermanentlyAsync("root").WaitAsync(timeout));
         Assert.Empty(await service.ListSubAgentChildrenAsync("root", includeClosed: true));
         Assert.Equal(0, store.RolloutReplayCount);
         Assert.Equal(projectedBefore, store.ProjectedRolloutBytes);
@@ -99,6 +102,28 @@ public sealed class SessionServiceDeletionTests : IDisposable
                 return evt;
             return null;
         }
+    }
+
+    [Fact]
+    public async Task DeleteAllTraceSessions_OrphanTraceDoesNotInvokeRolloutDeletion()
+    {
+        const string threadId = "thread";
+        await using var store = new ThreadStore(CraftPath, stateRuntime: null,
+            beforeRolloutDeleteAsync: (_, _) => throw new IOException("An absent thread has no rollout to delete."));
+        var traces = new TraceStore(store.StateDatabase, 5000, synchronousPersist: true);
+        traces.BindThreadMainSession(threadId);
+        traces.Record(new TraceEvent { SessionKey = threadId, Type = TraceEventType.Request });
+        var persistence = new SessionPersistenceService(store, traces);
+        await using var factory = new AgentFactory(CraftPath, _workspace, AppConfigTestFactory.CreateOpenAI(),
+            new MemoryStore(CraftPath), new SkillsLoader(CraftPath), new AutoApproveApprovalService(),
+            blacklist: null, chatClientRegistry: TestModelProviderRegistry.Create());
+        await using var service = new SessionService(factory, factory.CreateAgentForMode(AgentMode.Agent),
+            persistence, new SessionGate());
+
+        await persistence.DeleteAllTraceSessionsAsync(service.DeleteThreadPermanentlyAsync);
+
+        Assert.Null(traces.GetSession(threadId));
+        Assert.Empty(traces.GetBoundSessionKeys(threadId));
     }
 
     private SessionThread CreateThread(string threadId)

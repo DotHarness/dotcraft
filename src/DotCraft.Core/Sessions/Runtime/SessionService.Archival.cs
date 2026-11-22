@@ -19,7 +19,7 @@ public sealed partial class SessionService
         for (var attempt = 0; ; attempt++)
         {
             ct.ThrowIfCancellationRequested();
-            ThrowIfPendingPermanentDeletion(threadId);
+            ThrowIfPendingPermanentDeletion(threadId, forDeletion);
 
             if (_runtimeRegistry.TryGetRuntime(threadId, out var runtime))
             {
@@ -28,7 +28,7 @@ public sealed partial class SessionService
                 {
                     await runtime.Commands.InvokeAsync(commandCt =>
                     {
-                        ThrowIfPendingPermanentDeletion(threadId);
+                        ThrowIfPendingPermanentDeletion(threadId, forDeletion);
                         return action(runtime.Thread, true, commandCt);
                     }, ct);
                     return;
@@ -45,7 +45,7 @@ public sealed partial class SessionService
             {
                 await loadGate.Semaphore.WaitAsync(ct);
                 gateAcquired = true;
-                ThrowIfPendingPermanentDeletion(threadId);
+                ThrowIfPendingPermanentDeletion(threadId, forDeletion);
                 if (_runtimeRegistry.TryGetRuntime(threadId, out _))
                     continue;
 
@@ -62,9 +62,14 @@ public sealed partial class SessionService
         }
     }
 
-    private void ThrowIfPendingPermanentDeletion(string threadId)
+    private void ThrowIfPendingPermanentDeletion(string threadId, bool forDeletion = false)
     {
-        if (_runtimeRegistry.IsPendingPermanentDeletion(threadId))
-            throw new InvalidOperationException($"Thread '{threadId}' is being permanently deleted.");
+        if (_runtimeRegistry.GetPermanentDeletion(threadId) is not { } deletion)
+            return;
+
+        if (deletion.IsCompleted && forDeletion)
+            throw new ThreadNotFoundException(threadId);
+
+        throw new InvalidOperationException($"Thread '{threadId}' is being permanently deleted.");
     }
 }
