@@ -16,13 +16,16 @@ import { fileURLToPath } from "node:url";
 
 const sdkRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const desktopPluginRoot = join(sdkRoot, "packages", "plugin");
+const avatarRoot = join(sdkRoot, "packages", "avatar");
 const sdkPackage = readJson(join(sdkRoot, "package.json"));
 const desktopPluginPackage = readJson(join(desktopPluginRoot, "package.json"));
+const avatarPackage = readJson(join(avatarRoot, "package.json"));
 
 assert.equal(sdkPackage.name, "@dotcraft/sdk");
 assert.equal(desktopPluginPackage.name, "@dotcraft/plugin");
 assert.equal(desktopPluginPackage.version, sdkPackage.version);
 assert.equal(desktopPluginPackage.dependencies["@dotcraft/sdk"], sdkPackage.version);
+assert.equal(desktopPluginPackage.dependencies["@dotcraft/avatar"], avatarPackage.version);
 
 const workRoot = mkdtempSync(join(tmpdir(), "dotcraft-plugin-consumer-"));
 const packageRoot = join(workRoot, "packages");
@@ -34,6 +37,7 @@ try {
 
   runNpm(["pack", "--pack-destination", packageRoot], sdkRoot);
   runNpm(["pack", "--pack-destination", packageRoot], desktopPluginRoot);
+  runNpm(["pack", "--pack-destination", packageRoot], avatarRoot);
 
   const sdkTarball = join(packageRoot, tarballName(sdkPackage.name, sdkPackage.version));
   const desktopPluginTarball = join(
@@ -41,7 +45,9 @@ try {
     tarballName(desktopPluginPackage.name, desktopPluginPackage.version),
   );
   assert.ok(existsSync(sdkTarball), `Missing packed SDK: ${sdkTarball}`);
+  const avatarTarball = join(packageRoot, tarballName(avatarPackage.name, avatarPackage.version));
   assert.ok(existsSync(desktopPluginTarball), `Missing packed Desktop extension SDK: ${desktopPluginTarball}`);
+  assert.ok(existsSync(avatarTarball), `Missing packed avatar package: ${avatarTarball}`);
 
   const packageJson = `${JSON.stringify({
     name: "desktop-plugin-consumer",
@@ -109,12 +115,14 @@ export const activate: DesktopPluginActivate = () => ({
     "--fund=false",
     "--audit=false",
     sdkTarball,
+    avatarTarball,
     desktopPluginTarball,
   ], projectRoot);
 
   assert.equal(readFileSync(join(projectRoot, "package.json"), "utf8"), packageJson);
   assertInstalledCopy(projectRoot, "@dotcraft/sdk", sdkPackage.version);
   assertInstalledCopy(projectRoot, "@dotcraft/plugin", desktopPluginPackage.version);
+  assertInstalledCopy(projectRoot, "@dotcraft/avatar", avatarPackage.version);
 
   runNpm(["run", "build"], projectRoot);
 

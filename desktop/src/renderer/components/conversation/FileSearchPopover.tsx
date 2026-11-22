@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { MessagesSquare } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useThreadStore } from '../../stores/threadStore'
+import { isOwnedThreadId } from '../../../shared/ownedThreads'
 import type { ThreadSummary } from '../../types/thread'
 import { fuzzyScore } from '../../utils/fuzzyMatch'
 import { searchThreadMentions, threadMentionTitle } from '../../utils/threadReferences'
@@ -72,7 +73,7 @@ export function FileSearchPopover({
   const threads = useMemo(
     () => excludedKey === undefined
       ? []
-      : searchThreadMentions(threadList, query, excludedKey.split('\0'), contentSearch.threads),
+      : searchThreadMentions(threadList.filter((thread) => !isOwnedThreadId(thread.id)), query, excludedKey.split('\0'), contentSearch.threads),
     [contentSearch.threads, excludedKey, query, threadList]
   )
   const entries = useMemo(() => mergeMentionEntries(files, threads, query), [files, query, threads])

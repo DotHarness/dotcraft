@@ -37,7 +37,8 @@ export function installOratorioTestHost(overrides: Partial<DesktopPluginHost> = 
     appBindings: {
       getConnectionStatus: async () => { throw new Error('Unexpected app binding request.') },
       startConnection: async () => { throw new Error('Unexpected app binding request.') },
-      openNativeApp: async () => undefined
+      openNativeApp: async () => undefined,
+      enableThread: async () => { throw new Error('Unexpected app binding request.') }
     },
     appSurfaces: {
       getJson: async () => { throw new Error('Unexpected app surface request.') },

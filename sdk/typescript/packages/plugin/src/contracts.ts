@@ -579,6 +579,7 @@ export interface DesktopPluginAppBindings {
   getConnectionStatus(appId: string): Promise<AppConnectionStatusResult>;
   startConnection(appId: string): Promise<AppConnectionStartResult>;
   openNativeApp(appId: string, url: string): Promise<void>;
+  enableThread(threadId: string, appId: string): Promise<void>;
 }
 
 export interface DesktopPluginAppSurfaces {

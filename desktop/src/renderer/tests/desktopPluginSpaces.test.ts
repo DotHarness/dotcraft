@@ -3,7 +3,7 @@ import type { DesktopPluginHost } from '@dotcraft/plugin'
 import { validateActivation } from '../plugins/desktopPluginValidation'
 import { publishDesktopPluginGeneration, withdrawDesktopPluginGeneration } from '../plugins/desktopPluginRegistry'
 import { useOwnedThreadsStore } from '../stores/ownedThreadsStore'
-import { leaveSpace, resolveActiveSpace, useSpaceStore } from '../stores/spaceStore'
+import { leaveSpace, resolveActiveSpace, startSpaceTracking, useSpaceStore } from '../stores/spaceStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
 import type { OwnedThreadRecord } from '../../shared/ownedThreads'
@@ -63,5 +63,25 @@ describe('Desktop extension spaces', () => {
 
     expect(useThreadStore.getState().activeThreadId).toBeNull()
     expect(useUIStore.getState().activeMainView).toBe('conversation')
+  })
+
+  it('keeps the place to return to while a move inside the space switches workspace', async () => {
+    const generation = validateActivation('oratorio', '1.0.0', 'r1', host, activation(['board']))
+    publishDesktopPluginGeneration(generation)
+    useOwnedThreadsStore.getState().setRecords([RECORD])
+    useUIStore.getState().setActiveMainView(generation.spaces[0].viewKeys[0])
+    const stop = startSpaceTracking()
+    const target = { projectKey: 'project', location: { kind: 'agents' as const } }
+    useSpaceStore.setState({ returnTo: target })
+
+    const request = useUIStore.getState().setPendingProjectThreadOpen({ projectKey: '/chats', workspacePath: '/chats', threadId: RECORD.threadId })
+    useUIStore.getState().setActiveMainView('conversation')
+    await Promise.resolve()
+    useUIStore.getState().consumePendingProjectThreadOpen('/chats', [RECORD.threadId], request?.requestId)
+    useThreadStore.getState().setActiveThreadId(RECORD.threadId)
+    await Promise.resolve()
+    stop()
+
+    expect(useSpaceStore.getState().returnTo).toEqual(target)
   })
 })

@@ -41,7 +41,7 @@ The conductor hands work off in one of two forms, so quick work stays light and 
 
 - The conductor is one persistent thread in the default Chat workspace, owned by Oratorio's Desktop extension ([Desktop Extensions, owned threads](../../architecture/desktop-plugins.md#owned-threads)). Desktop creates it the first time the person opens the conductor and reopens the same thread afterwards, so its history spans days of work. Context compaction keeps the thread usable over that time.
 - The thread runs in its own chat folder, so its files never mix with a project's.
-- Desktop leaves the thread out of its lists: Chats, Recents, search, archived threads, and `ListThreads` results. Usage statistics still count it, since its tokens are real usage. Other clients, such as mobile, show it as an ordinary Chats thread, because hiding it is a Desktop presentation rule.
+- Desktop leaves the thread out of its lists: Chats, Recents, search, and archived threads. Thread tools such as `ListThreads` still list it, since they report what the workspace holds. Usage statistics still count it, since its tokens are real usage. Other clients, such as mobile, show it as an ordinary Chats thread, because hiding it is a Desktop presentation rule.
 - The thread uses Agent mode with full access, so it never stops to ask for approval. It has the same tools as any chat in Chats. Its developer instructions add the role, hand-off, and reporting rules above to the generated base instructions.
 - It uses the Chats workspace memory and the personal store like any chat in Chats.
 - The thread uses the person's default model and reasoning settings unless they change them in its composer.

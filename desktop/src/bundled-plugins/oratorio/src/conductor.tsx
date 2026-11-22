@@ -40,10 +40,10 @@ export async function openConductor(host: DesktopPluginHost): Promise<void> {
 
 export async function bindConductor(host: DesktopPluginHost, threadId: string): Promise<boolean> {
   const { bindings } = await host.appServer.request('thread/appBindings/list', { threadId })
-  if ((bindings ?? []).some((binding) => binding.appId === ORATORIO_APP_ID && binding.state !== 'revoked' && binding.state !== 'failed')) return true
+  if ((bindings ?? []).some((binding) => binding.appId === ORATORIO_APP_ID && binding.state === 'active')) return true
   const status = await host.appBindings.getConnectionStatus(ORATORIO_APP_ID)
   if (status.state !== 'connected') return false
-  await host.appServer.request('thread/appBindings/enable', { threadId, appId: ORATORIO_APP_ID })
+  await host.appBindings.enableThread(threadId, ORATORIO_APP_ID)
   return true
 }
 

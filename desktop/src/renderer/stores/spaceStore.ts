@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { DesktopPluginSpaceLocation } from '@dotcraft/plugin'
 import type { OwnedThreadRecord } from '../../shared/ownedThreads'
-import { openProjectConnection, openProjectThread, openThread } from '../components/sidebar/projectConnectionActions'
+import { openProjectConnection, openProjectThread } from '../components/sidebar/projectConnectionActions'
 import { projectIdentity } from '../components/sidebar/projectThreads'
 import {
   findDesktopPluginMainView,
@@ -14,14 +14,14 @@ import {
   returnToAppNavigationLocation,
   type AppNavigationLocation
 } from './appNavigationStore'
-import { findOwnedThread, useOwnedThreadsStore } from './ownedThreadsStore'
+import { useOwnedThreadsStore } from './ownedThreadsStore'
 import { useThreadStore } from './threadStore'
 import { useUIStore, type DesktopPluginMainView } from './uiStore'
 import { useWorkspaceProjectsStore } from './workspaceProjectsStore'
 
 type SpaceLocation =
   | { kind: 'view'; viewKey: DesktopPluginMainView }
-  | { kind: 'thread'; threadId: string; workspacePath: string }
+  | { kind: 'thread' }
 
 interface ReturnTarget {
   projectKey: string | null
@@ -101,8 +101,6 @@ export function enterSpace(space: ActiveDesktopPluginSpace): void {
   }
   if (last?.kind === 'view' && findDesktopPluginMainView(last.viewKey)) {
     useUIStore.getState().setActiveMainView(last.viewKey)
-  } else if (last?.kind === 'thread' && findOwnedThread(last.threadId)) {
-    void openThread(last.threadId, last.workspacePath).catch(failed)
   } else {
     try {
       void Promise.resolve(space.open(space.host)).catch(failed)
@@ -131,7 +129,9 @@ export async function leaveSpace(): Promise<void> {
       await openProjectThread(project, target.location.threadId)
       return
     }
-    if (await openProjectConnection(project)) openNewChat()
+    if (!await openProjectConnection(project)) return
+    if (target.location.kind === 'conversation') openNewChat()
+    else returnToAppNavigationLocation(target.location)
     return
   }
   returnToAppNavigationLocation(target.location)
@@ -143,6 +143,7 @@ export function startSpaceTracking(): () => void {
   const update = (): void => {
     const active = currentActiveSpace()
     const state = useSpaceStore.getState()
+    if (!active && useUIStore.getState().pendingProjectThreadOpen) return
     if (!active) {
       if (previous) {
         if (state.returnTo) useSpaceStore.setState({ returnTo: null })
@@ -153,7 +154,7 @@ export function startSpaceTracking(): () => void {
     } else {
       const location: SpaceLocation = active.location.kind === 'view'
         ? { kind: 'view', viewKey: active.space.viewKeys[active.space.views.indexOf(active.location.viewId)] }
-        : { kind: 'thread', threadId: active.location.threadId, workspacePath: findOwnedThread(active.location.threadId)?.workspacePath ?? '' }
+        : { kind: 'thread' }
       const last = state.last[active.space.spaceKey]
       const sameLast = JSON.stringify(last) === JSON.stringify(location)
       if (state.entering || (!state.returnTo && state.outside) || !sameLast) {
@@ -166,12 +167,25 @@ export function startSpaceTracking(): () => void {
     }
     previous = active
   }
+  let scheduled = false
+  let stopped = false
+  const schedule = (): void => {
+    if (scheduled) return
+    scheduled = true
+    queueMicrotask(() => {
+      scheduled = false
+      if (!stopped) update()
+    })
+  }
   const stops = [
-    useUIStore.subscribe(update),
-    useThreadStore.subscribe(update),
-    useOwnedThreadsStore.subscribe(update),
-    useDesktopPluginRegistry.subscribe(update)
+    useUIStore.subscribe(schedule),
+    useThreadStore.subscribe(schedule),
+    useOwnedThreadsStore.subscribe(schedule),
+    useDesktopPluginRegistry.subscribe(schedule)
   ]
   update()
-  return () => stops.forEach((stop) => stop())
+  return () => {
+    stopped = true
+    stops.forEach((stop) => stop())
+  }
 }

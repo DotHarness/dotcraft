@@ -57,5 +57,5 @@ export function useWorkStory(ref: RefObject<Element | null>, active: boolean, pa
       if (paused && animation.playState === 'running') animation.pause()
       if (!paused && animation.playState === 'paused') animation.play()
     }
-  }, [paused, active])
+  }, [paused, active, kind])
 }

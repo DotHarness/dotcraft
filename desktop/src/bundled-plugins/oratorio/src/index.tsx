@@ -72,7 +72,10 @@ export const activate: DesktopPluginActivate = (host) => {
     boundConductor = conductor
     void bindConductor(host, conductor).then((settled) => {
       if (!settled) boundConductor = null
-    }, () => { boundConductor = null })
+    }, (error: unknown) => {
+      boundConductor = null
+      host.ui.showToast({ message: error instanceof Error ? error.message : String(error), tone: 'error' })
+    })
   })
   // Resolving the context is what asks Hub to start the Oratorio server; a missing executable
   // is normal in a Desktop-only checkout.

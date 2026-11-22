@@ -455,7 +455,7 @@ function ReviewIcon({ size = 16, ...rest }: DesktopPluginIconProps) {
 | `appServer` | 受支持的 JSON-RPC request 与 subscription。 |
 | `mcp` | 调用 workspace 中 MCP server 的工具。 |
 | `settings` | 读取、修改并跟随本插件由 schema 约束的设置。 |
-| `appBindings`、`appSurfaces` | Connected App binding 与 app 提供的 UI surface。 |
+| `appBindings`、`appSurfaces` | Connected App binding（包括用 `enableThread` 在某个 thread 中启用 app）与 app 提供的 UI surface。 |
 | `workspaces` | 读取本地 workspace 信息。 |
 | `oratorio` | Team run、handoff 与 event。 |
 | `satellites` | 本地 Hub 的设备、邀请、事件、活动与只读本机共享状态。 |

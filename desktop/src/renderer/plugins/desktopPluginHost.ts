@@ -27,6 +27,8 @@ import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
 import { openActiveThreadFile, openAutomation, openExternalUrl, openThread, revealToolCall } from '../utils/desktopNavigation'
 import { openSkill } from '../utils/openSkill'
 import { openSubAgent } from '../utils/subAgentNavigation'
+import { activateThreadAppBindings } from '../utils/threadAppBindings'
+import { translate } from '../../shared/locales/catalog'
 import { registerDesktopPluginAppearanceSlot } from './desktopPluginAppearance'
 import {
   onDesktopPluginEnvironmentChange,
@@ -372,6 +374,10 @@ export function createDesktopPluginHost(
       },
       openNativeApp(appId, url) {
         return window.api.desktopPlugins.openApp({ appId, url })
+      },
+      enableThread(threadId, appId) {
+        const locale = readDesktopPluginEnvironment().locale
+        return activateThreadAppBindings({ threadId, appIds: [appId], translate: (key, vars) => translate(locale, key, vars) })
       }
     },
     appSurfaces: {

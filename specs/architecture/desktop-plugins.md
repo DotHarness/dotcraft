@@ -355,10 +355,10 @@ interface DesktopPluginSpaceSidebarProps extends DesktopPluginViewProps {
 ```
 
 - A space's locations are the plugin's main views named in `views` and the threads the plugin owns with that space's `id`.
-- Space entries render below New chat, ordered by `order`. Selecting an entry returns to the location last open in the space, or calls `open` when there is none, which navigates with the ordinary Host operations.
+- Space entries render below New chat, ordered by `order`. Selecting an entry returns to the view last open in the space. Otherwise it calls `open`, which navigates with the ordinary Host operations, so a plugin reaching an owned thread confirms it through `threads.ensureOwned` each time.
 - A main view named in a space is reached only through it: it is not a sidebar destination, a More item, or a pin, and `openMainView` on it opens the space.
 - While the active location belongs to a space, the Host replaces the sidebar with a Back row followed by the contribution's `sidebar`. The Host owns the frame, the Back row, and the sidebar's width and collapse. The contribution renders its rows with `SidebarRow`.
-- On entering a space, the Host records the location it left, including its workspace. Back returns there, switching workspace when an owned thread's workspace replaced it. Opening a location outside the space leaves the space without returning, and the record is dropped.
+- On entering a space, the Host records the location it left, including its workspace. Back returns there, switching workspace when an owned thread's workspace replaced it. Moving between the space's own locations keeps the record, including while a workspace switch is in progress. Opening a location outside the space leaves the space without returning, and the record is dropped.
 
 ## Runtime lifecycle
 
@@ -448,7 +448,7 @@ interface DesktopPluginOwnedThread {
 - Desktop records each owned thread per plugin and key in its per-user state. A later call returns the recorded thread while it exists, and creates a new one when it was deleted. `threads.findOwned(key)` returns the recorded thread without creating one, or `null`, so a plugin can recognize its thread before the person opens it.
 - The thread starts in its own chat folder with Desktop's thread tools and standalone-chat instructions, like any new chat, followed by the plugin's instructions and approval policy. When a later call's configuration differs from the one last applied, Desktop updates the thread's configuration before returning, so a plugin update reaches its existing thread.
 - `space` attaches the thread to one of the plugin's spaces, so opening it opens that space.
-- Desktop leaves an owned thread out of its thread lists, search, archived threads, and `ListThreads` results. The thread stays an ordinary AppServer thread, so other clients list it like any Chats thread.
+- Desktop leaves an owned thread out of its thread lists, search, and archived threads. The thread stays an ordinary AppServer thread, so other clients list it like any Chats thread.
 - Disabling or uninstalling the plugin keeps its threads and their records, so re-enabling it returns the same conversations.
 
 ### Linked chats
@@ -468,6 +468,10 @@ interface DesktopPluginLinkedChat {
 ```
 
 `state` is the product reading Desktop shows on the chat's card: `waiting` means the chat needs the person's approval, input, or plan confirmation.
+
+### App Binding
+
+`appBindings.enableThread(threadId, appId)` enables a connected app in one thread through Desktop's enable flow ([App Binding §4.1](../protocols/app-binding.md#41-one-click-enable)). It delivers the activation handoff when the app has to be woken and resolves once the binding is active. When activation fails it cancels the request and rejects.
 
 ### SubAgent state
 
