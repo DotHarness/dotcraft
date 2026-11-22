@@ -13,7 +13,9 @@ public sealed partial class SessionService
     {
         var generator = ThreadTitleGenerator;
         if (generator == null
-            || thread.TurnCount != 1
+            || thread.OmittedTurnCount != 0
+            || thread.Turns.Count(static turn =>
+                !string.Equals(turn.Input?.AsUserMessage?.TriggerKind, TurnTriggerInfo.KickoffKind, StringComparison.Ordinal)) != 1
             || thread.ForkedFromId != null
             || !string.Equals(thread.Source.Kind, ThreadSourceKinds.User, StringComparison.Ordinal)
             || ThreadVisibility.IsInternal(thread))

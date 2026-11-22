@@ -3,8 +3,11 @@ import { MascotOutfit, PersonalMascot } from '@dotcraft/plugin'
 import type { DesktopPluginSurfaceProps } from '@dotcraft/plugin'
 import { findConductor } from './conductor'
 import { CONDUCTOR_OUTFIT } from './conductorOutfit'
+import kickoffPrompt from './prompts/kickoff.md?raw'
 import { useOratorioI18n, type OratorioMessageKey } from './oratorio-i18n'
 import './oratorio-intro.css'
+
+const KICKOFF_PROMPT = kickoffPrompt.trimEnd()
 
 const GREETINGS: readonly OratorioMessageKey[] = ['introGreetingHello', 'introGreetingAsk', 'introGreetingChat', 'introGreetingBoard', 'introGreetingReport']
 const MASCOT_SIZE = 112
@@ -54,8 +57,8 @@ function Trace({ geometry }: { geometry: Geometry }): JSX.Element {
 export function ConductorIntro({ host, context }: DesktopPluginSurfaceProps<'conversation.empty'>): JSX.Element | null {
   const { t } = useOratorioI18n()
   const [starting, setStarting] = useState(false)
-  const [failed, setFailed] = useState(false)
-  const open = !failed && context.threadId === findConductor(host)?.threadId
+  const [dismissed, setDismissed] = useState(false)
+  const open = !dismissed && context.threadId === findConductor(host)?.threadId
   const rootRef = useRef<HTMLDivElement>(null)
   const mascotRef = useRef<HTMLSpanElement>(null)
   const [geometry, setGeometry] = useState<Geometry | null>(null)
@@ -98,8 +101,15 @@ export function ConductorIntro({ host, context }: DesktopPluginSurfaceProps<'con
         <p className="ora-intro__description">{t('introDescription')}</p>
         <button type="button" className="ora-intro__continue" disabled={starting} onClick={() => {
           setStarting(true)
-          host.appServer.request('turn/start', { threadId, input: [] }).catch((error: unknown) => {
-            setFailed(true)
+          const text = KICKOFF_PROMPT.replace('{locale}', host.environment.locale)
+          host.appServer.request('turn/startOrEnqueue', {
+            threadId,
+            kickoff: true,
+            input: [{ type: 'text', text }]
+          }).then((result) => {
+            if (!result.turn) setDismissed(true)
+          }, (error: unknown) => {
+            setDismissed(true)
             host.ui.showToast({ message: error instanceof Error ? error.message : String(error), tone: 'error' })
           })
         }}>

@@ -22194,6 +22194,16 @@
             "$ref": "#/$defs/InputPart"
           }
         },
+        "kickoff": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "model": {
           "anyOf": [
             {

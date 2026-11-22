@@ -222,6 +222,7 @@ export interface ConversationItem {
    * synthesized client-side for the first message of a spawned thread.
    */
   triggerKind?:
+    | 'kickoff'
     | 'automation'
     | 'goal'
     | 'app'
@@ -775,6 +776,7 @@ function normalizeTriggerKind(
   if (normalized === 'subagentmailbox') return 'subagentMailbox'
   if (normalized === 'subagentinput') return 'subagentInput'
   if (
+    normalized === 'kickoff' ||
     normalized === 'automation' ||
     normalized === 'goal' ||
     normalized === 'app' ||

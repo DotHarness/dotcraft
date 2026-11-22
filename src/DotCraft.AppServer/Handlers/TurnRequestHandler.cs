@@ -129,6 +129,9 @@ internal sealed class TurnRequestHandler(
         RecordSkillReferences(p.ThreadId, input.NativeInputParts);
 
         using var channelScope = ChannelSessionScope.Set(await ResolveChannelSessionAsync(null, p.ThreadId));
+        using var triggerScope = p.Kickoff == true
+            ? TurnTriggerScope.Set(new TurnTriggerInfo { Kind = TurnTriggerInfo.KickoffKind })
+            : null;
         await sessionService.EnsureThreadLoadedAsync(p.ThreadId, ct);
         await connection.RunThreadNotificationAsync(p.ThreadId, async _ =>
         {

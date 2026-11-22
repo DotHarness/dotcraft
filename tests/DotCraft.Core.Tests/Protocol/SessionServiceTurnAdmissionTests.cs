@@ -320,4 +320,24 @@ public sealed partial class SessionServiceTurnAdmissionTests
         Assert.Equal("source", saved.Configuration.ProviderId);
         Assert.Equal("agent", saved.Configuration.Mode);
     }
+
+    [Fact]
+    public async Task KickoffTurn_RecordsTriggerAndLeavesNamingToFirstUserMessage()
+    {
+        await using var h = new AdmissionHarness();
+        var thread = await h.CreateThreadAsync();
+
+        TurnStartOrEnqueueAdmission kickoff;
+        using (TurnTriggerScope.Set(new TurnTriggerInfo { Kind = TurnTriggerInfo.KickoffKind }))
+            kickoff = await h.Service.StartOrEnqueueTurnAsync(thread.Id, [new TextContent("Greet them in zh-Hans.")]);
+        var kickoffEvents = await DrainAsync(kickoff.Events!);
+
+        Assert.Contains(kickoffEvents, e => e.ItemPayload?.AsUserMessage?.TriggerKind == TurnTriggerInfo.KickoffKind);
+        Assert.True(string.IsNullOrEmpty(thread.DisplayName));
+
+        var first = await h.Service.StartOrSteerTurnAsync(thread.Id, [new TextContent("Ship the conductor")]);
+        await DrainAsync(first.Events!);
+
+        Assert.Equal("Ship the conductor", thread.DisplayName);
+    }
 }

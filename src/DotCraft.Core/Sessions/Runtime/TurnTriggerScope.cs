@@ -8,6 +8,8 @@ namespace DotCraft.Sessions;
 /// </summary>
 public sealed class TurnTriggerInfo
 {
+    public const string KickoffKind = "kickoff";
+
     /// <summary>
     /// Mechanism that synthesized this turn. Expected values include "automation",
     /// "automation", "goal", and future app-specific values such as "app" or "team".

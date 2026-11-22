@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ConversationItem, QueuedTurnInput } from '../types/conversation'
+import { wireItemToConversationItem, type ConversationItem, type QueuedTurnInput } from '../types/conversation'
 import { isVisibleQueuedInput, isVisibleUserMessage, mergeVisibleQueueOrder } from '../utils/visibleUserMessage'
 
 function queued(id: string, extra: Partial<QueuedTurnInput> = {}): QueuedTurnInput {
@@ -30,5 +30,16 @@ describe('workflow input visibility', () => {
     expect(isVisibleUserMessage(notification)).toBe(false)
     expect(isVisibleQueuedInput(queued('continue', { triggerKind: 'workflow', triggerRefId: 'run_1' }))).toBe(true)
     expect(isVisibleQueuedInput(queued('ended', { triggerKind: 'workflow', triggerRefId: 'run_1', triggerStatus: 'succeeded' }))).toBe(false)
+  })
+
+  it('hides kickoff inputs in the transcript and queue', () => {
+    const kickoff = wireItemToConversationItem({
+      id: 'kickoff',
+      type: 'userMessage',
+      status: 'completed',
+      payload: { text: 'Greet them', triggerKind: 'kickoff' }
+    })
+    expect(isVisibleUserMessage(kickoff)).toBe(false)
+    expect(isVisibleQueuedInput(queued('kickoff', { triggerKind: 'kickoff' }))).toBe(false)
   })
 })

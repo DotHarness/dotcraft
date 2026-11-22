@@ -18,13 +18,14 @@ export function isVisibleUserMessage(item: ConversationItem): boolean {
   return (
     item.type === 'userMessage' &&
     item.deliveryMode !== 'guidance' &&
+    item.triggerKind !== 'kickoff' &&
     !isSubAgentMailbox(item) &&
     !isBackgroundTaskNotice(item)
   )
 }
 
 export function isVisibleQueuedInput(item: QueuedTurnInput): boolean {
-  return !isBackgroundTaskNotice(item)
+  return item.triggerKind !== 'kickoff' && !isBackgroundTaskNotice(item)
 }
 
 /** Applies a new order of the visible queued inputs while hidden inputs keep their positions. */

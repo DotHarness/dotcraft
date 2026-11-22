@@ -10,6 +10,16 @@
         "$ref": "./InputPart.schema.json"
       }
     },
+    "kickoff": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "model": {
       "anyOf": [
         {

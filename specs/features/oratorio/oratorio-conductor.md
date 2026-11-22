@@ -45,7 +45,7 @@ The conductor hands work off in one of two forms, so quick work stays light and 
 - The thread uses Agent mode with full access, so it never stops to ask for approval. It has the same tools as any chat in Chats. Its developer instructions add the role, hand-off, and reporting rules above to the generated base instructions.
 - It uses the Chats workspace memory and the personal store like any chat in Chats.
 - The thread uses the person's default model and reasoning settings unless they change them in its composer.
-- Its first turn starts from the introduction without a message from the person. The conductor opens by greeting the person and saying in a sentence or two what it can do.
+- Its first turn starts from the introduction with a hidden kickoff prompt (`triggerKind = "kickoff"`) carrying the interface locale, so the conductor greets the person in their language and says in a sentence or two what it can do, with no user message shown.
 - When Oratorio is connected to the Chats workspace and the thread has no Oratorio binding, opening the conductor enables one. Opening the conductor is the person's initiating interaction for that grant ([App Binding §4.1](../../protocols/app-binding.md#41-one-click-enable)), so DotCraft asks for no second confirmation. Oratorio's own confirmation for binding a thread still applies. Connecting Oratorio to Chats stays the person's own step, which the board offers.
 
 ## 5. Scope
