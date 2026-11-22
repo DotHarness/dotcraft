@@ -6,7 +6,7 @@ import type {
 import { OratorioSettingsSurface } from './OratorioSettingsSurface'
 import { OratorioView } from './OratorioView'
 import { OratorioBatonIcon } from './OratorioBatonIcon'
-import { bindConductor, ConductorMascot, ConductorPermissions, conductorSpace, findConductor } from './conductor'
+import { ConductorMascot, ConductorPermissions, conductorSpace, findConductor, reconcileConductorBinding } from './conductor'
 import { ConductorIntro } from './ConductorIntro'
 import { parseOratorioNavigationUrl, requestOratorioNavigation } from './oratorio-navigation'
 import { installOratorioHost } from './runtime'
@@ -67,17 +67,9 @@ export const activate: DesktopPluginActivate = (host) => {
   host.ui.wrap('composer.mascot', ConductorMascot)
   host.ui.wrap('composer.toolbar.permissions', ConductorPermissions)
   host.ui.add('conversation.empty', ConductorIntro)
-  let boundConductor: string | null = null
   host.session.onChange((session) => {
     const conductor = findConductor(host)?.threadId
-    if (!conductor || session.threadId !== conductor || boundConductor === conductor) return
-    boundConductor = conductor
-    void bindConductor(host, conductor).then((settled) => {
-      if (!settled) boundConductor = null
-    }, (error: unknown) => {
-      boundConductor = null
-      host.ui.showToast({ message: error instanceof Error ? error.message : String(error), tone: 'error' })
-    })
+    if (conductor && session.threadId === conductor) reconcileConductorBinding(host, conductor)
   })
   // Resolving the context is what asks Hub to start the Oratorio server; a missing executable
   // is normal in a Desktop-only checkout.

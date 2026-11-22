@@ -36,9 +36,23 @@ export async function openConductor(host: DesktopPluginHost): Promise<void> {
     }
   })
   await host.navigation.openThread(conductor.threadId, conductor.workspacePath)
+  if (host.session.threadId === conductor.threadId) reconcileConductorBinding(host, conductor.threadId)
 }
 
-export async function bindConductor(host: DesktopPluginHost, threadId: string): Promise<boolean> {
+let boundConductor: string | null = null
+
+export function reconcileConductorBinding(host: DesktopPluginHost, threadId: string): void {
+  if (boundConductor === threadId) return
+  boundConductor = threadId
+  void bindConductor(host, threadId).then((settled) => {
+    if (!settled) boundConductor = null
+  }, (error: unknown) => {
+    boundConductor = null
+    host.ui.showToast({ message: error instanceof Error ? error.message : String(error), tone: 'error' })
+  })
+}
+
+async function bindConductor(host: DesktopPluginHost, threadId: string): Promise<boolean> {
   const { bindings } = await host.appServer.request('thread/appBindings/list', { threadId })
   const existing = (bindings ?? []).find((binding) => binding.appId === ORATORIO_APP_ID
     && binding.state !== 'revoked' && binding.state !== 'cancelled')
