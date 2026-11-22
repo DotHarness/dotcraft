@@ -449,10 +449,7 @@ public sealed partial class SessionPersistenceService(
 
         var sessionKeys = _traceStore.GetBoundSessionKeys(threadId);
         threadStore.DeleteThread(threadId);
-        foreach (var sessionKey in sessionKeys)
-            _traceStore.ClearSession(sessionKey);
-
-        _tokenUsageStore?.DeleteThread(threadId);
+        DeleteThreadTracing(threadId, sessionKeys);
         return Task.CompletedTask;
     }
 
@@ -461,72 +458,90 @@ public sealed partial class SessionPersistenceService(
         Func<string, CancellationToken, Task>? deleteThreadAsync = null,
         CancellationToken ct = default)
     {
+        if (_traceStore.GetSession(sessionKey) is null)
+            return false;
+
         var descriptor = DescribeSessionDeletion(sessionKey);
         if (descriptor.DeletionScope == SessionPersistenceDeletionScopes.ThreadCascade
-            && !string.IsNullOrWhiteSpace(descriptor.RootThreadId))
+            && descriptor.RootThreadId is { } threadId)
         {
-            if (deleteThreadAsync != null)
-            {
-                try
-                {
-                    await deleteThreadAsync(descriptor.RootThreadId, ct);
-                    return true;
-                }
-                catch (KeyNotFoundException)
-                {
-                    await DeleteThreadCascadeAsync(descriptor.RootThreadId, ct);
-                    return true;
-                }
-            }
-
-            await DeleteThreadCascadeAsync(descriptor.RootThreadId, ct);
+            await DeleteBoundThreadAsync(threadId, deleteThreadAsync, ct);
             return true;
         }
 
-        var deleted = _traceStore.DeleteStandaloneSession(sessionKey);
-        return deleted;
+        ct.ThrowIfCancellationRequested();
+        return _traceStore.DeleteStandaloneSession(sessionKey);
     }
 
-    public async Task DeleteTraceSessionsAsync(
-        IEnumerable<string> sessionKeys,
+    public async Task DeleteAllTraceSessionsAsync(
         Func<string, CancellationToken, Task>? deleteThreadAsync = null,
         CancellationToken ct = default)
     {
-        var descriptors = DescribeSessionDeletions(sessionKeys).Values.ToList();
+        var sessionKeys = _traceStore.GetSessions().Select(session => session.SessionKey);
+        var descriptors = DescribeSessionDeletions(sessionKeys).Values;
         var boundThreadIds = descriptors
-            .Where(d => d.DeletionScope == SessionPersistenceDeletionScopes.ThreadCascade
-                && !string.IsNullOrWhiteSpace(d.RootThreadId))
+            .Where(d => d.DeletionScope == SessionPersistenceDeletionScopes.ThreadCascade)
             .Select(d => d.RootThreadId!)
-            .Distinct(StringComparer.Ordinal)
-            .ToList();
-        var standaloneSessions = descriptors
-            .Where(d => d.DeletionScope == SessionPersistenceDeletionScopes.TraceOnly)
-            .Select(d => d.SessionKey)
-            .Distinct(StringComparer.Ordinal)
-            .ToList();
+            .ToHashSet(StringComparer.Ordinal);
+        var targets = boundThreadIds
+            .Where(id => deleteThreadAsync is null || !HasSelectedAncestor(id))
+            .ToArray();
 
-        foreach (var threadId in boundThreadIds)
+        foreach (var threadId in targets)
+            await DeleteBoundThreadAsync(threadId, deleteThreadAsync, ct);
+
+        foreach (var descriptor in descriptors.Where(d => d.DeletionScope == SessionPersistenceDeletionScopes.TraceOnly))
         {
-            if (deleteThreadAsync != null)
+            ct.ThrowIfCancellationRequested();
+            _traceStore.DeleteStandaloneSession(descriptor.SessionKey);
+        }
+
+        bool HasSelectedAncestor(string threadId)
+        {
+            if (boundThreadIds.Count < 2)
+                return false;
+
+            var seen = new HashSet<string>(StringComparer.Ordinal) { threadId };
+            var covered = false;
+            while (GetSubAgentParentThreadId(threadId) is { } parentId)
             {
-                try
-                {
-                    await deleteThreadAsync(threadId, ct);
-                    continue;
-                }
-                catch (KeyNotFoundException)
-                {
-                    // Fall through to persistence-only cleanup when the runtime thread is already gone.
-                }
+                if (!seen.Add(parentId))
+                    return false;
+
+                covered |= boundThreadIds.Contains(parentId);
+                threadId = parentId;
             }
 
+            return covered;
+        }
+    }
+
+    private async Task DeleteBoundThreadAsync(
+        string threadId, Func<string, CancellationToken, Task>? deleteThreadAsync, CancellationToken ct)
+    {
+        if (deleteThreadAsync is null)
+        {
             await DeleteThreadCascadeAsync(threadId, ct);
+            return;
         }
 
-        foreach (var sessionKey in standaloneSessions)
+        try
         {
-            _traceStore.DeleteStandaloneSession(sessionKey);
+            await deleteThreadAsync(threadId, ct);
         }
+        catch (ThreadNotFoundException ex) when (ex.ThreadId == threadId)
+        {
+            ct.ThrowIfCancellationRequested();
+            DeleteThreadTracing(threadId, _traceStore.GetBoundSessionKeys(threadId));
+        }
+    }
+
+    private void DeleteThreadTracing(string threadId, IReadOnlyList<string> sessionKeys)
+    {
+        foreach (var sessionKey in sessionKeys)
+            _traceStore.ClearSession(sessionKey);
+
+        _tokenUsageStore?.DeleteThread(threadId);
     }
 
     /// <summary>

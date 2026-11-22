@@ -103,6 +103,7 @@ public sealed partial class SessionService
                 {
                     var (id, thread) = prepared[^1];
                     await DeleteCoreAsync(id, thread, ct);
+                    owner._runtimeRegistry.MarkPermanentDeletionCompleted(id);
                     prepared.RemoveAt(prepared.Count - 1);
                 }
             }

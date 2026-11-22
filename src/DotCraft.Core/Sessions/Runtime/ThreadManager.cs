@@ -60,7 +60,7 @@ internal sealed class ThreadManager : IAsyncDisposable
     private readonly ConcurrentDictionary<string, ThreadRuntime> _runtimes = new(StringComparer.Ordinal);
     private readonly Lock _registrationLock = new();
     private readonly ConcurrentDictionary<string, ThreadEventBroker> _brokers = new(StringComparer.Ordinal);
-    private readonly ConcurrentDictionary<string, byte> _pendingPermanentDeletion = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, bool> _permanentDeletions = new(StringComparer.Ordinal);
 
     public int Count => _runtimes.Count;
 
@@ -121,15 +121,21 @@ internal sealed class ThreadManager : IAsyncDisposable
     }
 
     public void MarkPendingPermanentDeletion(string threadId) =>
-        _pendingPermanentDeletion[threadId] = 0;
+        _permanentDeletions[threadId] = false;
+
+    public void MarkPermanentDeletionCompleted(string threadId) =>
+        _permanentDeletions[threadId] = true;
 
     public void ClearPendingPermanentDeletion(string threadId)
     {
-        _pendingPermanentDeletion.TryRemove(threadId, out _);
+        _permanentDeletions.TryRemove(threadId, out _);
     }
 
+    public bool TryGetPermanentDeletion(string threadId, out bool completed) =>
+        _permanentDeletions.TryGetValue(threadId, out completed);
+
     public bool IsPendingPermanentDeletion(string threadId) =>
-        _pendingPermanentDeletion.ContainsKey(threadId);
+        _permanentDeletions.ContainsKey(threadId);
 }
 
 internal sealed class ThreadRuntime(SessionThread thread, ThreadEventBroker broker) : IAsyncDisposable
