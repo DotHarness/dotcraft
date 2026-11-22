@@ -1,5 +1,6 @@
 import { MainMenuRow, OptionRow, ellipsisStyle, submenuStyle, submenuWidth, type SecondaryMenu } from './ModelPickerMenu'
 import {
+  useCallback,
   useEffect,
   useId,
   useLayoutEffect,
@@ -27,7 +28,7 @@ import { ComposerOverlapBand, useComposerOverlapBandHeight } from './useComposer
 import css from './ModelPicker.module.css'
 import { ModelCatalogNotice } from './ModelCatalogNotice'
 import { acceleratedSpeeds, effectiveSpeed } from './modelSpeed'
-import { SpeedControl, SpeedFlyout, SpeedIcon, speedFlyoutStyle } from './ModelPickerSpeed'
+import { SpeedControl, SpeedFlyout, SpeedIcon, speedFlyoutStyle, useSpeedFlyoutController } from './ModelPickerSpeed'
 
 export type ReasoningQuickValue = 'default' | 'off' | ReasoningEffortWire
 
@@ -491,8 +492,18 @@ export function ModelPicker({
     setPopupShiftX(0)
   }
 
-  const openSpeedFlyout = (button: HTMLButtonElement): void => {
-    cancelMenuAim()
+  const closeSpeedFlyout = useCallback((): void => {
+    setSecondary(null)
+    setPopupShiftX(0)
+  }, [])
+
+  const openSpeedFlyoutFromHover = (button: HTMLButtonElement, point: { clientX: number; clientY: number }): void => {
+    openSecondary('speed', button)
+    setSubmenuHighlight(Math.max(0, speedChoices.indexOf(activeSpeed)))
+    trackMenuAim(point)
+  }
+
+  const openSpeedFlyoutImmediate = (button: HTMLButtonElement): void => {
     openSecondary('speed', button)
     const selected = Math.max(0, speedChoices.indexOf(activeSpeed))
     setSubmenuHighlight(selected)
@@ -501,13 +512,18 @@ export function ModelPicker({
     })
   }
 
-  const closeSpeedFlyoutOnPointer = (event: ReactMouseEvent<HTMLElement>): void => {
-    if (secondary !== 'speed' || (event.target as Element).closest('[data-submenu="speed"]')) return
-    guardMenuAim(event, () => {
-      setSecondary(null)
-      setPopupShiftX(0)
-    })
-  }
+  const speedFlyout = useSpeedFlyoutController({
+    active: open && view === 'panel' && advertisedSpeeds.includes('ultrafast'),
+    flyoutOpen: secondary === 'speed',
+    popupRef,
+    submenuRef,
+    trackMenuAim,
+    guardMenuAim,
+    cancelMenuAim,
+    onOpenFromHover: openSpeedFlyoutFromHover,
+    onOpenImmediate: openSpeedFlyoutImmediate,
+    onClose: closeSpeedFlyout
+  })
 
   const closePicker = (): void => {
     cancelMenuAim()
@@ -701,7 +717,11 @@ export function ModelPicker({
           )}
 
           <div hidden={view !== 'panel'} inert={view !== 'panel'}>
-            <div className="model-picker-panel" onMouseMove={closeSpeedFlyoutOnPointer}>
+            <div
+              className="model-picker-panel"
+              onMouseMove={speedFlyout.onPanelMouseMove}
+              onMouseLeave={speedFlyout.onPanelMouseLeave}
+            >
               <div className="model-picker-head">
                 {speedVisible ? (
                   <SpeedControl
@@ -709,8 +729,7 @@ export function ModelPicker({
                     active={activeSpeed}
                     flyoutOpen={secondary === 'speed'}
                     onChange={(speed) => onSpeedChange?.(speed)}
-                    onFlyoutHover={(event) => handleSecondaryPointer('speed', 0, event)}
-                    onFlyoutOpen={openSpeedFlyout}
+                    controller={speedFlyout}
                   />
                 ) : (
                   <span className="model-picker-slot" />
@@ -759,11 +778,11 @@ export function ModelPicker({
               active={activeSpeed}
               highlight={submenuHighlight}
               onPointer={cancelMenuAim}
+              onMouseLeave={speedFlyout.onFlyoutMouseLeave}
               onHighlight={setSubmenuHighlight}
               onSelect={(speed) => {
                 onSpeedChange?.(speed)
-                setSecondary(null)
-                setPopupShiftX(0)
+                closeSpeedFlyout()
                 requestAnimationFrame(() => popupRef.current?.querySelector<HTMLElement>('[data-submenu="speed"]')?.focus())
               }}
             />

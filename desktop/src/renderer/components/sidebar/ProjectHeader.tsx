@@ -83,7 +83,7 @@ export function ProjectHeader({
   const sshUnreachable = cold && sshMachine?.status.kind === 'failed'
   const errorLabel = (sshUnreachable ? sshMachine?.status.message : project.errorMessage) || t('projectsRail.error')
   const showErrorIndicator = project.state === 'error' || sshUnreachable
-  const actionColumnWidth = showErrorIndicator ? '86px' : '60px'
+  const actionColumnWidth = showErrorIndicator ? '80px' : '52px'
   const waitingCount = detailThreads.filter(isThreadWaiting).length
   const runningCount = detailThreads.filter((thread) => !isThreadWaiting(thread) && isThreadRunning(thread)).length
   const threadCount = detailThreads.length
@@ -346,58 +346,59 @@ export function ProjectHeader({
         )}
       </div>
       <div
-        style={{
-          width: actionColumnWidth,
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'flex-end',
-          gap: '2px'
-        }}
+        className="dc-project-row__actions"
+        style={{ width: actionColumnWidth }}
         onClick={(event) => event.stopPropagation()}
       >
-        <span className="dc-project-row__actions">
+        <span className="dc-project-row__action">
+          <MoreActionsButton
+            label={t('projectsRail.moreActions')}
+            size={24}
+            radius={6}
+            iconSize={15}
+            tooltipPlacement="top"
+            className="dc-thread-list-icon-button"
+            open={menuOpen}
+            onMouseDown={(event) => { if (menuOpen) event.stopPropagation() }}
+            onClick={(event) => {
+              if (menuOpen) {
+                setMenuPosition(null)
+                return
+              }
+              const rect = event.currentTarget.getBoundingClientRect()
+              setMenuPosition({ x: rect.left, y: rect.bottom + 4 })
+            }}
+          />
+        </span>
+        <span className="dc-project-row__trailing-slot">
+          {!showErrorIndicator && collapsed && activity === 'running' ? (
+            <span className="dc-project-row__status">
+              <span className="dc-status-indicator">
+                <Spinner label={t('threadEntry.turnRunning')} />
+              </span>
+            </span>
+          ) : !showErrorIndicator && collapsed && activity === 'waiting' ? (
+            <span className="dc-project-row__status">
+              <span className="dc-status-indicator" role="img" aria-label={t('projectsRail.awaitingResponse')}>
+                <span className="dc-status-indicator__dot" data-tone="warning" />
+              </span>
+            </span>
+          ) : null}
+          <span className="dc-project-row__action">
             <IconButton
               icon={<SquarePen size={14} aria-hidden />}
               label={t('projectsRail.newChat')}
               tooltipLabel={t('projectsRail.newChat')}
+              tooltipPlacement="top"
               size={24}
               radius={6}
               className="dc-thread-list-icon-button"
               onClick={() => { void newProjectChat(project, active) }}
             />
-            <MoreActionsButton
-              label={t('projectsRail.moreActions')}
-              size={24}
-              radius={6}
-              iconSize={15}
-              tooltipPlacement="top"
-              className="dc-thread-list-icon-button"
-              open={menuOpen}
-              onMouseDown={(event) => { if (menuOpen) event.stopPropagation() }}
-              onClick={(event) => {
-                if (menuOpen) {
-                  setMenuPosition(null)
-                  return
-                }
-                const rect = event.currentTarget.getBoundingClientRect()
-                setMenuPosition({ x: rect.left, y: rect.bottom + 4 })
-              }}
-            />
+          </span>
         </span>
         {showErrorIndicator ? (
           <ProjectErrorIndicator label={errorLabel} />
-        ) : collapsed && activity === 'running' ? (
-          <span className="dc-project-row__status" style={projectStatusIndicatorSlotStyle}>
-            <span className="dc-status-indicator">
-              <Spinner label={t('threadEntry.turnRunning')} />
-            </span>
-          </span>
-        ) : collapsed && activity === 'waiting' ? (
-          <span className="dc-project-row__status" style={projectStatusIndicatorSlotStyle}>
-            <span className="dc-status-indicator" role="img" aria-label={t('projectsRail.awaitingResponse')}>
-              <span className="dc-status-indicator__dot" data-tone="warning" />
-            </span>
-          </span>
         ) : null}
       </div>
     </div>

@@ -1,10 +1,24 @@
-import { useId, type CSSProperties, type JSX, type MouseEvent as ReactMouseEvent, type Ref } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useId,
+  type CSSProperties,
+  type JSX,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+  type Ref,
+  type RefObject
+} from 'react'
 import { Zap } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
+import type { MenuAimPoint } from '../../hooks/useMenuAim'
 import type { InferenceSpeedWire } from '../../stores/modelCatalogStore'
 import { IconButton } from '../ui/IconButton'
 import { OptionRow, submenuStyle } from './ModelPickerMenu'
 import type { AcceleratedSpeed } from './modelSpeed'
+
+export const SPEED_FLYOUT_OPEN_DELAY_MS = 250
 
 type Translate = ReturnType<typeof useT>
 
@@ -62,13 +76,149 @@ export function SpeedIcon({ speed, active, ...props }: IconProps & {
     : <Zap aria-hidden fill={active ? 'currentColor' : 'none'} {...props} />
 }
 
-export function SpeedControl({ advertised, active, flyoutOpen, onChange, onFlyoutHover, onFlyoutOpen }: {
+export interface SpeedFlyoutController {
+  onButtonMouseEnter: (event: ReactMouseEvent<HTMLButtonElement>) => void
+  onButtonMouseMove: (event: ReactMouseEvent<HTMLButtonElement>) => void
+  onButtonMouseLeave: () => void
+  onButtonKeyDown: (event: ReactKeyboardEvent<HTMLButtonElement>) => void
+  onButtonClick: (event: ReactMouseEvent<HTMLButtonElement>) => void
+  onPanelMouseMove: (event: ReactMouseEvent<HTMLElement>) => void
+  onPanelMouseLeave: (event: ReactMouseEvent<HTMLElement>) => void
+  onFlyoutMouseLeave: (event: ReactMouseEvent<HTMLElement>) => void
+}
+
+export function useSpeedFlyoutController({
+  active,
+  flyoutOpen,
+  popupRef,
+  submenuRef,
+  trackMenuAim,
+  guardMenuAim,
+  cancelMenuAim,
+  onOpenFromHover,
+  onOpenImmediate,
+  onClose
+}: {
+  active: boolean
+  flyoutOpen: boolean
+  popupRef: RefObject<HTMLElement | null>
+  submenuRef: RefObject<HTMLElement | null>
+  trackMenuAim: (point: MenuAimPoint) => void
+  guardMenuAim: (point: MenuAimPoint, action: () => void) => void
+  cancelMenuAim: () => void
+  onOpenFromHover: (button: HTMLButtonElement, point: MenuAimPoint) => void
+  onOpenImmediate: (button: HTMLButtonElement) => void
+  onClose: () => void
+}): SpeedFlyoutController {
+  const openTimerRef = useRef<number | null>(null)
+  const abortKeyListenerRef = useRef<AbortController | null>(null)
+  const lastPointRef = useRef<MenuAimPoint>({ clientX: 0, clientY: 0 })
+
+  const cancelPendingOpen = useCallback((): void => {
+    if (openTimerRef.current !== null) {
+      window.clearTimeout(openTimerRef.current)
+      openTimerRef.current = null
+    }
+    abortKeyListenerRef.current?.abort()
+    abortKeyListenerRef.current = null
+  }, [])
+
+  useEffect(() => {
+    if (!active) cancelPendingOpen()
+  }, [active, cancelPendingOpen])
+
+  useEffect(() => cancelPendingOpen, [cancelPendingOpen])
+
+  const scheduleHoverOpen = useCallback((event: ReactMouseEvent<HTMLButtonElement>): void => {
+    lastPointRef.current = { clientX: event.clientX, clientY: event.clientY }
+    if (flyoutOpen) {
+      trackMenuAim(lastPointRef.current)
+      return
+    }
+    if (openTimerRef.current !== null) return
+    const button = event.currentTarget
+    const controller = new AbortController()
+    abortKeyListenerRef.current = controller
+    button.ownerDocument.addEventListener('keydown', () => {
+      cancelPendingOpen()
+    }, { capture: true, signal: controller.signal })
+    openTimerRef.current = window.setTimeout(() => {
+      openTimerRef.current = null
+      abortKeyListenerRef.current?.abort()
+      abortKeyListenerRef.current = null
+      onOpenFromHover(button, lastPointRef.current)
+    }, SPEED_FLYOUT_OPEN_DELAY_MS)
+  }, [cancelPendingOpen, flyoutOpen, onOpenFromHover, trackMenuAim])
+
+  const onButtonMouseMove = useCallback((event: ReactMouseEvent<HTMLButtonElement>): void => {
+    lastPointRef.current = { clientX: event.clientX, clientY: event.clientY }
+    if (flyoutOpen) {
+      trackMenuAim(lastPointRef.current)
+      return
+    }
+    if (openTimerRef.current === null) scheduleHoverOpen(event)
+  }, [flyoutOpen, scheduleHoverOpen, trackMenuAim])
+
+  const onButtonClick = useCallback((event: ReactMouseEvent<HTMLButtonElement>): void => {
+    cancelPendingOpen()
+    cancelMenuAim()
+    onOpenImmediate(event.currentTarget)
+  }, [cancelMenuAim, cancelPendingOpen, onOpenImmediate])
+
+  const onButtonKeyDown = useCallback((event: ReactKeyboardEvent<HTMLButtonElement>): void => {
+    if (event.key === 'ArrowRight' && !flyoutOpen) {
+      event.preventDefault()
+      cancelPendingOpen()
+      cancelMenuAim()
+      onOpenImmediate(event.currentTarget)
+    }
+  }, [cancelMenuAim, cancelPendingOpen, flyoutOpen, onOpenImmediate])
+
+  const onPanelMouseMove = useCallback((event: ReactMouseEvent<HTMLElement>): void => {
+    if (!flyoutOpen || (event.target as Element).closest('[data-submenu="speed"]')) return
+    guardMenuAim(event, onClose)
+  }, [flyoutOpen, guardMenuAim, onClose])
+
+  const onPanelMouseLeave = useCallback((event: ReactMouseEvent<HTMLElement>): void => {
+    cancelPendingOpen()
+    if (!flyoutOpen) return
+    const next = event.relatedTarget as Node | null
+    if (next && submenuRef.current?.contains(next)) return
+    guardMenuAim(event, onClose)
+  }, [cancelPendingOpen, flyoutOpen, guardMenuAim, onClose, submenuRef])
+
+  const onFlyoutMouseLeave = useCallback((event: ReactMouseEvent<HTMLElement>): void => {
+    if (!flyoutOpen) return
+    const next = event.relatedTarget as Node | null
+    if (next && popupRef.current?.contains(next)) return
+    cancelMenuAim()
+    onClose()
+  }, [cancelMenuAim, flyoutOpen, onClose, popupRef])
+
+  return {
+    onButtonMouseEnter: scheduleHoverOpen,
+    onButtonMouseMove,
+    onButtonMouseLeave: cancelPendingOpen,
+    onButtonKeyDown,
+    onButtonClick,
+    onPanelMouseMove,
+    onPanelMouseLeave,
+    onFlyoutMouseLeave
+  }
+}
+
+export function SpeedControl({
+  advertised,
+  active,
+  flyoutOpen,
+  onChange,
+  controller
+}: {
   advertised: AcceleratedSpeed[]
   active: InferenceSpeedWire
   flyoutOpen: boolean
   onChange: (speed: InferenceSpeedWire) => void
-  onFlyoutHover: (event: ReactMouseEvent<HTMLButtonElement>) => void
-  onFlyoutOpen: (button: HTMLButtonElement) => void
+  controller: SpeedFlyoutController
 }): JSX.Element {
   const t = useT()
   if (!advertised.includes('ultrafast')) {
@@ -94,21 +244,24 @@ export function SpeedControl({ advertised, active, flyoutOpen, onChange, onFlyou
       aria-haspopup="listbox"
       aria-expanded={flyoutOpen}
       label={`${t('composer.speed.heading')}: ${speedLabel(t, active)}`}
-      onMouseEnter={onFlyoutHover}
-      onMouseMove={onFlyoutHover}
-      onClick={(event) => onFlyoutOpen(event.currentTarget)}
+      onMouseEnter={controller.onButtonMouseEnter}
+      onMouseMove={controller.onButtonMouseMove}
+      onMouseLeave={controller.onButtonMouseLeave}
+      onKeyDown={controller.onButtonKeyDown}
+      onClick={controller.onButtonClick}
       icon={<SpeedIcon speed={active === 'standard' ? 'fast' : active} active={active !== 'standard'} size={16} />}
     />
   )
 }
 
-export function SpeedFlyout({ ref, style, choices, active, highlight, onPointer, onHighlight, onSelect }: {
+export function SpeedFlyout({ ref, style, choices, active, highlight, onPointer, onMouseLeave, onHighlight, onSelect }: {
   ref: Ref<HTMLDivElement>
   style: CSSProperties
   choices: InferenceSpeedWire[]
   active: InferenceSpeedWire
   highlight: number
   onPointer: () => void
+  onMouseLeave?: (event: ReactMouseEvent<HTMLElement>) => void
   onHighlight: (index: number) => void
   onSelect: (speed: InferenceSpeedWire) => void
 }): JSX.Element {
@@ -121,6 +274,7 @@ export function SpeedFlyout({ ref, style, choices, active, highlight, onPointer,
       style={style}
       onMouseEnter={onPointer}
       onMouseMove={onPointer}
+      onMouseLeave={onMouseLeave}
     >
       {choices.map((speed, index) => (
         <OptionRow

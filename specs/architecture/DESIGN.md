@@ -1864,7 +1864,10 @@ language:
 A row or group header may keep secondary metadata and management actions hidden
 at rest and reveal them on hover, so a long list stays quiet. Such a control must
 also reveal on keyboard focus, and reveals by opacity rather than mounting, so the
-row never shifts. Metadata that only identifies the row (a path, a source URL, an
+row never shifts. A project row places More actions on the left and New chat on
+the right. While the project is collapsed, a running spinner or waiting indicator
+takes the New chat slot at rest and yields to New chat in place on hover, focus,
+or an open menu. Metadata that only identifies the row (a path, a source URL, an
 origin channel) may live in a hover annotation instead of layout: a tooltip for
 one line, a details card for several. Metadata only some rows carry belongs there
 by default, so the list stays one shape.
@@ -1883,7 +1886,8 @@ and drops the scroll. Marks about the thread sit at the trailing end of the titl
 area, 6px before the status slot, so they line up down the list: a thread running
 in a worktree carries the 14px worktree glyph in `--text-dimmed`. The
 status slot holds one item, in priority order: pending request, running spinner,
-unread dot, then the branch's pull request glyph.
+unread dot, the 14px scheduled-task clock in `--text-dimmed`, then the branch's
+pull request glyph.
 
 ### Settings navigation
 

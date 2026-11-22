@@ -14,6 +14,7 @@ import type { SidebarThreadSortMode } from '../../../shared/sidebarThreadOrder'
 import { normalizeWorkspaceProjectKey } from '../../../shared/workspaceProjectKey'
 import { ThreadEntry } from './ThreadEntry'
 import { ReadonlyThreadRow } from './ReadonlyThreadRow'
+import { useSyncSecondaryProjectAutomations } from './ThreadScheduledTask'
 import { workspacePathName } from './ThreadEntryDetails'
 import { deviceProjectRef } from './sshRemoteProject'
 import { ProjectsSectionHeader } from './ProjectsSectionHeader'
@@ -74,6 +75,7 @@ export function ThreadList({
   const { threadList, threadListProjectKey, searchQuery, loading, pinnedThreadIds, activeThreadId } = useThreadStore()
   const projects = useWorkspaceProjectsStore((s) => s.projects)
   const chat = useWorkspaceProjectsStore((s) => s.chat)
+  useSyncSecondaryProjectAutomations(chat ? [...projects, chat] : projects)
   const foregroundWorkspacePath = useWorkspaceProjectsStore((s) => s.foregroundWorkspacePath)
   const foregroundProjectId = useWorkspaceProjectsStore((s) => s.foregroundProjectId)
   const projectsSectionCollapsed = useUIStore((s) => s.projectsSectionCollapsed)

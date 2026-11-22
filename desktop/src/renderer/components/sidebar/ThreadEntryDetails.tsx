@@ -1,6 +1,7 @@
 import { useCallback, useState, type JSX, type ReactNode } from 'react'
 import { Folder, GitBranch } from 'lucide-react'
 import type { WorkspaceProjectSummary } from '../../../shared/workspaceProjects'
+import type { AutomationDefinition } from '../../types/automation'
 import type { ThreadSummary } from '../../types/thread'
 import { normalizeGitPathKey } from '../../stores/gitStore'
 import { useGitHeadStore } from '../../stores/gitHeadStore'
@@ -10,6 +11,7 @@ import { importedThreadSourceLabel } from '../../utils/sessionImport'
 import { ChannelIconBadge } from '../ui/channelMeta'
 import { Skeleton } from '../ui/Skeleton'
 import { ThreadPullRequestRow } from './ThreadPullRequest'
+import { ThreadScheduledTaskRows } from './ThreadScheduledTask'
 
 /** Threads started from Desktop itself carry no badge. */
 export function threadOriginBadge({
@@ -82,6 +84,8 @@ export function useThreadEntryDetails({
   projectName,
   relativeTime,
   origin,
+  scheduledTasks,
+  scheduledTasksInteractive = false,
   onScreen = false
 }: {
   thread: ThreadSummary
@@ -89,6 +93,8 @@ export function useThreadEntryDetails({
   projectName: string | null
   relativeTime: string
   origin?: ReactNode
+  scheduledTasks?: readonly AutomationDefinition[]
+  scheduledTasksInteractive?: boolean
   onScreen?: boolean
 }): { content: JSX.Element; onOpen: () => void; pull: ForgePullSummary | null; rowPull: ForgePullSummary | null } {
   const recordedBranch = thread.gitInfo?.branch?.trim() || null
@@ -170,6 +176,9 @@ export function useThreadEntryDetails({
           </div>
         ) : null}
         {!checking && pull && <ThreadPullRequestRow pull={pull} />}
+        {scheduledTasks && scheduledTasks.length > 0 && (
+          <ThreadScheduledTaskRows automations={scheduledTasks} interactive={scheduledTasksInteractive} />
+        )}
       </>
     )
   }

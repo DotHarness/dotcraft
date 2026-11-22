@@ -2325,6 +2325,8 @@ export const MESSAGES_KO = {
   'threadEntry.pendingUserInput': '답변 필요',
   'threadEntry.pendingPlanConfirmation': '확인 대기 중',
   'threadEntry.unread': '읽지 않음',
+  'threadEntry.scheduledTask': '예약된 작업',
+  'threadEntry.scheduledTaskNamed': '예약된 작업: {{name}}',
   'threadEntry.markUnread': '읽지 않음으로 표시',
   'threadEntry.markRead': '읽음으로 표시',
   'threadEntry.subAgent': '백그라운드 에이전트',

@@ -4,7 +4,7 @@
 |-------|-------|
 | **Version** | 0.10.0 |
 | **Status** | Living |
-| **Date** | 2026-11-18 |
+| **Date** | 2026-11-22 |
 | **Parent Specs** | [Session Core](../architecture/session-core.md) |
 
 Purpose: define the provider-neutral, model-aware options that control how DotCraft runs a selected
@@ -313,10 +313,11 @@ with a speed indicator when the model uses an accelerated speed it advertises. T
   applies the level at once and leaves the panel open. The top stop and accelerated speeds have distinct visual
   treatments; reduced-motion mode shows them still.
 - A speed control appears only when the model advertises an accelerated speed. Without Ultrafast it is
-  a Fast toggle pressed while Fast is active. With Ultrafast, hovering or activating it opens a flyout
-  beside the control listing Standard and each advertised speed with a short description, marking the
-  active one. A selection closes the flyout and keeps the panel open. Ultrafast uses a double-bolt
-  icon.
+  a Fast toggle pressed while Fast is active. With Ultrafast, resting the pointer on the control opens
+  a flyout after a short delay so sweeping across the button does not cover the panel, while clicking
+  or keyboard activation opens the flyout at once. The flyout sits beside the control listing Standard
+  and each advertised speed with a short description, marking the active one. A selection closes the
+  flyout and keeps the panel open. Ultrafast uses a double-bolt icon.
 - Reset appears only while the level or speed differs from the active model's catalog defaults and
   returns each differing setting to its default.
 - One level in, a menu offers Provider (configured providers; Welcome uses the workspace provider and

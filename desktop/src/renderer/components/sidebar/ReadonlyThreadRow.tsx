@@ -21,6 +21,7 @@ import { SidebarEntryDetailsCard } from './SidebarEntryDetailsCard'
 import { isRemoteProject, projectIdentity } from './projectThreads'
 import { useThreadShowsRunning } from './threadRunningStatus'
 import { ThreadPullRequestGlyph } from './ThreadPullRequest'
+import { hasThreadScheduledTask, ThreadScheduledTaskGlyph, useSecondaryThreadScheduledTasks } from './ThreadScheduledTask'
 import { ThreadRowTitle } from './ThreadRowTitle'
 import { ThreadWaitingBadge } from './ThreadWaitingBadge'
 import { useThreadWaitingStatus } from './threadWaitingStatus'
@@ -66,12 +67,14 @@ export function ReadonlyThreadRow({
   const subAgent = isSubAgentThread(thread)
   const showUnreadDot = !running && !waiting && !subAgent && isThreadUnread(thread)
   const [onScreen, setOnScreen] = useState(false)
+  const scheduledTasks = useSecondaryThreadScheduledTasks(thread, project, subAgent)
   const threadDetails = useThreadEntryDetails({
     thread: { ...thread, displayName },
     project,
     projectName: project.name || project.path,
     relativeTime,
     origin: threadOriginBadge({ thread, isSubAgent: subAgent, t }),
+    scheduledTasks: scheduledTasks.automations,
     onScreen
   })
   const rowProjectKey = projectIdentity(project)
@@ -146,6 +149,8 @@ export function ReadonlyThreadRow({
             <span className="dc-status-indicator__dot" data-tone="success" />
           </span>
         </ActionTooltip>
+      ) : hasThreadScheduledTask(scheduledTasks) ? (
+        <ThreadScheduledTaskGlyph summary={scheduledTasks} />
       ) : threadDetails.rowPull ? (
         <ThreadPullRequestGlyph pull={threadDetails.rowPull} />
       ) : null}

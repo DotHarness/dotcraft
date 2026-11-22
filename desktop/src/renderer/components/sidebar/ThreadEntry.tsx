@@ -28,6 +28,7 @@ import { sameWorkspaceProjectKey } from '../../../shared/workspaceProjectKey'
 import { SidebarEntryDetailsCard } from './SidebarEntryDetailsCard'
 import { threadOriginBadge, useThreadEntryDetails, workspacePathName } from './ThreadEntryDetails'
 import { ThreadPullRequestGlyph } from './ThreadPullRequest'
+import { hasThreadScheduledTask, ThreadScheduledTaskGlyph, useForegroundThreadScheduledTasks } from './ThreadScheduledTask'
 import { ThreadRowTitle } from './ThreadRowTitle'
 import { ThreadWaitingBadge } from './ThreadWaitingBadge'
 import { useThreadWaitingStatus } from './threadWaitingStatus'
@@ -110,12 +111,15 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
   const openRoot = project?.remote
     ? null
     : thread.effectiveWorkspacePath?.trim() || thread.workspacePath?.trim() || null
+  const scheduledTasks = useForegroundThreadScheduledTasks(thread, isSubAgent)
   const threadDetails = useThreadEntryDetails({
     thread: { ...thread, displayName },
     project,
     projectName,
     relativeTime,
     origin: threadOriginBadge({ thread, isSubAgent, t }),
+    scheduledTasks: scheduledTasks.automations,
+    scheduledTasksInteractive: true,
     onScreen
   })
   const rowPull = threadDetails.rowPull
@@ -476,6 +480,8 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
                     <span className="dc-status-indicator__dot" data-tone="success" />
                   </span>
                 </ActionTooltip>
+              ) : hasThreadScheduledTask(scheduledTasks) ? (
+                <ThreadScheduledTaskGlyph summary={scheduledTasks} />
               ) : rowPull ? (
                 <ThreadPullRequestGlyph pull={rowPull} />
               ) : null}

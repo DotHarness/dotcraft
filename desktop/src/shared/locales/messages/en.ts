@@ -3226,6 +3226,8 @@ export const MESSAGES_EN = {
   'threadEntry.pendingUserInput': 'Needs answer',
   'threadEntry.pendingPlanConfirmation': 'Awaiting confirmation',
   'threadEntry.unread': 'Unread',
+  'threadEntry.scheduledTask': 'Scheduled task',
+  'threadEntry.scheduledTaskNamed': 'Scheduled task: {{name}}',
   'threadEntry.markUnread': 'Mark as unread',
   'threadEntry.markRead': 'Mark as read',
   'threadEntry.subAgent': 'Background agent',

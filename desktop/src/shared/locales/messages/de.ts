@@ -2323,6 +2323,8 @@ export const MESSAGES_DE = {
   'threadEntry.pendingUserInput': 'Braucht eine Antwort',
   'threadEntry.pendingPlanConfirmation': 'Warten auf Bestätigung',
   'threadEntry.unread': 'Ungelesen',
+  'threadEntry.scheduledTask': 'Geplante Aufgabe',
+  'threadEntry.scheduledTaskNamed': 'Geplante Aufgabe: {{name}}',
   'threadEntry.markUnread': 'Als ungelesen markieren',
   'threadEntry.markRead': 'Als gelesen markieren',
   'threadEntry.subAgent': 'Hintergrundagent',

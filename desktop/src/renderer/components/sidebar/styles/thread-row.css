@@ -39,21 +39,54 @@
 }
 
 .dc-project-row__actions {
-  display: none;
+  display: inline-flex;
   align-items: center;
-  gap: 2px;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.dc-project-row__action {
+  display: inline-flex;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.dc-project-row__trailing-slot {
+  display: inline-grid;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-items: center;
+  flex-shrink: 0;
+}
+
+.dc-project-row__trailing-slot > * {
+  grid-area: 1 / 1;
+}
+
+.dc-project-row__status {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 120ms ease;
 }
 
 .dc-project-row:is(:hover, :focus-within, [data-menu-open]) .dc-project-row__chevron {
   opacity: 1;
 }
 
-.dc-project-row:is(:hover, :focus-within, [data-menu-open]) .dc-project-row__actions {
-  display: inline-flex;
+.dc-project-row:is(:hover, :focus-within, [data-menu-open]) .dc-project-row__action {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .dc-project-row:is(:hover, :focus-within, [data-menu-open]) .dc-project-row__status {
-  display: none;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .dc-thread-row[data-hover]:hover .dc-status-badge {
@@ -205,6 +238,16 @@
 
 .dc-thread-worktree-mark {
   display: inline-flex;
+  flex-shrink: 0;
+  color: var(--text-dimmed);
+}
+
+.dc-thread-scheduled-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
   flex-shrink: 0;
   color: var(--text-dimmed);
 }

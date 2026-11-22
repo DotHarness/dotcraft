@@ -2323,6 +2323,8 @@ export const MESSAGES_JA = {
   'threadEntry.pendingUserInput': '答えが必要です',
   'threadEntry.pendingPlanConfirmation': '確認待ち',
   'threadEntry.unread': '未読',
+  'threadEntry.scheduledTask': 'スケジュール済みタスク',
+  'threadEntry.scheduledTaskNamed': 'スケジュール済みタスク: {{name}}',
   'threadEntry.markUnread': '未読にする',
   'threadEntry.markRead': '既読にする',
   'threadEntry.subAgent': 'バックグラウンドエージェント',

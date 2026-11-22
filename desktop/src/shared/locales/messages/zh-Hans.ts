@@ -3172,6 +3172,8 @@ export const MESSAGES_ZH_HANS = {
   'threadEntry.pendingUserInput': '需要选择',
   'threadEntry.pendingPlanConfirmation': '等待确认',
   'threadEntry.unread': '未读',
+  'threadEntry.scheduledTask': '定时任务',
+  'threadEntry.scheduledTaskNamed': '定时任务：{{name}}',
   'threadEntry.markUnread': '标为未读',
   'threadEntry.markRead': '标为已读',
   'threadEntry.subAgent': '后台智能体',

@@ -1,7 +1,8 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { ModelPicker } from '../components/conversation/ModelPicker'
+import { SPEED_FLYOUT_OPEN_DELAY_MS } from '../components/conversation/ModelPickerSpeed'
 import type { InferenceSpeedWire, ModelCatalogItem } from '../stores/modelCatalogStore'
 import { installDesktopApiMock } from './desktopApiMock'
 
@@ -28,6 +29,10 @@ function openPicker(catalog: ModelCatalogItem, speedValue: InferenceSpeedWire, o
 
 beforeEach(() => {
   installDesktopApiMock({ initialLocale: 'en' })
+})
+
+afterEach(() => {
+  vi.useRealTimers()
 })
 
 describe('ModelPicker speed control', () => {
@@ -63,5 +68,28 @@ describe('ModelPicker speed control', () => {
     openPicker(model(['standard', 'fast']), 'ultrafast')
 
     expect(screen.getByRole('button', { name: 'Fast' }).getAttribute('aria-pressed')).toBe('false')
+  })
+
+  it('delays opening the Ultrafast speed flyout on hover and cancels on pointer leave or keydown', () => {
+    vi.useFakeTimers()
+    openPicker(model(['standard', 'fast', 'ultrafast']), 'standard')
+
+    const trigger = screen.getByRole('button', { name: 'Speed: Standard' })
+    fireEvent.mouseEnter(trigger, { clientX: 24, clientY: 24 })
+    act(() => { vi.advanceTimersByTime(SPEED_FLYOUT_OPEN_DELAY_MS - 50) })
+    expect(screen.queryByRole('listbox', { name: 'Speed' })).toBeNull()
+
+    fireEvent.mouseLeave(trigger)
+    act(() => { vi.advanceTimersByTime(100) })
+    expect(screen.queryByRole('listbox', { name: 'Speed' })).toBeNull()
+
+    fireEvent.mouseEnter(trigger, { clientX: 24, clientY: 24 })
+    fireEvent.keyDown(document, { key: 'Tab' })
+    act(() => { vi.advanceTimersByTime(SPEED_FLYOUT_OPEN_DELAY_MS + 50) })
+    expect(screen.queryByRole('listbox', { name: 'Speed' })).toBeNull()
+
+    fireEvent.mouseEnter(trigger, { clientX: 24, clientY: 24 })
+    act(() => { vi.advanceTimersByTime(SPEED_FLYOUT_OPEN_DELAY_MS) })
+    expect(screen.getByRole('listbox', { name: 'Speed' })).toBeTruthy()
   })
 })
