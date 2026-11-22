@@ -55,6 +55,7 @@ export function WorkLocationToggle({
       label={loadingDisabled ? '' : tooltipLabel}
       detail={tooltipDetail}
       disabledReason={blockedReason}
+      multiline={blocked}
       placement="top"
     >
       <button

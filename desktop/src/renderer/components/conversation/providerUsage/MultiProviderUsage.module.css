@@ -55,37 +55,35 @@
   color: var(--text-dimmed);
 }
 
+.divider {
+  width: 1px;
+  height: 10px;
+  flex-shrink: 0;
+  background: var(--border-default);
+}
+
 .stack {
   display: inline-flex;
   align-items: center;
-  margin-left: 2px;
+  gap: 5px;
 }
 
-.chip {
+.mark {
   display: inline-flex;
-  width: 18px;
-  height: 18px;
-  box-sizing: border-box;
   align-items: center;
   justify-content: center;
-  border-radius: 999px;
-  background: var(--bg-tertiary);
-  box-shadow: 0 0 0 1.5px var(--bg-primary);
   color: var(--composer-footer-text, var(--text-secondary));
 }
 
-.chip + .chip {
-  margin-left: -4px;
-}
-
-.chip[data-trouble] {
-  background: var(--error-bg);
-  color: var(--error-text);
+.mark[data-trouble] {
+  color: var(--error);
 }
 
 .more {
-  font-size: 9px;
-  font-weight: 600;
+  color: var(--text-dimmed);
+  font-size: var(--type-hint-size);
+  font-weight: 500;
+  line-height: 1;
   font-variant-numeric: tabular-nums;
 }
 

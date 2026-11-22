@@ -1294,7 +1294,10 @@ and state already say.
   with the same frame.
 - The action row holds model, context-window, and send. The context row below the
   card holds project, Run on, work location, branch or changelist, and provider
-  subscription status (right after the branch). Context-row chips share one 28px
+  usage (right after the branch). When subagent providers also report usage, their
+  bare 13px marks follow the active provider's reading after a quiet hairline inside
+  the same transparent pill, up to three before a plain `+N` count, with only a
+  blocked provider's mark tinted in `--error`. Context-row chips share one 28px
   footer pill in `--composer-footer-text`, and menu-backed chips open upward. The
   work location pill (`Local` / `Worktree`, or `Work locally` / `New worktree` on
   Welcome) is a direct toggle with no chevron. At rest it shows the local laptop

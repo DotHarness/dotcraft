@@ -1940,8 +1940,6 @@ export const MESSAGES_EN = {
   'channels.modules.restart': 'Restart',
   'channels.modules.configSavedRestart':
     'Configuration saved. Restart the channel for changes to take effect.',
-  'channels.modules.logs.view': 'View Logs',
-  'channels.modules.logs.title': 'Recent module logs',
   'channels.modules.showAdvanced': 'Show advanced options ({{count}})',
   'channels.modules.hideAdvanced': 'Hide advanced options',
   'channels.modules.advancedGroup': 'Advanced',
@@ -1968,7 +1966,6 @@ export const MESSAGES_EN = {
   'channels.plugins.clearSecret': 'Clear saved value',
   'channels.plugins.secretArray': 'Enter a valid JSON array.',
   'channels.plugins.secretObject': 'Enter a valid JSON object.',
-  'channels.plugins.noLogs': 'No recent logs.',
   'channels.plugins.managementUnavailable': 'This workspace host does not support channel setup.',
   'channels.plugins.incompatible': 'This channel is incompatible with the host (minimum DotCraft {{version}}).',
   'channels.plugins.missing': 'The plugin for {{name}} is missing. Refresh the catalog or install the plugin again.',

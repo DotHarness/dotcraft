@@ -4,26 +4,6 @@ import { Eye, EyeOff } from 'lucide-react'
 import { IconButton } from '../ui/IconButton'
 import { Input } from '../ui/Input'
 
-interface FieldCardProps {
-  children: React.ReactNode
-}
-
-export function FieldCard({ children }: FieldCardProps): JSX.Element {
-  return (
-    <div
-      style={{
-        backgroundColor: 'var(--bg-secondary)',
-        borderRadius: '10px',
-        border: '1px solid var(--border-default)',
-        padding: '16px',
-        marginBottom: '12px'
-      }}
-    >
-      {children}
-    </div>
-  )
-}
-
 interface SecretInputProps {
   id?: string
   value: string

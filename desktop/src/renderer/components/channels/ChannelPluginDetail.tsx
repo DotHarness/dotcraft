@@ -52,8 +52,6 @@ export function ChannelPluginDetail({
   const [loadingKey, setLoadingKey] = useState(0)
   const [saving, setSaving] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [logs, setLogs] = useState<string[] | null>(null)
-  const [logsLoading, setLogsLoading] = useState(false)
   const [attempted, setAttempted] = useState(false)
   const mounted = useRef(false)
   const settingsRead = useRef(0)
@@ -187,18 +185,6 @@ export function ChannelPluginDetail({
     }
   }
 
-  async function loadLogs(): Promise<void> {
-    setLogsLoading(true)
-    try {
-      const result = await channelRequest('channel/logs', { name: channel.channelName })
-      if (current()) setLogs(result.lines)
-    } catch (err) {
-      if (current()) addToast(t('channels.loadFailed', { error: errorMessage(err) }), 'error')
-    } finally {
-      setLogsLoading(false)
-    }
-  }
-
   const permissionsNotice = channel.compatibilityError
     ? t('channels.plugins.incompatible', { version: channel.minHostVersion ?? '' })
     : plugin.installed && !(management && pluginConfiguration) ? t('channels.plugins.managementUnavailable')
@@ -296,9 +282,6 @@ export function ChannelPluginDetail({
               moduleStatus={moduleStatus}
               onStart={controls ? () => void setEnabled(true) : undefined}
               onCancel={onCancel}
-              moduleLogLines={logs}
-              logsLoading={logsLoading}
-              onLoadLogs={management && status ? () => void loadLogs() : undefined}
             />
           ) : configError ? (
             <div role="status">

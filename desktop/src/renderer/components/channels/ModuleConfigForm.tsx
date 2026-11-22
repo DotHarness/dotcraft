@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react'
 import type { ConfigDescriptorWire, ConfigFieldOptionWire, ConfigGroupDescriptorWire, ModuleStatusEntry } from '../../../shared/channelModules'
 import { channelTitle, type ChannelPlugin } from './channelPluginModel'
 import { useLocale, useT } from '../../contexts/LocaleContext'
-import { FieldCard } from './FormShared'
 import { ChannelSecretInput } from './ChannelSecretInput'
 import { Input, Textarea } from '../ui/Input'
 import { Button } from '../ui/Button'
@@ -26,9 +25,6 @@ interface ModuleConfigFormProps {
   moduleStatus?: ModuleStatusEntry
   onStart?: () => void
   onCancel: () => void
-  moduleLogLines: string[] | null
-  logsLoading: boolean
-  onLoadLogs?: () => void
 }
 
 const CUSTOM_ENUM_VALUE = '__dotcraft_custom_value__'
@@ -58,10 +54,7 @@ export function ModuleConfigForm({
   readOnly,
   moduleStatus,
   onStart,
-  onCancel,
-  moduleLogLines,
-  logsLoading,
-  onLoadLogs
+  onCancel
 }: ModuleConfigFormProps): JSX.Element {
   const module = plugin.channel
   const locale = useLocale()
@@ -416,35 +409,6 @@ export function ModuleConfigForm({
             )}
           </div>
         </div>
-      )}
-
-      {onLoadLogs && (
-        <Button variant="secondary" onClick={onLoadLogs} loading={logsLoading}>
-          {t('channels.modules.logs.view')}
-        </Button>
-      )}
-      {moduleLogLines !== null && (
-        <FieldCard>
-          <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
-            {t('channels.modules.logs.title')}
-          </div>
-          <pre
-            style={{
-              margin: 0,
-              padding: '8px',
-              borderRadius: '6px',
-              backgroundColor: 'var(--bg-secondary)',
-              color: 'var(--text-secondary)',
-              fontSize: '11px',
-              lineHeight: 1.4,
-              whiteSpace: 'pre-wrap',
-              maxHeight: '280px',
-              overflow: 'auto'
-            }}
-          >
-            {moduleLogLines.length ? moduleLogLines.join('\n') : t('channels.plugins.noLogs')}
-          </pre>
-        </FieldCard>
       )}
 
       <fieldset className={styles.configurationGroups} disabled={readOnly || saving}>

@@ -57,14 +57,15 @@ export function MultiProviderUsageBadge({ main, lead, others }: { main: Provider
         ) : (
           <span className={styles.leadUnreported}><UsageProviderMark provider={main} usage={null} size={14} /></span>
         )}
+        <span className={styles.divider} aria-hidden />
         <span className={styles.stack} aria-hidden>
           {marks.map(({ provider, usage, reading }) => (
-            <span key={provider.id} className={styles.chip} data-trouble={reading.tone === 'error' ? true : undefined}>
-              <UsageProviderMark provider={provider} usage={usage} size={11} />
+            <span key={provider.id} className={styles.mark} data-trouble={reading.tone === 'error' ? true : undefined}>
+              <UsageProviderMark provider={provider} usage={usage} size={13} />
             </span>
           ))}
           {hidden.length > 0 && (
-            <span className={`${styles.chip} ${styles.more}`}>+{hidden.length}</span>
+            <span className={styles.more}>+{hidden.length}</span>
           )}
         </span>
       </button>
