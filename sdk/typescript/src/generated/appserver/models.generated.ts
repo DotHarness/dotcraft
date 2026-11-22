@@ -5433,6 +5433,7 @@ export interface TurnQueueUpdateResult {
 
 export interface TurnStartOrEnqueueParams {
   input: InputPart[];
+  kickoff?: boolean | null;
   model?: string | null;
   reasoning?: ReasoningConfig | null;
   threadId: string;

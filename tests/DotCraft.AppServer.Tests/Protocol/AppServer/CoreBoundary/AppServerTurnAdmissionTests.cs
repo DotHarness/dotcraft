@@ -48,14 +48,20 @@ public sealed class AppServerTurnAdmissionTests
         using var harness = new AppServerTestHarness();
         await harness.InitializeAsync();
         var thread = await harness.Service.CreateThreadAsync(harness.Identity);
+        string? capturedTriggerKind = null;
         if (queued)
         {
-            harness.Service.FollowupAdmissionHandler = id => new Domain.TurnStartOrEnqueueAdmission(
-                QueuedInput: new Domain.QueuedTurnInput
-                {
-                    Id = "queue_007", ThreadId = id, Status = "queued", DisplayText = "follow up",
-                    NativeInputParts = [], MaterializedInputParts = []
-                });
+            harness.Service.FollowupAdmissionHandler = id =>
+            {
+                capturedTriggerKind = Domain.TurnTriggerScope.Current?.Kind;
+                return new Domain.TurnStartOrEnqueueAdmission(
+                    QueuedInput: new Domain.QueuedTurnInput
+                    {
+                        Id = "queue_007", ThreadId = id, Status = "queued", DisplayText = "follow up",
+                        TriggerKind = capturedTriggerKind,
+                        NativeInputParts = [], MaterializedInputParts = []
+                    });
+            };
         }
         else
         {
@@ -65,6 +71,7 @@ public sealed class AppServerTurnAdmissionTests
         await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethodNames.TurnStartOrEnqueue, new
         {
             threadId = thread.Id,
+            kickoff = queued,
             model = "future-model",
             reasoning = new { effort = "high" },
             input = new[] { new { type = "text", text = "follow up" } }
@@ -76,7 +83,11 @@ public sealed class AppServerTurnAdmissionTests
         Assert.Equal(queued, result.TryGetProperty("queuedInput", out var queuedInput));
         Assert.Equal(!queued, result.TryGetProperty("turn", out var turn));
         if (queued)
+        {
             Assert.Equal("queue_007", queuedInput.GetProperty("id").GetString());
+            Assert.Equal("kickoff", capturedTriggerKind);
+            Assert.Equal("kickoff", queuedInput.GetProperty("triggerKind").GetString());
+        }
         else
             Assert.Empty(turn.GetProperty("items").EnumerateArray());
         Assert.Equal("future-model", harness.Service.LastSubmittedTurnSettings?.Model);

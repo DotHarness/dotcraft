@@ -107,7 +107,8 @@ public sealed partial class SessionService
         thread.LastActiveAt = DateTimeOffset.UtcNow;
 
         string? provisionalThreadTitle = null;
-        if (string.IsNullOrEmpty(thread.DisplayName))
+        if (string.IsNullOrEmpty(thread.DisplayName)
+            && !string.Equals(triggerInfo?.Kind, TurnTriggerInfo.KickoffKind, StringComparison.Ordinal))
         {
             provisionalThreadTitle = ThreadTitleText.CreateProvisionalTitle(text);
             if (provisionalThreadTitle != null)

@@ -172,6 +172,7 @@ describe('turn layout', () => {
       item('userMessage', { text: 'Run the build' }),
       item('userMessage', { text: 'Background command finished (exit code 0): npm test', deliveryMode: 'queued', triggerKind: 'terminal', triggerRefId: 'term-1' }),
       item('userMessage', { text: 'Subagent reviewer finished', deliveryMode: 'queued', triggerKind: 'subagent', triggerRefId: 'agent-1' }),
+      item('userMessage', { text: 'Greet them in zh-Hans.', triggerKind: 'kickoff' }),
       item('userMessage', { text: 'Workflow review finished.', deliveryMode: 'queued', triggerKind: 'workflow', triggerRefId: 'run-1', triggerStatus: 'succeeded' }),
       item('userMessage', { text: 'Run the review workflow', triggerKind: 'workflow', triggerRefId: 'run-2' }),
       item('userMessage', { text: 'Chat Fix the build finished', deliveryMode: 'queued', triggerKind: 'thread', triggerRefId: 'thread-child', triggerStatus: 'completed' }),

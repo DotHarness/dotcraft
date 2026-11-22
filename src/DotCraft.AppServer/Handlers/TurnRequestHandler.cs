@@ -132,13 +132,17 @@ internal sealed class TurnRequestHandler(
         await sessionService.EnsureThreadLoadedAsync(p.ThreadId, ct);
         await connection.RunThreadNotificationAsync(p.ThreadId, async _ =>
         {
-            var admission = await sessionService.StartOrEnqueueTurnAsync(p.ThreadId, input.Content,
-                CancellationToken.None, new SessionInputSnapshot
-                {
-                    NativeInputParts = input.NativeInputParts,
-                    MaterializedInputParts = input.MaterializedInputParts,
-                    DisplayText = input.DisplayText
-                }, p.Model, reasoning);
+            TurnStartOrEnqueueAdmission admission;
+            using (p.Kickoff == true ? TurnTriggerScope.Set(new TurnTriggerInfo { Kind = TurnTriggerInfo.KickoffKind }) : null)
+            {
+                admission = await sessionService.StartOrEnqueueTurnAsync(p.ThreadId, input.Content,
+                    CancellationToken.None, new SessionInputSnapshot
+                    {
+                        NativeInputParts = input.NativeInputParts,
+                        MaterializedInputParts = input.MaterializedInputParts,
+                        DisplayText = input.DisplayText
+                    }, p.Model, reasoning);
+            }
 
             await WriteAdmissionResponseAsync(request.Message.Id, new Contract.TurnStartOrEnqueueResult
             {

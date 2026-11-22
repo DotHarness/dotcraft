@@ -287,6 +287,7 @@ resting frame while focused or typing, and the caret is the focus cue. No field 
   Failed, cancelled, and `TaskStop` outcomes do not change. Other notifications drained into a running
   turn add nothing. Mobile keeps the subagent icon where Desktop shows the subagent's avatar, since
   avatars render only in a DOM view there.
+- A kickoff prompt (`triggerKind` `kickoff`) adds neither a user message nor a wake marker.
 - Background task tools read as Desktop names them: an `Exec` still running after its result stays a
   running line while its turn runs and afterwards reads as a started (or stopped) background
   terminal; `SpawnAgent`, `SendMessage`, `ListAgents`, and `TaskStop` read as Desktop labels them,

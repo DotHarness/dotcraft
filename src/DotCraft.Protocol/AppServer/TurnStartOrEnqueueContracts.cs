@@ -10,6 +10,10 @@ public sealed class TurnStartOrEnqueueParams : ExtensibleJsonObject
     [JsonPropertyName("input")]
     public required IReadOnlyList<InputPart> Input { get; init; }
 
+    [JsonPropertyName("kickoff")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? Kickoff { get; init; }
+
     [JsonPropertyName("model")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Model { get; init; }

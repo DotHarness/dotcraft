@@ -44,7 +44,7 @@ export class DesktopThreadBindings {
   ): Promise<T> {
     const state = this.forClient(client)
     const threadId = stringProperty(params, 'threadId')
-    if (threadId && (method === 'turn/start' || method === 'turn/enqueue')) {
+    if (threadId && (method === 'turn/start' || method === 'turn/enqueue' || method === 'turn/startOrEnqueue')) {
       await this.ensureTools(client, state, threadId, options)
     }
     if (threadId && method === 'visualization/view/open') {

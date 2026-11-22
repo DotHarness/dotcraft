@@ -708,7 +708,7 @@ The user message's display text is built from text, file, command, and skill par
 
 Queued inputs carry `nativeInputParts`, `materializedInputParts`, `displayText`, optional `sender`, `status` (`queued` or `guidancePending`), `createdAt`, and `readyAfterTurnId` (the active turn when queued). Trigger fields mark input synthesized by a server or app mechanism:
 
-- `triggerKind`: for example `goal`, `automation`, `app`, `team`, `sideChat` (a message a side chat sent its source; `triggerRefId` is the side chat id), `subagentFollowupTask`, `subagentMailbox`, `subagentInput`, or a task notification kind `terminal`, `subagent`, `workflow`, or `thread` (a model-facing notice that a background task or a reported thread ended; `triggerRefId` is the task or thread id; clients do not present it as user input).
+- `triggerKind`: for example `kickoff`, `goal`, `automation`, `app`, `team`, `sideChat` (a message a side chat sent its source, where `triggerRefId` is the side chat id), `subagentFollowupTask`, `subagentMailbox`, `subagentInput`, or a task notification kind `terminal`, `subagent`, `workflow`, or `thread` (a model-facing notice that a background task or a reported thread ended, where `triggerRefId` is the task or thread id). Clients do not present `kickoff` inputs, mailbox drains, or task notifications as user input.
 - `triggerLabel`, `triggerRefId`: display label and stable source id for click-through or audit.
 - `triggerStatus` (task notifications only): the terminal's final status or `waitingForInput` for a stall; the child Turn status for `subagent`; the run status for `workflow`.
 
@@ -781,9 +781,10 @@ Deliver a report about another thread to this thread as a task notification. A c
 
 ### 5.2.8 `turn/startOrEnqueue`
 
-Admit a follow-up without steering an existing Turn. Params `threadId`, non-empty `input`, and optional `model` and `reasoning` with the sparse-setting semantics of [`turn/start`](#51-turnstart).
+Admit a follow-up or opening input without steering an existing Turn. Params `threadId`, non-empty `input`, optional `kickoff`, and optional `model` and `reasoning` with the sparse-setting semantics of [`turn/start`](#51-turnstart).
 
 - The server uses [start-or-enqueue admission](../architecture/session-core.md#34-turn-execution-ownership). The result contains exactly one of `turn` (the initial new Turn, with empty `items`) or `queuedInput` (the persisted FIFO input).
+- Optional `kickoff: true` marks the input with `triggerKind = "kickoff"`, so the model receives the opening prompt while clients do not present it as a user message and the server does not derive a thread title from it.
 - This request does not attach the connection. A started Turn follows the response ordering and execution ownership of `turn/start`. An enqueued input publishes the usual queue update and follows existing queue drain, pause, and resume rules.
 - An unknown thread returns `-32010`. A non-Active thread returns `-32011`. Client-managed history, empty input, and invalid model settings return invalid params before accepting input.
 
@@ -872,7 +873,7 @@ Canonical payload schemas are in [Session Core, Section 4.2](../architecture/ses
 
 | `item.type` | Wire-specific notes |
 |-------------|---------------------|
-| `userMessage` | `text` is a display field. `nativeInputParts` is authoritative for history rendering; `materializedInputParts` is the exact model snapshot. `deliveryMode` is `normal`, `queued`, `guidance`, or `subagentMailbox`. `sentAsGoal` marks goal submission. Trigger fields (`triggerKind` — `automation`, `goal`, `app`, `mcpApp`, `workflow`, `sideChat`, `subagentFollowupTask`, `subagentMailbox`, `subagentInput`, `terminal`, `subagent`, `thread` — plus `triggerLabel`, `triggerRefId`, `triggerStatus`) mark synthesized input. Task notifications and `subagentMailbox` items are model-visible and must not render as user bubbles. SubAgent `triggerRefId` values are agent paths, not thread ids, and name the sender for `subagentMailbox`. |
+| `userMessage` | `text` is a display field. `nativeInputParts` is authoritative for history rendering, and `materializedInputParts` is the exact model snapshot. `deliveryMode` is `normal`, `queued`, `guidance`, or `subagentMailbox`. `sentAsGoal` marks goal submission. Trigger fields (`triggerKind` — `kickoff`, `automation`, `goal`, `app`, `mcpApp`, `workflow`, `sideChat`, `subagentFollowupTask`, `subagentMailbox`, `subagentInput`, `terminal`, `subagent`, `thread` — plus `triggerLabel`, `triggerRefId`, `triggerStatus`) mark synthesized input. `kickoff`, `subagentMailbox`, and task notification items are model-visible and do not render as user bubbles. SubAgent `triggerRefId` values are agent paths, not thread ids, and name the sender for `subagentMailbox`. |
 | `agentMessage` | Text streams through `item/agentMessage/delta`. Optional source-owned `phase` is commentary, partial_answer or final_answer; unknown streaming phase is absent, and terminal Item completion resolves the role once. `deliveryMode = "async"` marks a model-initiated message during a running Turn: delivered immediately, does not complete the Turn, excluded from final-text aggregation, not restored into model-visible history. Trigger kind does not imply async delivery. |
 | `reasoningContent` | Text streams through `item/reasoning/delta`. |
 | `toolCall` | Optional canonical `namespace`, local `toolName`, required `providerFlatName`, `arguments`, `callId`, plus optional definition and source provenance. Argument construction may stream through `item/toolCall/argumentsDelta`. |

@@ -8,6 +8,8 @@ namespace DotCraft.Sessions;
 /// </summary>
 public sealed class TurnTriggerInfo
 {
+    public const string KickoffKind = "kickoff";
+
     /// <summary>
     /// Mechanism that synthesized this turn. Expected values include "automation",
     /// "automation", "goal", and future app-specific values such as "app" or "team".
@@ -38,7 +40,7 @@ public static class TurnTriggerScope
 
     public static TurnTriggerInfo? Current => CurrentContext.Value;
 
-    public static IDisposable Set(TurnTriggerInfo info)
+    public static IDisposable Set(TurnTriggerInfo? info)
     {
         var previous = CurrentContext.Value;
         CurrentContext.Value = info;

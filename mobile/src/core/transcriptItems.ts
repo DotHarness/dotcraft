@@ -94,6 +94,7 @@ function projectItem(item: HistoryItem, context: ItemContext): ItemProjection {
     case 'userMessage': {
       const mode = str(payload.deliveryMode)
       const trigger = str(payload.triggerKind)
+      if (trigger === 'kickoff') return {}
       if (mode === 'subagentMailbox' || trigger === 'subagentMailbox') {
         return mode === 'guidance' ? {} : { wake: { task: 'subagent', label: str(payload.triggerLabel).trim(), status: null, message: true } }
       }
