@@ -326,7 +326,7 @@ The convenience contribution contract is the concise API for common integrations
 | Command | Adds command discovery, availability, argument handling, and invocation. |
 | Tool renderer | Adds exact-presentation rendering with Core and generic fallbacks. |
 | Message action | Adds an action to the standard assistant-message action area. |
-| Space | Adds one sidebar entry below New chat and a sidebar of its own while one of its locations is open. |
+| Space | Adds one sidebar destination and a sidebar of its own while one of its locations is open. |
 
 These kinds are not an authorization list. Their ordering, fallback, localization, and navigation remain Host-owned. Tool renderers change presentation only; MCP App presentation stays on its sandboxed path. Composer UI uses named surfaces rather than a separate contribution family.
 
@@ -355,7 +355,7 @@ interface DesktopPluginSpaceSidebarProps extends DesktopPluginViewProps {
 ```
 
 - A space's locations are the plugin's main views named in `views` and the threads the plugin owns with that space's `id`.
-- Space entries render below New chat, ordered by `order`. Selecting an entry returns to the view last open in the space. Otherwise it calls `open`, which navigates with the ordinary Host operations, so a plugin reaching an owned thread confirms it through `threads.ensureOwned` each time.
+- A space's entry is a sidebar destination like a plugin main view, ordered with them by `order`. It is pinned by default, and the person can unpin it to More and pin it again. Selecting the entry returns to the view last open in the space. Otherwise it calls `open`, which navigates with the ordinary Host operations, so a plugin reaching an owned thread confirms it through `threads.ensureOwned` each time.
 - A main view named in a space is reached only through it: it is not a sidebar destination, a More item, or a pin, and `openMainView` on it opens the space.
 - While the active location belongs to a space, the Host replaces the sidebar with a Back row followed by the contribution's `sidebar`. The Host owns the frame, the Back row, and the sidebar's width and collapse. The contribution renders its rows with `SidebarRow`.
 - On entering a space, the Host records the location it left, including its workspace. Back returns there, switching workspace when an owned thread's workspace replaced it. Moving between the space's own locations keeps the record, including while a workspace switch is in progress. Opening a location outside the space leaves the space without returning, and the record is dropped.

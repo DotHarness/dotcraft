@@ -119,9 +119,10 @@ an embedded conversation.
 The Oratorio space keeps the conductor and the board together behind one entry,
 so Oratorio adds one place to Desktop instead of a chat and a separate view.
 
-- **Entry.** One sidebar row directly below New chat, labelled Oratorio with
-  the baton icon. It is Oratorio's only sidebar entry: the board is not listed
-  as a separate destination, in More, or as a pin.
+- **Entry.** One sidebar destination labelled Oratorio with the baton icon,
+  pinned by default and movable to More like any destination. It is
+  Oratorio's only sidebar entry: the board is not listed as a separate
+  destination.
 - **Opening.** Selecting the entry opens the space on the conductor the first
   time and on the destination last open in it afterwards. An Oratorio link to
   the board, a task or a run opens the space on the board.

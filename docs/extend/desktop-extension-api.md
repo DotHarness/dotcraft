@@ -387,7 +387,7 @@ A tool renderer receives `presentation` with the exact `presentationId`, options
 
 ### Group a view and a conversation into a space
 
-A space puts a product made of a conversation and a full view behind one sidebar entry, which Desktop places below New chat. While one of its locations is open, Desktop replaces the sidebar with a Back row followed by the space's own `sidebar` component, which renders its rows with `SidebarRow`:
+A space puts a product made of a conversation and a full view behind one sidebar entry, which Desktop lists with the other destinations, pinned by default. While one of its locations is open, Desktop replaces the sidebar with a Back row followed by the space's own `sidebar` component, which renders its rows with `SidebarRow`:
 
 ```tsx
 import { SidebarRow, type DesktopPluginSpaceSidebarProps } from "@dotcraft/plugin";

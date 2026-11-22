@@ -10,10 +10,7 @@ import {
   SIDEBAR_NAV_ROW_OUTER
 } from '../sidebar/sidebarNavRowStyles'
 import { SidebarMoreMenu } from '../sidebar/SidebarMoreMenu'
-import { DesktopPluginIcon, useSidebarDestinations, useUnpinContextMenu } from '../sidebar/sidebarDestinations'
-import { useLocale } from '../../contexts/LocaleContext'
-import { resolveDesktopPluginLabel, useDesktopPluginRegistry } from '../../plugins/desktopPluginRegistry'
-import { enterSpace } from '../../stores/spaceStore'
+import { useSidebarDestinations, useUnpinContextMenu } from '../sidebar/sidebarDestinations'
 
 interface SidebarProps {
   workspaceName: string
@@ -40,8 +37,6 @@ export function Sidebar({
       }}
     >
       <NewThreadButton />
-
-      <SpaceNavRows />
 
       <ThreadSearch workspaceName={workspaceName} />
 
@@ -77,25 +72,6 @@ export function Sidebar({
 
       <SidebarFooter />
     </div>
-  )
-}
-
-function SpaceNavRows(): JSX.Element {
-  const locale = useLocale()
-  const spaces = useDesktopPluginRegistry((s) => s.spaces)
-  return (
-    <>
-      {spaces.map((space) => (
-        <SidebarNavRow
-          key={space.spaceKey}
-          label={resolveDesktopPluginLabel(space.label, locale)}
-          active={false}
-          onClick={() => enterSpace(space)}
-          icon={<DesktopPluginIcon icon={space.icon} />}
-          testId={`nav-space-${space.pluginId}-${space.id}`}
-        />
-      ))}
-    </>
   )
 }
 

@@ -355,7 +355,7 @@ function registryState(
   }
 }
 
-function compareContribution(
+export function compareContribution(
   left: { order?: number; pluginId: string; id: string },
   right: { order?: number; pluginId: string; id: string }
 ): number {

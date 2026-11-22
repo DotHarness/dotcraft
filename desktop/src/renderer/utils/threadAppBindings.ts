@@ -24,10 +24,7 @@ export async function activateThreadAppBindings({
 }): Promise<void> {
   if (appIds.length === 0) return
 
-  const known = useAppBindingStore.getState().apps
-  if (appIds.some((appId) => !known.some((app) => app.appId === appId))) {
-    await useAppBindingStore.getState().fetchApps(threadId, false, 'welcome')
-  }
+  await useAppBindingStore.getState().fetchApps(threadId, false, 'welcome')
 
   const outcomes = await Promise.allSettled(
     appIds.map((appId) => activateOne({ threadId, appId, translate, signal }))

@@ -3,9 +3,10 @@ import { PinOff } from 'lucide-react'
 import type { DesktopPluginContributionIcon } from '@dotcraft/plugin'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { prefetchCoreMainView } from '../../core/coreMainViewRoutes'
-import { resolveDesktopPluginLabel, useDesktopPluginRegistry } from '../../plugins/desktopPluginRegistry'
+import { compareContribution, resolveDesktopPluginLabel, useDesktopPluginRegistry } from '../../plugins/desktopPluginRegistry'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useSidebarDestinationsStore } from '../../stores/sidebarDestinationsStore'
+import { enterSpace } from '../../stores/spaceStore'
 import { useUIStore } from '../../stores/uiStore'
 import { resolveDesktopPluginIcon } from '../desktopPlugins/DesktopPluginIcon'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
@@ -44,21 +45,40 @@ export function useSidebarDestinations(): { pinned: SidebarDestination[]; more: 
     prefetch: () => prefetchCoreMainView(view)
   })
 
-  const destinations: SidebarDestination[] = [
-    ...desktopMainViews.filter((entry) => !spaceViews.has(entry.viewKey)).map((entry) => ({
-      id: entry.viewKey,
-      label: resolveDesktopPluginLabel(entry.label, locale),
-      icon: <DesktopPluginIcon icon={entry.icon} />,
-      active: activeMainView === entry.viewKey,
-      testId: `nav-desktop-plugin-${entry.pluginId}-${entry.id}`,
-      select: () => setActiveMainView(entry.viewKey)
+  const pluginEntries = [
+    ...spaces.map((space) => ({
+      ...space,
+      destination: {
+        id: space.spaceKey,
+        label: resolveDesktopPluginLabel(space.label, locale),
+        icon: <DesktopPluginIcon icon={space.icon} />,
+        active: false,
+        testId: `nav-space-${space.pluginId}-${space.id}`,
+        select: () => enterSpace(space)
+      }
     })),
+    ...desktopMainViews.filter((entry) => !spaceViews.has(entry.viewKey)).map((entry) => ({
+      ...entry,
+      destination: {
+        id: entry.viewKey,
+        label: resolveDesktopPluginLabel(entry.label, locale),
+        icon: <DesktopPluginIcon icon={entry.icon} />,
+        active: activeMainView === entry.viewKey,
+        testId: `nav-desktop-plugin-${entry.pluginId}-${entry.id}`,
+        select: () => setActiveMainView(entry.viewKey)
+      }
+    }))
+  ].sort(compareContribution)
+  const spaceKeys = new Set(spaces.map((space) => space.spaceKey))
+
+  const destinations: SidebarDestination[] = [
+    ...pluginEntries.map((entry) => entry.destination),
     core('agents', t('sidebar.agents')),
     ...(automationsAvailable ? [core('automations', t('sidebar.automations'))] : []),
     core('skills', t('sidebar.skills'))
   ]
 
-  const isPinned = (id: string): boolean => pins[id] ?? PINNED_BY_DEFAULT.has(id)
+  const isPinned = (id: string): boolean => pins[id] ?? (PINNED_BY_DEFAULT.has(id) || spaceKeys.has(id))
   return {
     pinned: destinations.filter((destination) => isPinned(destination.id)),
     more: destinations.filter((destination) => !isPinned(destination.id))

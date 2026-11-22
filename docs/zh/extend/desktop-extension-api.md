@@ -383,7 +383,7 @@ Surface 只在它所在的组件 mounted 时存在。Registration 仍由注册�
 
 ### 把视图和对话组成一个 space
 
-space 把由一段对话和一个完整视图组成的产品收进一个侧栏入口，Desktop 把它放在“新对话”下方。当 space 的某个位置处于打开状态时，Desktop 用一行“返回”加上 space 自己的 `sidebar` 组件替换侧栏，组件用 `SidebarRow` 渲染各行：
+space 把由一段对话和一个完整视图组成的产品收进一个侧栏入口，Desktop 把它和其他目的地放在一起，默认置顶。当 space 的某个位置处于打开状态时，Desktop 用一行“返回”加上 space 自己的 `sidebar` 组件替换侧栏，组件用 `SidebarRow` 渲染各行：
 
 ```tsx
 import { SidebarRow, type DesktopPluginSpaceSidebarProps } from "@dotcraft/plugin";
