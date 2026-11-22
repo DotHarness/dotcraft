@@ -1,4 +1,5 @@
 import type { WorkspaceProjectState, WorkspaceProjectSummary } from '../../../../shared/workspaceProjects'
+import { isOwnedThreadId } from '../../../../shared/ownedThreads'
 import { isHiddenThread } from '../../../../shared/hiddenThreads'
 import type { ThreadSummary } from '../../../types/thread'
 import { isSubAgentThread } from '../../../utils/subAgentThreads'
@@ -76,7 +77,7 @@ export function isStartableSource(source: ArchivedThreadSource): boolean {
 }
 
 export function archivedThreadsFromList(threads: ThreadSummary[]): ThreadSummary[] {
-  return threads.filter((thread) => thread.status === 'archived' && !isSubAgentThread(thread) && !isHiddenThread(thread))
+  return threads.filter((thread) => thread.status === 'archived' && !isSubAgentThread(thread) && !isHiddenThread(thread) && !isOwnedThreadId(thread.id))
 }
 
 export function isAutomationRun(thread: ThreadSummary): boolean {

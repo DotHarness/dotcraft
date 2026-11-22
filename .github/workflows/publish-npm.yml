@@ -195,6 +195,6 @@ jobs:
           PACKAGE_VERSION: ${{ needs.pack.outputs.version }}
         run: |
           npm publish "artifacts/npm/dotcraft-sdk-$PACKAGE_VERSION.tgz" --access public --registry https://registry.npmjs.org
-          npm publish "artifacts/npm/dotcraft-plugin-$PACKAGE_VERSION.tgz" --access public --registry https://registry.npmjs.org
           npm publish "artifacts/npm/dotcraft-avatar-$PACKAGE_VERSION.tgz" --access public --registry https://registry.npmjs.org
+          npm publish "artifacts/npm/dotcraft-plugin-$PACKAGE_VERSION.tgz" --access public --registry https://registry.npmjs.org
           npm publish "artifacts/npm/dotcraft-island-$PACKAGE_VERSION.tgz" --access public --registry https://registry.npmjs.org

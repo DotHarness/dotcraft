@@ -39,6 +39,7 @@ import { emptyComposerDraftSnapshot, mergeRestoredComposerDraft } from '../../ut
 import { expandInitCommand } from '../../utils/initCommand'
 import { executeReloadSkills } from '../../utils/reloadSkillsCommand'
 import { useComposerMascot } from './useComposerMascot'
+import { useLinkedChatMascot } from './useLinkedChatMascot'
 import { usePromptSuggestion } from './usePromptSuggestion'
 import { useComposerFileReferenceRequest } from './useComposerFileReferenceRequest'
 import { useComposerImageAttachmentRequest } from './useComposerImageAttachmentRequest'
@@ -298,7 +299,10 @@ function InputComposerCore({
     followUpMode
   } = useComposerRunState(hasSubmitOverride, runtime)
   const rawMascotInteraction = useComposerMascot({ threadId, workspacePath })
-  const mascotInteraction = hasSubmitOverride ? undefined : rawMascotInteraction
+  const linkedMascot = useLinkedChatMascot(threadId ?? null)
+  const mascotInteraction = hasSubmitOverride
+    ? undefined
+    : rawMascotInteraction?.bubble ? rawMascotInteraction : linkedMascot.interaction ?? rawMascotInteraction
   const threadMode = useConversationStore((s) => s.threadMode)
   const setThreadMode = useConversationStore((s) => s.setThreadMode)
   const composerPrefill = useUIStore((s) => isSideChat ? null : s.composerPrefill)
@@ -1641,7 +1645,7 @@ function InputComposerCore({
         onDrop={onDrop}
         focused={editorFocused}
         showMascot={!isSideChat}
-        mascotBounceSignal={mascotBounce}
+        mascotBounceSignal={mascotBounce + linkedMascot.bounce}
         mascotInteraction={mascotInteraction}
         mascotReasoningEffort={mascotEffectState.reasoningEffort}
         mascotSpeed={mascotEffectState.speed}

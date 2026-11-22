@@ -1,4 +1,6 @@
 import { useState, type CSSProperties, type ReactNode } from 'react'
+import { isOwnedThreadId } from '../../../shared/ownedThreads'
+import { useOwnedThreadsStore } from '../../stores/ownedThreadsStore'
 import { useShallow } from 'zustand/react/shallow'
 import { useT } from '../../contexts/LocaleContext'
 import { useDragDropStore } from '../../stores/dragDropStore'
@@ -73,6 +75,7 @@ export function ThreadList({
 }: ThreadListProps = {}): JSX.Element {
   const t = useT()
   const { threadList, threadListProjectKey, searchQuery, loading, pinnedThreadIds, activeThreadId } = useThreadStore()
+  useOwnedThreadsStore((s) => s.records)
   const projects = useWorkspaceProjectsStore((s) => s.projects)
   const chat = useWorkspaceProjectsStore((s) => s.chat)
   useSyncSecondaryProjectAutomations(chat ? [...projects, chat] : projects)
@@ -230,7 +233,7 @@ export function ThreadList({
     const searching = searchQuery.trim().length > 0
     const sectionPlacement = buildSectionPlacement(sections)
     const foregroundListThreads = threadList.filter(
-      (thread) => thread.status !== 'archived' && !isSubAgentThread(thread)
+      (thread) => thread.status !== 'archived' && !isSubAgentThread(thread) && !isOwnedThreadId(thread.id)
     )
 
     const projectListSource = (

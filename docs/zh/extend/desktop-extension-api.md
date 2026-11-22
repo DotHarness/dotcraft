@@ -120,6 +120,7 @@ DotCraft 的正式 surface 覆盖 application、Composer 与当前会话。Compo
 | **`conversation.turn.status`** | 最后一个可见轮次内的座位：轮次有回复后位于回复的操作行上方，此前紧贴工作行上方。 |
 | **`summary.sources`** | thread 摘要「来源」分区中的行，位于自带来源之后。 |
 | **`summary.sections`** | thread 摘要中的分区，位于来源之后、上下文与环境之前。 |
+| **`conversation.empty`** | 还没有消息的 thread 的会话区域。 |
 | **`settings.<section>`** | 内置设置分区（`general`、`import`、`profile`、`appearance`、`archived-threads`、`voice`、`personalization`、`pet`、`usage`、`model-providers`、`browser`、`computer-use`、`connections`、`mcp`、`hooks`、`source-control`、`worktrees`）。context 包含 `{ section, title }`。 |
 
 当区域范围过大时，可以直接定位这些 Core 控件：
@@ -301,6 +302,37 @@ Core 继续管理 mascot 的位置、bubble、menu、click handling、sleep time
 
 `ui.add("composer.mascot", ...)` 会在同一 stage 上叠加 accessory 或 effect。如果插件还要控制位置与交互行为，请直接替换 `composer`。`composer.mascot` 不会改变 Error Screen mascot 或 Agent Profile avatar。
 
+如果想保留用户自己的 mascot、只换它穿戴的东西，用 `MascotOutfit` 包住 `composer.mascot`。传入带有你的物品的 avatar pack，以及这些物品占用的 slot。mascot 的配色、其余物品、表情和动作都保持不变：
+
+```tsx
+import { MascotOutfit } from "@dotcraft/plugin";
+import type { DesktopPluginActivate, DesktopPluginSurfaceWrapperProps } from "@dotcraft/plugin";
+
+const pack = {
+  namespace: "studio",
+  label: "Studio",
+  items: [{
+    id: "studio:scarf",
+    slot: "face",
+    kind: "accessory",
+    rarity: "rare",
+    series: "costume",
+    zones: ["rim"],
+    render: () => <path d="M410 800h204v32H410Z" fill="#4f7cf6" stroke="#fff" strokeWidth={14} paintOrder="stroke fill" />,
+  }],
+} as const;
+
+function Dressed({ children }: DesktopPluginSurfaceWrapperProps<"composer.mascot">) {
+  return <MascotOutfit pack={pack} wear={{ face: "studio:scarf" }}>{children}</MascotOutfit>;
+}
+
+export const activate: DesktopPluginActivate = (host) => {
+  host.ui.wrap("composer.mascot", Dressed);
+};
+```
+
+物品在 avatar 的 1024 单位坐标中绘制，并遵循 avatar 包的物品规则。设置了 `workStory: "conduct"` 的手持物品在 mascot 工作时不会收起，mascot 会拿着它指挥，而不是用笔记本打字。`MascotOutfit` 由 Desktop 提供，不要自行打包 avatar 包。
+
 ## 暴露插件 surface
 
 在组件中渲染 `PluginSurface`，即可暴露 plugin-owned extension point：
@@ -342,12 +374,41 @@ Surface 只在它所在的组件 mounted 时存在。Registration 仍由注册�
 | **`commands`** | 添加带 availability 与 execution 的 searchable command。 |
 | **`toolRenderers`** | 渲染精确的 `presentationId`，并保留 Core 与 generic fallback。 |
 | **`messageActions`** | 向标准 assistant-message action area 添加 action。 |
+| **`spaces`** | 把 main view 和插件拥有的 thread 收进一个侧栏入口，并配上自己的侧栏。 |
 
-这六个字段是 convenience API，不是 allowlist，也不是能力上限。Composer UI 用 `host.ui.add("composer.toolbar.leading", ...)` 这类调用添加。功能不适合这些便捷字段时，直接使用 surface、service、event 与 effect。
+这七个字段是 convenience API，不是 allowlist，也不是能力上限。Composer UI 用 `host.ui.add("composer.toolbar.leading", ...)` 这类调用添加。功能不适合这些便捷字段时，直接使用 surface、service、event 与 effect。
 
 返回的 activation 还可以提供 `dispose()`。Contribution id 在同一个 activation 内必须唯一。本地化标签放进 `label.translations`，按应用 locale 作键：Desktop 会对查找的两侧都做归一化，所以 `zh-CN` 这个键同样能被 `zh-Hans` 的读者命中，而七个 locale 之外的键会回退到 `label.default`。`order` 只在 convenience API 定义了排序位置时才需要设置。
 
 工具渲染器接收 `presentation`，包含精确的 `presentationId`、options、参数、结果、`running` 或 `completed` 状态、success、`errorCode`、`errorMessage` 和可选的 `progress`。进度是带判别字段的快照，文件传输使用 `kind: "remoteFileTransfer"`，并随调用进展更新。工具来自 Core 还是 .NET 扩展，不影响渲染器选择。渲染器返回 `null` 时不留下工具行，适合把工具改在别处展示的插件。
+
+### 把视图和对话组成一个 space
+
+space 把由一段对话和一个完整视图组成的产品收进一个侧栏入口，Desktop 把它和其他目的地放在一起，默认置顶。当 space 的某个位置处于打开状态时，Desktop 用一行“返回”加上 space 自己的 `sidebar` 组件替换侧栏，组件用 `SidebarRow` 渲染各行：
+
+```tsx
+import { SidebarRow, type DesktopPluginSpaceSidebarProps } from "@dotcraft/plugin";
+
+function ReviewSidebar({ host, location }: DesktopPluginSpaceSidebarProps) {
+  return (
+    <>
+      <SidebarRow icon={<MessageSquare size={16} />} label="Assistant" threadId={host.threads.findOwned("assistant")?.threadId} active={location.kind === "thread"} onClick={() => void openAssistant(host)} />
+      <SidebarRow icon={<SquareKanban size={16} />} label="Queue" active={location.kind === "view"} onClick={() => host.navigation.openMainView("queue")} />
+    </>
+  );
+}
+
+export function activate(host: DesktopPluginHost) {
+  return {
+    mainViews: [{ id: "queue", label: { default: "Review queue" }, component: QueueView }],
+    spaces: [{ id: "review", label: { default: "Review" }, views: ["queue"], sidebar: ReviewSidebar, open: openAssistant }],
+  };
+}
+```
+
+传入 `threadId` 的行会像侧栏里的对话行一样显示该 thread 的状态：等待标签、运行指示或未读圆点。
+
+space 的位置包括 `views` 里列出的 main view，以及插件用该 space id 拥有的 thread（见[拥有一段对话](#拥有一段对话)）。列进 space 的 view 不再出现在侧栏的 destination 和“更多”菜单里，对它调用 `openMainView` 会打开这个 space。选中入口时回到 space 里上次打开的位置，第一次则调用 `open`。“返回”回到进入 space 之前打开的内容，需要时切换工作区。打开 space 之外的任何内容都会离开 space。
 
 ### 给 contribution 配图标
 
@@ -376,7 +437,7 @@ function ReviewIcon({ size = 16, ...rest }: DesktopPluginIconProps) {
 
 `icon` 只接受组件这一种形式。如果并不在意具体图形，就不要写 `icon`，Desktop 会画上自带的回落图形，那一行不会空着。
 
-`mainViews` 的图标也可以像 Desktop 自带的目的地一样响应悬停。Desktop 会给每个侧栏行加上 `data-nav-icon-host`，在插件样式表里以这个祖先的 `:hover` 与 `:focus-visible` 触发一段短 CSS 动画，只动图形的一个部件，时长 340–720ms，从静态图形开始并回到静态图形结束。内置 Oratorio 插件的指挥棒是参考实现，规则见 `specs/architecture/DESIGN.md` 的 Navigation Icon Motion 一节。
+`mainViews` 或 `SidebarRow` 的图标也可以像 Desktop 自带的目的地一样响应悬停。Desktop 会给每个侧栏行加上 `data-nav-icon-host`，在插件样式表里以这个祖先的 `:hover` 与 `:focus-visible` 触发一段短 CSS 动画，只动图形的一个部件，时长 340–720ms，从静态图形开始并回到静态图形结束。内置 Oratorio 插件的指挥棒是参考实现，规则见 `specs/architecture/DESIGN.md` 的 Navigation Icon Motion 一节。
 
 ## 使用 Host API
 
@@ -388,13 +449,14 @@ function ReviewIcon({ size = 16, ...rest }: DesktopPluginIconProps) {
 | `appearance` | 由 generation 持有的 theme seed 与 backdrop presentation contribution。 |
 | `session` | 前台 workspace、当前 thread、mode 与忙碌状态，以及变更订阅。 |
 | `subagents` | 某个 thread 启动的 SubAgent、它们的状态与完成事件。 |
+| `threads` | 插件拥有的 thread，以及某个 thread 启动的对话。 |
 | `projectActions` | 读取、添加并运行本地项目声明的操作。 |
 | `navigation` | 打开插件 view、Settings 页、thread、文件、Detail Panel 标签页与自动化任务，并接管自定义 scheme 的链接。 |
 | `ui` | 除三个 surface 操作外，还提供 toast、确认、颜色选择与文件夹选择等 Host-owned 对话框。 |
 | `appServer` | 受支持的 JSON-RPC request 与 subscription。 |
 | `mcp` | 调用 workspace 中 MCP server 的工具。 |
 | `settings` | 读取、修改并跟随本插件由 schema 约束的设置。 |
-| `appBindings`、`appSurfaces` | Connected App binding 与 app 提供的 UI surface。 |
+| `appBindings`、`appSurfaces` | Connected App binding（包括用 `enableThread` 在某个 thread 中启用 app）与 app 提供的 UI surface。 |
 | `workspaces` | 读取本地 workspace 信息。 |
 | `oratorio` | Team run、handoff 与 event。 |
 | `satellites` | 本地 Hub 的设备、邀请、事件、活动与只读本机共享状态。 |
@@ -600,6 +662,27 @@ host.subagents.onChange(threadId, render);
 
 `reveal(parentThreadId, childThreadId)` 打开父 thread 的 Subagents 标签页，并选中该 SubAgent。
 
+### 拥有一段对话
+
+`host.threads.ensureOwned` 返回插件在某个 key 下的 thread，第一次调用时在默认 Chat 工作区创建。Desktop 不在线程列表和搜索里显示插件拥有的 thread，由插件决定从哪里进入这段对话，通常是一个 space。thread 在自己的对话文件夹里启动，带上传入的开发者指令和审批策略。之后的调用传入不同配置时，Desktop 会更新已有的 thread：
+
+```ts
+const assistant = await host.threads.ensureOwned({
+  key: "assistant",
+  space: "review",
+  title: "Review",
+  config: {
+    developerInstructions: "You triage review requests across projects.",
+    approvalPolicy: "autoApprove",
+  },
+});
+await host.navigation.openThread(assistant.threadId, assistant.workspacePath);
+```
+
+`findOwned(key)` 返回已记录的 thread 而不创建，没有时返回 `null`。停用插件会保留它的 thread，重新启用后回到同一段对话。
+
+`linked(parentThreadId)` 返回某个 thread 用 `CreateThread` 启动的对话，最新的在前。`onLinkedChange(parentThreadId, listener)` 在有对话新增、移除，或标题、状态变化时发送完整列表。每个对话带有 `threadId`、项目、`title`、`createdAt`，以及取值为 `idle`、`working`、`waiting`、`done`、`failed` 或 `stopped` 的 `state`。`waiting` 表示这个对话需要用户审批、输入或确认计划。
+
 ### 打开产品目的地
 
 `host.navigation` 打开 Desktop 中的目的地：
@@ -701,10 +784,11 @@ if (!result.isError) showItems(result.structuredContent);
 | 分组 | 组件 |
 |---|---|
 | **控件** | `Button`、`IconButton`、`SplitButton`、`Menu`、`Input`、`Textarea`、`Select`、`SegmentedControl`、`Combobox`、`Checkbox`、`PillSwitch`、`Slider` |
-| **展示** | `Spinner`、`Skeleton`、`ActionTooltip`、`ModalHeader`、`InlineDiff`、`Markdown`、`AgentAvatar`、`UserAvatar` |
+| **展示** | `Spinner`、`Skeleton`、`ActionTooltip`、`ModalHeader`、`InlineDiff`、`Markdown`、`AgentAvatar`、`UserAvatar`、`PersonalMascot`、`MascotOutfit` |
 | **Settings 布局** | `SettingsPanelShell`、`SettingsBreadcrumb`、`SettingsGroup`、`SettingsRow` |
 | **目录页布局** | `CatalogPage`、`CatalogSection`、`CatalogToolbarButton` |
 | **摘要布局** | `SummarySection`、`SummaryRow` |
+| **space 侧栏** | `SidebarRow` |
 | **模态层** | `LayerBoundary` |
 | **工具记录** | `ToolDisclosure`、`RunningShimmer` |
 
@@ -715,6 +799,8 @@ if (!result.isError) showItems(result.structuredContent);
 `CatalogPage` 让主视图使用与 Desktop 的插件页、智能体页相同的页面框架：传入 `title`，可选传入顶栏 `actions`（刷新这类仅图标的命令用 `CatalogToolbarButton`，主要操作用 `Button` 或 `SplitButton`），可选传入 `search` 与 `filters`，再用 `CatalogSection` 把各组内容作为 children 渲染。某一组自己的命令放进它的 `actions`，在悬停或聚焦时显示在标题行末尾。每个筛选组都把不筛选的选项放在第一位。要在同级视图之间切换，传入 `tabs: { value, items, onValueChange }`，它们显示在顶栏左侧，和 Desktop 中插件与技能的切换一致。从另一页进入的页面（如设置页或详情页）改为传入 `breadcrumb: { parentLabel, currentLabel, onBack }`，中间还有页面时再加 `trail: [{ label, onClick }]`，它会取代标签页，和插件 › 管理一致。编辑单条记录的页面可以传入 `titleEditor` 与 `descriptionEditor`（`{ value, placeholder, ariaLabel, onValueChange }`），让名称和一行描述直接作为标题和副标题原地编辑，并可通过 `meta` 在其下方放置标签等控件。
 
 `AgentAvatar` 绘制 Desktop 为某个 agent 显示的角色。把 SubAgent 的 `nickname` 作为 `name` 传入，可选传入 `size` 与 `animated`，你的插件就会画出与 Subagents 标签页相同的角色。该组件由 Desktop 提供，不要自行打包 avatar 包。
+
+`PersonalMascot` 绘制用户自己的 mascot，也就是 Composer 上那个。传入 `greeting` 会播放挥手动作。用 `MascotOutfit` 包住它，就能换上你的物品。
 
 `UserAvatar` 绘制 Desktop 用户自己在 Profile 里的头像，可选传入 `size`。用在用户自己写的内容旁边（比如他们的评论），让它和 Desktop 里看起来一致。
 

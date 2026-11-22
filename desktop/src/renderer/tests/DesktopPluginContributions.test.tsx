@@ -45,6 +45,7 @@ function generation(
     version: '1.0.0',
     revision,
     mainViews: [],
+    spaces: [],
     settingsPages: [],
     conversationViews: [],
     commands: [],

@@ -1,5 +1,5 @@
 ---
-version: "0.13.1"
+version: "0.14.0"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 colors:
@@ -626,6 +626,8 @@ The row and its hit target never move; one part of the glyph does, for 340–720
 | Plugins | The lid rises straight off the box and drops back with one settle |
 | Settings | The gear advances one tooth |
 | Oratorio (plugin) | The mark dips into one downbeat about its ring and rebounds |
+| Conductor (Oratorio space) | A second bubble slides out from behind the first |
+| Board (Oratorio space) | The columns dip one after another and settle |
 
 - Every motion starts and ends on the static drawing, so leaving mid-motion
   returns the glyph to rest and reduced motion leaves it still.
@@ -634,8 +636,9 @@ The row and its hit target never move; one part of the glyph does, for 340–720
 - Disabled rows stay still; the current destination still answers. Content rows
   (projects, threads, chats) keep static icons.
 - A plugin destination may join under the same contract. The Host marks every
-  destination row with `data-nav-icon-host`, and the plugin's
-  stylesheet keys its motion off that ancestor's hover and focus-visible states.
+  destination row, including a space's `SidebarRow`s, with
+  `data-nav-icon-host`, and the plugin's stylesheet keys its motion off that
+  ancestor's hover and focus-visible states.
 - Motion moves parts; it does not reshape them. Judge it at 16px: a part that
   appears arrives on opacity rather than hopping pixel rows and is at least 2.5
   units wide, and two strokes a unit or two apart are never drawn together.
@@ -1776,8 +1779,10 @@ their tool rows.
 - An answered task collapses into one line, its title and a secondary status
   word. A started task becomes a row with an Open chat button. Status is words,
   never sidebar marks.
-- The created-chat card keeps its form. While the chat it opened runs, its
-  subtitle carries the running shimmer; nothing else changes.
+- The created-chat card keeps its form: the chat's title, then its project as
+  the subtitle. While the chat runs, the subtitle carries the running shimmer. A
+  chat waiting for the person shows the sidebar's waiting badge before Open chat,
+  so the card and the thread row use one vocabulary and no status words.
 
 ### Feedback prompt
 

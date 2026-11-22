@@ -38,6 +38,7 @@
     "test": "npm run typecheck && npm run build && node --test scripts/runtime.test.mjs && node scripts/build-plugin.test.mjs"
   },
   "dependencies": {
+    "@dotcraft/avatar": "0.14.0",
     "@dotcraft/sdk": "0.14.0",
     "esbuild": "^0.25.11"
   },

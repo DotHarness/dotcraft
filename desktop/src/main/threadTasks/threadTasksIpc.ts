@@ -12,7 +12,10 @@ import {
 } from '../../shared/threadTasks'
 import type { ThreadTaskConnection } from './childThreads'
 import { callingThread } from './threadProjects'
+import type { LinkedChatSummary } from '../../shared/linkedChats'
+import type { OwnedThreadRecord, OwnedThreadRequest } from '../../shared/ownedThreads'
 import type { DesktopLinkedChats } from './linkedChats'
+import type { DesktopOwnedThreads } from './ownedThreads'
 import { DesktopThreadTasks } from './threadTaskService'
 import { ThreadTaskStore } from './threadTaskStore'
 
@@ -44,7 +47,9 @@ export function createDesktopThreadTasks(options: DesktopThreadTasksRuntimeOptio
 
 export interface ThreadTasksIpcHost {
   tasks: DesktopThreadTasks
+  ownedThreads: DesktopOwnedThreads
   getConnection(threadId?: string): ThreadTaskConnection | null
+  ensureOwnedThread(request: OwnedThreadRequest): Promise<OwnedThreadRecord>
 }
 
 export function registerThreadTasksIpc(host: ThreadTasksIpcHost, ipc: WindowIpcMain): void {
@@ -63,6 +68,26 @@ export function registerThreadTasksIpc(host: ThreadTasksIpcHost, ipc: WindowIpcM
     return connection
       ? host.tasks.linkedChats?.linkedProjectBetween(callingThread(connection, threadId), targetThreadId) ?? null
       : null
+  })
+
+  ipc.handle('threadTasks:linked-chats', (_event, value: unknown): LinkedChatSummary[] => {
+    const threadId = requireString(value, 'threadId')
+    return (host.tasks.linkedChats?.listForThread(threadId) ?? []).map(({ child, status, waitingFor, createdAt }) => ({
+      threadId: child.threadId,
+      projectId: child.projectId,
+      projectName: child.projectName,
+      workspacePath: child.workspacePath,
+      title: child.title,
+      status,
+      ...(waitingFor ? { waitingFor } : {}),
+      createdAt
+    }))
+  })
+
+  ipc.handle('threadTasks:owned-list', (): OwnedThreadRecord[] => host.ownedThreads.list())
+
+  ipc.handle('threadTasks:owned-ensure', (_event, value: unknown): Promise<OwnedThreadRecord> => {
+    return host.ensureOwnedThread(readOwnedThreadRequest(value))
   })
 
   ipc.handle('threadTasks:answer-offer', async (_event, params: unknown): Promise<ThreadTaskActionResult> => {
@@ -108,6 +133,22 @@ export function registerThreadTasksIpc(host: ThreadTasksIpcHost, ipc: WindowIpcM
     if (!connection || !task || !sameFilePath(task.workspacePath, connection.workspacePath)) return { ok: false, error: NOT_CONNECTED }
     return host.tasks.markKeptHere(threadId, taskId)
   })
+}
+
+function readOwnedThreadRequest(value: unknown): OwnedThreadRequest {
+  const record = isRecord(value) ? value : {}
+  const config = isRecord(record.config) ? record.config : {}
+  const approvalPolicy = config.approvalPolicy === 'prompt' || config.approvalPolicy === 'autoApprove' ? config.approvalPolicy : undefined
+  return {
+    pluginId: requireString(record.pluginId, 'pluginId'),
+    key: requireString(record.key, 'key'),
+    ...(typeof record.space === 'string' && record.space.trim() ? { space: record.space.trim() } : {}),
+    title: requireString(record.title, 'title'),
+    config: {
+      developerInstructions: typeof config.developerInstructions === 'string' ? config.developerInstructions : '',
+      ...(approvalPolicy ? { approvalPolicy } : {})
+    }
+  }
 }
 
 function readTaskRef(params: unknown): { threadId: string; taskId: string } {

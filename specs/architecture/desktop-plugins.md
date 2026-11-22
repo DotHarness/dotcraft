@@ -4,7 +4,7 @@
 | --- | --- |
 | Version | 0.14.0 |
 | Status | Living |
-| Date | 2026-11-20 |
+| Date | 2026-11-22 |
 | Parent Specs | [Plugin Architecture](plugin-architecture.md), [Tool Architecture](tools-architecture.md) |
 
 ## Overview
@@ -18,7 +18,7 @@ The Desktop extension runtime has four kernel primitives:
 - `services.provide` and `services.use` share renderer-local contracts;
 - `events.on` and `events.emit` provide renderer-local notifications.
 
-Six contribution families provide convenience APIs for common integrations. They are built on the runtime, not a closed list of what a Desktop extension may change.
+Seven contribution families provide convenience APIs for common integrations. They are built on the runtime, not a closed list of what a Desktop extension may change.
 
 ## Trust and runtime model
 
@@ -89,7 +89,8 @@ output, chunks, and assets stay under `./desktop/dist/`. Free-form capability la
 renderer authority. Bundled plugins carry the DotCraft release version in their manifests.
 
 Imported assets resolve against the importing module's installed source and revision, including
-split chunks; CSS URLs remain stylesheet-relative. Bundles use the Desktop-owned React/JSX runtime
+split chunks; CSS URLs remain stylesheet-relative. An import with the `?raw` suffix bundles the file's
+text as a string, so long text such as model instructions can live in its own file. Bundles use the Desktop-owned React/JSX runtime
 and do not ship another React implementation. The Host UI kit and published theme tokens are
 supported authoring contracts; private renderer components and properties are not.
 
@@ -119,6 +120,12 @@ Rows and tables inside a group remain plugin code built from theme tokens.
 
 `SummarySection` (`{ title, actions?, children }`) and `SummaryRow` (`{ leading, label, meta?, title?, onClick? }`) render a Summary section and its rows with Core's presentation. A row with `onClick` is a button.
 
+`SidebarRow` (`{ icon, label, active?, threadId?, onClick }`) renders one navigation row of a space sidebar with Core's sidebar row presentation. A row with `threadId` shows that thread's status in the same slot and vocabulary as a thread row: the waiting badge, then the running indicator, then the unread dot.
+
+`MascotOutfit` (`{ pack, wear, children }`) dresses the Composer character it wraps in a `composer.mascot` wrapper. The person's own mascot wears the `wear` items in place of its own for those slots and keeps its palette, other slots, expressions, and motion. `pack` is an avatar extension pack holding the plugin's items ([Avatar System §5.1](../features/avatar-system.md#51-extension-packs-registries-and-outfit-presets)).
+
+`PersonalMascot` (`{ size?, greeting? }`) renders the person's own mascot as the Composer shows it, with motion. `greeting` plays a wave. Inside `MascotOutfit` it wears the outfit.
+
 `AgentAvatar` (`{ name, size?, animated? }`) renders the avatar Core shows for an agent nickname,
 so a plugin and Core draw the same character for the same agent. `UserAvatar` (`{ size? }`) renders
 the Desktop user's Profile avatar with Core's fallbacks. `Markdown` (`{ content }`) renders with
@@ -137,7 +144,7 @@ export function activate(host: DesktopPluginHost):
 ```
 
 Kernel calls during activation register directly into the new generation and take effect
-immediately. Returning `DesktopPluginActivation` provides the six contribution arrays and an
+immediately. Returning `DesktopPluginActivation` provides the seven contribution arrays and an
 optional `dispose()` callback. A plugin may use either form or both.
 
 Every effect, UI registration, service provider, event listener, returned contribution, style, and
@@ -210,6 +217,7 @@ The Core surfaces are:
 | `conversation.aside.trailing` | A seat beside the trailing edge of the conversation reading column, for panels that accompany the conversation. Core supplies the pinned Summary card. |
 | `summary.sources` | Additive rows inside a thread's Summary Sources section, after Core's sources. Empty by default. |
 | `summary.sections` | Additive sections inside a thread's Summary, after its sources and before its context and environment sections. Empty by default. |
+| `conversation.empty` | The conversation area of an open thread that has no messages yet, behind the Composer. Empty by default. Receives the thread surface context. |
 | `conversation.turn.status` | A seat inside the last visible turn, for status that belongs to the conversation's current work: above the reply's actions once the turn has a reply, otherwise directly above its working line. Empty by default. |
 | `settings.<section>` | Each built-in Settings section (`general`, `import`, `profile`, `appearance`, `archived-threads`, `voice`, `personalization`, `pet`, `usage`, `model-providers`, `browser`, `computer-use`, `connections`, `mcp`, `hooks`, `source-control`, `worktrees`). Additions append groups with the Settings section spacing, and wrappers can swap in a Settings subpage using the context `{ section, title }`. |
 
@@ -223,7 +231,7 @@ Composer surface contexts use `threadId: null` until the Composer attaches to a 
 
 Every internal Composer surface stays mounted while its Composer region exists, even when its Core default does not apply to the current state; a plugin uses the shared Composer context to decide whether its content applies. `add` renders after the current default or replacement; content that must precede a Core control uses `wrap`. Replacing an internal control removes that Core behavior, and the plugin receives no private control callbacks.
 
-`composer.mascot` adds the resolved mascot activity, expression, semantic light, base size, submit revision, reasoning effort, speed, and reduced-motion preference to the Composer context. Replacing it swaps only the visual character, which continues to ride Core's positioning and outer motion; additions act as overlays or accessories. `submitRevision` increments for each submit, even when state does not otherwise change. Plugin-specific occurrences use `events`. Replacing the complete `composer` surface is the way to own placement, bubbles, menus, or interaction. The error-screen mascot and Agent Profile avatars are unaffected.
+`composer.mascot` adds the resolved mascot activity, expression, semantic light, base size, submit revision, reasoning effort, speed, and reduced-motion preference to the Composer context. Replacing it swaps only the visual character, which continues to ride Core's positioning and outer motion; additions act as overlays or accessories. A wrapper that only changes what the person's mascot wears uses `MascotOutfit`. `submitRevision` increments for each submit, even when state does not otherwise change. Plugin-specific occurrences use `events`. Replacing the complete `composer` surface is the way to own placement, bubbles, menus, or interaction. The error-screen mascot and Agent Profile avatars are unaffected.
 
 On the new-chat Welcome screen, `composer` covers the complete pre-thread experience (app selector, hero, input, workspace footer, quick starts), which shares one draft and voice lifecycle and is replaced atomically.
 
@@ -307,7 +315,7 @@ The plan is the thread's saved snapshot. `implementsPlan` identifies the executi
 
 The seat stays mounted after the turn ends, so a contribution decides from how the turn ended whether its status still applies. Content renders in the reading column with the transcript's spacing, and an empty contribution takes no space.
 
-`summary.sections` mounts wherever the Summary shows a thread, pinned or as a popover, once the Summary has loaded, and receives the thread surface context. A contribution builds its section from the UI kit's `SummarySection` and `SummaryRow`, so it matches Core's sections, and renders nothing when it has nothing to show. `summary.sources` mounts in the same places and renders `SummaryRow`s alone. The Sources section is hidden while neither Core nor any contribution has a row. Contributed rows count toward the section's row limit together with Core's, so past the limit they collapse behind the same View all row.
+`summary.sections` mounts wherever the Summary shows a thread, pinned or as a popover, once the Summary has loaded, and receives the thread surface context. In a thread a plugin owns ([Owned threads](#owned-threads)), the Summary is headed by the owned thread's title and shows Core's Chats, background tasks, and context sections with contributed sections. Sources, environment, SubAgents, and plan describe project work, which an owned thread leaves to the chats it starts. A contribution builds its section from the UI kit's `SummarySection` and `SummaryRow`, so it matches Core's sections, and renders nothing when it has nothing to show. `summary.sources` mounts in the same places and renders `SummaryRow`s alone. The Sources section is hidden while neither Core nor any contribution has a row. Contributed rows count toward the section's row limit together with Core's, so past the limit they collapse behind the same View all row.
 
 ## Convenience contributions
 
@@ -321,12 +329,39 @@ The convenience contribution contract is the concise API for common integrations
 | Command | Adds command discovery, availability, argument handling, and invocation. |
 | Tool renderer | Adds exact-presentation rendering with Core and generic fallbacks. |
 | Message action | Adds an action to the standard assistant-message action area. |
+| Space | Adds one sidebar destination and a sidebar of its own while one of its locations is open. |
 
 These kinds are not an authorization list. Their ordering, fallback, localization, and navigation remain Host-owned. Tool renderers change presentation only; MCP App presentation stays on its sandboxed path. Composer UI uses named surfaces rather than a separate contribution family.
 
 A contribution label carries a `default` string and an optional `translations` map. The Host resolves it against the normalized app locale it reports through `environment`, normalizing translation keys too (`zh`, `zh-CN`, and `zh-Hans` are one entry). A key outside the supported locale set never matches; the label falls back to `default`.
 
 A contribution may supply a React icon component; otherwise the Host renders a fallback glyph. There is no glyph-name vocabulary.
+
+### Spaces
+
+A space gathers a plugin's main views and the threads it owns behind one sidebar entry, so a product made of a conversation and a view reads as one place:
+
+```ts
+interface DesktopPluginSpaceContribution {
+  readonly id: string
+  readonly label: DesktopLocalizedText
+  readonly icon?: DesktopPluginContributionIcon
+  readonly order?: number
+  readonly views: readonly string[]
+  readonly sidebar: ComponentType<DesktopPluginSpaceSidebarProps>
+  open(host: DesktopPluginHost): void | Promise<void>
+}
+
+interface DesktopPluginSpaceSidebarProps extends DesktopPluginViewProps {
+  readonly location: { readonly kind: "view"; readonly viewId: string } | { readonly kind: "thread"; readonly threadId: string }
+}
+```
+
+- A space's locations are the plugin's main views named in `views` and the threads the plugin owns with that space's `id`.
+- A space's entry is a sidebar destination like a plugin main view, ordered with them by `order`. It is pinned by default, and the person can unpin it to More and pin it again. Selecting the entry returns to the view last open in the space. Otherwise it calls `open`, which navigates with the ordinary Host operations, so a plugin reaching an owned thread confirms it through `threads.ensureOwned` each time.
+- A main view named in a space is reached only through it: it is not a sidebar destination, a More item, or a pin, and `openMainView` on it opens the space.
+- While the active location belongs to a space, the Host replaces the sidebar with a Back row followed by the contribution's `sidebar`. The Host owns the frame, the Back row, and the sidebar's width and collapse. The contribution renders its rows with `SidebarRow`.
+- On entering a space, the Host records the location it left, including its workspace. Back returns there, switching workspace when an owned thread's workspace replaced it. Moving between the space's own locations keeps the record, including while a workspace switch is in progress. Opening a location outside the space leaves the space without returning, and the record is dropped.
 
 ## Runtime lifecycle
 
@@ -354,7 +389,7 @@ Verified cache entries survive disconnects; superseded revisions and removed plu
 
 ## Host and compatibility contract
 
-Every Desktop extension receives the same Host contract: the four primitives plus stable product operations for metadata, locale and theme, session state, SubAgent state, navigation, open targets, project actions, notifications, AppServer, MCP tool calls, App Binding, App Surfaces, workspaces, Oratorio, satellites, thread routes, and screen sessions. It is a supported authoring API, not a security membrane. Main-process validation remains a service invariant rather than a plugin permission.
+Every Desktop extension receives the same Host contract: the four primitives plus stable product operations for metadata, locale and theme, session state, SubAgent state, navigation, open targets, project actions, notifications, AppServer, MCP tool calls, App Binding, App Surfaces, workspaces, owned threads and linked chats, Oratorio, satellites, thread routes, and screen sessions. It is a supported authoring API, not a security membrane. Main-process validation remains a service invariant rather than a plugin permission.
 
 Every `onChange` subscription below is generation-owned, carries a complete snapshot, and fires only when a value actually changes.
 
@@ -389,6 +424,57 @@ input. Approval state, Composer variant, and minimal chrome remain on the Compos
 conversation as a data URL, reading through that workspace's local or remote connection. It reads
 only its image attachment folders and rejects any other path, a non-image file, or an image over
 10 MiB.
+
+### Owned threads
+
+A plugin may own threads that serve as its product's conversation. `threads.ensureOwned` returns the plugin's thread for a key, creating it in the default Chat workspace the first time:
+
+```ts
+interface DesktopPluginOwnedThreadRequest {
+  readonly key: string
+  readonly space?: string
+  readonly title: string
+  readonly config: DesktopPluginOwnedThreadConfig
+}
+
+interface DesktopPluginOwnedThreadConfig {
+  readonly developerInstructions: string
+  readonly approvalPolicy?: "prompt" | "autoApprove"
+}
+
+interface DesktopPluginOwnedThread {
+  readonly threadId: string
+  readonly workspacePath: string
+}
+```
+
+- Desktop records each owned thread per plugin and key in its per-user state. A later call returns the recorded thread while it exists, and creates a new one when it was deleted. `threads.findOwned(key)` returns the recorded thread without creating one, or `null`, so a plugin can recognize its thread before the person opens it.
+- The thread starts in its own chat folder with Desktop's thread tools and standalone-chat instructions, like any new chat, followed by the plugin's instructions and approval policy. When a later call's configuration differs from the one last applied, Desktop updates the thread's configuration before returning, so a plugin update reaches its existing thread.
+- `space` attaches the thread to one of the plugin's spaces, so opening it opens that space.
+- Desktop leaves an owned thread out of its thread lists, search, and archived threads. The thread stays an ordinary AppServer thread, so other clients list it like any Chats thread.
+- Disabling or uninstalling the plugin keeps its threads and their records, so re-enabling it returns the same conversations.
+
+### Linked chats
+
+`threads.linked(parentThreadId)` returns the chats Desktop follows for a thread ([Desktop client, Following chats](../clients/desktop-client.md#514-desktop-runtime-thread-tools)), newest first. `threads.onLinkedChange(parentThreadId, listener)` notifies with the complete list when a chat is linked or removed, or its title or state changes.
+
+```ts
+interface DesktopPluginLinkedChat {
+  readonly threadId: string
+  readonly projectId: string
+  readonly projectName: string
+  readonly workspacePath: string
+  readonly title: string
+  readonly state: "idle" | "working" | "waiting" | "done" | "failed" | "stopped"
+  readonly createdAt: string
+}
+```
+
+`state` is the product reading Desktop shows on the chat's card: `waiting` means the chat needs the person's approval, input, or plan confirmation.
+
+### App Binding
+
+`appBindings.enableThread(threadId, appId)` enables a connected app in one thread through Desktop's enable flow ([App Binding §4.1](../protocols/app-binding.md#41-one-click-enable)). It delivers the activation handoff when the app has to be woken and resolves once the binding is active. When activation fails it cancels the request and rejects.
 
 ### SubAgent state
 

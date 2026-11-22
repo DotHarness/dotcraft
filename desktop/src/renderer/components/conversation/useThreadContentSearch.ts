@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { isOwnedThreadId } from '../../../shared/ownedThreads'
 import type { ThreadSummary } from '../../types/thread'
 
 const SEARCH_DEBOUNCE_MS = 100
@@ -40,7 +41,7 @@ async function searchThreadContents(term: string): Promise<ThreadSummary[]> {
       sortKey: 'lastActiveAt',
       archived: false
     })
-    return result.data.map((match) => match.thread as unknown as ThreadSummary)
+    return result.data.map((match) => match.thread as unknown as ThreadSummary).filter((thread) => !isOwnedThreadId(thread.id))
   } catch {
     return NO_THREADS
   }

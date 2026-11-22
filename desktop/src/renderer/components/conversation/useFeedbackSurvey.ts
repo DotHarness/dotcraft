@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { isOwnedThreadId } from '../../../shared/ownedThreads'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { isHiddenThread } from '../../../shared/hiddenThreads'
@@ -22,6 +23,7 @@ function isOrdinaryDesktopChat(threadId: string): boolean {
   return thread != null
     && thread.originChannel?.toLowerCase() === 'dotcraft-desktop'
     && !isHiddenThread(thread)
+    && !isOwnedThreadId(thread.id)
     && getSpawnedFromThreadId(thread) === null
 }
 

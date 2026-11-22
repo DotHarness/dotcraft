@@ -1,4 +1,5 @@
 import type { PairedComputersManager } from './pairedComputers/pairedComputersManager'
+import type { DesktopOwnedThreads } from './threadTasks/ownedThreads'
 import type { BrowserWindow } from 'electron'
 import type { AppSettings } from './settings'
 import type { DesktopLifecycleController } from './desktopLifecycle'
@@ -16,6 +17,7 @@ export interface DesktopApplicationServices {
   lifecycle: DesktopLifecycleController
   localProjects: LocalProjectList
   tasks: DesktopThreadTasks
+  ownedThreads: DesktopOwnedThreads
   readonly pairedComputers: PairedComputersManager
   windows: Map<number, DesktopWindowRuntime>
   notifyWindowAttention: WindowAttentionNotifier

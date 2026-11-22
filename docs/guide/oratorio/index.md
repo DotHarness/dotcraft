@@ -9,7 +9,7 @@ Oratorio is DotCraft's built-in project board. Local tasks, GitHub issues and pu
 You can run Oratorio before connecting any provider:
 
 1. Open a Git repository as a project in DotCraft Desktop.
-2. Select **Oratorio** in the sidebar.
+2. Select **Oratorio** in the sidebar, then **Board**.
 3. Select **New local task**, describe the problem, and choose the repository and base branch.
 4. Open the card and start a run with the button at the top of the task.
 5. Follow the run in the task's Activity, and review it there once it is ready.

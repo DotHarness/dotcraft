@@ -124,6 +124,7 @@ DotCraft's formal surfaces cover the application, the Composer, and the active c
 | **`conversation.turn.status`** | A seat inside the last visible turn: above the reply's actions once the turn has a reply, otherwise directly above its working line. |
 | **`summary.sources`** | Rows in a thread's Summary Sources section, after its own sources. |
 | **`summary.sections`** | Sections inside a thread's Summary, after its sources and before its context and environment. |
+| **`conversation.empty`** | The conversation area of a thread that has no messages yet. |
 | **`settings.<section>`** | Built-in Settings sections (`general`, `import`, `profile`, `appearance`, `archived-threads`, `voice`, `personalization`, `pet`, `usage`, `model-providers`, `browser`, `computer-use`, `connections`, `mcp`, `hooks`, `source-control`, `worktrees`). Context carries `{ section, title }`. |
 
 Target these Core controls when a region is too broad:
@@ -305,6 +306,37 @@ Core keeps the mascot's placement, bubble, menu, click handling, sleep timer, Co
 
 `ui.add("composer.mascot", ...)` layers an accessory or effect over the same stage. Replace `composer` instead when the plugin also needs to own positioning or interaction behavior. `composer.mascot` does not change the Error Screen mascot or Agent Profile avatars.
 
+To keep the person's own mascot and change only what it wears, wrap `composer.mascot` with `MascotOutfit`. Pass an avatar pack with your items and the slots they fill. The mascot keeps its palette, its other items, expressions, and motion:
+
+```tsx
+import { MascotOutfit } from "@dotcraft/plugin";
+import type { DesktopPluginActivate, DesktopPluginSurfaceWrapperProps } from "@dotcraft/plugin";
+
+const pack = {
+  namespace: "studio",
+  label: "Studio",
+  items: [{
+    id: "studio:scarf",
+    slot: "face",
+    kind: "accessory",
+    rarity: "rare",
+    series: "costume",
+    zones: ["rim"],
+    render: () => <path d="M410 800h204v32H410Z" fill="#4f7cf6" stroke="#fff" strokeWidth={14} paintOrder="stroke fill" />,
+  }],
+} as const;
+
+function Dressed({ children }: DesktopPluginSurfaceWrapperProps<"composer.mascot">) {
+  return <MascotOutfit pack={pack} wear={{ face: "studio:scarf" }}>{children}</MascotOutfit>;
+}
+
+export const activate: DesktopPluginActivate = (host) => {
+  host.ui.wrap("composer.mascot", Dressed);
+};
+```
+
+Items draw in the avatar's 1024-unit space and follow the avatar package's item rules. A hand item with `workStory: "conduct"` stays in hand while the mascot works and conducts instead of typing at the laptop. Desktop supplies `MascotOutfit`, so do not bundle the avatar package yourself.
+
 ## Expose a plugin surface
 
 Render `PluginSurface` inside your component to expose a plugin-owned extension point:
@@ -346,12 +378,41 @@ Return `DesktopPluginActivation` when one of the standard product integrations a
 | **`commands`** | Adds a searchable command with availability and execution. |
 | **`toolRenderers`** | Renders an exact `presentationId` with Core and generic fallbacks. |
 | **`messageActions`** | Adds an action to the standard assistant-message action area. |
+| **`spaces`** | Groups main views and the threads the plugin owns behind one sidebar entry with its own sidebar. |
 
-These six fields are convenience APIs, not an allowlist or a capability ceiling. Add Composer UI with calls like `host.ui.add("composer.toolbar.leading", ...)`. When a feature does not fit the convenience fields, reach for surfaces, services, events, and effects directly.
+These seven fields are convenience APIs, not an allowlist or a capability ceiling. Add Composer UI with calls like `host.ui.add("composer.toolbar.leading", ...)`. When a feature does not fit the convenience fields, reach for surfaces, services, events, and effects directly.
 
 The returned activation may also provide `dispose()`. Contribution ids must be unique within one activation. Put localized labels in `label.translations`, keyed by app locale. Desktop normalizes both sides of that lookup, so a `zh-CN` key still reaches a `zh-Hans` reader, while a key outside the seven locales falls back to `label.default`. Set `order` only where the convenience API defines ordered placement.
 
 A tool renderer receives `presentation` with the exact `presentationId`, options, arguments, result, `running` or `completed` status, success, `errorCode`, `errorMessage`, and optional `progress`. Progress is a discriminated snapshot, including `kind: "remoteFileTransfer"` for file transfers, and updates as the call progresses. Rendering does not depend on whether the tool comes from Core or a .NET extension. A renderer that returns `null` leaves no row, for a tool your plugin shows somewhere else.
+
+### Group a view and a conversation into a space
+
+A space puts a product made of a conversation and a full view behind one sidebar entry, which Desktop lists with the other destinations, pinned by default. While one of its locations is open, Desktop replaces the sidebar with a Back row followed by the space's own `sidebar` component, which renders its rows with `SidebarRow`:
+
+```tsx
+import { SidebarRow, type DesktopPluginSpaceSidebarProps } from "@dotcraft/plugin";
+
+function ReviewSidebar({ host, location }: DesktopPluginSpaceSidebarProps) {
+  return (
+    <>
+      <SidebarRow icon={<MessageSquare size={16} />} label="Assistant" threadId={host.threads.findOwned("assistant")?.threadId} active={location.kind === "thread"} onClick={() => void openAssistant(host)} />
+      <SidebarRow icon={<SquareKanban size={16} />} label="Queue" active={location.kind === "view"} onClick={() => host.navigation.openMainView("queue")} />
+    </>
+  );
+}
+
+export function activate(host: DesktopPluginHost) {
+  return {
+    mainViews: [{ id: "queue", label: { default: "Review queue" }, component: QueueView }],
+    spaces: [{ id: "review", label: { default: "Review" }, views: ["queue"], sidebar: ReviewSidebar, open: openAssistant }],
+  };
+}
+```
+
+A row given a `threadId` shows that thread's status the way a thread row in the sidebar does: the waiting badge, the running indicator, or the unread dot.
+
+A space's locations are the main views named in `views` and the threads the plugin owns with that space's id (see [Own a conversation](#own-a-conversation)). A view named in a space leaves the sidebar's destinations and More menu, and `openMainView` on it opens the space. Selecting the entry returns to the location last open in the space, or calls `open` the first time. Back returns to whatever was open before the space, switching workspace when needed, and opening anything outside the space leaves it.
 
 ### Give a contribution an icon
 
@@ -380,7 +441,7 @@ function ReviewIcon({ size = 16, ...rest }: DesktopPluginIconProps) {
 
 A component is the only thing `icon` accepts. Leave `icon` off when the artwork does not matter to you, and Desktop draws its own fallback glyph so the row never appears blank.
 
-A `mainViews` icon can also answer hover the way Desktop's own destinations do. Desktop marks each sidebar row with `data-nav-icon-host`; in your stylesheet, key one short CSS animation off that ancestor's `:hover` and `:focus-visible`, move one part of the glyph for 340–720ms, and start and end on the static drawing. The bundled Oratorio plugin's baton is the reference, and `specs/architecture/DESIGN.md` states the rules under Navigation Icon Motion.
+A `mainViews` or `SidebarRow` icon can also answer hover the way Desktop's own destinations do. Desktop marks each sidebar row with `data-nav-icon-host`; in your stylesheet, key one short CSS animation off that ancestor's `:hover` and `:focus-visible`, move one part of the glyph for 340–720ms, and start and end on the static drawing. The bundled Oratorio plugin's baton is the reference, and `specs/architecture/DESIGN.md` states the rules under Navigation Icon Motion.
 
 ## Use the Host API
 
@@ -392,13 +453,14 @@ Beyond the four primitives, `DesktopPluginHost` groups stable product operations
 | `appearance` | Generation-owned theme-seed and backdrop-presentation contributions. |
 | `session` | The foreground workspace, active thread, mode, and busy state, plus a change subscription. |
 | `subagents` | The SubAgents a thread has started, their state, and their completions. |
+| `threads` | Threads the plugin owns, and the chats a thread has started. |
 | `projectActions` | Reading, adding, and running the actions a local project declares. |
 | `navigation` | Opening plugin views, Settings pages, threads, files, Detail Panel tabs, and automations, and claiming custom-scheme links. |
 | `ui` | Toasts, Host-owned confirmation, color, and folder dialogs, and the three surface operations. |
 | `appServer` | Supported JSON-RPC requests and subscriptions. |
 | `mcp` | Calling tools on the workspace's MCP servers. |
 | `settings` | Reading, mutating, and following this plugin's schema-backed settings. |
-| `appBindings`, `appSurfaces` | Connected-app binding and app-provided UI surfaces. |
+| `appBindings`, `appSurfaces` | Connected-app binding, including enabling an app in a thread with `enableThread`, and app-provided UI surfaces. |
 | `workspaces` | Reading local workspace information. |
 | `oratorio` | Team runs, handoffs, and events. |
 | `satellites` | The local Hub's devices, invitations, events, activity, and read-only local sharing status. |
@@ -604,6 +666,27 @@ host.subagents.onChange(threadId, render);
 
 `reveal(parentThreadId, childThreadId)` opens the parent thread's Subagents tab with that SubAgent selected.
 
+### Own a conversation
+
+`host.threads.ensureOwned` returns the plugin's thread for a key, creating it in the default Chat workspace the first time. Desktop leaves owned threads out of its thread lists and search, so the plugin decides where the conversation is reached, usually from a space. The thread starts in its own chat folder with the developer instructions and approval policy you pass. When a later call passes a different configuration, Desktop updates the existing thread:
+
+```ts
+const assistant = await host.threads.ensureOwned({
+  key: "assistant",
+  space: "review",
+  title: "Review",
+  config: {
+    developerInstructions: "You triage review requests across projects.",
+    approvalPolicy: "autoApprove",
+  },
+});
+await host.navigation.openThread(assistant.threadId, assistant.workspacePath);
+```
+
+`findOwned(key)` returns the recorded thread without creating one, or `null`. Disabling the plugin keeps its threads, so enabling it again returns the same conversations.
+
+`linked(parentThreadId)` returns the chats a thread started with `CreateThread`, newest first, and `onLinkedChange(parentThreadId, listener)` sends the complete list whenever one is added or removed or changes its title or state. Each chat carries its `threadId`, project, `title`, `createdAt`, and a `state` of `idle`, `working`, `waiting`, `done`, `failed`, or `stopped`. `waiting` means the chat needs the person's approval, input, or plan confirmation.
+
 ### Open product destinations
 
 `host.navigation` opens Desktop destinations:
@@ -705,10 +788,11 @@ Import shared UI components from `@dotcraft/plugin` so a plugin page looks like 
 | Group | Components |
 |---|---|
 | **Controls** | `Button`, `IconButton`, `SplitButton`, `Menu`, `Input`, `Textarea`, `Select`, `SegmentedControl`, `Combobox`, `Checkbox`, `PillSwitch`, `Slider` |
-| **Presentation** | `Spinner`, `Skeleton`, `ActionTooltip`, `ModalHeader`, `InlineDiff`, `Markdown`, `AgentAvatar`, `UserAvatar` |
+| **Presentation** | `Spinner`, `Skeleton`, `ActionTooltip`, `ModalHeader`, `InlineDiff`, `Markdown`, `AgentAvatar`, `UserAvatar`, `PersonalMascot`, `MascotOutfit` |
 | **Settings layout** | `SettingsPanelShell`, `SettingsBreadcrumb`, `SettingsGroup`, `SettingsRow` |
 | **Catalog layout** | `CatalogPage`, `CatalogSection`, `CatalogToolbarButton` |
 | **Summary layout** | `SummarySection`, `SummaryRow` |
+| **Space sidebar** | `SidebarRow` |
 | **Modal layering** | `LayerBoundary` |
 | **Tool transcript** | `ToolDisclosure`, `RunningShimmer` |
 
@@ -719,6 +803,8 @@ Import shared UI components from `@dotcraft/plugin` so a plugin page looks like 
 `CatalogPage` gives a main view the same frame as Desktop's Plugins and Agents pages: pass a `title`, optional `actions` for the top bar (`CatalogToolbarButton` for icon-only commands such as Refresh, `Button` or `SplitButton` for the principal one), an optional `search` and `filters`, and render your groups as children with `CatalogSection`. A group's own commands go in its `actions`, which appear at the end of its title row on hover or focus. In each filter group, put the unfiltered choice first. To switch between sibling views, pass `tabs: { value, items, onValueChange }`. They appear at the left of the top bar, like Plugins and Skills in Desktop. For a page reached from another, such as a settings or detail page, pass `breadcrumb: { parentLabel, currentLabel, onBack }` instead, adding `trail: [{ label, onClick }]` for any pages in between. It takes the place of the tabs, like Plugins › Manage. A page that edits one record can pass `titleEditor` and `descriptionEditor` (`{ value, placeholder, ariaLabel, onValueChange }`) so its name and one-line description are edited in place as the title and subtitle, and pass `meta` for controls under them, such as its tags.
 
 `AgentAvatar` draws the character Desktop shows for an agent. Pass the SubAgent's `nickname` as `name`, plus an optional `size` and `animated`, and your plugin draws the same character as the Subagents tab. Desktop supplies the component, so do not bundle the avatar package yourself.
+
+`PersonalMascot` draws the person's own mascot, the one on their Composer. Pass `greeting` to play a wave. Wrap it in `MascotOutfit` to dress it in your items.
 
 `UserAvatar` draws the Desktop user's own Profile avatar, with an optional `size`. Use it beside things the user wrote, such as their comments, so they look the same as in Desktop.
 

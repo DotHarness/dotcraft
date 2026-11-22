@@ -1,4 +1,5 @@
 import type { SidebarThreadSortMode } from '../../../shared/sidebarThreadOrder'
+import { isOwnedThreadId } from '../../../shared/ownedThreads'
 import type { WorkspaceProjectSummary } from '../../../shared/workspaceProjects'
 import {
   isRemoteProjectKey,
@@ -76,7 +77,7 @@ function isThreadSummary(value: unknown): value is ThreadSummary {
 export function visibleProjectThreads(threads: unknown[]): ThreadSummary[] {
   return threads
     .filter(isThreadSummary)
-    .filter((thread) => !isHiddenThread(thread))
+    .filter((thread) => !isHiddenThread(thread) && !isOwnedThreadId(thread.id))
     .filter((thread) => thread.status?.toLowerCase() !== 'archived')
     // Subagent threads are surfaced via the dock / Subagents tab, not the sidebar.
     .filter((thread) => !isSubAgentThread(thread))

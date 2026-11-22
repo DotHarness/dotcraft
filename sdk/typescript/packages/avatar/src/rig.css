@@ -53,6 +53,11 @@
   transition: transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1) 140ms;
 }
 
+.dca-part-held {
+  transform-box: view-box;
+  transform-origin: 233px 645px;
+}
+
 /* Every keyframe keeps the same function list (translate + rotate + scaleY) so the
    interpolation stays smooth. translate dy=88 lands the hinge at ≈602 viewBox, the
    height of the resting arm nub, so the hand lifts from where the arm already is. */

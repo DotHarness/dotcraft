@@ -2,9 +2,9 @@
 
 | Field | Value  |
 | ----- | ------ |
-| Version      | 0.10.0    |
+| Version      | 0.14.0    |
 | Status       | Living |
-| Date         | 2026-11-19        |
+| Date         | 2026-11-22        |
 | Parent Specs | [Automations Lifecycle](../automations-lifecycle.md) |
 
 Oratorio is DotCraft's built-in agent project management product. It runs as
@@ -14,10 +14,13 @@ review, implementation and follow-up drafts, and the audit history of every
 source write, and it drives DotCraft through AppServer. DotCraft remains the
 agent runtime and workspace execution layer.
 
-The native surface is intentionally narrow: Oratorio shows the board, task
-cards and the task page. Detailed conversation, approval decisions, plan
-inspection, file, terminal and preview views, and turn-by-turn interaction
-belong in DotCraft Desktop.
+Oratorio has one place in Desktop with two destinations: the conductor, a
+Desktop conversation from which the person hands out and follows work
+([Oratorio Conductor](oratorio-conductor.md)), and the board, which shows task
+cards and the task page. The conductor is an ordinary Desktop thread that
+Oratorio's Desktop extension owns, so detailed conversation, approval
+decisions, plan inspection, file, terminal and preview views, and turn-by-turn
+interaction stay DotCraft Desktop surfaces.
 
 This document is the canonical product and behavior contract for Oratorio.
 
@@ -26,6 +29,8 @@ This document is the canonical product and behavior contract for Oratorio.
 Oratorio is:
 
 - a Project and Task board for assigning, tracking, and reviewing agent work;
+- a conductor conversation that hands work to chats in the projects that own
+  it or to board tasks, follows it, and reports back;
 - a long-running orchestration backend with durable state;
 - a source adapter host for configured external trackers;
 - an AppServer client that dispatches review and work rounds to DotCraft;

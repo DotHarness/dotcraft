@@ -2,6 +2,7 @@ import './setupPluginRuntime'
 import { describe, expect, it, vi } from 'vitest'
 
 import { activate } from '../../bundled-plugins/oratorio/src/index'
+import { validateActivation } from '../plugins/desktopPluginValidation'
 import { installDesktopApiMock } from './desktopApiMock'
 import { installOratorioTestHost } from './oratorioPluginTestHost'
 
@@ -26,6 +27,7 @@ describe('Oratorio plugin activation', () => {
     const activation = await activate(host)
 
     expect(getContext).toHaveBeenCalledTimes(1)
+    expect(() => validateActivation('oratorio', '1.0.0', 'r1', host, activation)).not.toThrow()
     activation?.dispose?.()
   })
 })

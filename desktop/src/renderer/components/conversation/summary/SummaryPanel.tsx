@@ -7,6 +7,8 @@ import { RobotAvatar } from '../../agents/RobotAvatar'
 import { DesktopPluginSurface } from '../../desktopPlugins/DesktopPluginSurface'
 import { useDesktopPluginRegistry } from '../../../plugins/desktopPluginRegistry'
 import { BackgroundTasksSection } from './BackgroundTasksSection'
+import { LinkedChatsSection } from './LinkedChatsSection'
+import { useOwnedThread } from '../../../stores/ownedThreadsStore'
 import { ServersSection } from './ServersSection'
 import { ContextSection } from './ContextSection'
 import { EnvironmentSection } from './EnvironmentSection'
@@ -211,9 +213,32 @@ export function SummaryPanel({
     [workspacePath, threadId, busy]
   )
   const pluginSources = useDesktopPluginRegistry((registry) => registry.surfaces.some((surface) => surface.surface === 'summary.sources'))
+  const owned = useOwnedThread(threadId)
   const header = (
-    <header className="conversation-summary__header">{workspaceName(workspacePath) ?? t('summary.panelLabel')}</header>
+    <header className="conversation-summary__header">
+      {owned ? owned.title : workspaceName(workspacePath) ?? t('summary.panelLabel')}
+    </header>
   )
+
+  if (owned) {
+    return (
+      <div className="conversation-summary" data-variant={variant}>
+        {header}
+        <LinkedChatsSection threadId={threadId} />
+        {state?.ready ? (
+          <BackgroundTasksSection
+            services={services}
+            threadId={threadId}
+            terminals={state.terminals}
+            workflows={state.workflows}
+            workflowCalls={workflowCalls}
+          />
+        ) : null}
+        <DesktopPluginSurface name="summary.sections" context={pluginContext} />
+        <ContextSection services={services} threadId={threadId} />
+      </div>
+    )
+  }
 
   if (!state?.ready) return <div className="conversation-summary" data-variant={variant}>{header}</div>
 
@@ -240,6 +265,8 @@ export function SummaryPanel({
           <SubagentsRow services={services} state={state} />
         </Section>
       ) : null}
+
+      <LinkedChatsSection threadId={threadId} />
 
       <ServersSection threadId={threadId} />
 

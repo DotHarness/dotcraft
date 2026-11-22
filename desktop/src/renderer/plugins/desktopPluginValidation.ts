@@ -6,6 +6,7 @@ import type {
   DesktopPluginMainViewContribution,
   DesktopPluginMessageActionContribution,
   DesktopPluginSettingsPageContribution,
+  DesktopPluginSpaceContribution,
   DesktopPluginToolRendererContribution
 } from '@dotcraft/plugin'
 
@@ -18,6 +19,7 @@ import {
   type ActiveDesktopPluginMainView,
   type ActiveDesktopPluginMessageAction,
   type ActiveDesktopPluginSettingsPage,
+  type ActiveDesktopPluginSpace,
   type ActiveDesktopPluginToolRenderer,
   type DesktopPluginGeneration
 } from './desktopPluginRegistry'
@@ -41,6 +43,7 @@ export function validateActivation(
   if (!isRecord(value)) throw new Error('Desktop extension activate(host) must return an activation object.')
   const allowedKeys = new Set([
     'mainViews',
+    'spaces',
     'settingsPages',
     'conversationViews',
     'commands',
@@ -60,6 +63,14 @@ export function validateActivation(
       ...contribution,
       ...active,
       viewKey: buildDesktopPluginMainViewKey(pluginId, contribution.id),
+    }))
+  const mainViewIds = new Set(mainViews.map((view) => view.id))
+  const spaces = validateSpaces(value.spaces, ids, mainViewIds)
+    .map<ActiveDesktopPluginSpace>((contribution) => Object.freeze({
+      ...contribution,
+      ...active,
+      spaceKey: buildDesktopPluginContributionKey(pluginId, contribution.id),
+      viewKeys: Object.freeze(contribution.views.map((id) => buildDesktopPluginMainViewKey(pluginId, id)))
     }))
   const settingsPages = validateViewContributions<DesktopPluginSettingsPageContribution>(
     value.settingsPages,
@@ -108,6 +119,7 @@ export function validateActivation(
     version,
     revision,
     mainViews: Object.freeze(mainViews),
+    spaces: Object.freeze(spaces),
     settingsPages: Object.freeze(settingsPages),
     conversationViews: Object.freeze(conversationViews),
     commands: Object.freeze(commands),
@@ -132,6 +144,25 @@ function validateViewContributions<T extends {
       throw new Error(`Desktop extension ${kind} '${candidate.id}' requires a component.`)
     }
     return candidate as unknown as T
+  })
+}
+
+function validateSpaces(value: unknown, ids: Set<string>, mainViewIds: ReadonlySet<string>): DesktopPluginSpaceContribution[] {
+  const claimed = new Set<string>()
+  return contributionArray(value, 'space').map((candidate) => {
+    validateLabeledContribution(candidate, 'space', ids)
+    if (typeof candidate.sidebar !== 'function') {
+      throw new Error(`Desktop extension space '${candidate.id}' requires a sidebar component.`)
+    }
+    if (typeof candidate.open !== 'function') {
+      throw new Error(`Desktop extension space '${candidate.id}' requires open.`)
+    }
+    const views = candidate.views
+    if (!Array.isArray(views) || views.some((view) => typeof view !== 'string' || !mainViewIds.has(view) || claimed.has(view))) {
+      throw new Error(`Desktop extension space '${candidate.id}' views must name this plugin's main views, each in one space.`)
+    }
+    for (const view of views as string[]) claimed.add(view)
+    return candidate as unknown as DesktopPluginSpaceContribution
   })
 }
 

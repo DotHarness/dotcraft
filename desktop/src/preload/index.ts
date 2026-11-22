@@ -1,4 +1,6 @@
 import type { TextContextMenuRequest } from '../shared/textContextMenu'
+import type { LinkedChatSummary } from '../shared/linkedChats'
+import { LINKED_CHATS_CHANGED_CHANNEL, OWNED_THREADS_CHANGED_CHANNEL, type OwnedThreadRecord, type OwnedThreadRequest } from '../shared/ownedThreads'
 import { viewerPanelState } from './viewerPanelState'
 import { serverRequestEvents } from './serverRequestEvents'
 import { viewerBrowserLifecycle } from './viewerBrowserLifecycle'
@@ -1443,6 +1445,25 @@ const api = {
     },
     markKeptHere(params: { threadId: string; taskId: string }): Promise<ThreadTaskActionResult> {
       return ipcRenderer.invoke('threadTasks:mark-kept-here', params)
+    },
+    linkedChats(threadId: string): Promise<LinkedChatSummary[]> {
+      return ipcRenderer.invoke('threadTasks:linked-chats', threadId)
+    },
+    onLinkedChatsChanged(listener: () => void): UnsubscribeFn {
+      const wrapped = (): void => listener()
+      ipcRenderer.on(LINKED_CHATS_CHANGED_CHANNEL, wrapped)
+      return () => ipcRenderer.removeListener(LINKED_CHATS_CHANGED_CHANNEL, wrapped)
+    },
+    listOwned(): Promise<OwnedThreadRecord[]> {
+      return ipcRenderer.invoke('threadTasks:owned-list')
+    },
+    ensureOwned(request: OwnedThreadRequest): Promise<OwnedThreadRecord> {
+      return ipcRenderer.invoke('threadTasks:owned-ensure', request)
+    },
+    onOwnedChanged(listener: (records: OwnedThreadRecord[]) => void): UnsubscribeFn {
+      const wrapped = (_event: Electron.IpcRendererEvent, records: OwnedThreadRecord[]): void => listener(records)
+      ipcRenderer.on(OWNED_THREADS_CHANGED_CHANNEL, wrapped)
+      return () => ipcRenderer.removeListener(OWNED_THREADS_CHANGED_CHANNEL, wrapped)
     }
   },
 

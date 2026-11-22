@@ -78,6 +78,15 @@ export type {
   DesktopPluginSubAgent,
   DesktopPluginSubAgents,
   DesktopPluginSubAgentState,
+  DesktopPluginThreads,
+  DesktopPluginOwnedThread,
+  DesktopPluginOwnedThreadConfig,
+  DesktopPluginOwnedThreadRequest,
+  DesktopPluginLinkedChat,
+  DesktopPluginLinkedChatState,
+  DesktopPluginSpaceContribution,
+  DesktopPluginSpaceLocation,
+  DesktopPluginSpaceSidebarProps,
   DesktopPluginSurfaceComponent,
   DesktopPluginSurfaceContext,
   DesktopPluginSurfaceContextMap,
@@ -131,6 +140,7 @@ export type {
   InputProps,
   MarkdownProps,
   UserAvatarProps,
+  PersonalMascotProps,
   MenuEntry,
   MenuItem,
   MenuLabel,
@@ -153,6 +163,8 @@ export type {
   SettingsGroupProps,
   SettingsPanelShellProps,
   SettingsRowProps,
+  SidebarRowProps,
+  MascotOutfitProps,
   SummaryRowProps,
   SummarySectionProps,
   TextareaProps,
@@ -188,6 +200,7 @@ export const InlineDiff = ui.InlineDiff;
 export const Markdown = ui.Markdown;
 export const AgentAvatar = ui.AgentAvatar;
 export const UserAvatar = ui.UserAvatar;
+export const PersonalMascot = ui.PersonalMascot;
 export const Menu = ui.Menu;
 export const SplitButton = ui.SplitButton;
 export const CatalogPage = ui.CatalogPage;
@@ -195,3 +208,5 @@ export const CatalogToolbarButton = ui.CatalogToolbarButton;
 export const CatalogSection = ui.CatalogSection;
 export const SummarySection = ui.SummarySection;
 export const SummaryRow = ui.SummaryRow;
+export const SidebarRow = ui.SidebarRow;
+export const MascotOutfit = ui.MascotOutfit;

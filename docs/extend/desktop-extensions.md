@@ -80,7 +80,14 @@ npm install
 npm run build
 ```
 
-The build script type-checks the source, then runs `dotcraft-plugin build` to bundle `src/index.tsx`, imported CSS, chunks, and assets into `dist/`, wiring React and the shared components to Desktop's own React runtime.
+The build script type-checks the source, then runs `dotcraft-plugin build` to bundle `src/index.tsx`, imported CSS, chunks, and assets into `dist/`, wiring React and the shared components to Desktop's own React runtime. Add `?raw` to an import, such as `import instructions from "./instructions.md?raw"`, to bundle a file's text as a string. Declare raw imports once in `src/raw.d.ts` so the type check accepts them:
+
+```ts
+declare module "*?raw" {
+  const text: string;
+  export default text;
+}
+```
 
 Build before DotCraft discovers or packages the plugin. Refresh the plugin list, then enable it. After a source change, rebuild and refresh or re-enable the plugin.
 

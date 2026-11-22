@@ -1,11 +1,13 @@
 import { memo, type CSSProperties } from 'react'
 import { MessageSquarePlus, MessageSquareText } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
+import { useLinkedChats } from '../../stores/linkedChatsStore'
 import { useThreadStore } from '../../stores/threadStore'
 import type { ThreadToolAction } from '../../utils/threadToolDisplay'
 import { Button } from '../ui/Button'
 import { RunningShimmer } from '../ui/RunningShimmer'
 import { openThread } from '../sidebar/projectConnectionActions'
+import { ThreadWaitingBadge } from '../sidebar/ThreadWaitingBadge'
 
 interface ThreadActionCardProps {
   action: ThreadToolAction
@@ -17,12 +19,19 @@ export const ThreadActionCard = memo(function ThreadActionCard({ action }: Threa
   const liveName = useThreadStore((s) =>
     s.threadList.find((thread) => thread.id === action.threadId)?.displayName
   )
-  const working = useThreadStore((s) => s.runningTurnThreadIds.has(action.threadId))
+  const parentThreadId = useThreadStore((s) => s.activeThreadId)
+  const linked = useLinkedChats(parentThreadId).find((chat) => chat.threadId === action.threadId)
+  const runningHere = useThreadStore((s) => s.runningTurnThreadIds.has(action.threadId))
 
-  const name = (liveName ?? action.displayName)?.trim() || t('threadActionCard.untitled')
+  const name = (liveName ?? linked?.title ?? action.displayName)?.trim() || t('threadActionCard.untitled')
   const isCreated = action.kind === 'created'
-  const title = isCreated ? t('threadActionCard.createdTitle') : t('threadActionCard.messagedTitle')
-  const subtitle = action.queued ? t('threadActionCard.queuedSubtitle') : name
+  const working = (linked?.status ?? (runningHere ? 'running' : undefined)) === 'running'
+  const waiting = !action.queued && linked?.status === 'waitingForInput'
+    ? linked.waitingFor === 'approval' ? 'approval' : linked.waitingFor === 'planConfirmation' ? 'plan' : 'input'
+    : null
+  const subtitle = action.queued
+    ? t('threadActionCard.queuedSubtitle')
+    : linked?.projectName ?? t(isCreated ? 'threadActionCard.createdTitle' : 'threadActionCard.messagedTitle')
 
   function openChat(): void {
     void openThread(action.threadId, action.projectId ?? action.workspacePath)
@@ -42,10 +51,11 @@ export const ThreadActionCard = memo(function ThreadActionCard({ action }: Threa
             : <MessageSquareText size={22} strokeWidth={1.8} aria-hidden />}
         </span>
         <span style={textWrapStyle}>
-          <span style={titleStyle}>{title}</span>
+          <span style={titleStyle}>{name}</span>
           <RunningShimmer active={working} style={subtitleStyle}>{subtitle}</RunningShimmer>
         </span>
       </button>
+      {waiting && <ThreadWaitingBadge status={waiting} />}
       <Button variant="outlineGhost" size="toolbar" onClick={openChat} style={{ flexShrink: 0 }}>
         {t('threadActionCard.openChat')}
       </Button>

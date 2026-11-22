@@ -3,7 +3,7 @@ import test from 'node:test'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import {
-  AppearanceAvatar, AvatarCatalogProvider, DecorationSwatch, Silhouette, createAvatarCatalog, defineAvatarPack,
+  AppearanceAvatar, AvatarCatalogProvider, AvatarOutfitProvider, DecorationSwatch, Silhouette, createAvatarCatalog, defineAvatarPack,
 } from '../dist/react.js'
 import { originalAppearance } from '../dist/index.js'
 
@@ -54,4 +54,39 @@ test('external component packs invoke registered slot renderers and unmounted id
   )
   assert.ok(rendered.includes('front') && rendered.includes('back') && rendered.includes('paint'))
   assert.ok(swatchHtml.includes('aria-label="Twintails specimen"'))
+})
+
+test('an outfit dresses the stored appearance over an explicit catalog', () => {
+  const pack = defineAvatarPack({
+    namespace: 'role',
+    label: 'Role Pack',
+    items: [
+      { id: 'role:tie', slot: 'face', kind: 'accessory', rarity: 'rare', series: 'costume', zones: ['rim'], render: () => createElement('path', { d: 'M500 820h24', 'data-role': 'tie' }) },
+      { id: 'role:baton', slot: 'hand', rarity: 'rare', series: 'costume', zones: ['hand'], render: () => createElement('path', { d: 'M226 640v-200', 'data-role': 'baton' }) },
+    ],
+  })
+  const stored = { ...originalAppearance, palette: 3, head: 'ringed-planet', face: 'bow-tie' }
+  const html = renderToStaticMarkup(
+    createElement(AvatarOutfitProvider, { pack, wear: { face: 'role:tie', hand: 'role:baton' } },
+      createElement(AppearanceAvatar, { appearance: stored, catalog: createAvatarCatalog(), size: 64 }),
+    ),
+  )
+  assert.ok(html.includes('data-role="tie"') && html.includes('data-role="baton"'))
+  assert.ok(!html.includes('#e8654f'))
+  assert.ok(html.includes('data-head="ringed-planet"'))
+})
+
+test('a conducting hand item stays in hand while working and replaces the laptop', () => {
+  const pack = defineAvatarPack({
+    namespace: 'role',
+    label: 'Role Pack',
+    items: [{ id: 'role:baton', slot: 'hand', rarity: 'rare', series: 'costume', zones: ['hand'], workStory: 'conduct', render: () => createElement('path', { d: 'M226 640v-200' }) }],
+  })
+  const catalog = createAvatarCatalog({ packs: [pack] })
+  const working = appearance => renderToStaticMarkup(createElement(AppearanceAvatar, { appearance, catalog, state: 'working', size: 64 }))
+  const conducting = working({ ...originalAppearance, hand: 'role:baton' })
+  assert.ok(conducting.includes('data-held-state="holding"'))
+  assert.ok(!conducting.includes('dca-action-prop-laptop'))
+  const typing = working({ ...originalAppearance, hand: 'magic-wand' })
+  assert.ok(typing.includes('data-held-state="stowed"') && typing.includes('dca-action-prop-laptop'))
 })

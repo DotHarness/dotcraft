@@ -17,6 +17,8 @@ export {
   defaultAvatarCatalog,
   AvatarCatalogProvider,
   useAvatarCatalog,
+  AvatarOutfitProvider,
+  type AvatarOutfitWear,
   type AvatarCatalog,
   type AvatarCatalogOptions,
   type AvatarComponentPack,

@@ -2,16 +2,16 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 0.9.3 |
+| Version | 0.14.0 |
 | Status | Living |
-| Date | 2026-10-24 |
+| Date | 2026-11-22 |
 | Parent Spec | [Oratorio Design](./oratorio-design.md) |
 
 This document is the canonical frontend contract for the Oratorio surfaces in
 DotCraft Desktop.
 
-The native Oratorio view is the project board and task surface for agent work.
-Detailed conversation, approval decisions, plan inspection, diff, file,
+Oratorio is one space in DotCraft Desktop with two destinations: the conductor
+conversation and the project board with its task surfaces. Detailed conversation, approval decisions, plan inspection, diff, file,
 terminal and preview views, model selection, stop controls and general
 follow-up turns belong in DotCraft Desktop. The task Discussion may offer the
 narrow Oratorio-owned `Ask Oratorio` flow for Agent Discussion Turns.
@@ -26,6 +26,8 @@ hierarchy using those primitives.
 
 In scope:
 
+- the Oratorio space: its sidebar entry, its navigation, and the conductor's
+  Oratorio-specific presentation;
 - the board header with Oratorio brand identity and the Settings entry;
 - the Kanban board, filters, search, cards, drag-and-drop and undo feedback;
 - the Task Drawer and the Task detail page;
@@ -35,7 +37,8 @@ In scope:
 
 Out of scope:
 
-- embedded Conversation, Approvals, Plan, Diff, Files, Terminal or Preview tabs;
+- embedded Conversation, Approvals, Plan, Diff, Files, Terminal or Preview tabs
+  (the conductor uses Desktop's own conversation panel);
 - embedded prompt composers, model pickers or stop buttons;
 - general-purpose chat with the AppServer thread;
 - destinations without an implemented contract (no coming-soon entries);
@@ -45,14 +48,16 @@ Out of scope:
 
 The board, a task in the drawer, a task's full page and each Settings section
 have their own address within the project, so refreshing or sharing lands on
-the same view. Settings is the only destination besides the board.
+the same view. The conductor and Settings are the only destinations besides the
+board.
 
 Oratorio uses the existing DotCraft Desktop window, navigation and native
 surface registry; one Desktop-owned native surface supplies the board, drawer,
 detail page and Settings in both local and remote modes. Desktop owns window
 chrome, global navigation, diagnostics and window controls. The board has no
-navigation rail; product identity, New Task, Settings, filters and board
-actions stay in the board header and follow the active DotCraft theme.
+navigation rail of its own: the Oratorio space sidebar switches between the
+conductor and the board, and product identity, New Task, Settings, filters and
+board actions stay in the board header and follow the active DotCraft theme.
 
 ### 2.1 Service connection
 
@@ -108,6 +113,43 @@ an embedded conversation.
   app, the expiry, and that thread access remains a separate DotCraft choice.
   Thread binding consent, when policy shows it, summarizes the thread, scopes
   and tools. Loading, error, cancel and approving states stay visible.
+
+### 2.3 Oratorio space
+
+The Oratorio space keeps the conductor and the board together behind one entry,
+so Oratorio adds one place to Desktop instead of a chat and a separate view.
+
+- **Entry.** One sidebar destination labelled Oratorio with the baton icon,
+  pinned by default and movable to More like any destination. It is
+  Oratorio's only sidebar entry: the board is not listed as a separate
+  destination.
+- **Opening.** Selecting the entry opens the space on the conductor the first
+  time and on the destination last open in it afterwards. An Oratorio link to
+  the board, a task or a run opens the space on the board.
+- **Sidebar.** While the space is open, the sidebar shows Back, Conductor and
+  Board in place of the projects and chats. Conductor carries the conductor
+  thread's status as a thread row does. A chat it started that needs the person
+  reaches that row through the conductor's report. Back returns to the
+  project, chat or view that was open before the space, switching workspace
+  when the conductor's Chats workspace replaced it.
+- **Leaving.** Opening anything outside the space, such as a chat from a task
+  card, closes the space as Back does, without returning.
+- **Conductor.** The conductor is Desktop's conversation panel with its usual
+  Composer and Detail Panel, without the approval control, since the conductor
+  runs with full access. On the Composer, the person's own mascot holds
+  Oratorio's baton, and the rest of the mascot stays theirs. The Summary
+  shows the chats the conductor started
+  ([Desktop client, Following chats](../../clients/desktop-client.md#514-desktop-runtime-thread-tools)),
+  its background tasks, and its context usage. Sections about project work
+  stay hidden, because the conductor leaves that work to its chats.
+- **Introduction.** While the conductor has no messages, its conversation
+  area shows an introduction instead of an empty page. A gold line writes a
+  treble clef and flows into the baton the person's mascot holds. The mascot
+  waves, a thought bubble cycles through what the conductor does, and a title,
+  one sentence, and Continue appear. Continue reveals the empty conversation.
+  With reduced motion the final frame shows at once.
+- **Board.** The board is the surface below, unchanged. The Detail Panel is not
+  shown on it, as on any full view.
 
 ## 3. Kanban Board
 
