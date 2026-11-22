@@ -1,5 +1,34 @@
 export { Avatar, AppearanceAvatar, sizeTier, type AvatarProps, type AppearanceAvatarProps, type SizeTier } from './Avatar.js'
-export { DecorationSwatch, SlotDecoration, HeadDecoration } from './Decorations.js'
+export { DecorationSwatch, SlotDecoration, HeadDecoration, HeadBackDecoration } from './Decorations.js'
+export {
+  AVATAR_RIG_GEOMETRY,
+  Silhouette,
+  Plane,
+  Detail,
+  Glow,
+  useClipId,
+  FaceplateSurface,
+  FaceplateLayer,
+} from './DecorationShapes.js'
+export { materialBounds } from './RigMaterial.js'
+export {
+  defineAvatarPack,
+  createAvatarCatalog,
+  defaultAvatarCatalog,
+  AvatarCatalogProvider,
+  useAvatarCatalog,
+  type AvatarCatalog,
+  type AvatarCatalogOptions,
+  type AvatarComponentPack,
+  type AvatarComponentItem,
+  type AvatarHeadComponentItem,
+  type AvatarFaceAccessoryComponentItem,
+  type AvatarFaceplateComponentItem,
+  type AvatarHandComponentItem,
+  type AvatarBackComponentItem,
+  type AvatarSkinOverlayComponentItem,
+  type AvatarSkinPaintComponentItem,
+} from './pack.js'
 export { useAvatarGaze, type AvatarGazeOptions } from './useAvatarGaze.js'
 
 export { ComposerMascot } from './composer/ComposerMascot.js'

@@ -3,6 +3,7 @@ import type { SkinId } from './items.js'
 import type { BodyPaint } from './MascotRig.js'
 import { isPaintSkin, paintMaterials, type PaintSkinId } from './paintMaterials.js'
 import { materialBounds } from './RigMaterial.js'
+import { CostumeSkinOverlay, CostumeSkinPaintSurface, costumeSkinPaint } from './CostumeDecorations.js'
 
 const star4 = (r: number) => `M0 ${-r}l${r * .28} ${r * .72}l${r * .72} ${r * .28}l${-r * .72} ${r * .28}l${-r * .28} ${r * .72}l${-r * .28} ${-r * .72}l${-r * .72} ${-r * .28}l${r * .72} ${-r * .28}Z`
 const ray = (deg: number, spread: number) => {
@@ -31,7 +32,7 @@ export function SkinOverlay({ id }: { id: SkinId }) {
       </g>
     </g>
     case 'tide': return <path className="dca-fx-tide" d={`M-17 630q50-100 100 0${'t100 0'.repeat(10)}V1400H-17Z`} fill="var(--dca-part-shadow-color, #0b1020)" opacity=".4" data-skin-overlay={id} />
-    default: return null
+    default: return <CostumeSkinOverlay id={id} />
   }
 }
 
@@ -54,7 +55,7 @@ const accretion = <g className="dca-fx dca-fx-void" fill="#ffb04a" style={{ tran
 const effects: Partial<Record<PaintSkinId, ReactNode>> = { chrome: sheen, holographic: sheen, gold: sheen, candy: sheen, galaxy: stars, terminal: scanline, prism, void: accretion }
 
 const sweep = (skin: string, stops: ReactNode) => (id: string) => <linearGradient id={id} className={`dca-skin-paint dca-skin-${skin}`} x1="279" y1="766" x2="736" y2="334" gradientUnits="userSpaceOnUse">{stops}</linearGradient>
-const gradients: Record<PaintSkinId, (id: string) => ReactNode> = {
+const gradients: Record<Exclude<PaintSkinId, 'plush-fleece'>, (id: string) => ReactNode> = {
   chrome: sweep('chrome', <>
     <stop offset="0" stopColor="#3c4658" /><stop offset=".36" stopColor="#9aa6b8" /><stop offset=".5" stopColor="#f4f7fb" />
     <stop offset=".54" stopColor="#6b7688" /><stop offset=".8" stopColor="#c3ccd8" /><stop offset="1" stopColor="#ffffff" />
@@ -110,9 +111,11 @@ const gradients: Record<PaintSkinId, (id: string) => ReactNode> = {
   </radialGradient>,
 }
 export function skinPaint(id: SkinId): BodyPaint | undefined {
+  if (id === 'plush-fleece') return costumeSkinPaint(id)
   return isPaintSkin(id) ? { render: gradients[id], shadow: paintMaterials[id].shadow } : undefined
 }
 export function SkinPaintSurface({ id }: { id: SkinId }) {
+  if (id === 'plush-fleece') return <CostumeSkinPaintSurface id={id} />
   if (!isPaintSkin(id)) return null
   return <g data-skin-overlay={id}>
     {effects[id]}

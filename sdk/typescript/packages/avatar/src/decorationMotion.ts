@@ -3,9 +3,13 @@ import type { AvatarPose } from './characters.js'
 
 export type MotionKind = 'lift' | 'fitted' | 'bounce' | 'rock' | 'squish' | 'sprout'
 export interface MotionProfile { kind: MotionKind; x: number; y: number; height: number; angle: number; shadow: number }
-const lift = (x = 512, y = 400): MotionProfile => ({ kind: 'lift', x, y, height: .05, angle: 3, shadow: 95 })
-const fitted = (x = 512): MotionProfile => ({ kind: 'fitted', x, y: 400, height: 0, angle: 3, shadow: 0 })
-const bounce = (x = 512): MotionProfile => ({ kind: 'bounce', x, y: 400, height: .06, angle: 5, shadow: 64 })
+export const liftMotion = (x = 512, y = 400, shadow = 95): MotionProfile => ({ kind: 'lift', x, y, height: .05, angle: 3, shadow })
+export const fittedMotion = (x = 512, angle = 3): MotionProfile => ({ kind: 'fitted', x, y: 400, height: 0, angle, shadow: 0 })
+export const bounceMotion = (x = 512, shadow = 64): MotionProfile => ({ kind: 'bounce', x, y: 400, height: .06, angle: 5, shadow })
+export const rockMotion = (x = 512, y = 399, angle = 5): MotionProfile => ({ kind: 'rock', x, y, height: 0, angle, shadow: 0 })
+const lift = liftMotion
+const fitted = fittedMotion
+const bounce = bounceMotion
 export const decorationMotionProfiles: Record<HeadId, MotionProfile> = {
   'baseball-cap': lift(478), 'bucket-hat': lift(), beret: lift(494), beanie: fitted(),
   'top-hat': lift(), 'wizard-hat': lift(), 'chef-hat': lift(), 'party-hat': lift(), crown: lift(),
@@ -22,6 +26,7 @@ export const decorationMotionProfiles: Record<HeadId, MotionProfile> = {
   sprout: { kind: 'sprout', x: 512, y: 399, height: 0, angle: 6, shadow: 0 },
   'satellite-dish': fitted(), 'cursor-arrow': bounce(540), 'viking-helmet': fitted(), 'wind-up-key': fitted(),
   crab: bounce(), cupcake: bounce(), gears: fitted(), 'rain-cloud': { ...lift(512, 290), shadow: 110 }, 'maneki-neko': lift(),
+  'twin-tails': fitted(512, 4), 'plush-bunny-hood': fitted(), 'dino-hood': fitted(), 'idol-crown': bounce(512, 54), 'vocal-twintails': fitted(512, 4),
 }
 export const motionKindLabels: Record<MotionKind, string> = {
   lift: 'Gentle lift', fitted: 'Fitted sway', bounce: 'Bounce and settle', rock: 'Rocking response', squish: 'Soft wobble', sprout: 'Nod and unfurl',

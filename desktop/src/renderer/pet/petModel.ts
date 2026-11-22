@@ -1,4 +1,4 @@
-import { equip, isItemId, itemOf, items, originalAppearance, rarities, rarityWeights, slots, type Appearance, type ItemId, type Rarity, type Slot } from '@dotcraft/avatar'
+import { equip, isItemId, itemOf, items, originalAppearance, rarities, rarityWeights, slots, type Appearance, type ItemId, type ItemOf, type Rarity, type Slot } from '@dotcraft/avatar'
 import type { PetDropProgress, PetOutfit, PetSettings } from '../../shared/pet'
 
 export const FIND_RUNTIME_MS = 30 * 60_000
@@ -11,10 +11,16 @@ function knownItem(id: unknown): id is ItemId {
   return typeof id === 'string' && isItemId(id)
 }
 
-type Worn = Pick<Appearance, Slot>
+type Worn = { [S in Slot]: ItemOf<S> | 'none' }
 
 function outfitOf(appearance: Appearance): Worn {
-  return { head: appearance.head, face: appearance.face, hand: appearance.hand, back: appearance.back, skin: appearance.skin }
+  return {
+    head: knownItem(appearance.head) && itemOf(appearance.head).slot === 'head' ? appearance.head as ItemOf<'head'> : 'none',
+    face: knownItem(appearance.face) && itemOf(appearance.face).slot === 'face' ? appearance.face as ItemOf<'face'> : 'none',
+    hand: knownItem(appearance.hand) && itemOf(appearance.hand).slot === 'hand' ? appearance.hand as ItemOf<'hand'> : 'none',
+    back: knownItem(appearance.back) && itemOf(appearance.back).slot === 'back' ? appearance.back as ItemOf<'back'> : 'none',
+    skin: knownItem(appearance.skin) && itemOf(appearance.skin).slot === 'skin' ? appearance.skin as ItemOf<'skin'> : 'none',
+  }
 }
 
 function sanitizeOutfit(outfit: PetOutfit): Worn {
@@ -45,7 +51,7 @@ export function sanitizePetSettings(settings: PetSettings): PetSettings {
 }
 
 export function safeAppearance(appearance: Appearance): Appearance {
-  return { ...originalAppearance, palette: appearance.palette, ...sanitizeOutfit(appearance) }
+  return { ...originalAppearance, palette: appearance.palette, ...sanitizeOutfit(outfitOf(appearance)) }
 }
 
 export function appearanceOf(settings: PetSettings): Appearance {

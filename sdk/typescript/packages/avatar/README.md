@@ -53,5 +53,49 @@ enabled; smaller avatars render their static frame, and avatars at 20px and belo
 overlay-skin, and effect layers entirely. The model is specified in
 [specs/features/avatar-system.md](../../../../specs/features/avatar-system.md).
 
+## Extend with custom packs
+
+External applications register custom slot components, negative brand palettes, and outfit presets
+with `defineAvatarPack` and `createAvatarCatalog`, then mount `<AvatarCatalogProvider>` around
+`<Avatar>`, `<AppearanceAvatar>`, `<ComposerMascot>`, or `<DecorationSwatch>`.
+
+```tsx
+import {
+  AppearanceAvatar,
+  AvatarCatalogProvider,
+  Silhouette,
+  createAvatarCatalog,
+  defineAvatarPack,
+} from '@dotcraft/avatar/react'
+import { applyOutfitPreset } from '@dotcraft/avatar'
+
+const studioPack = defineAvatarPack({
+  namespace: 'studio',
+  label: 'Studio Mascot',
+  items: [
+    {
+      id: 'studio:visor-cap',
+      slot: 'head',
+      rarity: 'rare',
+      series: 'costume',
+      zones: ['top', 'brow'],
+      render: () => <Silhouette d="M340 368c16-90 78-146 172-146s156 56 172 146v32H340Z" fill="#4f7cf6" />,
+    },
+  ],
+  presets: [{ id: 'studio:default', name: 'Studio Default', palette: 0, head: 'studio:visor-cap' }],
+})
+
+const catalog = createAvatarCatalog({ packs: [studioPack] })
+const look = applyOutfitPreset(studioPack.presets![0]!, undefined, catalog.registry)
+
+export function BrandedCompanion() {
+  return (
+    <AvatarCatalogProvider catalog={catalog}>
+      <AppearanceAvatar appearance={look} size={64} motion="system" label="Studio companion" />
+    </AvatarCatalogProvider>
+  )
+}
+```
+
 See the [TypeScript SDK reference](https://www.dotcraft.net/extend/sdks/typescript) for the
 available entry points.

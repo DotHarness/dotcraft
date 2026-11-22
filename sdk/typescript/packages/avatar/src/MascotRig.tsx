@@ -1,6 +1,6 @@
 import { useId, type CSSProperties, type JSX, type ReactNode } from 'react'
 import { Faces } from './Faces.js'
-import { mascotPaletteOf } from './palette.js'
+import { mascotPaletteOf, type PaletteLookup } from './palette.js'
 import { RigMaterial, RigMaterialClip } from './RigMaterial.js'
 
 export type MascotExpression = 'neutral' | 'happy' | 'operator' | 'sleep'
@@ -24,6 +24,7 @@ interface MascotRobotProps {
   accessory?: ReactNode
   faceplate?: Faceplate
   top?: ReactNode
+  headBack?: ReactNode
   back?: ReactNode
   front?: ReactNode
   surface?: ReactNode
@@ -33,11 +34,8 @@ interface MascotRobotProps {
   size?: number
   className?: string
   style?: CSSProperties
-  /**
-   * Recolors the body / arm / face-mark gradients from the profile's palette. The antenna
-   * deliberately stays brand-yellow so its error/success status semantics survive.
-   */
   avatar?: { palette: number }
+  paletteRegistry?: PaletteLookup
   antenna?: 'ball' | 'star'
 }
 
@@ -47,7 +45,7 @@ export function MascotRig({
   size = 48,
   className,
   style,
-  avatar, top, back, front, surface, paint, baseFace, accessory, faceplate, held, antenna = 'ball'
+  avatar, paletteRegistry, top, headBack, back, front, surface, paint, baseFace, accessory, faceplate, held, antenna = 'ball'
 }: MascotRobotProps): JSX.Element {
   const uid = useId().replace(/:/g, '')
   const blue = `dca-part-blue-${uid}`
@@ -62,7 +60,7 @@ export function MascotRig({
   const glowFill = light === 'error' ? 'var(--dca-error, #dc2626)' : light === 'success' ? 'var(--dca-success, #16a34a)' : '#f6b500'
   const star = antenna === 'star'
 
-  const palette = mascotPaletteOf(avatar)
+  const palette = mascotPaletteOf(avatar, paletteRegistry)
   const body0 = palette.bodyD
   const body1 = palette.bodyM
   const body2 = palette.bodyL
@@ -123,6 +121,7 @@ export function MascotRig({
 
       <g transform="translate(512 528) scale(1.3) translate(-512 -512)">
         {back}
+        {headBack}
         <g filter={`url(#${softShadow})`}>
           <rect x="201" y="365" width="622" height="513" rx="151" fill="#fff" />
           {/* Centered on the blue band (233 / 791), not offset toward the body as the

@@ -1,5 +1,9 @@
-import type { SkinId } from './items.js'
-import { paintMaterialOf } from './paintMaterials.js'
+import { paintMaterialOf, type PaintMaterial } from './paintMaterials.js'
+
+export interface PaletteLookup {
+  paletteOf(palette: number): PaletteEntry | undefined
+  paintMaterialOf(skin: string): PaintMaterial | undefined
+}
 
 export interface PaletteEntry {
   key: string
@@ -12,13 +16,10 @@ export interface PaletteEntry {
   accent: string
 }
 
-/** Complete paint vocabulary used by the Composer mascot. */
 export interface MascotPaintPalette extends PaletteEntry {
-  /** Middle face-mark stop; profile palettes intentionally reuse `markL`. */
   markM: string
 }
 
-/** Canonical DotCraft mascot paint when no Agent Profile is selected. */
 export const DEFAULT_MASCOT_PALETTE: MascotPaintPalette = {
   key: 'default',
   bodyD: '#2458f7',
@@ -31,7 +32,6 @@ export const DEFAULT_MASCOT_PALETTE: MascotPaintPalette = {
   accent: '#5f82f7'
 }
 
-/** 12 role palettes. The first five define the built-in Agent Profile roles. */
 export const PALETTE: PaletteEntry[] = [
   { key: 'blue', bodyD: '#2563eb', bodyM: '#4f7cf6', bodyL: '#8198f5', markD: '#2563eb', markL: '#6f8df5', shadow: '#07307c', accent: '#4f7cf6' },
   { key: 'indigo', bodyD: '#4f46e5', bodyM: '#6366f1', bodyL: '#8b8ff8', markD: '#3730a3', markL: '#818cf8', shadow: '#1e1b4b', accent: '#6366f1' },
@@ -47,22 +47,23 @@ export const PALETTE: PaletteEntry[] = [
   { key: 'sky', bodyD: '#0284c7', bodyM: '#0ea5e9', bodyL: '#38bdf8', markD: '#0369a1', markL: '#22d3ee', shadow: '#075985', accent: '#0ea5e9' }
 ]
 
-
-/** Near-black paint for a host's brand robot (`palette: -2`); name derivation never draws it. */
 export const INK_PALETTE: PaletteEntry = {
   key: 'ink', bodyD: '#0b0c0f', bodyM: '#24272d', bodyL: '#4a4f58', markD: '#16181d', markL: '#2c3038', shadow: '#0b0c0f', accent: '#4a4f58'
 }
 
-export function paletteOf(spec: { palette: number }): PaletteEntry {
+export function paletteOf(spec: { palette: number }, registry?: PaletteLookup): PaletteEntry {
+  const custom = registry?.paletteOf(spec.palette)
+  if (custom) return custom
   return spec.palette === -2 ? INK_PALETTE : PALETTE[spec.palette] ?? DEFAULT_MASCOT_PALETTE
 }
-export function mascotPaletteOf(spec?: { palette: number; skin?: SkinId | 'none' }): MascotPaintPalette {
-  const material = paintMaterialOf(spec?.skin ?? 'none')
-  const paint: MascotPaintPalette = !spec || spec.palette === -1 ? DEFAULT_MASCOT_PALETTE : { ...paletteOf(spec), markM: paletteOf(spec).markL }
+export function mascotPaletteOf(spec?: { palette: number; skin?: string }, registry?: PaletteLookup): MascotPaintPalette {
+  const skin = spec?.skin ?? 'none'
+  const material = registry ? registry.paintMaterialOf(skin) : paintMaterialOf(skin)
+  const resolved = spec ? paletteOf(spec, registry) : DEFAULT_MASCOT_PALETTE
+  const paint: MascotPaintPalette = !spec || spec.palette === -1 ? DEFAULT_MASCOT_PALETTE : { ...resolved, markM: resolved.markL }
   return material ? { ...paint, ...material } : paint
 }
 
-/** CSS paint variables the effort-energy styles read; every energised mascot surface sets all of them. */
 export function mascotEnergyStyle(paint: MascotPaintPalette): Record<string, string> {
   return {
     '--mascot-body-dark': paint.bodyD,

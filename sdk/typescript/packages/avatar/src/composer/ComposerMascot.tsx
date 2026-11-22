@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type AnimationEvent, type CSSProperties } from 'react'
 import { AppearanceAvatar } from '../Avatar.js'
 import { deriveAppearance, mascotEnergyStyle, mascotPaletteOf, type AvatarPose } from '../index.js'
+import { useAvatarCatalog } from '../pack.js'
 import { useComposerAvatarBehavior } from './useComposerAvatarBehavior.js'
 import { consumeMascotHandoff, recordMascotHandoff } from './mascotHandoff.js'
 import { useComposerProfile } from './useComposerProfile.js'
@@ -8,10 +9,12 @@ import { useComposerMotion } from './useComposerMotion.js'
 import { MASCOT_SIZE, MASCOT_SCALE, MASCOT_HIDDEN_RATIO, MASCOT_RAISE, MASCOT_SLEEP_AFTER_MS, MASCOT_WAVE_DURATION_MS, MASCOT_WAVE_SETTLE_MS, MASCOT_SPARKLES } from './constants.js'
 import { useMascotActiveIdle } from './useMascotActiveIdle.js'
 import type { ComposerMascotProps, ComposerMascotContext, MascotExpression, MascotLight } from './types.js'
-export function ComposerMascot({ name, appearance, appearanceOf = deriveAppearance, motion = 'system', theme = 'dark', focused = false, dragOver = false, bounceSignal = 0, interaction, reasoningEffort = 'off', speed = 'standard', anchorOffset = 0, anchorPushSignal = 0, handoff = false, renderCharacter, renderMenu, onNameRendered }: ComposerMascotProps) {
+export function ComposerMascot({ name, catalog, appearance, appearanceOf, motion = 'system', theme = 'dark', focused = false, dragOver = false, bounceSignal = 0, interaction, reasoningEffort = 'off', speed = 'standard', anchorOffset = 0, anchorPushSignal = 0, handoff = false, renderCharacter, renderMenu, onNameRendered }: ComposerMascotProps) {
+  const activeCatalog = useAvatarCatalog(catalog)
+  const resolveAppearance = useCallback((target: string) => (appearanceOf ? appearanceOf(target) : deriveAppearance(target, activeCatalog.registry)), [appearanceOf, activeCatalog.registry])
   const reduced = !useComposerMotion(motion)
-  const { avatar, profileTransition, profileTransitionRevision } = useComposerProfile(name, reduced, appearanceOf)
-  const look = appearance && !avatar ? appearance : appearanceOf(avatar ?? '')
+  const { avatar, profileTransition, profileTransitionRevision } = useComposerProfile(name, reduced, resolveAppearance, activeCatalog.registry)
+  const look = appearance && !avatar ? appearance : resolveAppearance(avatar ?? '')
   useEffect(() => { onNameRendered?.(avatar) }, [avatar, onNameRendered])
   const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null)
   const [ambientSleeping, setSleeping] = useState(false)
@@ -87,7 +90,7 @@ export function ComposerMascot({ name, appearance, appearanceOf = deriveAppearan
     reducedMotion: reduced
   })
   clearGestureRef.current = avatarBehavior.clearGesture
-  const mascotPalette = mascotPaletteOf(look)
+  const mascotPalette = mascotPaletteOf(look, activeCatalog.registry)
   const activity: ComposerMascotContext["activity"] = light === 'error'
     ? 'error'
     : light === 'success'
@@ -321,7 +324,7 @@ export function ComposerMascot({ name, appearance, appearanceOf = deriveAppearan
       .filter(Boolean)
       .join(' ') || undefined
 
-  const character = <AppearanceAvatar appearance={look} size={MASCOT_SIZE} state={avatarBehavior.pose}
+  const character = <AppearanceAvatar appearance={look} catalog={activeCatalog} size={MASCOT_SIZE} state={avatarBehavior.pose}
     expression={avatarBehavior.expression} gesture={avatarBehavior.gesture}
     gestureSequence={avatarBehavior.gestureSequence} onGestureComplete={avatarBehavior.completeGesture}
     eventSequence={bounceSignal + greetingSequence} motion={reduced ? 'off' : 'on'} />

@@ -3,6 +3,7 @@ import type { FaceId, Zone } from './items.js'
 import { itemOf } from './items.js'
 import type { Faceplate } from './MascotRig.js'
 import { Detail, Glow, Silhouette as S, useClipId } from './DecorationShapes.js'
+import { CostumeFaceDecoration, StarryVisorEyes, StarryVisorPlate } from './CostumeDecorations.js'
 
 const snorkelTube = 'M792 458V372q0-30 28-40'
 const mark = 'var(--dca-held-mark, #3161f7)'
@@ -86,7 +87,7 @@ export function FaceDecoration({ id }: { id: FaceId }) {
     </>
     case 'sheriff-star': return <>
       <S d={sheriff} fill="#f6b500" stroke={14} />
-      {sheriffTips.map(([x, y]) => <circle key={x} cx={x} cy={y} r="13" fill="#f6b500" stroke="#fff" strokeWidth="10" paintOrder="stroke fill" />)}
+      {sheriffTips.map(([x, y]) => <circle key={`${x}-${y}`} cx={x} cy={y} r="13" fill="#f6b500" stroke="#fff" strokeWidth="10" paintOrder="stroke fill" />)}
       <path d={sheriff} fill="#f6b500" />
       <circle cx="512" cy="836" r="24" fill="#ffd970" stroke="#e09a00" strokeWidth="7" />
       <path className="dca-fx dca-fx-sparkle-solo" d="M556 780l6 14 14 6-14 6-6 14-6-14-14-6 14-6Z" fill="#fff" />
@@ -143,7 +144,7 @@ export function FaceDecoration({ id }: { id: FaceId }) {
       </g>
       <circle cx="512" cy="812" r="8" fill="#efc65c" stroke="#fff" strokeWidth="8" paintOrder="stroke fill" />
     </>
-    default: return null
+    default: return <CostumeFaceDecoration id={id} />
   }
 }
 
@@ -371,6 +372,7 @@ export function FaceplatePlate({ id }: { id: FaceId }) {
     case 'code-rain': return <g data-faceplate={id}><Plate fill="#0b1410">
       <g className="dca-fx dca-fx-scanline" opacity=".35"><path d={rain.glyphs} fill="#7dff8a" /><path d={rain.heads} fill="#d9ffe0" /></g>
     </Plate></g>
+    case 'starry-visor': return <StarryVisorPlate />
     default: return null
   }
 }
@@ -386,6 +388,7 @@ export function FaceplateEyes({ id }: { id: FaceId }) {
     case 'porthole-helmet': return <g transform="translate(512 622) scale(.75) translate(-512 -618)"><NeonEyes /></g>
     case 'dragon-visor': return <DragonEyes />
     case 'code-rain': return <CodeRainEyes />
+    case 'starry-visor': return <StarryVisorEyes />
     default: return null
   }
 }

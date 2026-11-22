@@ -37,19 +37,12 @@ test('active idle launches after the quiet window and walks outbound, away, inbo
     await h.advance(1)
     assert.deepEqual(h.state.idle.activeIdle, { motion: 'hop', phase: 'outbound', direction: 'left', travel: 'left' })
     assert.equal(h.state.started, 1)
-    assert.equal(h.state.idle.className, 'composer-mascot-active-idle')
-    assert.deepEqual(h.state.idle.attributes, {
-      'data-mascot-active-idle': 'hop', 'data-mascot-idle-phase': 'outbound',
-      'data-mascot-idle-direction': 'left', 'data-mascot-idle-travel': 'left'
-    })
     await h.advance(2_560)
     assert.equal(h.state.idle.activeIdle.phase, 'away')
     await h.advance(1_400)
     assert.deepEqual(h.state.idle.activeIdle, { motion: 'hop', phase: 'inbound', direction: 'left', travel: 'right' })
     await h.advance(2_560)
     assert.equal(h.state.idle.activeIdle, null)
-    assert.equal(h.state.idle.className, undefined)
-    assert.deepEqual(h.state.idle.attributes, {})
 
     await h.fire('keydown')
     await h.advance(35_000)

@@ -1,6 +1,7 @@
 import { useId, type CSSProperties, type ReactNode } from 'react'
 import type { BackId } from './items.js'
 import { Detail, Glow, Silhouette as S, useClipId } from './DecorationShapes.js'
+import { CostumeBackDecoration } from './CostumeDecorations.js'
 import { CloudDragon, CloudDragonFront } from './CloudDragon.js'
 import { n0, oval, tube, type Pt } from './spine.js'
 
@@ -445,7 +446,7 @@ export function BackDecoration({ id }: { id: BackId }) {
     </>
     case 'great-wave': return <Water masses={[curl, swell]} />
     case 'cloud-dragon': return <CloudDragon />
-    default: return null
+    default: return <CostumeBackDecoration id={id} />
   }
 }
 

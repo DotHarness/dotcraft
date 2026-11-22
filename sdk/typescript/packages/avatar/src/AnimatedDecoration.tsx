@@ -1,16 +1,16 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import type { HeadId } from './items.js'
 import type { AvatarPose } from './characters.js'
 import { HeadDecoration } from './Decorations.js'
-import { advanceDecoration, decorationMotionProfiles, frameTransform, requestDecorationEvent, restFrame, type DecorationClock, type DecorationFrame } from './decorationMotion.js'
+import { advanceDecoration, decorationMotionProfiles, fittedMotion, frameTransform, requestDecorationEvent, restFrame, type DecorationClock, type DecorationFrame, type MotionProfile } from './decorationMotion.js'
 
-export function AnimatedDecoration({ id, pose, sequence, enabled, paused }: {
-  id: HeadId; pose: AvatarPose; sequence: number; enabled: boolean; paused: boolean
+export function AnimatedDecoration({ id, pose, sequence, enabled, paused, profile: overrideProfile, showShadow = true, children }: {
+  id: string; pose: AvatarPose; sequence: number; enabled: boolean; paused: boolean; profile?: MotionProfile; showShadow?: boolean; children?: ReactNode
 }) {
   const art = useRef<SVGGElement>(null)
   const shadow = useRef<SVGEllipseElement>(null)
   const clock = useRef<DecorationClock | null>(null)
-  const profile = decorationMotionProfiles[id]
+  const profile = overrideProfile ?? (decorationMotionProfiles as Record<string, MotionProfile | undefined>)[id] ?? fittedMotion()
   const previousId = useRef(id)
   function paint(frame: DecorationFrame) {
     art.current?.setAttribute('transform', frameTransform(profile, frame))
@@ -35,9 +35,9 @@ export function AnimatedDecoration({ id, pose, sequence, enabled, paused }: {
     }
     handle = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(handle)
-  }, [id, pose, sequence, enabled, paused])
+  }, [id, pose, sequence, enabled, paused, profile])
   return <g data-decoration-motion={profile.kind}>
-    {profile.shadow > 0 && <ellipse ref={shadow} cx={profile.x} cy="404" rx={profile.shadow} ry="7" fill="#243344" opacity=".12" />}
-    <g ref={art} transform={frameTransform(profile, restFrame)}><HeadDecoration id={id} /></g>
+    {showShadow && profile.shadow > 0 && <ellipse ref={shadow} cx={profile.x} cy="404" rx={profile.shadow} ry="7" fill="#243344" opacity=".12" />}
+    <g ref={art} transform={frameTransform(profile, restFrame)}>{children ?? <HeadDecoration id={id as HeadId} />}</g>
   </g>
 }

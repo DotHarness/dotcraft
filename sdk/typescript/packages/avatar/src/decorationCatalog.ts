@@ -17,7 +17,7 @@ export const rarityMeta: Record<Rarity, { label: string; color: string }> = {
   legendary: { label: 'Legendary', color: '#e0962c' },
 }
 export const seriesLabels: Record<Series, string> = {
-  everyday: 'Everyday', dev: 'Dev culture', tech: 'Tech & cyber', fantasy: 'Fantasy', nature: 'Nature', snack: 'Snack', critters: 'Critters',
+  everyday: 'Everyday', dev: 'Dev culture', tech: 'Tech & cyber', fantasy: 'Fantasy', nature: 'Nature', snack: 'Snack', critters: 'Critters', costume: 'Costume & anime',
 }
 
 const held = 'Screen-left hand; shares the arm pivot, stows for laptop and question sign, then restores'
@@ -68,6 +68,11 @@ const copy: Record<ItemId, DecorationCopy> = {
   gears: { name: 'Gears', feature: 'Two meshed steel cogs turning against each other', colors: ['#8b95a5', '#a7b1c0', '#f6b500'], mount: 'Both cogs stand on the top edge and mesh above its center' },
   'rain-cloud': { name: 'Rain cloud', feature: 'Gray storm cloud raining in three blue columns, with a flash of lightning', colors: ['#9aa6b8', '#dfe5ee', '#4f7cf6'], mount: 'Cloud floats above the head; the rain lands on the top edge' },
   'maneki-neko': { name: 'Maneki-neko', feature: 'Gold beckoning cat with a red collar that tosses a spinning coin', colors: ['#efc65c', '#e8654f', '#fff3c4'], mount: 'Base sits on the top edge center; the raised paw stays clear of the arms' },
+  'twin-tails': { name: 'Twin-tails', feature: 'Sakura-pink bangs with twin ribbon ties and long sweeping pigtails behind the body', colors: ['#f6a5c0', '#e36d97', '#ff6b8b'], mount: 'Bangs rest on the top edge while the twin-tails hang behind the body contour' },
+  'plush-bunny-hood': { name: 'Plush bunny hood', feature: 'Cream fleece costume hood with floppy lop ears and pink inner linings', colors: ['#fff5eb', '#f5a9c1', '#ead8c7'], mount: 'Hood wraps the top edge with a soft collar behind the shoulders' },
+  'dino-hood': { name: 'Dino hood', feature: 'Mint dinosaur kigurumi hood with rounded orange dorsal spikes and tiny teeth', colors: ['#6ed39a', '#ff944d', '#ffffff'], mount: 'Hood fits the top edge and brow band while spiked drape sits behind the body' },
+  'idol-crown': { name: 'Idol crown', feature: 'Tilted pastel star tiara paired with a bouncy anime ahoge hair tuft', colors: ['#ffd166', '#ff7aa2', '#fff7d6'], mount: 'Tiara and ahoge perch on the top edge center and stay clear of both arms' },
+  'vocal-twintails': { name: 'Vocal twin-tails', feature: 'Sleek cyan-teal bangs with futuristic magenta hair cuffs, floor-length twin-tails, and floating holo notes', colors: ['#39c5bb', '#ff2e88', '#8cf7ef'], mount: 'Bangs and square cuffs sit on the top edge while sweeping twin-tails flow behind the body and shed glowing notes' },
 
   headlamp: { name: 'Headlamp', feature: 'Round yellow lamp with a gray bezel on a dark strap', colors: ['#3c4658', '#8b95a5', '#ffd970'], mount: 'Lamp centers in the forehead band; the strap spans the brow' },
   'snorkel-mask': { name: 'Snorkel mask', feature: 'Wide cyan mask pushed up with an orange snorkel tube', colors: ['#a2c5d1', '#3c4658', '#ed985f'], mount: 'Mask fits the forehead band; the tube rises at the screen-right temple and stows for the question sign' },
@@ -95,6 +100,9 @@ const copy: Record<ItemId, DecorationCopy> = {
   'neon-visor': { name: 'Neon visor', feature: 'Full smoked visor with a pair of LED eyes that lid, squint and rest, plus a passing scan line', colors: ['#1d2433', '#4de3ff', '#c7f6ff'], mount: 'Replaces the face inside the white screen frame; the LED pair carries all four expressions' },
   'dragon-visor': { name: 'Dragon visor', feature: 'Dark scaled plate with slit-pupil eyes that smolder, flare, scan and dim', colors: ['#1f2b2c', '#2f4543', '#ffb547'], mount: 'Replaces the face inside the white screen frame; light carries all four expressions' },
   'code-rain': { name: 'Code rain', feature: 'Black screen of falling green code behind a pair of LED eyes', colors: ['#0b1410', '#7dff8a', '#d9ffe0'], mount: 'Replaces the face inside the white screen frame; the LED pair carries all four expressions' },
+  'ribbon-choker': { name: 'Ribbon choker', feature: 'Frilled rose-pink idol bow with cream lace tails and a heart charm', colors: ['#f06a92', '#fff1f5', '#ffd166'], mount: 'Centers on the chin below the screen while the ribbon tails overhang the base' },
+  'neko-clip': { name: 'Neko clip', feature: 'Pastel star hair clip paired with two playful whisker accents', colors: ['#ff7aa2', '#ffd166', '#ffffff'], mount: 'Clipped at the screen-right temple corner and stows while the arm holds the question sign' },
+  'starry-visor': { name: 'Starry visor', feature: 'Soft indigo screen with plump sky-blue eyes, golden star catchlights, and rosy cheek blushes', colors: ['#23223a', '#8be8ff', '#ffe680'], mount: 'Replaces the face inside the white screen frame, with pastel eyes carrying all four expressions' },
 
   'task-board': { name: 'Task board', feature: 'White planning board with connected role-color markers and a yellow accent', colors: ['#ffffff', '#3161f7', '#f6b500'], mount: held },
   wrench: { name: 'Wrench', feature: 'White open-ended wrench with role-color outlines and a yellow handle inset', colors: ['#ffffff', '#3161f7', '#f6b500'], mount: held },
@@ -131,6 +139,8 @@ const copy: Record<ItemId, DecorationCopy> = {
   'plasma-globe': { name: 'Plasma globe', feature: 'Dark glass ball on a black base with flickering violet tendrils', colors: ['#1d2433', '#c084fc', '#f5d0fe'], mount: held },
   'master-key': { name: 'Master key', feature: 'Giant golden key that turns like a lock opening and flashes the eyes gold', colors: ['#efc65c', '#c99139', '#fff3c4'], mount: `${held}; the shaft rises beside the body, never across the screen` },
   'pet-dragon': { name: 'Pet dragon', feature: 'Small green dragon flapping its wings that rears back and breathes a jet of fire', colors: ['#4fae6a', '#2f7a4f', '#ffb347'], mount: `${held}; the dragon perches beside the body` },
+  'stage-mic': { name: 'Stage mic', feature: 'Silver-mesh handheld idol microphone tied with a fluttering pink bow', colors: ['#dce4ee', '#3c4658', '#f06a92'], mount: held },
+  'glow-stick': { name: 'Glow stick', feature: 'Star-topped concert cheering wand whose light cycles pastel stage colors', colors: ['#ff7aa2', '#4de3ff', '#fff5d6'], mount: `${held}, with the star wand rising beside the body` },
 
   cape: { name: 'Cape', feature: 'Crimson cape that flares wide below the body with a lighter lining', colors: ['#b23a48', '#d65a68'], mount: 'Collar sits at the shoulders behind the body; the flares show beside and below the base' },
   'crescent-moon': { name: 'Crescent moon', feature: 'Yellow crescent rising behind the head with a small star', colors: ['#f6d365', '#fff3c4'], mount: 'Moon shows behind the upper-left of the head' },
@@ -163,6 +173,8 @@ const copy: Record<ItemId, DecorationCopy> = {
   'tesla-coils': { name: 'Tesla coils', feature: 'Two coil towers whose crackling arcs flicker and build to a bright discharge', colors: ['#c9d2ff', '#8b95a5', '#4de3ff'], mount: 'Towers stand on struts behind both shoulders; the arc bridges their tops above the head' },
   'great-wave': { name: 'Great wave', feature: 'Prussian-blue wave whose clawed curl breaks toward the robot', colors: ['#1e3f8f', '#5fb3ec', '#fff8e6'], mount: 'Swell carries the base; the curl rises beside the left arm' },
   'cloud-dragon': { name: 'Cloud dragon', feature: 'Front-facing jade dragon riding auspicious clouds; its tail whips and its eyes glow', colors: ['#2f9e7a', '#a7e8cf', '#f6b500'], mount: 'Head over the left shoulder with a foreleg hooked on it; the body arches behind the antenna and down the right side, with one cloud in front and two behind' },
+  'waist-ribbon': { name: 'Waist ribbon', feature: 'Oversized satin back bow with wide loops and two fluttering notched tails', colors: ['#f06a92', '#c94570', '#ffd9e5'], mount: 'Loops spread behind both sides of the body while the ribbon tails sway below' },
+  'chibi-devil': { name: 'Chibi devil', feature: 'Plum-and-berry mini bat wings paired with a swaying heart-tipped tail', colors: ['#6d3b7e', '#e35d88', '#ffb3cc'], mount: 'Mini wings spread behind the shoulders and the heart tail curls out from the lower edge' },
 
   stripes: { name: 'Stripes', feature: 'Diagonal light stripes across the body and arms', colors: ['#ffffff'], mount: 'One continuous overlay across the body and arms; reads through every palette' },
   split: { name: 'Split', feature: 'Two-tone body with a lighter right half', colors: ['#ffffff'], mount: 'One overlay across the body and arms; each arm keeps its half in every pose' },
@@ -188,11 +200,14 @@ const copy: Record<ItemId, DecorationCopy> = {
   racer: { name: 'Racer', feature: 'Powder blue with a marigold racing band', colors: ['#66a9d8', '#f28a1c'], mount: 'Replaces the body and arm paint; the band runs level across the lower arms' },
   prism: { name: 'Prism', feature: 'Smoked glass that splits light into a sliding rainbow', colors: ['#4f5580', '#ff5f6d', '#ffe066', '#4fb4ff'], mount: 'Replaces the body and arm paint; the rainbow sweeps across the surface' },
   void: { name: 'Void', feature: 'Black body circled by a glowing accretion arc', colors: ['#030206', '#6a3fd0', '#ffb04a'], mount: 'Replaces the body and arm paint; the arc circles the screen over the rim and arms' },
+  'sailor-collar': { name: 'Sailor collar', feature: 'Crisp uniform V-collar, sleeve cuffs, and pleated hem trim', colors: ['#ffffff'], mount: 'Continuous costume trim across the upper torso, lower rim, and sleeves over any palette' },
+  'plush-fleece': { name: 'Plush fleece', feature: 'Two-tone strawberry-milk and cream kigurumi fleece with a stitched seam and soft sheen', colors: ['#f79bb8', '#fff1e6', '#e05784'], mount: 'Replaces the body and arm paint with a cozy diagonal fleece material' },
 }
 
+export const coreDecorationCopy: Readonly<Record<ItemId, DecorationCopy>> = copy
 export const decorations: Decoration[] = items.map(item => ({ ...item, ...copy[item.id] }))
 export const decorationOf = (id: ItemId): Decoration => ({ ...itemOf(id), ...copy[id] })
-export const decorationName = (id: ItemId | 'none') => id === 'none' ? 'None' : copy[id].name
+export const decorationName = (id: string) => id === 'none' ? 'None' : (copy as Record<string, DecorationCopy | undefined>)[id]?.name ?? id
 export function decorationsOf(slot: Slot): Decoration[] { return decorations.filter(item => item.slot === slot) }
 export function decorationsByRarity(rarity: Rarity): Decoration[] { return decorations.filter(item => item.rarity === rarity) }
 export function decorationsBySeries(series: Series): Decoration[] { return decorations.filter(item => item.series === series) }

@@ -2,21 +2,24 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.3 |
+| **Version** | 0.14.0 |
 | **Status** | Draft |
-| **Date** | 2026-11-19 |
+| **Date** | 2026-11-22 |
 | **Related Specs** | [Agent Profiles](agent-profiles.md), [Desktop DESIGN.md](../architecture/DESIGN.md) |
 
 Purpose: define the shared `@dotcraft/avatar` system: the equipment slots an avatar exposes, the item
-registry with rarity and series, zone-based compatibility, deterministic name derivation, size-tier
-degradation, the boundaries for item-level visual effects, and the Desktop pet built on top of it
-(the dressed default companion, its finds, bag, and exchange). The design catalog in the DotCraft
-design repository owns the review surfaces; this spec owns the model that every host renders.
+registry with rarity and series, external extension packs and outfit presets, zone-based compatibility,
+deterministic name derivation, size-tier degradation, the boundaries for item-level visual effects,
+and the Desktop pet built on top of it (the dressed default companion, its finds, bag, and exchange).
+The design catalog in the DotCraft design repository owns the review surfaces, and this spec owns the
+model that every host renders.
 
 ## 1. Scope
 
 - One `Appearance` record shared by Desktop, Universe, the design catalog, and any SDK consumer.
-- Five independent equipment slots and the registry of items that fill them.
+- Five independent equipment slots, the built-in registry of items that fill them, and extension packs
+  supplied by external hosts.
+- Outfit presets that apply coordinated multi-slot looks without replacing per-slot composition.
 - Rarity tiers and series as item metadata, including how rarity weights name derivation.
 - Zone occupancy as the single compatibility mechanism between items.
 - Size tiers that decide which layers and effects render at a given size.
@@ -51,15 +54,17 @@ Out of scope:
 ## 3. Appearance Record
 
 ```ts
+type ExternalItemId = `${string}:${string}`
+
 interface Appearance {
   version: 1
-  palette: number        // 0–11 role palettes; -1 is the original brand mascot; -2 is ink
+  palette: number        // 0–11 role palettes, -1 original brand, -2 ink, <= -3 pack palettes
   baseFace: number       // 0–4
-  head: HeadId | 'none'
-  face: FaceId | 'none'
-  hand: HandId | 'none'
-  back: BackId | 'none'
-  skin: SkinId | 'none'
+  head: HeadId | ExternalItemId | 'none'
+  face: FaceId | ExternalItemId | 'none'
+  hand: HandId | ExternalItemId | 'none'
+  back: BackId | ExternalItemId | 'none'
+  skin: SkinId | ExternalItemId | 'none'
   antenna?: 'ball' | 'star'
 }
 ```
@@ -68,29 +73,31 @@ interface Appearance {
 name derives it. Desktop's default composer mascot renders it unless the person has dressed the
 companion (section 11).
 
-Ink paint (`palette: -2`) and the star antenna (`antenna: 'star'`) exist for hosts that fix a
-brand look, such as Universe's own Agent. Name derivation never produces them, so no derived robot
-can wear a host's brand. Ink is a near-black gradient with ink face marks. The star antenna is a
-four-point star whose tips lie on a radius-84 circle and whose edges are radius-168 arcs; it floats
-35 above a shortened neck inside the same white outline, and takes the status light's colours.
-A head item still replaces whichever antenna is set.
+Ink paint (`palette: -2`), pack-registered negative palettes (`palette <= -3`), and the star antenna
+(`antenna: 'star'`) exist for hosts that fix a brand or character look, such as Universe's own Agent.
+Name derivation never produces them, so no derived robot can wear a host's brand. Ink is a near-black
+gradient with ink face marks. The star antenna is a four-point star whose tips lie on a radius-84
+circle and whose edges are radius-168 arcs: it floats 35 above a shortened neck inside the same white
+outline, and takes the status light's colours. A head item still replaces whichever antenna is set.
 
-The mascot draws a rendered name through a resolver that defaults to `deriveAppearance`; a host may
+The mascot draws a rendered name through a resolver that defaults to `deriveAppearance`, and a host may
 pass its own. The resolver covers every name the mascot shows, including both sides of a profile
 transition, so a host that fixes some Agents' looks keeps them through hand-offs and tints.
 
-Slot IDs are stable kebab-case strings serialized as-is. Slots are independent fields so a host can
-override one slot without touching the others.
+Built-in slot IDs are kebab-case strings serialized as-is. External extension items use
+`<namespace>:<item-id>` so host packs never collide with built-in items or with each other. Slots are
+independent fields so a host can override one slot without touching the others. When an `Appearance`
+names an item missing from the active registry, rendering treats that slot as `'none'` without failing.
 
 ## 4. Slots
 
 | Slot | Mounts | Notes |
 |------|--------|-------|
-| `head` | Head top; replaces the antenna and its status light | Hats and novelty objects. |
+| `head` | Head top (replacing the antenna and its status light), with an optional behind-body drape layer | Hats, novelty objects, hair silhouettes, and costume hoods. The optional behind-body layer renders in front of `back` items and behind the body outline so twin-tails, long hair, and hood collars frame the silhouette without covering moving arms or consuming `back`. |
 | `face` | Brow band, a faceplate over the screen, or a rim site | Brow and rim items never paint on the screen. Rim items mount at one of two rim sites (section 6), combine with every hat, and are exclusive with brow items and faceplates because they share the slot. A faceplate replaces the native face with its own expression layers and stays visible at compact size because it defines the head silhouette. |
-| `hand` | Screen-left hand | Follows the arm; stows for laptop and question-sign work props. |
-| `back` | Behind the body, with an optional front layer under the work props | Wings, capes, packs, rings, orbits, and auras. An orbiting body renders its far half behind and its near half in front, switching layer only where it is clear of the robot silhouette. A creature that holds on to the robot draws its gripping parts in the front layer. |
-| `skin` | Body and arm material | Overlay skins keep the palette paint; paint skins replace it. Face marks keep the palette in both kinds. |
+| `hand` | Screen-left hand | Follows the arm and stows for laptop and question-sign work props. |
+| `back` | Behind the body, with an optional front layer under the work props | Wings, capes, packs, ribbons, rings, orbits, and auras. An orbiting body renders its far half behind and its near half in front, switching layer only where it is clear of the robot silhouette. A creature that holds on to the robot draws its gripping parts in the front layer. |
+| `skin` | Body and arm material | Overlay skins keep the palette paint, whereas paint skins replace it. Face marks keep the palette in both kinds. |
 
 Slot precedence for derivation and conflict resolution is `head > face > hand > back > skin`.
 
@@ -100,10 +107,10 @@ Every item declares:
 
 | Field | Meaning |
 |-------|---------|
-| `id` | Stable identifier. |
+| `id` | Stable identifier (`<item>` for built-in items, `<namespace>:<item>` for pack items). |
 | `slot` | One of the five slots. |
 | `rarity` | `common`, `uncommon`, `rare`, `epic`, or `legendary`. |
-| `series` | Thematic family: `everyday`, `dev`, `tech`, `fantasy`, `nature`, `snack`, or `critters`. |
+| `series` | Thematic family: built-in `everyday`, `dev`, `tech`, `fantasy`, `nature`, `snack`, `critters`, or `costume`, or a pack-qualified `<namespace>:<series>`. |
 | `zones` | Regions the item occupies, from `top`, `brow`, `rim`, `screen`, `hand`, `back`, `body`. |
 
 Presentation metadata (display name, defining feature, object palette, mounting explanation) lives
@@ -111,13 +118,35 @@ next to the registry, keyed by `id`.
 
 | Rarity | Chrome color | Intent |
 |--------|--------------|--------|
-| Common | Slate | Everyday objects; the bulk of every slot. |
+| Common | Slate | Everyday objects, forming the bulk of every slot. |
 | Uncommon | Green | A twist on an everyday object. |
 | Rare | Blue | Distinct silhouettes or a small animated detail. |
-| Epic | Purple | Glow, motion, or a paint-replacing material. An epic accessory moves visibly when effects are live; a glow pulse alone is not enough. |
+| Epic | Purple | Glow, motion, or a paint-replacing material. An epic accessory moves visibly when effects are live, as a glow pulse alone is not enough. |
 | Legendary | Gold | The signature item of a slot, with a signature beat (section 9). |
 
 Series groups the catalog and has no sampling authority.
+
+### 5.1 Extension Packs, Registries, and Outfit Presets
+
+External applications extend `@dotcraft/avatar` without forking the package by composing an
+`AvatarRegistry` (pure data in `@dotcraft/avatar`) and an `AvatarCatalog` (SVG renderers in
+`@dotcraft/avatar/react`) from the built-in collection and one or more `AvatarPack` definitions:
+
+- Each pack declares a kebab-case `namespace`, a display label, its slot items (every `id` prefixed
+  with `<namespace>:`), optional custom series labels, optional custom negative palettes
+  (`palette <= -3`), and optional `AvatarOutfitPreset` entries.
+- Pack validation rejects duplicate IDs, unprefixed item IDs, invalid slot-to-zone assignments
+  (section 6), and positive or reserved palette indices (`>= -2`).
+- Pack items default to `derivable: false`, keeping deterministic name derivation identical to the
+  built-in collection unless a pack or item explicitly opts into `derivable: true` for that host's
+  `deriveAppearance(name, registry)` calls.
+- An `AvatarOutfitPreset` groups a `palette`, optional `baseFace` and `antenna`, and a zone-compatible
+  selection of slot items so a host can apply a complete character costume or brand look in one step
+  while preserving per-slot overrides through `equip`.
+- `@dotcraft/avatar/react` exports `<AvatarCatalogProvider>`, `createAvatarCatalog`, `defineAvatarPack`,
+  and the shared SVG authoring primitives (`Silhouette`, `Plane`, `Detail`, `Glow`, `useClipId`, rig
+  bounds, and head motion helpers) so external slot components inherit size-tier degradation,
+  effect gating, reduced-motion rules, and prop stowing automatically.
 
 ## 6. Zone Compatibility
 
@@ -256,7 +285,9 @@ All of this is gated on `data-effects="live"`.
   held at the hand, emerging from behind the body at a plausible anchor, or tied by a visible tether.
   Nothing floats beside the body. Objects made for people are adapted to the robot's geometry.
 - Detail layers hide at compact size; the silhouette always renders.
-- Head items rest on the body's upper edge and stay clear of both arms.
+- Head items rest on the body's upper edge and stay clear of both arms. When a head item such as
+  twin-tails or a costume hood includes a behind-body drape layer, that layer stays behind the body
+  and arm contours while its silhouette remains visible at compact size.
 - Brow items stay inside the brow band and never enter the screen. The band is too shallow for an
   object to read inside it at standard size, so a brow item needs a strap across the full brow or a
   part that leaves the band, such as the snorkel's tube. Glasses do not qualify.

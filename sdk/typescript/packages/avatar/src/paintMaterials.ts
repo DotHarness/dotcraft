@@ -18,10 +18,11 @@ export const paintMaterials = {
   thermal: { shadow: '#12072e', accent: '#ff7a1f' },
   candy: { shadow: '#2a0309', accent: '#ff4d63' },
   racer: { shadow: '#1f4f73', accent: '#f28a1c' },
+  'plush-fleece': { shadow: '#6b2341', accent: '#f472b6' },
   prism: { shadow: '#151830', accent: '#a276ff' },
   void: { shadow: '#030206', accent: '#8b5cf6' },
 } as const satisfies Partial<Record<SkinId, PaintMaterial>>
 
 export type PaintSkinId = keyof typeof paintMaterials
-export function isPaintSkin(id: SkinId | 'none'): id is PaintSkinId { return id in paintMaterials }
-export function paintMaterialOf(id: SkinId | 'none'): PaintMaterial | undefined { return isPaintSkin(id) ? paintMaterials[id] : undefined }
+export function isPaintSkin(id: string): id is PaintSkinId { return id in paintMaterials }
+export function paintMaterialOf(id: string): PaintMaterial | undefined { return isPaintSkin(id) ? paintMaterials[id] : undefined }

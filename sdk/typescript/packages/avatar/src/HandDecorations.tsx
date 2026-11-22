@@ -1,6 +1,7 @@
 import { useId } from 'react'
 import type { HandId } from './items.js'
 import { Glow, Plane, useClipId } from './DecorationShapes.js'
+import { CostumeHandDecoration } from './CostumeDecorations.js'
 import { lock, tube, type Pt } from './spine.js'
 
 const mark = 'var(--dca-held-mark, #3161f7)'
@@ -276,6 +277,7 @@ export function HandDecoration({ id }: { id: HandId }) {
     </g>}
     {id === 'master-key' && <MasterKey />}
     {id === 'pet-dragon' && <PetDragon />}
+    <CostumeHandDecoration id={id} />
   </g>
 }
 

@@ -1,9 +1,5 @@
 import type { CSSProperties, ReactElement, ReactNode } from 'react'
 
-/**
- * The layer stack the active-idle styles animate: travel (x), lift (y), body (squash), trail (jets).
- * ComposerMascot tags its own wrappers with these classes instead of rendering this stage.
- */
 export function MascotIdleStage({ className, style, children }: {
   className?: string
   style?: CSSProperties

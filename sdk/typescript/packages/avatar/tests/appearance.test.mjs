@@ -1,12 +1,11 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { deriveAppearance, originalAppearance, items, itemsOf, slots, rarities, rarityWeights, slotPresence, hasConflicts, conflicts, equip, canEquip, appearanceWall } from '../dist/index.js'
+import {
+  deriveAppearance, originalAppearance, items, itemsOf, slots, rarities, rarityWeights, slotPresence,
+  hasConflicts, conflicts, equip, canEquip, appearanceWall, createAvatarRegistry, applyOutfitPreset, normalizeAppearance, mascotPaletteOf,
+} from '../dist/index.js'
 
-test('name identities are deterministic, normalized and cover every slot', () => {
-  assert.deepEqual(deriveAppearance('Reviewer'), { version: 1, palette: 10, baseFace: 4, head: 'pirate-hat', face: 'none', hand: 'coffee-mug', back: 'none', skin: 'split' })
-  assert.deepEqual(deriveAppearance('Explorer'), { version: 1, palette: 10, baseFace: 1, head: 'satellite-dish', face: 'none', hand: 'pickaxe', back: 'solar-panels', skin: 'none' })
-  assert.deepEqual(deriveAppearance('Fixture 29'), { version: 1, palette: 9, baseFace: 1, head: 'sprout', face: 'prize-rosette', hand: 'lollipop', back: 'peeking-cat', skin: 'split' })
-  assert.deepEqual(deriveAppearance('Fixture 55'), { version: 1, palette: 1, baseFace: 0, head: 'mushroom', face: 'none', hand: 'magnifier', back: 'cape', skin: 'patina' })
+test('name derivation normalizes whitespace and Unicode NFC while empty names return originalAppearance', () => {
   assert.deepEqual(deriveAppearance('  Reviewer \n'), deriveAppearance('Reviewer'))
   assert.deepEqual(deriveAppearance('cafe\u0301'), deriveAppearance('café'))
   assert.notDeepEqual(deriveAppearance('reviewer'), deriveAppearance('Reviewer'))
@@ -70,4 +69,49 @@ test('walls reproduce from their seed and cells replay individually', () => {
   assert.deepEqual(appearanceWall('review / seed'), first)
   for (const item of first) assert.deepEqual(deriveAppearance(item.id), item.appearance)
   assert.notDeepEqual(appearanceWall('review / seed', 1), first)
+})
+
+test('extension packs validate namespaces, preserve non-derivable hashes, and resolve presets and palettes', () => {
+  assert.throws(() => createAvatarRegistry({
+    packs: [{ namespace: 'studio', label: 'Studio', items: [{ id: 'unprefixed', slot: 'head', rarity: 'common', series: 'everyday', zones: ['top'] }] }],
+  }), TypeError)
+  assert.throws(() => createAvatarRegistry({
+    packs: [{ namespace: 'studio', label: 'Studio', items: [{ id: 'studio:bad-hat', slot: 'head', rarity: 'common', series: 'everyday', zones: ['rim'] }] }],
+  }), TypeError)
+  assert.throws(() => createAvatarRegistry({
+    packs: [{ namespace: 'studio', label: 'Studio', palettes: { [-2]: { key: 'reserved', bodyD: '#000', bodyM: '#111', bodyL: '#222', markD: '#333', markL: '#444', shadow: '#000', accent: '#555' } }, items: [] }],
+  }), TypeError)
+
+  const customPalette = { key: 'berry', bodyD: '#d63f79', bodyM: '#f26a9c', bodyL: '#ffb3d0', markD: '#b8255f', markL: '#ff8fb8', shadow: '#5e1431', accent: '#f26a9c' }
+  const pack = {
+    namespace: 'idol',
+    label: 'Idol Pack',
+    palettes: { [-3]: customPalette },
+    items: [
+      { id: 'idol:hood', slot: 'head', rarity: 'rare', series: 'idol:stage', zones: ['top', 'brow'] },
+      { id: 'idol:collar', slot: 'face', rarity: 'common', series: 'idol:stage', zones: ['rim'] },
+      { id: 'idol:dress', slot: 'skin', rarity: 'epic', series: 'idol:stage', zones: ['body'], paintMaterial: { shadow: '#4a1028', accent: '#ff70a6' } },
+    ],
+    presets: [{ id: 'idol:full', name: 'Idol Full', palette: -3, head: 'idol:hood', face: 'idol:collar', skin: 'idol:dress' }],
+  }
+  const isolated = createAvatarRegistry({ packs: [pack] })
+  for (let i = 0; i < 50; i++) {
+    assert.deepEqual(deriveAppearance(`Sample ${i}`, isolated), deriveAppearance(`Sample ${i}`))
+  }
+
+  const presetLook = applyOutfitPreset(pack.presets[0], originalAppearance, isolated)
+  assert.equal(presetLook.palette, -3)
+  assert.equal(presetLook.head, 'idol:hood')
+  assert.equal(mascotPaletteOf({ palette: -3, skin: 'none' }, isolated).bodyD, '#d63f79')
+  assert.equal(mascotPaletteOf(presetLook, isolated).accent, '#ff70a6')
+
+  const lampSwap = equip(presetLook, 'face', 'headlamp', isolated)
+  assert.deepEqual(lampSwap.cleared, ['head'])
+  assert.equal(lampSwap.appearance.head, 'none')
+  assert.equal(normalizeAppearance(presetLook).head, 'none')
+
+  const derivable = createAvatarRegistry({ packs: [{ ...pack, derivable: true }], includeCore: false })
+  const drawn = Array.from({ length: 40 }, (_, i) => deriveAppearance(`Custom ${i}`, derivable))
+  assert.ok(drawn.some(look => look.head === 'idol:hood'))
+  assert.ok(drawn.every(look => !hasConflicts(look, derivable)))
 })

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import type { Appearance } from '../appearanceModel.js'
+import type { AvatarCatalog } from '../pack.js'
 export type MascotExpression = 'neutral' | 'happy' | 'operator' | 'sleep'
 export type MascotLight = 'default' | 'error' | 'success'
 export interface ComposerMascotContext {
@@ -14,9 +15,8 @@ export interface ComposerMascotContext {
 }
 export interface ComposerMascotProps {
   name?: string
-  /** What the default companion wears; ignored while a name is rendered, which `appearanceOf` draws. */
+  catalog?: AvatarCatalog
   appearance?: Appearance
-  /** How a rendered name is drawn; `deriveAppearance` unless the host fixes some names' looks. */
   appearanceOf?: (name: string) => Appearance
   motion?: 'system' | 'on' | 'off'
   theme?: 'light' | 'dark'

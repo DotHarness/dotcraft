@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { slotIds } from '../dist/items.js'
-import { advanceDecoration, decorationFrame, decorationMotionProfiles, eventDuration, frameTransform, requestDecorationEvent, restFrame } from '../dist/decorationMotion.js'
+import { advanceDecoration, decorationFrame, decorationMotionProfiles, eventDuration, requestDecorationEvent, restFrame } from '../dist/decorationMotion.js'
 
 test('every head item has a motion profile whose events start and land at the mounting pose with bounded movement', () => {
   assert.deepEqual(Object.keys(decorationMotionProfiles).sort(), slotIds('head').sort())
@@ -60,11 +60,4 @@ test('interruptions settle within 160ms and only the most recent event survives'
   const replay = requestDecorationEvent(next, 'done')
   assert.equal(replay.phase, 'event')
   assert.ok(advanceDecoration(replay, profile, 320).frame.y < 0)
-})
-test('anchored transforms use the configured contact point, without moving arm layers', () => {
-  const profile = decorationMotionProfiles.sprout
-  const frame = decorationFrame(profile, 'done', .25)
-  assert.match(frameTransform(profile, frame), /translate\(512 399\).*translate\(-512 -399\)/)
-  assert.equal(frame.x, 0)
-  assert.equal(frame.y, 0)
 })

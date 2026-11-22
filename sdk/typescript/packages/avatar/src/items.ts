@@ -2,16 +2,18 @@ export const slots = ['head', 'face', 'hand', 'back', 'skin'] as const
 export type Slot = typeof slots[number]
 export const rarities = ['common', 'uncommon', 'rare', 'epic', 'legendary'] as const
 export type Rarity = typeof rarities[number]
-export const seriesIds = ['everyday', 'dev', 'tech', 'fantasy', 'nature', 'snack', 'critters'] as const
+export const seriesIds = ['everyday', 'dev', 'tech', 'fantasy', 'nature', 'snack', 'critters', 'costume'] as const
 export type Series = typeof seriesIds[number]
 export const zones = ['top', 'brow', 'rim', 'screen', 'hand', 'back', 'body'] as const
 export type Zone = typeof zones[number]
+export type ExternalItemId = `${string}:${string}`
+export type AnySeries = Series | ExternalItemId
 
 export interface ItemSpec<S extends Slot = Slot, I extends string = string> {
   id: I
   slot: S
   rarity: Rarity
-  series: Series
+  series: AnySeries
   zones: readonly Zone[]
 }
 
@@ -48,6 +50,8 @@ export const items = [
   object('satellite-dish', 'common', 'tech'), object('cursor-arrow', 'common', 'dev'), hat('viking-helmet', 'uncommon', 'fantasy'),
   object('wind-up-key', 'rare', 'tech'), object('crab', 'rare', 'critters'), object('cupcake', 'rare', 'snack'),
   object('gears', 'epic', 'dev'), object('rain-cloud', 'epic', 'nature'), object('maneki-neko', 'legendary', 'critters'),
+  object('twin-tails', 'rare', 'costume'), hat('plush-bunny-hood', 'uncommon', 'costume'), hat('dino-hood', 'rare', 'costume'),
+  object('idol-crown', 'epic', 'costume'), object('vocal-twintails', 'legendary', 'costume'),
 
   brow('headlamp', 'common', 'nature'), { ...brow('snorkel-mask', 'uncommon', 'nature'), zones: ['brow', 'rim'] },
   rim('bow-tie', 'common', 'everyday'), rim('neckerchief', 'common', 'everyday'), rim('ear-pencil', 'common', 'dev'), rim('sticky-note', 'common', 'everyday'),
@@ -55,9 +59,10 @@ export const items = [
   rim('bell-collar', 'uncommon', 'critters'), rim('lanyard-badge', 'uncommon', 'dev'), rim('prize-rosette', 'uncommon', 'everyday'), rim('cherry-charm', 'uncommon', 'snack'),
   rim('usb-stick', 'uncommon', 'tech'), rim('heart-clip', 'uncommon', 'everyday'), rim('candy-necklace', 'uncommon', 'snack'),
   rim('songbird', 'rare', 'critters'), rim('sheriff-star', 'rare', 'everyday'), rim('amulet', 'epic', 'fantasy'),
+  rim('ribbon-choker', 'common', 'costume'), rim('neko-clip', 'uncommon', 'costume'),
   faceplate('mecha-faceplate', 'rare', 'tech'), faceplate('pixel-screen', 'rare', 'dev'), faceplate('segment-display', 'rare', 'dev'), faceplate('knight-visor', 'rare', 'fantasy'),
   faceplate('gold-faceplate', 'epic', 'tech'), faceplate('porthole-helmet', 'epic', 'nature'), faceplate('neon-visor', 'legendary', 'tech'), faceplate('dragon-visor', 'legendary', 'fantasy'),
-  faceplate('code-rain', 'legendary', 'dev'),
+  faceplate('code-rain', 'legendary', 'dev'), faceplate('starry-visor', 'legendary', 'costume'),
 
   hand('task-board', 'common', 'dev'), hand('wrench', 'common', 'dev'), hand('coffee-mug', 'common', 'dev'),
   hand('paintbrush', 'common', 'everyday'), hand('boba-tea', 'common', 'snack'),
@@ -65,9 +70,9 @@ export const items = [
   hand('walkie-talkie', 'common', 'tech'), hand('potion', 'common', 'fantasy'),
   hand('shield', 'uncommon', 'dev'), hand('magnifier', 'uncommon', 'dev'), hand('gamepad', 'uncommon', 'dev'), hand('flag', 'uncommon', 'everyday'),
   hand('binoculars', 'uncommon', 'nature'), hand('goldfish-bag', 'uncommon', 'critters'), hand('megaphone', 'uncommon', 'everyday'),
-  hand('genie-lamp', 'uncommon', 'fantasy'), hand('lollipop', 'uncommon', 'snack'),
+  hand('genie-lamp', 'uncommon', 'fantasy'), hand('lollipop', 'uncommon', 'snack'), hand('stage-mic', 'uncommon', 'costume'),
   hand('control-panel', 'rare', 'tech'), hand('lantern', 'rare', 'fantasy'), hand('parrot', 'rare', 'critters'), hand('firefly-jar', 'rare', 'nature'),
-  hand('pickaxe', 'rare', 'everyday'), hand('bug-net', 'rare', 'dev'),
+  hand('pickaxe', 'rare', 'everyday'), hand('bug-net', 'rare', 'dev'), hand('glow-stick', 'rare', 'costume'),
   hand('magic-wand', 'epic', 'fantasy'), hand('staff', 'epic', 'fantasy'), hand('trophy', 'epic', 'everyday'), hand('hot-pepper', 'epic', 'snack'), hand('plasma-globe', 'epic', 'tech'),
   hand('energy-blade', 'legendary', 'tech'), hand('thunder-hammer', 'legendary', 'tech'), hand('master-key', 'legendary', 'dev'), hand('pet-dragon', 'legendary', 'fantasy'),
 
@@ -78,25 +83,27 @@ export const items = [
   back('fox-tail', 'uncommon', 'critters'), back('hero-scarf', 'uncommon', 'everyday'), back('guitar', 'uncommon', 'everyday'),
   back('donut-floatie', 'uncommon', 'snack'), back('ladybug', 'uncommon', 'critters'),
   back('bat-wings', 'rare', 'critters'), back('butterfly-wings', 'rare', 'critters'), back('comet', 'rare', 'tech'),
-  back('dragon-tail', 'rare', 'fantasy'), back('drone-buddy', 'rare', 'tech'), back('shade-tree', 'rare', 'nature'),
+  back('dragon-tail', 'rare', 'fantasy'), back('drone-buddy', 'rare', 'tech'), back('shade-tree', 'rare', 'nature'), back('waist-ribbon', 'rare', 'costume'),
   back('halo', 'epic', 'fantasy'), back('angel-wings', 'epic', 'fantasy'), back('sun-rays', 'epic', 'nature'), back('koi-orbit', 'epic', 'critters'),
-  back('tesla-coils', 'epic', 'tech'),
+  back('tesla-coils', 'epic', 'tech'), back('chibi-devil', 'epic', 'costume'),
   back('fin-funnels', 'legendary', 'tech'), back('dragon-wings', 'legendary', 'fantasy'), back('twin-blades', 'legendary', 'fantasy'),
   back('great-wave', 'legendary', 'nature'), back('cloud-dragon', 'legendary', 'critters'),
 
   skin('stripes', 'common', 'everyday'), skin('split', 'common', 'everyday'), skin('hoops', 'common', 'everyday'),
   skin('sunburst', 'uncommon', 'nature'), skin('dipped', 'uncommon', 'everyday'), skin('quartered', 'uncommon', 'everyday'), skin('bowtie', 'uncommon', 'everyday'),
-  skin('pinwheel', 'rare', 'everyday'), skin('sonar', 'rare', 'tech'), skin('tide', 'rare', 'nature'),
+  skin('pinwheel', 'rare', 'everyday'), skin('sonar', 'rare', 'tech'), skin('tide', 'rare', 'nature'), skin('sailor-collar', 'rare', 'costume'),
   skin('chrome', 'epic', 'tech'), skin('gold', 'epic', 'fantasy'), skin('lava', 'epic', 'nature'),
   skin('bumblebee', 'epic', 'critters'), skin('aurora', 'epic', 'nature'), skin('terminal', 'epic', 'dev'), skin('patina', 'epic', 'nature'),
-  skin('candy', 'epic', 'everyday'), skin('racer', 'epic', 'everyday'),
+  skin('candy', 'epic', 'everyday'), skin('racer', 'epic', 'everyday'), skin('plush-fleece', 'epic', 'costume'),
   skin('holographic', 'legendary', 'tech'), skin('galaxy', 'legendary', 'fantasy'), skin('thermal', 'legendary', 'tech'),
   skin('prism', 'legendary', 'tech'), skin('void', 'legendary', 'fantasy'),
 ] as const
 
 export type Item = typeof items[number]
 export type ItemId = Item['id']
+export type AnyItemId = ItemId | ExternalItemId
 export type ItemOf<S extends Slot> = Extract<Item, { slot: S }>['id']
+export type SlotItemId<S extends Slot> = ItemOf<S> | ExternalItemId
 export type HeadId = ItemOf<'head'>
 export type FaceId = ItemOf<'face'>
 export type HandId = ItemOf<'hand'>
@@ -110,7 +117,10 @@ export function itemsOf<S extends Slot>(slot: S): Extract<Item, { slot: S }>[] {
   return items.filter((item): item is Extract<Item, { slot: S }> => item.slot === slot)
 }
 export function slotIds<S extends Slot>(slot: S): ItemOf<S>[] { return itemsOf(slot).map(item => item.id) as ItemOf<S>[] }
-export function conflicts(a: ItemId, b: ItemId): boolean {
-  const right: readonly Zone[] = itemOf(b).zones
-  return itemOf(a).zones.some(zone => right.includes(zone))
+export function conflicts(a: AnyItemId, b: AnyItemId, registry?: { get(id: string): { zones: readonly Zone[] } | undefined }): boolean {
+  const left = registry ? registry.get(a) : byId.get(a)
+  const right = registry ? registry.get(b) : byId.get(b)
+  if (!left || !right) return false
+  const rightZones: readonly Zone[] = right.zones
+  return left.zones.some(zone => rightZones.includes(zone))
 }

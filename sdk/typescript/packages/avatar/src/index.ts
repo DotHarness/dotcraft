@@ -1,4 +1,5 @@
 export * from './items.js'
+export * from './registry.js'
 export * from './appearanceModel.js'
 export * from './characters.js'
 export * from './palette.js'

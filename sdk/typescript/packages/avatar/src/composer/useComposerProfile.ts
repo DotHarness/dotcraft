@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react'
-import { mascotPaletteOf, type Appearance } from '../index.js'
+import { mascotPaletteOf, type Appearance, type PaletteLookup } from '../index.js'
 import { mascotNameKey, MASCOT_PROFILE_TRANSITION_SWAP_MS, MASCOT_PROFILE_TRANSITION_DURATION_MS, type MascotProfileTransition } from './constants.js'
-export function useComposerProfile(mascotName: string | undefined, reduced: boolean, appearanceOf: (name: string) => Appearance) {
+export function useComposerProfile(mascotName: string | undefined, reduced: boolean, appearanceOf: (name: string) => Appearance, paletteRegistry?: PaletteLookup) {
   const [renderedMascotAvatar, setRenderedMascotAvatar] = useState(mascotName)
   const [transitionState, setTransitionState] = useState<{ revision: number; transition: MascotProfileTransition | null }>({ revision: 0, transition: null })
   const renderedMascotAvatarRef = useRef(renderedMascotAvatar)
@@ -10,6 +10,8 @@ export function useComposerProfile(mascotName: string | undefined, reduced: bool
   targetMascotAvatarRef.current = mascotName
   const appearanceOfRef = useRef(appearanceOf)
   appearanceOfRef.current = appearanceOf
+  const paletteRegistryRef = useRef(paletteRegistry)
+  paletteRegistryRef.current = paletteRegistry
   const targetAvatarKey = mascotNameKey(mascotName)
   useLayoutEffect(() => {
     const currentAvatar = renderedMascotAvatarRef.current
@@ -29,8 +31,8 @@ export function useComposerProfile(mascotName: string | undefined, reduced: bool
     setTransitionState(current => ({
       revision: current.revision + 1,
       transition: {
-        fromAccent: mascotPaletteOf(appearanceOfRef.current(currentAvatar ?? '')).accent,
-        toAccent: mascotPaletteOf(appearanceOfRef.current(nextAvatar ?? '')).accent
+        fromAccent: mascotPaletteOf(appearanceOfRef.current(currentAvatar ?? ''), paletteRegistryRef.current).accent,
+        toAccent: mascotPaletteOf(appearanceOfRef.current(nextAvatar ?? ''), paletteRegistryRef.current).accent
       }
     }))
 

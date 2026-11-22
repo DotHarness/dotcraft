@@ -21,14 +21,10 @@ export interface MascotActiveIdleAttributes {
 }
 
 export interface MascotActiveIdleOptions {
-  /** True while the character is free to wander: idle, awake, unfocused, and motion allowed. */
   enabled: boolean
   onStart?: () => void
-  /** Runs on user activity, before the schedule-reset throttle. */
   onActivity?: () => void
-  /** Decides direction and motion pool at launch; `null` skips this round. */
   plan?: () => MascotActiveIdlePlan | null
-  /** Whether pointer movement aborts a trip in flight; it always defers the next one. */
   interruptOnPointerMove?: boolean
 }
 
@@ -61,10 +57,6 @@ function advance(trip: MascotActiveIdle | null): MascotActiveIdle | null {
   return null
 }
 
-/**
- * Schedules the traveling idle antics (hop, rocket, hover) after a quiet stretch. Any host that
- * renders the stage classes (see MascotIdleStage) can spread the returned attributes on its root.
- */
 export function useMascotActiveIdle(options: MascotActiveIdleOptions): MascotActiveIdleHandle {
   const { enabled, interruptOnPointerMove = true } = options
   const [activeIdle, setActiveIdle] = useState<MascotActiveIdle | null>(null)
