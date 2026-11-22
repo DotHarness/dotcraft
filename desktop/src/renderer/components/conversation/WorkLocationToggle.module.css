@@ -1,0 +1,73 @@
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  max-width: 240px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 999px;
+  color: var(--composer-footer-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.pill:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.pill[data-blocked='true'] {
+  cursor: default;
+}
+
+.pill[data-blocked='true']:hover:not(:disabled) {
+  background: transparent;
+}
+
+.iconSlot {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+.iconRest,
+.iconHover {
+  position: absolute;
+  inset: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 120ms ease;
+}
+
+.iconHover {
+  opacity: 0;
+}
+
+.pill:not(:disabled):not([data-blocked='true']):hover .iconRest,
+.pill:not(:disabled):not([data-blocked='true']):focus-visible .iconRest {
+  opacity: 0;
+}
+
+.pill:not(:disabled):not([data-blocked='true']):hover .iconHover,
+.pill:not(:disabled):not([data-blocked='true']):focus-visible .iconHover {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .iconRest,
+  .iconHover {
+    transition: none;
+  }
+}
+
+@container composer-footer (max-width: 475px) {
+  .compactLabel {
+    display: none;
+  }
+}

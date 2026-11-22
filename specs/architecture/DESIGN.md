@@ -1295,7 +1295,16 @@ and state already say.
 - The action row holds model, context-window, and send. The context row below the
   card holds project, Run on, work location, branch or changelist, and provider
   subscription status (right after the branch). Context-row chips share one 28px
-  footer pill in `--composer-footer-text` and open their menus upward. The context
+  footer pill in `--composer-footer-text`, and menu-backed chips open upward. The
+  work location pill (`Local` / `Worktree`, or `Work locally` / `New worktree` on
+  Welcome) is a direct toggle with no chevron. At rest it shows the local laptop
+  glyph or the sidebar's worktree glyph. On hover or keyboard focus when
+  switching is available, it crossfades its leading glyph on opacity in one
+  15px cell to a bidirectional swap glyph without moving or scaling, and its
+  tooltip names the current state and target action. When switching is
+  unavailable (while a turn runs, inputs are queued, or worktrees are
+  unavailable), the label keeps its colour without a hover fill or glyph swap
+  and the tooltip explains why. The context
   row is centred between the card and the bottom of its panel, 10px above and
   below, in every composer that has one; a composer without it keeps 14px below
   the card.

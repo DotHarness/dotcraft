@@ -416,7 +416,6 @@ describe('ConversationWelcome composer', () => {
     const textbox = await screen.findByRole('textbox')
     await selectResearchProfile()
     fireEvent.click(screen.getByRole('button', { name: 'Work locally' }))
-    fireEvent.click(screen.getByRole('button', { name: 'New worktree' }))
     await waitFor(() => expect(listWorktreeEnvironments).toHaveBeenCalledWith(anchor))
     fireEvent.click(screen.getByRole('button', { name: 'main', exact: true }))
     fireEvent.click(screen.getByRole('button', { name: 'Create worktree branch...' }))

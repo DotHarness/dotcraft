@@ -210,31 +210,6 @@ export function FooterMenuButton({
   )
 }
 
-export function WorkspaceMenuItem({
-  label,
-  icon,
-  checked,
-  disabled,
-  onClick
-}: {
-  label: string
-  icon: JSX.Element
-  checked: boolean
-  disabled?: boolean
-  onClick: () => void
-}): JSX.Element {
-  return (
-    <FooterMenuButton
-      icon={icon}
-      checked={checked}
-      disabled={disabled}
-      onClick={onClick}
-    >
-      <span style={{ flex: 1 }}>{label}</span>
-    </FooterMenuButton>
-  )
-}
-
 export function FooterMenuSearchField({
   value,
   placeholder,

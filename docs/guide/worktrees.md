@@ -6,16 +6,16 @@ Worktrees need a Git workspace on the same machine as Desktop.
 
 ## Start a chat in a worktree
 
-In a new chat, choose **New worktree** under the composer instead of **Work locally**. The branch control picks the branch the worktree starts from. DotCraft creates a new branch for the worktree when you send the first message.
+In a new chat, click **Work locally** under the composer to switch it to **New worktree**. The branch control picks the branch the worktree starts from. DotCraft creates a new branch for the worktree when you send the first message.
 
 To branch off an existing chat instead, use **Fork into new worktree** from the chat header or its menu in the sidebar.
 
 ## Move a chat between local and a worktree
 
-Open the location control under the composer of an idle chat:
+Click the location control under the composer of an idle chat to hand it off directly:
 
-- **Handoff to worktree** moves the chat into a new worktree, or into an existing one no other chat uses, which keeps its branch. Its uncommitted changes go with it, so your checkout is clean afterwards. Leave the branch name empty to let DotCraft name it.
-- **Handoff to branch** brings the chat back. Your checkout switches to the worktree's branch, the worktree's uncommitted changes are applied there, and the worktree is removed. Your checkout needs to be clean first: if it has uncommitted changes, the dialog lists them and nothing moves until you commit or stash them.
+- From **Local**, clicking opens the dialog to move the chat into a new worktree, or into an existing one no other chat uses, which keeps its branch. Its uncommitted changes go with it, so your checkout is clean afterwards. Leave the branch name empty to let DotCraft name it.
+- From **Worktree**, clicking opens the dialog to bring the chat back to local. Your checkout switches to the worktree's branch, the worktree's uncommitted changes are applied there, and the worktree is removed. Your checkout needs to be clean first: if it has uncommitted changes, the dialog lists them and nothing moves until you commit or stash them.
 
 The dialog shows each step as it runs. Handoff waits until the chat is idle and has no queued messages.
 

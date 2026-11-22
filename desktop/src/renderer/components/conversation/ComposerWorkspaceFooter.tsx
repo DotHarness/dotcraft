@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type JSX } from 'react'
 import { ComposerOverlapBand, useComposerOverlapBandHeight } from './useComposerOverlapBand'
 import { createPortal } from 'react-dom'
-import { ArrowRightLeft, ChevronDown, Folder, FolderPlus, GitBranch, Laptop, ListChecks, Plus } from 'lucide-react'
+import { ChevronDown, Folder, GitBranch, ListChecks, Plus } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { normalizeGitPathKey, useGitStore, type GitBranchListSnapshot } from '../../stores/gitStore'
@@ -13,16 +13,15 @@ import type { Thread } from '../../types/thread'
 import type { WorkspaceProjectSummary } from '../../../shared/workspaceProjects'
 import { WorktreeHandoffDialog } from './WorktreeHandoffDialog'
 import { useAddProjectFlow } from '../projects/AddProject'
-import { ActionTooltip } from '../ui/ActionTooltip'
 import { DesktopPluginSurface } from '../desktopPlugins/DesktopPluginSurface'
 import { useDesktopPluginRegistry } from '../../plugins/desktopPluginRegistry'
+import { WorkLocationToggle } from './WorkLocationToggle'
 import { WorktreeEnvironmentPicker } from './WorktreeEnvironmentPicker'
 import {
   FooterMenuButton,
   FooterMenuDivider,
   FooterMenuSearchField,
   WorkspaceFooterPill,
-  WorkspaceMenuItem,
   menuStyle
 } from './composerFooterPrimitives'
 import {
@@ -61,7 +60,7 @@ interface ComposerWorkspaceFooterProps {
   turnRunning?: boolean
 }
 
-type OpenMenu = 'project' | 'workspace' | 'branch' | 'changelist' | 'runOn' | 'environment' | null
+type OpenMenu = 'project' | 'branch' | 'changelist' | 'runOn' | 'environment' | null
 
 const GIT_BRANCH_REFRESH_INTERVAL_MS = 5_000
 
@@ -112,11 +111,9 @@ export function ComposerWorkspaceFooter({
   const [changelistDraft, setChangelistDraft] = useState('')
   const footerRef = useRef<HTMLDivElement>(null)
   const projectMenuRef = useRef<HTMLDivElement>(null)
-  const workspaceMenuRef = useRef<HTMLDivElement>(null)
   const branchMenuRef = useRef<HTMLDivElement>(null)
   const changelistMenuRef = useRef<HTMLDivElement>(null)
   const projectBandHeight = useComposerOverlapBandHeight(projectMenuRef, openMenu === 'project')
-  const workspaceBandHeight = useComposerOverlapBandHeight(workspaceMenuRef, openMenu === 'workspace')
   const branchBandHeight = useComposerOverlapBandHeight(branchMenuRef, openMenu === 'branch')
   const changelistBandHeight = useComposerOverlapBandHeight(changelistMenuRef, openMenu === 'changelist')
   const isThread = variant === 'thread'
@@ -191,10 +188,6 @@ export function ComposerWorkspaceFooter({
         (variant === 'thread' && mode === 'worktree' ? threadWorktreeBranchName : null) ||
         t('workspaceFooter.branchUnknown')
       )
-  const locationLabel = variant === 'welcome'
-    ? (mode === 'worktree' ? t('workspaceFooter.newWorktree') : t('workspaceFooter.workLocally'))
-    : (mode === 'worktree' ? t('workspaceFooter.worktree') : t('workspaceFooter.local'))
-  const showBranchHandoffOnly = variant === 'thread' && mode === 'worktree'
   const showProjectSelector =
     variant === 'welcome' && (projectChoices.projects.length > 0 || foregroundIsChat)
   const projectLabelText = foregroundIsChat
@@ -452,11 +445,9 @@ export function ComposerWorkspaceFooter({
   const showPerforceFooterControls = (isPerforceWorkspace && Boolean(thread?.id)) || isPerforceWelcome
   // A remote AppServer's Hub is not this Desktop's, so its satellites are not reachable.
   const showRunOn = runOnRegistered && !remoteWorkspace && !foregroundIsChat
-  const workLocationBranch = mode === 'local' ? currentBranchLabel(branches) : null
-  // Empty until the branch is known, so the pill is not remounted when it arrives.
-  const workLocationTooltip = workLocationBranch
-    ? t('workspaceFooter.workLocally.tooltip', { branch: workLocationBranch })
-    : ''
+  const toggleWorkLocationBranch = mode === 'worktree'
+    ? (threadWorktreeBranchName ?? currentBranchLabel(branches))
+    : currentBranchLabel(branches)
 
   return (
     <>
@@ -504,65 +495,22 @@ export function ComposerWorkspaceFooter({
       )}
       {showGitFooterControls && (
         <>
-      <div style={{ position: 'relative' }}>
-        <ActionTooltip label={workLocationTooltip} placement="top">
-          <WorkspaceFooterPill
-            aria-label={locationLabel}
-            disabled={busy || !branchControlsReady}
-            open={openMenu === 'workspace'}
-            onClick={() => setOpenMenu(openMenu === 'workspace' ? null : 'workspace')}
-          >
-            {variant === 'welcome' && mode === 'worktree'
-              ? <FolderPlus size={15} strokeWidth={1.8} aria-hidden />
-              : <Laptop size={15} strokeWidth={1.8} aria-hidden />}
-            <span className={css.compactLabel}>{locationLabel}</span>
-            <ChevronDown size={14} strokeWidth={1.8} aria-hidden />
-          </WorkspaceFooterPill>
-        </ActionTooltip>
-        {openMenu === 'workspace' && (
-          <div ref={workspaceMenuRef} style={menuStyle}>
-            <ComposerOverlapBand height={workspaceBandHeight} radius={10} />
-            {showBranchHandoffOnly ? (
-              <WorkspaceMenuItem
-                label={t('workspaceFooter.handoffToBranch')}
-                icon={<ArrowRightLeft size={14} strokeWidth={1.8} aria-hidden />}
-                checked={false}
-                disabled={busy || !branchControlsReady}
-                onClick={() => {
-                  setHandoffMode('local')
-                  setOpenMenu(null)
-                }}
-              />
-            ) : (
-              <>
-                <WorkspaceMenuItem
-                  label={t('workspaceFooter.workLocally')}
-                  icon={<Laptop size={14} strokeWidth={1.8} aria-hidden />}
-                  checked={mode === 'local'}
-                  disabled={busy || !branchControlsReady}
-                  onClick={() => {
-                    if (variant === 'welcome') onWelcomeModeChange?.('local')
-                    setOpenMenu(null)
-                  }}
-                />
-                <WorkspaceMenuItem
-                  label={variant === 'welcome' ? t('workspaceFooter.newWorktree') : t('workspaceFooter.handoffToWorktree')}
-                  icon={variant === 'welcome'
-                    ? <FolderPlus size={14} strokeWidth={1.8} aria-hidden />
-                    : <ArrowRightLeft size={14} strokeWidth={1.8} aria-hidden />}
-                  checked={mode === 'worktree'}
-                  disabled={!canUseWorktrees || busy}
-                  onClick={() => {
-                    if (variant === 'welcome') onWelcomeModeChange?.('worktree')
-                    else if (mode !== 'worktree') setHandoffMode('worktree')
-                    setOpenMenu(null)
-                  }}
-                />
-              </>
-            )}
-          </div>
-        )}
-      </div>
+      <WorkLocationToggle
+        variant={variant}
+        mode={mode}
+        branchName={toggleWorkLocationBranch}
+        canUseWorktrees={canUseWorktrees}
+        loadingDisabled={busy || !branchControlsReady}
+        handoffDisabledReason={handoffDisabledReason}
+        onToggle={(targetMode) => {
+          setOpenMenu(null)
+          if (variant === 'welcome') {
+            onWelcomeModeChange?.(targetMode)
+            return
+          }
+          setHandoffMode(targetMode)
+        }}
+      />
       {!isThread && canUseWorktrees && mode === 'worktree' && (
         <WorktreeEnvironmentPicker
           workspacePath={branchActionPath}

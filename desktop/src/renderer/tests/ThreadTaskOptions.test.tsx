@@ -50,7 +50,6 @@ it('reads task worktree options from the current primary instead of the state wo
   const local = await screen.findByRole('button', { name: 'Work locally' })
   await waitFor(() => expect(local).toBeEnabled())
   fireEvent.click(local)
-  fireEvent.click(screen.getByRole('button', { name: 'New worktree' }))
   await waitFor(() => expect(listWorktreeEnvironments).toHaveBeenCalledWith(anchor))
 
   act(() => useWorkspaceProjectsStore.setState({

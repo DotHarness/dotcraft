@@ -4,7 +4,7 @@
 |-------|-------|
 | **Version** | 0.14.0 |
 | **Status** | Living |
-| **Date** | 2026-11-21 |
+| **Date** | 2026-11-22 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
 | **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Hub Architecture](../architecture/hub-architecture.md), [Device Gateway](../protocols/device-gateway.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Goal Design](../features/goal.md), [Session Import](../features/session-import.md), [Desktop DESIGN.md](../architecture/DESIGN.md) |
 
@@ -593,6 +593,7 @@ If the request fails before being accepted, Desktop clears the stopping state an
 
 **Handoff**
 
+- The composer work location pill toggles directly on click. On Welcome and task start options, one click switches between `Work locally` and `New worktree`. On an idle thread, one click opens the handoff confirmation dialog directly for the opposite location (`worktree` from a local thread, `local` from a worktree thread). When switching is unavailable (while a thread is running, waiting, in blocking maintenance, has queued input, or lacks worktree capability), the work location pill does not start switching and explains why on hover or focus.
 - On Welcome, `Work locally` starts a normal local thread; `New worktree` calls `worktree/createAndStart`, with the branch selector choosing `baseRef` without switching the local checkout.
 - In a local project, new-worktree creation (Welcome, fork into a new worktree) sends the project's worktree environment as `environmentPath` with an `operationId`; Welcome shows the environment selector only in worktree mode, never as a disabled control. While it runs, the conversation area shows the creation steps and setup output ([Local Environments §8.2](../features/local-environments.md#82-when-it-runs)), with Cancel and Don't use worktree, and the first message waits. Setup failure offers Retry (`worktree/runSetup`), Continue anyway, Edit environment, and Fix with agent ([Local Environments §8](../features/local-environments.md#8-setup)).
 - A `cleanupFailed` from handoff to local is shown in the handoff dialog with the output tail and changes no UI state. A `WorktreeInUse` says another program, such as a terminal, is using the worktree folder and to close it and try again.
