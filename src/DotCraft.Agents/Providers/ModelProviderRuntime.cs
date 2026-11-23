@@ -233,4 +233,7 @@ public sealed class ModelCatalogResult
     public string? Source { get; set; }
     public DateTimeOffset? RefreshedAt { get; set; }
     public string? RefreshNotice { get; set; }
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string? CatalogAccountId { get; set; }
 }

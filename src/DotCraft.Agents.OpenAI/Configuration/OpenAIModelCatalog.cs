@@ -36,6 +36,8 @@ internal sealed class OpenAIModelCatalogResult
     public OpenAIModelCatalogErrorCode ErrorCode { get; set; } = OpenAIModelCatalogErrorCode.None;
 
     public string? ErrorMessage { get; set; }
+
+    public string? CatalogAccountId { get; set; }
 }
 
 internal static class OpenAIModelCatalog

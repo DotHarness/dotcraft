@@ -98,7 +98,7 @@ internal static class ChatGptCodexModelCatalog
         var cache = ModelCatalogCache.Load(cachePath);
 
         if (cache.TryGet(cacheKey, CacheTtl, requireFresh: true, out var cachedModels))
-            return Remember(cacheKey, cachedModels);
+            return Remember(cacheKey, accountId, cachedModels);
 
         try
         {
@@ -112,9 +112,10 @@ internal static class ChatGptCodexModelCatalog
                 var models = ParseModelsResponse(response.Content);
                 if (models.Count > 0)
                 {
-                    cache.Set(cacheKey, runtime.EndPoint, accountId, clientVersion, response.ETag, models);
+                    var responseKey = BuildCacheKey(runtime.EndPoint, response.AccountId, clientVersion);
+                    cache.Set(responseKey, runtime.EndPoint, response.AccountId, clientVersion, response.ETag, models);
                     await cache.SaveAsync(cachePath, cancellationToken).ConfigureAwait(false);
-                    return Remember(cacheKey, models);
+                    return Remember(responseKey, response.AccountId, models);
                 }
             }
         }
@@ -127,28 +128,34 @@ internal static class ChatGptCodexModelCatalog
             // Model listing should not make a logged-in ChatGPT provider unusable while offline.
         }
 
+        accountId = openAIClientProvider.ResolveAccountId(runtime);
+        cacheKey = BuildCacheKey(runtime.EndPoint, accountId, clientVersion);
         if (AccountModels.TryGetValue(cacheKey, out var rememberedModels))
-            return Success(rememberedModels);
+            return Success(accountId, rememberedModels);
 
         if (cache.TryGet(cacheKey, CacheTtl, requireFresh: false, out cachedModels))
-            return Remember(cacheKey, cachedModels);
+            return Remember(cacheKey, accountId, cachedModels);
 
-        return Success(BuiltInModels.Value);
+        return Success(accountId, BuiltInModels.Value);
     }
 
-    private static OpenAIModelCatalogResult Remember(string cacheKey, IReadOnlyList<CodexModelInfo> models)
+    private static OpenAIModelCatalogResult Remember(
+        string cacheKey, string? accountId, IReadOnlyList<CodexModelInfo> models)
     {
         AccountModels[cacheKey] = models;
-        return Success(models);
+        return Success(accountId, models);
     }
 
-    private static OpenAIModelCatalogResult Success(IReadOnlyList<CodexModelInfo> models) => new()
+    private static OpenAIModelCatalogResult Success(string? accountId, IReadOnlyList<CodexModelInfo> models) => new()
     {
         Success = true,
-        Models = ToPickerEntries(models.Any(IsVisible) ? models : BuiltInModels.Value)
+        CatalogAccountId = accountId ?? string.Empty,
+        Models = ToPickerEntries(models.Any(IsVisible)
+            ? models
+            : BuiltInModels.Value.Where(model => FindModel(models, model.Slug) is null))
     };
 
-    private static List<OpenAIModelCatalogEntry> ToPickerEntries(IReadOnlyList<CodexModelInfo> models)
+    private static List<OpenAIModelCatalogEntry> ToPickerEntries(IEnumerable<CodexModelInfo> models)
     {
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         return models

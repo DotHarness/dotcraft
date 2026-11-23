@@ -1,3 +1,4 @@
+using System.Text.Json;
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Sessions;
@@ -8,6 +9,34 @@ namespace DotCraft.Tests.Sessions.Protocol;
 
 public sealed partial class SessionServiceNativeCompactionTests
 {
+    [Fact]
+    public async Task FirstTurnAndItsCompactionUseTheDialectCapturedAfterCatalogRefresh()
+    {
+        _provider.AdvertisedUseResponsesLite = true;
+        _provider.ReportHighUsageNextResponse = true;
+        await using var factory = CreateFactory(postTurnCompactThresholdPercent: 50);
+        var service = new SessionService(factory, defaultAgent: null,
+            new SessionPersistenceService(new ThreadStore(Path.Combine(_workspace, ".craft"))), new SessionGate());
+        var thread = await service.CreateThreadAsync(new SessionIdentity
+        {
+            WorkspacePath = _workspace, ChannelName = "test", UserId = "user"
+        });
+        _provider.BeforeNextResponse = async ct =>
+        {
+            _provider.AdvertisedUseResponsesLite = false;
+            var context = factory.RuntimeContext;
+            await ModelProviderCatalog.FetchAsync(context.Config, context.ChatClientRegistry.RuntimeResolver,
+                refreshStrategy: ModelCatalogRefreshStrategy.Online, cancellationToken: ct);
+        };
+
+        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("initial question")]));
+
+        using var sample = JsonDocument.Parse(Assert.Single(_provider.Requests));
+        Assert.Equal("all_turns", sample.RootElement.GetProperty("reasoning").GetProperty("context").GetString());
+        var compact = Assert.Single(_provider.Compactions);
+        Assert.Equal("all_turns", compact.Reasoning?.GetProperty("context").GetString());
+    }
+
     [Theory]
     [InlineData(true, 828_400, 784_800)]
     [InlineData(false, 902_000, 889_000)]

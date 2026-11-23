@@ -13,7 +13,7 @@ public sealed partial class OpenAIClientProvider
     public IEnumerable<string> GetChatGptRuntimeModelIds(EffectiveModelRuntime runtime) =>
         ChatGptCodexModelCatalog.ResolveRuntimeModelIds(runtime, ResolveAccountId(runtime));
 
-    private async Task<HttpResponseMessage> SendChatGptCodexModelsRequestAsync(
+    private async Task<(HttpResponseMessage Response, string? AccountId)> SendChatGptCodexModelsRequestAsync(
         Uri requestUri,
         EffectiveModelRuntime runtime,
         bool forceRefresh,
@@ -21,19 +21,25 @@ public sealed partial class OpenAIClientProvider
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        var accountId = runtime.AccountId;
         if (!runtime.IsRemote)
         {
-            var token = await _openAIAuthService!.GetAccessTokenAsync(forceRefresh, cancellationToken).ConfigureAwait(false);
+            var auth = _openAIAuthService!;
+            var (token, tokenAccountId) = auth is OpenAIAuthManager manager
+                ? await manager.GetAccessCredentialsAsync(forceRefresh, cancellationToken).ConfigureAwait(false)
+                : (await auth.GetAccessTokenAsync(forceRefresh, cancellationToken).ConfigureAwait(false), auth.GetAccountId());
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            accountId = tokenAccountId;
         }
-        var accountId = ResolveAccountId(runtime);
-        if (!string.IsNullOrWhiteSpace(accountId))
+        accountId = NormalizeOptional(accountId);
+        if (accountId is not null)
             request.Headers.TryAddWithoutValidation(OpenAIAuthConstants.AccountIdHeader, accountId);
         request.Headers.TryAddWithoutValidation(OpenAIAuthConstants.OriginatorHeader, OpenAIAuthConstants.Originator);
-        return await HttpClientFor(runtime).SendAsync(
+        var response = await HttpClientFor(runtime).SendAsync(
             request,
             HttpCompletionOption.ResponseHeadersRead,
             cancellationToken).ConfigureAwait(false);
+        return (response, accountId);
     }
 
     async Task<ProviderImageResult> IProviderImageGeneration.GenerateImageAsync(
@@ -301,6 +307,7 @@ public sealed partial class OpenAIClientProvider
 
     private static async Task<ChatGptCodexModelsHttpResponse> ReadChatGptCodexModelsResponseAsync(
         HttpResponseMessage response,
+        string? accountId,
         CancellationToken cancellationToken)
     {
         using (response)
@@ -311,7 +318,8 @@ public sealed partial class OpenAIClientProvider
             return new ChatGptCodexModelsHttpResponse(
                 StatusCode: (int)response.StatusCode,
                 Content: body,
-                ETag: response.Headers.ETag?.Tag);
+                ETag: response.Headers.ETag?.Tag,
+                AccountId: accountId);
         }
     }
 

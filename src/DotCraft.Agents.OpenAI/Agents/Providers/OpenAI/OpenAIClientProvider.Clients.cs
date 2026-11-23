@@ -181,4 +181,5 @@ public sealed partial class OpenAIClientProvider
 internal sealed record ChatGptCodexModelsHttpResponse(
     int StatusCode,
     string Content,
-    string? ETag);
+    string? ETag,
+    string? AccountId);

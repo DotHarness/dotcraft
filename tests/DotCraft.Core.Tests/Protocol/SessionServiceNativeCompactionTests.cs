@@ -403,11 +403,12 @@ public sealed partial class SessionServiceNativeCompactionTests : IDisposable
     }
 
     private sealed class NativeProvider : IModelProvider, IProviderNativeCompactorFactory,
-        IResponsesToolSearchTransport, IChatGptResponsesCompactTransport, IProviderNativeCompactor,
+        IResponsesToolSearchTransport, IResponsesLiteTransport, IChatGptResponsesCompactTransport, IProviderNativeCompactor,
         IProviderRuntimeMetadataResolver, IModelCatalogProvider
     {
         private readonly OpenAIClientProvider _historyProvider = new();
         private ProviderContextBudget? _contextBudget;
+        private bool _useResponsesLite;
         public List<string> Requests { get; } = [];
         public List<ChatGptResponsesCompactRequest> Compactions { get; } = [];
         public List<IReadOnlyList<ChatMessage>> CompactHistories { get; } = [];
@@ -416,13 +417,17 @@ public sealed partial class SessionServiceNativeCompactionTests : IDisposable
         public bool ReportHighUsageNextResponse { get; set; }
         public long? InputTokensNextResponse { get; set; }
         public ProviderContextBudget? AdvertisedContextBudget { get; set; }
+        public bool AdvertisedUseResponsesLite { get; set; }
         public int CatalogFetchCount { get; private set; }
         public bool ToolNextResponse { get; set; }
         public string? TextBeforeNextTool { get; set; }
         public bool ReasoningNextResponse { get; set; }
         public Func<CancellationToken, Task>? BeforeNextResponse { get; set; }
         public IReadOnlyCollection<string> Protocols => [ModelProviderProtocols.OpenAIResponses];
-        public IChatClient CreateChatClient(EffectiveModelRuntime runtime) => CreateClient();
+        public IChatClient CreateChatClient(EffectiveModelRuntime runtime) => runtime.UseResponsesLite
+            ? new OpenAIResponsesLiteChatClient(new ResponsesClient("sk-test"), runtime.Model,
+                new EmptyClient(), this, "installation-test")
+            : CreateClient();
         public IChatClient CreateClient() => new OpenAIResponsesToolSearchChatClient(
             new ResponsesClient("sk-test"), "gpt-test", new EmptyClient(), this);
         public object? GetService(Type type, object? key = null) =>
@@ -432,12 +437,15 @@ public sealed partial class SessionServiceNativeCompactionTests : IDisposable
         {
             CatalogFetchCount++;
             _contextBudget = AdvertisedContextBudget;
+            _useResponsesLite = AdvertisedUseResponsesLite;
             return Task.FromResult(new ModelCatalogResult { Success = true });
         }
 
-        public ProviderRuntimeMetadata Resolve(EffectiveModelRuntime runtime) => new(ContextBudget: _contextBudget);
+        public ProviderRuntimeMetadata Resolve(EffectiveModelRuntime runtime) => new(_useResponsesLite, _contextBudget);
         public IProviderNativeCompactor CreateCompactor(EffectiveModelRuntime runtime, IChatClient? rawRepresentationClient = null) =>
-            this;
+            runtime.UseResponsesLite
+                ? new OpenAIResponsesCompactor(runtime.Model, true, this, rawRepresentationClient, "installation-test")
+                : this;
 
         public Task<ProviderNativeCompactionReplacement> CompactAsync(ProviderNativeCompactionInput input,
             IReadOnlyList<ChatMessage> neutralHistory, ChatOptions? options, CancellationToken cancellationToken)
@@ -459,10 +467,14 @@ public sealed partial class SessionServiceNativeCompactionTests : IDisposable
             });
         }
 
-        public async IAsyncEnumerable<StreamingResponseUpdate> CreateResponseStreamingAsync(CreateResponseOptions options,
+        public IAsyncEnumerable<StreamingResponseUpdate> CreateResponseStreamingAsync(
+            CreateResponseOptions options, CancellationToken cancellationToken) =>
+            CreateResponseStreamingAsync(ModelReaderWriter.Write(options), cancellationToken);
+
+        public async IAsyncEnumerable<StreamingResponseUpdate> CreateResponseStreamingAsync(BinaryData body,
             [EnumeratorCancellation] CancellationToken cancellationToken)
         {
-            Requests.Add(ModelReaderWriter.Write(options).ToString());
+            Requests.Add(body.ToString());
             if (BeforeNextResponse is { } beforeResponse)
             {
                 BeforeNextResponse = null;

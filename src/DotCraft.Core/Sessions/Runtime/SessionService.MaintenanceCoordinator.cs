@@ -391,15 +391,15 @@ public sealed partial class SessionService
             return GetCompactionPipelineForThread(threadId, thread);
         }
 
-        public CompactionPipeline GetCompactionPipelineForThread(SessionThread thread) =>
-            GetCompactionPipelineForThread(thread.Id, thread);
-
-        public CompactionPipeline GetCompactionPipelineForThread(string threadId, SessionThread? thread) =>
-            owner.AgentFactory.GetCompactionPipeline(
-                threadId,
-                thread?.Configuration?.ProviderId,
-                thread?.Configuration?.Model,
-                owner._appConfigMonitor?.Current ?? owner.AgentFactory.RuntimeContext.Config);
+        public CompactionPipeline GetCompactionPipelineForThread(
+            string threadId, SessionThread? thread, EffectiveModelRuntime? modelRuntime = null)
+        {
+            var config = owner._appConfigMonitor?.Current ?? owner.AgentFactory.RuntimeContext.Config;
+            return modelRuntime is null
+                ? owner.AgentFactory.GetCompactionPipeline(
+                    threadId, thread?.Configuration?.ProviderId, thread?.Configuration?.Model, config)
+                : owner.AgentFactory.GetCompactionPipeline(threadId, config, modelRuntime);
+        }
 
         public CompactionCoordinator GetCompactionCoordinatorForThread(string threadId)
         {
@@ -412,19 +412,18 @@ public sealed partial class SessionService
 
         public CompactionCoordinator GetCompactionCoordinatorForThread(
             string threadId,
-            SessionThread? thread)
+            SessionThread? thread,
+            EffectiveModelRuntime? modelRuntime = null)
         {
-            var pipeline = GetCompactionPipelineForThread(threadId, thread);
             if (thread is null)
-            {
-                return new CompactionCoordinator(pipeline);
-            }
+                return new CompactionCoordinator(GetCompactionPipelineForThread(threadId, thread, modelRuntime));
 
             var config = owner._appConfigMonitor?.Current ?? owner.AgentFactory.RuntimeContext.Config;
-            var runtime = owner.AgentFactory.RuntimeContext.ChatClientRegistry.ResolveMainRuntime(
+            var runtime = modelRuntime ?? owner.AgentFactory.RuntimeContext.ChatClientRegistry.ResolveMainRuntime(
                 config,
                 thread.Configuration?.ProviderId,
                 thread.Configuration?.Model);
+            var pipeline = owner.AgentFactory.GetCompactionPipeline(threadId, config, runtime);
             if (!runtime.IsOpenAIResponses
                 || !runtime.IsChatGptOAuth
                 || thread.HistoryMode != HistoryMode.Server

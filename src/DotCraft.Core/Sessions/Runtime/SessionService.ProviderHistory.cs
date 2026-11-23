@@ -75,12 +75,13 @@ public sealed partial class SessionService
         List<ChatMessage> session,
         CancellationToken ct,
         string? coveredThroughTurnIdOverride = null,
-        string? forceReplacementReason = null)
+        string? forceReplacementReason = null,
+        EffectiveModelRuntime? modelRuntime = null)
     {
         if (!SupportsServerManagedProviderHistory(thread))
             return null;
         var currentConfig = _appConfigMonitor?.Current ?? agentFactory.RuntimeContext.Config;
-        var runtime = agentFactory.RuntimeContext.ChatClientRegistry.ResolveMainRuntime(
+        var runtime = modelRuntime ?? agentFactory.RuntimeContext.ChatClientRegistry.ResolveMainRuntime(
             currentConfig,
             thread.Configuration?.ProviderId,
             thread.Configuration?.Model);
@@ -166,10 +167,10 @@ public sealed partial class SessionService
         return context;
     }
 
-    private ThreadContextCarrier ResolveThreadContextCarrier(SessionThread thread)
+    private ThreadContextCarrier ResolveThreadContextCarrier(SessionThread thread, EffectiveModelRuntime? modelRuntime = null)
     {
         var currentConfig = _appConfigMonitor?.Current ?? agentFactory.RuntimeContext.Config;
-        var runtime = agentFactory.RuntimeContext.ChatClientRegistry.ResolveMainRuntime(
+        var runtime = modelRuntime ?? agentFactory.RuntimeContext.ChatClientRegistry.ResolveMainRuntime(
             currentConfig,
             thread.Configuration?.ProviderId,
             thread.Configuration?.Model);

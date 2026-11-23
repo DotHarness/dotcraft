@@ -1,5 +1,6 @@
 using DotCraft.Agents;
 using DotCraft.Channels;
+using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Context.Compaction;
 using DotCraft.Context.WorldState;
@@ -16,7 +17,8 @@ public sealed partial class SessionService
         ThreadWorkspaceContext workspace,
         CancellationToken ct,
         string? sessionStartHookContext = null,
-        ClientSurface? clientSurface = null)
+        ClientSurface? clientSurface = null,
+        EffectiveModelRuntime? modelRuntime = null)
     {
         ReleaseStableContextPages(thread.Id);
         var modeName = _runtimeRegistry.TryGetRuntime(thread.Id, out var runtime)
@@ -28,8 +30,9 @@ public sealed partial class SessionService
             ? AgentMode.Plan
             : AgentMode.Agent;
         var goal = GoalsEnabled ? await persistence.GetThreadGoalAsync(thread.Id, ct) : null;
+        var carrier = ResolveThreadContextCarrier(thread, modelRuntime);
         var update = BuildWorldStateUpdate(
-            thread, turnId, workspace.Cwd, workspace, previous, ResolveThreadContextCarrier(thread),
+            thread, turnId, workspace.Cwd, workspace, previous, carrier,
             GetOrCreateModeManager(thread.Id, mode),
             agentFactory.PlanStore?.StructuredPlanExists(thread.Id) == true,
             goal, sessionStartHookContext, clientSurface, forceFull: true);
@@ -46,7 +49,7 @@ public sealed partial class SessionService
             state[SessionStartHookSection.SectionId] = SessionStartHookSection.CreateSnapshot(text);
             update = update with { Render = update.Render with { Snapshot = WorldStateSnapshot.FromJsonObject(state) } };
         }
-        NativeSubAgentGuidance.Reconcile(thread, items, ResolveThreadContextCarrier(thread), _subAgentGuidanceProviders);
+        NativeSubAgentGuidance.Reconcile(thread, items, carrier, _subAgentGuidanceProviders);
         var clientContextKind = WorldStateComposer.ItemKind(ClientContextSection.SectionId);
         if (thread.Source.SubAgent != null
             && previous.LastOrDefault(message => ThreadContextItems.IsKind(message, clientContextKind)) is { } inherited)

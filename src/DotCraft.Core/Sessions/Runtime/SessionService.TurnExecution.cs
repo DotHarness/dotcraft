@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using DotCraft.Agents;
+using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Context.Compaction;
 using DotCraft.Hooks;
@@ -185,6 +186,7 @@ public sealed partial class SessionService
             var turnCommitter = new TurnCommitter(this, thread, turn);
             TurnModelHistory? turnModelHistory = null;
             var reactiveCompaction = new ReactiveCompactionState();
+            EffectiveModelRuntime? modelRuntime = null;
             string? sessionStartHookContext = null;
 
             void FinalizeStreamingAgentMessage()
@@ -477,7 +479,7 @@ public sealed partial class SessionService
                     return null;
 
                 var tokenHint = usageEstimate.Tokens;
-                var coordinator = GetCompactionCoordinatorForThread(thread);
+                var coordinator = GetCompactionCoordinatorForThread(thread, modelRuntime);
                 var threshold = coordinator.EvaluateThreshold(tokenHint);
                 if (phase == CompactionPhase.PostTurn ? !threshold.AbovePostTurn : !threshold.AboveAuto)
                     return null;
@@ -563,7 +565,7 @@ public sealed partial class SessionService
                         var isProviderNative = result.Replacement is CompactionReplacement.ProviderNative;
                         var compactionContext = await BuildCompactionContextAsync(
                             thread, turn.Id, modelVisibleHistory, turnRuntime?.ToolLocation?.Current ?? turnContext.Workspace, compactionCt,
-                            phase == CompactionPhase.PreTurn ? null : sessionStartHookContext, turnContext.Channel?.Surface);
+                            phase == CompactionPhase.PreTurn ? null : sessionStartHookContext, turnContext.Channel?.Surface, modelRuntime);
                         var coveredTurnId = phase == CompactionPhase.PreTurn
                             ? ResolveNewestTerminalTurn(thread)?.Id ?? turn.Id
                             : turn.Id;
@@ -830,6 +832,7 @@ public sealed partial class SessionService
                 // publication, but later configuration changes cannot overtake it.
                 var executionResources = await turnContext.Resources.WaitAsync(executionCt).ConfigureAwait(false);
                 var agent = executionResources.Agent;
+                modelRuntime = executionResources.ModelRuntime;
                 turnRuntime.ToolSnapshot = executionResources.ToolSnapshot;
                 var toolLocation = executionResources.ToolLocation ?? new ToolLocation(turnContext.Workspace);
                 toolLocation.MoveTo(turnContext.Workspace);
@@ -884,7 +887,7 @@ public sealed partial class SessionService
                     turnCommitter.PersistedModelHistoryCount = persistedHistory.Count;
                 await RestoreWorldStateBaselineAsync(thread, executionCt);
 
-                var threadContextCarrier = ResolveThreadContextCarrier(thread);
+                var threadContextCarrier = ResolveThreadContextCarrier(thread, modelRuntime);
                 var guidanceChange = NativeSubAgentGuidance.Reconcile(
                     thread,
                     session,
@@ -1191,7 +1194,8 @@ public sealed partial class SessionService
                         executionCt,
                         forceReplacementReason: replacesPersistedHistory
                             ? "subagent_role_instructions_changed"
-                            : null);
+                            : null,
+                        modelRuntime: modelRuntime);
                 reactiveCompaction.ProviderContext = new ProviderRequestContext(
                     providerIdentity,
                     responsesProviderHistoryContext,
@@ -1851,7 +1855,7 @@ public sealed partial class SessionService
                 }
 
                 {
-                    var compactionPipeline = GetCompactionPipelineForThread(thread);
+                    var compactionPipeline = GetCompactionPipelineForThread(thread, modelRuntime);
                     if (compactionPipeline.PostTurnCompactionEnabled
                         && !executionCt.IsCancellationRequested
                         && !HasPendingQueuedInput(thread)
@@ -2031,7 +2035,7 @@ public sealed partial class SessionService
                             thread.Ephemeral && _runtimeRegistry.TryGetRuntime(thread.Id, out var reactiveRuntime)
                                 ? reactiveRuntime
                                 : null);
-                        var reactiveCoordinator = GetCompactionCoordinatorForThread(thread);
+                        var reactiveCoordinator = GetCompactionCoordinatorForThread(thread, modelRuntime);
                         var existingContextUsage = TryGetContextUsageSnapshot(threadId);
                         var preReactiveTokens = existingContextUsage?.Tokens ?? tokenTracker?.LastContextTokens ?? 0;
                         var preReactiveThreshold = reactiveCoordinator.EvaluateThreshold(preReactiveTokens);
@@ -2086,7 +2090,8 @@ public sealed partial class SessionService
                                     compactExecution.Replacement is CompactionReplacement.ProviderNative;
                                 var compactionHistory = reactiveCompaction.GetHistory(session);
                                 var compactionContext = await BuildCompactionContextAsync(
-                                    thread, turn.Id, compactionHistory, turnContext.Workspace, CancellationToken.None);
+                                    thread, turn.Id, compactionHistory, turnContext.Workspace, CancellationToken.None,
+                                    modelRuntime: modelRuntime);
                                 if (compactExecution.Replacement is CompactionReplacement.Neutral neutralReplacement)
                                 {
                                     var compactedHistory = RestoreCompactedHistory(neutralReplacement.Messages, compactionContext);

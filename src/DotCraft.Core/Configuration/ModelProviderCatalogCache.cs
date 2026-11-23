@@ -43,7 +43,8 @@ internal sealed class ModelProviderCatalogCache(TimeProvider? timeProvider = nul
         string identity,
         ModelCatalogRefreshStrategy refreshStrategy,
         Func<CancellationToken, Task<ModelCatalogResult>> fetchAsync,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? accountId = null)
     {
         var entry = _entries.GetOrAdd(identity, static _ => new CacheEntry());
         // The gate also collapses concurrent listings for one identity into a single fetch.
@@ -54,6 +55,9 @@ internal sealed class ModelProviderCatalogCache(TimeProvider? timeProvider = nul
                 return cached;
 
             var result = await fetchAsync(cancellationToken).ConfigureAwait(false);
+            if (result.CatalogAccountId is { } catalogAccountId && catalogAccountId != (accountId ?? string.Empty))
+                return result;
+
             var now = _timeProvider.GetUtcNow();
             if (result.Success)
             {
@@ -109,6 +113,7 @@ internal sealed class ModelProviderCatalogCache(TimeProvider? timeProvider = nul
         ProviderId = source.ProviderId,
         Protocol = source.Protocol,
         EndPoint = source.EndPoint,
+        CatalogAccountId = source.CatalogAccountId,
         Source = source.Source, RefreshedAt = source.RefreshedAt, RefreshNotice = source.RefreshNotice,
         Models = source.Models
             .Select(static model => new ModelCatalogEntry

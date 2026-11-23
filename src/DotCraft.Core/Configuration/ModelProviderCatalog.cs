@@ -60,7 +60,8 @@ public static class ModelProviderCatalog
             ModelProviderCatalogCache.BuildIdentity(runtime),
             refreshStrategy,
             ct => FetchFromProviderAsync(providerRegistry, runtime, ct),
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken,
+            runtime.AccountId).ConfigureAwait(false);
 
         result.ProviderId = runtime.ProviderId;
         result.Protocol = runtime.Protocol;

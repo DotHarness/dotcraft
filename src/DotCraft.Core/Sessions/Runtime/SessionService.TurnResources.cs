@@ -17,18 +17,22 @@ public sealed partial class SessionService
         var config = _appConfigMonitor?.Current ?? context.Config;
         var providerId = runtime.Thread.Configuration?.ProviderId;
         providerId = string.IsNullOrWhiteSpace(providerId) ? config.ProviderId : providerId;
-        if (config.ModelService is null
-            && providerId is not null
+        var usesSubscription = providerId is not null
             && config.Providers.TryGetValue(providerId.Trim(), out var provider)
             && string.IsNullOrWhiteSpace(provider.BackendId)
-            && ModelProviderAuthMethods.IsChatGptOAuth(provider.AuthMethod))
+            && ModelProviderAuthMethods.IsChatGptOAuth(provider.AuthMethod);
+        if (usesSubscription && config.ModelService is null)
         {
             await ModelProviderCatalog.FetchAsync(config, context.ChatClientRegistry.RuntimeResolver, providerId,
                 cancellationToken: ct).ConfigureAwait(false);
         }
 
-        if (!_hasExplicitDefaultAgent || _forcePerThreadAgents || runtime.ToolSnapshotDirty)
-            await EnsurePerThreadAgentIfMissingAsync(runtime.Thread.Id, runtime.Thread, ct).ConfigureAwait(false);
+        var modelRuntime = usesSubscription
+            ? context.ChatClientRegistry.ResolveMainRuntime(config, providerId, runtime.Thread.Configuration?.Model)
+            : null;
+        if (!_hasExplicitDefaultAgent || _forcePerThreadAgents || runtime.ToolSnapshotDirty
+            || (modelRuntime is not null && runtime.Agent is not null))
+            await EnsurePerThreadAgentIfMissingAsync(runtime.Thread.Id, runtime.Thread, ct, modelRuntime).ConfigureAwait(false);
         TurnExecutionResources resources;
         using (await AcquireThreadAgentLockAsync(runtime.Thread.Id, ct).ConfigureAwait(false))
         {
@@ -38,7 +42,8 @@ public sealed partial class SessionService
                 runtime.Agent ?? DefaultAgent,
                 runtime.LatestToolSnapshot,
                 runtime.ToolLocation,
-                runtime.SubAgentModels);
+                runtime.SubAgentModels,
+                modelRuntime);
         }
         return resources;
     }

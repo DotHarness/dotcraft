@@ -89,17 +89,17 @@ public sealed class ModelServiceTransportTests
     }
 
     [Fact]
-    public async Task ChatGptCatalogCarriesHiddenModelBudgetWithoutListingTheModel()
+    public async Task ChatGptCatalogCarriesHiddenBundledModelBudgetWithoutListingTheModel()
     {
-        const string model = "hidden-model";
+        const string model = ModelProviderDefaults.DefaultChatGptCodexModel;
         var accountId = Guid.NewGuid().ToString("N");
         var state = Directory.CreateTempSubdirectory();
         try
         {
             await using var fixture = await Fixture.CreateAsync(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content = new StringContent("""
-                    {"models":[{"slug":"hidden-model","visibility":"hidden","max_context_window":800000,
+                Content = new StringContent($$"""
+                    {"models":[{"slug":"{{model}}","visibility":"hidden","max_context_window":800000,
                       "effective_context_window_percent":92,"auto_compact_token_limit":700000}]}
                     """, Encoding.UTF8, "application/json")
             }), authMethod: ModelProviderAuthMethods.ChatGptOAuth);

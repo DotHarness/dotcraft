@@ -183,8 +183,8 @@ runtime scope ends. It is never persisted.
 ChatGPT OAuth uses the Responses Lite HTTP dialect for models with `use_responses_lite=true`
 and standard Responses when the value is false, missing, or unknown. The latest matching
 endpoint/account/client-version catalog entry takes precedence over the bundled catalog. Sampling
-and native compaction use the same dialect and tool capabilities. API-key runtimes use standard
-Responses.
+and native compaction use the dialect and tool capabilities captured at turn admission. A catalog
+refresh affects subsequent turns, not a running turn. API-key runtimes use standard Responses.
 
 Both dialects share canonical Responses history, OAuth routing headers, `store=false`,
 `reasoning.encrypted_content` inclusion, a `reasoning` object (empty or with configured effort and
@@ -305,6 +305,13 @@ DotCraft's app version, because the backend uses it to decide model eligibility.
 admission loads this catalog before using the model budget, even without a prior model listing.
 It reuses a fresh account snapshot and limits the wait for a refresh. A failed refresh keeps
 the last catalog for that account when available, otherwise it uses the bundled catalog.
+The cache lookup uses the current persisted account. The bearer, account header and catalog
+cache identity for each request, including a retry, come from the credentials used by that
+request. A response for a different account does not fill the original account's cache.
+
+An account entry hidden from the picker remains hidden when a bundled entry has the same model
+ID. If the account catalog has no visible models, the picker can offer bundled entries whose
+IDs are absent from the account catalog.
 
 The subscription catalog's `max_context_window` is a ceiling on the client's long-context budget.
 The ordinary `context_window` is a default, not that ceiling. For the exact model ID, valid fields
