@@ -1,3 +1,4 @@
+using DotCraft.Agents;
 using DotCraft.Configuration;
 using ModelPreference = DotCraft.Configuration.ModelPreference;
 using Xunit;
@@ -122,6 +123,25 @@ public sealed class ModelCatalogTests : IDisposable
 
         Assert.Equal(expectedWindow, compaction.ContextWindow);
         Assert.Equal(model == "large-model" ? 1_050_000 : 400_000, ModelCatalog.Resolve(config, model));
+    }
+
+    [Theory]
+    [InlineData(256_000, 95, null, 256_000, 236_000, 223_000)]
+    [InlineData(1_000_000, 87, 750_000, 872_000, 758_640, 750_000)]
+    [InlineData(1_000_000, 85, 900_000, 872_000, 741_200, 741_200)]
+    public void ResolveCompactionConfig_PreservesTighterClientAndProviderLimits(
+        int clientLimit, int usablePercent, int? providerAutoLimit,
+        int rawWindow, int usableWindow, int autoThreshold)
+    {
+        var config = new AppConfig();
+        config.Compaction.MaxContextWindow = clientLimit;
+
+        var compaction = ModelCatalog.ResolveCompactionConfig(config, "large-model",
+            reportedCapacity: 922_000, providerBudget: new(872_000, usablePercent, providerAutoLimit));
+
+        Assert.Equal(rawWindow, compaction.ContextWindow);
+        Assert.Equal(usableWindow, compaction.EffectiveContextWindow());
+        Assert.Equal(autoThreshold, compaction.AutoCompactThreshold());
     }
 
     [Fact]

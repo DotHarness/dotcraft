@@ -31,6 +31,16 @@ public static class ModelProviderCatalog
         try
         {
             runtime = providerRegistry.Normalize(ModelProviderResolver.ResolveProvider(config, providerId));
+            if (runtime.IsChatGptOAuth && !runtime.IsRemote)
+            {
+                var identity = providerRegistry.Resolve(runtime).GetService(typeof(IProviderRuntimeIdentityResolver))
+                    as IProviderRuntimeIdentityResolver;
+                runtime = runtime with { AccountId = identity?.ResolveAccountId(runtime) };
+            }
+        }
+        catch (ModelProviderNotRegisteredException ex)
+        {
+            return Failure(ModelCatalogErrorCode.UnsupportedProtocol, ex.Message);
         }
         catch (ModelProviderConfigurationException ex)
         {
@@ -50,7 +60,8 @@ public static class ModelProviderCatalog
             ModelProviderCatalogCache.BuildIdentity(runtime),
             refreshStrategy,
             ct => FetchFromProviderAsync(providerRegistry, runtime, ct),
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken,
+            runtime.AccountId).ConfigureAwait(false);
 
         result.ProviderId = runtime.ProviderId;
         result.Protocol = runtime.Protocol;

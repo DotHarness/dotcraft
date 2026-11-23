@@ -57,6 +57,40 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
     }
 
     [Fact]
+    public async Task ChatGptOAuthResolvesContextBudgetFieldByFieldForTheAuthenticatedAccount()
+    {
+        const string account = "acct_a";
+        var handler = new RecordingHandler((HttpStatusCode.OK, """
+            {
+              "models": [
+                { "slug": "gpt-6.2-sol", "visibility": "list", "context_window": 500000,
+                  "max_context_window": 900000, "effective_context_window_percent": 92, "auto_compact_token_limit": 760000 },
+                { "slug": "gpt-6.2-astra", "visibility": "list",
+                  "max_context_window": "invalid", "effective_context_window_percent": 93, "auto_compact_token_limit": -1 },
+                { "slug": "gpt-6.2-sol-preview", "visibility": "list", "context_window": 500000 }
+              ]
+            }
+            """));
+        var provider = new OpenAIClientProvider(new FakeOpenAIAuthService(account), handler);
+        var metadata = (IProviderRuntimeMetadataResolver)provider;
+        var runtime = Runtime(model: "gpt-6.2-sol");
+        var astra = runtime with { Model = "gpt-6.2-astra" };
+        var bundledSol = Assert.IsType<ProviderContextBudget>(metadata.Resolve(runtime).ContextBudget);
+        var bundledAstra = Assert.IsType<ProviderContextBudget>(metadata.Resolve(astra).ContextBudget);
+
+        await ((IModelCatalogProvider)provider).FetchModelsAsync(runtime, CancellationToken.None);
+
+        Assert.Equal(new ProviderContextBudget(900_000, 92, 760_000), metadata.Resolve(runtime).ContextBudget);
+        Assert.Equal(bundledAstra with { EffectiveContextWindowPercent = 93 }, metadata.Resolve(astra).ContextBudget);
+        Assert.Null(metadata.Resolve(runtime with { Model = "gpt-6.2-sol-preview" }).ContextBudget);
+
+        var otherAccount = (IProviderRuntimeMetadataResolver)new OpenAIClientProvider(
+            new FakeOpenAIAuthService("acct_b"), new RecordingHandler());
+        Assert.Equal(bundledSol, otherAccount.Resolve(runtime).ContextBudget);
+        Assert.Equal(bundledSol, metadata.Resolve(runtime with { AccountId = account, IsRemote = true }).ContextBudget);
+    }
+
+    [Fact]
     public async Task ChatGptOAuthFetchesRemoteCatalogUsesAuthServiceAccountWhenRuntimeIsStale()
     {
         var handler = new RecordingHandler((HttpStatusCode.OK, """
@@ -103,6 +137,55 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
         Assert.Equal("Bearer refreshed-token", handler.Requests[1].Authorization);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ChatGptCatalogUsesPersistedAccountAndDoesNotCacheARetryUnderTheOldAccount(bool switchOnRetry)
+    {
+        var config = OAuthConfig("model-a");
+        var directory = Path.GetDirectoryName(config.GlobalConfigPath)!;
+        var store = new OpenAITokenStore(directory);
+        var otherStore = new OpenAITokenStore(directory);
+        var accountA = Guid.NewGuid().ToString("N");
+        var accountB = Guid.NewGuid().ToString("N");
+        var loginA = Login(accountA, "token-a");
+        var loginB = Login(accountB, "token-b");
+        store.Save(loginA);
+
+        var handler = switchOnRetry
+            ? new RecordingHandler((HttpStatusCode.Unauthorized, "{}"), Catalog("model-b"), Catalog("model-a"))
+            : new RecordingHandler(Catalog("model-a"), Catalog("model-b"));
+        if (switchOnRetry)
+            handler.OnRequest = count => { if (count == 1) otherStore.Save(loginB); };
+        using var authHttp = new HttpClient(new RecordingHandler());
+        var registry = new ModelProviderRegistry([new OpenAIClientProvider(new OpenAIAuthManager(store, authHttp), handler)]);
+
+        if (!switchOnRetry)
+        {
+            Assert.Equal("model-a", Assert.Single((await ModelProviderCatalog.FetchAsync(config, registry)).Models).Id);
+            otherStore.Save(loginB);
+        }
+
+        Assert.Equal("model-b", Assert.Single((await ModelProviderCatalog.FetchAsync(config, registry)).Models).Id);
+        Assert.Equal("model-b", Assert.Single((await ModelProviderCatalog.FetchAsync(config, registry)).Models).Id);
+        otherStore.Save(loginA);
+        Assert.Equal("model-a", Assert.Single((await ModelProviderCatalog.FetchAsync(config, registry)).Models).Id);
+
+        var expected = switchOnRetry
+            ? new[] { ("Bearer token-a", accountA), ("Bearer token-b", accountB), ("Bearer token-a", accountA) }
+            : new[] { ("Bearer token-a", accountA), ("Bearer token-b", accountB) };
+        Assert.Equal(expected, handler.Requests.Select(request =>
+            (request.Authorization, request.Headers[OpenAIAuthConstants.AccountIdHeader])));
+
+        static AuthDotJson Login(string accountId, string token) => new()
+        {
+            Tokens = new OpenAITokenSet { AccountId = accountId, AccessToken = token, IdToken = "e30.e30." },
+            LastRefresh = DateTimeOffset.UtcNow
+        };
+        static (HttpStatusCode, string) Catalog(string model) =>
+            (HttpStatusCode.OK, JsonSerializer.Serialize(new { models = new[] { new { slug = model, visibility = "list" } } }));
+    }
+
     [Fact]
     public async Task ChatGptOAuthUsesFreshCacheBeforeFetchingRemoteCatalog()
     {
@@ -110,7 +193,8 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
         var firstHandler = new RecordingHandler((HttpStatusCode.OK, """
             {
               "models": [
-                { "slug": "cached-model", "visibility": "list", "priority": 1 }
+                { "slug": "cached-model", "visibility": "list", "priority": 1, "max_context_window": 700000,
+                  "effective_context_window_percent": 90, "auto_compact_token_limit": 600000 }
               ]
             }
             """));
@@ -123,12 +207,15 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
         Assert.Single(firstHandler.Requests);
 
         var secondHandler = new RecordingHandler();
-        var second = await OpenAIModelCatalog.FetchAsync(
-            runtime,
-            openAIClientProvider: new OpenAIClientProvider(new FakeOpenAIAuthService(), secondHandler));
+        var secondProvider = new OpenAIClientProvider(new FakeOpenAIAuthService(), secondHandler);
+        var second = await OpenAIModelCatalog.FetchAsync(runtime, openAIClientProvider: secondProvider);
 
         Assert.True(second.Success);
         Assert.Equal(["cached-model"], second.Models.Select(model => model.Id));
+        var metadata = (IProviderRuntimeMetadataResolver)secondProvider;
+        Assert.Equal(
+            new ProviderContextBudget(700_000, 90, 600_000),
+            metadata.Resolve(runtime with { Model = "cached-model" }).ContextBudget);
         Assert.Empty(secondHandler.Requests);
     }
 
@@ -373,10 +460,12 @@ public sealed class OpenAIModelCatalogOAuthTests : IDisposable
         private readonly Queue<(HttpStatusCode Status, string Body)> _responses = new(responses);
 
         public List<RecordedRequest> Requests { get; } = [];
+        public Action<int>? OnRequest { get; set; }
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Requests.Add(RecordedRequest.From(request));
+            OnRequest?.Invoke(Requests.Count);
             if (_responses.Count == 0)
                 throw new HttpRequestException("No test response queued.");
 

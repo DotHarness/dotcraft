@@ -22,10 +22,13 @@ public sealed partial class SessionService
     private bool HasThreadAgent(string threadId) =>
         _runtimeRegistry.TryGetRuntime(threadId, out var runtime) && runtime.Agent != null;
 
-    private void SetThreadAgent(string threadId, ChatClientAgent agent)
+    private void SetThreadAgent(string threadId, (ChatClientAgent Agent, (bool Lite, bool FreeformTools)? ResponsesDialect) built)
     {
         if (_runtimeRegistry.TryGetRuntime(threadId, out var runtime))
-            runtime.Agent = agent;
+        {
+            runtime.Agent = built.Agent;
+            runtime.AgentResponsesDialect = built.ResponsesDialect;
+        }
     }
 
     private void ClearThreadAgentCaches(string threadId)
@@ -99,11 +102,12 @@ public sealed partial class SessionService
     }
 
     private async Task EnsurePerThreadAgentIfMissingAsync(
-        string threadId, SessionThread thread, CancellationToken ct)
+        string threadId, SessionThread thread, CancellationToken ct, EffectiveModelRuntime? modelRuntime = null)
     {
         if (_runtimeRegistry.TryGetRuntime(threadId, out var mcpRuntime))
             await mcpRuntime.McpRefresh.WaitAsync(ct).ConfigureAwait(false);
-        var cacheThreadAgent = _forcePerThreadAgents || RequiresPerThreadAgent(thread);
+        var cacheThreadAgent = _forcePerThreadAgents || RequiresPerThreadAgent(thread, modelRuntime is not null)
+            || (modelRuntime is not null && HasThreadAgent(threadId));
         if (!cacheThreadAgent
             && _runtimeRegistry.TryGetRuntime(threadId, out var existingRuntime)
             && existingRuntime.LatestToolSnapshot != null
@@ -119,8 +123,11 @@ public sealed partial class SessionService
                 var snapshotMissing = !_runtimeRegistry.TryGetRuntime(threadId, out var cachedRuntime)
                                       || cachedRuntime.LatestToolSnapshot == null
                                       || cachedRuntime.ToolSnapshotDirty;
-                if (!HasThreadAgent(threadId) || snapshotMissing)
-                    SetThreadAgent(threadId, await BuildAgentForThreadAsync(thread, ct));
+                var dialectChanged = modelRuntime is { } model
+                    && (cachedRuntime?.AgentResponsesDialect is not { } dialect
+                        || dialect != (model.UseResponsesLite, model.SupportsFreeformTools));
+                if (!HasThreadAgent(threadId) || snapshotMissing || dialectChanged)
+                    SetThreadAgent(threadId, await BuildAgentForThreadAsync(thread, ct, modelRuntime));
                 return;
             }
 
@@ -128,17 +135,18 @@ public sealed partial class SessionService
                 || runtime.LatestToolSnapshot == null
                 || runtime.ToolSnapshotDirty)
             {
-                var builtAgent = await BuildAgentForThreadAsync(thread, ct);
+                var builtAgent = await BuildAgentForThreadAsync(thread, ct, modelRuntime);
                 // Building resolves thread-specific SubAgent model choices, so re-evaluate before falling back to defaultAgent.
-                if (RequiresPerThreadAgent(thread))
+                if (RequiresPerThreadAgent(thread, builtAgent.ResponsesDialect is not null))
                     SetThreadAgent(threadId, builtAgent);
             }
         }
     }
 
-    private bool RequiresPerThreadAgent(SessionThread thread)
+    private bool RequiresPerThreadAgent(SessionThread thread, bool subscription = false)
     {
-        if (agentFactory.RuntimeContext.McpClientManager != null
+        if ((subscription && !_hasExplicitDefaultAgent)
+            || agentFactory.RuntimeContext.McpClientManager != null
             || agentFactory.ToolSources.Any(source => source is IThreadScopedToolSource)
             || pluginToolSourceProviders?.Any() == true
             || mcpToolCatalogContributors?.Any() == true)
@@ -279,15 +287,16 @@ public sealed partial class SessionService
         policy != null
         && (policy.Allow != null || policy.Deny != null);
 
-    private async Task<ChatClientAgent> BuildAgentForThreadAsync(
+    private async Task<(ChatClientAgent Agent, (bool Lite, bool FreeformTools)? ResponsesDialect)> BuildAgentForThreadAsync(
         SessionThread thread,
-        CancellationToken ct)
+        CancellationToken ct,
+        EffectiveModelRuntime? modelRuntime = null)
     {
         var previousSessionKey = TracingChatClient.CurrentSessionKey;
         TracingChatClient.CurrentSessionKey = thread.Id;
         try
         {
-            return await BuildAgentForThreadCoreAsync(thread, ct);
+            return await BuildAgentForThreadCoreAsync(thread, ct, modelRuntime);
         }
         finally
         {
@@ -295,9 +304,10 @@ public sealed partial class SessionService
         }
     }
 
-    private async Task<ChatClientAgent> BuildAgentForThreadCoreAsync(
+    private async Task<(ChatClientAgent Agent, (bool Lite, bool FreeformTools)? ResponsesDialect)> BuildAgentForThreadCoreAsync(
         SessionThread thread,
-        CancellationToken ct)
+        CancellationToken ct,
+        EffectiveModelRuntime? modelRuntime)
     {
         var threadId = thread.Id;
         var threadRuntimeState = _runtimeRegistry.SetThread(thread);
@@ -310,7 +320,7 @@ public sealed partial class SessionService
         var baseCtx = agentFactory.RuntimeContext;
         var currentConfig = _appConfigMonitor?.Current ?? baseCtx.Config;
         var agentControlToolAccess = ResolveAgentControlToolAccess(thread);
-        var runtime = baseCtx.ChatClientRegistry.ResolveMainRuntime(currentConfig, config.ProviderId, config.Model);
+        var runtime = modelRuntime ?? baseCtx.ChatClientRegistry.ResolveMainRuntime(currentConfig, config.ProviderId, config.Model);
         var effectiveMainModel = runtime.Model;
         var threadChatClient = ResolveThreadChatClient(baseCtx, runtime);
         var externalCliSessionStore = new ThreadExternalCliSessionStore(thread);
@@ -371,6 +381,7 @@ public sealed partial class SessionService
 
         scopedContext = new AgentRuntimeContext(scopedContext ?? threadBaseContext)
         {
+            ModelRuntime = runtime.IsChatGptOAuth ? runtime : null,
             MemoryStore = ResolveMemoryStore(config),
             AttachedMemoryStores = MemoryScopes.AttachedStores(config, DataPath),
             MemoryEnabled = config.MemoryEnabled ?? true,
@@ -488,28 +499,18 @@ public sealed partial class SessionService
             new EffectiveToolSnapshotChangedEventArgs(thread.Id, toolSnapshot.Revision));
         var snapshotTools = AgentFactory.ProjectSnapshotTools(toolSnapshot);
 
-        if (config.UseToolProfileOnly)
-        {
-            if (snapshotTools.Count == 0)
-                throw new InvalidOperationException("UseToolProfileOnly requires a registered ToolProfile with at least one tool.");
-            ApplyThreadToolFilters(snapshotTools, capabilityPolicy);
-            return agentFactory.CreateAgentWithToolsAndSnapshot(
-                snapshotTools,
-                toolSnapshot,
-                planningContext,
-                mm,
-                toolContext,
-                config.AgentInstructions);
-        }
+        if (config.UseToolProfileOnly && snapshotTools.Count == 0)
+            throw new InvalidOperationException("UseToolProfileOnly requires a registered ToolProfile with at least one tool.");
 
-        var toolsWithMcp = snapshotTools;
-        ApplyThreadToolFilters(toolsWithMcp, capabilityPolicy);
-        return agentFactory.CreateAgentWithToolsAndSnapshot(
-            toolsWithMcp,
+        ApplyThreadToolFilters(snapshotTools, capabilityPolicy);
+        var agent = agentFactory.CreateAgentWithToolsAndSnapshot(
+            snapshotTools,
             toolSnapshot,
             planningContext,
             mm,
-            toolContext);
+            toolContext,
+            config.UseToolProfileOnly ? config.AgentInstructions : null);
+        return (agent, runtime.IsChatGptOAuth ? (runtime.UseResponsesLite, runtime.SupportsFreeformTools) : null);
     }
 
     private static bool CanSpawn(EffectiveToolSnapshot snapshot, ThreadCapabilityPolicyEvaluator policy) =>

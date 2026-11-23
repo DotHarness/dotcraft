@@ -391,9 +391,6 @@ public sealed partial class SessionService
             return GetCompactionPipelineForThread(threadId, thread);
         }
 
-        public CompactionPipeline GetCompactionPipelineForThread(SessionThread thread) =>
-            GetCompactionPipelineForThread(thread.Id, thread);
-
         public CompactionPipeline GetCompactionPipelineForThread(string threadId, SessionThread? thread) =>
             owner.AgentFactory.GetCompactionPipeline(
                 threadId,
@@ -412,19 +409,19 @@ public sealed partial class SessionService
 
         public CompactionCoordinator GetCompactionCoordinatorForThread(
             string threadId,
-            SessionThread? thread)
+            SessionThread? thread,
+            EffectiveModelRuntime? modelRuntime = null,
+            CompactionPipeline? pipeline = null)
         {
-            var pipeline = GetCompactionPipelineForThread(threadId, thread);
             if (thread is null)
-            {
-                return new CompactionCoordinator(pipeline);
-            }
+                return new CompactionCoordinator(GetCompactionPipelineForThread(threadId, thread));
 
             var config = owner._appConfigMonitor?.Current ?? owner.AgentFactory.RuntimeContext.Config;
-            var runtime = owner.AgentFactory.RuntimeContext.ChatClientRegistry.ResolveMainRuntime(
+            var runtime = modelRuntime ?? owner.AgentFactory.RuntimeContext.ChatClientRegistry.ResolveMainRuntime(
                 config,
                 thread.Configuration?.ProviderId,
                 thread.Configuration?.Model);
+            pipeline ??= owner.AgentFactory.GetCompactionPipeline(threadId, config, runtime);
             if (!runtime.IsOpenAIResponses
                 || !runtime.IsChatGptOAuth
                 || thread.HistoryMode != HistoryMode.Server

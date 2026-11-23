@@ -8,4 +8,7 @@ public sealed record ProviderRequestAdaptation(
     ModelThinkingAdapterCatalog.AnthropicThinkingAdapterData? AnthropicThinking,
     ModelThinkingAdapterCatalog.AnthropicMessageContentAdapterData? AnthropicMessageContent,
     ModelCatalogEntry? Model = null,
-    string? Protocol = null);
+    string? Protocol = null)
+{
+    public ProviderContextBudget? ContextBudget { get; init; }
+}

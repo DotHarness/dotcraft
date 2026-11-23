@@ -52,7 +52,10 @@ public static class ModelServiceProviderCatalog
         IModelProvider provider = runtime.Protocol == ModelProviderProtocols.Anthropic
             ? new AnthropicClientProvider() : new OpenAIClientProvider(source.Authentication);
         var catalog = await ((IModelCatalogProvider)provider).FetchModelsAsync(runtime, cancellationToken).ConfigureAwait(false);
-        var description = Describe(source, catalog.Models.Select(model => model.Id));
+        var modelIds = runtime.IsChatGptOAuth && provider is OpenAIClientProvider openAI
+            ? openAI.GetChatGptRuntimeModelIds(runtime)
+            : catalog.Models.Select(model => model.Id);
+        var description = Describe(source, modelIds);
         if (source.Authentication is { } authentication)
         {
             var status = authentication.GetStatus();
@@ -83,7 +86,10 @@ public static class ModelServiceProviderCatalog
                 metadata?.UseLightweightResponses ?? false,
                 ModelThinkingAdapterCatalog.ShouldApplyDeepThinking(runtime.EndPoint, model, thinkingCatalogPath),
                 ModelThinkingAdapterCatalog.ResolveAnthropicThinkingAdapter(runtime.EndPoint, model, thinkingCatalogPath),
-                ModelThinkingAdapterCatalog.ResolveAnthropicMessageContentAdapter(runtime.EndPoint, model, thinkingCatalogPath));
+                ModelThinkingAdapterCatalog.ResolveAnthropicMessageContentAdapter(runtime.EndPoint, model, thinkingCatalogPath))
+            {
+                ContextBudget = metadata?.ContextBudget
+            };
         }, StringComparer.OrdinalIgnoreCase);
         return source.Description with
         {

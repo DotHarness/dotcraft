@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DotCraft.Agents;
 using DotCraft.Context.Compaction;
 
 namespace DotCraft.Configuration;
@@ -21,7 +22,11 @@ public static class ModelCatalog
             config, ModelProviderResolver.ResolveConfiguredModel(config)).ContextWindow;
     }
 
-    public static CompactionConfig ResolveCompactionConfig(AppConfig config, string? model, int? reportedCapacity = null)
+    public static CompactionConfig ResolveCompactionConfig(
+        AppConfig config,
+        string? model,
+        int? reportedCapacity = null,
+        ProviderContextBudget? providerBudget = null)
     {
         ArgumentNullException.ThrowIfNull(config);
         var compaction = config.Compaction.Clone();
@@ -30,6 +35,11 @@ public static class ModelCatalog
         compaction.ContextWindow = compaction.MaxContextWindow > 0
             ? Math.Min(catalogWindow, compaction.MaxContextWindow)
             : catalogWindow;
+        if (providerBudget is { MaxContextWindow: > 0 })
+        {
+            compaction.ContextWindow = Math.Min(compaction.ContextWindow, providerBudget.MaxContextWindow);
+            compaction.ProviderBudget = providerBudget;
+        }
         return compaction;
     }
 

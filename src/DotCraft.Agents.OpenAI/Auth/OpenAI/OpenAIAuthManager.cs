@@ -73,7 +73,12 @@ public sealed class OpenAIAuthManager : IOpenAIAuthService
         }
     }
 
-    public string? GetAccountId() => GetClaimsSafe()?.AccountId ?? _cached?.Tokens?.AccountId;
+    public string? GetAccountId() => GetAccountId(_cached);
+
+    internal string? GetPersistedAccountId() => GetAccountId(_store.Load());
+
+    private string? GetAccountId(AuthDotJson? auth) =>
+        auth?.Tokens is { } tokens ? GetClaimsSafe(auth)?.AccountId ?? tokens.AccountId : null;
 
     public OpenAIAuthStatus GetStatus()
     {
@@ -204,22 +209,27 @@ public sealed class OpenAIAuthManager : IOpenAIAuthService
         }
     }
 
-    public async Task<string> GetAccessTokenAsync(bool forceRefresh, CancellationToken cancellationToken)
+    public async Task<string> GetAccessTokenAsync(bool forceRefresh, CancellationToken cancellationToken) =>
+        (await GetAuthAsync(forceRefresh, cancellationToken).ConfigureAwait(false)).Tokens!.AccessToken;
+
+    internal async Task<(string AccessToken, string? AccountId)> GetAccessCredentialsAsync(
+        bool forceRefresh,
+        CancellationToken cancellationToken)
+    {
+        var auth = await GetAuthAsync(forceRefresh, cancellationToken).ConfigureAwait(false);
+        return (auth.Tokens!.AccessToken, GetAccountId(auth));
+    }
+
+    private async Task<AuthDotJson> GetAuthAsync(bool forceRefresh, CancellationToken cancellationToken)
     {
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             var changed = ReloadCachedCredentialsIfChangedLocked();
-            if (forceRefresh && changed)
-                return _cached!.Tokens!.AccessToken;
-
-            var shouldRefresh = forceRefresh || NeedsRefresh(_cached!);
-            if (shouldRefresh)
-            {
+            if (!(forceRefresh && changed) && (forceRefresh || NeedsRefresh(_cached!)))
                 await RefreshLockedAsync(cancellationToken).ConfigureAwait(false);
-            }
 
-            return _cached!.Tokens!.AccessToken;
+            return _cached!;
         }
         finally
         {

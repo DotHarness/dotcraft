@@ -181,6 +181,8 @@ internal sealed class ThreadRuntime(SessionThread thread, ThreadEventBroker brok
 
     public ChatClientAgent? Agent { get; set; }
 
+    public (bool Lite, bool FreeformTools)? AgentResponsesDialect { get; set; }
+
     public IReadOnlyList<ChatMessage>? EphemeralHistory { get; set; }
 
     public ResidentModelHistory? ResidentModelHistory { get; set; }

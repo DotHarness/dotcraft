@@ -287,7 +287,7 @@ Anthropic Fast, retain base-price estimation without inferred multipliers.
 
 ## 5. Context Window
 
-The effective model's merged `models.json` catalog is the sole source of context capacity.
+The effective model's merged `models.json` catalog supplies the base context capacity.
 Built-in entries are overridden by global and then workspace catalogs using the model matching
 rules of §2.1. Unknown models use the catalog default, falling back to 256,000 tokens.
 
@@ -296,9 +296,12 @@ Its default is `-1`: omitted or `-1` uses the catalog window; a positive value l
 window to the smaller of that value and the catalog window. Workspace values override global values,
 including an explicit `-1` that restores the catalog window. This setting is independent of reasoning.
 
-Compaction receives the resulting window as runtime data, limited to the model's `maxInputTokens`
-when declared, and applies summary reserves, safety buffers, and compaction thresholds. Model changes affect subsequent requests and maintenance work;
-running operations keep their captured configuration.
+Compaction limits the resulting window to the model's `maxInputTokens` when declared. For ChatGPT
+OAuth, it also applies any [subscription window ceiling](../architecture/openai-subscription-auth.md).
+Usable-window and automatic-compaction limits are calculated independently from that bounded
+window. Where both a subscription limit and a local reserve or buffer rule apply, the tighter
+result wins without subtracting both margins. Model and catalog changes apply to subsequent
+requests and maintenance work, not to a request already running.
 
 `model/list.contextWindow` is the resolved numeric capacity. The context usage snapshot's
 `contextWindow` is the effective denominator after the client budget, reserve, and buffer rules. Model catalog

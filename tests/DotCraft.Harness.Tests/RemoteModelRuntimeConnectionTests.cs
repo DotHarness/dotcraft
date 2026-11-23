@@ -28,6 +28,27 @@ public sealed class RemoteModelRuntimeConnectionTests
     }
 
     [Fact]
+    public void RemoteChatGptCatalogSuppliesTheWorkersContextBudget()
+    {
+        const string model = "subscription-test";
+        var budget = new ProviderContextBudget(850_000, 94, 760_000);
+        var config = new AppConfig { ModelService = new() { Endpoint = "https://service.test", Token = "caller" } };
+        RemoteModelConfiguration.Apply(config, new ModelServiceCatalog("caller", [
+            new RemoteModelProvider("account", "Account", ModelProviderProtocols.OpenAIResponses,
+                ModelProviderDefaults.ChatGptBackendEndpoint, ModelProviderAuthMethods.ChatGptOAuth,
+                false, false, new ProviderAuthenticationStatus(true),
+                Models: new Dictionary<string, ProviderRequestAdaptation>
+                {
+                    [model] = new(true, false, null, null) { ContextBudget = budget }
+                })
+        ]));
+
+        var runtime = new ChatClientRegistry(new OpenAIClientProvider()).ResolveMainRuntime(config, "account", model);
+
+        Assert.Equal(budget, runtime.ContextBudget);
+    }
+
+    [Fact]
     public async Task CatalogRefresh_ReportsTheProviderRegistryRegionOnlyWhenTheCatalogChanges()
     {
         var config = new AppConfig

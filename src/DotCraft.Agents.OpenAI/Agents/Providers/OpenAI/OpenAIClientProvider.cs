@@ -36,6 +36,7 @@ public sealed partial class OpenAIClientProvider :
     ]);
     private static readonly HttpClient SharedChatGptHttpClient = new() { Timeout = Timeout.InfiniteTimeSpan };
     private const int WebSearchMaxOutputTokens = 10000;
+    private const int ModelCatalogTimeoutSeconds = 5;
 
     private readonly ConcurrentDictionary<OpenAIClientKey, OpenAIClient> _openAIClients = new();
     private readonly ConcurrentDictionary<OpenAIChatClientKey, ChatClient> _openAIChatClients = new();
@@ -86,10 +87,8 @@ public sealed partial class OpenAIClientProvider :
     string? IProviderRuntimeIdentityResolver.ResolveAccountId(EffectiveModelRuntime runtime) =>
         ResolveAccountId(runtime);
 
-    ProviderRuntimeMetadata IProviderRuntimeMetadataResolver.Resolve(EffectiveModelRuntime runtime)
-        => new(runtime.RequestAdaptation?.UseResponsesLite ?? ChatGptCodexModelCatalog.ResolveUseResponsesLite(
-            runtime,
-            ResolveAccountId(runtime)));
+    ProviderRuntimeMetadata IProviderRuntimeMetadataResolver.Resolve(EffectiveModelRuntime runtime) =>
+        ChatGptCodexModelCatalog.ResolveRuntimeMetadata(runtime, ResolveAccountId(runtime));
 
     async Task<ModelCatalogResult> IModelCatalogProvider.FetchModelsAsync(
         EffectiveModelRuntime runtime,
@@ -119,7 +118,8 @@ public sealed partial class OpenAIClientProvider :
                 OpenAIModelCatalogErrorCode.Timeout => ModelCatalogErrorCode.Timeout,
                 _ => ModelCatalogErrorCode.Unknown
             },
-            ErrorMessage = result.ErrorMessage
+            ErrorMessage = result.ErrorMessage,
+            CatalogAccountId = result.CatalogAccountId
         };
     }
 
@@ -390,7 +390,11 @@ public sealed partial class OpenAIClientProvider :
     internal string? ResolveAccountId(EffectiveModelRuntime runtime)
     {
         ArgumentNullException.ThrowIfNull(runtime);
-        return NormalizeOptional(runtime.IsRemote ? runtime.AccountId : _openAIAuthService?.GetAccountId());
+        return NormalizeOptional(runtime.IsRemote
+            ? runtime.AccountId
+            : _openAIAuthService is OpenAIAuthManager manager
+                ? manager.GetPersistedAccountId()
+                : _openAIAuthService?.GetAccountId());
     }
 
     internal async Task<ChatGptCodexModelsHttpResponse> FetchChatGptCodexModelsAsync(
@@ -409,9 +413,10 @@ public sealed partial class OpenAIClientProvider :
 
         var requestUri = BuildChatGptCodexModelsUri(runtime, clientVersion);
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeoutCts.CancelAfter(TimeSpan.FromSeconds(NormalizeNetworkTimeoutSeconds(runtime.NetworkTimeoutSeconds)));
+        timeoutCts.CancelAfter(TimeSpan.FromSeconds(
+            Math.Min(ModelCatalogTimeoutSeconds, NormalizeNetworkTimeoutSeconds(runtime.NetworkTimeoutSeconds))));
 
-        var response = await SendChatGptCodexModelsRequestAsync(
+        var (response, accountId) = await SendChatGptCodexModelsRequestAsync(
             requestUri,
             runtime,
             forceRefresh: false,
@@ -419,14 +424,14 @@ public sealed partial class OpenAIClientProvider :
         if (!runtime.IsRemote && (int)response.StatusCode == 401)
         {
             response.Dispose();
-            response = await SendChatGptCodexModelsRequestAsync(
+            (response, accountId) = await SendChatGptCodexModelsRequestAsync(
                 requestUri,
                 runtime,
                 forceRefresh: true,
                 timeoutCts.Token).ConfigureAwait(false);
         }
 
-        return await ReadChatGptCodexModelsResponseAsync(response, timeoutCts.Token).ConfigureAwait(false);
+        return await ReadChatGptCodexModelsResponseAsync(response, accountId, timeoutCts.Token).ConfigureAwait(false);
     }
 
 }

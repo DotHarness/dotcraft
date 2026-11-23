@@ -199,9 +199,10 @@ public sealed partial class SessionService
         string threadId,
         long tokens,
         string? source = null,
-        bool isEstimate = false)
+        bool isEstimate = false,
+        CompactionPipeline? pipeline = null)
     {
-        var pipeline = GetCompactionPipelineForThread(threadId);
+        pipeline ??= GetCompactionPipelineForThread(threadId);
         var threshold = pipeline.EvaluateThreshold(tokens);
 
         return new ContextUsageSnapshot
@@ -262,13 +263,14 @@ public sealed partial class SessionService
         ContextUsageAnchor? anchor,
         string? source,
         bool isEstimate,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        CompactionPipeline? pipeline = null)
     {
         var normalizedTokens = Math.Max(0, tokens);
         if (_runtimeRegistry.TryGetRuntime(threadId, out var ephemeralRuntime) && ephemeralRuntime.Thread.Ephemeral)
         {
             ephemeralRuntime.ContextUsageAnchor = anchor;
-            return CreateContextUsageSnapshot(threadId, normalizedTokens, source, isEstimate);
+            return CreateContextUsageSnapshot(threadId, normalizedTokens, source, isEstimate, pipeline);
         }
         if (anchor is not null)
         {
@@ -288,56 +290,46 @@ public sealed partial class SessionService
             await persistence.SaveContextUsageTokensAsync(threadId, normalizedTokens, source, isEstimate, ct);
         }
 
-        return CreateContextUsageSnapshot(threadId, normalizedTokens, source, isEstimate);
+        return CreateContextUsageSnapshot(threadId, normalizedTokens, source, isEstimate, pipeline);
     }
 
     private async Task<ContextUsageSnapshot> SaveReplacementContextUsageSnapshotAsync(
         string threadId,
         long tokens,
         string source,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        CompactionPipeline? pipeline = null)
     {
         var snapshot = await SaveContextUsageSnapshotAsync(
             threadId,
             tokens,
+            anchor: null,
             source,
             isEstimate: true,
-            ct: ct);
+            ct,
+            pipeline);
         ClearContextUsageAnchor(threadId);
         return snapshot;
-    }
-
-    private async Task<ContextUsageSnapshot> SaveCurrentRequestEstimateAsync(
-        string threadId,
-        long tokens,
-        CancellationToken ct = default)
-    {
-        var anchor = TryGetInMemoryContextUsageAnchor(threadId)
-            ?? persistence.LoadContextUsageAnchor(threadId);
-        return await SaveContextUsageSnapshotAsync(
-            threadId,
-            tokens,
-            anchor,
-            source: "estimate",
-            isEstimate: true,
-            ct: ct);
     }
 
     private Task<ContextUsageSnapshot> SavePreparedContextEstimateAsync(
         string threadId,
         ContextTokenUsageEstimate estimate,
-        CancellationToken ct = default) =>
-        string.Equals(
-            estimate.Source,
-            "provider_compacted_estimate",
-            StringComparison.Ordinal)
-            ? SaveContextUsageSnapshotAsync(
-                threadId,
-                estimate.Tokens,
-                estimate.Source,
-                isEstimate: true,
-                ct)
-            : SaveCurrentRequestEstimateAsync(threadId, estimate.Tokens, ct);
+        CancellationToken ct,
+        CompactionPipeline? pipeline)
+    {
+        var compacted = string.Equals(estimate.Source, "provider_compacted_estimate", StringComparison.Ordinal);
+        var anchor = compacted ? null : TryGetInMemoryContextUsageAnchor(threadId)
+            ?? persistence.LoadContextUsageAnchor(threadId);
+        return SaveContextUsageSnapshotAsync(
+            threadId,
+            estimate.Tokens,
+            anchor,
+            source: compacted ? estimate.Source : "estimate",
+            isEstimate: true,
+            ct,
+            pipeline);
+    }
 
     private ContextUsageAnchor? UpdateContextUsageAnchor(string threadId, long anchorTokens)
     {

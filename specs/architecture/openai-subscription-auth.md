@@ -4,7 +4,7 @@
 |---|---|
 | Version | 0.14.0 |
 | Status | Living |
-| Date | 2026-11-21 |
+| Date | 2026-11-23 |
 
 DotCraft can authenticate outgoing model requests against a user's ChatGPT subscription (Plus,
 Pro, Team, Business, Enterprise, Edu) as an alternative to a pay-as-you-go OpenAI API key. This
@@ -183,8 +183,8 @@ runtime scope ends. It is never persisted.
 ChatGPT OAuth uses the Responses Lite HTTP dialect for models with `use_responses_lite=true`
 and standard Responses when the value is false, missing, or unknown. The latest matching
 endpoint/account/client-version catalog entry takes precedence over the bundled catalog. Sampling
-and native compaction use the same dialect and tool capabilities. API-key runtimes use standard
-Responses.
+and native compaction use the dialect and tool capabilities captured at turn admission. A catalog
+refresh affects subsequent turns, not a running turn. API-key runtimes use standard Responses.
 
 Both dialects share canonical Responses history, OAuth routing headers, `store=false`,
 `reasoning.encrypted_content` inclusion, a `reasoning` object (empty or with configured effort and
@@ -301,7 +301,28 @@ provider's configured Endpoint and ApiKey are ignored. The model catalog comes f
 `GET https://chatgpt.com/backend-api/codex/models?client_version=<accepted-version>` with the same
 credentials, cached per account in `~/.craft/model-catalog-cache.json` for five minutes, with the
 bundled catalog as the offline fallback. `client_version` is a fixed compatible client version, not
-DotCraft's app version, because the backend uses it to decide model eligibility.
+DotCraft's app version, because the backend uses it to decide model eligibility. Local turn
+admission loads this catalog before using the model budget, even without a prior model listing.
+It reuses a fresh account snapshot and limits the wait for a refresh. A failed refresh keeps
+the last catalog for that account when available, otherwise it uses the bundled catalog.
+The cache lookup uses the current persisted account. The bearer, account header and catalog
+cache identity for each request, including a retry, come from the credentials used by that
+request. A response for a different account does not fill the original account's cache.
+
+The effective catalog starts with the account entries. If none are visible, it also includes
+bundled entries whose IDs are absent from the account catalog. Runtime lookup and ModelService
+use these same entries. The picker filters them by visibility, so a hidden account entry does not
+reappear through a bundled entry with the same ID.
+
+The subscription catalog's `max_context_window` is a ceiling on the client's long-context budget.
+The ordinary `context_window` is a default, not that ceiling. For the exact model ID, valid fields
+from the current account take precedence over the bundled catalog's known values. If neither
+source supplies a ceiling, the ordinary client budget rules apply.
+
+For a budget with a subscription ceiling, the usable window is limited to
+`effective_context_window_percent` of the bounded window (95% if absent). Independently, automatic
+compaction is limited to 90% of the bounded window or the smaller `auto_compact_token_limit` when
+present. Neither limit expands the client's local budget or applies to API-key providers.
 
 ## Configuration shape
 

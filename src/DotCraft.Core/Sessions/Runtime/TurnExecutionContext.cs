@@ -1,5 +1,7 @@
 using DotCraft.Agents;
 using DotCraft.Channels;
+using DotCraft.Configuration;
+using DotCraft.Context.Compaction;
 using DotCraft.Tools;
 
 namespace DotCraft.Sessions;
@@ -22,4 +24,6 @@ internal sealed record TurnExecutionResources(
     ChatClientAgent Agent,
     EffectiveToolSnapshot? ToolSnapshot,
     ToolLocation? ToolLocation,
-    SubAgentModelCatalogSnapshot? SubAgentModels);
+    SubAgentModelCatalogSnapshot? SubAgentModels,
+    EffectiveModelRuntime? ModelRuntime,
+    CompactionPipeline? CompactionPipeline);

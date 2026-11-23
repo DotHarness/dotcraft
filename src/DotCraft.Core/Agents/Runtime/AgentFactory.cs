@@ -236,10 +236,16 @@ public sealed class AgentFactory : IAsyncDisposable
     {
         var effectiveConfig = configOverride ?? _config;
         var runtime = _chatClientRegistry.ResolveMainRuntime(effectiveConfig, providerIdOverride, modelOverride);
-        var effectiveMainModel = runtime.Model;
+        return GetCompactionPipeline(sessionKey, effectiveConfig, runtime);
+    }
+
+    internal CompactionPipeline GetCompactionPipeline(
+        string sessionKey,
+        AppConfig effectiveConfig,
+        EffectiveModelRuntime runtime)
+    {
         var compactionConfig = ModelCatalog.ResolveCompactionConfig(
-            effectiveConfig,
-            effectiveMainModel, runtime.ModelMetadata?.ContextWindow);
+            effectiveConfig, runtime.Model, runtime.ModelMetadata?.ContextWindow, runtime.ContextBudget);
         var key = CompactionPipelineKey.From(
             string.IsNullOrWhiteSpace(sessionKey) ? string.Empty : sessionKey.Trim(),
             runtime,
@@ -575,7 +581,7 @@ public sealed class AgentFactory : IAsyncDisposable
         LastCreatedTools = tools;
 
         var deferredRegistry = ctx.DeferredToolActivationIndex;
-        var runtime = ctx.ChatClientRegistry.ResolveMainRuntime(
+        var runtime = ctx.ModelRuntime ?? ctx.ChatClientRegistry.ResolveMainRuntime(
             ctx.Config,
             ctx.EffectiveProviderId,
             ctx.EffectiveMainModel);

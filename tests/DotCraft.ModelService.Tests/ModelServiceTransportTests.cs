@@ -4,6 +4,7 @@ using System.Text.Json.Nodes;
 using System.Threading.Channels;
 using DotCraft.Agents;
 using DotCraft.Agents.Remote;
+using DotCraft.Auth.OpenAI;
 using DotCraft.Configuration;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -85,6 +86,45 @@ public sealed class ModelServiceTransportTests
         using var response = await fixture.ProviderClient.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ChatGptCatalogCarriesHiddenBundledModelBudgetWithoutListingTheModel()
+    {
+        const string model = ModelProviderDefaults.DefaultChatGptCodexModel;
+        var accountId = Guid.NewGuid().ToString("N");
+        var state = Directory.CreateTempSubdirectory();
+        try
+        {
+            await using var fixture = await Fixture.CreateAsync(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent($$"""
+                    {"models":[{"slug":"{{model}}","visibility":"hidden","max_context_window":800000,
+                      "effective_context_window_percent":92,"auto_compact_token_limit":700000}]}
+                    """, Encoding.UTF8, "application/json")
+            }), authMethod: ModelProviderAuthMethods.ChatGptOAuth);
+            var source = Assert.Single(await fixture.Access.GetProvidersAsync(new ModelServiceCaller("test"), default));
+            var runtime = source.Runtime with { ProviderStateDirectory = state.FullName };
+            var provider = (IModelCatalogProvider)new OpenAIClientProvider(httpTransport: fixture.Transport);
+            var catalog = await provider.FetchModelsAsync(runtime with { IsRemote = true, AccountId = accountId }, default);
+            Assert.DoesNotContain(catalog.Models, item => item.Id == model);
+            var bundled = (IProviderRuntimeMetadataResolver)new OpenAIClientProvider();
+            var fallback = catalog.Models.First(item =>
+                bundled.Resolve(runtime with { Model = item.Id }).UseLightweightResponses);
+
+            var tokenStore = new OpenAITokenStore(state.FullName);
+            tokenStore.Save(new AuthDotJson { Tokens = new OpenAITokenSet { AccountId = accountId, IdToken = "e30.e30." } });
+            fixture.Access.Provider = source with { Runtime = runtime, Authentication = new OpenAIAuthManager(tokenStore) };
+            var remote = Assert.Single((await fixture.Transport.GetCatalogAsync()).Providers);
+
+            Assert.NotNull(remote.Models);
+            Assert.Equal(new ProviderContextBudget(800_000, 92, 700_000), remote.Models[model].ContextBudget);
+            Assert.True(remote.Models[fallback.Id].UseResponsesLite);
+        }
+        finally
+        {
+            state.Delete(recursive: true);
+        }
     }
 
     [Fact]
@@ -423,6 +463,7 @@ public sealed class ModelServiceTransportTests
 
     private sealed class Access : IModelServiceAccess, IModelServiceObserver
     {
+        public ModelServiceProvider? Provider { get; set; }
         public string Endpoint { get; init; } = "https://upstream.example/v1";
         public string Protocol { get; init; } = ModelProviderProtocols.OpenAIResponses;
         public string AuthMethod { get; init; } = ModelProviderAuthMethods.ApiKey;
@@ -435,7 +476,7 @@ public sealed class ModelServiceTransportTests
             ValueTask.FromResult(!Revoked && context.Request.Headers.Authorization == "Bearer caller-secret" ? new ModelServiceCaller("stack-a") : null);
         public Task<IReadOnlyList<ModelServiceProvider>> GetProvidersAsync(ModelServiceCaller caller, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ModelServiceProvider>>([
-                new(new RemoteModelProvider("primary", "Primary", Protocol,
+                Provider ?? new(new RemoteModelProvider("primary", "Primary", Protocol,
                     Endpoint, AuthMethod, true, true, new ProviderAuthenticationStatus(true)),
                     new EffectiveModelRuntime("primary", "", Protocol, "Primary", "upstream-secret",
                         Endpoint, 30, null, ModelProviderCapabilities.ForProtocol(Protocol), AuthMethod: AuthMethod))

@@ -36,18 +36,51 @@ internal static class ChatGptCodexModelCatalog
         string tier) =>
         ResolveModel(runtime, accountId)?.ServiceTiers.Contains(tier) == true;
 
-    private static CodexModelInfo? ResolveModel(EffectiveModelRuntime runtime, string? accountId)
+    internal static ProviderRuntimeMetadata ResolveRuntimeMetadata(
+        EffectiveModelRuntime runtime,
+        string? accountId)
+    {
+        var adaptation = runtime.RequestAdaptation;
+        var useAccountBudget = runtime.IsChatGptOAuth && !runtime.IsRemote && accountId is not null;
+        var model = adaptation is null || useAccountBudget ? ResolveModel(runtime, accountId) : null;
+        var useLite = adaptation?.UseResponsesLite ?? model?.UseResponsesLite ?? false;
+        if (!runtime.IsChatGptOAuth)
+            return new(useLite);
+
+        if (runtime.IsRemote && adaptation?.ContextBudget is { } remoteBudget)
+            return new(useLite, remoteBudget);
+
+        var accountModel = useAccountBudget ? model : null;
+        var bundledModel = FindModel(BuiltInModels.Value, runtime.Model);
+        var maxWindow = Positive(accountModel?.MaxContextWindow) ?? Positive(bundledModel?.MaxContextWindow);
+        return new(useLite, maxWindow is { } window
+            ? new ProviderContextBudget(
+                window,
+                Percent(accountModel?.EffectiveContextWindowPercent)
+                    ?? Percent(bundledModel?.EffectiveContextWindowPercent)
+                    ?? 95,
+                Positive(accountModel?.AutoCompactTokenLimit) ?? Positive(bundledModel?.AutoCompactTokenLimit))
+            : null);
+    }
+
+    internal static IEnumerable<string> ResolveRuntimeModelIds(EffectiveModelRuntime runtime, string? accountId) =>
+        ResolveModels(runtime, accountId).Select(model => model.Slug.Trim()).Distinct(StringComparer.OrdinalIgnoreCase);
+
+    private static CodexModelInfo? ResolveModel(EffectiveModelRuntime runtime, string? accountId) =>
+        FindModel(ResolveModels(runtime, accountId), runtime.Model);
+
+    private static IReadOnlyList<CodexModelInfo> ResolveModels(EffectiveModelRuntime runtime, string? accountId)
     {
         ArgumentNullException.ThrowIfNull(runtime);
 
         var cacheKey = BuildCacheKey(runtime.EndPoint, accountId, ClientVersion);
         if (AccountModels.TryGetValue(cacheKey, out var accountModels))
-            return FindModel(accountModels, runtime.Model);
+            return accountModels;
 
         var cache = ModelCatalogCache.Load(ResolveCachePath(runtime));
         return cache.TryGet(cacheKey, CacheTtl, requireFresh: false, out var cachedModels)
-            ? FindModel(cachedModels, runtime.Model)
-            : FindModel(BuiltInModels.Value, runtime.Model);
+            ? AccountModels.GetOrAdd(cacheKey, _ => WithBundledFallback(cachedModels))
+            : BuiltInModels.Value;
     }
 
     public static async Task<OpenAIModelCatalogResult> FetchAsync(
@@ -65,7 +98,7 @@ internal static class ChatGptCodexModelCatalog
         var cache = ModelCatalogCache.Load(cachePath);
 
         if (cache.TryGet(cacheKey, CacheTtl, requireFresh: true, out var cachedModels))
-            return Remember(cacheKey, cachedModels);
+            return Remember(cacheKey, accountId, cachedModels);
 
         try
         {
@@ -77,11 +110,12 @@ internal static class ChatGptCodexModelCatalog
             if (response.StatusCode == 200)
             {
                 var models = ParseModelsResponse(response.Content);
-                if (HasVisibleModels(models))
+                if (models.Count > 0)
                 {
-                    cache.Set(cacheKey, runtime.EndPoint, accountId, clientVersion, response.ETag, models);
+                    var responseKey = BuildCacheKey(runtime.EndPoint, response.AccountId, clientVersion);
+                    cache.Set(responseKey, runtime.EndPoint, response.AccountId, clientVersion, response.ETag, models);
                     await cache.SaveAsync(cachePath, cancellationToken).ConfigureAwait(false);
-                    return Remember(cacheKey, models);
+                    return Remember(responseKey, response.AccountId, models);
                 }
             }
         }
@@ -94,28 +128,38 @@ internal static class ChatGptCodexModelCatalog
             // Model listing should not make a logged-in ChatGPT provider unusable while offline.
         }
 
+        accountId = openAIClientProvider.ResolveAccountId(runtime);
+        cacheKey = BuildCacheKey(runtime.EndPoint, accountId, clientVersion);
         if (AccountModels.TryGetValue(cacheKey, out var rememberedModels))
-            return Success(rememberedModels);
+            return Success(accountId, rememberedModels);
 
         if (cache.TryGet(cacheKey, CacheTtl, requireFresh: false, out cachedModels))
-            return Remember(cacheKey, cachedModels);
+            return Remember(cacheKey, accountId, cachedModels);
 
-        return Success(BuiltInModels.Value);
+        return Success(accountId, BuiltInModels.Value);
     }
 
-    private static OpenAIModelCatalogResult Remember(string cacheKey, IReadOnlyList<CodexModelInfo> models)
+    private static OpenAIModelCatalogResult Remember(
+        string cacheKey, string? accountId, IReadOnlyList<CodexModelInfo> models)
     {
-        AccountModels[cacheKey] = models;
-        return Success(models);
+        var effectiveModels = WithBundledFallback(models);
+        AccountModels[cacheKey] = effectiveModels;
+        return Success(accountId, effectiveModels);
     }
 
-    private static OpenAIModelCatalogResult Success(IReadOnlyList<CodexModelInfo> models) => new()
+    private static IReadOnlyList<CodexModelInfo> WithBundledFallback(IReadOnlyList<CodexModelInfo> models) =>
+        models.Any(IsVisible)
+            ? models
+            : [.. models, .. BuiltInModels.Value.Where(model => FindModel(models, model.Slug) is null)];
+
+    private static OpenAIModelCatalogResult Success(string? accountId, IReadOnlyList<CodexModelInfo> models) => new()
     {
         Success = true,
+        CatalogAccountId = accountId ?? string.Empty,
         Models = ToPickerEntries(models)
     };
 
-    private static List<OpenAIModelCatalogEntry> ToPickerEntries(IReadOnlyList<CodexModelInfo> models)
+    private static List<OpenAIModelCatalogEntry> ToPickerEntries(IEnumerable<CodexModelInfo> models)
     {
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         return models
@@ -142,9 +186,6 @@ internal static class ChatGptCodexModelCatalog
             modes.Add("ultrafast");
         return modes;
     }
-
-    private static bool HasVisibleModels(IReadOnlyList<CodexModelInfo> models) =>
-        models.Any(IsVisible);
 
     private static CodexModelInfo? FindModel(IReadOnlyList<CodexModelInfo> models, string model) =>
         models.FirstOrDefault(candidate =>
@@ -213,7 +254,10 @@ internal static class ChatGptCodexModelCatalog
                 Visibility = ReadString(modelElement, "visibility") ?? string.Empty,
                 Priority = ReadInt(modelElement, "priority") ?? int.MaxValue,
                 UseResponsesLite = ReadBoolean(modelElement, "use_responses_lite"),
-                ServiceTiers = ReadServiceTiers(modelElement)
+                ServiceTiers = ReadServiceTiers(modelElement),
+                MaxContextWindow = ReadInt(modelElement, "max_context_window"),
+                EffectiveContextWindowPercent = ReadInt(modelElement, "effective_context_window_percent"),
+                AutoCompactTokenLimit = ReadInt(modelElement, "auto_compact_token_limit")
             });
         }
 
@@ -246,6 +290,10 @@ internal static class ChatGptCodexModelCatalog
             .ToList();
     }
 
+    private static int? Positive(int? value) => value is > 0 ? value : null;
+
+    private static int? Percent(int? value) => value is >= 1 and <= 100 ? value : null;
+
     private static bool ReadBoolean(JsonElement element, string name) =>
         element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.True;
 
@@ -260,6 +308,12 @@ internal static class ChatGptCodexModelCatalog
         public bool UseResponsesLite { get; set; }
 
         public List<string> ServiceTiers { get; set; } = [];
+
+        public int? MaxContextWindow { get; set; }
+
+        public int? EffectiveContextWindowPercent { get; set; }
+
+        public int? AutoCompactTokenLimit { get; set; }
     }
 
     private sealed class ModelCatalogCache

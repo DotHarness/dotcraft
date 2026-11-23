@@ -37,6 +37,7 @@ public sealed class AgentRuntimeContext
         ArgumentNullException.ThrowIfNull(source);
         Config = source.Config;
         ChatClient = source.ChatClient;
+        ModelRuntime = source.ModelRuntime;
         ChatClientRegistry = source.ChatClientRegistry;
         _effectiveMainModel = source._effectiveMainModel;
         _effectiveProviderId = source._effectiveProviderId;
@@ -96,6 +97,8 @@ public sealed class AgentRuntimeContext
     /// Root workspace contexts may leave this unset until an agent is built.
     /// </summary>
     public IChatClient? ChatClient { get; init; }
+
+    internal EffectiveModelRuntime? ModelRuntime { get; init; }
 
     /// <summary>
     /// Central provider-neutral registry used to resolve model-specific chat clients.

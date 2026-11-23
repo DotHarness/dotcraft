@@ -4,7 +4,7 @@
 |-------|-------|
 | **Version** | 0.14.0 |
 | **Status** | Living |
-| **Date** | 2026-11-22 |
+| **Date** | 2026-11-23 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
 | **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Hub Architecture](../architecture/hub-architecture.md), [Device Gateway](../protocols/device-gateway.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Goal Design](../features/goal.md), [Session Import](../features/session-import.md), [Desktop DESIGN.md](../architecture/DESIGN.md) |
 
@@ -715,6 +715,7 @@ Desktop exposes a client-owned thread-management profile as Runtime Dynamic Tool
 
 - Each tool reads as what it did, in progress, done, or failed (Reading chat, Read chat, Couldn't read chat), never by its tool name, and has its own icon. A call streaming its arguments already reads as in progress. Archive and pin tools read by the requested state, so unarchiving reads as restoring.
 - These rows have no expanded detail. A row for reading or messaging a chat opens that chat. In a collapsed summary, calls join by what they did, one phrase each.
+- A sent or queued message card shows the target chat's title when available. Desktop resolves it in the target project without opening the project or reconnecting a disconnected device. If the title is unavailable, the card shows the send outcome without labeling the target as a new chat.
 
 **Behavior**
 

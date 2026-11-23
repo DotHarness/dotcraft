@@ -1009,17 +1009,15 @@ public sealed partial class SessionService(
     private CompactionPipeline GetCompactionPipelineForThread(string threadId) =>
         Maintenance.GetCompactionPipelineForThread(threadId);
 
-    private CompactionPipeline GetCompactionPipelineForThread(SessionThread thread) =>
-        Maintenance.GetCompactionPipelineForThread(thread);
-
     private CompactionPipeline GetCompactionPipelineForThread(string threadId, SessionThread? thread) =>
         Maintenance.GetCompactionPipelineForThread(threadId, thread);
 
     private CompactionCoordinator GetCompactionCoordinatorForThread(string threadId) =>
         Maintenance.GetCompactionCoordinatorForThread(threadId);
 
-    private CompactionCoordinator GetCompactionCoordinatorForThread(SessionThread thread) =>
-        Maintenance.GetCompactionCoordinatorForThread(thread);
+    private CompactionCoordinator GetCompactionCoordinatorForThread(
+        SessionThread thread, EffectiveModelRuntime? modelRuntime, CompactionPipeline? pipeline) =>
+        Maintenance.GetCompactionCoordinatorForThread(thread.Id, thread, modelRuntime, pipeline);
 
     private CompactionCoordinator GetCompactionCoordinatorForThread(string threadId, SessionThread? thread) =>
         Maintenance.GetCompactionCoordinatorForThread(threadId, thread);
