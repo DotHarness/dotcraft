@@ -69,7 +69,7 @@ public static class ProviderContractMapper
 
     private static string? ResolvePluginId(AppConfig.ModelProviderConfig provider, IModelRuntimeResolver? resolver) =>
         resolver is ModelBackendResolver backends && !string.IsNullOrWhiteSpace(provider.BackendId)
-            ? backends.TryGetPluginId(provider.BackendId)
+            ? backends.TryGetPluginId(provider.BackendId.Trim())
             : null;
 
     private static EffectiveModelRuntime? ResolveRuntime(AppConfig config, string id, IModelRuntimeResolver? resolver)

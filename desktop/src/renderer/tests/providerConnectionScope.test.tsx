@@ -6,7 +6,12 @@ import { useConfig, useConfigStore } from '../stores/configStore'
 import { useConnectionStore } from '../stores/connectionStore'
 import { useModelCatalogStore } from '../stores/modelCatalogStore'
 import { useProvidersStore } from '../stores/providersStore'
-import { activateWorkspaceResources, applyWorkspaceResourceConfigChange, pruneWorkspaceResources } from '../stores/providerConnectionScope'
+import {
+  activateWorkspaceResources,
+  applyWorkspacePluginSnapshotChange,
+  applyWorkspaceResourceConfigChange,
+  pruneWorkspaceResources
+} from '../stores/providerConnectionScope'
 import { resetTestWorkspaceResources } from './workspaceResourceFixtures'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
@@ -203,6 +208,46 @@ describe('foreground workspace resources', () => {
     expect(remote.result.current).toEqual({ ProviderId: 'remote-provider' })
     expect(reads(remoteKey)).toHaveLength(1)
     expect(reads(remoteKey)[0][4]).toEqual({ connectionId: remoteKey + '-1' })
+  })
+
+  it('refreshes workspace providers when plugin trust activates and revokes a backend', async () => {
+    let providerPluginId: string | undefined
+    sendConnectionRequest.mockImplementation(async (connectionKey: string, method: string) => {
+      if (method === 'config/read') return { config: configurations.get(connectionKey) ?? {} }
+      if (method === 'provider/list') {
+        return {
+          providers: [{
+            id: 'plugin-provider',
+            displayName: 'Acme',
+            protocol: 'acme-proto',
+            backendId: 'acme-backend',
+            ...(providerPluginId ? { pluginId: providerPluginId } : {})
+          }]
+        }
+      }
+      if (method === 'model/list') return { success: true, models: [] }
+      return {}
+    })
+    mount()
+    await act(async () => {})
+    expect(useProvidersStore.getState().providers[0]?.pluginId).toBeUndefined()
+
+    providerPluginId = 'acme-models'
+    await act(async () => {
+      expect(applyWorkspacePluginSnapshotChange({ connectionKey: '/a', connectionId: '/a-old' })).toBe(false)
+    })
+    expect(useProvidersStore.getState().providers[0]?.pluginId).toBeUndefined()
+
+    await act(async () => {
+      expect(applyWorkspacePluginSnapshotChange({ connectionKey: '/a', connectionId: '/a-1' })).toBe(true)
+    })
+    expect(useProvidersStore.getState().providers[0]?.pluginId).toBe('acme-models')
+
+    providerPluginId = undefined
+    await act(async () => {
+      expect(applyWorkspacePluginSnapshotChange({ connectionKey: '/a', connectionId: '/a-1' })).toBe(true)
+    })
+    expect(useProvidersStore.getState().providers[0]?.pluginId).toBeUndefined()
   })
 
   it('evicts closed secondary connection snapshots instead of reviving them', async () => {

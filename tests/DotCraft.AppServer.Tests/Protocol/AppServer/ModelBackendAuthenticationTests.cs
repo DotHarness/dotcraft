@@ -1,6 +1,5 @@
 using System.Text.Json;
 using DotCraft.Agents;
-using DotCraft.AppServer;
 using DotCraft.Configuration;
 using DotCraft.Contributions;
 using Microsoft.Extensions.AI;
@@ -64,12 +63,24 @@ public sealed class ModelBackendAuthenticationTests
             var official = new Source("official-demo", "Official demo", "   ");
             using var resolver = new ModelBackendResolver(new ModelProviderRegistry([]), contributions, root, [official]);
             await using var authentication = new ProviderAuthenticationCoordinator(resolver);
+            var globalConfigPath = Path.Combine(root, "global-config.json");
+            Directory.CreateDirectory(root);
+            await File.WriteAllTextAsync(globalConfigPath, JsonSerializer.Serialize(new
+            {
+                ProviderId = "p-plugin",
+                Providers = new Dictionary<string, object>
+                {
+                    ["p-plugin"] = new { BackendId = " plugin-demo " },
+                    ["p-official"] = new { BackendId = "official-demo" }
+                }
+            }));
             var config = new AppConfig
             {
+                GlobalConfigPath = globalConfigPath,
                 ProviderId = "p-plugin",
                 Providers = new()
                 {
-                    ["p-plugin"] = new() { BackendId = "plugin-demo" },
+                    ["p-plugin"] = new() { BackendId = " plugin-demo " },
                     ["p-official"] = new() { BackendId = "official-demo" }
                 }
             };
@@ -87,12 +98,10 @@ public sealed class ModelBackendAuthenticationTests
             Assert.False(backends["official-demo"].TryGetProperty("pluginId", out _));
             Assert.False(backends["official-demo"].TryGetProperty("description", out _));
 
-            var mapped = ProviderContractMapper.BuildProviderInfos(config, resolver)
-                .ToDictionary(item => item.Id.Value!, StringComparer.Ordinal);
-            var pluginProviderJson = JsonSerializer.SerializeToElement(mapped["p-plugin"]);
-            var officialProviderJson = JsonSerializer.SerializeToElement(mapped["p-official"]);
-            Assert.Equal("acme.models", pluginProviderJson.GetProperty("pluginId").GetString());
-            Assert.False(officialProviderJson.TryGetProperty("pluginId", out _));
+            var providers = (await Request(harness, "provider/list", new { }))
+                .GetProperty("providers").EnumerateArray().ToDictionary(item => item.GetProperty("id").GetString()!);
+            Assert.Equal("acme.models", providers["p-plugin"].GetProperty("pluginId").GetString());
+            Assert.False(providers["p-official"].TryGetProperty("pluginId", out _));
         }
         finally
         {

@@ -35,7 +35,10 @@ import { useAddProjectFlow } from './components/projects/AddProject'
 import { ThreePanel } from './components/layout/ThreePanel'
 import { useAutomationsStore } from './stores/automationsStore'
 import type { AutomationDefinition, AutomationRun } from './stores/automationsStore'
-import { applyWorkspaceResourceConfigChange } from './stores/providerConnectionScope'
+import {
+  applyWorkspacePluginSnapshotChange,
+  applyWorkspaceResourceConfigChange
+} from './stores/providerConnectionScope'
 import { applyMcpNotification } from './stores/mcpNotifications'
 import { useSkillsStore } from './stores/skillsStore'
 import { usePluginStore } from './stores/pluginStore'
@@ -1092,6 +1095,7 @@ export function App(): JSX.Element {
           // A runtime-only plugin transition emits no config/changed, so this is its only signal.
           case 'plugin/snapshot/updated': {
             usePluginStore.getState().handleSnapshotUpdated(p.snapshotRevision)
+            applyWorkspacePluginSnapshotChange(payload)
             break
           }
 
