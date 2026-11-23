@@ -1040,7 +1040,7 @@ public sealed partial class SessionService(
         var own = ResolveMemoryStore(config);
         return new ThreadMemoryStores(
             own,
-            MemoryScopes.PersonalStore(config?.MemoryPersonal ?? true, agentFactory.RuntimeContext.UserDataPath, own),
+            MemoryScopes.PersonalStore(config?.MemoryPersonal ?? true, agentFactory.RuntimeContext.PersonalMemoryUserDataPath, own),
             MemoryScopes.AttachedStores(config, DataPath));
     }
 

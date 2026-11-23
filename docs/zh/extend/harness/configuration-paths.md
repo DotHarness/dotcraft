@@ -55,6 +55,8 @@ builder.Services.AddDotCraftHarness(appConfig, options =>
 
 当 `UserDataPath` 为 `null` 时，用户级发现返回空结果。必须持久化用户状态的操作会抛出明确错误，而不会隐式选择某个用户目录。
 
+在 `AddDotCraftHarness` 中设置 `options.DisablePersonalMemory = true`，即可为所有线程禁用个人记忆库，包括续接和恢复的线程。默认值为 `false`。线程自有库和挂载库仍按原配置访问。
+
 ## 在应用服务中解析路径
 
 Harness 会注册一个不可变的 `DotCraftPaths`。应用组件通过依赖注入获取它，不要在各处重新实现路径规则。

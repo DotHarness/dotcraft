@@ -74,6 +74,7 @@ public static class DotCraftHarnessServiceCollectionExtensions
             WorkspacePath = options.WorkspacePath,
             DataPath = options.DataPath,
             UserDataPath = options.UserDataPath,
+            DisablePersonalMemory = options.DisablePersonalMemory,
             PluginSharedAssemblies = options.PluginSharedAssemblies
         };
 }

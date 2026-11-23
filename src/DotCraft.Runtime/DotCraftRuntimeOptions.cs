@@ -20,6 +20,8 @@ public sealed class DotCraftRuntimeOptions
     /// </summary>
     public string? UserDataPath { get; init; }
 
+    public bool DisablePersonalMemory { get; init; }
+
     /// <summary>Gets or sets extra assembly simple names that plugins resolve to the Host's instances.</summary>
     public IReadOnlyList<string> PluginSharedAssemblies { get; init; } = [];
 }

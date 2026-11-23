@@ -84,11 +84,11 @@ public sealed class FileAccessGuard
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        fullPath = WorkspaceBoundary.ResolveSymbolicLink(fullPath);
-        if (_blacklist != null && _blacklist.IsBlacklisted(fullPath))
+        var resolvedPath = WorkspaceBoundary.ResolveSymbolicLink(fullPath);
+        if (_blacklist != null && (_blacklist.IsBlacklisted(fullPath) || _blacklist.IsBlacklisted(resolvedPath)))
             return $"Error: Path '{originalPath}' is in the blacklist and cannot be accessed.";
 
-        if (!RequiresOutsideWorkspaceApproval(fullPath, operation))
+        if (!RequiresOutsideWorkspaceApproval(resolvedPath, operation))
             return null;
 
         if (!_requireApprovalOutsideWorkspace)
@@ -97,7 +97,7 @@ public sealed class FileAccessGuard
         if (_approvalService != null)
         {
             var context = ApprovalContextScope.Current;
-            var approved = await _approvalService.RequestFileApprovalAsync(operation, fullPath, context);
+            var approved = await _approvalService.RequestFileApprovalAsync(operation, resolvedPath, context);
             if (!approved)
                 return $"Error: Operation '{operation}' on '{originalPath}' was rejected by user.";
         }

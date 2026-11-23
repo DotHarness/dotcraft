@@ -4,7 +4,7 @@
 |-------|-------|
 | **Version** | 0.14.0 |
 | **Status** | Living |
-| **Date** | 2026-11-20 |
+| **Date** | 2026-11-23 |
 | **Parent Specs** | [Session Core](../architecture/session-core.md) |
 | **Related Specs** | [Prompt Composition](../architecture/prompt-composition.md), [World State](../architecture/world-state.md) |
 
@@ -46,7 +46,7 @@ Out of scope:
 | **Memory index** | `MEMORY.md` in a store: one pointer line per memory file. |
 | **Memory scope** | The owner of a store other than the workspace. |
 | **Own store** | The one store a Thread resolves from its scope (§4). It holds what the Thread's principal accumulates. |
-| **Personal store** | The one store on a machine that holds what is known about the person, shared by every memory-enabled Thread on that machine whatever its workspace (§4.2). |
+| **Personal store** | The one store on a machine that holds what is known about the person, shared across workspaces by Threads that have access to it (§4.2). |
 | **Personal type** | A memory type the policy marks `Personal`. Memories of a personal type go to the personal store. |
 | **Attached store** | A store that whoever creates a Thread attaches beside its own store, owned by someone other than the Thread's principal and shared with others. |
 | **Access** | Whether a Thread may only read an attached store (`read`) or also write it (`readWrite`). |
@@ -56,7 +56,7 @@ Out of scope:
 
 ## 3. Store Layout And Format
 
-A Thread with no scope uses the workspace store `<state>/memory/`. A Thread with a scope uses `<state>/scopes/<scope>/memory/`. An attached store lives at `<state>/memory-stores/<id>/`. `<state>` is the workspace state directory: `.craft`, or the data directory an embedding host names in its place. The personal store lives at `memory/` in the DotCraft home directory, `~/.craft`, of the machine that runs the AppServer.
+A Thread with no scope uses the workspace store `<state>/memory/`. A Thread with a scope uses `<state>/scopes/<scope>/memory/`. An attached store lives at `<state>/memory-stores/<id>/`. `<state>` is the workspace state directory: `.craft`, or the data directory an embedding host names in its place. The personal store lives at `memory/` under the host's user data directory, `~/.craft` in the official app.
 
 ```text
 <store>/
@@ -142,7 +142,7 @@ Rules:
 
 Who the person is and how they want the agent to work holds in every workspace. Kept in each workspace store, it would have to be learned again in every project and the copies would drift apart. The personal store holds it once per machine.
 
-- A memory-enabled Thread that captured `Memory.Personal` as on (§7) reads and writes the personal store beside its own store, whatever its workspace, origin, mode, or attachments, as it does its own store. A SubAgent or forked Thread uses it as its source does.
+- A memory-enabled Thread with personal memory available (§7) reads and writes the personal store beside its own store, whatever its workspace, origin, mode, or attachments, as it does its own store. A SubAgent or forked Thread uses it as its source does.
 - The personal store belongs to the machine that runs the AppServer, as the user configuration layer does. A Thread connected to a workspace on another machine uses that machine's personal store. Personal stores are never synchronized between machines.
 - The personal store is not an attached store and passes no write gate, because its content belongs to the person rather than to a host.
 
@@ -241,9 +241,9 @@ Memory extraction catches knowledge the agent should have saved while responding
 
 **Cadence.** Of the remaining eligible Turns, extraction runs on every `Memory.ExtractionInterval`-th (§10.1), every seventh by default. The interval in effect when a Turn completes applies. At most one extraction runs per Thread at a time. A request that arrives while one runs replaces any earlier waiting request and runs after the current one finishes, considering only Turns after the advanced cursor.
 
-**Execution.** Extraction runs as an ephemeral internal fork of the Thread, taken after the latest completed Turn. The fork keeps the Thread's instructions and tool surface and receives one task message. The message asks it to consider only the Turns after the cursor without verifying them against the workspace, to save what the extraction guidance (§10.1) says is worth saving, to read files before writing, and to keep each memory's index line in step. It also lists the memory files of the own store and, while `Memory.Personal` is on, of the personal store, by type, name, last-modified date, and description. Tool output quoted in the conversation is data and is never saved as an instruction.
+**Execution.** Extraction runs as an ephemeral internal fork of the Thread, taken after the latest completed Turn. The fork keeps the Thread's instructions and tool surface and receives one task message. The message asks it to consider only the Turns after the cursor without verifying them against the workspace, to save what the extraction guidance (§10.1) says is worth saving, to read files before writing, and to keep each memory's index line in step. It also lists the memory files of the own store and, when available (§7), of the personal store, by type, name, last-modified date, and description. Tool output quoted in the conversation is data and is never saved as an instruction.
 
-The fork may read anything the Thread may read, attached stores included. It may create and edit Markdown files inside the Thread's own store and the personal store, choosing between them as §4.2 says, and every other call is rejected with a reason, including writes to attached stores. Knowledge for an attached store is saved only while responding, where the Turn that produced it is known. It makes at most five model requests and adds no Items to the Thread.
+The fork may read anything the Thread may read, attached stores included. It may create and edit Markdown files inside the Thread's own store and, when available, the personal store, choosing between them as §4.2 says, and every other call is rejected with a reason, including writes to attached stores. Knowledge for an attached store is saved only while responding, where the Turn that produced it is known. It makes at most five model requests and adds no Items to the Thread.
 
 **Outcome.** On success the cursor advances to the forked Turn. On failure it stays, so the same Turns are considered next time. Extraction never fails or delays a Turn. Traces record each run and the files it wrote.
 
@@ -261,7 +261,9 @@ Dreams periodically consolidates a store following the consolidation guidance (�
 
 A Thread captures these switches at creation and keeps them for its lifetime, like its scope. Changing a setting affects new Threads only; running and resumed Threads keep the values they captured, and replacing a Thread's configuration preserves them. A SubAgent or forked Thread inherits its source's values. Whoever creates a Thread may capture extraction as disabled; automations do.
 
-When memory is disabled, a Thread neither uses nor maintains memory: the memory instructions and the memory index are absent, and no extraction runs. When only `Memory.Personal` is off, the Thread neither reads nor writes the personal store, and memories of a personal type go to its own store.
+The host startup option `DisablePersonalMemory` defaults to `false`. When set, it takes precedence over the captured `Memory.Personal` value for every Thread, including resumed and restored Threads. The runtime excludes the personal store from instructions, index updates, extraction, and store listing, and the runtime's built-in file tools refuse access to it. Captured settings and recorded model history stay unchanged.
+
+When memory is disabled, a Thread neither uses nor maintains memory: the memory instructions and the memory index are absent, and no extraction runs. When only personal memory is unavailable, memories of a personal type go to the Thread's own store and attached stores keep their configured access.
 
 Features that depend on memory stop while it is disabled and resume with their stored settings when it is enabled again:
 
@@ -318,4 +320,4 @@ A policy change reaches a running Thread at its next Turn, as a change to its me
 
 Clients list the stores of a workspace through AppServer memory management ([AppServer Protocol](../protocols/appserver-protocol.md)).
 
-**Listing** returns the personal store, the workspace store, every scope store, and every attached store directory, each with its directory on the AppServer host and a display name: the Agent Profile or automation that owns a scope when it can be resolved, otherwise the scope or attachment id. The personal store is named Personal and is writable. Attached stores are reported read-only, because their host owns their content. Listing creates nothing.
+**Listing** returns the personal store when permitted by the host and workspace settings (§7), the workspace store, every scope store, and every attached store directory, each with its directory on the AppServer host and a display name: the Agent Profile or automation that owns a scope when it can be resolved, otherwise the scope or attachment id. The personal store is named Personal and is writable. Attached stores are reported read-only, because their host owns their content. Listing creates nothing.

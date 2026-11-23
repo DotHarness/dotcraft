@@ -52,6 +52,7 @@ public sealed class AgentRuntimeContext
         RequireApprovalOutsideWorkspace = source.RequireApprovalOutsideWorkspace;
         BotPath = source.BotPath;
         UserDataPath = source.UserDataPath;
+        DisablePersonalMemory = source.DisablePersonalMemory;
         MemoryStore = source.MemoryStore;
         MemoryEnabled = source.MemoryEnabled;
         MemoryPersonal = source.MemoryPersonal;
@@ -209,6 +210,10 @@ public sealed class AgentRuntimeContext
     /// <summary>The optional host-provided user data root.</summary>
     public string? UserDataPath { get; init; }
 
+    public bool DisablePersonalMemory { get; init; }
+
+    public string? PersonalMemoryUserDataPath => DisablePersonalMemory ? null : UserDataPath;
+
     /// <summary>
     /// The memory store for context persistence.
     /// </summary>
@@ -221,7 +226,7 @@ public sealed class AgentRuntimeContext
     public IReadOnlyList<AttachedMemoryStore> AttachedMemoryStores { get; init; } = [];
 
     public ThreadMemoryStores? MemoryStores => MemoryEnabled
-        ? new ThreadMemoryStores(MemoryStore, MemoryScopes.PersonalStore(MemoryPersonal, UserDataPath, MemoryStore), AttachedMemoryStores)
+        ? new ThreadMemoryStores(MemoryStore, MemoryScopes.PersonalStore(MemoryPersonal, PersonalMemoryUserDataPath, MemoryStore), AttachedMemoryStores)
         : null;
 
     /// <summary>

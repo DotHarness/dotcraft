@@ -12,9 +12,11 @@ public sealed class PathBlacklist
             .ToList();
     }
 
+    internal bool HasEntries => _normalizedPaths.Count > 0;
+
     public bool IsBlacklisted(string fullPath)
     {
-        if (_normalizedPaths.Count == 0)
+        if (!HasEntries)
             return false;
 
         var normalized = NormalizePath(fullPath);

@@ -52,6 +52,7 @@ public sealed partial class WorkspaceRuntime
 
             LogStartupStage(startupTimer, "built-in-skills");
 
+            var disablePersonalMemory = Services.GetRequiredService<DotCraftRuntimeOptions>().DisablePersonalMemory;
             var traceCollector = Services.GetService<TraceCollector>();
             var backgroundTerminalService = Services.GetRequiredService<IBackgroundTerminalService>();
             var chatClientRegistry = Services.GetRequiredService<ChatClientRegistry>();
@@ -133,6 +134,7 @@ public sealed partial class WorkspaceRuntime
                         WorkspacePath = Paths.WorkspacePath,
                         BotPath = Paths.Data.RootPath,
                         UserDataPath = Paths.UserData.RootPath,
+                        DisablePersonalMemory = disablePersonalMemory,
                         MemoryStore = MemoryStore,
                         SkillsLoader = SkillsLoader,
                         ContextPageManager = contextPageManager,
@@ -211,7 +213,7 @@ public sealed partial class WorkspaceRuntime
                     traceCollector,
                     loggerFactory?.CreateLogger<MemoryExtractionRunner>(),
                     () => MemoryPolicy.From(Config.Memory),
-                    Paths.UserData.RootPath);
+                    agentFactory.RuntimeContext.PersonalMemoryUserDataPath);
                 var memoryExtraction = new MemoryExtractionScheduler(
                     sessionService.GetThreadAsync,
                     (thread, ct) => sessionService.ReadThreadTurnsAsync(
@@ -276,7 +278,8 @@ public sealed partial class WorkspaceRuntime
                     sessionService,
                     commitMessageSuggest,
                     dreamsService,
-                    new MemoryManagementService(Paths, MemoryStore, () => _appConfigMonitor.Current.Memory.Personal),
+                    new MemoryManagementService(Paths, MemoryStore,
+                        () => !disablePersonalMemory && _appConfigMonitor.Current.Memory.Personal),
                     pluginRuntime,
                     configSchema,
                     contextPageManager,

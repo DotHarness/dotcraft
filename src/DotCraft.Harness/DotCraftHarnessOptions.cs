@@ -15,5 +15,7 @@ public sealed class DotCraftHarnessOptions
     /// <summary>Null disables implicit user-level discovery and persistence.</summary>
     public string? UserDataPath { get; set; }
 
+    public bool DisablePersonalMemory { get; set; }
+
     public IReadOnlyList<string> PluginSharedAssemblies { get; set; } = [];
 }

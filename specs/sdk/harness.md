@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.11.1 |
+| Version | 0.14.0 |
 | Status | Living |
-| Date | 2026-11-13 |
+| Date | 2026-11-23 |
 
 This specification defines the stable boundary of the in-process .NET Harness package. Runtime
 ownership and lifecycle rules remain defined by
@@ -26,7 +26,8 @@ by the embedding host.
 
 `services.AddDotCraftHarness(appConfig, options => ...)` is the aggregate registration entry point.
 It accepts an effective `AppConfig` and host-owned path options (`WorkspacePath`, `DataPath`,
-`UserDataPath`).
+`UserDataPath`). Hosts set `DisablePersonalMemory` during registration to exclude the personal store
+without turning off user-level state. See [Memory switches](../features/memory.md#7-memory-switches).
 
 The host owns configuration sources, precedence, and overrides. Harness registration does not load
 configuration or start runtime work. The owning Generic Host controls initialization, readiness,

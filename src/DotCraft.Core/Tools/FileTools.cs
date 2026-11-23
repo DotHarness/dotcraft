@@ -345,7 +345,9 @@ public sealed class FileTools(
             var searchRoot = isFile ? Path.GetDirectoryName(searchPath)! : searchPath;
 
             var maxMatches = limit > 0 ? Math.Min(limit, MaxGrepMatches) : DefaultGrepMatches;
-            var ripgrepResult = managedSearchOnly ? null : await _ripgrep.SearchAsync(new RipgrepSearchRequest(
+            var useManagedSearch = managedSearchOnly || !isFile && blacklist is { HasEntries: true }
+                && (blacklist.HasEntryWithin(searchPath) || blacklist.HasEntryWithin(ResolveSearchRoot(searchPath)));
+            var ripgrepResult = useManagedSearch ? null : await _ripgrep.SearchAsync(new RipgrepSearchRequest(
                 searchPath,
                 pattern,
                 string.IsNullOrEmpty(include) ? null : include,
@@ -561,6 +563,7 @@ public sealed class FileTools(
         string searchPattern = "*",
         CancellationToken cancellationToken = default)
     {
+        var resolvedRoot = ResolveSearchRoot(rootPath);
         var dirs = new Stack<string>();
         dirs.Push(rootPath);
 
@@ -580,7 +583,7 @@ public sealed class FileTools(
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 if ((File.GetAttributes(file) & FileAttributes.ReparsePoint) == 0
-                    && blacklist?.IsBlacklisted(file) != true)
+                    && !IsBlacklistedEntry(file, rootPath, resolvedRoot))
                     yield return file;
             }
 
@@ -592,7 +595,7 @@ public sealed class FileTools(
                     var dirName = Path.GetFileName(subDir);
                     if (SkipDirectories.Contains(dirName)
                         || (File.GetAttributes(subDir) & FileAttributes.ReparsePoint) != 0
-                        || blacklist?.IsBlacklisted(subDir) == true)
+                        || IsBlacklistedEntry(subDir, rootPath, resolvedRoot))
                         continue;
                     dirs.Push(subDir);
                 }
@@ -603,6 +606,14 @@ public sealed class FileTools(
             }
         }
     }
+
+    private string ResolveSearchRoot(string path) =>
+        blacklist is { HasEntries: true } ? WorkspaceBoundary.ResolveSymbolicLink(path) : path;
+
+    private bool IsBlacklistedEntry(string path, string root, string resolvedRoot) =>
+        blacklist is { HasEntries: true }
+        && (blacklist.IsBlacklisted(path)
+            || root != resolvedRoot && blacklist.IsBlacklisted(Path.Combine(resolvedRoot, Path.GetRelativePath(root, path))));
 
     private static bool IsBinaryFile(string filePath)
         => FileContentClassifier.IsKnownBinaryExtension(filePath);

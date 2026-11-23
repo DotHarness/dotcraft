@@ -59,6 +59,7 @@ public static class ServiceRegistration
                 IncludeFullText = streamCfg.IncludeFullText
             });
         });
+        services.AddSingleton(options);
         services.AddSingleton(config);
         services.TryAddSingleton<ContributionRegistry>();
         services.TryAddSingleton<IContributionView>(sp => sp.GetRequiredService<ContributionRegistry>());
@@ -107,7 +108,13 @@ public static class ServiceRegistration
         services.TryAddSingleton<PluginConfigStore>();
         services.AddSingleton(sp => new WorkspaceStateDatabase(
             dataPath, readOnly: false, logger: sp.GetService<ILogger<WorkspaceStateDatabase>>()));
-        services.AddSingleton(new PathBlacklist(config.Security.BlacklistedPaths));
+        IEnumerable<string> blacklistedPaths = config.Security.BlacklistedPaths;
+        if (options.DisablePersonalMemory && paths.UserData.RootPath is { } personalDataPath)
+        {
+            var personalDirectory = MemoryStore.DirectoryOf(personalDataPath);
+            blacklistedPaths = [.. blacklistedPaths, personalDirectory, WorkspaceBoundary.ResolveSymbolicLink(personalDirectory)];
+        }
+        services.AddSingleton(new PathBlacklist(blacklistedPaths));
         services.AddSingleton<IBackgroundTerminalService>(sp =>
             new BackgroundTerminalService(
                 dataPath,

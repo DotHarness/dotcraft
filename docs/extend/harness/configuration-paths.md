@@ -55,6 +55,8 @@ builder.Services.AddDotCraftHarness(appConfig, options =>
 
 When `UserDataPath` is `null`, user-level discovery returns no entries. Operations that must persist user state throw a clear error instead of selecting a profile directory implicitly.
 
+Set `options.DisablePersonalMemory = true` in `AddDotCraftHarness` to disable the personal memory store for all threads, including resumed and restored threads. The default is `false`. Thread-owned and attached stores keep their configured access.
+
 ## Resolve paths in application services
 
 Harness registers one immutable `DotCraftPaths`. Resolve it through dependency injection instead of rebuilding path rules in each component.
