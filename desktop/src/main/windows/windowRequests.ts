@@ -87,49 +87,49 @@ export function desktopThreadToolOptions(ctx: DesktopWindowRuntime, source?: Wor
         if (ctx.mainWindow && isCurrentWorkspaceRequestSource(ctx, entry)) {
           openDevServerPreview(ctx.mainWindow, entry.projectId, preview)
         }
-      },
-      ...(!hasRemoteEndpointArg(ctx.argv) ? {
-        projectCreator: {
-          refreshProjects: async () => {
-            await ctx.app.localProjects.refresh()
-          },
-          existingProjectId: (projectPath: string) =>
-            ctx.app.localProjects.has(projectPath) ? ctx.localProjectId(projectPath) : undefined,
-          planNewFolder: (name: string) => planNewLocalProjectFolder(name),
-          createNewFolder: (name: string, preferredPath: string) =>
-            createNewLocalProjectFolder(name, { preferredPath }),
-          confirmCreation: (request) => {
-            const win = ctx.mainWindow
-            if (!win || win.isDestroyed()) return Promise.resolve('abandoned')
-            return ctx.app.projectCreationConfirm.confirm({
-              ownerId: win.webContents.id,
-              ...request,
-              sendToRenderer: (payload) => {
-                if (win.isDestroyed()) return false
-                win.webContents.send(PROJECT_CREATION_CONFIRM_REQUEST_CHANNEL, payload)
-                return true
-              },
-              dismissInRenderer: (requestId) => {
-                if (!win.isDestroyed()) {
-                  win.webContents.send(PROJECT_CREATION_CONFIRM_DISMISSED_CHANNEL, { requestId })
-                }
-              },
-              notifyAttention: (requestId) => {
-                if (request.threadId) {
-                  notifyThreadAttention(ctx, PROJECT_CREATION_CONFIRM_ATTENTION, request.threadId, request.turnId, requestId)
-                }
+      }
+    } : {}),
+    ...(entry && entry.kind !== 'remote' && !hasRemoteEndpointArg(ctx.argv) ? {
+      projectCreator: {
+        refreshProjects: async () => {
+          await ctx.app.localProjects.refresh()
+        },
+        existingProjectId: (projectPath: string) =>
+          ctx.app.localProjects.has(projectPath) ? ctx.localProjectId(projectPath) : undefined,
+        planNewFolder: (name: string) => planNewLocalProjectFolder(name),
+        createNewFolder: (name: string, preferredPath: string) =>
+          createNewLocalProjectFolder(name, { preferredPath }),
+        confirmCreation: (request) => {
+          const win = ctx.mainWindow
+          if (!win || win.isDestroyed()) return Promise.resolve('abandoned')
+          return ctx.app.projectCreationConfirm.confirm({
+            ownerId: win.webContents.id,
+            ...request,
+            sendToRenderer: (payload) => {
+              if (win.isDestroyed()) return false
+              win.webContents.send(PROJECT_CREATION_CONFIRM_REQUEST_CHANNEL, payload)
+              return true
+            },
+            dismissInRenderer: (requestId) => {
+              if (!win.isDestroyed()) {
+                win.webContents.send(PROJECT_CREATION_CONFIRM_DISMISSED_CHANNEL, { requestId })
               }
-            })
-          },
-          registerProject: (params) =>
-            registerLocalProject({
-              openInHub: (projectPath) => ctx.app.localProjects.open(projectPath),
-              settings: ctx.settings,
-              persistSettings: ctx.app.persistWindowSettings,
-              broadcastProjects: ctx.app.broadcastWorkspaceProjects
-            }, params)
-        }
-      } : {})
+            },
+            notifyAttention: (requestId) => {
+              if (request.threadId) {
+                notifyThreadAttention(ctx, PROJECT_CREATION_CONFIRM_ATTENTION, request.threadId, request.turnId, requestId)
+              }
+            }
+          })
+        },
+        registerProject: (params) =>
+          registerLocalProject({
+            openInHub: (projectPath) => ctx.app.localProjects.open(projectPath),
+            settings: ctx.settings,
+            persistSettings: ctx.app.persistWindowSettings,
+            broadcastProjects: ctx.app.broadcastWorkspaceProjects
+          }, params)
+      }
     } : {}),
     terminals: {
       threadTabs: (threadId) =>

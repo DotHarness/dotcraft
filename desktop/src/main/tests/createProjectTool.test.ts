@@ -19,6 +19,9 @@ import type { AppSettings } from '../settings'
 import type { DesktopProjectCreatorHost } from '../threadTasks/projectTools'
 import { DesktopThreadTasks } from '../threadTasks/threadTaskService'
 import { ThreadTaskStore } from '../threadTasks/threadTaskStore'
+import { desktopThreadToolOptions } from '../windows/windowRequests'
+import type { DesktopWindowRuntime } from '../windows/windowRuntime'
+import type { WorkspaceConnectionEntry } from '../windows/windowTypes'
 
 describe('CreateProject desktop tool', () => {
   let rootDir = ''
@@ -311,5 +314,51 @@ describe('ProjectCreationConfirmManager', () => {
     manager.observeNotification('turn/cancelled', { threadId: 'thread-1', turnId: 'turn-2' })
     expect(await second).toBe('abandoned')
     expect(dismissed).toContain(sent[1].requestId)
+  })
+})
+
+describe('desktopThreadToolOptions projectCreator gating', () => {
+  function buildRuntime(argv: string[] = []): DesktopWindowRuntime {
+    return {
+      argv,
+      settings: {},
+      workspaceConnections: new Map(),
+      lastConnectionStatus: {},
+      app: {
+        localProjects: { list: () => [], has: () => false, refresh: async () => true, open: async () => undefined },
+        projectCreationConfirm: new ProjectCreationConfirmManager(),
+        persistWindowSettings: () => undefined,
+        broadcastWorkspaceProjects: () => undefined,
+        broadcastPinnedThreadIdsChanged: () => undefined
+      },
+      isLocalChatsForeground: () => false,
+      getThreadTasks: () => undefined,
+      updateSettings: async () => undefined,
+      localProjectId: (value: string) => normalizeWorkspaceProjectKey(value)
+    } as unknown as DesktopWindowRuntime
+  }
+
+  function entry(kind: WorkspaceConnectionEntry['kind']): WorkspaceConnectionEntry {
+    return {
+      key: `${kind}:ws`,
+      projectId: `${kind}:ws`,
+      kind,
+      workspacePath: '/workspace/chats',
+      wsUrl: 'ws://127.0.0.1:1',
+      client: {} as WorkspaceConnectionEntry['client'],
+      role: 'foreground',
+      connected: true,
+      connecting: false,
+      lastUsedAt: 0,
+      threads: []
+    }
+  }
+
+  it('exposes projectCreator for chat and local workspaces and omits it for remote connections or --remote launches', () => {
+    const runtime = buildRuntime()
+    expect(desktopThreadToolOptions(runtime, entry('chat')).projectCreator).toBeDefined()
+    expect(desktopThreadToolOptions(runtime, entry('local')).projectCreator).toBeDefined()
+    expect(desktopThreadToolOptions(runtime, entry('remote')).projectCreator).toBeUndefined()
+    expect(desktopThreadToolOptions(buildRuntime(['--remote', 'ws://example']), entry('chat')).projectCreator).toBeUndefined()
   })
 })
