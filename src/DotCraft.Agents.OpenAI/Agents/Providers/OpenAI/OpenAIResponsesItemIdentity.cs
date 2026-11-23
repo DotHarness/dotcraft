@@ -101,7 +101,8 @@ internal static class OpenAIResponsesItemIdentity
         string prefix,
         int itemOrdinal,
         int messageItemOrdinal,
-        OpenAIResponsesItemIdentityDiagnostics diagnostics)
+        OpenAIResponsesItemIdentityDiagnostics diagnostics,
+        bool useUuidV7 = false)
     {
         ArgumentNullException.ThrowIfNull(message);
         var metadataKey = messageItemOrdinal == 0
@@ -115,7 +116,8 @@ internal static class OpenAIResponsesItemIdentity
             item,
             prefix,
             itemOrdinal,
-            diagnostics);
+            diagnostics,
+            useUuidV7);
     }
 
     public static string Assign(
@@ -155,7 +157,8 @@ internal static class OpenAIResponsesItemIdentity
         JsonObject item,
         string prefix,
         int itemOrdinal,
-        OpenAIResponsesItemIdentityDiagnostics diagnostics)
+        OpenAIResponsesItemIdentityDiagnostics diagnostics,
+        bool useUuidV7 = false)
     {
         var invalidSource = false;
         var existing = ReadString(properties, metadataKey);
@@ -167,7 +170,7 @@ internal static class OpenAIResponsesItemIdentity
             IsPresentButInvalid(legacy);
 
         var generated = candidate == null;
-        candidate ??= Generate(prefix, itemOrdinal, item);
+        candidate ??= useUuidV7 ? $"{prefix}_{Guid.CreateVersion7()}" : Generate(prefix, itemOrdinal, item);
 
         var updatedProperties = properties == null
             ? new AdditionalPropertiesDictionary()

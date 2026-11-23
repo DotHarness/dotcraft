@@ -126,7 +126,7 @@ public sealed partial class SessionService
         if (!snapshot.IsNativeCompacted)
             return null;
 
-        var context = factory.CreateSession(identity, snapshot, history, sink: null);
+        var context = factory.CreateSession(runtime, identity, snapshot, history, sink: null);
         // The thread agent's options carry the instructions and tools every request pays for.
         var options = GetThreadAgentOrDefault(thread.Id).ChatOptions;
         return context.TryEstimateActiveContextTokens(history, options, out var tokens) ? tokens : null;

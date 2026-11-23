@@ -149,6 +149,7 @@ public sealed partial class SessionService
         if (factory == null)
             return null;
         var context = factory.CreateSession(
+            runtime,
             providerIdentity,
             snapshot,
             baselineHistory,
@@ -211,6 +212,7 @@ public sealed partial class SessionService
         if (factory == null)
             return;
         var context = factory.CreateSession(
+            runtime,
             identity,
             CreateEmptyOpaqueHistory(runtime, identity),
             coveredMessages: [],

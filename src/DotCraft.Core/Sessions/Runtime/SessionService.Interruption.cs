@@ -92,7 +92,7 @@ public sealed partial class SessionService
             || snapshot.Identity.Model != model.Model)
             return null;
         identity = identity with { ContextWindowId = snapshot.Identity.ContextWindowId };
-        return factory.CreateSession(identity, snapshot, [],
+        return factory.CreateSession(model, identity, snapshot, [],
             thread.Ephemeral ? null : new SessionProviderHistorySink(persistence));
     }
 }

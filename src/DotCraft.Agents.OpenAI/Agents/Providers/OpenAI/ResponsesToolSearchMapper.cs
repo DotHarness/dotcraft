@@ -433,7 +433,8 @@ internal static partial class ResponsesToolSearchMapper
         IEnumerable<ChatMessage> messages,
         ChatOptions? options,
         IReadOnlyDictionary<string, ResponsesCallReference>? callNames = null,
-        int itemOrdinalOffset = 0)
+        int itemOrdinalOffset = 0,
+        bool useUniqueUserItemIds = false)
     {
         var mutableCallNames = callNames == null
             ? new Dictionary<string, ResponsesCallReference>(StringComparer.Ordinal)
@@ -443,7 +444,8 @@ internal static partial class ResponsesToolSearchMapper
             mutableCallNames,
             options,
             addContinuationWhenEmpty: false,
-            itemOrdinalOffset);
+            itemOrdinalOffset,
+            useUniqueUserItemIds: useUniqueUserItemIds);
     }
 
     private static BuildInputResult BuildInput(
@@ -452,7 +454,8 @@ internal static partial class ResponsesToolSearchMapper
         ChatOptions? options,
         bool addContinuationWhenEmpty,
         int itemOrdinalOffset = 0,
-        bool supportsFreeformTools = true)
+        bool supportsFreeformTools = true,
+        bool useUniqueUserItemIds = false)
     {
         var input = new JsonArray();
         var identity = new OpenAIResponsesItemIdentityDiagnostics();
@@ -486,7 +489,8 @@ internal static partial class ResponsesToolSearchMapper
                     "msg",
                     itemOrdinalOffset + input.Count,
                     messageItemOrdinal++,
-                    identity);
+                    identity,
+                    useUuidV7: useUniqueUserItemIds && message.Role == ChatRole.User);
                 input.Add(item);
                 contentParts = [];
             }

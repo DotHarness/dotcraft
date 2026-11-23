@@ -172,6 +172,7 @@ public sealed partial class OpenAIClientProvider :
             runtime.SupportsFreeformTools);
 
     IProviderConversationHistory IProviderHistorySessionFactory.CreateSession(
+        EffectiveModelRuntime runtime,
         ProviderConversationIdentity conversationIdentity,
         OpaqueProviderHistorySnapshot snapshot,
         IReadOnlyList<Microsoft.Extensions.AI.ChatMessage> coveredMessages,
@@ -224,7 +225,8 @@ public sealed partial class OpenAIClientProvider :
             },
             origin: snapshot.Identity.Model is { } model
                 ? new ProviderMessageOrigin(snapshot.Identity.ProviderId, snapshot.Identity.Protocol, model)
-                : null);
+                : null,
+            useUniqueUserItemIds: runtime.IsChatGptOAuth && runtime.UseResponsesLite);
     }
 
     private static ProviderHistoryIdentity ToHistoryIdentity(

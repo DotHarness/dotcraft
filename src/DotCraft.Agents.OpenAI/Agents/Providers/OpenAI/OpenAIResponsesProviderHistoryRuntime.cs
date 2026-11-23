@@ -20,6 +20,7 @@ internal sealed partial class OpenAIResponsesProviderHistoryContext :
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly ProviderConversationIdentity _identity;
     private readonly string _providerId;
+    private readonly bool _useUniqueUserItemIds;
     private readonly ProviderMessageOrigin? _origin;
     private readonly Func<ProviderHistoryItemsAppendedPayload, CancellationToken, Task>? _appendAsync;
     private readonly Func<ProviderHistoryReplacedPayload, CancellationToken, Task>? _replaceAsync;
@@ -44,10 +45,12 @@ internal sealed partial class OpenAIResponsesProviderHistoryContext :
         Func<ProviderHistoryReplacedPayload, CancellationToken, Task>? replaceAsync,
         Func<ProviderHistoryAttemptAbortedPayload, CancellationToken, Task>? abortAsync,
         Func<string, string, CancellationToken, Task>? reconcileContextWindowAsync = null,
-        ProviderMessageOrigin? origin = null)
+        ProviderMessageOrigin? origin = null,
+        bool useUniqueUserItemIds = false)
     {
         _identity = identity ?? throw new ArgumentNullException(nameof(identity));
         _origin = origin;
+        _useUniqueUserItemIds = useUniqueUserItemIds;
         _providerId = string.IsNullOrWhiteSpace(providerId)
             ? throw new ArgumentException("Provider ID must be configured.", nameof(providerId))
             : providerId.Trim();
@@ -129,7 +132,8 @@ internal sealed partial class OpenAIResponsesProviderHistoryContext :
                         tail,
                         options,
                         BuildCallCorrelationIndex(),
-                        itemOrdinalOffset: _entries.Count);
+                        itemOrdinalOffset: _entries.Count,
+                        useUniqueUserItemIds: _useUniqueUserItemIds);
                     foreach (var node in mapped.Input)
                         input.Add(node?.DeepClone());
                     NormalizeCallOutputs(input);
@@ -306,7 +310,8 @@ internal sealed partial class OpenAIResponsesProviderHistoryContext :
         try
         {
             messages = GetSamplingProjection(messages);
-            var mapped = ResponsesToolSearchMapper.BuildInputItems(messages, options);
+            var mapped = ResponsesToolSearchMapper.BuildInputItems(
+                messages, options, useUniqueUserItemIds: _useUniqueUserItemIds);
             var entries = CreateEntries(mapped.Input, ProviderHistorySources.LocalInput, attemptId: null);
             var currentIdentity = ProviderRequestContextScope.Current?.CurrentIdentity
                                   ?? OpenAIResponsesCodexRuntimeScope.Current?.ConversationIdentity

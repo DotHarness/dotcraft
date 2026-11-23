@@ -16,7 +16,7 @@ using ZstdSharp;
 
 namespace DotCraft.Tests.Agents;
 
-public sealed class ResponsesLiteWireTests : IDisposable
+public sealed partial class ResponsesLiteWireTests : IDisposable
 {
     private const string InstallationId = "11111111-2222-4333-8444-555555555555";
     private readonly List<string> _tempRoots = [];

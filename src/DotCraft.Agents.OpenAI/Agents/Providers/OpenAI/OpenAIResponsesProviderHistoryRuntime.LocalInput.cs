@@ -24,7 +24,8 @@ internal sealed partial class OpenAIResponsesProviderHistoryContext
         IReadOnlyList<ChatMessage> messages, ChatOptions? options, CancellationToken cancellationToken)
     {
         var mapped = ResponsesToolSearchMapper.BuildInputItems(
-            messages, options, BuildCallCorrelationIndex(), itemOrdinalOffset: _entries.Count);
+            messages, options, BuildCallCorrelationIndex(), itemOrdinalOffset: _entries.Count,
+            useUniqueUserItemIds: _useUniqueUserItemIds);
         var entries = CreateEntries(mapped.Input, ProviderHistorySources.LocalInput, attemptId: null);
         if (entries.Count == 0)
             return;
