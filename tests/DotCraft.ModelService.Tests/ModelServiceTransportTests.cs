@@ -4,6 +4,7 @@ using System.Text.Json.Nodes;
 using System.Threading.Channels;
 using DotCraft.Agents;
 using DotCraft.Agents.Remote;
+using DotCraft.Auth.OpenAI;
 using DotCraft.Configuration;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -88,19 +89,39 @@ public sealed class ModelServiceTransportTests
     }
 
     [Fact]
-    public async Task ChatGptCatalogCarriesModelContextBudgetThroughRemoteTransport()
+    public async Task ChatGptCatalogCarriesHiddenModelBudgetWithoutListingTheModel()
     {
-        const string model = "gpt-6.2-sol";
-        await using var fixture = await Fixture.CreateAsync(_ => throw new Xunit.Sdk.XunitException("Unexpected upstream call."),
-            authMethod: ModelProviderAuthMethods.ChatGptOAuth);
-        var source = Assert.Single(await fixture.Access.GetProvidersAsync(new ModelServiceCaller("stack-a"), default));
-        var resolver = (IProviderRuntimeMetadataResolver)new OpenAIClientProvider(source.Authentication);
-        var expected = Assert.IsType<ProviderContextBudget>(resolver.Resolve(source.Runtime with { Model = model }).ContextBudget);
+        const string model = "hidden-model";
+        var accountId = Guid.NewGuid().ToString("N");
+        var state = Directory.CreateTempSubdirectory();
+        try
+        {
+            await using var fixture = await Fixture.CreateAsync(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("""
+                    {"models":[{"slug":"hidden-model","visibility":"hidden","max_context_window":800000,
+                      "effective_context_window_percent":92,"auto_compact_token_limit":700000}]}
+                    """, Encoding.UTF8, "application/json")
+            }), authMethod: ModelProviderAuthMethods.ChatGptOAuth);
+            var source = Assert.Single(await fixture.Access.GetProvidersAsync(new ModelServiceCaller("test"), default));
+            var runtime = source.Runtime with { ProviderStateDirectory = state.FullName };
+            var provider = (IModelCatalogProvider)new OpenAIClientProvider(httpTransport: fixture.Transport);
+            var catalog = await provider.FetchModelsAsync(runtime with { IsRemote = true, AccountId = accountId }, default);
+            Assert.NotEmpty(catalog.Models);
+            Assert.DoesNotContain(catalog.Models, item => item.Id == model);
 
-        var remote = Assert.Single((await fixture.Transport.GetCatalogAsync()).Providers);
+            var tokenStore = new OpenAITokenStore(state.FullName);
+            tokenStore.Save(new AuthDotJson { Tokens = new OpenAITokenSet { AccountId = accountId, IdToken = "e30.e30." } });
+            fixture.Access.Provider = source with { Runtime = runtime, Authentication = new OpenAIAuthManager(tokenStore) };
+            var remote = Assert.Single((await fixture.Transport.GetCatalogAsync()).Providers);
 
-        Assert.NotNull(remote.Models);
-        Assert.Equal(expected, remote.Models[model].ContextBudget);
+            Assert.NotNull(remote.Models);
+            Assert.Equal(new ProviderContextBudget(800_000, 92, 700_000), remote.Models[model].ContextBudget);
+        }
+        finally
+        {
+            state.Delete(recursive: true);
+        }
     }
 
     [Fact]
@@ -439,6 +460,7 @@ public sealed class ModelServiceTransportTests
 
     private sealed class Access : IModelServiceAccess, IModelServiceObserver
     {
+        public ModelServiceProvider? Provider { get; set; }
         public string Endpoint { get; init; } = "https://upstream.example/v1";
         public string Protocol { get; init; } = ModelProviderProtocols.OpenAIResponses;
         public string AuthMethod { get; init; } = ModelProviderAuthMethods.ApiKey;
@@ -451,7 +473,7 @@ public sealed class ModelServiceTransportTests
             ValueTask.FromResult(!Revoked && context.Request.Headers.Authorization == "Bearer caller-secret" ? new ModelServiceCaller("stack-a") : null);
         public Task<IReadOnlyList<ModelServiceProvider>> GetProvidersAsync(ModelServiceCaller caller, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ModelServiceProvider>>([
-                new(new RemoteModelProvider("primary", "Primary", Protocol,
+                Provider ?? new(new RemoteModelProvider("primary", "Primary", Protocol,
                     Endpoint, AuthMethod, true, true, new ProviderAuthenticationStatus(true)),
                     new EffectiveModelRuntime("primary", "", Protocol, "Primary", "upstream-secret",
                         Endpoint, 30, null, ModelProviderCapabilities.ForProtocol(Protocol), AuthMethod: AuthMethod))

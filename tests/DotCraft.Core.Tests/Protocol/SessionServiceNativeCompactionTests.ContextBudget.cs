@@ -11,7 +11,7 @@ public sealed partial class SessionServiceNativeCompactionTests
     [Theory]
     [InlineData(true, 828_400, 784_800)]
     [InlineData(false, 902_000, 889_000)]
-    public async Task SubscriptionBudget_CompactsAn800kWindowBeforeNextSampling(
+    public async Task SubscriptionBudget_LoadsOnFirstTurnAndCompactsAn800kWindowBeforeNextSampling(
         bool oauth, int usableWindow, int autoThreshold)
     {
         var craftPath = Path.Combine(_workspace, ".craft");
@@ -19,7 +19,7 @@ public sealed partial class SessionServiceNativeCompactionTests
         File.WriteAllText(Path.Combine(craftPath, "models.json"), """
             { "models": { "gpt-test": { "contextWindow": 1050000, "maxInputTokens": 922000 } } }
             """);
-        _provider.ContextBudget = new ProviderContextBudget(872_000);
+        _provider.AdvertisedContextBudget = new ProviderContextBudget(872_000);
         await using var factory = CreateFactory(oauth: oauth, configure: config =>
         {
             config.Compaction.MaxContextWindow = 1_000_000;
@@ -44,6 +44,7 @@ public sealed partial class SessionServiceNativeCompactionTests
         await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("continue the conversation")]));
         var completed = await service.GetThreadAsync(thread.Id);
         Assert.Equal(TurnStatus.Completed, completed.Turns[^1].Status);
+        Assert.Equal(oauth ? 1 : 0, _provider.CatalogFetchCount);
         if (oauth)
         {
             Assert.Single(_provider.Compactions);

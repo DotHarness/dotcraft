@@ -404,9 +404,10 @@ public sealed partial class SessionServiceNativeCompactionTests : IDisposable
 
     private sealed class NativeProvider : IModelProvider, IProviderNativeCompactorFactory,
         IResponsesToolSearchTransport, IChatGptResponsesCompactTransport, IProviderNativeCompactor,
-        IProviderRuntimeMetadataResolver
+        IProviderRuntimeMetadataResolver, IModelCatalogProvider
     {
         private readonly OpenAIClientProvider _historyProvider = new();
+        private ProviderContextBudget? _contextBudget;
         public List<string> Requests { get; } = [];
         public List<ChatGptResponsesCompactRequest> Compactions { get; } = [];
         public List<IReadOnlyList<ChatMessage>> CompactHistories { get; } = [];
@@ -414,7 +415,8 @@ public sealed partial class SessionServiceNativeCompactionTests : IDisposable
         public bool OverflowNextRequest { get; set; }
         public bool ReportHighUsageNextResponse { get; set; }
         public long? InputTokensNextResponse { get; set; }
-        public ProviderContextBudget? ContextBudget { get; set; }
+        public ProviderContextBudget? AdvertisedContextBudget { get; set; }
+        public int CatalogFetchCount { get; private set; }
         public bool ToolNextResponse { get; set; }
         public string? TextBeforeNextTool { get; set; }
         public bool ReasoningNextResponse { get; set; }
@@ -426,7 +428,14 @@ public sealed partial class SessionServiceNativeCompactionTests : IDisposable
         public object? GetService(Type type, object? key = null) =>
             type == typeof(IProviderHistorySessionFactory) ? _historyProvider :
             type.IsInstanceOfType(this) ? this : null;
-        public ProviderRuntimeMetadata Resolve(EffectiveModelRuntime runtime) => new(ContextBudget: ContextBudget);
+        public Task<ModelCatalogResult> FetchModelsAsync(EffectiveModelRuntime runtime, CancellationToken cancellationToken)
+        {
+            CatalogFetchCount++;
+            _contextBudget = AdvertisedContextBudget;
+            return Task.FromResult(new ModelCatalogResult { Success = true });
+        }
+
+        public ProviderRuntimeMetadata Resolve(EffectiveModelRuntime runtime) => new(ContextBudget: _contextBudget);
         public IProviderNativeCompactor CreateCompactor(EffectiveModelRuntime runtime, IChatClient? rawRepresentationClient = null) =>
             this;
 

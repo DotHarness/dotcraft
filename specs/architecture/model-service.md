@@ -18,6 +18,8 @@ messages or tool calls into another inference format. Responses, Chat Completion
 native compaction, images, and catalogs use the same transport boundary. Runtime startup does not
 require a reachable model service. The provider catalog carries the [ChatGPT OAuth model
 metadata](openai-subscription-auth.md) for Responses Lite selection and the worker's context budget.
+It includes metadata for explicitly selectable models that are hidden from the picker. Picker
+visibility applies to model listing, not runtime lookup by model ID.
 
 The caller authenticates separately from the upstream provider. Each caller has a stable identity
 and an allowed provider set. The service selects the upstream address from its configuration and

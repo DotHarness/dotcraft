@@ -63,18 +63,24 @@ internal static class ChatGptCodexModelCatalog
             : null);
     }
 
-    private static CodexModelInfo? ResolveModel(EffectiveModelRuntime runtime, string? accountId)
+    internal static IEnumerable<string> ResolveRuntimeModelIds(EffectiveModelRuntime runtime, string? accountId) =>
+        ResolveModels(runtime, accountId).Select(model => model.Slug.Trim());
+
+    private static CodexModelInfo? ResolveModel(EffectiveModelRuntime runtime, string? accountId) =>
+        FindModel(ResolveModels(runtime, accountId), runtime.Model);
+
+    private static IReadOnlyList<CodexModelInfo> ResolveModels(EffectiveModelRuntime runtime, string? accountId)
     {
         ArgumentNullException.ThrowIfNull(runtime);
 
         var cacheKey = BuildCacheKey(runtime.EndPoint, accountId, ClientVersion);
         if (AccountModels.TryGetValue(cacheKey, out var accountModels))
-            return FindModel(accountModels, runtime.Model);
+            return accountModels;
 
         var cache = ModelCatalogCache.Load(ResolveCachePath(runtime));
         return cache.TryGet(cacheKey, CacheTtl, requireFresh: false, out var cachedModels)
-            ? FindModel(cachedModels, runtime.Model)
-            : FindModel(BuiltInModels.Value, runtime.Model);
+            ? cachedModels
+            : BuiltInModels.Value;
     }
 
     public static async Task<OpenAIModelCatalogResult> FetchAsync(
@@ -104,7 +110,7 @@ internal static class ChatGptCodexModelCatalog
             if (response.StatusCode == 200)
             {
                 var models = ParseModelsResponse(response.Content);
-                if (HasVisibleModels(models))
+                if (models.Count > 0)
                 {
                     cache.Set(cacheKey, runtime.EndPoint, accountId, clientVersion, response.ETag, models);
                     await cache.SaveAsync(cachePath, cancellationToken).ConfigureAwait(false);
@@ -139,7 +145,7 @@ internal static class ChatGptCodexModelCatalog
     private static OpenAIModelCatalogResult Success(IReadOnlyList<CodexModelInfo> models) => new()
     {
         Success = true,
-        Models = ToPickerEntries(models)
+        Models = ToPickerEntries(models.Any(IsVisible) ? models : BuiltInModels.Value)
     };
 
     private static List<OpenAIModelCatalogEntry> ToPickerEntries(IReadOnlyList<CodexModelInfo> models)
@@ -169,9 +175,6 @@ internal static class ChatGptCodexModelCatalog
             modes.Add("ultrafast");
         return modes;
     }
-
-    private static bool HasVisibleModels(IReadOnlyList<CodexModelInfo> models) =>
-        models.Any(IsVisible);
 
     private static CodexModelInfo? FindModel(IReadOnlyList<CodexModelInfo> models, string model) =>
         models.FirstOrDefault(candidate =>

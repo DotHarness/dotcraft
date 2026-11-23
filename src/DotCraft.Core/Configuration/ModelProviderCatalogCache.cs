@@ -35,6 +35,7 @@ internal sealed class ModelProviderCatalogCache(TimeProvider? timeProvider = nul
             runtime.Protocol,
             runtime.EndPoint.TrimEnd('/'),
             runtime.AuthMethod,
+            runtime.AccountId ?? string.Empty,
             Fingerprint(runtime.ApiKey));
     }
 

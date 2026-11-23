@@ -301,7 +301,10 @@ provider's configured Endpoint and ApiKey are ignored. The model catalog comes f
 `GET https://chatgpt.com/backend-api/codex/models?client_version=<accepted-version>` with the same
 credentials, cached per account in `~/.craft/model-catalog-cache.json` for five minutes, with the
 bundled catalog as the offline fallback. `client_version` is a fixed compatible client version, not
-DotCraft's app version, because the backend uses it to decide model eligibility.
+DotCraft's app version, because the backend uses it to decide model eligibility. Local turn
+admission loads this catalog before using the model budget, even without a prior model listing.
+It reuses a fresh account snapshot and limits the wait for a refresh. A failed refresh keeps
+the last catalog for that account when available, otherwise it uses the bundled catalog.
 
 The subscription catalog's `max_context_window` is a ceiling on the client's long-context budget.
 The ordinary `context_window` is a default, not that ceiling. For the exact model ID, valid fields

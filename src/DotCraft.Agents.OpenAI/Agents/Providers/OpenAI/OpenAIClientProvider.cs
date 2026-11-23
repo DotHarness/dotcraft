@@ -36,6 +36,7 @@ public sealed partial class OpenAIClientProvider :
     ]);
     private static readonly HttpClient SharedChatGptHttpClient = new() { Timeout = Timeout.InfiniteTimeSpan };
     private const int WebSearchMaxOutputTokens = 10000;
+    private const int ModelCatalogTimeoutSeconds = 5;
 
     private readonly ConcurrentDictionary<OpenAIClientKey, OpenAIClient> _openAIClients = new();
     private readonly ConcurrentDictionary<OpenAIChatClientKey, ChatClient> _openAIChatClients = new();
@@ -407,7 +408,8 @@ public sealed partial class OpenAIClientProvider :
 
         var requestUri = BuildChatGptCodexModelsUri(runtime, clientVersion);
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeoutCts.CancelAfter(TimeSpan.FromSeconds(NormalizeNetworkTimeoutSeconds(runtime.NetworkTimeoutSeconds)));
+        timeoutCts.CancelAfter(TimeSpan.FromSeconds(
+            Math.Min(ModelCatalogTimeoutSeconds, NormalizeNetworkTimeoutSeconds(runtime.NetworkTimeoutSeconds))));
 
         var response = await SendChatGptCodexModelsRequestAsync(
             requestUri,

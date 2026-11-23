@@ -10,6 +10,9 @@ namespace DotCraft.Agents;
 
 public sealed partial class OpenAIClientProvider
 {
+    public IEnumerable<string> GetChatGptRuntimeModelIds(EffectiveModelRuntime runtime) =>
+        ChatGptCodexModelCatalog.ResolveRuntimeModelIds(runtime, ResolveAccountId(runtime));
+
     private async Task<HttpResponseMessage> SendChatGptCodexModelsRequestAsync(
         Uri requestUri,
         EffectiveModelRuntime runtime,

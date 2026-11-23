@@ -36,14 +36,21 @@ public sealed class ModelProviderCatalogCacheTests
         Assert.Equal(2, provider.FetchCount);
     }
 
-    [Fact]
-    public async Task FetchAsync_RefetchesWhenCredentialsChange()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FetchAsync_RefetchesWhenCredentialsChange(bool oauth)
     {
-        var provider = new CountingCatalogProvider();
+        var provider = new CountingCatalogProvider { AccountId = "account-a" };
         var registry = new ModelProviderRegistry([provider]);
+        var config = CreateConfig(apiKey: "key-c", oauth: oauth);
 
-        await ModelProviderCatalog.FetchAsync(config: CreateConfig(apiKey: "key-c"), registry, "test-provider");
-        await ModelProviderCatalog.FetchAsync(config: CreateConfig(apiKey: "key-c-rotated"), registry, "test-provider");
+        await ModelProviderCatalog.FetchAsync(config, registry, "test-provider");
+        if (oauth)
+            provider.AccountId = "account-b";
+        else
+            config.Providers["test-provider"].ApiKey = "key-c-rotated";
+        await ModelProviderCatalog.FetchAsync(config, registry, "test-provider");
 
         Assert.Equal(2, provider.FetchCount);
     }
@@ -142,13 +149,14 @@ public sealed class ModelProviderCatalogCacheTests
         ErrorMessage = "Endpoint does not support model listing."
     };
 
-    private static AppConfig CreateConfig(string apiKey) => new()
+    private static AppConfig CreateConfig(string apiKey, bool oauth = false) => new()
     {
         Providers = new Dictionary<string, AppConfig.ModelProviderConfig>(StringComparer.OrdinalIgnoreCase)
         {
             ["test-provider"] = new()
             {
-                Protocol = ModelProviderProtocols.Anthropic,
+                Protocol = oauth ? ModelProviderProtocols.OpenAIResponses : ModelProviderProtocols.Anthropic,
+                AuthMethod = oauth ? ModelProviderAuthMethods.ChatGptOAuth : ModelProviderAuthMethods.ApiKey,
                 ApiKey = apiKey,
                 EndPoint = "https://models.test"
             }
@@ -164,11 +172,14 @@ public sealed class ModelProviderCatalogCacheTests
         public void Advance(TimeSpan delta) => _now += delta;
     }
 
-    private sealed class CountingCatalogProvider : IModelProvider, IModelCatalogProvider
+    private sealed class CountingCatalogProvider : IModelProvider, IModelCatalogProvider, IProviderRuntimeIdentityResolver
     {
         public int FetchCount { get; private set; }
+        public string? AccountId { get; set; }
 
-        public IReadOnlyCollection<string> Protocols => [ModelProviderProtocols.Anthropic];
+        public string? ResolveAccountId(EffectiveModelRuntime runtime) => AccountId;
+
+        public IReadOnlyCollection<string> Protocols => [ModelProviderProtocols.Anthropic, ModelProviderProtocols.OpenAIResponses];
 
         public IChatClient CreateChatClient(EffectiveModelRuntime runtime) =>
             throw new NotSupportedException();

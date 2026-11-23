@@ -1,3 +1,5 @@
+using DotCraft.Configuration;
+
 namespace DotCraft.Sessions;
 
 public sealed partial class SessionService
@@ -11,6 +13,20 @@ public sealed partial class SessionService
     private async Task<TurnExecutionResources> CaptureTurnExecutionResourcesAsync(ThreadRuntime runtime, CancellationToken ct)
     {
         await RefreshRuntimeResourcesAsync(ct).ConfigureAwait(false);
+        var context = agentFactory.RuntimeContext;
+        var config = _appConfigMonitor?.Current ?? context.Config;
+        var providerId = runtime.Thread.Configuration?.ProviderId;
+        providerId = string.IsNullOrWhiteSpace(providerId) ? config.ProviderId : providerId;
+        if (config.ModelService is null
+            && providerId is not null
+            && config.Providers.TryGetValue(providerId.Trim(), out var provider)
+            && string.IsNullOrWhiteSpace(provider.BackendId)
+            && ModelProviderAuthMethods.IsChatGptOAuth(provider.AuthMethod))
+        {
+            await ModelProviderCatalog.FetchAsync(config, context.ChatClientRegistry.RuntimeResolver, providerId,
+                cancellationToken: ct).ConfigureAwait(false);
+        }
+
         if (!_hasExplicitDefaultAgent || _forcePerThreadAgents || runtime.ToolSnapshotDirty)
             await EnsurePerThreadAgentIfMissingAsync(runtime.Thread.Id, runtime.Thread, ct).ConfigureAwait(false);
         TurnExecutionResources resources;

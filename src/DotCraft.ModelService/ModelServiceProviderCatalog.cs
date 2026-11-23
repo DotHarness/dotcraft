@@ -52,7 +52,10 @@ public static class ModelServiceProviderCatalog
         IModelProvider provider = runtime.Protocol == ModelProviderProtocols.Anthropic
             ? new AnthropicClientProvider() : new OpenAIClientProvider(source.Authentication);
         var catalog = await ((IModelCatalogProvider)provider).FetchModelsAsync(runtime, cancellationToken).ConfigureAwait(false);
-        var description = Describe(source, catalog.Models.Select(model => model.Id));
+        var modelIds = catalog.Models.Select(model => model.Id);
+        if (runtime.IsChatGptOAuth && provider is OpenAIClientProvider openAI)
+            modelIds = modelIds.Union(openAI.GetChatGptRuntimeModelIds(runtime), StringComparer.OrdinalIgnoreCase);
+        var description = Describe(source, modelIds);
         if (source.Authentication is { } authentication)
         {
             var status = authentication.GetStatus();
