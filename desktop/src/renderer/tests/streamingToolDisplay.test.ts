@@ -15,7 +15,7 @@ describe('getStreamingToolDisplay', () => {
     expect(display.parsedPreview?.content).toBe('let x')
 
     const exec = getStreamingToolDisplay(tool('Exec'), '{"command":"npm run build', 'en')
-    expect(exec.label).toBe('Running: npm run build')
+    expect(exec.label).toBe('Running npm run build')
     expect(exec.parsedPreview?.command).toBe('npm run build')
 
     const plan = getStreamingToolDisplay(tool('CreatePlan'), '{"plan":"# Ship feature X\\n\\n## Summary\\n\\nNot yet', 'en')

@@ -978,7 +978,8 @@ arrive, not by a generic spinner or a "Loading…" label. The shared skeleton is
   shimmering label, growing diff text, a streaming caret), do not add a spinner or
   an elapsed-time counter beside it. The running tool row keeps only its shimmering
   label and, for file edits, its diff stats; elapsed time belongs to the turn
-  activity line.
+  activity line. Its label ends without an ellipsis ("Reading notes.md", "Running
+  npm test"), on Desktop and mobile alike.
 - A shimmering label dims to `--shimmer-base` and, every four seconds, carries one
   highlight that reaches `--shimmer-peak` only at its centre. The band is half the
   label's width up to 80px and crosses at a steady 450px per second, taking at least
