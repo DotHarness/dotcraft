@@ -1,6 +1,6 @@
 import { useDetailPanelStore } from '../../stores/detailPanelStore'
-import { PanelLeft } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
+import { SidebarIcon } from '../ui/AppIcons'
 import { IconButton } from '../ui/IconButton'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
 
@@ -17,7 +17,7 @@ export function DetailPanelToggleButton(): JSX.Element | null {
       shortcut={ACTION_SHORTCUTS.toggleDetailPanel}
       tooltipPlacement="bottom"
       onClick={toggleDetailPanel}
-      icon={<PanelLeft size={16} aria-hidden />}
+      icon={<SidebarIcon side="right" collapsed />}
     />
   )
 }

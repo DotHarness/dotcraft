@@ -1,7 +1,7 @@
 import { useState, type CSSProperties } from 'react'
-import { PanelLeft } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useUIStore } from '../../stores/uiStore'
+import { SidebarIcon } from '../ui/AppIcons'
 import { DotCraftLogo } from '../ui/DotCraftLogo'
 import { IconButton } from '../ui/IconButton'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
@@ -18,7 +18,7 @@ export function SidebarToggleButton({ showBrand = false, style }: {
   const label = collapsed ? t('sidebar.expandAria') : t('sidebar.collapseAria')
   const icon = showBrand && collapsed && !hovered
     ? <DotCraftLogo size={18} />
-    : <PanelLeft size={16} aria-hidden="true" />
+    : <SidebarIcon collapsed={collapsed} />
 
   return (
     <IconButton

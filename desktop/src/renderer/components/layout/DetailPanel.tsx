@@ -7,7 +7,7 @@ import { useConversationStore } from '../../stores/conversationStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { latestTurnDiff, turnPatchTotals } from '../../stores/turnDiffs'
-import { FilePlus2, FolderOpen, ListChecks, Plus, X, Globe, PanelRight, MousePointer2, Bot, MessagesSquare, Workflow, CalendarClock, Maximize2, Minimize2, Link } from 'lucide-react'
+import { FilePlus2, FolderOpen, ListChecks, Plus, X, Globe, MousePointer2, Bot, MessagesSquare, Workflow, CalendarClock, Maximize2, Minimize2, Link } from 'lucide-react'
 import { TerminalGlyph } from '../ui/TerminalGlyph'
 import { ChangesTab } from '../detail/ChangesTab'
 import { PlanTab } from '../detail/PlanTab'
@@ -18,6 +18,7 @@ import { isSubAgentChildWorking, useSubAgentStore } from '../../stores/subAgentS
 import { useSubAgentTaskActivity } from '../../stores/subAgentTaskActivity'
 import { AddTabPopupWindow } from '../detail/AddTabPopupWindow'
 import { DetailPanelLauncher } from '../detail/DetailPanelLauncher'
+import { SidebarIcon } from '../ui/AppIcons'
 import { FileTypeIcon } from '../ui/FileTypeIcon'
 import { SideChatTabIcon } from '../sideChat/SideChatTabIcon'
 import { useCanOpenSideChat } from '../../utils/sideChat'
@@ -358,7 +359,7 @@ export function DetailPanel({
             tooltipPlacement="bottom"
             tooltipWrapperStyle={{ alignSelf: 'center' }}
             onClick={toggleDetailPanel}
-            icon={<PanelRight size={16} aria-hidden />}
+            icon={<SidebarIcon side="right" />}
           />
         </div>
       </div>

@@ -39,6 +39,29 @@ export function GitHubIcon({ size = 16 }: { size?: number }): JSX.Element {
   )
 }
 
+export function SidebarIcon({ collapsed = false, side = 'left' }: {
+  collapsed?: boolean
+  side?: 'left' | 'right'
+}): JSX.Element {
+  return (
+    <svg
+      width={16}
+      height={16}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.1"
+      strokeLinecap="round"
+      style={side === 'right' ? { transform: 'scaleX(-1)' } : undefined}
+      aria-hidden="true"
+      focusable="false"
+    >
+      <rect x="2" y="2.83" width="12" height="10.34" rx="2.5" />
+      {collapsed ? <path d="M4.67 5.33v5.34" /> : <path d="M6 2.83v10.34" />}
+    </svg>
+  )
+}
+
 export function ExtensionsIcon({ size = 16 }: { size?: number }): JSX.Element {
   return <Puzzle size={size} strokeWidth={1.8} aria-hidden="true" />
 }
