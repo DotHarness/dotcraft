@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 export type SpeedTrend = 'up' | 'down'
 
 const SPEED_TREND_THRESHOLD = 0.08
-const SPEED_TREND_VISIBLE_MS = 1800
+const SPEED_TREND_VISIBLE_MS = 3000
 const COUNT_MS = 520
 
 function speedTrend(previous: number | null, next: number | null): SpeedTrend | null {
@@ -17,16 +17,16 @@ function prefersReducedMotion(): boolean {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches
 }
 
-export function useSpeedTrend(value: number | null, waitingForSample: boolean): { trend: SpeedTrend | null; key: number } {
+export function useSpeedTrend(value: number | null): { trend: SpeedTrend | null; key: number } {
   const previous = useRef<number | null>(null)
   const [cue, setCue] = useState<{ trend: SpeedTrend | null; key: number }>({ trend: null, key: 0 })
 
   useEffect(() => {
-    if (waitingForSample) previous.current = null
-  }, [waitingForSample])
-
-  useEffect(() => {
-    if (value === null) return
+    if (value === null) {
+      previous.current = null
+      setCue((current) => ({ ...current, trend: null }))
+      return
+    }
     const trend = speedTrend(previous.current, value)
     previous.current = value
     setCue((current) => ({ trend, key: current.key + 1 }))

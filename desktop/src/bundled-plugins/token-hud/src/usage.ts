@@ -121,7 +121,7 @@ export function startUsageFeed(host: DesktopPluginHost): () => void {
     activeTurnId = null
     liveCacheUsageSeen = false
     meter.startTurn()
-    update({ threadUsage: null, waitingForSample: session.busy })
+    update({ threadUsage: null, latestRequestTokensPerSecond: null, waitingForSample: session.busy })
     showCacheHitRate(null)
     void refreshThreadUsage()
   })

@@ -49,7 +49,7 @@
   margin-top: -4px;
   color: var(--text-primary);
   opacity: 0;
-  animation: token-hud-trend 1.8s ease-out forwards;
+  animation: token-hud-trend 3s ease-out forwards;
 }
 
 .token-hud-trend[data-trend='up'] {
@@ -65,8 +65,8 @@
     opacity: 0;
     transform: translateY(var(--token-hud-trend-from));
   }
-  14%,
-  70% {
+  8%,
+  80% {
     opacity: 0.85;
     transform: translateY(0);
   }

@@ -77,7 +77,7 @@ export function TokenHud({ host }: DesktopPluginSurfaceProps<'composer.status.tr
   const strings = stringsFor(host.environment.locale)
   const [popover, setPopover] = useState<{ right: number; bottom: number } | null>(null)
   const countedSpeed = useCountedValue(usage.tokensPerSecond)
-  const speedCue = useSpeedTrend(usage.latestRequestTokensPerSecond, usage.waitingForSample)
+  const speedCue = useSpeedTrend(usage.latestRequestTokensPerSecond)
   const showPopover = (event: MouseEvent<HTMLDivElement>): void => {
     const rect = event.currentTarget.getBoundingClientRect()
     setPopover({ right: window.innerWidth - rect.right, bottom: window.innerHeight - rect.top + 8 })
