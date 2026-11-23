@@ -75,7 +75,7 @@ export function ProviderUsageContent({ title, usage, markKind, showFetched = tru
           )}
         </div>
       </div>
-      <div style={dividerStyle()} />
+      <div className={styles.divider} />
 
       {usage.labels?.scope === 'apiKey' && <OpenRouterUsageRows usage={usage} />}
 
@@ -250,10 +250,6 @@ function headerTextStyle(): CSSProperties {
 
 function subtitleStyle(): CSSProperties {
   return { color: 'var(--text-dimmed, var(--text-secondary))', fontSize: 11 }
-}
-
-function dividerStyle(): CSSProperties {
-  return { height: 1, background: 'var(--border-default)' }
 }
 
 function titleStyle(): CSSProperties {

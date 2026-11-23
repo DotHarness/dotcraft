@@ -144,10 +144,9 @@
 }
 
 .separator {
-  height: 1px;
   flex-shrink: 0;
   margin: 2px -14px;
-  background: var(--border-default);
+  border-top: 1px solid var(--border-subtle);
 }
 
 .columns {
