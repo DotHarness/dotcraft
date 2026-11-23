@@ -3240,8 +3240,10 @@ export interface ProviderAuthenticationMethodInfo {
 export interface ProviderBackendInfo {
   authenticationMethods: ProviderAuthenticationMethodInfo[];
   defaultProtocol: string;
+  description?: string | null;
   displayName: string;
   id: string;
+  pluginId?: string | null;
   protocols: string[];
   [key: string]: unknown;
 }
@@ -3280,6 +3282,7 @@ export interface ProviderInfo {
   managedBy?: string;
   maxOutputTokens?: number | null;
   networkTimeoutSeconds?: number | null;
+  pluginId?: string;
   protocol?: string;
   streamIdleTimeoutMs?: number | null;
   streamMaxRetries?: number | null;

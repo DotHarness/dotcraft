@@ -53,7 +53,7 @@ export function ImageGenerationSettingsGroup({
       return {
         value: provider.id,
         label: provider.displayName,
-        icon: <ProviderPresetMark mark={providerPresetMark(provider)} size={15} />,
+        icon: <ProviderPresetMark mark={providerPresetMark(provider)} pluginId={provider.pluginId} size={15} />,
         disabled: !eligible,
         description: eligible ? undefined : cantCreate
       }

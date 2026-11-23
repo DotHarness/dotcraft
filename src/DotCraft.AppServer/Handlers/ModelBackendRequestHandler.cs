@@ -22,11 +22,15 @@ internal sealed class ModelBackendRequestHandler(
         Map(table, Contract.AppServerRpc.ProviderRoutingList, ListRoutingProvidersAsync);
         Map(table, Contract.AppServerRpc.ProviderBackendList, (_, _) => Task.FromResult<object?>(new Contract.ProviderBackendListResult
         {
-            Backends = Resolver.GetBackends().Select(descriptor => new Contract.ProviderBackendInfo
+            Backends = Resolver.GetBackendRegistrations().Select(registration => new Contract.ProviderBackendInfo
             {
-                Id = descriptor.Id, DisplayName = descriptor.DisplayName, DefaultProtocol = descriptor.DefaultProtocol,
-                Protocols = descriptor.Protocols,
-                AuthenticationMethods = descriptor.AuthenticationMethods.Select(method => new Contract.ProviderAuthenticationMethodInfo
+                Id = registration.Descriptor.Id,
+                DisplayName = registration.Descriptor.DisplayName,
+                Description = string.IsNullOrWhiteSpace(registration.Descriptor.Description) ? null : registration.Descriptor.Description.Trim(),
+                PluginId = registration.PluginId,
+                DefaultProtocol = registration.Descriptor.DefaultProtocol,
+                Protocols = registration.Descriptor.Protocols,
+                AuthenticationMethods = registration.Descriptor.AuthenticationMethods.Select(method => new Contract.ProviderAuthenticationMethodInfo
                 { Id = method.Id, DisplayName = method.DisplayName, Kind = method.Kind }).ToArray()
             }).ToArray()
         }));

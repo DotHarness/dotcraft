@@ -7,6 +7,7 @@ export interface ProviderSummary {
   protocol: string
   authMethod: 'apiKey' | 'chatgptOAuth'
   backendId?: string
+  pluginId?: string
   endPoint?: string
   webSearchBackend?: string
 }
@@ -227,6 +228,7 @@ export const useProvidersStore = create<ProvidersStore>((set, get) => {
                 protocol: typeof raw.protocol === 'string' ? raw.protocol : '',
                 authMethod: authMethodRaw === 'chatgptoauth' ? 'chatgptOAuth' : 'apiKey',
                 backendId: typeof raw.backendId === 'string' && raw.backendId ? raw.backendId : undefined,
+                pluginId: typeof raw.pluginId === 'string' && raw.pluginId ? raw.pluginId : undefined,
                 endPoint: typeof raw.endPoint === 'string' ? raw.endPoint : undefined,
                 webSearchBackend: typeof raw.webSearchBackend === 'string' ? raw.webSearchBackend : undefined
               }

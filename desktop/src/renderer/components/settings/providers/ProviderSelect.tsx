@@ -35,7 +35,7 @@ export function ProviderSelect({
     return {
       value: provider.id,
       label: provider.displayName,
-      icon: <ProviderPresetMark mark={providerPresetMark(provider)} size={15} />,
+      icon: <ProviderPresetMark mark={providerPresetMark(provider)} pluginId={provider.pluginId} size={15} />,
       disabled: !ready,
       description: ready ? undefined : t('settings.llm.subAgentModels.signedOut')
     }
@@ -55,7 +55,7 @@ export function ProviderSelect({
       adaptiveWidth={false}
       menuMinWidth={240}
       placeholder={t('settings.llm.chooseProvider')}
-      triggerIcon={selected ? <ProviderPresetMark mark={providerPresetMark(selected)} size={15} /> : undefined}
+      triggerIcon={selected ? <ProviderPresetMark mark={providerPresetMark(selected)} pluginId={selected.pluginId} size={15} /> : undefined}
       onValueChange={onValueChange}
     />
   )

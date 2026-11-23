@@ -31,12 +31,24 @@ export interface ProviderPreset {
   label: string
   hint: string
   mark: ProviderMarkKind | null
+  iconUrl?: string | null
   backendId: string | null
   protocol: string
   endPoint: string
   defaultId: string
   defaultDisplayName: string
   auth: ProviderPresetAuth[]
+}
+
+export interface ProviderPluginPresentation {
+  id: string
+  installed?: boolean
+  description?: string | null
+  interface?: {
+    shortDescription?: string | null
+    composerIconDataUrl?: string | null
+    logoDataUrl?: string | null
+  } | null
 }
 
 export interface ProviderPresetConnection {
@@ -67,7 +79,11 @@ export const BUILT_IN_BACKENDS: readonly ProviderBackendInfo[] = [{
   ]
 }]
 
-export function providerPresets(backends: readonly ProviderBackendInfo[], t: Translate): ProviderPreset[] {
+export function providerPresets(
+  backends: readonly ProviderBackendInfo[],
+  t: Translate,
+  plugins: readonly ProviderPluginPresentation[] = []
+): ProviderPreset[] {
   const apiKey = (): ProviderPresetAuth[] => [{ method: API_KEY_METHOD, label: t('providerPreset.auth.apiKey'), mode: 'apiKey' }]
   const ordered = [...backends].sort((a, b) => Number(b.id === OPENROUTER_BACKEND_ID) - Number(a.id === OPENROUTER_BACKEND_ID))
   return [
@@ -119,7 +135,7 @@ export function providerPresets(backends: readonly ProviderBackendInfo[], t: Tra
       defaultDisplayName: 'DeepSeek',
       auth: apiKey()
     },
-    ...ordered.map((backend) => backendPreset(backend, t)),
+    ...ordered.map((backend) => backendPreset(backend, t, plugins)),
     {
       id: 'custom',
       label: t('providerPreset.custom'),
@@ -135,14 +151,27 @@ export function providerPresets(backends: readonly ProviderBackendInfo[], t: Tra
   ]
 }
 
-function backendPreset(backend: ProviderBackendInfo, t: Translate): ProviderPreset {
+function backendPreset(
+  backend: ProviderBackendInfo,
+  t: Translate,
+  plugins: readonly ProviderPluginPresentation[]
+): ProviderPreset {
   const openRouter = backend.id === OPENROUTER_BACKEND_ID
+  const plugin = !openRouter && backend.pluginId ? findPresentationPlugin(plugins, backend.pluginId) : undefined
+  const description = backend.description?.trim()
+    || plugin?.interface?.shortDescription?.trim()
+    || plugin?.description?.trim()
+    || ''
+  const iconUrl = !openRouter
+    ? plugin?.interface?.composerIconDataUrl || plugin?.interface?.logoDataUrl || null
+    : null
   const methods = backend.authenticationMethods.length > 0 ? backend.authenticationMethods : [null]
   return {
     id: `backend:${backend.id}`,
     label: backend.displayName,
-    hint: t(openRouter ? 'providerPreset.openrouterHint' : 'providerPreset.backendHint'),
+    hint: openRouter ? t('providerPreset.openrouterHint') : description || t('providerPreset.backendHint'),
     mark: openRouter ? 'openrouter' : null,
+    iconUrl,
     backendId: backend.id,
     protocol: backend.defaultProtocol,
     endPoint: openRouter ? OPENROUTER_ENDPOINT : '',
@@ -159,6 +188,14 @@ function backendPreset(backend: ProviderBackendInfo, t: Translate): ProviderPres
       }
     })
   }
+}
+
+function findPresentationPlugin(
+  plugins: readonly ProviderPluginPresentation[],
+  pluginId: string
+): ProviderPluginPresentation | undefined {
+  return plugins.find((plugin) => plugin.installed && plugin.id === pluginId)
+    ?? plugins.find((plugin) => plugin.id === pluginId)
 }
 
 /** Only OpenRouter stores a key in provider config; other backends collect credentials through sign-in prompts. */

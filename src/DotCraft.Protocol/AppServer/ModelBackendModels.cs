@@ -12,6 +12,8 @@ public sealed class ProviderBackendInfo
 {
     [JsonPropertyName("id")] public string Id { get; init; } = string.Empty;
     [JsonPropertyName("displayName")] public string DisplayName { get; init; } = string.Empty;
+    [JsonPropertyName("description")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? Description { get; init; }
+    [JsonPropertyName("pluginId")] [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? PluginId { get; init; }
     [JsonPropertyName("defaultProtocol")] public string DefaultProtocol { get; init; } = string.Empty;
     [JsonPropertyName("protocols")] public IReadOnlyList<string> Protocols { get; init; } = [];
     [JsonPropertyName("authenticationMethods")] public IReadOnlyList<ProviderAuthenticationMethodInfo> AuthenticationMethods { get; init; } = [];
@@ -157,4 +159,8 @@ public sealed partial class ProviderInfo
     [JsonPropertyName("backendId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> BackendId { get; init; }
+
+    [JsonPropertyName("pluginId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> PluginId { get; init; }
 }

@@ -31,6 +31,7 @@ internal sealed class PluginModelBackendSourceAdapter : IModelBackendSource
                 throw new InvalidOperationException("The backend descriptor is invalid.");
             Descriptor = descriptor with
             {
+                Description = string.IsNullOrWhiteSpace(descriptor.Description) ? null : descriptor.Description.Trim(),
                 Protocols = descriptor.Protocols.ToArray(),
                 AuthenticationMethods = descriptor.AuthenticationMethods.ToArray()
             };

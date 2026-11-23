@@ -143,7 +143,7 @@ function ProviderQuotaUsageBadge({ provider }: ProviderUsageBadgeProps): JSX.Ele
       >
         {markKind
           ? <ProviderMark kind={markKind} size={14} style={iconStyle()} />
-          : <PluginUsageIcon pluginId={usage.pluginId} size={14} style={iconStyle()} />}
+          : <PluginUsageIcon pluginId={usage.pluginId ?? provider.pluginId ?? null} size={14} style={iconStyle()} />}
         {balanceMode ? (
           <span style={balanceTextStyle(insufficientBalance)} aria-hidden>{balanceText}</span>
         ) : (
@@ -155,7 +155,7 @@ function ProviderQuotaUsageBadge({ provider }: ProviderUsageBadgeProps): JSX.Ele
       {hover.visible && !open && reading && <UsageHoverCard entries={[{ provider, usage, reading }]} />}
       {open && (
         <div style={popoverWrapperStyle()}>
-          <ProviderUsagePopover title={title} usage={usage} />
+          <ProviderUsagePopover title={title} usage={usage} pluginId={usage.pluginId ?? provider.pluginId ?? null} />
         </div>
       )}
     </div>

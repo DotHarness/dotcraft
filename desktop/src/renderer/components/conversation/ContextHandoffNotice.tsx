@@ -12,6 +12,7 @@ function useHandoffEndpoint({ providerId, model }: HandoffIdentity): ContextHand
   return {
     providerName: provider?.displayName || providerId,
     mark: provider ? providerPresetMark(provider) : null,
+    pluginId: provider?.pluginId ?? null,
     model: modelName
   }
 }

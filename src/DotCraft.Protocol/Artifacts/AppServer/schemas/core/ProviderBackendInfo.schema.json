@@ -13,11 +13,31 @@
     "defaultProtocol": {
       "type": "string"
     },
+    "description": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "displayName": {
       "type": "string"
     },
     "id": {
       "type": "string"
+    },
+    "pluginId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "protocols": {
       "type": "array",

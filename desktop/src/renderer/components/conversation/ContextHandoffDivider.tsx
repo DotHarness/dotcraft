@@ -9,6 +9,7 @@ export interface ContextHandoffEndpoint {
   providerName: string
   model: string
   mark: ProviderMarkKind | null
+  pluginId?: string | null
 }
 
 export function ContextHandoffDivider({ from, to }: {
@@ -44,7 +45,7 @@ function HandoffEndpoint({ endpoint }: { endpoint: ContextHandoffEndpoint }): JS
   return (
     <ActionTooltip label={endpoint.providerName} openDelayMs={300} multiline wrapperClassName={styles.anchor}>
       <span className={styles.endpoint} role="group" aria-label={endpoint.model} tabIndex={0}>
-        <span className={styles.mark}><ProviderPresetMark mark={endpoint.mark} size={13} /></span>
+        <span className={styles.mark}><ProviderPresetMark mark={endpoint.mark} pluginId={endpoint.pluginId} size={13} /></span>
         <span className={styles.model}>{endpoint.model}</span>
       </span>
     </ActionTooltip>

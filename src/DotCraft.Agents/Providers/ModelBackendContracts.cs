@@ -11,7 +11,10 @@ public sealed record ModelBackendDescriptor(
     string DefaultProtocol,
     IReadOnlyList<string> Protocols,
     IReadOnlyList<ProviderAuthenticationMethod> AuthenticationMethods,
-    ModelProviderCapabilities Capabilities);
+    ModelProviderCapabilities Capabilities)
+{
+    public string? Description { get; init; }
+}
 
 public interface IModelBackend
 {

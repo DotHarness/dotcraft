@@ -17,7 +17,7 @@ public static class ProviderContractMapper
             var authenticated = authentication is null
                 ? provider.RemoteAuthentication?.IsAuthenticated
                 : await authentication.TryGetAuthenticatedAsync(config, id, ct).ConfigureAwait(false);
-            infos.Add(BuildProviderInfo(id, provider, ResolveRuntime(config, id, resolver), authenticated));
+            infos.Add(BuildProviderInfo(id, provider, ResolveRuntime(config, id, resolver), authenticated, ResolvePluginId(provider, resolver)));
         }
         return infos;
     }
@@ -26,7 +26,7 @@ public static class ProviderContractMapper
     {
         return config.Providers
             .OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
-            .Select(pair => BuildProviderInfo(pair.Key, pair.Value, ResolveRuntime(config, pair.Key, resolver)))
+            .Select(pair => BuildProviderInfo(pair.Key, pair.Value, ResolveRuntime(config, pair.Key, resolver), pluginId: ResolvePluginId(pair.Value, resolver)))
             .ToList();
     }
 
@@ -34,7 +34,8 @@ public static class ProviderContractMapper
         string id,
         AppConfig.ModelProviderConfig provider,
         EffectiveModelRuntime? runtime = null,
-        bool? authenticated = null)
+        bool? authenticated = null,
+        string? pluginId = null)
     {
         var custom = !string.IsNullOrWhiteSpace(provider.BackendId);
         var protocol = custom ? runtime?.Protocol ?? provider.Protocol : ModelProviderProtocols.Normalize(provider.Protocol);
@@ -43,6 +44,7 @@ public static class ProviderContractMapper
         {
             Id = id,
             BackendId = custom ? provider.BackendId! : default(Protocol.Optional<string>),
+            PluginId = pluginId is null ? default(Protocol.Optional<string>) : pluginId,
             BackendSettings = custom ? System.Text.Json.JsonSerializer.SerializeToElement(provider.BackendSettings) : default(Protocol.Optional<System.Text.Json.JsonElement>),
             ManagedBy = provider.RemoteAuthentication is null ? default : "modelService",
             IsAuthenticated = authenticated is { } ready ? ready
@@ -64,6 +66,11 @@ public static class ProviderContractMapper
                 : ModelProviderCapabilities.ForProtocol(protocol))
         };
     }
+
+    private static string? ResolvePluginId(AppConfig.ModelProviderConfig provider, IModelRuntimeResolver? resolver) =>
+        resolver is ModelBackendResolver backends && !string.IsNullOrWhiteSpace(provider.BackendId)
+            ? backends.TryGetPluginId(provider.BackendId)
+            : null;
 
     private static EffectiveModelRuntime? ResolveRuntime(AppConfig config, string id, IModelRuntimeResolver? resolver)
     {
