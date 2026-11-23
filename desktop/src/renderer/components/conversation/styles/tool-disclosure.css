@@ -421,11 +421,20 @@
   flex-shrink: 0;
 }
 
-.dc-tool-glyph-slot > * {
+.dc-tool-glyph-outgoing,
+.dc-tool-glyph-incoming {
   grid-area: 1 / 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.dc-tool-glyph-slot[data-handoff] > * {
+.dc-tool-glyph-outgoing {
+  pointer-events: none;
+  animation: dc-tool-handoff-out var(--duration-base) ease-out both;
+}
+
+.dc-tool-glyph-incoming[data-handoff] {
   animation: dc-tool-handoff-in var(--duration-base) ease-out both;
 }
 

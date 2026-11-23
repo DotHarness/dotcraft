@@ -39,8 +39,10 @@ import { findSideChat } from '../../utils/sideChat'
 import { isSideChatMainMessage } from './SideChatMainMessageRow'
 import { resolveDesktopPluginToolRenderer, useDesktopPluginRegistry } from '../../plugins/desktopPluginRegistry'
 import { ToolDisclosure } from './ToolDisclosure'
+import { ToolIconHandoff } from './ToolIconHandoff'
 import { ToolRowPluginIcon } from './ToolRowPluginIcon'
 import { ToolLabelHandoff } from './ToolLabelHandoff'
+import { useToolPluginIconUrl } from '../../utils/mcpPluginIcon'
 import { useToolCallRevealTarget } from '../../stores/toolCallRevealStore'
 import { useTranscriptItemDiffs, useTranscriptTurnHasFileChanges } from './transcriptDiffs'
 import { isMidTurnTaskNotice } from '../../utils/visibleUserMessage'
@@ -95,6 +97,19 @@ interface ConversationRenderNode {
 }
 
 const LABEL_HOLD_MS = 1000
+const SETTLE_GRACE_MS = 400
+
+const iconComponentIds = new WeakMap<object, number>()
+let nextIconComponentId = 1
+
+function getIconComponentId(component: object): number {
+  let id = iconComponentIds.get(component)
+  if (id === undefined) {
+    id = nextIconComponentId++
+    iconComponentIds.set(component, id)
+  }
+  return id
+}
 
 /** Streaming messages and reasoning arrive as placeholder items, so live text keeps its place among committed items. */
 export const AgentResponseBlock = memo(function AgentResponseBlock({
@@ -664,30 +679,38 @@ function ToolActivityRow({
   const working = liveTool != null
   const iconItem = liveTool ?? getToolGroupIconItem(tools)
   const rowIcon = iconItem ? getToolRowIcon(iconItem) : undefined
-  const { label, icon, item: heldIconItem } = useHeldRowHeader({
+  const { label, icon, item: heldIconItem, working: heldWorking } = useHeldRowHeader({
     label: liveTool ? formatActiveToolLabel(liveTool, locale)
       : formatToolGroupLabel(tools, locale, itemDiffs),
     icon: rowIcon,
-    item: iconItem
+    item: iconItem,
+    working
   }, active)
 
-  const headerKey = `${heldIconItem?.id ?? ''}:${working ? 'live' : 'rest'}`
-  const firstHeaderKey = useRef(headerKey)
+  const headerKey = `${heldIconItem?.id ?? ''}:${heldWorking ? 'live' : 'rest'}`
+  const pluginIconUrl = useToolPluginIconUrl(heldIconItem, threadId)
+  const iconKey = !heldIconItem || !icon
+    ? 'none'
+    : pluginIconUrl
+      ? `plugin:${pluginIconUrl}`
+      : heldWorking && icon.motion
+        ? `motion:${icon.motion}`
+        : `static:${getIconComponentId(icon.icon)}:${icon.tone ?? ''}`
 
   return (
     <ToolDisclosure
       expanded={expanded}
       onToggle={() => setExpanded((v) => !v)}
       icon={icon}
-      live={working}
+      live={heldWorking}
       iconNode={heldIconItem && icon ? (
-        <span key={headerKey} className="dc-tool-glyph-slot" data-handoff={headerKey !== firstHeaderKey.current ? '' : undefined}>
-          <ToolRowPluginIcon item={heldIconItem} fallback={icon} threadId={threadId} live={working} />
-        </span>
+        <ToolIconHandoff iconKey={iconKey}>
+          <ToolRowPluginIcon item={heldIconItem} fallback={icon} threadId={threadId} live={heldWorking} />
+        </ToolIconHandoff>
       ) : undefined}
       title={(
-        <ToolLabelHandoff handoffKey={headerKey} label={label} active={working}>
-          <RunningShimmer active={working} className="dc-tool-row-running-label">{label}</RunningShimmer>
+        <ToolLabelHandoff handoffKey={headerKey} label={label} active={heldWorking}>
+          <RunningShimmer active={heldWorking} className="dc-tool-row-running-label">{label}</RunningShimmer>
         </ToolLabelHandoff>
       )}
     >
@@ -704,10 +727,16 @@ interface RowHeader {
   label: string
   icon?: ToolRowIcon
   item?: ConversationItem
+  working: boolean
 }
 
 function sameRowHeader(a: RowHeader, b: RowHeader): boolean {
-  return a.label === b.label && a.icon?.icon === b.icon?.icon && a.icon?.tone === b.icon?.tone && a.item?.id === b.item?.id
+  return a.label === b.label
+    && a.icon?.icon === b.icon?.icon
+    && a.icon?.tone === b.icon?.tone
+    && a.icon?.motion === b.icon?.motion
+    && a.item?.id === b.item?.id
+    && a.working === b.working
 }
 
 function useHeldRowHeader(header: RowHeader, hold: boolean): RowHeader {
@@ -722,14 +751,16 @@ function useHeldRowHeader(header: RowHeader, hold: boolean): RowHeader {
       shownAt.current = Date.now()
       setHeld(latest.current)
     }
-    const wait = shownAt.current + LABEL_HOLD_MS - Date.now()
+    const holdRemaining = shownAt.current + LABEL_HOLD_MS - Date.now()
+    const settleGrace = held.working && !latest.current.working ? SETTLE_GRACE_MS : 0
+    const wait = Math.max(holdRemaining, settleGrace)
     if (!hold || wait <= 0) {
       show()
       return
     }
     const timer = setTimeout(show, wait)
     return () => clearTimeout(timer)
-  }, [header.label, header.icon?.icon, header.icon?.tone, header.item?.id, held, hold])
+  }, [header.label, header.icon?.icon, header.icon?.tone, header.icon?.motion, header.item?.id, header.working, held, hold])
 
   return hold ? held : header
 }
