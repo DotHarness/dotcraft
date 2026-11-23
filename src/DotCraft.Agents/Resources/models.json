@@ -10,9 +10,6 @@
     "aion-3.0-mini": {
       "contextWindow": 131072
     },
-    "anthropic.claude-": {
-      "contextWindow": 200000
-    },
     "apertus-70b": {
       "contextWindow": 65536
     },
@@ -34,15 +31,6 @@
     "arrow-2-telos": {
       "contextWindow": 1050000
     },
-    "baichuan-m2-32b": {
-      "contextWindow": 131072
-    },
-    "baichuan4-air": {
-      "contextWindow": 32768
-    },
-    "baichuan4-turbo": {
-      "contextWindow": 128000
-    },
     "beam-1.0-501b-a23b": {
       "contextWindow": 1048576,
       "pricingProvider": "reflection",
@@ -51,12 +39,6 @@
         "outputPerMillion": 0,
         "cacheReadPerMillion": 0
       }
-    },
-    "chatgpt-4o": {
-      "contextWindow": 128000
-    },
-    "claude-": {
-      "contextWindow": 200000
     },
     "claude-3-5-haiku-20241022": {
       "contextWindow": 200000
@@ -292,11 +274,8 @@
     "cobuddy": {
       "contextWindow": 131072
     },
-    "codestral-": {
-      "contextWindow": 32000
-    },
     "codestral-2508": {
-      "contextWindow": 256000,
+      "contextWindow": 128000,
       "pricingProvider": "mistral",
       "pricing": {
         "inputPerMillion": 0.3,
@@ -408,7 +387,7 @@
       "contextWindow": 163840
     },
     "deepseek-flash": {
-      "contextWindow": 1000000,
+      "contextWindow": 1048576,
       "pricingProvider": "deepseek",
       "pricing": {
         "inputPerMillion": 0.15,
@@ -494,9 +473,6 @@
         "cacheReadPerMillion": 0.003
       }
     },
-    "devstral-": {
-      "contextWindow": 128000
-    },
     "devstral-2512": {
       "contextWindow": 262144,
       "pricingProvider": "mistral",
@@ -504,9 +480,6 @@
         "inputPerMillion": 0.4,
         "outputPerMillion": 2
       }
-    },
-    "devstral-latest": {
-      "contextWindow": 256000
     },
     "devstral-medium-2507": {
       "contextWindow": 128000
@@ -525,77 +498,17 @@
     "devstral-small-2507": {
       "contextWindow": 128000
     },
-    "devstral-small-latest": {
-      "contextWindow": 256000
-    },
     "diffusiongemma-26b-a4b-it": {
       "contextWindow": 262144
-    },
-    "doubao-1.5-pro-256k": {
-      "contextWindow": 256000
-    },
-    "doubao-1.5-pro-32k": {
-      "contextWindow": 32768
-    },
-    "doubao-1.5-thinking": {
-      "contextWindow": 128000
-    },
-    "doubao-seed-1-6": {
-      "contextWindow": 256000
-    },
-    "doubao-seed-1-8": {
-      "contextWindow": 224000
-    },
-    "doubao-seed-2-0": {
-      "contextWindow": 256000
-    },
-    "doubao-seed-2-0-code": {
-      "contextWindow": 256000
-    },
-    "doubao-seed-2-0-lite": {
-      "contextWindow": 256000
-    },
-    "doubao-seed-2-0-mini": {
-      "contextWindow": 256000
-    },
-    "doubao-seed-2-0-pro": {
-      "contextWindow": 256000
     },
     "ember-1": {
       "contextWindow": 1048576
     },
-    "ernie-4.5-21b": {
-      "contextWindow": 120000
-    },
     "ernie-4.5-21b-a3b": {
-      "contextWindow": 131072
-    },
-    "ernie-4.5-300b": {
       "contextWindow": 131072
     },
     "ernie-4.5-300b-a47b": {
       "contextWindow": 131072
-    },
-    "ernie-4.5-turbo-128k": {
-      "contextWindow": 128000
-    },
-    "ernie-4.5-vl-28b": {
-      "contextWindow": 32768
-    },
-    "ernie-4.5-vl-424b": {
-      "contextWindow": 123000
-    },
-    "ernie-5.0-thinking": {
-      "contextWindow": 128000
-    },
-    "ernie-x1-32k": {
-      "contextWindow": 32768
-    },
-    "ernie-x1-turbo-32k": {
-      "contextWindow": 32768
-    },
-    "ernie-x1.1": {
-      "contextWindow": 64000
     },
     "flint": {
       "contextWindow": 262144
@@ -607,6 +520,15 @@
       "contextWindow": 1000000
     },
     "fugu-ultra": {
+      "contextWindow": 1000000,
+      "pricingProvider": "sakana",
+      "pricing": {
+        "inputPerMillion": 5,
+        "outputPerMillion": 30,
+        "cacheReadPerMillion": 0.5
+      }
+    },
+    "fugu-ultra-20260615": {
       "contextWindow": 1000000,
       "pricingProvider": "sakana",
       "pricing": {
@@ -639,15 +561,6 @@
         "inputPerMillion": 0.3,
         "outputPerMillion": 2.5,
         "cacheReadPerMillion": 0.03
-      }
-    },
-    "gemini-2.5-flash-image": {
-      "contextWindow": 65536,
-      "pricingProvider": "google",
-      "pricing": {
-        "inputPerMillion": 0.3,
-        "outputPerMillion": 2.5,
-        "cacheReadPerMillion": 0.075
       }
     },
     "gemini-2.5-flash-lite": {
@@ -816,6 +729,15 @@
         "cacheReadPerMillion": 0.075
       }
     },
+    "gemini-4-neon": {
+      "contextWindow": 1048576,
+      "pricingProvider": "google",
+      "pricing": {
+        "inputPerMillion": 3,
+        "outputPerMillion": 15,
+        "cacheReadPerMillion": 0.15
+      }
+    },
     "gemini-flash-latest": {
       "contextWindow": 1048576,
       "pricingProvider": "google",
@@ -832,6 +754,15 @@
         "inputPerMillion": 0.3,
         "outputPerMillion": 2.5,
         "cacheReadPerMillion": 0.03
+      }
+    },
+    "gemini-pro-latest": {
+      "contextWindow": 1048576,
+      "pricingProvider": "google",
+      "pricing": {
+        "inputPerMillion": 2,
+        "outputPerMillion": 12,
+        "cacheReadPerMillion": 0.2
       }
     },
     "gemini-robotics-er-1.6-preview": {
@@ -870,9 +801,6 @@
     },
     "gemma-4-e4b-it": {
       "contextWindow": 131072
-    },
-    "glm-4-32b-0414-128k": {
-      "contextWindow": 128000
     },
     "glm-4.5": {
       "contextWindow": 131072,
@@ -1024,6 +952,16 @@
         "inputPerMillion": 0.11952,
         "outputPerMillion": 0.41831,
         "cacheReadPerMillion": 0.03436,
+        "cacheWritePerMillion": 0
+      }
+    },
+    "glm-5.3-flashx": {
+      "contextWindow": 1000000,
+      "pricingProvider": "zhipuai",
+      "pricing": {
+        "inputPerMillion": 0.29879,
+        "outputPerMillion": 1.04577,
+        "cacheReadPerMillion": 0.08516,
         "cacheWritePerMillion": 0
       }
     },
@@ -1308,6 +1246,17 @@
         "outputPerMillion": 180
       }
     },
+    "gpt-5.6": {
+      "contextWindow": 1050000,
+      "maxInputTokens": 922000,
+      "pricingProvider": "openai",
+      "pricing": {
+        "inputPerMillion": 4,
+        "outputPerMillion": 20,
+        "cacheReadPerMillion": 0.4,
+        "cacheWritePerMillion": 5
+      }
+    },
     "gpt-5.6-cyber": {
       "contextWindow": 400000,
       "maxInputTokens": 272000,
@@ -1387,8 +1336,7 @@
       "contextWindow": 1050000
     },
     "gpt-6-cyber": {
-      "contextWindow": 1050000,
-      "maxInputTokens": 922000
+      "contextWindow": 1050000
     },
     "gpt-6-luna": {
       "contextWindow": 1050000,
@@ -1481,6 +1429,28 @@
         "cacheWritePerMillion": 2.5
       }
     },
+    "gpt-daybreak-blue-latest": {
+      "contextWindow": 1050000,
+      "maxInputTokens": 922000,
+      "pricingProvider": "openai",
+      "pricing": {
+        "inputPerMillion": 4,
+        "outputPerMillion": 20,
+        "cacheReadPerMillion": 0.4,
+        "cacheWritePerMillion": 5
+      }
+    },
+    "gpt-daybreak-red-latest": {
+      "contextWindow": 400000,
+      "maxInputTokens": 272000,
+      "pricingProvider": "openai",
+      "pricing": {
+        "inputPerMillion": 12.5,
+        "outputPerMillion": 75,
+        "cacheReadPerMillion": 1.25,
+        "cacheWritePerMillion": 15.625
+      }
+    },
     "gpt-oss-120b": {
       "contextWindow": 131072
     },
@@ -1511,18 +1481,6 @@
     },
     "granite-4.2-8b": {
       "contextWindow": 131072
-    },
-    "grok-2": {
-      "contextWindow": 131072
-    },
-    "grok-3": {
-      "contextWindow": 131072
-    },
-    "grok-4": {
-      "contextWindow": 256000
-    },
-    "grok-4-1-fast": {
-      "contextWindow": 2000000
     },
     "grok-4-fast-non-reasoning": {
       "contextWindow": 2000000
@@ -1591,13 +1549,7 @@
       }
     },
     "grok-build-0.1": {
-      "contextWindow": 256000,
-      "pricingProvider": "xai",
-      "pricing": {
-        "inputPerMillion": 1,
-        "outputPerMillion": 2,
-        "cacheReadPerMillion": 0.2
-      }
+      "contextWindow": 256000
     },
     "grok-code-fast-1": {
       "contextWindow": 256000
@@ -1608,21 +1560,6 @@
     "hermes-4-405b": {
       "contextWindow": 131072
     },
-    "hunyuan-2.0": {
-      "contextWindow": 131072
-    },
-    "hunyuan-a13b": {
-      "contextWindow": 131072
-    },
-    "hunyuan-mt-7b": {
-      "contextWindow": 32768
-    },
-    "hunyuan-t1": {
-      "contextWindow": 131072
-    },
-    "hunyuan-turbos": {
-      "contextWindow": 131072
-    },
     "hy3": {
       "contextWindow": 256000
     },
@@ -1630,12 +1567,10 @@
       "contextWindow": 256000
     },
     "hy4": {
-      "contextWindow": 1048576,
-      "maxInputTokens": 983010
+      "contextWindow": 1048576
     },
     "hy4-flash": {
-      "contextWindow": 1048576,
-      "maxInputTokens": 983040
+      "contextWindow": 1048576
     },
     "hy4-preview": {
       "contextWindow": 1024000
@@ -1661,6 +1596,42 @@
         "cacheReadPerMillion": 0.116
       }
     },
+    "inkling-small:peft:262144": {
+      "contextWindow": 262144,
+      "pricingProvider": "thinkingmachines",
+      "pricing": {
+        "inputPerMillion": 0.58,
+        "outputPerMillion": 1.44,
+        "cacheReadPerMillion": 0.116
+      }
+    },
+    "inkling-small:peft:262144:sampling-nvfp4": {
+      "contextWindow": 262144,
+      "pricingProvider": "thinkingmachines",
+      "pricing": {
+        "inputPerMillion": 0.3,
+        "outputPerMillion": 1.2,
+        "cacheReadPerMillion": 0.06
+      }
+    },
+    "inkling:peft:262144": {
+      "contextWindow": 262144,
+      "pricingProvider": "thinkingmachines",
+      "pricing": {
+        "inputPerMillion": 1.87,
+        "outputPerMillion": 4.68,
+        "cacheReadPerMillion": 0.374
+      }
+    },
+    "inkling:peft:262144:sampling-nvfp4": {
+      "contextWindow": 262144,
+      "pricingProvider": "thinkingmachines",
+      "pricing": {
+        "inputPerMillion": 1,
+        "outputPerMillion": 4.05,
+        "cacheReadPerMillion": 0.17
+      }
+    },
     "jamba-large": {
       "contextWindow": 256000,
       "pricingProvider": "ai21",
@@ -1680,14 +1651,8 @@
     "kimi-k2": {
       "contextWindow": 131072
     },
-    "kimi-k2-": {
-      "contextWindow": 256000
-    },
-    "kimi-k2-0711": {
-      "contextWindow": 128000
-    },
     "kimi-k2-0905": {
-      "contextWindow": 256000
+      "contextWindow": 262144
     },
     "kimi-k2-instruct": {
       "contextWindow": 131072
@@ -1697,9 +1662,6 @@
     },
     "kimi-k2-thinking-turbo": {
       "contextWindow": 262144
-    },
-    "kimi-k2-turbo": {
-      "contextWindow": 256000
     },
     "kimi-k2.5": {
       "contextWindow": 262144
@@ -1754,17 +1716,15 @@
         "cacheWritePerMillion": 2
       }
     },
-    "kimi-latest": {
-      "contextWindow": 131072
-    },
-    "kimi-latest-128k": {
-      "contextWindow": 131072
-    },
-    "kimi-latest-32k": {
-      "contextWindow": 32768
-    },
-    "kimi-latest-8k": {
-      "contextWindow": 8192
+    "kimi-k3.1-pro-highspeed": {
+      "contextWindow": 1048576,
+      "pricingProvider": "moonshotai",
+      "pricing": {
+        "inputPerMillion": 4,
+        "outputPerMillion": 20,
+        "cacheReadPerMillion": 0.2,
+        "cacheWritePerMillion": 4
+      }
     },
     "kolibri-1": {
       "contextWindow": 1048576
@@ -1829,9 +1789,6 @@
     "ling-3.2-flash": {
       "contextWindow": 1000000
     },
-    "llama-3.1": {
-      "contextWindow": 131072
-    },
     "llama-3.1-70b-instruct": {
       "contextWindow": 128000
     },
@@ -1854,8 +1811,13 @@
         "outputPerMillion": 0
       }
     },
-    "llama-3.2": {
-      "contextWindow": 131072
+    "llama-3.1-nemotron-ultra-253b-v1": {
+      "contextWindow": 128000,
+      "pricingProvider": "nvidia",
+      "pricing": {
+        "inputPerMillion": 0,
+        "outputPerMillion": 0
+      }
     },
     "llama-3.2-11b-vision-instruct": {
       "contextWindow": 128000
@@ -1869,9 +1831,6 @@
     "llama-3.2-90b-vision-instruct": {
       "contextWindow": 128000
     },
-    "llama-3.3": {
-      "contextWindow": 131072
-    },
     "llama-3.3-70b-instruct": {
       "contextWindow": 128000
     },
@@ -1881,14 +1840,8 @@
     "llama-3.3-nemotron-super-49b-v1.5": {
       "contextWindow": 131072
     },
-    "llama-4-maverick": {
-      "contextWindow": 131072
-    },
     "llama-4-maverick-17b-instruct": {
       "contextWindow": 1000000
-    },
-    "llama-4-scout": {
-      "contextWindow": 131072
     },
     "llama-4-scout-17b-instruct": {
       "contextWindow": 10000000
@@ -1928,6 +1881,12 @@
     "mai-code-1.1-flash": {
       "contextWindow": 256000
     },
+    "mai-code-2": {
+      "contextWindow": 1050000
+    },
+    "mai-code-2-flash": {
+      "contextWindow": 1050000
+    },
     "mercury-2": {
       "contextWindow": 128000,
       "pricingProvider": "inception",
@@ -1954,27 +1913,6 @@
         "outputPerMillion": 0.35,
         "cacheReadPerMillion": 0.01
       }
-    },
-    "meta-llama/llama-3.1": {
-      "contextWindow": 131072
-    },
-    "meta-llama/llama-3.2": {
-      "contextWindow": 131072
-    },
-    "meta-llama/llama-3.3": {
-      "contextWindow": 131072
-    },
-    "meta-llama/llama-4-maverick": {
-      "contextWindow": 131072
-    },
-    "meta-llama/llama-4-scout": {
-      "contextWindow": 131072
-    },
-    "mimo-7b": {
-      "contextWindow": 32768
-    },
-    "mimo-7b-rl-0530": {
-      "contextWindow": 48000
     },
     "mimo-v2-flash": {
       "contextWindow": 262144
@@ -2051,12 +1989,6 @@
     "minicpm5-2b": {
       "contextWindow": 131072
     },
-    "minimax-01": {
-      "contextWindow": 1000000
-    },
-    "minimax-m1": {
-      "contextWindow": 1000000
-    },
     "minimax-m1-80k": {
       "contextWindow": 1000000
     },
@@ -2080,9 +2012,6 @@
         "cacheReadPerMillion": 0.03,
         "cacheWritePerMillion": 0.375
       }
-    },
-    "minimax-m2.1-highspeed": {
-      "contextWindow": 204800
     },
     "minimax-m2.5": {
       "contextWindow": 204800,
@@ -2148,15 +2077,6 @@
     "minimax-text-01": {
       "contextWindow": 1000000
     },
-    "minimax.minimax-m2": {
-      "contextWindow": 128000
-    },
-    "minimax.minimax-m2.1": {
-      "contextWindow": 196000
-    },
-    "minimax.minimax-m2.5": {
-      "contextWindow": 1000000
-    },
     "ministral-14b": {
       "contextWindow": 262144
     },
@@ -2169,9 +2089,6 @@
         "cacheReadPerMillion": 0.02
       }
     },
-    "ministral-3-14b": {
-      "contextWindow": 262144
-    },
     "ministral-3-14b-instruct-2512": {
       "contextWindow": 262144,
       "pricingProvider": "mistral",
@@ -2181,9 +2098,6 @@
         "cacheReadPerMillion": 0.02
       }
     },
-    "ministral-3-3b": {
-      "contextWindow": 131072
-    },
     "ministral-3-3b-instruct-2512": {
       "contextWindow": 262144,
       "pricingProvider": "mistral",
@@ -2192,9 +2106,6 @@
         "outputPerMillion": 0.1,
         "cacheReadPerMillion": 0.01
       }
-    },
-    "ministral-3-8b": {
-      "contextWindow": 262144
     },
     "ministral-3-8b-instruct-2512": {
       "contextWindow": 262144,
@@ -2235,9 +2146,6 @@
     "mistral-large": {
       "contextWindow": 128000
     },
-    "mistral-large-": {
-      "contextWindow": 128000
-    },
     "mistral-large-2407": {
       "contextWindow": 131072
     },
@@ -2253,10 +2161,16 @@
         "cacheReadPerMillion": 0.05
       }
     },
-    "mistral-large-3": {
-      "contextWindow": 262144
-    },
     "mistral-large-4": {
+      "contextWindow": 1048576,
+      "pricingProvider": "mistral",
+      "pricing": {
+        "inputPerMillion": 0.7,
+        "outputPerMillion": 2.1,
+        "cacheReadPerMillion": 0.07
+      }
+    },
+    "mistral-large-4-0-8": {
       "contextWindow": 1048576,
       "pricingProvider": "mistral",
       "pricing": {
@@ -2273,9 +2187,6 @@
         "outputPerMillion": 2.1,
         "cacheReadPerMillion": 0.07
       }
-    },
-    "mistral-medium-": {
-      "contextWindow": 131072
     },
     "mistral-medium-2505": {
       "contextWindow": 131072,
@@ -2321,9 +2232,6 @@
     "mistral-saba": {
       "contextWindow": 32768
     },
-    "mistral-small-": {
-      "contextWindow": 131072
-    },
     "mistral-small-2506": {
       "contextWindow": 128000,
       "pricingProvider": "mistral",
@@ -2359,15 +2267,6 @@
     "mixtral-8x22b-instruct": {
       "contextWindow": 65536
     },
-    "moonshot-v1-128k": {
-      "contextWindow": 131072
-    },
-    "moonshot-v1-32k": {
-      "contextWindow": 32768
-    },
-    "moonshot-v1-8k": {
-      "contextWindow": 8192
-    },
     "motif-3": {
       "contextWindow": 262144
     },
@@ -2401,6 +2300,15 @@
         "cacheReadPerMillion": 0.15
       }
     },
+    "muse-spark-1.2-contributor": {
+      "contextWindow": 1048576,
+      "pricingProvider": "meta",
+      "pricing": {
+        "inputPerMillion": 0.1,
+        "outputPerMillion": 0.2,
+        "cacheReadPerMillion": 0.002
+      }
+    },
     "muse-spark-1.3": {
       "contextWindow": 1048576,
       "pricingProvider": "meta",
@@ -2408,6 +2316,15 @@
         "inputPerMillion": 1.25,
         "outputPerMillion": 4.25,
         "cacheReadPerMillion": 0.15
+      }
+    },
+    "muse-spark-1.3-contributor": {
+      "contextWindow": 1048576,
+      "pricingProvider": "meta",
+      "pricing": {
+        "inputPerMillion": 0.1,
+        "outputPerMillion": 0.2,
+        "cacheReadPerMillion": 0.002
       }
     },
     "muse-spark-open": {
@@ -2448,6 +2365,14 @@
       }
     },
     "nemotron-3.5-lightning": {
+      "contextWindow": 262144,
+      "pricingProvider": "nvidia",
+      "pricing": {
+        "inputPerMillion": 0,
+        "outputPerMillion": 0
+      }
+    },
+    "nemotron-3.5-lightning-30b-a3b": {
       "contextWindow": 262144,
       "pricingProvider": "nvidia",
       "pricing": {
@@ -2656,9 +2581,6 @@
     "pixtral-large-latest": {
       "contextWindow": 128000
     },
-    "qwen-coder": {
-      "contextWindow": 1000000
-    },
     "qwen-flash": {
       "contextWindow": 1000000,
       "pricingProvider": "alibaba",
@@ -2695,9 +2617,6 @@
         "cacheWritePerMillion": 0.5
       }
     },
-    "qwen-plus-latest": {
-      "contextWindow": 997952
-    },
     "qwen-turbo": {
       "contextWindow": 1000000,
       "pricingProvider": "alibaba",
@@ -2722,15 +2641,6 @@
         "outputPerMillion": 0.63
       }
     },
-    "qwen.qwen3-235b": {
-      "contextWindow": 262144
-    },
-    "qwen.qwen3-32b": {
-      "contextWindow": 131072
-    },
-    "qwen.qwen3-coder-next": {
-      "contextWindow": 262144
-    },
     "qwen2-5-vl-72b-instruct": {
       "contextWindow": 131072
     },
@@ -2739,9 +2649,6 @@
     },
     "qwen2.5-coder-32b-instruct": {
       "contextWindow": 131072
-    },
-    "qwen3-235b": {
-      "contextWindow": 262144
     },
     "qwen3-235b-a22b": {
       "contextWindow": 131072,
@@ -2778,9 +2685,6 @@
         "inputPerMillion": 0.18,
         "outputPerMillion": 0.7
       }
-    },
-    "qwen3-coder": {
-      "contextWindow": 262144
     },
     "qwen3-coder-30b-a3b-instruct": {
       "contextWindow": 262144,
@@ -2830,11 +2734,8 @@
     "qwen3-max-preview": {
       "contextWindow": 262144
     },
-    "qwen3-next": {
-      "contextWindow": 262144
-    },
     "qwen3-next-80b-a3b-instruct": {
-      "contextWindow": 131072,
+      "contextWindow": 262144,
       "pricingProvider": "alibaba",
       "pricing": {
         "inputPerMillion": 0.5,
@@ -2842,7 +2743,7 @@
       }
     },
     "qwen3-next-80b-a3b-thinking": {
-      "contextWindow": 131072,
+      "contextWindow": 262144,
       "pricingProvider": "alibaba",
       "pricing": {
         "inputPerMillion": 0.5,
@@ -2851,9 +2752,6 @@
     },
     "qwen3-omni-30b-a3b-thinking": {
       "contextWindow": 65536
-    },
-    "qwen3-vl": {
-      "contextWindow": 131072
     },
     "qwen3-vl-235b-a22b-instruct": {
       "contextWindow": 131072
@@ -2876,9 +2774,6 @@
         "cacheReadPerMillion": 0.04,
         "cacheWritePerMillion": 0.25
       }
-    },
-    "qwen3.5-": {
-      "contextWindow": 262144
     },
     "qwen3.5-0.8b": {
       "contextWindow": 262144
@@ -3138,7 +3033,7 @@
       "contextWindow": 1024000
     },
     "seed-2.1-pro": {
-      "contextWindow": 256000
+      "contextWindow": 1024000
     },
     "seed-2.1-turbo": {
       "contextWindow": 256000
@@ -3147,7 +3042,7 @@
       "contextWindow": 256000
     },
     "seed-evolving": {
-      "contextWindow": 256000
+      "contextWindow": 1024000
     },
     "seed-oss-36b-instruct": {
       "contextWindow": 524288
@@ -3222,12 +3117,6 @@
         "cacheReadPerMillion": 0.10461
       }
     },
-    "tencent/hunyuan-a13b": {
-      "contextWindow": 131072
-    },
-    "tencent/hunyuan-mt-7b": {
-      "contextWindow": 32768
-    },
     "tiny-aya-earth": {
       "contextWindow": 8000
     },
@@ -3301,30 +3190,12 @@
         "inputPerMillion": 0.1,
         "outputPerMillion": 0.4
       }
-    },
-    "yi-large": {
-      "contextWindow": 32768
-    },
-    "yi-lightning": {
-      "contextWindow": 12000
-    },
-    "yi-medium-200k": {
-      "contextWindow": 200000
-    },
-    "z-ai/glm-4.6": {
-      "contextWindow": 200000
-    },
-    "z-ai/glm-4.7": {
-      "contextWindow": 200000
-    },
-    "z-ai/glm-5": {
-      "contextWindow": 200000
     }
   },
   "providers": {
     "openrouter": {
       "source": "https://openrouter.ai/api/v1/models",
-      "capturedAt": "2026-11-18T01:55:49.6667501\u002B00:00",
+      "capturedAt": "2026-11-23T03:57:58.2001848\u002B00:00",
       "models": [
         {
           "id": "aion-labs/aion-2.0",
@@ -4446,33 +4317,6 @@
           }
         },
         {
-          "id": "cohere/north-mini-code:free",
-          "displayName": "Cohere: North Mini Code (free)",
-          "ownedBy": "cohere",
-          "createdAt": "2026-06-17T19:15:48\u002B00:00",
-          "reasoning": {
-            "supportsDisable": true,
-            "supportedEfforts": [],
-            "defaultEffort": "medium",
-            "defaultEnabled": false
-          },
-          "contextWindow": 256000,
-          "maxOutputTokens": 64000,
-          "supportedProtocols": [
-            "openai-chat-completions",
-            "anthropic",
-            "openai-responses"
-          ],
-          "defaultProtocol": "openai-chat-completions",
-          "inputModalities": [
-            "text"
-          ],
-          "pricing": {
-            "inputPerMillion": 0,
-            "outputPerMillion": 0
-          }
-        },
-        {
           "id": "deepseek/deepseek-chat",
           "displayName": "DeepSeek: DeepSeek V3",
           "ownedBy": "deepseek",
@@ -4498,8 +4342,8 @@
           "displayName": "DeepSeek: DeepSeek V3 0324",
           "ownedBy": "deepseek",
           "createdAt": "2025-03-24T13:59:15\u002B00:00",
-          "contextWindow": 128000,
-          "maxOutputTokens": 115200,
+          "contextWindow": 163840,
+          "maxOutputTokens": 147456,
           "supportedProtocols": [
             "openai-chat-completions",
             "anthropic",
@@ -4510,9 +4354,8 @@
             "text"
           ],
           "pricing": {
-            "inputPerMillion": 0.29000000,
-            "outputPerMillion": 1.14000000,
-            "cacheReadPerMillion": 0.11000000
+            "inputPerMillion": 0.25000000,
+            "outputPerMillion": 1.000000
           }
         },
         {
@@ -4554,8 +4397,8 @@
             "defaultEffort": "medium",
             "defaultEnabled": true
           },
-          "contextWindow": 163840,
-          "maxOutputTokens": 32768,
+          "contextWindow": 128000,
+          "maxOutputTokens": 32000,
           "supportedProtocols": [
             "openai-chat-completions",
             "anthropic",
@@ -4566,9 +4409,8 @@
             "text"
           ],
           "pricing": {
-            "inputPerMillion": 0.5000000,
-            "outputPerMillion": 2.15000000,
-            "cacheReadPerMillion": 0.35000000
+            "inputPerMillion": 0.571000000,
+            "outputPerMillion": 2.286000000
           }
         },
         {
@@ -4702,7 +4544,7 @@
             "upstreamDefaultEffort": "high"
           },
           "contextWindow": 1048576,
-          "maxOutputTokens": 384000,
+          "maxOutputTokens": 943718,
           "supportedProtocols": [
             "openai-chat-completions",
             "anthropic",
@@ -4713,9 +4555,9 @@
             "text"
           ],
           "pricing": {
-            "inputPerMillion": 0.06000000,
-            "outputPerMillion": 0.18000000,
-            "cacheReadPerMillion": 0.015000000
+            "inputPerMillion": 0.0443000000,
+            "outputPerMillion": 0.3000000,
+            "cacheReadPerMillion": 0.035000000
           }
         },
         {
@@ -4734,8 +4576,8 @@
             "defaultEnabled": true,
             "upstreamDefaultEffort": "high"
           },
-          "contextWindow": 1048575,
-          "maxOutputTokens": 943717,
+          "contextWindow": 1048576,
+          "maxOutputTokens": 262144,
           "supportedProtocols": [
             "openai-chat-completions",
             "anthropic",
@@ -4747,9 +4589,9 @@
             "image"
           ],
           "pricing": {
-            "inputPerMillion": 0.44000000,
-            "outputPerMillion": 1.32000000,
-            "cacheReadPerMillion": 0.014000000
+            "inputPerMillion": 0.2156000000,
+            "outputPerMillion": 0.6468000000,
+            "cacheReadPerMillion": 0.00686000000
           }
         },
         {
@@ -4781,7 +4623,7 @@
           "pricing": {
             "inputPerMillion": 0.9000000,
             "outputPerMillion": 1.5000000,
-            "cacheReadPerMillion": 0.25000000
+            "cacheReadPerMillion": 0.2000000
           }
         },
         {
@@ -4812,9 +4654,9 @@
             "text"
           ],
           "pricing": {
-            "inputPerMillion": 0.111000000,
-            "outputPerMillion": 4.44000000,
-            "cacheReadPerMillion": 0.097000000
+            "inputPerMillion": 1.32000000,
+            "outputPerMillion": 3.96000000,
+            "cacheReadPerMillion": 0.044000000
           }
         },
         {
@@ -4834,7 +4676,7 @@
             "upstreamDefaultEffort": "high"
           },
           "contextWindow": 1048576,
-          "maxOutputTokens": 943718,
+          "maxOutputTokens": 393216,
           "supportedProtocols": [
             "openai-chat-completions",
             "anthropic",
@@ -4846,9 +4688,9 @@
             "image"
           ],
           "pricing": {
-            "inputPerMillion": 0.051000000,
-            "outputPerMillion": 0.567000000,
-            "cacheReadPerMillion": 0.018000000
+            "inputPerMillion": 0.0498000000,
+            "outputPerMillion": 0.1992000000,
+            "cacheReadPerMillion": 0.000996000000
           }
         },
         {
@@ -4868,7 +4710,7 @@
             "upstreamDefaultEffort": "high"
           },
           "contextWindow": 1048576,
-          "maxOutputTokens": 943718,
+          "maxOutputTokens": 393216,
           "supportedProtocols": [
             "openai-chat-completions",
             "anthropic",
@@ -4880,9 +4722,9 @@
             "image"
           ],
           "pricing": {
-            "inputPerMillion": 0.036000000,
-            "outputPerMillion": 0.5000000,
-            "cacheReadPerMillion": 0.01000000
+            "inputPerMillion": 0.3000000,
+            "outputPerMillion": 1.2000000,
+            "cacheReadPerMillion": 0.006000000
           }
         },
         {
@@ -5634,6 +5476,45 @@
           }
         },
         {
+          "id": "google/gemini-4-neon",
+          "displayName": "Google: Gemini 4 Neon",
+          "ownedBy": "google",
+          "createdAt": "2026-11-18T13:02:57\u002B00:00",
+          "reasoning": {
+            "supportsDisable": false,
+            "supportedEfforts": [
+              "low",
+              "medium",
+              "high",
+              "extraHigh"
+            ],
+            "defaultEffort": "medium",
+            "defaultEnabled": true,
+            "upstreamDefaultEffort": "medium"
+          },
+          "contextWindow": 1048576,
+          "maxOutputTokens": 943718,
+          "supportedProtocols": [
+            "openai-chat-completions",
+            "anthropic",
+            "openai-responses"
+          ],
+          "defaultProtocol": "openai-chat-completions",
+          "inputModalities": [
+            "audio",
+            "file",
+            "image",
+            "text",
+            "video"
+          ],
+          "pricing": {
+            "inputPerMillion": 3.000000,
+            "outputPerMillion": 15.000000,
+            "cacheReadPerMillion": 0.15000000,
+            "cacheWritePerMillion": 0.0833333333333333000000
+          }
+        },
+        {
           "id": "google/gemini-nano-banana-2.1",
           "displayName": "Google: Nano Banana 2.1",
           "ownedBy": "google",
@@ -5693,7 +5574,7 @@
           "ownedBy": "google",
           "createdAt": "2025-03-12T05:12:39\u002B00:00",
           "contextWindow": 131072,
-          "maxOutputTokens": 117964,
+          "maxOutputTokens": 16384,
           "supportedProtocols": [
             "openai-chat-completions",
             "anthropic",
@@ -5706,8 +5587,7 @@
           ],
           "pricing": {
             "inputPerMillion": 0.08000000,
-            "outputPerMillion": 0.45000000,
-            "cacheReadPerMillion": 0.04000000
+            "outputPerMillion": 0.16000000
           }
         },
         {
@@ -5735,9 +5615,9 @@
             "video"
           ],
           "pricing": {
-            "inputPerMillion": 0.0765000000,
-            "outputPerMillion": 0.255000000,
-            "cacheReadPerMillion": 0.0425000000
+            "inputPerMillion": 0.0675000000,
+            "outputPerMillion": 0.225000000,
+            "cacheReadPerMillion": 0.0375000000
           }
         },
         {
@@ -5968,9 +5848,9 @@
             "text"
           ],
           "pricing": {
-            "inputPerMillion": 0.045000000,
-            "outputPerMillion": 0.135000000,
-            "cacheReadPerMillion": 0.009000000
+            "inputPerMillion": 0.06000000,
+            "outputPerMillion": 0.18000000,
+            "cacheReadPerMillion": 0.012000000
           }
         },
         {
@@ -6110,34 +5990,6 @@
           "pricing": {
             "inputPerMillion": 0,
             "outputPerMillion": 0
-          }
-        },
-        {
-          "id": "meituan/longcat-2.0",
-          "displayName": "Meituan: LongCat 2.0",
-          "ownedBy": "meituan",
-          "createdAt": "2026-07-20T13:37:38\u002B00:00",
-          "reasoning": {
-            "supportsDisable": true,
-            "supportedEfforts": [],
-            "defaultEffort": "medium",
-            "defaultEnabled": true
-          },
-          "contextWindow": 1048756,
-          "maxOutputTokens": 262144,
-          "supportedProtocols": [
-            "openai-chat-completions",
-            "anthropic",
-            "openai-responses"
-          ],
-          "defaultProtocol": "openai-chat-completions",
-          "inputModalities": [
-            "text"
-          ],
-          "pricing": {
-            "inputPerMillion": 0.3000000,
-            "outputPerMillion": 1.2000000,
-            "cacheReadPerMillion": 0.006000000
           }
         },
         {
@@ -6599,8 +6451,8 @@
             "defaultEffort": "medium",
             "defaultEnabled": true
           },
-          "contextWindow": 196608,
-          "maxOutputTokens": 176947,
+          "contextWindow": 198000,
+          "maxOutputTokens": 32768,
           "supportedProtocols": [
             "openai-chat-completions",
             "anthropic",
@@ -6611,9 +6463,9 @@
             "text"
           ],
           "pricing": {
-            "inputPerMillion": 0.295000000,
-            "outputPerMillion": 1.2000000,
-            "cacheReadPerMillion": 0.06000000
+            "inputPerMillion": 0.27000000,
+            "outputPerMillion": 0.95000000,
+            "cacheReadPerMillion": 0.03000000
           }
         },
         {
@@ -6628,7 +6480,7 @@
             "defaultEnabled": true
           },
           "contextWindow": 196608,
-          "maxOutputTokens": 176947,
+          "maxOutputTokens": 131072,
           "supportedProtocols": [
             "openai-chat-completions",
             "anthropic",
@@ -6639,9 +6491,8 @@
             "text"
           ],
           "pricing": {
-            "inputPerMillion": 0.21000000,
-            "outputPerMillion": 0.84000000,
-            "cacheReadPerMillion": 0.042000000
+            "inputPerMillion": 0.6000000,
+            "outputPerMillion": 1.8000000
           }
         },
         {
@@ -7327,9 +7178,9 @@
             "image"
           ],
           "pricing": {
-            "inputPerMillion": 0.7000000,
-            "outputPerMillion": 3.75000000,
-            "cacheReadPerMillion": 0.17000000
+            "inputPerMillion": 0.6000000,
+            "outputPerMillion": 3.000000,
+            "cacheReadPerMillion": 0.12000000
           }
         },
         {
@@ -7714,8 +7565,8 @@
             "defaultEffort": "medium",
             "defaultEnabled": false
           },
-          "contextWindow": 262144,
-          "maxOutputTokens": 235929,
+          "contextWindow": 1048576,
+          "maxOutputTokens": 943718,
           "supportedProtocols": [
             "openai-chat-completions",
             "anthropic",
@@ -7729,7 +7580,7 @@
           ],
           "pricing": {
             "inputPerMillion": 0.15000000,
-            "outputPerMillion": 0.5000000,
+            "outputPerMillion": 0.47000000,
             "cacheReadPerMillion": 0.02000000
           }
         },
@@ -9537,7 +9388,7 @@
             "upstreamDefaultEffort": "medium"
           },
           "contextWindow": 131072,
-          "maxOutputTokens": 65536,
+          "maxOutputTokens": 117964,
           "supportedProtocols": [
             "openai-chat-completions",
             "anthropic",
@@ -9548,9 +9399,9 @@
             "text"
           ],
           "pricing": {
-            "inputPerMillion": 0.15000000,
-            "outputPerMillion": 0.6000000,
-            "cacheReadPerMillion": 0.075000000
+            "inputPerMillion": 0.05000000,
+            "outputPerMillion": 0.25000000,
+            "cacheReadPerMillion": 0.05000000
           }
         },
         {
@@ -9581,9 +9432,9 @@
             "text"
           ],
           "pricing": {
-            "inputPerMillion": 0.018000000,
-            "outputPerMillion": 0.09000000,
-            "cacheReadPerMillion": 0.009000000
+            "inputPerMillion": 0.03000000,
+            "outputPerMillion": 0.13000000,
+            "cacheReadPerMillion": 0.03000000
           }
         },
         {
@@ -9712,7 +9563,7 @@
             "defaultEnabled": false
           },
           "contextWindow": 2000000,
-          "maxOutputTokens": 64000,
+          "maxOutputTokens": 128000,
           "supportedProtocols": [
             "openai-chat-completions",
             "anthropic",
@@ -9740,7 +9591,7 @@
             "defaultEnabled": false
           },
           "contextWindow": 2000000,
-          "maxOutputTokens": 64000,
+          "maxOutputTokens": 128000,
           "supportedProtocols": [
             "openai-chat-completions",
             "anthropic",
@@ -9837,9 +9688,9 @@
             "image"
           ],
           "pricing": {
-            "inputPerMillion": 0.06000000,
+            "inputPerMillion": 0.07000000,
             "outputPerMillion": 0.5000000,
-            "cacheReadPerMillion": 0.003000000
+            "cacheReadPerMillion": 0.03000000
           }
         },
         {
@@ -10209,8 +10060,8 @@
             "text"
           ],
           "pricing": {
-            "inputPerMillion": 0.15000000,
-            "outputPerMillion": 0.6000000
+            "inputPerMillion": 0.07000000,
+            "outputPerMillion": 0.28000000
           }
         },
         {
@@ -10389,7 +10240,7 @@
             "defaultEnabled": false
           },
           "contextWindow": 262144,
-          "maxOutputTokens": 65536,
+          "maxOutputTokens": 81920,
           "supportedProtocols": [
             "openai-chat-completions",
             "anthropic",
@@ -10402,8 +10253,8 @@
             "video"
           ],
           "pricing": {
-            "inputPerMillion": 0.3000000,
-            "outputPerMillion": 2.4000000
+            "inputPerMillion": 0.26000000,
+            "outputPerMillion": 2.6000000
           }
         },
         {
@@ -10478,7 +10329,7 @@
             "defaultEnabled": false
           },
           "contextWindow": 262144,
-          "maxOutputTokens": 40960,
+          "maxOutputTokens": 235929,
           "supportedProtocols": [
             "openai-chat-completions",
             "anthropic",
@@ -10492,8 +10343,7 @@
           ],
           "pricing": {
             "inputPerMillion": 0.17000000,
-            "outputPerMillion": 0.25000000,
-            "cacheReadPerMillion": 0.153000000
+            "outputPerMillion": 0.25000000
           }
         },
         {
@@ -10638,8 +10488,8 @@
             "video"
           ],
           "pricing": {
-            "inputPerMillion": 0.1000000,
-            "outputPerMillion": 0.9000000,
+            "inputPerMillion": 0.05000000,
+            "outputPerMillion": 0.7000000,
             "cacheReadPerMillion": 0.025000000
           }
         },
@@ -10809,8 +10659,8 @@
             "defaultEnabled": true,
             "upstreamDefaultEffort": "extraHigh"
           },
-          "contextWindow": 1000000,
-          "maxOutputTokens": 131072,
+          "contextWindow": 262144,
+          "maxOutputTokens": 65536,
           "supportedProtocols": [
             "openai-chat-completions",
             "anthropic",
@@ -10843,7 +10693,7 @@
             "upstreamDefaultEffort": "extraHigh"
           },
           "contextWindow": 262144,
-          "maxOutputTokens": 235929,
+          "maxOutputTokens": 131072,
           "supportedProtocols": [
             "openai-chat-completions",
             "anthropic",
@@ -10856,9 +10706,9 @@
             "video"
           ],
           "pricing": {
-            "inputPerMillion": 0.06000000,
-            "outputPerMillion": 2.2000000,
-            "cacheReadPerMillion": 0.059000000
+            "inputPerMillion": 0.035000000,
+            "outputPerMillion": 1.5000000,
+            "cacheReadPerMillion": 0.0175000000
           }
         },
         {
@@ -11031,6 +10881,40 @@
           }
         },
         {
+          "id": "radixark/daisyrose-27b",
+          "displayName": "RadixArk: DaisyRose 27B",
+          "ownedBy": "radixark",
+          "createdAt": "2026-11-21T00:49:48\u002B00:00",
+          "reasoning": {
+            "supportsDisable": true,
+            "supportedEfforts": [
+              "low",
+              "medium",
+              "extraHigh"
+            ],
+            "defaultEffort": "extraHigh",
+            "defaultEnabled": true,
+            "upstreamDefaultEffort": "extraHigh"
+          },
+          "contextWindow": 262144,
+          "maxOutputTokens": 235929,
+          "supportedProtocols": [
+            "openai-chat-completions",
+            "anthropic",
+            "openai-responses"
+          ],
+          "defaultProtocol": "openai-chat-completions",
+          "inputModalities": [
+            "text",
+            "image"
+          ],
+          "pricing": {
+            "inputPerMillion": 0.15000000,
+            "outputPerMillion": 1.875000000,
+            "cacheReadPerMillion": 0.0375000000
+          }
+        },
+        {
           "id": "recursive/flint-v1.0:free",
           "displayName": "Recursive: Flint (free)",
           "ownedBy": "recursive",
@@ -11076,7 +10960,7 @@
             "upstreamDefaultEffort": "max"
           },
           "contextWindow": 1048576,
-          "maxOutputTokens": 943718,
+          "maxOutputTokens": 131072,
           "supportedProtocols": [
             "openai-chat-completions",
             "anthropic",
@@ -11087,9 +10971,9 @@
             "text"
           ],
           "pricing": {
-            "inputPerMillion": 0.3000000,
+            "inputPerMillion": 0.25000000,
             "outputPerMillion": 1.000000,
-            "cacheReadPerMillion": 0.04000000
+            "cacheReadPerMillion": 0.05000000
           }
         },
         {
@@ -11387,38 +11271,6 @@
             "upstreamDefaultEffort": "high"
           },
           "contextWindow": 262144,
-          "maxOutputTokens": 128000,
-          "supportedProtocols": [
-            "openai-chat-completions",
-            "anthropic",
-            "openai-responses"
-          ],
-          "defaultProtocol": "openai-chat-completions",
-          "inputModalities": [
-            "text"
-          ],
-          "pricing": {
-            "inputPerMillion": 0.132000000,
-            "outputPerMillion": 0.528000000,
-            "cacheReadPerMillion": 0.033000000
-          }
-        },
-        {
-          "id": "tencent/hy3-preview",
-          "displayName": "Tencent: Hy3 preview",
-          "ownedBy": "tencent",
-          "createdAt": "2026-04-22T17:15:50\u002B00:00",
-          "reasoning": {
-            "supportsDisable": true,
-            "supportedEfforts": [
-              "low",
-              "high"
-            ],
-            "defaultEffort": "high",
-            "defaultEnabled": true,
-            "upstreamDefaultEffort": "high"
-          },
-          "contextWindow": 262144,
           "maxOutputTokens": 235929,
           "supportedProtocols": [
             "openai-chat-completions",
@@ -11430,9 +11282,9 @@
             "text"
           ],
           "pricing": {
-            "inputPerMillion": 0.18000000,
-            "outputPerMillion": 0.6000000,
-            "cacheReadPerMillion": 0.06000000
+            "inputPerMillion": 0.14000000,
+            "outputPerMillion": 0.58000000,
+            "cacheReadPerMillion": 0.035000000
           }
         },
         {
@@ -11566,6 +11418,41 @@
           }
         },
         {
+          "id": "thinkingmachines/inkling-2-mini",
+          "displayName": "Thinking Machines: Inkling 2 Mini",
+          "ownedBy": "thinkingmachines",
+          "createdAt": "2026-11-21T02:19:45\u002B00:00",
+          "reasoning": {
+            "supportsDisable": true,
+            "supportedEfforts": [
+              "low",
+              "medium",
+              "high",
+              "max"
+            ],
+            "defaultEffort": "high",
+            "defaultEnabled": true,
+            "upstreamDefaultEffort": "high"
+          },
+          "contextWindow": 1048576,
+          "maxOutputTokens": 65536,
+          "supportedProtocols": [
+            "openai-chat-completions",
+            "anthropic",
+            "openai-responses"
+          ],
+          "defaultProtocol": "openai-chat-completions",
+          "inputModalities": [
+            "text",
+            "image"
+          ],
+          "pricing": {
+            "inputPerMillion": 0.075000000,
+            "outputPerMillion": 0.3000000,
+            "cacheReadPerMillion": 0.015000000
+          }
+        },
+        {
           "id": "thinkingmachines/inkling-2-small",
           "displayName": "Thinking Machines: Inkling 2 Small",
           "ownedBy": "thinkingmachines",
@@ -11598,40 +11485,6 @@
             "inputPerMillion": 0.3000000,
             "outputPerMillion": 1.000000,
             "cacheReadPerMillion": 0.03000000
-          }
-        },
-        {
-          "id": "thinkingmachines/inkling-2-small:free",
-          "displayName": "Thinking Machines: Inkling 2 Small (free)",
-          "ownedBy": "thinkingmachines",
-          "createdAt": "2026-11-09T22:04:07\u002B00:00",
-          "reasoning": {
-            "supportsDisable": false,
-            "supportedEfforts": [
-              "low",
-              "medium",
-              "high",
-              "max"
-            ],
-            "defaultEffort": "high",
-            "defaultEnabled": true,
-            "upstreamDefaultEffort": "high"
-          },
-          "contextWindow": 1048576,
-          "maxOutputTokens": 131072,
-          "supportedProtocols": [
-            "openai-chat-completions",
-            "anthropic",
-            "openai-responses"
-          ],
-          "defaultProtocol": "openai-chat-completions",
-          "inputModalities": [
-            "text",
-            "image"
-          ],
-          "pricing": {
-            "inputPerMillion": 0,
-            "outputPerMillion": 0
           }
         },
         {
@@ -11682,7 +11535,7 @@
             "defaultEnabled": false
           },
           "contextWindow": 1000000,
-          "maxOutputTokens": 64000,
+          "maxOutputTokens": 128000,
           "supportedProtocols": [
             "openai-chat-completions",
             "anthropic",
@@ -11839,7 +11692,7 @@
         },
         {
           "id": "x-ai/grok-4.20",
-          "displayName": "SpaceXAI: Grok 4.20",
+          "displayName": "SpaceXSI: Grok 4.20",
           "ownedBy": "x-ai",
           "createdAt": "2026-03-31T17:43:39\u002B00:00",
           "reasoning": {
@@ -11869,7 +11722,7 @@
         },
         {
           "id": "x-ai/grok-4.3",
-          "displayName": "SpaceXAI: Grok 4.3",
+          "displayName": "SpaceXSI: Grok 4.3",
           "ownedBy": "x-ai",
           "createdAt": "2026-04-30T23:30:21\u002B00:00",
           "reasoning": {
@@ -11904,7 +11757,7 @@
         },
         {
           "id": "x-ai/grok-4.5",
-          "displayName": "SpaceXAI: Grok 4.5",
+          "displayName": "SpaceXSI: Grok 4.5",
           "ownedBy": "x-ai",
           "createdAt": "2026-07-08T15:05:54\u002B00:00",
           "reasoning": {
@@ -11939,7 +11792,7 @@
         },
         {
           "id": "x-ai/grok-4.6",
-          "displayName": "SpaceXAI: Grok 4.6",
+          "displayName": "SpaceXSI: Grok 4.6",
           "ownedBy": "x-ai",
           "createdAt": "2026-08-12T15:35:57\u002B00:00",
           "reasoning": {
@@ -11975,7 +11828,7 @@
         },
         {
           "id": "x-ai/grok-4.7",
-          "displayName": "SpaceXAI: Grok 4.7",
+          "displayName": "SpaceXSI: Grok 4.7",
           "ownedBy": "x-ai",
           "createdAt": "2026-09-21T16:19:01\u002B00:00",
           "reasoning": {
@@ -12007,36 +11860,6 @@
             "inputPerMillion": 2.000000,
             "outputPerMillion": 6.000000,
             "cacheReadPerMillion": 0.5000000
-          }
-        },
-        {
-          "id": "x-ai/grok-build-0.1",
-          "displayName": "SpaceXAI: Grok Build 0.1",
-          "ownedBy": "x-ai",
-          "createdAt": "2026-05-20T17:28:43\u002B00:00",
-          "reasoning": {
-            "supportsDisable": false,
-            "supportedEfforts": [],
-            "defaultEffort": "medium",
-            "defaultEnabled": true
-          },
-          "contextWindow": 256000,
-          "maxOutputTokens": 230400,
-          "supportedProtocols": [
-            "openai-chat-completions",
-            "anthropic",
-            "openai-responses"
-          ],
-          "defaultProtocol": "openai-chat-completions",
-          "inputModalities": [
-            "text",
-            "image",
-            "file"
-          ],
-          "pricing": {
-            "inputPerMillion": 1.000000,
-            "outputPerMillion": 2.000000,
-            "cacheReadPerMillion": 0.2000000
           }
         },
         {
@@ -12081,8 +11904,8 @@
             "defaultEffort": "medium",
             "defaultEnabled": false
           },
-          "contextWindow": 1024000,
-          "maxOutputTokens": 131072,
+          "contextWindow": 262144,
+          "maxOutputTokens": 235929,
           "supportedProtocols": [
             "openai-chat-completions",
             "anthropic",
@@ -12093,9 +11916,9 @@
             "text"
           ],
           "pricing": {
-            "inputPerMillion": 0.435000000,
-            "outputPerMillion": 0.87000000,
-            "cacheReadPerMillion": 0.0036000000
+            "inputPerMillion": 0.48000000,
+            "outputPerMillion": 1.8000000,
+            "cacheReadPerMillion": 0.096000000
           }
         },
         {
@@ -12331,7 +12154,7 @@
           "pricing": {
             "inputPerMillion": 0.3000000,
             "outputPerMillion": 0.9000000,
-            "cacheReadPerMillion": 0.05000000
+            "cacheReadPerMillion": 0.055000000
           }
         },
         {
@@ -12345,7 +12168,7 @@
             "defaultEffort": "medium",
             "defaultEnabled": true
           },
-          "contextWindow": 202752,
+          "contextWindow": 204800,
           "maxOutputTokens": 131072,
           "supportedProtocols": [
             "openai-chat-completions",
@@ -12357,9 +12180,9 @@
             "text"
           ],
           "pricing": {
-            "inputPerMillion": 0.4000000,
-            "outputPerMillion": 1.75000000,
-            "cacheReadPerMillion": 0.08000000
+            "inputPerMillion": 0.6000000,
+            "outputPerMillion": 2.2000000,
+            "cacheReadPerMillion": 0.11000000
           }
         },
         {
@@ -12457,7 +12280,7 @@
             "defaultEnabled": true
           },
           "contextWindow": 202752,
-          "maxOutputTokens": 182476,
+          "maxOutputTokens": 131072,
           "supportedProtocols": [
             "openai-chat-completions",
             "anthropic",
@@ -12500,9 +12323,9 @@
             "text"
           ],
           "pricing": {
-            "inputPerMillion": 0.007000000,
-            "outputPerMillion": 6.8000000,
-            "cacheReadPerMillion": 0.006000000
+            "inputPerMillion": 0.62000000,
+            "outputPerMillion": 2.42000000,
+            "cacheReadPerMillion": 0.14000000
           }
         },
         {
@@ -12554,8 +12377,8 @@
             "defaultEnabled": true,
             "upstreamDefaultEffort": "max"
           },
-          "contextWindow": 1048575,
-          "maxOutputTokens": 943717,
+          "contextWindow": 1048576,
+          "maxOutputTokens": 131072,
           "supportedProtocols": [
             "openai-chat-completions",
             "anthropic",
@@ -12568,8 +12391,8 @@
             "video"
           ],
           "pricing": {
-            "inputPerMillion": 0.15000000,
-            "outputPerMillion": 0.5000000,
+            "inputPerMillion": 0.0399000000,
+            "outputPerMillion": 0.0784000000,
             "cacheReadPerMillion": 0.03000000
           }
         },
@@ -12920,9 +12743,9 @@
             "text"
           ],
           "pricing": {
-            "inputPerMillion": 0.0999000000,
-            "outputPerMillion": 8.000000,
-            "cacheReadPerMillion": 0.0999000000
+            "inputPerMillion": 0.1188000000,
+            "outputPerMillion": 5.000000,
+            "cacheReadPerMillion": 0.12000000
           }
         },
         {
@@ -12942,7 +12765,7 @@
             "upstreamDefaultEffort": "high"
           },
           "contextWindow": 1048576,
-          "maxOutputTokens": 943718,
+          "maxOutputTokens": 131072,
           "supportedProtocols": [
             "openai-chat-completions",
             "anthropic",
@@ -12953,9 +12776,9 @@
             "text"
           ],
           "pricing": {
-            "inputPerMillion": 0.0434000000,
-            "outputPerMillion": 0.3000000,
-            "cacheReadPerMillion": 0.035000000
+            "inputPerMillion": 0.044000000,
+            "outputPerMillion": 0.132000000,
+            "cacheReadPerMillion": 0.0014000000
           }
         },
         {
@@ -13390,5 +13213,5 @@
     }
   },
   "pricingSource": "https://models.dev/api.json",
-  "pricingCapturedAt": "2026-11-18T01:55:48.5268952+00:00"
+  "pricingCapturedAt": "2026-11-23T03:57:57.2703612+00:00"
 }

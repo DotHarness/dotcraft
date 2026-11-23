@@ -24,16 +24,20 @@ var canonicalModels = canonical.RootElement;
 var canonicalIds = canonicalModels.EnumerateObject().Select(model => model.Name).ToHashSet(StringComparer.Ordinal);
 var providers = await http.GetFromJsonAsync<Dictionary<string, ModelsDevProvider>>(pricingSource, options)
     ?? throw new JsonException("models.dev returned no provider catalog.");
-var prices = providers.SelectMany(provider => provider.Value.Models.Select(model => new
-{
-    Provider = provider.Key,
-    NativeId = model.Key,
-    CanonicalId = model.Value.CanonicalModelId ?? provider.Key + "/" + model.Key,
-    Pricing = ReadPricing(model.Value.Cost)
-})).Where(model => model.CanonicalId.StartsWith(model.Provider + "/", StringComparison.Ordinal)
-    && canonicalIds.Contains(model.CanonicalId) && model.Pricing is not null).ToArray();
+var officialModels = providers.SelectMany(provider => provider.Value.Models.Select(model => new OfficialModel(
+    provider.Key, model.Key, model.Value.CanonicalModelId ?? provider.Key + "/" + model.Key,
+    model.Value.Limit, ReadPricing(model.Value.Cost))))
+    .Where(model => model.CanonicalId.StartsWith(model.Provider + "/", StringComparison.Ordinal)
+        && canonicalIds.Contains(model.CanonicalId)).ToArray();
+if (officialModels.Length == 0)
+    throw new InvalidOperationException("models.dev returned no first-party records matching the canonical catalog.");
+var prices = officialModels.Where(model => model.Pricing is not null).ToArray();
 var models = catalog["models"]!.AsObject();
-if (!pricingOnly) AddMissingModels(models, canonicalModels);
+if (!pricingOnly)
+{
+    models = SynchronizeModels(models, canonicalModels, officialModels);
+    catalog["models"] = models;
+}
 var priced = 0;
 foreach (var (id, value) in models)
 {
@@ -76,10 +80,12 @@ static ModelPricing? ReadPricing(ModelsDevCost? cost)
 
 static decimal? Rate(decimal? value) => value is >= 0 ? value : null;
 
-static void AddMissingModels(JsonObject models, JsonElement canonical)
+static JsonObject SynchronizeModels(JsonObject previous, JsonElement canonical, OfficialModel[] officialModels)
 {
     const int minContextWindow = 1_000;
-    var added = 0;
+    var contexts = new Dictionary<string, int>(StringComparer.Ordinal);
+    var defaults = new SortedDictionary<string, (int Context, int? Input)>(StringComparer.Ordinal);
+    var officialByCanonical = officialModels.ToLookup(model => model.CanonicalId, StringComparer.Ordinal);
     foreach (var model in canonical.EnumerateObject())
     {
         if (model.Value.ValueKind != JsonValueKind.Object)
@@ -94,26 +100,46 @@ static void AddMissingModels(JsonObject models, JsonElement canonical)
             || !TryReadPositive(limit, "context", out var context) || context < minContextWindow)
             continue;
 
-        var key = ModelCapabilityIdentity.ForMatching(model.Name.Split('/')[^1])!.ToLowerInvariant();
-        if (models.ContainsKey(key))
-            continue;
-
-        var entry = new JsonObject { ["contextWindow"] = context };
-        if (TryReadPositive(limit, "input", out var maxInput) && maxInput < context)
-            entry["maxInputTokens"] = maxInput;
-        models[key] = entry;
-        added++;
+        contexts.Add(model.Name, context);
+        var inputLimits = officialByCanonical[model.Name].Select(record => record.Limit?.Input)
+            .OfType<int>().Where(input => input > 0).Distinct().ToArray();
+        int? maxInput = inputLimits is [var input] && input < context ? input : null;
+        var key = Key(model.Name).ToLowerInvariant();
+        if (!defaults.TryAdd(key, (context, maxInput)))
+            throw new InvalidOperationException($"Duplicate normalized canonical model key '{key}'.");
     }
 
-    if (added == 0)
-        return;
+    if (contexts.Count == 0)
+        throw new InvalidOperationException("models.dev returned no eligible canonical models.");
 
-    var sorted = models.OrderBy(pair => pair.Key, StringComparer.Ordinal).ToArray();
-    foreach (var (key, _) in sorted)
-        models.Remove(key);
-    foreach (var (key, value) in sorted)
-        models[key] = value;
-    Console.WriteLine($"Added {added} models from models.dev.");
+    var directModels = officialModels.Where(model => contexts.ContainsKey(model.CanonicalId))
+        .GroupBy(model => Key(model.NativeId).ToLowerInvariant(), StringComparer.Ordinal);
+    foreach (var group in directModels)
+    {
+        if (defaults.ContainsKey(group.Key)) continue;
+        var records = group.Select(model =>
+        {
+            var context = model.Limit?.Context is int limit && limit >= minContextWindow
+                ? limit : contexts[model.CanonicalId];
+            var input = model.Limit?.Input;
+            return (model.CanonicalId, Context: context, Input: input is > 0 && input < context ? input : null);
+        }).Distinct().ToArray();
+        if (records is not [var record])
+            throw new InvalidOperationException($"Conflicting first-party records for model key '{group.Key}'.");
+        defaults.Add(group.Key, (record.Context, record.Input));
+    }
+
+    var models = new JsonObject();
+    foreach (var (key, (context, input)) in defaults)
+    {
+        var entry = previous[key]?.DeepClone().AsObject() ?? new JsonObject();
+        entry["contextWindow"] = context;
+        if (input is { } limit) entry["maxInputTokens"] = limit;
+        else entry.Remove("maxInputTokens");
+        models.Add(key, entry);
+    }
+    Console.WriteLine($"Synchronized {contexts.Count} canonical models and {models.Count - contexts.Count} additional first-party model IDs.");
+    return models;
 }
 
 static bool TryReadPositive(JsonElement element, string propertyName, out int value)
@@ -132,7 +158,12 @@ internal sealed class ModelsDevProvider
 
 internal sealed record ModelsDevModel(
     [property: JsonPropertyName("canonical_model_id")] string? CanonicalModelId,
-    ModelsDevCost? Cost);
+    ModelsDevCost? Cost,
+    ModelsDevLimit? Limit);
+
+internal sealed record OfficialModel(string Provider, string NativeId, string CanonicalId, ModelsDevLimit? Limit, ModelPricing? Pricing);
+
+internal sealed record ModelsDevLimit(int? Context, int? Input);
 
 internal sealed record ModelsDevCost(decimal? Input, decimal? Output,
     [property: JsonPropertyName("cache_read")] decimal? CacheRead,

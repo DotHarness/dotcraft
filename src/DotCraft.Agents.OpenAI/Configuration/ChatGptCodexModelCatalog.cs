@@ -11,7 +11,7 @@ internal static class ChatGptCodexModelCatalog
 {
     private const string BuiltInResourceName = "DotCraft.Resources.chatgpt-codex-models.json";
     private const string CacheFileName = "model-catalog-cache.json";
-    private const string ClientVersion = "0.169.1";
+    private const string ClientVersion = "0.171.0";
     private const string PriorityTier = "priority";
     private const string UltrafastTier = "ultrafast";
     private const int CacheVersion = 4;

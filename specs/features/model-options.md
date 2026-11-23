@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.10.0 |
+| **Version** | 0.14.0 |
 | **Status** | Living |
-| **Date** | 2026-11-22 |
+| **Date** | 2026-11-23 |
 | **Parent Specs** | [Session Core](../architecture/session-core.md) |
 
 Purpose: define the provider-neutral, model-aware options that control how DotCraft runs a selected
@@ -39,12 +39,16 @@ model compatibility rules.
 Missing metadata means that the server has no known support for that option. Manual model entry
 remains available when upstream listing fails, but the client never invents unsupported choices.
 
-The server's built-in model metadata is stored in `models.json`. Its synchronized context-window
-entries use the provider-agnostic [models.dev](https://models.dev/) catalog and include models whose
-metadata declares tool calling, text output, and a context window of at least 1,000 tokens. The final
-segment of each canonical model id becomes a lowercase matching key, and duplicate keys are rejected. Provider-specific limits remain outside this
-provider-agnostic matching table. The catalog's `providers` section holds exact provider-specific
-records for model IDs, protocols, limits, reasoning options and prices.
+The server's built-in model metadata is stored in `models.json`. A full refresh synchronizes the
+[models.dev](https://models.dev/) canonical entries that declare tool calling, text output, and a
+context window of at least 1,000 tokens. It also includes direct API model IDs from the first-party
+provider in `api.json` when they map to an eligible canonical ID. Both kinds of ID are normalized
+using the final ID segment and the catalog's matching rules, then lowercased. Duplicate canonical
+keys are rejected. Canonical entries own their keys. A new direct API key uses its first-party
+context limit when available, otherwise it uses the canonical context. Conflicting direct API
+entries for the same key are rejected. A full refresh drops keys absent from both sources and
+preserves Fast declarations on retained keys. The catalog's `providers` section holds exact
+provider-specific records for model IDs, protocols, limits, reasoning options and prices.
 
 Generic entries may carry `pricing` and `pricingProvider` for first-party base rates in USD per
 million input, output, cache-read and cache-write tokens. `pricingSource` and `pricingCapturedAt`
