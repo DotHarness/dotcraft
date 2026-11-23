@@ -258,6 +258,7 @@ if ($Version -notmatch '^\d+\.\d+\.\d+$') {
 }
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
+$pluginDependencies = @("@dotcraft/avatar", "@dotcraft/sdk")
 
 $targets = @(
     @{ Type = "xml"; Path = "src/DotCraft.App/DotCraft.App.csproj" },
@@ -267,9 +268,9 @@ $targets = @(
     @{ Type = "packageJson"; Path = "desktop/package.json" },
     @{ Type = "npmLock"; Path = "desktop/package-lock.json"; Name = "dotcraft-desktop"; UpdateLinkedSdk = $true; UpdateLinkedDesktopPlugin = $true; UpdateLinkedAvatar = $true },
     @{ Type = "packageJson"; Path = "sdk/typescript/package.json" },
-    @{ Type = "npmLock"; Path = "sdk/typescript/package-lock.json"; Name = "@dotcraft/sdk"; SyncSdkDependencyWorkspace = "packages/plugin" },
+    @{ Type = "npmLock"; Path = "sdk/typescript/package-lock.json"; Name = "@dotcraft/sdk"; SyncPluginDependencyWorkspace = "packages/plugin" },
     @{ Type = "typescriptProtocolMetadata"; Path = "sdk/typescript/src/generated/appserver/protocol-info.generated.ts" },
-    @{ Type = "packageJson"; Path = "sdk/typescript/packages/plugin/package.json"; SyncSdkDependency = $true },
+    @{ Type = "packageJson"; Path = "sdk/typescript/packages/plugin/package.json"; SyncDependencies = $pluginDependencies },
     @{ Type = "packageJson"; Path = "sdk/typescript/packages/avatar/package.json" },
     @{ Type = "packageJson"; Path = "sdk/typescript/packages/island/package.json" },
     @{ Type = "packageJsonDependency"; Path = "sdk/dotnet/samples/DotNetExtensionSample/Desktop/package.json"; Dependency = "@dotcraft/plugin" },
@@ -321,8 +322,8 @@ foreach ($target in $targets) {
         }
         "packageJson" {
             Update-PackageJsonVersion -Path $absolutePath -NewVersion $Version
-            if ($target.ContainsKey("SyncSdkDependency") -and $target.SyncSdkDependency) {
-                Update-PackageJsonDependencyVersion -Path $absolutePath -Dependency "@dotcraft/sdk" -NewVersion $Version
+            foreach ($dependency in $target["SyncDependencies"]) {
+                Update-PackageJsonDependencyVersion -Path $absolutePath -Dependency $dependency -NewVersion $Version
             }
         }
         "packageJsonDependency" {
@@ -349,8 +350,10 @@ foreach ($target in $targets) {
                 Update-NpmLockWorkspaceVersion -Path $absolutePath -WorkspacePath $linkedDesktopPlugin -NewVersion $Version
                 Update-NpmLockWorkspaceDependencyVersion -Path $absolutePath -WorkspacePath $linkedDesktopPlugin -Dependency "@dotcraft/sdk" -NewVersion $Version
             }
-            if ($target.ContainsKey("SyncSdkDependencyWorkspace")) {
-                Update-NpmLockWorkspaceDependencyVersion -Path $absolutePath -WorkspacePath $target.SyncSdkDependencyWorkspace -Dependency "@dotcraft/sdk" -NewVersion $Version
+            if ($target.ContainsKey("SyncPluginDependencyWorkspace")) {
+                foreach ($dependency in $pluginDependencies) {
+                    Update-NpmLockWorkspaceDependencyVersion -Path $absolutePath -WorkspacePath $target.SyncPluginDependencyWorkspace -Dependency $dependency -NewVersion $Version
+                }
             }
             if ($target.ContainsKey("UpdateLinkedAvatar") -and $target.UpdateLinkedAvatar) {
                 Update-NpmLockWorkspaceVersion -Path $absolutePath -WorkspacePath "../sdk/typescript/packages/avatar" -NewVersion $Version
