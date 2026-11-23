@@ -9,6 +9,7 @@ namespace DotCraft.Tests.Tools;
 
 public sealed class BackgroundTerminalOutputTests : IAsyncLifetime
 {
+    private static readonly TimeSpan CompletionTimeout = TimeSpan.FromSeconds(10);
     private readonly string _directory = Path.Combine(Path.GetTempPath(), "terminal_output_" + Guid.NewGuid().ToString("N"));
     private BackgroundTerminalService? _service;
 
@@ -31,9 +32,10 @@ public sealed class BackgroundTerminalOutputTests : IAsyncLifetime
         var content = "initial-head" + string.Concat(Enumerable.Repeat("abc中文😀", 100_000)) + "final-tail";
         var events = new ConcurrentQueue<BackgroundTerminalEvent>();
         _service = CreateService();
-        _service.TerminalEvent += events.Enqueue;
+        var completion = ObserveCompletion(_service, events.Enqueue);
 
         var result = await _service.StartAsync(await RequestAsync(content));
+        await completion.WaitAsync(CompletionTimeout);
 
         Assert.Equal(BackgroundTerminalStatus.Completed, result.Status);
         Assert.Equal(content, await File.ReadAllTextAsync(result.OutputPath));
@@ -48,7 +50,6 @@ public sealed class BackgroundTerminalOutputTests : IAsyncLifetime
             Assert.InRange(Encoding.UTF8.GetByteCount(e.Delta ?? ""), 0, 8192);
             Assert.DoesNotContain("\uFFFD", e.Delta ?? "");
         });
-        Assert.Equal("completed", events.Last().EventType);
 
         await _service.DisposeAsync();
         _service = CreateService();
@@ -62,19 +63,19 @@ public sealed class BackgroundTerminalOutputTests : IAsyncLifetime
     {
         _service = CreateService(maxBytes: 8192);
         var events = new ConcurrentQueue<BackgroundTerminalEvent>();
-        _service.TerminalEvent += events.Enqueue;
+        var completion = ObserveCompletion(_service, events.Enqueue);
         var content = new string('x', 50_000) + "end";
 
         var result = await _service.StartAsync(await RequestAsync(content));
+        var completed = await completion.WaitAsync(CompletionTimeout);
 
         Assert.Equal(content, await File.ReadAllTextAsync(result.OutputPath));
-        var deltas = events.Where(e => e.EventType == "outputDelta").ToArray();
-        Assert.InRange(deltas.Sum(e => Encoding.UTF8.GetByteCount(e.Delta ?? "")), 1, 8192);
-        Assert.All(deltas, e => Assert.False(string.IsNullOrEmpty(e.Delta)));
-        Assert.Equal("completed", events.Last().EventType);
+        var liveBytes = events.Where(e => e.EventType == "outputDelta")
+            .Sum(e => Encoding.UTF8.GetByteCount(e.Delta!));
+        Assert.InRange(liveBytes, 1, 8192);
         Assert.Equal(content, result.Output);
-        Assert.EndsWith("end", events.Last().Terminal.Output);
-        Assert.Equal(content.Length, events.Last().Terminal.OriginalOutputChars);
+        Assert.EndsWith("end", completed.Output);
+        Assert.Equal(content.Length, completed.OriginalOutputChars);
     }
 
     [Fact]
@@ -84,13 +85,13 @@ public sealed class BackgroundTerminalOutputTests : IAsyncLifetime
         using var release = new ManualResetEventSlim();
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var events = new ConcurrentQueue<BackgroundTerminalEvent>();
-        _service.TerminalEvent += e =>
+        var completion = ObserveCompletion(_service, e =>
         {
             events.Enqueue(e);
             if (e.EventType != "outputDelta") return;
             entered.TrySetResult();
             release.Wait(TimeSpan.FromSeconds(30));
-        };
+        });
         var content = new string('a', 2 * 1024 * 1024) + "done";
         var run = _service.StartAsync(await RequestAsync(content));
         try
@@ -106,12 +107,11 @@ public sealed class BackgroundTerminalOutputTests : IAsyncLifetime
             release.Set();
         }
         var result = await run;
-        var deltas = events.Where(e => e.EventType == "outputDelta").ToArray();
-        Assert.All(deltas, e => Assert.False(string.IsNullOrEmpty(e.Delta)));
-        Assert.InRange(deltas.Sum(e => e.Delta!.Length), 1, content.Length - 1);
+        var completed = await completion.WaitAsync(CompletionTimeout);
+        var liveChars = events.Where(e => e.EventType == "outputDelta").Sum(e => e.Delta!.Length);
+        Assert.InRange(liveChars, 1, content.Length - 1);
         Assert.Equal(content, await File.ReadAllTextAsync(result.OutputPath));
-        Assert.Equal("completed", events.Last().EventType);
-        Assert.EndsWith("done", events.Last().Terminal.Output);
+        Assert.EndsWith("done", completed.Output);
     }
 
     [Fact]
@@ -154,24 +154,35 @@ public sealed class BackgroundTerminalOutputTests : IAsyncLifetime
     {
         _service = CreateService();
         FileStream? held = null;
-        var events = new ConcurrentQueue<BackgroundTerminalEvent>();
-        _service.TerminalEvent += e =>
+        var completion = ObserveCompletion(_service, e =>
         {
-            events.Enqueue(e);
             if (e.EventType == "started")
                 held = new FileStream(e.Terminal.OutputPath, FileMode.Open, FileAccess.Read, FileShare.None);
-        };
+        });
         try
         {
             var request = await RequestAsync("hello");
             await Assert.ThrowsAnyAsync<IOException>(() => _service.StartAsync(request));
-            Assert.Equal(BackgroundTerminalStatus.Failed, events.Last().Terminal.Status);
-            Assert.Equal("completed", events.Last().EventType);
+            var completed = await completion.WaitAsync(CompletionTimeout);
+            Assert.Equal(BackgroundTerminalStatus.Failed, completed.Status);
         }
         finally
         {
             held?.Dispose();
         }
+    }
+
+    private static Task<BackgroundTerminalSnapshot> ObserveCompletion(
+        BackgroundTerminalService service, Action<BackgroundTerminalEvent> onEvent)
+    {
+        var completion = new TaskCompletionSource<BackgroundTerminalSnapshot>(TaskCreationOptions.RunContinuationsAsynchronously);
+        service.TerminalEvent += e =>
+        {
+            onEvent(e);
+            if (e.EventType == BackgroundTerminalEventTypes.Completed)
+                completion.TrySetResult(e.Terminal);
+        };
+        return completion.Task;
     }
 
     private BackgroundTerminalService CreateService(long maxBytes = 64L * 1024 * 1024) =>

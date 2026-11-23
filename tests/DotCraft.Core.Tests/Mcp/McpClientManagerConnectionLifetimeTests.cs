@@ -185,13 +185,23 @@ public sealed class McpClientManagerConnectionLifetimeTests
     [Fact]
     public async Task Reconcile_ClosedTransport_ReplacesTheConnection()
     {
-        await using var manager = new McpClientManager();
+        Task? firstConnectionClosed = null;
+        await using var manager = new McpClientManager(async (server, cancellationToken) =>
+        {
+            var client = await McpProtocolClientFactory.CreateAsync(server, elicitationHandler: null,
+                oauthOptions: null, userDataPath: null, cancellationToken: cancellationToken);
+            firstConnectionClosed ??= client.Completion;
+            return new McpConnectionResult(client, [], ProtocolClient: client);
+        });
         var config = StdioServer();
+        var deadline = TimeSpan.FromSeconds(15);
         await manager.ConnectAsync([config]);
         await manager.WaitForStartupCompletionAsync();
         var generation = await manager.GetGenerationAsync(config.Name);
-        await Assert.ThrowsAnyAsync<Exception>(() =>
-            manager.CallToolAsync(config.Name, "disconnect").WaitAsync(TimeSpan.FromSeconds(15)));
+        Assert.NotNull(firstConnectionClosed);
+        await Assert.ThrowsAnyAsync<IOException>(() => manager.CallToolAsync(config.Name, "disconnect"))
+            .WaitAsync(deadline);
+        await firstConnectionClosed.WaitAsync(deadline);
 
         await manager.ConnectAsync([config]);
         await manager.WaitForStartupCompletionAsync();
