@@ -1,13 +1,11 @@
 import { create, type StateCreator } from 'zustand'
-import { panelScopeKey, type PanelScope } from '../../shared/viewer/panelState'
+import { PANEL_SYSTEM_TABS, panelScopeKey, type PanelScope } from '../../shared/viewer/panelState'
 import { normalizeWorkspaceProjectKey } from '../../shared/workspaceProjectKey'
 import { createViewerActions } from './detailPanelViewerActions'
 import { createTabUpdates } from './detailPanelTabUpdates'
-import type { DetailPanelStore, PanelSession, ActiveDetailTab, SystemDetailTab } from './detailPanelState'
+import type { DetailPanelStore, PanelSession, ActiveDetailTab } from './detailPanelState'
 
 export type { DetailPanelStore, PanelSession, ActiveDetailTab, SystemDetailTab, FileReveal } from './detailPanelState'
-
-const SYSTEM_ORDER: SystemDetailTab[] = ['changes', 'plan', 'subagents', 'board']
 
 const defaults = new Map<string, PanelSession>()
 
@@ -219,7 +217,7 @@ export const useDetailPanelStore = create<DetailPanelStore>((set, get, api) => {
           kind: 'system',
           id: tab
         },
-        openSystemTabs: SYSTEM_ORDER.filter(id => id === tab || panel.openSystemTabs.includes(id)),
+        openSystemTabs: PANEL_SYSTEM_TABS.filter(id => id === tab || panel.openSystemTabs.includes(id)),
         lastActiveSystemTab: tab,
         ...(options?.reveal === false ? {} : {
           detailPanelPreferredVisible: true

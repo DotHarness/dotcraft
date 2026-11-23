@@ -90,14 +90,14 @@ export function DetailPanelLauncher({
       icon: <MessagesSquare size={22} strokeWidth={1.75} aria-hidden style={iconStyle} />,
       enabled: true
     }] : []),
-    {
-      action: 'newSideChat',
+    ...(canOpenSideChat ? [{
+      action: 'newSideChat' as const,
       title: t('detailPanel.launcherSideChatTitle'),
       description: t('detailPanel.launcherSideChatDesc'),
       icon: <MessagesSquare size={22} strokeWidth={1.75} aria-hidden style={iconStyle} />,
       shortcut: fmt(ACTION_SHORTCUTS.newSideChat),
-      enabled: canOpenSideChat
-    },
+      enabled: true
+    }] : []),
     {
       action: 'newTerminal',
       title: t('detailPanel.launcherTerminalTitle'),
@@ -109,7 +109,7 @@ export function DetailPanelLauncher({
   ]
   const cards = systemTabsAvailable
     ? allCards
-    : allCards.filter((card) => card.action !== 'newChanges' && card.action !== 'newPlan' && card.action !== 'newSubagents' && card.action !== 'newSideChat')
+    : allCards.filter((card) => card.action !== 'newChanges' && card.action !== 'newPlan' && card.action !== 'newSubagents')
 
   return (
     <div style={containerStyle}>

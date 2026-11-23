@@ -128,6 +128,24 @@ describe('scope state', () => {
     expect(isDetailPanelVisible()).toBe(true)
   })
 
+  it('reveals Sources in a narrow layout and keeps the panel open when selecting a file', () => {
+    useUIStore.getState().setResponsiveLayout('no-detail')
+    store().setActiveDetailTab('sources')
+    expect(isDetailPanelVisible()).toBe(true)
+    expect(panel().activeDetailTab).toEqual({ kind: 'system', id: 'sources' })
+
+    const file = store().openFile({
+      threadId: 'thread-a',
+      absolutePath: '/project-a/app.ts',
+      relativePath: 'app.ts',
+      contentClass: 'text'
+    })
+    store().setActiveViewerTab(file)
+    expect(isDetailPanelVisible()).toBe(true)
+    store().setDetailPanelVisible(false)
+    expect(isDetailPanelVisible()).toBe(false)
+  })
+
   it('keeps automatic reveal reasons scoped to their conversation', () => {
     expect(store().maybeAutoShowForReason('turn:one')).toBe(true)
     expect(store().maybeAutoShowForReason('turn:one')).toBe(false)

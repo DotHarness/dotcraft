@@ -1,6 +1,5 @@
-import type { PanelActiveTab, PanelCheckpoint, PanelSystemTab } from './panelState'
+import { PANEL_SYSTEM_TABS, type PanelActiveTab, type PanelCheckpoint, type PanelSystemTab } from './panelState'
 import type { ViewerTab, ViewerContentClass } from './types'
-const SYSTEM_TABS: PanelSystemTab[] = ['changes', 'plan', 'subagents', 'board']
 const CONTENT_CLASSES: ViewerContentClass[] = ['text', 'image', 'pdf', 'spreadsheet', 'presentation', 'video', 'unsupported']
 const record = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
 const string = (value: unknown): value is string => typeof value === 'string'
@@ -102,7 +101,7 @@ export function normalizePanelCheckpoint(value: unknown): PanelCheckpoint | null
     return [tab]
   })
   const savedSystemTabs = value.systemTabs
-  const systemTabs = SYSTEM_TABS.filter((id) => savedSystemTabs.includes(id))
+  const systemTabs = PANEL_SYSTEM_TABS.filter((id) => savedSystemTabs.includes(id))
   let activeTab: PanelActiveTab = {
     kind: 'launcher'
   }

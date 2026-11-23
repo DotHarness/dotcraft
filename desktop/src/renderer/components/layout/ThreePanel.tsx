@@ -75,7 +75,7 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
     sidebarWidth,
     activeMainView
   } = useUIStore()
-  const { detailPanelVisible, detailPanelWidth, detailPanelWidthRatio, detailPanelFullView } = useDetailPanelPresentation()
+  const { detailPanelVisible, detailPanelWidth, detailPanelWidthRatio, detailPanelFullView, detailPanelCompact } = useDetailPanelPresentation()
   const mainSurfaceRef = useRef<HTMLDivElement>(null)
   const mainSurfaceWidthRef = useRef<number | null>(null)
   const [observedMainSurfaceWidth, setObservedMainSurfaceWidth] = useState<number | null>(null)
@@ -114,7 +114,7 @@ export function ThreePanel({ sidebar, conversation, detail }: ThreePanelProps): 
     mainSurfaceWidth,
     effectiveDetailPanelVisible
   )
-  const fullView = effectiveDetailPanelVisible && detailPanelFullView
+  const fullView = effectiveDetailPanelVisible && (detailPanelFullView || detailPanelCompact)
   const detailDividerVisible = effectiveDetailPanelVisible && !fullView
   const detailShellWidth = fullView
     ? Math.max(effectiveDetailPanelWidth, mainSurfaceWidth)

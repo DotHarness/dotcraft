@@ -2039,6 +2039,15 @@ Content beside the conversation stays quieter than the conversation itself.
   until hover or focus and is a sibling of the row's own button, never inside it.
   The card is its own scroll container, so its radius stays whole while it
   scrolls; it scrolls by wheel or trackpad with no visible scrollbar.
+- **Summary sources.** The card previews up to three source rows and ends the
+  nonempty section with **View all**. The action opens the standard detail tab
+  surface, using its full-width layout when the dock does not fit. There each
+  source is an entry rather than a single-line row: its Summary icon, a
+  medium-weight name that wraps, a secondary-size dimmed path or address that
+  breaks anywhere, and its activity below in secondary text aligned with the
+  name. An openable entry is one button across icon, name, and path. Tool uses,
+  searches, and opened pages use the same disclosure treatment as transcript
+  activity, collapsed by default.
 - **Summary folder sections.** A multi-folder project's Summary sections are
   titled with the folder name. The title is the section's toggle and keeps its
   muted colour; its chevron follows the title, shows while the section is

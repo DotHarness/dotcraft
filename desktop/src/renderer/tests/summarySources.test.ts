@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { changeTotals, diffTotals, extractSources, hasWebSearch, rolledBackTurns, sumChanges, toSummaryItem, workflowCallIds, type SummaryItem } from '../components/conversation/summary/sources'
+import { changeTotals, diffTotals, extractSources, rolledBackTurns, sumChanges, toSummaryItem, webSearchActivity, workflowCallIds, type SummaryItem } from '../components/conversation/summary/sources'
 import { changesByFolder } from '../components/conversation/summary/folderChanges'
 
 let counter = 0
@@ -52,14 +52,73 @@ describe('Summary sources', () => {
     ], '/work')
 
     expect(sources).toEqual([
-      { kind: 'mcp', id: 'tracker', title: 'tracker', target: null },
-      { kind: 'web', id: 'https://example.com/guide', title: 'example.com', target: 'https://example.com/guide' },
-      { kind: 'skill', id: 'release-notes', title: 'release-notes', target: 'release-notes' },
+      {
+        kind: 'mcp', id: 'tracker', title: 'tracker', target: null,
+        toolGroups: [{ name: 'list_issues', calls: [{ turnId: 'turn-1', callId: 'm3', status: 'running', input: {} }] }]
+      },
+      { kind: 'web', id: 'https://example.com/guide', title: 'example.com', target: 'https://example.com/guide', usage: ['read'] },
+      { kind: 'skill', id: 'release-notes', title: 'release-notes', target: 'release-notes', usage: ['loaded'] },
       { kind: 'mcp', id: 'wiki', title: 'wiki', target: null }
     ])
   })
 
-  it('lists the files, images, and skills the user provided, but not files the agent read', () => {
+  it('groups MCP calls by tool and keeps one invocation per call ID within its turn', () => {
+    const source = { kind: 'Mcp', sourceId: 'tracker:issues', pluginId: 'tracker' }
+    const invocation = { server: 'tracker:issues', source, callId: 'lookup-1', toolName: 'lookup', arguments: { id: 7 } }
+    const sources = extractSources([
+      item('mcpToolCall', { ...invocation, status: 'inProgress' }),
+      call('list-1', 'list', {}, { source }),
+      item('mcpToolCall', {
+        ...invocation, status: 'completed', success: true,
+        structuredContent: { title: 'Bug' },
+        content: [{ type: 'text', text: 'Bug' }],
+        _meta: { token: 'not part of the displayed result' }
+      }),
+      item('toolResult', { callId: 'list-1', toolName: 'list', result: 'Not allowed', success: false }),
+      item('mcpToolCall', { ...invocation, status: 'inProgress' }, 'turn-2'),
+      item('toolResult', { callId: 'lookup-2', toolName: 'lookup', result: 'Closed', success: true }),
+      call('lookup-2', 'lookup', { id: 8 }, { source }),
+      item('mcpToolCall', { server: 'other', callId: 'other-1', toolName: 'lookup', status: 'failed', isError: true, errorMessage: 'Unavailable' })
+    ], null)
+
+    expect(sources).toEqual([
+      {
+        kind: 'mcp', id: 'tracker:issues', title: 'tracker:issues', target: null, pluginId: 'tracker',
+        toolGroups: [
+          {
+            name: 'lookup',
+            calls: [
+              { turnId: 'turn-1', callId: 'lookup-1', status: 'completed', input: { id: 7 }, output: { title: 'Bug' } },
+              { turnId: 'turn-2', callId: 'lookup-1', status: 'running', input: { id: 7 } },
+              { turnId: 'turn-1', callId: 'lookup-2', status: 'completed', input: { id: 8 }, output: 'Closed' }
+            ]
+          },
+          {
+            name: 'list',
+            calls: [{ turnId: 'turn-1', callId: 'list-1', status: 'failed', input: {}, output: 'Not allowed' }]
+          }
+        ]
+      },
+      {
+        kind: 'mcp', id: 'other', title: 'other', target: null,
+        toolGroups: [{ name: 'lookup', calls: [{ turnId: 'turn-1', callId: 'other-1', status: 'failed', output: 'Unavailable' }] }]
+      }
+    ])
+  })
+
+  it('uses recorded MCP blocks and falls back to the model text when raw content is absent', () => {
+    const invocation = { server: 'tracker', toolName: 'lookup', status: 'completed' }
+    const image = { type: 'image', mimeType: 'image/png', data: 'AA==' }
+    const text = { type: 'text', text: 'Done' }
+    const sources = extractSources([
+      item('mcpToolCall', { ...invocation, callId: 'raw', content: [text, image], modelContentItems: [text] }),
+      item('mcpToolCall', { ...invocation, callId: 'fallback', modelContentItems: [text] })
+    ], null)
+
+    expect(sources[0]?.toolGroups?.[0]?.calls.map((call) => call.output)).toEqual([[text, image], 'Done'])
+  })
+
+  it('lists the files, images, and skills the user provided, and how each was used, but not files the agent read', () => {
     const sources = extractSources([
       item('userMessage', {
         nativeInputParts: [
@@ -78,9 +137,9 @@ describe('Summary sources', () => {
     ], '/work')
 
     expect(sources).toEqual([
-      { kind: 'file', id: 'specs/summary.md', title: 'summary.md', target: 'specs/summary.md', image: false },
-      { kind: 'file', id: '.craft/attachments/images/shot.png', title: 'Screenshot.png', target: '/work/.craft/attachments/images/shot.png', image: true },
-      { kind: 'skill', id: 'design-prototype', title: 'design-prototype', target: 'design-prototype' }
+      { kind: 'file', id: 'specs/summary.md', title: 'summary.md', target: 'specs/summary.md', image: false, usage: ['attached'] },
+      { kind: 'file', id: '.craft/attachments/images/shot.png', title: 'Screenshot.png', target: '/work/.craft/attachments/images/shot.png', image: true, usage: ['attached'] },
+      { kind: 'skill', id: 'design-prototype', title: 'design-prototype', target: 'design-prototype', usage: ['provided', 'loaded'] }
     ])
   })
 
@@ -115,14 +174,32 @@ describe('Summary sources', () => {
 })
 
 describe('Summary web search', () => {
-  it('marks only a thread that searched the web', () => {
-    expect(hasWebSearch([item('webSearch', { callId: 'w', status: 'inProgress', query: '', action: null, results: null })])).toBe(true)
-    expect(hasWebSearch([call('c1', 'WebSearch', { query: 'dotnet 10' })])).toBe(true)
-    expect(hasWebSearch([
+  it('reports web search only for a thread that searched the web', () => {
+    expect(webSearchActivity([item('webSearch', { callId: 'w', status: 'inProgress', query: '', action: null, results: null })]))
+      .toEqual({ searches: 1, queries: [], pages: [] })
+    expect(webSearchActivity([
       call('c1', 'WebFetch', { url: 'https://example.com' }),
       result('c1', 'WebFetch', '{"status":200}'),
       call('c2', 'ReadFile', { path: 'a.ts' })
-    ])).toBe(false)
+    ])).toBeNull()
+  })
+
+  it('counts searches, keeps distinct queries, and lists the pages the search opened', () => {
+    const page = 'https://example.com/release-notes'
+    expect(webSearchActivity([
+      item('webSearch', { status: 'completed', query: '', action: { type: 'search', queries: ['release notes', 'breaking changes'] } }),
+      call('c1', 'WebSearch', { query: 'release notes' }),
+      item('webSearch', {
+        status: 'completed', query: '', action: { type: 'openPage', url: `${page}#latest` },
+        results: [{ url: page, title: 'Release notes' }]
+      }),
+      item('webSearch', { status: 'completed', query: '', action: { type: 'findInPage', url: page, pattern: 'breaking' } }),
+      item('webSearch', { status: 'completed', query: '', action: { type: 'other' } })
+    ])).toEqual({
+      searches: 2,
+      queries: ['release notes', 'breaking changes'],
+      pages: [{ url: page, title: 'Release notes' }]
+    })
   })
 })
 

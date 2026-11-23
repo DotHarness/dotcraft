@@ -2,9 +2,9 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 0.14.0 |
+| Version | 0.15.0 |
 | Status | Living |
-| Date | 2026-11-22 |
+| Date | 2026-11-23 |
 | Parent Specs | [Plugin Architecture](plugin-architecture.md), [Tool Architecture](tools-architecture.md) |
 
 ## Overview
@@ -315,7 +315,7 @@ The plan is the thread's saved snapshot. `implementsPlan` identifies the executi
 
 The seat stays mounted after the turn ends, so a contribution decides from how the turn ended whether its status still applies. Content renders in the reading column with the transcript's spacing, and an empty contribution takes no space.
 
-`summary.sections` mounts wherever the Summary shows a thread, pinned or as a popover, once the Summary has loaded, and receives the thread surface context. In a thread a plugin owns ([Owned threads](#owned-threads)), the Summary is headed by the owned thread's title and shows Core's Chats, background tasks, and context sections with contributed sections. Sources, environment, SubAgents, and plan describe project work, which an owned thread leaves to the chats it starts. A contribution builds its section from the UI kit's `SummarySection` and `SummaryRow`, so it matches Core's sections, and renders nothing when it has nothing to show. `summary.sources` mounts in the same places and renders `SummaryRow`s alone. The Sources section is hidden while neither Core nor any contribution has a row. Contributed rows count toward the section's row limit together with Core's, so past the limit they collapse behind the same View all row.
+`summary.sections` mounts wherever the Summary shows a thread, pinned or as a popover, once the Summary has loaded, and receives the thread surface context. In a thread a plugin owns ([Owned threads](#owned-threads)), the Summary is headed by the owned thread's title and shows Core's Chats, background tasks, and context sections with contributed sections. Sources, environment, SubAgents, and plan describe project work, which an owned thread leaves to the chats it starts. A contribution builds its section from the UI kit's `SummarySection` and `SummaryRow`, so it matches Core's sections, and renders nothing when it has nothing to show. `summary.sources` mounts in the same places and in the thread's Sources detail tab, and renders `SummaryRow`s alone. The Summary's Sources section is hidden while neither Core nor any contribution has a row. Contributed rows share the Summary preview limit with Core's rows and all appear in the detail tab.
 
 ## Convenience contributions
 

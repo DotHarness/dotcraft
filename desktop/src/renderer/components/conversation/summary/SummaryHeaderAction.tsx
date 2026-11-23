@@ -107,6 +107,7 @@ export function SummaryHeaderAction({ context }: { context: DesktopPluginThreadS
                 workspacePath={context.workspacePath}
                 busy={context.busy}
                 variant="popover"
+                onOpenSources={() => setPopoverOpen(false)}
               />
             </div>,
             document.body

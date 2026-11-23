@@ -1,5 +1,5 @@
 import type { DesktopPluginSubAgent } from '@dotcraft/plugin'
-import { THREAD_OPENING_PAGE } from '../../../utils/threadHistory'
+import { readHistoryPreview, THREAD_OPENING_PAGE } from '../../../utils/threadHistory'
 import { diffTotals, rolledBackTurns, toSummaryItem, type FileChanges, type SummaryItem } from './sources'
 import type { SummaryServices } from './summaryServices'
 import type { SummaryTerminal } from './terminalFeed'
@@ -108,8 +108,24 @@ export function startSummaryFeed(
         threadId, sortDirection: 'descending', ...THREAD_OPENING_PAGE
       })
       if (disposed) return
-      for (const turn of [...(page.data ?? [])].reverse()) {
-        for (const raw of turn.items ?? []) {
+      const turns = [...(page.data ?? [])].reverse()
+      const itemsByTurn = await Promise.all(turns.map(async (turn) => {
+        const items = turn.items ?? []
+        if (turn.itemCount == null || turn.itemCount <= items.length) return items
+        try {
+          const recent = await readHistoryPreview(() => services.appServer.request('thread/items/list', {
+            threadId, turnId: turn.id, sortDirection: 'descending', limit: 100
+          }), () => !disposed)
+          const hydrated = [...(recent.data ?? [])].reverse().map((entry) => entry.item)
+          const hydratedIds = new Set(hydrated.map(item => item.id))
+          return [...items.filter(item => !hydratedIds.has(item.id)), ...hydrated]
+        } catch {
+          return items
+        }
+      }))
+      if (disposed) return
+      for (const [index, turn] of turns.entries()) {
+        for (const raw of itemsByTurn[index]) {
           tasks.observeCommandExecution(raw, turn.id)
           const item = toSummaryItem(raw, turn.id)
           if (item) loaded.push(item)

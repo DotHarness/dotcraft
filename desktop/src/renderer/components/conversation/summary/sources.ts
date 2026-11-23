@@ -1,8 +1,13 @@
+import { collectMcpCalls, type SourceToolGroup } from './mcpSourceCalls'
+
+export type { SourceToolCall, SourceToolGroup } from './mcpSourceCalls'
+
 export interface SummaryItem {
   readonly id: string
   readonly turnId: string
   readonly type: string
   readonly createdAt: string
+  readonly status?: string
   readonly payload: Readonly<Record<string, unknown>>
 }
 
@@ -15,6 +20,21 @@ export interface Source {
   readonly target: string | null
   readonly image?: boolean
   readonly pluginId?: string | null
+  readonly usage?: readonly SourceUsage[]
+  readonly toolGroups?: readonly SourceToolGroup[]
+}
+
+export type SourceUsage = 'attached' | 'provided' | 'read' | 'loaded'
+
+export interface WebSearchPage {
+  readonly url: string
+  readonly title: string
+}
+
+export interface WebSearchActivity {
+  readonly searches: number
+  readonly queries: readonly string[]
+  readonly pages: readonly WebSearchPage[]
 }
 
 const SOURCE_ITEM_TYPES = new Set(['userMessage', 'toolCall', 'toolResult', 'mcpToolCall', 'webSearch'])
@@ -34,6 +54,7 @@ export function toSummaryItem(value: unknown, turnId?: string | null): SummaryIt
     turnId: turn,
     type,
     createdAt: stringOf(value.completedAt) ?? stringOf(value.createdAt) ?? '',
+    ...(typeof value.status === 'string' ? { status: value.status } : {}),
     payload: isRecord(value.payload) ? value.payload : {}
   }
 }
@@ -102,13 +123,18 @@ export function diffTotals(diff: string): FileChanges {
 export function extractSources(items: readonly SummaryItem[], workspacePath: string | null): Source[] {
   const calls = new Map<string, { kind: SourceToolKind | null; args: Record<string, unknown> }>()
   const sources: Source[] = []
-  const keys = new Set<string>()
+  const usages = new Map<string, Set<SourceUsage>>()
+  const mcp = collectMcpCalls()
 
-  const add = (source: Source): void => {
+  const add = (source: Source, usage?: SourceUsage): void => {
     const key = `${source.kind}:${source.id}`
-    if (keys.has(key)) return
-    keys.add(key)
-    sources.push(source)
+    let used = usages.get(key)
+    if (!used) {
+      used = new Set()
+      usages.set(key, used)
+      sources.push(source)
+    }
+    if (usage) used.add(usage)
   }
 
   for (const item of items) {
@@ -116,26 +142,20 @@ export function extractSources(items: readonly SummaryItem[], workspacePath: str
     const callId = stringOf(payload.callId) ?? item.id
 
     if (item.type === 'userMessage') {
-      for (const source of userSources(payload, workspacePath)) add(source)
+      for (const source of userSources(payload, workspacePath)) add(source, source.kind === 'file' ? 'attached' : 'provided')
       continue
     }
 
-    if (item.type === 'mcpToolCall') {
-      const source = isRecord(payload.source) ? payload.source : null
-      const server = stringOf(payload.server) ?? (source ? stringOf(source.sourceId) : null)
-      const pluginId = source ? stringOf(source.pluginId) : null
-      if (server) add({ kind: 'mcp', id: server, title: server, target: null, ...(pluginId ? { pluginId } : {}) })
+    if (item.type === 'mcpToolCall' || item.type === 'toolCall') {
+      if (item.type === 'toolCall') {
+        calls.set(callId, { kind: sourceKindOf(payload), args: isRecord(payload.arguments) ? payload.arguments : {} })
+      }
+      const source = mcp.observeCall(item, callId)
+      if (source) add(source)
       continue
     }
 
-    if (item.type === 'toolCall') {
-      calls.set(callId, { kind: sourceKindOf(payload), args: isRecord(payload.arguments) ? payload.arguments : {} })
-      const source = isRecord(payload.source) ? payload.source : null
-      const server = source && stringOf(source.kind)?.toLowerCase() === 'mcp' ? stringOf(source.sourceId) : null
-      const pluginId = source ? stringOf(source.pluginId) : null
-      if (server) add({ kind: 'mcp', id: server, title: server, target: null, ...(pluginId ? { pluginId } : {}) })
-      continue
-    }
+    if (item.type === 'toolResult') mcp.observeResult(item, callId)
 
     const call = calls.get(callId)
     const kind = sourceKindOf(payload) ?? call?.kind ?? null
@@ -146,19 +166,63 @@ export function extractSources(items: readonly SummaryItem[], workspacePath: str
     if (kind === 'webFetch') {
       const url = stringOf(args.url)
       const normalized = url ? normalizeUrl(url) : null
-      if (succeeded && normalized) add({ kind: 'web', id: normalized, title: domainOf(normalized), target: normalized })
+      if (succeeded && normalized) add({ kind: 'web', id: normalized, title: domainOf(normalized), target: normalized }, 'read')
     } else if (kind === 'skillView') {
       const name = stringOf(args.name)?.trim()
-      if (succeeded && name && skillLoaded(result)) add({ kind: 'skill', id: name, title: name, target: name })
+      if (succeeded && name && skillLoaded(result)) add({ kind: 'skill', id: name, title: name, target: name }, 'loaded')
     }
   }
 
-  return sources
+  return sources.map((source) => {
+    const usage = [...usages.get(`${source.kind}:${source.id}`) ?? []]
+    const toolGroups = source.kind === 'mcp' ? mcp.groups(source.id) : undefined
+    return {
+      ...source,
+      ...(usage.length > 0 ? { usage } : {}),
+      ...(toolGroups ? { toolGroups } : {})
+    }
+  })
 }
 
-export function hasWebSearch(items: readonly SummaryItem[]): boolean {
-  return items.some((item) => item.type === 'webSearch'
-    || (item.type === 'toolCall' && sourceKindOf(item.payload) === 'webSearch'))
+export function webSearchActivity(items: readonly SummaryItem[]): WebSearchActivity | null {
+  let found = false
+  let searches = 0
+  const queries = new Set<string>()
+  const pages = new Map<string, string>()
+  const addQuery = (value: unknown): void => {
+    const query = stringOf(value)?.trim()
+    if (query) queries.add(query)
+  }
+
+  for (const { type, payload } of items) {
+    if (type === 'toolCall' && sourceKindOf(payload) === 'webSearch') {
+      found = true
+      searches += 1
+      addQuery(isRecord(payload.arguments) ? payload.arguments.query : null)
+      continue
+    }
+    if (type !== 'webSearch') continue
+    found = true
+    const action = isRecord(payload.action) ? payload.action : null
+    const actionType = stringOf(action?.type)
+    if (actionType === 'openPage' || actionType === 'findInPage') {
+      const url = normalizeUrl(stringOf(action?.url) ?? '')
+      if (url && !pages.has(url)) pages.set(url, resultTitle(payload.results, url) ?? domainOf(url))
+    } else if (actionType !== 'other') {
+      searches += 1
+      addQuery(action?.query)
+      if (Array.isArray(action?.queries)) action.queries.forEach(addQuery)
+      addQuery(payload.query)
+    }
+  }
+
+  return found ? { searches, queries: [...queries], pages: Array.from(pages, ([url, title]) => ({ url, title })) } : null
+}
+
+function resultTitle(results: unknown, url: string): string | null {
+  if (!Array.isArray(results)) return null
+  const match = results.find((entry) => isRecord(entry) && normalizeUrl(stringOf(entry.url) ?? '') === url)
+  return isRecord(match) ? stringOf(match.title) : null
 }
 
 export interface TurnMark {

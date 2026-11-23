@@ -5,7 +5,8 @@ export interface PanelScope {
   threadId: string
 }
 
-export type PanelSystemTab = 'changes' | 'plan' | 'subagents' | 'board'
+export const PANEL_SYSTEM_TABS = ['changes', 'plan', 'subagents', 'board', 'sources'] as const
+export type PanelSystemTab = (typeof PANEL_SYSTEM_TABS)[number]
 export type PanelActiveTab =
   | { kind: 'system'; id: PanelSystemTab }
   | { kind: 'viewer'; id: string }

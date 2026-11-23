@@ -7,11 +7,12 @@ import { useConversationStore } from '../../stores/conversationStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { latestTurnDiff, turnPatchTotals } from '../../stores/turnDiffs'
-import { FilePlus2, FolderOpen, ListChecks, SquareTerminal, Plus, X, Globe, PanelRight, MousePointer2, Bot, MessagesSquare, Workflow, CalendarClock, Maximize2, Minimize2 } from 'lucide-react'
+import { FilePlus2, FolderOpen, ListChecks, SquareTerminal, Plus, X, Globe, PanelRight, MousePointer2, Bot, MessagesSquare, Workflow, CalendarClock, Maximize2, Minimize2, Link } from 'lucide-react'
 import { ChangesTab } from '../detail/ChangesTab'
 import { PlanTab } from '../detail/PlanTab'
 import { SubagentsTab } from '../detail/SubagentsTab'
 import { BoardTab } from '../detail/BoardTab'
+import { SourcesTab } from '../conversation/summary/SourcesTab'
 import { isSubAgentChildWorking, useSubAgentStore } from '../../stores/subAgentStore'
 import { useSubAgentTaskActivity } from '../../stores/subAgentTaskActivity'
 import { AddTabPopupWindow } from '../detail/AddTabPopupWindow'
@@ -69,6 +70,7 @@ export function DetailPanel({
     setActiveViewerTab,
     toggleDetailPanel,
     detailPanelFullView,
+    detailPanelCompact,
     detailPanelVisible,
     toggleDetailPanelFullView
   } = { ...useDetailPanelPresentation(), ...useDetailPanelStore() }
@@ -186,14 +188,14 @@ export function DetailPanel({
               label: t('detailPanel.tabBoard'),
               enabled: true
             }]),
-        ...(systemTabsAvailable
-          ? [{
+        ...(!sideChatAvailable
+          ? []
+          : [{
               action: 'newSideChat' as const,
               label: t('detailPanel.addTabSideChat'),
               shortcut: fmt(ACTION_SHORTCUTS.newSideChat),
-              enabled: sideChatAvailable
-            }]
-          : [])
+              enabled: true
+            }])
       ]
     }
     setAddTabMenu(resolveAddTabPopupPayload(request, {
@@ -220,6 +222,10 @@ export function DetailPanel({
     board: {
       label: t('detailPanel.tabBoard'),
       icon: <MessagesSquare size={16} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
+    },
+    sources: {
+      label: t('summary.sources'),
+      icon: <Link size={16} strokeWidth={2} aria-hidden />
     }
   }
 
@@ -326,7 +332,7 @@ export function DetailPanel({
         )}
 
         <div className="dotcraft-detail-panel-header__actions">
-          {!isLauncher && (
+          {!isLauncher && !detailPanelCompact && (
             <IconButton
               size={28}
               active={detailPanelFullView}
@@ -380,6 +386,9 @@ export function DetailPanel({
         {activeSystemId === 'plan' && <PlanTab />}
         {activeSystemId === 'subagents' && <SubagentsTab />}
         {activeSystemId === 'board' && <BoardTab />}
+        {activeSystemId === 'sources' && activeThreadId && (
+          <SourcesTab key={activeThreadId} threadId={activeThreadId} workspacePath={workspacePath || null} />
+        )}
         {detailPanelVisible && activeDetailTab.kind === 'viewer' && (
           <ViewerTabContainer tabId={activeDetailTab.id} />
         )}
