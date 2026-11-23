@@ -7,6 +7,9 @@ type Shape =
   | ['circle', { cx: number; cy: number; r: number }]
   | ['line', { x1: number; x2: number; y1: number; y2: number }]
 
+export const TERMINAL_PROMPT = 'm7.5 9.5 2.5 2.5-2.5 2.5'
+export const TERMINAL_CURSOR = 'M12.5 14.5h4'
+
 const ZAP_PATH = 'M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z'
 
 const ICONS = {
@@ -214,9 +217,9 @@ const ICONS = {
     ['path', { d: 'M12 22V12' }],
   ],
   squareTerminal: [
-    ['path', { d: 'm7 11 2-2-2-2' }],
-    ['path', { d: 'M11 13h4' }],
-    ['rect', { width: 18, height: 18, x: 3, y: 3, rx: 2 }],
+    ['rect', { width: 18, height: 18, x: 3, y: 3, rx: 4.5 }],
+    ['path', { d: TERMINAL_PROMPT }],
+    ['path', { d: TERMINAL_CURSOR }],
   ],
   shieldAlert: [
     [

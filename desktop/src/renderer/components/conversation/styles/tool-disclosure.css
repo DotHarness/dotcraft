@@ -365,3 +365,80 @@
 .dc-subagent-chips-more:hover {
   color: var(--text-secondary);
 }
+
+.dc-tool-handoff {
+  display: inline-grid;
+  max-width: 100%;
+  min-width: 0;
+  vertical-align: top;
+  overflow: hidden;
+}
+
+.dc-tool-handoff-outgoing,
+.dc-tool-handoff-viewport {
+  grid-area: 1 / 1;
+  min-width: 0;
+}
+
+.dc-tool-handoff-outgoing {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: dc-tool-handoff-out var(--duration-base) ease-out both;
+}
+
+.dc-tool-handoff-viewport {
+  display: grid;
+}
+
+.dc-tool-handoff-label {
+  min-width: 0;
+}
+
+.dc-tool-handoff-viewport[data-handoff="fade"] {
+  animation: dc-tool-handoff-in var(--duration-base) ease-out both;
+}
+
+.dc-tool-handoff-viewport[data-handoff="sweep"] {
+  --dc-handoff-offset: -108%;
+  margin-right: -1em;
+  overflow: hidden;
+  mask-image: linear-gradient(90deg, #000 calc(100% - 1em), transparent);
+  animation:
+    dc-tool-handoff-wipe 1s linear both,
+    dc-tool-handoff-in var(--duration-base) ease-out both;
+}
+
+.dc-tool-handoff-viewport[data-handoff="sweep"] > .dc-tool-handoff-label {
+  --dc-handoff-offset: 108%;
+  padding-right: 1em;
+  animation: dc-tool-handoff-wipe 1s linear both;
+}
+
+.dc-tool-glyph-slot {
+  display: inline-grid;
+  flex-shrink: 0;
+}
+
+.dc-tool-glyph-slot > * {
+  grid-area: 1 / 1;
+}
+
+.dc-tool-glyph-slot[data-handoff] > * {
+  animation: dc-tool-handoff-in var(--duration-base) ease-out both;
+}
+
+@keyframes dc-tool-handoff-wipe {
+  0% { transform: translateX(var(--dc-handoff-offset)); }
+  74%, 100% { transform: translateX(0); }
+}
+
+@keyframes dc-tool-handoff-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes dc-tool-handoff-out {
+  to { opacity: 0; }
+}

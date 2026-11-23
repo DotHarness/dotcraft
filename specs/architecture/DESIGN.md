@@ -1487,6 +1487,27 @@ reduced motion.
 | Question to the user | speech bubble with question mark |
 | Any other tool | wrench |
 
+The terminal icon is DotCraft's own drawing, shared by every surface that names a
+terminal on Desktop and mobile: an 18px rounded square (4.5px radius on the 24 grid)
+whose prompt chevron and cursor sit as one group on the square's optical centre.
+
+While a row is live, four activity icons move; every other icon, and every row once
+it settles, stays still. Each motion starts and ends on the still drawing.
+
+| Live activity | Motion |
+|---|---|
+| Command run | the cursor blinks, the prompt rises out of the square as three output lines rise in, then the prompt returns (1.8s) |
+| File or skill read | a page turns from the right leaf to the left (1.4s) |
+| Text search | the magnifying glass circles a small scan path (1.6s) |
+| Web search or fetch | two meridians turn across the globe (2.4s) |
+
+When a live group row moves to its next tool, the row hands off rather than swapping:
+the new label wipes in from its leading edge behind a 1em soft mask over one second,
+the old label fades out beneath it, and the icon fades in. A label that only grows
+for the same tool updates in place. When the row settles, the final label and icon
+fade in instead of wiping. Rows that were never live do not animate. Reduced motion
+shows the still icon and swaps labels at once.
+
 A plugin-contributed MCP or native tool row, including an MCP App's leading row, leads with its owning plugin's 16px unframed icon (`composerIcon` preferred over `logo`, 2px radius) and falls back to the row's default glyph when the plugin has no icon or the image fails to load.
 
 A message a subagent sends is activity, not an event: a successful send joins the

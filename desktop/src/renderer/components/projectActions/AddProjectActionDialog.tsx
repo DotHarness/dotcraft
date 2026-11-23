@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type JSX } from 'react'
-import { Bug, FlaskConical, Play, SquareTerminal, Wrench, type LucideIcon } from 'lucide-react'
+import { Bug, FlaskConical, Play, Wrench, type LucideIcon } from 'lucide-react'
+import { TerminalGlyph } from '../ui/TerminalGlyph'
 import type {
   AddProjectActionResult,
   ProjectActionIcon,
@@ -123,7 +124,7 @@ function AddProjectActionDialog({
       bodyClassName={styles.body}
       header={(
         <ModalHeader
-          icon={<SquareTerminal size={18} aria-hidden />}
+          icon={<TerminalGlyph size={18} aria-hidden />}
           title={t('projectActions.add.title')}
           titleId={titleId}
           description={t('projectActions.add.description')}

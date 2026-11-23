@@ -2,15 +2,18 @@ import { useState, type JSX } from 'react'
 import type { ConversationItem } from '../../types/conversation'
 import type { ToolRowIcon } from '../../utils/toolCallDisplay'
 import { useToolPluginIconUrl } from '../../utils/mcpPluginIcon'
+import { ToolRowGlyph } from './ToolRowGlyph'
 
 export function ToolRowPluginIcon({
   item,
   fallback,
-  threadId
+  threadId,
+  live
 }: {
   item: Pick<ConversationItem, 'type' | 'source'>
   fallback?: ToolRowIcon
   threadId?: string | null
+  live?: boolean
 }): JSX.Element | null {
   const iconUrl = useToolPluginIconUrl(item, threadId)
   const [failedSrc, setFailedSrc] = useState<string | null>(null)
@@ -29,5 +32,5 @@ export function ToolRowPluginIcon({
   }
 
   if (!fallback) return null
-  return <fallback.icon className="dc-tool-row-icon" data-tone={fallback.tone} size={16} strokeWidth={1.6} aria-hidden />
+  return <ToolRowGlyph icon={fallback} live={live} />
 }

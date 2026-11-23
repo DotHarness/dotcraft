@@ -6,12 +6,13 @@ import { translate } from '../../../shared/locales'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useDetailPanelStore } from '../../stores/detailPanelStore'
 import { openConversationLink } from '../../utils/conversationDeepLink'
+import type { ToolRowIcon } from '../../utils/toolCallDisplay'
 import { getWebSearchDisplay, getWebSearchToolDisplay, type WebSearchDisplay } from '../../utils/webSearchDisplay'
 import { RunningShimmer } from '../ui/RunningShimmer'
 import { ToolDisclosure } from './ToolDisclosure'
 import { AnsiPre } from './AnsiPre'
 
-const ICON = { icon: Globe }
+const ICON: ToolRowIcon = { icon: Globe, motion: 'web' }
 
 function WebSearchSummaryRow({ display }: { display: WebSearchDisplay }): JSX.Element {
   const locale = useLocale()
@@ -42,6 +43,7 @@ function WebSearchSummaryRow({ display }: { display: WebSearchDisplay }): JSX.El
         onToggle={() => setExpanded((value) => !value)}
         expandable={expandable}
         icon={ICON}
+        live={display.state === 'running'}
         title={display.state === 'running'
           ? <RunningShimmer className="dc-tool-row-running-label">{line}</RunningShimmer>
           : line}

@@ -11,9 +11,9 @@ import {
   Puzzle,
   RotateCw,
   Sparkle,
-  SquareTerminal,
   Wrench
 } from 'lucide-react'
+import { TerminalGlyph } from './TerminalGlyph'
 
 export function FolderIcon({ size = 16 }: { size?: number }): JSX.Element {
   return <Folder size={size} strokeWidth={1.8} aria-hidden="true" />
@@ -146,31 +146,11 @@ export function IDEIcon({ size = 16 }: { size?: number }): JSX.Element {
 }
 
 export function TerminalIcon({ size = 16 }: { size?: number }): JSX.Element {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <rect x="3.4" y="4.6" width="17.2" height="14.8" rx="2.5" />
-      <path d="m8.1 9.65 3.1 2.85-3.1 2.85" />
-      <path d="M13.4 15.35h3.25" />
-    </svg>
-  )
+  return <TerminalGlyph size={size} strokeWidth={1.8} aria-hidden="true" />
 }
 
 export function ExplorerIcon({ size = 16 }: { size?: number }): JSX.Element {
   return <Folder size={size} strokeWidth={1.8} aria-hidden="true" />
-}
-
-export function TerminalBashIcon({ size = 16 }: { size?: number }): JSX.Element {
-  return <SquareTerminal size={size} strokeWidth={1.8} aria-hidden="true" />
 }
 
 export function ClockIcon({ size = 16 }: { size?: number }): JSX.Element {

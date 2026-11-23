@@ -13,10 +13,10 @@ import {
   Plus,
   Settings2,
   SlidersHorizontal,
-  SquareTerminal,
   TriangleAlert,
   Wrench
 } from 'lucide-react'
+import { TerminalGlyph } from '../../ui/TerminalGlyph'
 import { useEffect, useState, type JSX } from 'react'
 import { useT } from '../../../contexts/LocaleContext'
 import { DesktopPluginMenu as Menu } from '../../desktopPlugins/DesktopPluginMenu'
@@ -224,7 +224,7 @@ export function EnvironmentSection({ services, threadId, workspacePath, roots, c
   }
   groups.push([{
     label: t('summary.openTerminal'),
-    icon: <SquareTerminal {...HEADER_GLYPH} />,
+    icon: <TerminalGlyph {...HEADER_GLYPH} />,
     onSelect: () => settle(services.projectActions.openTerminal({ threadId }))
   }])
   const menuItems = groups.flatMap((group, index) => (index === 0 ? group : [{ type: 'separator' as const }, ...group]))

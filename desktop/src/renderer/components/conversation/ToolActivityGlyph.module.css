@@ -1,0 +1,91 @@
+.glyph {
+  display: block;
+  flex-shrink: 0;
+  overflow: visible;
+}
+
+.glyph * {
+  transform-box: view-box;
+  transform-origin: 12px 12px;
+}
+
+.output {
+  opacity: 0;
+  transform: translateY(5px);
+}
+
+.glyph[data-motion="command"] .prompt {
+  animation: prompt 1.8s var(--ease-standard) infinite;
+}
+
+.glyph[data-motion="command"] .cursor {
+  animation: cursor 1.8s steps(1, end) infinite;
+}
+
+.glyph[data-motion="command"] .output {
+  animation: output 1.8s var(--ease-standard) infinite;
+}
+
+.glyph[data-motion="search"] .lens {
+  animation: scan 1.6s ease-in-out infinite;
+}
+
+.glyph[data-motion="read"] .leaf {
+  animation: leaf 1.4s linear infinite;
+}
+
+.glyph[data-motion="web"] .meridian {
+  animation: meridian 2.4s linear infinite;
+  animation-delay: -0.89s;
+}
+
+.glyph[data-motion="web"] .meridian[data-trailing] {
+  animation-delay: -1.51s;
+}
+
+@keyframes prompt {
+  0%, 36% { opacity: 1; transform: translateY(0); }
+  48% { opacity: 0; transform: translateY(-5px); }
+  49%, 80% { opacity: 0; transform: translateY(5px); }
+  92%, 100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes cursor {
+  0%, 12%, 24%, 36% { opacity: 1; }
+  6%, 18%, 30% { opacity: 0; }
+}
+
+@keyframes output {
+  0%, 36% { opacity: 0; transform: translateY(5px); }
+  48%, 80% { opacity: 1; transform: translateY(0); }
+  92% { opacity: 0; transform: translateY(-5px); }
+  93%, 100% { opacity: 0; transform: translateY(5px); }
+}
+
+@keyframes scan {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(-1.6px, -1.4px); }
+  50% { transform: translate(1.4px, -1.8px); }
+  75% { transform: translate(1.2px, 0.6px); }
+}
+
+@keyframes leaf {
+  0% { d: path("M12 7C12 4.79 13.79 3 16 3L21 3C21.55 3 22 3.45 22 4L22 17C22 17.55 21.55 18 21 18L15 18C13.34 18 12 19.34 12 21Z"); }
+  8.33% { d: path("M12 7C12 4.79 13.55 2.97 15.46 2.94L19.79 2.86C20.27 2.85 20.66 3.29 20.66 3.84L20.66 16.84C20.66 17.39 20.27 17.85 19.79 17.86L14.6 17.95C13.16 17.98 12 19.34 12 21Z"); }
+  16.67% { d: path("M12 7C12 4.79 12.89 2.89 14 2.76L16.5 2.46C16.78 2.43 17 2.85 17 3.4L17 16.4C17 16.95 16.78 17.43 16.5 17.46L13.5 17.82C12.67 17.92 12 19.34 12 21Z"); }
+  25% { d: path("M12 7C12 4.79 12 2.79 12 2.52L12 1.92C12 1.85 12 2.25 12 2.8L12 15.8C12 16.35 12 16.85 12 16.92L12 17.64C12 17.84 12 19.34 12 21Z"); }
+  33.33% { d: path("M12 7C12 4.79 11.11 2.89 10 2.76L7.5 2.46C7.22 2.43 7 2.85 7 3.4L7 16.4C7 16.95 7.22 17.43 7.5 17.46L10.5 17.82C11.33 17.92 12 19.34 12 21Z"); }
+  41.67% { d: path("M12 7C12 4.79 10.45 2.97 8.54 2.94L4.21 2.86C3.73 2.85 3.34 3.29 3.34 3.84L3.34 16.84C3.34 17.39 3.73 17.85 4.21 17.86L9.4 17.95C10.84 17.98 12 19.34 12 21Z"); }
+  50% { d: path("M12 7C12 4.79 10.21 3 8 3L3 3C2.45 3 2 3.45 2 4L2 17C2 17.55 2.45 18 3 18L9 18C10.66 18 12 19.34 12 21Z"); }
+  100% { d: path("M12 7C12 4.79 10.21 3 8 3L3 3C2.45 3 2 3.45 2 4L2 17C2 17.55 2.45 18 3 18L9 18C10.66 18 12 19.34 12 21Z"); }
+}
+
+@keyframes meridian {
+  0% { d: path("M12 2C17.52 2 22 6.48 22 12C22 17.52 17.52 22 12 22"); }
+  16.67% { d: path("M12 2C16.78 2 20.66 6.48 20.66 12C20.66 17.52 16.78 22 12 22"); }
+  33.33% { d: path("M12 2C14.76 2 17 6.48 17 12C17 17.52 14.76 22 12 22"); }
+  50% { d: path("M12 2C12 2 12 6.48 12 12C12 17.52 12 22 12 22"); }
+  66.67% { d: path("M12 2C9.24 2 7 6.48 7 12C7 17.52 9.24 22 12 22"); }
+  83.33% { d: path("M12 2C7.22 2 3.34 6.48 3.34 12C3.34 17.52 7.22 22 12 22"); }
+  100% { d: path("M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22"); }
+}

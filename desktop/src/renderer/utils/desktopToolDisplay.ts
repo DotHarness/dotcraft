@@ -10,10 +10,10 @@ import {
   Pin,
   PinOff,
   Search,
-  SquareTerminal,
   X,
   type LucideIcon
 } from 'lucide-react'
+import { TerminalGlyph } from '../components/ui/TerminalGlyph'
 import { translate, type AppLocale } from '../../shared/locales'
 import type { ConversationItem } from '../types/conversation'
 import { isDesktopToolNamespace } from './threadToolDisplay'
@@ -78,8 +78,8 @@ const ICONS: Readonly<Record<DesktopToolOperation, LucideIcon>> = {
   restoreChat: ArchiveRestore,
   pinChat: Pin,
   unpinChat: PinOff,
-  readTerminal: SquareTerminal,
-  listTerminals: SquareTerminal,
+  readTerminal: TerminalGlyph,
+  listTerminals: TerminalGlyph,
   dismissSuggestion: X
 }
 

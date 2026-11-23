@@ -5,7 +5,7 @@ import {
   type OpenTargetInfo,
   type OpenTargetLocation
 } from '../../shared/openTargets'
-import { EditorGenericIcon, ExplorerIcon, TerminalBashIcon } from '../components/ui/AppIcons'
+import { EditorGenericIcon, ExplorerIcon, TerminalIcon } from '../components/ui/AppIcons'
 import type { ContextMenuEntry } from '../components/ui/ContextMenu'
 import { useOpenTargetsStore, type OpenTargetsStatus } from '../stores/openTargetsStore'
 import { addToast } from '../stores/toastStore'
@@ -32,7 +32,7 @@ export function renderOpenTargetIcon(target: OpenTargetInfo, size = OPEN_TARGET_
     )
   }
   if (target.iconKey === 'fileManager') return <ExplorerIcon size={size} />
-  if (target.iconKey === 'terminal') return <TerminalBashIcon size={size} />
+  if (target.iconKey === 'terminal') return <TerminalIcon size={size} />
   return <EditorGenericIcon size={size} />
 }
 

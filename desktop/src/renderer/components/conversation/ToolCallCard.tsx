@@ -428,7 +428,7 @@ export const ToolCallCard = memo(function ToolCallCard({
   }
 
   const rowIcon = rendererFamily === 'subagent' ? undefined : toolRowIcon
-  const rowIconNode = rowIcon ? <ToolRowPluginIcon item={item} fallback={rowIcon} threadId={threadId} /> : undefined
+  const rowIconNode = rowIcon ? <ToolRowPluginIcon item={item} fallback={rowIcon} threadId={threadId} live={isRunning} /> : undefined
 
   if (isRunning) {
     const runningExpanded = expanded && canExpandWhileRunning

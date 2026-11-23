@@ -40,6 +40,7 @@ import { isSideChatMainMessage } from './SideChatMainMessageRow'
 import { resolveDesktopPluginToolRenderer, useDesktopPluginRegistry } from '../../plugins/desktopPluginRegistry'
 import { ToolDisclosure } from './ToolDisclosure'
 import { ToolRowPluginIcon } from './ToolRowPluginIcon'
+import { ToolLabelHandoff } from './ToolLabelHandoff'
 import { useToolCallRevealTarget } from '../../stores/toolCallRevealStore'
 import { useTranscriptItemDiffs, useTranscriptTurnHasFileChanges } from './transcriptDiffs'
 import { isMidTurnTaskNotice } from '../../utils/visibleUserMessage'
@@ -670,13 +671,25 @@ function ToolActivityRow({
     item: iconItem
   }, active)
 
+  const headerKey = `${heldIconItem?.id ?? ''}:${working ? 'live' : 'rest'}`
+  const firstHeaderKey = useRef(headerKey)
+
   return (
     <ToolDisclosure
       expanded={expanded}
       onToggle={() => setExpanded((v) => !v)}
       icon={icon}
-      iconNode={heldIconItem && icon ? <ToolRowPluginIcon item={heldIconItem} fallback={icon} threadId={threadId} /> : undefined}
-      title={<RunningShimmer active={working} className="dc-tool-row-running-label">{label}</RunningShimmer>}
+      live={working}
+      iconNode={heldIconItem && icon ? (
+        <span key={headerKey} className="dc-tool-glyph-slot" data-handoff={headerKey !== firstHeaderKey.current ? '' : undefined}>
+          <ToolRowPluginIcon item={heldIconItem} fallback={icon} threadId={threadId} live={working} />
+        </span>
+      ) : undefined}
+      title={(
+        <ToolLabelHandoff handoffKey={headerKey} label={label} active={working}>
+          <RunningShimmer active={working} className="dc-tool-row-running-label">{label}</RunningShimmer>
+        </ToolLabelHandoff>
+      )}
     >
       <div className="dc-tool-children">
         {items.map((item) => item.type === 'reasoningContent' ? renderReasoning(item) : (

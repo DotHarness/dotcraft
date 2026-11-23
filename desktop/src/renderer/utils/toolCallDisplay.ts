@@ -12,10 +12,10 @@ import {
   Send,
   ShieldAlert,
   Split,
-  SquareTerminal,
   Wrench,
   type LucideIcon
 } from 'lucide-react'
+import { TerminalGlyph } from '../components/ui/TerminalGlyph'
 import { translate, type AppLocale } from '../../shared/locales'
 import type { ConversationItem } from '../types/conversation'
 import { formatBoardToolLabel, isBoardOperation } from './boardToolDisplay'
@@ -34,14 +34,15 @@ import {
 } from './toolKind'
 import { formatInvocationDisplay, invocationNeedsCallingPrefix } from './webToolDisplay'
 import { formatNodeReplLabel, getNodeReplSurface } from './nodeReplToolDisplay'
+import type { ToolActivityMotion } from '../components/conversation/ToolActivityGlyph'
 
 type ToolArgs = Record<string, unknown> | undefined
 
-const EXPLORE_ICONS: Partial<Record<ToolKind, LucideIcon>> = {
-  read: BookOpen,
-  explore: BookOpen,
-  grep: Search,
-  find: Folder
+const EXPLORE_ICONS: Partial<Record<ToolKind, ToolRowIcon>> = {
+  read: { icon: BookOpen, motion: 'read' },
+  explore: { icon: BookOpen, motion: 'read' },
+  grep: { icon: Search, motion: 'search' },
+  find: { icon: Folder }
 }
 
 /**
@@ -304,20 +305,21 @@ export function formatCollapsedToolLabel(
 export interface ToolRowIcon {
   icon: LucideIcon
   tone?: 'warning'
+  motion?: ToolActivityMotion
 }
 
 export function getToolRowIcon(
   item: Pick<ConversationItem, 'type' | 'toolName' | 'presentation' | 'source' | 'errorCode' | 'executionStatus'>
     & Partial<Pick<ConversationItem, 'pluginNamespace' | 'arguments'>>
 ): ToolRowIcon {
-  if (item.type === 'webSearch') return { icon: Globe }
+  if (item.type === 'webSearch') return { icon: Globe, motion: 'web' }
   const desktopOperation = resolveDesktopToolOperation(item, item.arguments)
   if (desktopOperation) return { icon: getDesktopToolIcon(desktopOperation) }
   const kind = resolveToolKind(item)
   if (isShellCommandKind(kind)) {
     if (item.errorCode === 'tool_approval_rejected') return { icon: ShieldAlert, tone: 'warning' }
     if (item.errorCode === 'tool_cancelled' || item.executionStatus === 'cancelled') return { icon: CircleStop }
-    return { icon: SquareTerminal }
+    return { icon: TerminalGlyph, motion: 'command' }
   }
   if (kind === 'requestUserInput') return { icon: MessageCircleQuestionMark }
   if (kind === 'taskStop') return { icon: CircleStop }
@@ -325,14 +327,14 @@ export function getToolRowIcon(
   if (kind === 'worktreeEnter' || kind === 'worktreeExit') return { icon: Split }
   if (resolveMemoryOperation(item) === 'update') return { icon: Brain }
   const exploreIcon = kind ? EXPLORE_ICONS[kind] : undefined
-  if (exploreIcon) return { icon: exploreIcon }
+  if (exploreIcon) return exploreIcon
   if (kind === 'board') return { icon: MessagesSquare }
-  if (kind === 'skillView') return { icon: BookOpen }
+  if (kind === 'skillView') return { icon: BookOpen, motion: 'read' }
   if (kind === 'write' || kind === 'edit') return { icon: Pencil }
-  if (kind === 'webSearch' || kind === 'webFetch') return { icon: Globe }
+  if (kind === 'webSearch' || kind === 'webFetch') return { icon: Globe, motion: 'web' }
   if (kind === 'nodeRepl') {
     const surface = getNodeReplSurface(item)
-    return { icon: surface === 'computer' ? Monitor : surface ? Globe : SquareTerminal }
+    return { icon: surface === 'computer' ? Monitor : surface ? Globe : TerminalGlyph }
   }
   return { icon: Wrench }
 }

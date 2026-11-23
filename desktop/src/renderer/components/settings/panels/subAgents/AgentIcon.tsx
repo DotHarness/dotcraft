@@ -1,8 +1,8 @@
 import type { CSSProperties, JSX } from 'react'
-import { SquareTerminal } from 'lucide-react'
 import codexIcon from '../../../../assets/agents/codex.svg'
 import cursorIcon from '../../../../assets/agents/cursor.svg'
 import { SparkIcon } from '../../../ui/AppIcons'
+import { TerminalGlyph } from '../../../ui/TerminalGlyph'
 import { TintedMark } from '../../../ui/TintedMark'
 
 interface AgentIconProps {
@@ -38,7 +38,7 @@ function renderArt(name: string, isBuiltIn: boolean, size: number): JSX.Element 
   if (isBuiltIn) {
     return <SparkIcon size={Math.round(size * 0.72)} />
   }
-  return <SquareTerminal size={Math.round(size * 0.7)} strokeWidth={1.8} aria-hidden="true" />
+  return <TerminalGlyph size={Math.round(size * 0.7)} strokeWidth={1.8} aria-hidden="true" />
 }
 
 const IMG_STYLE: CSSProperties = {

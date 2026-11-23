@@ -4,7 +4,8 @@
  * `canOpenWorkspaceTab` guard, so there is no duplicated open logic.
  */
 import type { CSSProperties } from 'react'
-import { Bot, FilePlus2, FolderOpen, Globe, ListChecks, MessagesSquare, SquareTerminal } from 'lucide-react'
+import { Bot, FilePlus2, FolderOpen, Globe, ListChecks, MessagesSquare } from 'lucide-react'
+import { TerminalGlyph } from '../ui/TerminalGlyph'
 import { useT } from '../../contexts/LocaleContext'
 import { useHostFilesUnavailable } from '../../hooks/useHostFilesUnavailable'
 import { ACTION_SHORTCUTS, formatShortcutParts } from '../ui/shortcutKeys'
@@ -102,7 +103,7 @@ export function DetailPanelLauncher({
       action: 'newTerminal',
       title: t('detailPanel.launcherTerminalTitle'),
       description: t('detailPanel.launcherTerminalDesc'),
-      icon: <SquareTerminal size={22} strokeWidth={1.75} aria-hidden style={iconStyle} />,
+      icon: <TerminalGlyph size={22} strokeWidth={1.75} aria-hidden style={iconStyle} />,
       shortcut: fmt(ACTION_SHORTCUTS.newTerminalTab),
       enabled: canOpenWorkspaceTab && !remoteWorkspace
     }

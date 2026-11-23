@@ -1,6 +1,7 @@
 import { useRef, type JSX, type ReactNode } from 'react'
 import { DisclosureChevron } from '../ui/DisclosureChevron'
 import type { ToolRowIcon } from '../../utils/toolCallDisplay'
+import { ToolRowGlyph } from './ToolRowGlyph'
 
 interface ToolDisclosureProps {
   expanded: boolean
@@ -8,6 +9,7 @@ interface ToolDisclosureProps {
   expandable?: boolean
   title: ReactNode
   icon?: ToolRowIcon
+  live?: boolean
   iconNode?: ReactNode
   accessory?: ReactNode
   onHoverChange?: (hovered: boolean) => void
@@ -26,6 +28,7 @@ export function ToolDisclosure({
   expandable = true,
   title,
   icon,
+  live,
   iconNode,
   accessory,
   onHoverChange,
@@ -46,9 +49,7 @@ export function ToolDisclosure({
     }
     : {}
 
-  const leadingIcon = iconNode ?? (icon
-    ? <icon.icon className="dc-tool-row-icon" data-tone={icon.tone} size={16} strokeWidth={1.6} aria-hidden />
-    : null)
+  const leadingIcon = iconNode ?? (icon ? <ToolRowGlyph icon={icon} live={live} /> : null)
 
   if (!expandable) {
     return (

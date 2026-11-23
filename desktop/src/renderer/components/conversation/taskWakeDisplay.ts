@@ -1,11 +1,12 @@
-import { Bot, MessageSquareText, SquareTerminal, Workflow } from 'lucide-react'
+import { Bot, MessageSquareText, Workflow } from 'lucide-react'
+import { TerminalGlyph } from '../ui/TerminalGlyph'
 import { translate } from '../../../shared/locales'
 import type { AppLocale } from '../../../shared/locales/types'
 import { subAgentEndingOutcome } from '../../utils/subAgentEndingDisplay'
 import type { TaskWake, TaskWakeKind } from './turnActivityModel'
 
-export const TASK_WAKE_ICONS: Record<TaskWakeKind, typeof SquareTerminal> = {
-  terminal: SquareTerminal,
+export const TASK_WAKE_ICONS: Record<TaskWakeKind, typeof TerminalGlyph> = {
+  terminal: TerminalGlyph,
   subagent: Bot,
   workflow: Workflow,
   thread: MessageSquareText

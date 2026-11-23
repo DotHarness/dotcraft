@@ -33,6 +33,9 @@ import type { DesktopToolVerb } from '../../core/transcriptTypes'
 import { FailureLine, OriginLine, SentAsGoal, SystemDivider, ThreadActionCard, ThreadLinksContext } from './TimelineMarkers'
 import { TurnWork } from './TurnWork'
 import { QuestionToolRow } from './QuestionToolRow'
+import { ToolActivityGlyph } from './ToolActivityGlyph'
+import type { ToolGlyphMotion } from './toolGlyphMotion'
+import { ToolLabelHandoff } from './ToolLabelHandoff'
 
 const TOOL_ICON: Record<ToolIcon, IconName> = {
   terminal: 'squareTerminal',
@@ -50,6 +53,13 @@ const TOOL_ICON: Record<ToolIcon, IconName> = {
   dismiss: 'x',
   worktree: 'split',
   other: 'wrench',
+}
+
+const TOOL_MOTION: Partial<Record<ToolIcon, ToolGlyphMotion>> = {
+  terminal: 'command',
+  read: 'read',
+  search: 'search',
+  web: 'web',
 }
 
 const TOOL_TEXT: Record<ToolVerb, MessageId> = {
@@ -403,16 +413,21 @@ function ToolGroup({ entry }: { entry: Extract<TranscriptEntry, { kind: 'toolGro
   const i18n = useI18n()
   const { colors } = useTheme()
   const [open, setOpen] = useState(false)
+  const reduced = useReducedMotion()
   const live = entry.active ? entry.children.findLast((child) => child.live) : undefined
   const label = live ? liveText(live, i18n.t) : groupText(entry.label, i18n)
   const tone = entry.failed && !live ? colors.errorText : colors.textSecondary
+  const icon = live?.icon ?? entry.icon
+  const motion = live && !reduced ? TOOL_MOTION[icon] : undefined
   return (
     <View style={styles.toolBlock}>
       <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpen((value) => !value)} style={styles.tool}>
-        <Icon name={TOOL_ICON[live?.icon ?? entry.icon]} size={16} color={tone} strokeWidth={1.6} />
-        <RunningShimmer active={live !== undefined} style={styles.shrink} textStyle={[type.text, styles.line, { color: tone }]}>
-          {label}
-        </RunningShimmer>
+        {motion ? <ToolActivityGlyph motion={motion} color={tone} /> : <Icon name={TOOL_ICON[icon]} size={16} color={tone} strokeWidth={1.6} />}
+        <ToolLabelHandoff handoffKey={live ? `live:${live.id}` : 'rest'} active={live !== undefined} style={styles.shrink}>
+          <RunningShimmer active={live !== undefined} textStyle={[type.text, styles.line, { color: tone }]}>
+            {label}
+          </RunningShimmer>
+        </ToolLabelHandoff>
         <Disclosure open={open} />
       </Pressable>
       {open ? (
@@ -464,6 +479,7 @@ function Elapsed({ since }: { since: string }) {
 function ToolLine({ entry }: { entry: ToolEntry }) {
   const { t, around } = useI18n()
   const { colors } = useTheme()
+  const reduced = useReducedMotion()
   const [open, setOpen] = useState(false)
   const links = useContext(ThreadLinksContext)
   const textStyle = [type.text, styles.line, { color: colors.textSecondary }]
@@ -479,6 +495,7 @@ function ToolLine({ entry }: { entry: ToolEntry }) {
     entry.subject
   )
   const [before, after] = around((entry.live ? TOOL_LIVE_TEXT : TOOL_TEXT)[entry.verb], 'subject')
+  const liveMotion = entry.live && !reduced ? TOOL_MOTION[entry.icon] : undefined
   return (
     <View style={styles.toolBlock}>
       <Pressable
@@ -488,12 +505,16 @@ function ToolLine({ entry }: { entry: ToolEntry }) {
         onPress={() => (threadId ? links?.open(threadId) : setOpen((value) => !value))}
         style={styles.tool}
       >
-        <Icon
-          name={TOOL_ICON[entry.icon]}
-          size={16}
-          color={entry.icon === 'declined' ? colors.warningText : colors.textSecondary}
-          strokeWidth={1.6}
-        />
+        {liveMotion ? (
+          <ToolActivityGlyph motion={liveMotion} color={colors.textSecondary} />
+        ) : (
+          <Icon
+            name={TOOL_ICON[entry.icon]}
+            size={16}
+            color={entry.icon === 'declined' ? colors.warningText : colors.textSecondary}
+            strokeWidth={1.6}
+          />
+        )}
         <RunningShimmer active={entry.live} style={styles.shrink} textStyle={textStyle}>
           {pendingText ? (
             t(pendingText)

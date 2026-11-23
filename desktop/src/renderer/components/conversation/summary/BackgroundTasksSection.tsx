@@ -1,4 +1,5 @@
-import { Square, SquareTerminal, Workflow } from 'lucide-react'
+import { Square, Workflow } from 'lucide-react'
+import { TerminalGlyph } from '../../ui/TerminalGlyph'
 import { useEffect, useRef, useState, type JSX } from 'react'
 import { useT } from '../../../contexts/LocaleContext'
 import { IconButton } from '../../ui/IconButton'
@@ -133,7 +134,7 @@ export function BackgroundTasksSection({ services, threadId, terminals: ownTermi
         return (
           <Row
             key={terminal.sessionId}
-            leading={<SquareTerminal {...GLYPH} />}
+            leading={<TerminalGlyph {...GLYPH} />}
             label={firstLine || t('summary.backgroundTerminal')}
             title={terminal.command || undefined}
             meta={elapsed(terminal.startedAt, now)}

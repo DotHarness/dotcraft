@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Bot, FilePlus2, FolderOpen, Globe, ListChecks, MessagesSquare, SquareTerminal } from 'lucide-react'
+import { Bot, FilePlus2, FolderOpen, Globe, ListChecks, MessagesSquare } from 'lucide-react'
+import { TerminalGlyph } from '../ui/TerminalGlyph'
 import type { AddTabMenuAction, AddTabMenuItem, AddTabPopupPayload } from '../../../shared/addTabMenu'
 
 function itemIcon(action: AddTabMenuAction): JSX.Element {
@@ -23,7 +24,7 @@ function itemIcon(action: AddTabMenuAction): JSX.Element {
   if (action === 'newSideChat' || action === 'newBoard') {
     return <MessagesSquare size={14} aria-hidden style={style} />
   }
-  return <SquareTerminal size={14} aria-hidden style={style} />
+  return <TerminalGlyph size={14} aria-hidden style={style} />
 }
 
 interface AddTabPopupWindowProps {

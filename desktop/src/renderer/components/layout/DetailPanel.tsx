@@ -7,7 +7,8 @@ import { useConversationStore } from '../../stores/conversationStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { latestTurnDiff, turnPatchTotals } from '../../stores/turnDiffs'
-import { FilePlus2, FolderOpen, ListChecks, SquareTerminal, Plus, X, Globe, PanelRight, MousePointer2, Bot, MessagesSquare, Workflow, CalendarClock, Maximize2, Minimize2, Link } from 'lucide-react'
+import { FilePlus2, FolderOpen, ListChecks, Plus, X, Globe, PanelRight, MousePointer2, Bot, MessagesSquare, Workflow, CalendarClock, Maximize2, Minimize2, Link } from 'lucide-react'
+import { TerminalGlyph } from '../ui/TerminalGlyph'
 import { ChangesTab } from '../detail/ChangesTab'
 import { PlanTab } from '../detail/PlanTab'
 import { SubagentsTab } from '../detail/SubagentsTab'
@@ -273,7 +274,7 @@ export function DetailPanel({
                     ? <MousePointer2 size={14} strokeWidth={2} aria-hidden style={{ display: 'block', color: 'var(--accent)' }} />
                     : browserTabIcon(tab.faviconDataUrl))
                 : tab.kind === 'terminal'
-                  ? <SquareTerminal size={14} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
+                  ? <TerminalGlyph size={14} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
                   : tab.kind === 'workflow'
                     ? <Workflow size={14} strokeWidth={2} aria-hidden style={{ display: 'block' }} />
                   : tab.kind === 'automation'
