@@ -10,6 +10,8 @@ export interface ThreadProjectLocation {
 export interface ThreadProject extends ThreadProjectLocation {
   running: boolean
   machine?: string
+  primaryFolder?: string
+  secondaryFolders?: string[]
 }
 
 export interface ThreadProjectHost {

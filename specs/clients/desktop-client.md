@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.15.0 |
+| **Version** | 0.16.0 |
 | **Status** | Living |
 | **Date** | 2026-11-23 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
@@ -706,23 +706,23 @@ Desktop exposes a client-owned thread-management profile as Runtime Dynamic Tool
 
 **Declaration**
 
-- Tools use PascalCase names in two namespaces. `desktop_conversation` holds the tools that put something in front of the user: `CreateThread`, `DismissProposal`, and `WrapUp`. `desktop` holds the rest: `ListProjects`, `ListThreads`, `ReadThread`, `SearchThreadMessages`, `ListThreadItems`, `ReadThreadItem`, `SendMessageToThread`, `StopThread`, `SetThreadTitle`, `SetThreadArchived`, `SetThreadPinned`, `ReadTerminal`, and `ListTerminalTabs`. No other model-visible aliases exist.
-- Desktop starts every thread, on `thread/start` and `worktree/createAndStart`, with `codeModeExcludedNamespaces = ["desktop_conversation"]`, so these tools stay direct model calls under Code Mode ([Code Mode §4.3](../features/code-mode.md#43-nested-surface-and-declarations)). An offer then waits as one open tool call rather than a script the agent has to keep polling.
+- Tools use PascalCase names in two namespaces. `desktop_conversation` holds the tools that put something in front of the user: `CreateThread`, `DismissProposal`, `WrapUp`, and on local connections `CreateProject`. `desktop` holds the rest: `ListProjects`, `ListThreads`, `ReadThread`, `SearchThreadMessages`, `ListThreadItems`, `ReadThreadItem`, `SendMessageToThread`, `StopThread`, `SetThreadTitle`, `SetThreadArchived`, `SetThreadPinned`, `ReadTerminal`, and `ListTerminalTabs`. No other model-visible aliases exist.
+- Desktop starts every thread, on `thread/start` and `worktree/createAndStart`, with `codeModeExcludedNamespaces = ["desktop_conversation"]`, so these tools stay direct model calls under Code Mode ([Code Mode §4.3](../features/code-mode.md#43-nested-surface-and-declarations)). An offer or project confirmation then waits as one open tool call rather than a script the agent has to keep polling.
 - Tools are declared with `deferLoading = true` so they are discoverable on demand, except on runtimes without deferred-tool discovery. `ReadTerminal` and `WrapUp` are always loaded. The `desktop` namespace also carries the [local dev server tools](../features/desktop-dev-servers.md#7-agent-tools) on local connections.
-- Whenever the tools are declared, Desktop also declares `additionalContext["desktop.threadCoordination"]` (`kind = "application"`): a hint to search for the relevant thread tool before background thread management, the rules for starting other chats (how to classify the user's latest message, when to offer, propose, or start a chat, and that loading the deferred `CreateThread` does not count as the turn's first call).
+- Whenever the tools are declared, Desktop also declares `additionalContext["desktop.threadCoordination"]` (`kind = "application"`): a hint to search for the relevant thread tool before background thread management, the rules for creating local projects and starting other chats (how to classify the user's latest message, when to offer, propose, or start a chat, and that loading the deferred `CreateThread` does not count as the turn's first call).
 - Declarations are stable across Agent/Plan switches; handlers enforce mode policy.
 - Desktop declares the tools only when it can handle their `item/tool/call` requests on the active transport. On reconnect with `capabilities.dynamicToolRebind = true`, Desktop re-declares the same specs and context when resuming; without rebind, pending calls fail through the normal unavailable path.
 
 **Presentation**
 
 - Each tool reads as what it did, in progress, done, or failed (Reading chat, Read chat, Couldn't read chat), never by its tool name, and has its own icon. A call streaming its arguments already reads as in progress. Archive and pin tools read by the requested state, so unarchiving reads as restoring.
-- These rows have no expanded detail. A row for reading or messaging a chat opens that chat. In a collapsed summary, calls join by what they did, one phrase each.
+- These rows have no expanded detail. A row for reading or messaging a chat opens that chat, and a row for creating a project opens that project. In a collapsed summary, calls join by what they did, one phrase each.
 - A sent or queued message card shows the target chat's title when available. Desktop resolves it in the target project without opening the project or reconnecting a disconnected device. If the title is unavailable, the card shows the send outcome without labeling the target as a new chat.
 
 **Behavior**
 
 - Tools call ordinary AppServer methods. `SetThreadPinned` only updates Desktop settings; proposals and offers are Desktop-local state.
-- `ListProjects` returns the projects thread tools can reach: the default Chat workspace, every local project in Hub's project list, and every saved project on an SSH machine or paired computer that Desktop is connected to, as foreground or secondary. Each has `id`, `name`, `path`, and whether its AppServer is running, and a remote project also has the name of its machine, so projects with the same name on different machines stay distinguishable.
+- `ListProjects` returns the projects thread tools can reach: the default Chat workspace, every local project in Hub's project list, and every saved project on an SSH machine or paired computer that Desktop is connected to, as foreground or secondary. Each has `id`, `name` (preferring any saved project name), `path`, and whether its AppServer is running. Local projects also report `primaryFolder` and `secondaryFolders` when configured, and a remote project also has the name of its machine, so projects with the same name on different machines stay distinguishable.
 - A remote project is reachable only while the person keeps it connected. Connecting to another machine opens a tunnel or bridge and may start its AppServer, which is the person's decision, so a disconnected remote project is not listed and no tool call connects to one. Docker stack deployments and a Desktop launched with `--remote` offer no remote targets.
 - A thread in a remote project gets only its own workspace. Its tools run in this Desktop, so reaching other projects would let the remote machine read this computer's chats and start work on it.
 - `ListThreads` calls `thread/list` with optional `query`, `limit` (default 20, max 100), `cursor`, `includeArchived`, and `project` (an id from `ListProjects`; default the calling thread's workspace), returning a page summary with `nextCursor` and `totalMatched`. Listing a local project whose AppServer is not running starts it as `CreateThread` does. With `linked = true` it instead returns the chats linked to the calling thread across projects, newest first, each with its project and state, and ignores `project`.
@@ -735,8 +735,18 @@ Desktop exposes a client-owned thread-management profile as Runtime Dynamic Tool
 - `SetThreadTitle` and `SetThreadArchived` map to `thread/rename`, `thread/archive`, and `thread/unarchive`; visible state updates through normal broadcasts.
 - `SetThreadPinned` rejects archived and subagent threads when pinning and updates the project-scoped pin preference so the sidebar updates immediately.
 - Optional `model` and `reasoningEffort` on send are admitted together with the follow-up and affect the new or future Turns, not the active Turn. Unsupported options fail rather than being ignored.
-- Calls render as ordinary dynamic tool activity and are non-modal unless an underlying call triggers approval or user input, or `CreateThread` shows an offer. Background-changed threads update sidebar indicators without forcing navigation.
-- Results distinguish started from queued work. Failures carry an English fallback and a stable code: `UnsupportedTool`, `UnsupportedOption`, `InvalidArguments`, `ThreadNotFound`, `ThreadArchived`, `ThreadBusy`, `ThreadManagementUnavailable`, `TargetUnsupported`, `AppServerRequestFailed`, `TerminalNotFound`, `ProjectNotFound`, `ProjectUnavailable`, or `NotLinked`. Outcomes the agent must act on, such as an offer's answer, a card that was not shown, or a refused proposal start, are successful results whose text says what to do next.
+- Calls render as ordinary dynamic tool activity and are non-modal unless an underlying call triggers approval or user input, `CreateThread` shows an offer, or `CreateProject` asks the user to confirm creating a project. Background-changed threads update sidebar indicators without forcing navigation.
+- Results distinguish started from queued work. Failures carry an English fallback and a stable code: `UnsupportedTool`, `UnsupportedOption`, `InvalidArguments`, `ThreadNotFound`, `ThreadArchived`, `ThreadBusy`, `ThreadManagementUnavailable`, `TargetUnsupported`, `AppServerRequestFailed`, `TerminalNotFound`, `ProjectNotFound`, `ProjectUnavailable`, `ProjectAlreadyExists`, `ProjectCreationCanceled`, or `NotLinked`. Outcomes the agent must act on, such as an offer's answer, a card that was not shown, or a refused proposal start, are successful results whose text says what to do next.
+
+**Creating projects: `CreateProject`**
+
+- Declared only on local connections. A remote thread receives `TargetUnsupported`, because project creation acts on this computer's filesystem and Hub project list.
+- Arguments: `name` (optional when `folders` is provided, defaulting to the primary folder's name, and required when `folders` is omitted), `folders` (optional non-empty array of existing local absolute directory paths to attach), and `primaryFolder` (optional, valid only with `folders`, must match one entry in `folders` and becomes the primary folder, otherwise the first entry in `folders` is primary).
+- Folder paths are normalized and deduplicated keeping the first occurrence. Relative, non-existent, or non-directory paths fail with `InvalidArguments`. Attaching the default Chat workspace as the primary folder fails with `TargetUnsupported`. A primary folder already registered as a local project in Hub fails with `ProjectAlreadyExists` so `CreateProject` never overwrites an existing project's name or secondary folders.
+- Creating a project requires a calling Turn from a person at a Desktop composer (the same rule as [Who can see the card](#514-desktop-runtime-thread-tools)). When no Desktop user initiated the Turn, Desktop shows no dialog, creates nothing, and fails with `TargetUnsupported`.
+- Before touching disk or Hub, Desktop shows a trusted confirmation dialog on the owning window listing the project name and either the new folder path to create under Documents (with Git initialization) or the exact existing folders to attach (marking the primary folder when multiple). The `item/tool/call` waits without a timeout until the person confirms or cancels, or until the Turn ends or the window closes. Auto-approve policies never bypass this confirmation, because attaching a project folder grants future Turns runtime workspace access to that folder.
+- Canceling or abandoning before confirmation leaves disk and Hub untouched and fails with `ProjectCreationCanceled`.
+- On confirmation, Desktop creates the new folder and initializes Git when `folders` was omitted, registers the primary folder with Hub, persists the project name and attached folders in Desktop settings, and updates the Projects rail across all windows without changing the user's active conversation or foreground project. The result returns `{ project: { id, name, path, primaryFolder, secondaryFolders }, createdNewFolder, gitInitialized? }`.
 
 **Starting chats: `CreateThread`**
 

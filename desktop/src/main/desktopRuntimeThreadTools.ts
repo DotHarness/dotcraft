@@ -21,6 +21,13 @@ import {
   DISMISS_PROPOSAL_PROPERTIES,
   THREAD_COORDINATION_GUIDANCE
 } from './threadTasks/threadTaskPrompts'
+import {
+  CREATE_PROJECT_DESCRIPTION,
+  CREATE_PROJECT_PROPERTIES,
+  CREATE_PROJECT_TOOL_NAME,
+  createProjectTool,
+  type DesktopProjectCreatorHost
+} from './threadTasks/projectTools'
 import type { DesktopThreadTasks } from './threadTasks/threadTaskService'
 import { createThreadTool, dismissProposalTool } from './threadTasks/threadTaskTools'
 import { WRAP_UP_DESCRIPTION, WRAP_UP_PROPERTIES, wrapUpTool } from './threadTasks/wrapUpTool'
@@ -79,6 +86,7 @@ export interface DesktopAppServerRequestOptions {
   settingsHost?: DesktopThreadToolSettingsHost
   project?: ThreadProject
   projects?: ThreadProjectHost
+  projectCreator?: DesktopProjectCreatorHost
   remote?: boolean
   holdThreadRequest?: <T>(request: () => Promise<T>) => Promise<T>
   createChatFolder?: (firstMessage: string) => Promise<string>
@@ -119,7 +127,7 @@ export interface DynamicToolCallResult {
 
 
 
-const CONVERSATION_TOOL_NAMES = new Set(['CreateThread', 'DismissProposal', 'WrapUp'])
+const CONVERSATION_TOOL_NAMES = new Set(['CreateThread', 'DismissProposal', 'WrapUp', CREATE_PROJECT_TOOL_NAME])
 
 const TOOL_NAMES = new Set([
   'ListProjects',
@@ -198,6 +206,25 @@ export function buildDesktopThreadDynamicTools(local = true): DynamicToolSpec[] 
       },
       deferLoading: false
     },
+    ...(local ? [{
+      namespace: DESKTOP_CONVERSATION_TOOL_NAMESPACE,
+      name: CREATE_PROJECT_TOOL_NAME,
+      description: CREATE_PROJECT_DESCRIPTION,
+      inputSchema: {
+        type: 'object',
+        properties: CREATE_PROJECT_PROPERTIES,
+        additionalProperties: false
+      },
+      outputSchema: {
+        type: 'object',
+        properties: {
+          project: { type: 'object' },
+          createdNewFolder: { type: 'boolean' },
+          gitInitialized: { type: 'boolean' }
+        }
+      },
+      display: { title: 'Create project', subtitle: 'Desktop' }
+    }] : []),
     {
       namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
       name: 'ListProjects',
@@ -419,6 +446,8 @@ export async function handleDesktopRuntimeThreadToolCall(
     switch (p.tool) {
       case 'CreateThread':
         return await createThreadTool(connection, options.tasks, args, p)
+      case CREATE_PROJECT_TOOL_NAME:
+        return await createProjectTool(connection, options.tasks, options.projectCreator, args, p)
       case 'DismissProposal':
         return dismissProposalTool(options.tasks, args, p)
       case 'WrapUp':

@@ -14,6 +14,7 @@ import type { ChatsFolderInfo } from '../shared/chatFolders'
 import type { BrowserDownloadRecord, BrowserFeedbackEvent, BrowserFindState, BrowserPageReference, BrowserSelectRequest } from '../shared/viewer/browserFeedback'
 import { contextBridge, ipcRenderer, shell, webFrame, webUtils } from 'electron'
 import { desktopPet } from './desktopPet'
+import { projectCreationConfirmPreload } from './projectCreationConfirm'
 import { themes } from './themes'
 import type { ClientRequestMethods } from '@dotcraft/sdk/contracts'
 import { resolveThemeMode, type ThemeMode } from '../shared/theme'
@@ -986,6 +987,8 @@ const api = {
     }): Promise<{ path: string }> {
       return ipcRenderer.invoke('workspace:save-local-project', params)
     },
+
+    ...projectCreationConfirmPreload,
 
     getPathForFile(file: File): string {
       return webUtils.getPathForFile(file)

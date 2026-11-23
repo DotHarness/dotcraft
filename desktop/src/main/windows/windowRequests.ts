@@ -1,4 +1,8 @@
 import { BrowserWindow } from 'electron'
+import {
+  PROJECT_CREATION_CONFIRM_DISMISSED_CHANNEL,
+  PROJECT_CREATION_CONFIRM_REQUEST_CHANNEL
+} from '../../shared/projectCreationConfirm'
 import { type ThreadTask } from '../../shared/threadTasks'
 import { createChatFolderFromSettings } from '../chatFoldersIpc'
 import { isDefaultChatWorkspace } from '../defaultChatWorkspace'
@@ -12,11 +16,21 @@ import {
 } from '../desktopRuntimeThreadTools'
 import { broadcastServerRequest, createServerRequestBridge } from '../ipcBridge'
 import { openDevServerPreview } from '../devServers/openDevServerPreview'
+import {
+  createNewLocalProjectFolder,
+  planNewLocalProjectFolder,
+  registerLocalProject
+} from '../localProjectOperations'
 import { getLocalProjectDetails } from '../settings'
 import { themeHostFor } from '../themes/themeIpc'
 import type { DesktopThreadTasks } from '../threadTasks/threadTaskService'
 import { viewerTerminalManager } from '../viewerTerminal'
-import { NEW_TASK_OFFER_ATTENTION, WRAP_UP_QUESTION_ATTENTION } from '../windowAttentionNotifier'
+import {
+  NEW_TASK_OFFER_ATTENTION,
+  PROJECT_CREATION_CONFIRM_ATTENTION,
+  WRAP_UP_QUESTION_ATTENTION
+} from '../windowAttentionNotifier'
+import { hasRemoteEndpointArg } from '../workspaceArgs'
 import { isRendererInteractiveServerRequest } from '../workspaceConnectionRouting'
 import type { DesktopWindowRuntime } from './windowRuntime'
 import type { WorkspaceConnectionEntry } from './windowTypes'
@@ -73,7 +87,49 @@ export function desktopThreadToolOptions(ctx: DesktopWindowRuntime, source?: Wor
         if (ctx.mainWindow && isCurrentWorkspaceRequestSource(ctx, entry)) {
           openDevServerPreview(ctx.mainWindow, entry.projectId, preview)
         }
-      }
+      },
+      ...(!hasRemoteEndpointArg(ctx.argv) ? {
+        projectCreator: {
+          refreshProjects: async () => {
+            await ctx.app.localProjects.refresh()
+          },
+          existingProjectId: (projectPath: string) =>
+            ctx.app.localProjects.has(projectPath) ? ctx.localProjectId(projectPath) : undefined,
+          planNewFolder: (name: string) => planNewLocalProjectFolder(name),
+          createNewFolder: (name: string, preferredPath: string) =>
+            createNewLocalProjectFolder(name, { preferredPath }),
+          confirmCreation: (request) => {
+            const win = ctx.mainWindow
+            if (!win || win.isDestroyed()) return Promise.resolve('abandoned')
+            return ctx.app.projectCreationConfirm.confirm({
+              ownerId: win.webContents.id,
+              ...request,
+              sendToRenderer: (payload) => {
+                if (win.isDestroyed()) return false
+                win.webContents.send(PROJECT_CREATION_CONFIRM_REQUEST_CHANNEL, payload)
+                return true
+              },
+              dismissInRenderer: (requestId) => {
+                if (!win.isDestroyed()) {
+                  win.webContents.send(PROJECT_CREATION_CONFIRM_DISMISSED_CHANNEL, { requestId })
+                }
+              },
+              notifyAttention: (requestId) => {
+                if (request.threadId) {
+                  notifyThreadAttention(ctx, PROJECT_CREATION_CONFIRM_ATTENTION, request.threadId, request.turnId, requestId)
+                }
+              }
+            })
+          },
+          registerProject: (params) =>
+            registerLocalProject({
+              openInHub: (projectPath) => ctx.app.localProjects.open(projectPath),
+              settings: ctx.settings,
+              persistSettings: ctx.app.persistWindowSettings,
+              broadcastProjects: ctx.app.broadcastWorkspaceProjects
+            }, params)
+        }
+      } : {})
     } : {}),
     terminals: {
       threadTabs: (threadId) =>
@@ -134,7 +190,10 @@ function openSourceThread(ctx: DesktopWindowRuntime, entry: WorkspaceConnectionE
 
 export function resetThreadToolState(ctx: DesktopWindowRuntime): void {
   if (ctx.wireClient) resetDesktopThreadToolBindings(ctx.wireClient)
-  if (ctx.mainWindow) ctx.getThreadTasks().abandonOffersForOwner(ctx.mainWindow.webContents.id)
+  if (ctx.mainWindow) {
+    ctx.getThreadTasks().abandonOffersForOwner(ctx.mainWindow.webContents.id)
+    ctx.app.projectCreationConfirm.abandonOwner(ctx.mainWindow.webContents.id)
+  }
 }
 
 export async function handleServerRequestInMain(

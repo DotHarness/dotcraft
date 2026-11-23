@@ -1,6 +1,6 @@
-import { app, dialog } from 'electron'
-import { existsSync, promises as fs } from 'fs'
-import * as path from 'path'
+import { dialog } from 'electron'
+import { promises as fs } from 'fs'
+import { PROJECT_CREATION_CONFIRM_RESPOND_CHANNEL } from '../shared/projectCreationConfirm'
 import type { WorkspaceSwitchOptions } from '../shared/workspaceProjects'
 import type {
   WorkspaceSetupModelListRequest,
@@ -8,10 +8,9 @@ import type {
   WorkspaceSetupSignInResult
 } from '../shared/workspaceSetup'
 import { registerChatFoldersHandlers } from './chatFoldersIpc'
-import { runGitCommand } from './gitCommand'
 import { type WindowIpcContext } from './ipcBridgeContracts'
-import { sanitizeProjectFolderName } from './ipcBridgePaths'
 import { registerLinkPreviewHandlers } from './linkPreviews'
+import { createNewLocalProjectFolder } from './localProjectOperations'
 
 export function registerWorkspaceHandlers(context: WindowIpcContext): void {
   const { handleSafe, callbacks, owner } = context
@@ -28,21 +27,19 @@ export function registerWorkspaceHandlers(context: WindowIpcContext): void {
   registerLinkPreviewHandlers(handleSafe)
 
   handleSafe('workspace:create-local-project', async (_event, params: { name?: string }) => {
-    const folderName = sanitizeProjectFolderName(typeof params?.name === 'string' ? params.name : '')
-    const baseDir = app.getPath('documents')
-    let target = path.join(baseDir, folderName)
-    for (let suffix = 2; existsSync(target); suffix++) {
-      target = path.join(baseDir, `${folderName} ${suffix}`)
-    }
-    await fs.mkdir(target, { recursive: true })
-    let gitInitialized = true
-    try {
-      await runGitCommand(target, ['init'])
-    } catch {
-      gitInitialized = false
-    }
-    return { path: target, gitInitialized }
+    return createNewLocalProjectFolder(typeof params?.name === 'string' ? params.name : '')
   })
+
+  handleSafe(
+    PROJECT_CREATION_CONFIRM_RESPOND_CHANNEL,
+    (_event, params: { requestId?: unknown; confirmed?: unknown }) => {
+      const requestId = typeof params?.requestId === 'string' ? params.requestId.trim() : ''
+      if (!requestId || typeof params?.confirmed !== 'boolean') {
+        throw new Error('A requestId and boolean confirmed flag are required.')
+      }
+      return callbacks.respondProjectCreationConfirm?.(requestId, params.confirmed) === true
+    }
+  )
 
   handleSafe('workspace:switch', (_event, newPath: string, connectionKey?: string, options?: WorkspaceSwitchOptions) =>
     callbacks.onSwitchWorkspace(newPath, connectionKey, options)

@@ -1,12 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import type { ConversationItem } from '../types/conversation'
 import { formatToolGroupLabel } from '../utils/toolGroupLabel'
-import { getDesktopToolTargetThreadId, resolveDesktopToolOperation } from '../utils/desktopToolDisplay'
+import {
+  getDesktopToolTargetProjectPath,
+  getDesktopToolTargetThreadId,
+  resolveDesktopToolOperation
+} from '../utils/desktopToolDisplay'
 
 describe('resolveDesktopToolOperation', () => {
   it('recognizes Desktop tools, including a call still streaming without a namespace', () => {
     expect(resolveDesktopToolOperation({ toolName: 'ReadThread', pluginNamespace: 'desktop' }, undefined)).toBe('readChat')
     expect(resolveDesktopToolOperation({ toolName: 'ReadThread' }, undefined)).toBe('readChat')
+    expect(resolveDesktopToolOperation({ toolName: 'CreateProject', pluginNamespace: 'desktop_conversation' }, undefined)).toBe('createProject')
   })
 
   it('never lends Desktop rendering to another source', () => {
@@ -32,6 +37,14 @@ describe('getDesktopToolTargetThreadId', () => {
     expect(getDesktopToolTargetThreadId('stopChat', { threadId: 'thread-1' })).toBe('thread-1')
     expect(getDesktopToolTargetThreadId('readChat', {})).toBeNull()
     expect(getDesktopToolTargetThreadId('renameChat', { threadId: 'thread-1' })).toBeNull()
+  })
+})
+
+describe('getDesktopToolTargetProjectPath', () => {
+  it('opens the created project path only for CreateProject results', () => {
+    expect(getDesktopToolTargetProjectPath('createProject', { project: { path: '/projects/demo' } })).toBe('/projects/demo')
+    expect(getDesktopToolTargetProjectPath('createProject', {})).toBeNull()
+    expect(getDesktopToolTargetProjectPath('listProjects', { project: { path: '/projects/demo' } })).toBeNull()
   })
 })
 

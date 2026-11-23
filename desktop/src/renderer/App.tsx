@@ -86,6 +86,7 @@ import { SettingsViewSkeleton } from './components/settings/SettingsSkeleton'
 import { scheduleIdlePrefetch } from './core/idlePrefetch'
 import { WhatsNewDialog } from './components/whats-new/WhatsNewDialog'
 import { McpElicitationHost } from './components/mcp/McpElicitationHost'
+import { ProjectCreationConfirmHost } from './components/projects/ProjectCreationConfirmHost'
 import { addJobResultToast, addToast } from './stores/toastStore'
 import { applyTheme, resolveTheme } from './utils/theme'
 import { handleBrowserEvent } from './utils/browserEventHandler'
@@ -1624,6 +1625,7 @@ export function App(): JSX.Element {
           />
         )}
         <McpElicitationHost />
+        <ProjectCreationConfirmHost />
       </>
     </WindowFrame>
   )

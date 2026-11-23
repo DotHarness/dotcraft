@@ -59,6 +59,7 @@ export interface IpcHandlerCallbacks {
     secondaryFolders: string[]
     name?: string
   }) => void | Promise<void>
+  respondProjectCreationConfirm?: (requestId: string, confirmed: boolean) => boolean
   restartWorkspace?: (workspacePath: string) => void | Promise<void>
   stopWorkspace?: (workspacePath: string) => void | Promise<void>
   startProject?: (workspacePath: string) => Promise<void>

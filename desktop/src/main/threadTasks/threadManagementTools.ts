@@ -38,7 +38,10 @@ export async function handleThreadManagementTool(
       await connection.projects?.list() ?? [currentThreadProject(connection)]
     return ok(projects.map(project => {
       const machine = project.machine ? ` on ${project.machine}` : ''
-      return `- ${project.id}: ${project.name} (${project.path})${machine} [${project.running ? 'running' : 'stopped'}]`
+      const extra = project.secondaryFolders?.length
+        ? `, +${project.secondaryFolders.length} folder${project.secondaryFolders.length === 1 ? '' : 's'}`
+        : ''
+      return `- ${project.id}: ${project.name} (${project.primaryFolder ?? project.path}${extra})${machine} [${project.running ? 'running' : 'stopped'}]`
     }).join('\n'), { projects })
   }
   if (tool === 'ListThreads') {

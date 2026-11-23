@@ -1,0 +1,11 @@
+.nameValue {
+  padding: 9px 12px;
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: var(--type-ui-size);
+  line-height: var(--type-ui-line-height);
+  font-weight: 500;
+  word-break: break-word;
+}

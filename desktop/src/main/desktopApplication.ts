@@ -13,6 +13,7 @@ import { refreshDesktopMenu, registerDesktopApplicationIpc } from './desktopMenu
 import { DesktopUpdatePreparation } from './desktopUpdatePreparation'
 import { DesktopWindowManager } from './desktopWindowManager'
 import { LocalProjectList } from './localProjects'
+import { ProjectCreationConfirmManager } from './projectCreationConfirm'
 import { isDefaultChatWorkspace } from './defaultChatWorkspace'
 import { isLocalDirectory } from './newThreadDeepLink'
 import { restoreRecentProjects } from './recentProjectRestore'
@@ -69,6 +70,7 @@ export class DesktopApplication implements DesktopApplicationServices {
     },
     { isActive: () => !this.lifecycle.isStopping }
   )
+  readonly projectCreationConfirm = new ProjectCreationConfirmManager()
   readonly tasks = createDesktopThreadTasks({
     linkedChats: new DesktopLinkedChats(join(app.getPath('userData'), 'linked-chats.json'), () => {
       for (const window of this.windows.values()) {
@@ -254,6 +256,12 @@ export class DesktopApplication implements DesktopApplicationServices {
     }
   }
 
+  broadcastWorkspaceProjects = (): void => {
+    for (const window of this.windows.values()) {
+      window.emitWorkspaceProjects()
+    }
+  }
+
   hasTray(): boolean {
     return this.tray?.visible === true
   }
@@ -305,6 +313,7 @@ export class DesktopApplication implements DesktopApplicationServices {
     this.updateTimer = null
     this.tray?.dispose()
     this.localProjects.stop()
+    this.projectCreationConfirm.abandonAll()
     disposeCodexRemoteHubBridge()
     disposeMobileHubBridge()
     disposeSatellitesHubBridge()

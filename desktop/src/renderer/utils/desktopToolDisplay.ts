@@ -3,6 +3,7 @@ import {
   ArchiveRestore,
   CircleStop,
   FolderOpen,
+  FolderPlus,
   MessageSquarePlus,
   MessageSquareText,
   Pencil,
@@ -21,6 +22,7 @@ export const DESKTOP_TOOL_OPERATIONS = [
   'readChat',
   'listChats',
   'listProjects',
+  'createProject',
   'searchChats',
   'sendMessage',
   'stopChat',
@@ -47,6 +49,7 @@ const OPERATIONS_BY_TOOL: Readonly<Record<string, DesktopToolOperation>> = {
   ReadThreadItem: 'readChat',
   ListThreads: 'listChats',
   ListProjects: 'listProjects',
+  CreateProject: 'createProject',
   SearchThreadMessages: 'searchChats',
   SendMessageToThread: 'sendMessage',
   StopThread: 'stopChat',
@@ -65,6 +68,7 @@ const ICONS: Readonly<Record<DesktopToolOperation, LucideIcon>> = {
   readChat: MessageSquareText,
   listChats: MessageSquareText,
   listProjects: FolderOpen,
+  createProject: FolderPlus,
   searchChats: Search,
   sendMessage: MessageSquareText,
   stopChat: CircleStop,
@@ -112,4 +116,15 @@ export function getDesktopToolTargetThreadId(
   if (!OPERATIONS_OPENING_CHAT.has(operation)) return null
   const threadId = args?.threadId
   return typeof threadId === 'string' && threadId.trim() ? threadId : null
+}
+
+export function getDesktopToolTargetProjectPath(
+  operation: DesktopToolOperation,
+  structuredResult: unknown
+): string | null {
+  if (operation !== 'createProject' || !structuredResult || typeof structuredResult !== 'object') return null
+  const project = (structuredResult as { project?: unknown }).project
+  if (!project || typeof project !== 'object') return null
+  const projectPath = (project as { path?: unknown }).path
+  return typeof projectPath === 'string' && projectPath.trim() ? projectPath.trim() : null
 }

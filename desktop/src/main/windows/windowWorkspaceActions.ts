@@ -5,7 +5,8 @@ import { ensureDefaultChatWorkspace, isDefaultChatWorkspace } from '../defaultCh
 import { DesktopAppServerClient } from '../DesktopAppServerClient'
 import { type IpcHandlerCallbacks } from '../ipcBridge'
 import { resolveDotCraftRuntimeTools } from '../ripgrepRuntime'
-import { forgetLocalProject, saveLocalProjectDetails } from '../settings'
+import { registerLocalProject } from '../localProjectOperations'
+import { forgetLocalProject } from '../settings'
 import { viewerBrowserManager } from '../viewerBrowser'
 import { invalidateForegroundFileAccess, revokeAllWindowFileAccess } from '../windowFileAccess'
 import { hasRemoteEndpointArg } from '../workspaceArgs'
@@ -130,10 +131,16 @@ export function buildCallbacks(ctx: DesktopWindowRuntime): IpcHandlerCallbacks {
       await ctx.removeLocalProject(workspacePath)
     },
     saveLocalProject: async (params) => {
-      await ctx.app.localProjects.open(params.projectPath?.trim() || params.primaryFolder.trim())
-      saveLocalProjectDetails(ctx.settings, params)
-      ctx.app.persistWindowSettings(ctx.settings)
-      ctx.emitWorkspaceProjects()
+      await registerLocalProject({
+        openInHub: (projectPath) => ctx.app.localProjects.open(projectPath),
+        settings: ctx.settings,
+        persistSettings: ctx.app.persistWindowSettings,
+        broadcastProjects: ctx.app.broadcastWorkspaceProjects
+      }, params)
+    },
+    respondProjectCreationConfirm: (requestId, confirmed) => {
+      const ownerId = ctx.mainWindow?.webContents.id
+      return ownerId !== undefined && ctx.app.projectCreationConfirm.respond(ownerId, requestId, confirmed)
     },
     restartWorkspace: async (workspacePath: string) => {
       const hubClient = ctx.app.createHubClient(ctx.settings)
@@ -177,6 +184,7 @@ export function buildCallbacks(ctx: DesktopWindowRuntime): IpcHandlerCallbacks {
     onAppServerRequestCompleted: (client, method, params, result, requestGeneration) => {
       ctx.observeAppServerRequestCompletion(client, method, params, result, requestGeneration)
       ctx.getThreadTasks().observeUserRequest(method, params)
+      ctx.app.projectCreationConfirm.observeUserRequest(method, params)
     },
     getUserInputAutoResolutionSnapshot: () => ctx.userInputAutoResolution.getSnapshot(),
     onUserInputConversationPresented: (threadId) => {

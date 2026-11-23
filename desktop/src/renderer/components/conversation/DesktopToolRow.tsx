@@ -4,6 +4,7 @@ import { openThread } from '../../utils/desktopNavigation'
 import {
   formatDesktopToolLabel,
   getDesktopToolIcon,
+  getDesktopToolTargetProjectPath,
   getDesktopToolTargetThreadId,
   type DesktopToolOperation
 } from '../../utils/desktopToolDisplay'
@@ -21,6 +22,7 @@ export function DesktopToolRow({ item, operation, running, success, locale }: {
 }): JSX.Element {
   const label = formatDesktopToolLabel(operation, running ? 'active' : success ? 'completed' : 'failed', locale)
   const threadId = running || success ? getDesktopToolTargetThreadId(operation, item.arguments) : null
+  const projectPath = !running && success ? getDesktopToolTargetProjectPath(operation, item.structuredResult) : null
   const title = running
     ? <RunningShimmer className="dc-tool-row-running-label">{label}</RunningShimmer>
     : label
@@ -33,7 +35,9 @@ export function DesktopToolRow({ item, operation, running, success, locale }: {
       icon={{ icon: getDesktopToolIcon(operation) }}
       title={threadId
         ? <button type="button" className={styles.link} onClick={() => void openThread(threadId)}>{title}</button>
-        : title}
+        : projectPath
+          ? <button type="button" className={styles.link} onClick={() => void window.api.workspace.switch(projectPath, undefined, { existingProjectOnly: true })}>{title}</button>
+          : title}
     />
   )
 }

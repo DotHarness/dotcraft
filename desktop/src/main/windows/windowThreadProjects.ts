@@ -2,6 +2,7 @@ import { basename } from 'node:path'
 import { normalizeSshMachines } from '../../shared/sshMachines'
 import { isRemoteProjectKey } from '../../shared/workspaceProjectKey'
 import { isDefaultChatWorkspace, resolveDefaultChatWorkspacePath } from '../defaultChatWorkspace'
+import { getLocalProjectDetails } from '../settings'
 import type { LinkedChatConnection } from '../threadTasks/linkedChats'
 import { notConnectedMessage, ThreadProjectError, type ThreadProject, type ThreadProjectLocation } from '../threadTasks/threadProjects'
 import type { DesktopWindowRuntime } from './windowRuntime'
@@ -20,10 +21,21 @@ export function threadProjectForEntry(ctx: DesktopWindowRuntime, entry: Workspac
       machine: entry.remote?.serverName
     }
   }
-  const name = isDefaultChatWorkspace(path)
-    ? 'Chats'
-    : ctx.app.localProjects.list().find(project => ctx.localProjectId(project.path) === entry.projectId)?.displayName || basename(path)
-  return { id: entry.projectId, name, path, running: entry.connected }
+  if (isDefaultChatWorkspace(path)) {
+    return { id: entry.projectId, name: 'Chats', path, running: entry.connected }
+  }
+  const details = getLocalProjectDetails(ctx.settings, path)
+  const name = details?.name
+    || ctx.app.localProjects.list().find(project => ctx.localProjectId(project.path) === entry.projectId)?.displayName
+    || basename(path)
+  return {
+    id: entry.projectId,
+    name,
+    path,
+    running: entry.connected,
+    ...(details?.primaryFolder ? { primaryFolder: details.primaryFolder } : {}),
+    ...(details?.secondaryFolders?.length ? { secondaryFolders: details.secondaryFolders } : {})
+  }
 }
 
 export async function listThreadProjects(ctx: DesktopWindowRuntime): Promise<ThreadProject[]> {
@@ -36,9 +48,17 @@ export async function listThreadProjects(ctx: DesktopWindowRuntime): Promise<Thr
     && [server.workspacePath, server.canonicalWorkspacePath].some(path => path && isDefaultChatWorkspace(path)))
   return [
     { id: ctx.localProjectId(chatPath), name: 'Chats', path: chatPath, running: chatRunning },
-    ...ctx.app.localProjects.list().filter(project => !isDefaultChatWorkspace(project.path)).map(project => ({
-      id: ctx.localProjectId(project.path), name: project.displayName || basename(project.path), path: project.path, running: project.running
-    })),
+    ...ctx.app.localProjects.list().filter(project => !isDefaultChatWorkspace(project.path)).map(project => {
+      const details = getLocalProjectDetails(ctx.settings, project.path)
+      return {
+        id: ctx.localProjectId(project.path),
+        name: details?.name || project.displayName || basename(project.path),
+        path: project.path,
+        running: project.running,
+        ...(details?.primaryFolder ? { primaryFolder: details.primaryFolder } : {}),
+        ...(details?.secondaryFolders?.length ? { secondaryFolders: details.secondaryFolders } : {})
+      }
+    }),
     ...[...ctx.workspaceConnections.values()].filter(isReachableRemote).map(entry => threadProjectForEntry(ctx, entry))
   ]
 }
