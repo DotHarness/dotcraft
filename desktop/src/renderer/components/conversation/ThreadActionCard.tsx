@@ -1,37 +1,41 @@
 import { memo, type CSSProperties } from 'react'
 import { MessageSquarePlus, MessageSquareText } from 'lucide-react'
+import { sameWorkspaceProjectKey } from '../../../shared/workspaceProjectKey'
 import { useT } from '../../contexts/LocaleContext'
 import { useLinkedChats } from '../../stores/linkedChatsStore'
 import { useThreadStore } from '../../stores/threadStore'
-import type { ThreadToolAction } from '../../utils/threadToolDisplay'
+import { threadActionProjectKey, type ThreadToolAction } from '../../utils/threadToolDisplay'
 import { Button } from '../ui/Button'
 import { RunningShimmer } from '../ui/RunningShimmer'
 import { openThread } from '../sidebar/projectConnectionActions'
 import { ThreadWaitingBadge } from '../sidebar/ThreadWaitingBadge'
+import { useThreadActionTitle } from './useThreadActionTitle'
 
 interface ThreadActionCardProps {
   action: ThreadToolAction
 }
 
-/** Summary card for a Desktop CreateThread / SendMessageToThread call (see TurnThreadActions). */
 export const ThreadActionCard = memo(function ThreadActionCard({ action }: ThreadActionCardProps): JSX.Element {
   const t = useT()
-  const liveName = useThreadStore((s) =>
-    s.threadList.find((thread) => thread.id === action.threadId)?.displayName
-  )
+  const projectKey = threadActionProjectKey(action)
   const parentThreadId = useThreadStore((s) => s.activeThreadId)
-  const linked = useLinkedChats(parentThreadId).find((chat) => chat.threadId === action.threadId)
-  const runningHere = useThreadStore((s) => s.runningTurnThreadIds.has(action.threadId))
+  const linked = useLinkedChats(parentThreadId).find((chat) =>
+    chat.threadId === action.threadId && sameWorkspaceProjectKey(chat.projectId, projectKey)
+  )
+  const runningHere = useThreadStore((s) =>
+    sameWorkspaceProjectKey(s.threadListProjectKey, projectKey) && s.runningTurnThreadIds.has(action.threadId)
+  )
+  const title = useThreadActionTitle(projectKey, action.threadId, linked?.title.trim() || action.displayName?.trim())
 
-  const name = (liveName ?? linked?.title ?? action.displayName)?.trim() || t('threadActionCard.untitled')
   const isCreated = action.kind === 'created'
   const working = (linked?.status ?? (runningHere ? 'running' : undefined)) === 'running'
   const waiting = !action.queued && linked?.status === 'waitingForInput'
     ? linked.waitingFor === 'approval' ? 'approval' : linked.waitingFor === 'planConfirmation' ? 'plan' : 'input'
     : null
-  const subtitle = action.queued
-    ? t('threadActionCard.queuedSubtitle')
-    : linked?.projectName ?? t(isCreated ? 'threadActionCard.createdTitle' : 'threadActionCard.messagedTitle')
+  const outcome = t(action.queued ? 'threadActionCard.queuedSubtitle'
+    : isCreated ? 'threadActionCard.createdTitle' : 'threadActionCard.messagedTitle')
+  const name = title ?? (isCreated ? t('threadActionCard.untitled') : undefined)
+  const subtitle = action.queued ? outcome : linked?.projectName ?? outcome
 
   function openChat(): void {
     void openThread(action.threadId, action.projectId ?? action.workspacePath)
@@ -41,7 +45,7 @@ export const ThreadActionCard = memo(function ThreadActionCard({ action }: Threa
     <div style={cardStyle}>
       <button
         type="button"
-        aria-label={t('threadActionCard.openChatAria', { name })}
+        aria-label={name ? t('threadActionCard.openChatAria', { name }) : t('threadActionCard.openChat')}
         onClick={openChat}
         style={bodyButtonStyle}
       >
@@ -51,8 +55,8 @@ export const ThreadActionCard = memo(function ThreadActionCard({ action }: Threa
             : <MessageSquareText size={22} strokeWidth={1.8} aria-hidden />}
         </span>
         <span style={textWrapStyle}>
-          <span style={titleStyle}>{name}</span>
-          <RunningShimmer active={working} style={subtitleStyle}>{subtitle}</RunningShimmer>
+          <span style={titleStyle}>{name ?? outcome}</span>
+          {(name || subtitle !== outcome) && <RunningShimmer active={working} style={subtitleStyle}>{subtitle}</RunningShimmer>}
         </span>
       </button>
       {waiting && <ThreadWaitingBadge status={waiting} />}

@@ -1,11 +1,5 @@
+import { normalizeWorkspaceProjectKey } from '../../shared/workspaceProjectKey'
 import type { ConversationItem } from '../types/conversation'
-
-/**
- * Display helpers for the Desktop thread-management tools (the `desktop` runtime
- * tool namespace). Successful CreateThread / SendMessageToThread calls render a
- * dedicated "Chat created" / "Message sent" card before the agent footer
- * (see TurnThreadActions) instead of a raw tool row.
- */
 
 export const DESKTOP_THREAD_TOOL_NAMESPACE = 'desktop'
 export const DESKTOP_CONVERSATION_TOOL_NAMESPACE = 'desktop_conversation'
@@ -30,6 +24,10 @@ export interface ThreadToolAction {
   started: boolean
   /** Whether the message was queued behind a running turn (SendMessageToThread). */
   queued: boolean
+}
+
+export function threadActionProjectKey(action: ThreadToolAction): string {
+  return normalizeWorkspaceProjectKey(action.projectId ?? action.workspacePath)
 }
 
 function matchesThreadTool(item: ConversationItem, toolName: string): boolean {
