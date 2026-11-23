@@ -59,7 +59,7 @@ function patchMachine(
 function watchModelSetup(machineId: string): void {
   stopModelWatch?.()
   const stop = useUIStore.subscribe((state) => {
-    if (state.activeMainView === 'settings' && state.activeSettingsTab === 'llmService') return
+    if (state.settingsOpen && state.activeSettingsTab === 'llmService') return
     stop()
     if (stopModelWatch === stop) stopModelWatch = null
     void window.api.sshMachines.recheckModel(machineId).catch(() => undefined)
@@ -181,9 +181,7 @@ export const useSshMachinesStore = create<SshMachinesStore>((set, get) => ({
       if (!target) return 'needsProject'
       await window.api.sshMachines.openProject(id, target)
     }
-    const ui = useUIStore.getState()
-    ui.setActiveSettingsTab('llmService')
-    ui.setActiveMainView('settings')
+    useUIStore.getState().openSettings('llmService')
     watchModelSetup(id)
     return 'opened'
   }

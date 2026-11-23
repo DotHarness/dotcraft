@@ -6,7 +6,7 @@ import type {
   ProjectActionPlatform
 } from '../../../shared/projectActions'
 import { useT } from '../../contexts/LocaleContext'
-import { openEnvironmentSettings } from '../../stores/appNavigationStore'
+import { useUIStore } from '../../stores/uiStore'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { ModalDialog, ModalFooter } from '../ui/ModalDialog'
@@ -141,7 +141,7 @@ function AddProjectActionDialog({
               disabled={busy}
               onClick={() => {
                 onFinish(null)
-                openEnvironmentSettings({
+                useUIStore.getState().openEnvironmentSettings({
                   projectPath: target.workspacePath,
                   ...(target.environmentId ? { environmentId: target.environmentId } : {})
                 })

@@ -39,7 +39,7 @@ describe('app navigation history', () => {
   it('moves backward and forward and truncates a replaced branch', () => {
     const history = useAppNavigationStore.getState()
     history.push(conversationLocation)
-    history.push({ kind: 'settings', tab: 'appearance' })
+    history.push({ kind: 'agents' })
     history.push({ kind: 'catalog', surface: 'channels', selection: null })
 
     history.goBack()
@@ -48,10 +48,7 @@ describe('app navigation history', () => {
       canGoBack: true,
       canGoForward: true
     })
-    expect(getRendererTestState()).toMatchObject({
-      activeMainView: 'settings',
-      activeSettingsTab: 'appearance'
-    })
+    expect(getRendererTestState().activeMainView).toBe('agents')
 
     history.goForward()
     expect(useAppNavigationStore.getState().index).toBe(2)
@@ -98,18 +95,19 @@ describe('app navigation history', () => {
   it('batches a multi-store navigation and ignores suppressed state repair', async () => {
     const cleanup = startAppNavigationHistory('fixture-workspace')
 
-    getRendererTestState().setActiveSettingsTab('appearance')
-    getRendererTestState().setActiveMainView('settings')
+    getRendererTestState().setPluginCatalogSurface('channels')
+    getRendererTestState().setActiveMainView('skills')
     await Promise.resolve()
 
     expect(useAppNavigationStore.getState().entries).toHaveLength(2)
     expect(useAppNavigationStore.getState().entries[1]).toEqual({
-      kind: 'settings',
-      tab: 'appearance'
+      kind: 'catalog',
+      surface: 'channels',
+      selection: null
     })
 
     runWithoutAppNavigationRecording(() => {
-      getRendererTestState().setActiveSettingsTab('general')
+      getRendererTestState().setPluginCatalogSurface('skills')
     })
     await Promise.resolve()
     expect(useAppNavigationStore.getState().entries).toHaveLength(2)
@@ -117,16 +115,27 @@ describe('app navigation history', () => {
     cleanup()
   })
 
+  it('does not record Settings as a navigation entry', async () => {
+    const cleanup = startAppNavigationHistory('fixture-workspace')
+
+    getRendererTestState().openSettings('appearance')
+    getRendererTestState().setActiveSettingsTab('general')
+    await Promise.resolve()
+
+    expect(useAppNavigationStore.getState().entries).toHaveLength(1)
+    cleanup()
+  })
+
   it('skips a missing thread and restores the built-in Agents view while moving through history', () => {
     const history = useAppNavigationStore.getState()
-    history.push({ kind: 'settings', tab: 'general' })
+    history.push({ kind: 'automations', selection: null })
     history.push({ ...conversationLocation, threadId: 'missing-thread' })
     history.push({ kind: 'catalog', surface: 'channels', selection: null })
 
     history.goBack()
 
     expect(useAppNavigationStore.getState().index).toBe(0)
-    expect(getRendererTestState().activeMainView).toBe('settings')
+    expect(getRendererTestState().activeMainView).toBe('automations')
 
     history.push({ kind: 'agents' })
     history.push({ kind: 'catalog', surface: 'channels', selection: null })

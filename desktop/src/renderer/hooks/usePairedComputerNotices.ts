@@ -15,9 +15,7 @@ export function usePairedComputerNotices(): void {
           return
         }
         if (event.kind !== 'pairingLink') return
-        const ui = useUIStore.getState()
-        ui.setActiveMainView('settings')
-        ui.setActiveSettingsTab('connections')
+        useUIStore.getState().openSettings('connections')
         usePairedComputersStore.getState().applyEvent(event)
       }),
     [t]

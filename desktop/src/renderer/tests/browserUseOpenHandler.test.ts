@@ -20,7 +20,7 @@ beforeEach(() => {
     currentWorkspacePath: '/workspace'
   })
   setRendererTestState({
-    activeMainView: 'settings',
+    activeMainView: 'agents',
     activeDetailTab: { kind: 'system', id: 'changes' },
     detailPanelPreferredVisible: false,
     detailPanelVisible: false,
@@ -72,7 +72,7 @@ describe('handleBrowserUseOpen', () => {
     })
 
     expect(useThreadStore.getState().activeThreadId).toBe('thread-a')
-    expect(getRendererTestState().activeMainView).toBe('settings')
+    expect(getRendererTestState().activeMainView).toBe('agents')
     expect(getRendererTestState().activeDetailTab).toEqual({ kind: 'system', id: 'changes' })
     expect(useDetailPanelStore.getState().getThreadState('thread-b').tabs).toHaveLength(1)
   })

@@ -10,21 +10,26 @@ export const coreMainViews = {
   automations: lazyWithPrefetch(() => import('../components/automations/AutomationsView')
     .then((module) => module.AutomationsView)),
   skills: lazyWithPrefetch(() => import('../components/plugins/PluginsView')
-    .then((module) => module.PluginsView)),
-  settings: lazyWithPrefetch(() => import('../components/settings/SettingsView')
-    .then((module) => module.SettingsView))
+    .then((module) => module.PluginsView))
 } as const
+
+export const CoreSettingsView = lazyWithPrefetch(() => import('../components/settings/SettingsView')
+  .then((module) => module.SettingsView))
 
 export type CoreMainViewKey = keyof typeof coreMainViews
 
 // The Agent Builder releases its thread when hidden and only claims it again on mount.
 export function retainsMainView(view: string): boolean {
-  return view !== 'settings' && view !== 'agents'
+  return view !== 'agents'
 }
 
 export function prefetchCoreMainView(view: CoreMainViewKey): void {
   void coreMainViews[view].prefetch().catch(() => undefined)
-  if (view === 'settings') prefetchSettingsPanel(useUIStore.getState().activeSettingsTab)
+}
+
+export function prefetchSettings(): void {
+  void CoreSettingsView.prefetch().catch(() => undefined)
+  prefetchSettingsPanel(useUIStore.getState().activeSettingsTab)
 }
 
 export function CoreMainViewBoundary({ children, fallback }: { children: ReactNode; fallback?: ReactNode }): JSX.Element {

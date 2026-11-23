@@ -36,6 +36,7 @@
 @import "../components/settings/panels/ssh/ssh.css";
 @import "../components/settings/panels/ssh/ssh-dialogs.css";
 @import "../components/settings/panels/pet/pet-settings.css";
+@import "../components/settings/settings-dialog.css";
 @import "./shared/animations.css";
 @import "../components/sidebar/styles/task-drag.css";
 @import "../components/sidebar/styles/nav-icon-motion.css";

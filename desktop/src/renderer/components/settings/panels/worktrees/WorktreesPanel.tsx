@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from 'react'
 import type { ProjectEnvironmentEntry, ProjectEnvironmentList } from '../../../../../shared/projectActions'
 import { useT } from '../../../../contexts/LocaleContext'
-import { returnToAppNavigationLocation, type AppNavigationLocation } from '../../../../stores/appNavigationStore'
 import { showToast } from '../../../../stores/toastStore'
 import { useUIStore } from '../../../../stores/uiStore'
 import { localProjectsByLastOpened, useWorkspaceProjectsStore } from '../../../../stores/workspaceProjectsStore'
@@ -33,7 +32,6 @@ type EnvironmentPage =
   | { kind: 'edit'; projectPath: string; path: string | null; create: boolean; first: boolean; environment: EnvironmentRef | null }
 
 interface ReturnTarget {
-  location: AppNavigationLocation
   page: 'view' | 'edit'
 }
 
@@ -70,7 +68,7 @@ export function WorktreesPanel({ workspacePath }: { workspacePath?: string }): J
   useEffect(() => {
     if (!target) return
     setSegment('environments')
-    setReturnTarget(target.returnTo ? { location: target.returnTo, page: target.create ? 'edit' : 'view' } : null)
+    setReturnTarget(target.returnsToCaller ? { page: target.create ? 'edit' : 'view' } : null)
     const environment = target.environmentId ? { id: target.environmentId } : null
     setPage(target.create
       ? { kind: 'edit', projectPath: target.projectPath, path: null, create: true, first: true, environment: null }
@@ -107,10 +105,9 @@ export function WorktreesPanel({ workspacePath }: { workspacePath?: string }): J
   async function returnToCaller(skipConfirm = false): Promise<void> {
     if (!returnTarget) return
     if (!skipConfirm && !(await confirmLeave())) return
-    const location = returnTarget.location
     setReturnTarget(null)
     setPage({ kind: 'list' })
-    returnToAppNavigationLocation(location)
+    useUIStore.getState().requestCloseSettings()
   }
 
   function startEdit(projectPath: string, environment: ProjectEnvironmentEntry): void {

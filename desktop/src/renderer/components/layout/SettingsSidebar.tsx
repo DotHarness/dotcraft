@@ -1,5 +1,4 @@
 import { useState, type CSSProperties, type JSX, type KeyboardEvent } from 'react'
-import { ArrowLeft } from 'lucide-react'
 
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { useConnectionStore } from '../../stores/connectionStore'
@@ -34,7 +33,6 @@ export function SettingsSidebar({ localImport = false }: { localImport?: boolean
     ? 'personalization'
     : activeSettingsTab
   const setActiveSettingsTab = useUIStore((s) => s.setActiveSettingsTab)
-  const requestCloseSettings = useUIStore((s) => s.requestCloseSettings)
   const [query, setQuery] = useState('')
   const [highlight, setHighlight] = useState(-1)
 
@@ -84,18 +82,7 @@ export function SettingsSidebar({ localImport = false }: { localImport?: boolean
 
   return (
     <div style={expandedContainerStyle}>
-      <button
-        className="dotcraft-sidebar-nav-button dotcraft-sidebar-row-radius"
-        type="button"
-        onClick={requestCloseSettings}
-        style={backRowStyle}
-        aria-label={t('common.backToApp')}
-      >
-        <span style={iconSlotStyle}>
-          <ArrowLeft size={16} strokeWidth={2} aria-hidden="true" />
-        </span>
-        <span style={labelStyle}>{t('common.backToApp')}</span>
-      </button>
+      <h2 className="dotcraft-settings-nav-title">{t('settings.title')}</h2>
 
       <SettingsSearchField
         value={query}
@@ -209,12 +196,6 @@ const groupLabelStyle: CSSProperties = {
   fontSize: '11px',
   lineHeight: 1.35,
   fontWeight: 500
-}
-
-const backRowStyle: CSSProperties = {
-  ...SIDEBAR_NAV_ROW_OUTER,
-  ...SIDEBAR_NAV_BORDER_INACTIVE,
-  color: 'var(--text-secondary)'
 }
 
 // Match the main sidebar nav rows: active state changes background + text

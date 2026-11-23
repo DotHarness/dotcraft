@@ -149,7 +149,7 @@ The update UI reports preparation, prevents duplicate installation, and preserve
 - Users can create named **sections** between Pinned and Projects to group projects and individual chats by purpose without changing their folders. Sections appear in creation order, collapse independently, and are Desktop-local. Each project or chat sits in exactly one place: a section member leaves Projects, its project's thread list, and Recents. Moving a pinned item into a section unpins it, and pinning a section member shows it under Pinned until it is unpinned. Removing a section returns its members to their usual places. A member whose project or thread no longer exists is not shown, and removing a local project drops it and its chats from every section.
 - Recents can optionally also list unpinned threads of loaded projects; a thread shown in two places is highlighted only where it was selected.
 - Selecting a thread in another project highlights its row immediately and removes the previous highlight, before that project is promoted and its thread list reloads. The highlight is withdrawn if the thread cannot be opened.
-- The sidebar highlights exactly one current destination. A thread row is highlighted only while the conversation surface shows it. Opening another main view (Agents, Plugins, Automations, Settings, or an extension page) moves the highlight to that destination, and the thread's running and waiting indicators remain. Returning to the thread restores its highlight.
+- The sidebar highlights exactly one current destination. A thread row is highlighted only while the conversation surface shows it. Opening another main view (Agents, Plugins, Automations, or an extension page) moves the highlight to that destination, and the thread's running and waiting indicators remain. Returning to the thread restores its highlight.
 - A project title's color reflects whether its workspace is started, not whether it is foreground, so switching projects does not recolor the rail.
 - The Projects section is sourced from Hub's project list for local workspaces, remote projects saved for SSH machines and paired computers, and the active remote foreground project. Adding or removing a local project goes through Hub so every window and paired device agree; Desktop re-reads the list on `projects.changed`. Stopped local projects appear without being started eagerly, except for the bounded recent-project startup restore in §3.3.
 - Local and remote projects keep distinct identities so remote threads never appear under the local workspace that initiated the remote connection.
@@ -931,6 +931,12 @@ Every result opens by automation id and run id. Follow-ups locate the exact turn
 - Restores, archives, or deletes made elsewhere reconcile automatically.
 
 ### 6.7 Settings Surface
+
+**Presentation**
+
+- Settings opens as a modal dialog over the current view, which stays in place beneath it. Closing it returns to that view unchanged. Settings pages are not entries in back and forward navigation, and while Settings is open, app shortcuts do not act on the view beneath it.
+- Opening another destination from inside Settings, such as a plugin, a chat, or a new conversation, closes Settings and shows that destination. Switching the foreground workspace keeps Settings open.
+- Closing Settings with unsaved connection edits asks to discard them first.
 
 **Configuration model**
 

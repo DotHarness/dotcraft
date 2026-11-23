@@ -1,7 +1,7 @@
 import { useEffect, useState, type JSX } from 'react'
 import { CheckCircle2, Circle, GitBranch, XCircle } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
-import { openEnvironmentSettings } from '../../stores/appNavigationStore'
+import { useUIStore } from '../../stores/uiStore'
 import { addToast } from '../../stores/toastStore'
 import {
   WORKTREE_CREATION_STEPS,
@@ -68,7 +68,7 @@ export function WorktreeCreationCard({ creation }: { creation: WorktreeCreation 
           key: 'edit',
           label: t('worktreeCreation.editEnvironment'),
           variant: 'outline' as const,
-          onClick: () => openEnvironmentSettings({ projectPath: creation.workspacePath, environmentId: environment.id })
+          onClick: () => useUIStore.getState().openEnvironmentSettings({ projectPath: creation.workspacePath, environmentId: environment.id })
         }, {
           key: 'repair',
           label: t('worktreeCreation.fixWithAgent'),

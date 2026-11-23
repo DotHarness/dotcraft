@@ -476,7 +476,8 @@ component family uses another token.
   toolbar).
 - Small transcript icon actions and the small icon-button size: `6px`.
 - Cards and repeated items: 8px.
-- Dialogs and elevated popovers: 8px to 10px.
+- Dialogs and elevated popovers: 8px to 10px. The Settings dialog frame, the
+  one window-scale dialog, uses 12px.
 - Pills, badges, and toggles: `999px` when the shape is semantically pill-like.
 
 Large rounded rectangles are not decoration.
@@ -1898,8 +1899,28 @@ status slot holds one item, in priority order: pending request, running spinner,
 unread dot, the 14px scheduled-task clock in `--text-dimmed`, then the branch's
 pull request glyph.
 
+### Settings dialog
+
+Settings opens as a dialog over the window instead of replacing the main view, so
+the place the user came from stays beneath it and closing returns there
+unchanged. The scrim is `--overlay-scrim` at 45% strength with a `3px` backdrop
+blur: it quiets the window without hiding it, so an Appearance or theme change
+still previews against the real app. Software compositing keeps the scrim and
+drops the blur.
+
+The frame is centred, `min(92vw, 1200px)` wide and `min(85vh, 784px)` tall,
+with 12px corners, a `1px` `--glass-border` hairline, and
+`--glass-shadow-soft`. Its leading column holds the Settings navigation on the
+opaque chrome tone (`--shell-chrome-tone`), one third of the frame up to
+`260px`, divided from the page by a hairline. The page area is `--bg-primary`,
+scrolls on its own, and keeps the settings content column. The shared Dialog
+close sits at the frame's top trailing corner. The close button, Escape, and a
+scrim click dismiss the dialog. A dialog, menu, or field opened inside Settings
+takes Escape first.
+
 ### Settings navigation
 
+The navigation column opens with the Settings title in `--type-heading`.
 The Settings sidebar groups pages by subject: Personal, Integrations, and Coding.
 Model Providers belongs under Personal because it configures models used across
 Desktop, not just for coding.
@@ -1914,7 +1935,7 @@ sit with the Composer rows. Personalization holds only what the agent learns abo
 the user, Memory, with Subagents as its second segment; the page is hidden when
 neither is available.
 
-Search sits directly below Back to app. It is the composed search control without a
+Search sits directly below the title. It is the composed search control without a
 frame: `36px` tall, pill radius, and a `--bg-hover` fill. The field does not take
 focus when Settings opens, and Ctrl/Cmd+F focuses it. Results replace the navigation
 until the query is cleared; each result names its page.

@@ -36,7 +36,7 @@ function resetStores(): void {
     currentWorkspacePath: WORKSPACE_PATH
   })
   setRendererTestState({
-    activeMainView: 'settings',
+    activeMainView: 'agents',
     activeDetailTab: { kind: 'system', id: 'changes' },
     detailPanelPreferredVisible: false,
     detailPanelVisible: false,

@@ -109,7 +109,7 @@ General shows the branch prefix and worktree list with removal for the foregroun
 ### 6.2 Environments
 
 - **Project list.** Every local project from Hub, with an **Add project** button that uses the existing add-project flow. Each project row opens its default environment and has an **Add environment** button. Under it, one row per project environment (name, and file name when it differs; "needs attention" for an invalid file) and a collapsed **Inherited environments (n)** group whose rows say which folder they come from.
-- **Breadcrumb.** Environments › project › edit. A create flow opened from elsewhere shows **Back** instead and returns there after saving.
+- **Breadcrumb.** Environments › project › edit. A create flow opened from outside Settings shows **Back** instead, which closes Settings, and saving closes it too.
 - **View.** The environment's name, an **Edit** button, and three read-only cards: setup script (platform tabs only when an override exists; a tab without one says it uses the default), cleanup script, and actions (icon, name, first command line, expandable). A project without environments offers **Create local environment**.
 - **Edit.**
   - Name (required; a new environment defaults to the project folder name).

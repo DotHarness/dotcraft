@@ -26,7 +26,7 @@ function shortcut(key: '[' | ']', target?: HTMLElement, isComposing = false): Ke
 
 beforeEach(() => {
   useAppNavigationStore.getState().reset(first)
-  useAppNavigationStore.getState().push({ kind: 'settings', tab: 'general' })
+  useAppNavigationStore.getState().push({ kind: 'agents' })
   setRendererTestState({ quickOpenVisible: false })
 })
 

@@ -156,7 +156,7 @@ describe('SettingsView', () => {
     usePendingRestartStore.getState().clear()
     useToastStore.setState({ toasts: [] })
     useUIStore.setState({
-      activeMainView: 'settings',
+      settingsOpen: true,
       activeSettingsTab: 'general',
       sidebarCollapsed: false
     })

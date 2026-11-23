@@ -20,7 +20,8 @@ export function SettingsSearchField({
     const focusSearch = (event: globalThis.KeyboardEvent): void => {
       if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey) return
       if (event.key.toLowerCase() !== 'f') return
-      if (event.target instanceof Element && event.target.closest('[role="dialog"], [aria-modal="true"]')) return
+      const dialog = event.target instanceof Element ? event.target.closest('[role="dialog"], [aria-modal="true"]') : null
+      if (dialog && !dialog.classList.contains('dotcraft-settings-dialog')) return
       event.preventDefault()
       event.stopImmediatePropagation()
       inputRef.current?.focus()

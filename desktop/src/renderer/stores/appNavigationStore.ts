@@ -5,7 +5,6 @@ import type {
   PluginCatalogSurface,
   SelectedChannelKey
 } from './uiStore'
-import type { SettingsTab } from '../types/settings'
 import { useUIStore } from './uiStore'
 import { useThreadStore } from './threadStore'
 import { findPluginEntry, usePluginStore } from './pluginStore'
@@ -25,11 +24,6 @@ interface ConversationNavigationLocation {
   detailVisible: boolean
   activeDetailTab: ActiveDetailTab
   selectedChangeKey: string | null
-}
-
-interface SettingsNavigationLocation {
-  kind: 'settings'
-  tab: SettingsTab
 }
 
 interface CatalogNavigationLocation {
@@ -54,7 +48,6 @@ interface DesktopPluginNavigationLocation {
 
 export type AppNavigationLocation =
   | ConversationNavigationLocation
-  | SettingsNavigationLocation
   | CatalogNavigationLocation
   | AutomationsNavigationLocation
   | AgentsNavigationLocation
@@ -146,10 +139,6 @@ export function captureAppNavigationLocation(): AppNavigationLocation {
     }
   }
 
-  if (ui.activeMainView === 'settings') {
-    return { kind: 'settings', tab: ui.activeSettingsTab }
-  }
-
   if (ui.activeMainView === 'skills') {
     const pluginKey = usePluginStore.getState().selectedPluginKey
     const skillName = useSkillsStore.getState().selectedSkillName
@@ -185,12 +174,6 @@ export function runWithoutAppNavigationRecording<T>(operation: () => T): T {
 export function replaceCurrentAppNavigationLocation(): void {
   if (activeWorkspaceKey == null) return
   useAppNavigationStore.getState().replaceCurrent(captureAppNavigationLocation())
-}
-
-export function openEnvironmentSettings(request: { projectPath: string; environmentId?: string; create?: boolean }): void {
-  const ui = useUIStore.getState()
-  const returnTo = ui.activeMainView === 'settings' ? null : captureAppNavigationLocation()
-  ui.openEnvironmentSettings({ ...request, returnTo })
 }
 
 export function returnToAppNavigationLocation(location: AppNavigationLocation): void {
@@ -324,12 +307,6 @@ function restoreLocation(location: AppNavigationLocation): void {
       useDetailPanelStore.getState().patchPanel({ activeDetailTab: { kind: 'launcher' } })
     }
     useDetailPanelStore.getState().setDetailPanelVisible(location.detailVisible)
-    return
-  }
-
-  if (location.kind === 'settings') {
-    ui.setActiveSettingsTab(location.tab)
-    ui.setActiveMainView('settings')
     return
   }
 

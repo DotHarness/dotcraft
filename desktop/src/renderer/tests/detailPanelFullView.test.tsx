@@ -62,7 +62,7 @@ describe('detail panel full view state', () => {
   it('keeps full-view state when hiding the panel or leaving the conversation', () => {
     ui().setDetailPanelFullView(true)
     ui().toggleDetailPanel()
-    ui().setActiveMainView('settings')
+    ui().setActiveMainView('agents')
     expect(ui().detailPanelFullView).toBe(true)
   })
 

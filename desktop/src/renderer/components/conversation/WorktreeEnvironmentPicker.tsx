@@ -1,7 +1,7 @@
 import { useRef, type JSX } from 'react'
 import { ChevronDown, CircleOff, Layers, Plus, Settings2 } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
-import { openEnvironmentSettings } from '../../stores/appNavigationStore'
+import { useUIStore } from '../../stores/uiStore'
 import { useWorktreeEnvironments } from '../projectActions/worktreeEnvironments'
 import { FooterMenuButton, FooterMenuDivider, WorkspaceFooterPill, menuStyle } from './composerFooterPrimitives'
 import { ComposerOverlapBand, useComposerOverlapBandHeight } from './useComposerOverlapBand'
@@ -39,7 +39,7 @@ export function WorktreeEnvironmentPicker({
 
   const openSettings = (): void => {
     onOpenChange(false)
-    openEnvironmentSettings(environments.length > 0
+    useUIStore.getState().openEnvironmentSettings(environments.length > 0
       ? { projectPath: workspacePath, ...(selected ? { environmentId: selected.id } : {}) }
       : { projectPath: workspacePath, create: true })
   }

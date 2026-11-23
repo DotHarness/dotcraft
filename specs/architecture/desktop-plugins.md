@@ -526,7 +526,7 @@ interface DesktopPluginSubAgent {
   makes the action the most recent one without running it. It resolves to `{ environmentId, action }`,
   or `null` when cancelled or when the action does not run on this platform.
 - `openSettings({ workspacePath, environmentId? })` opens Settings › Worktrees › Environments at
-  that project, on the environment when given; Back returns to the caller.
+  that project, on the environment when given. Back closes Settings, leaving the caller in view.
 
 ### Host commands
 

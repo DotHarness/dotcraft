@@ -5,6 +5,7 @@ import { useThreadStore } from '../stores/threadStore'
 import {
   DETAIL_DEFAULT_WIDTH,
   DETAIL_DEFAULT_WIDTH_RATIO,
+  setSettingsCloseGuard,
   useUIStore
 } from '../stores/uiStore'
 
@@ -48,7 +49,8 @@ describe('uiStore welcome state', () => {
   beforeEach(() => {
     useThreadStore.getState().reset()
     setRendererTestState({
-      activeMainView: 'settings',
+      activeMainView: 'agents',
+      settingsOpen: true,
       welcomeDraft: null,
       welcomeDraftsByWorkspace: {},
       welcomeDraftWorkspacePath: null
@@ -63,6 +65,7 @@ describe('uiStore welcome state', () => {
 
     expect(useThreadStore.getState().activeThreadId).toBeNull()
     expect(ui().activeMainView).toBe('conversation')
+    expect(ui().settingsOpen).toBe(false)
   })
 
   it('keeps welcome drafts scoped by workspace', () => {
@@ -193,5 +196,38 @@ describe('uiStore responsive panel preferences', () => {
     expect(ui().detailPanelPreferredVisible).toBe(true)
     expect(useDetailPanelStore.getState().getPanel('thread-a').detailPanelPreferredVisible).toBe(true)
     expect(ui().detailPanelVisible).toBe(true)
+  })
+})
+
+describe('uiStore settings dialog', () => {
+  beforeEach(() => {
+    setRendererTestState({ activeMainView: 'skills', settingsOpen: false, activeSettingsTab: 'general' })
+  })
+
+  it('opens over the current main view on the requested page', () => {
+    ui().openSettings('appearance')
+
+    expect(ui()).toMatchObject({ settingsOpen: true, activeSettingsTab: 'appearance', activeMainView: 'skills' })
+  })
+
+  it('closes when the main view navigates', () => {
+    ui().openSettings()
+    ui().setActiveMainView('automations')
+
+    expect(ui()).toMatchObject({ settingsOpen: false, activeMainView: 'automations' })
+  })
+
+  it('stays open while the registered guard vetoes closing', () => {
+    let allow = false
+    const unregister = setSettingsCloseGuard(() => allow)
+    ui().openSettings()
+
+    ui().requestCloseSettings()
+    expect(ui().settingsOpen).toBe(true)
+
+    allow = true
+    ui().requestCloseSettings()
+    expect(ui().settingsOpen).toBe(false)
+    unregister()
   })
 })

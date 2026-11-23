@@ -189,16 +189,12 @@ export function createDesktopPluginHost(
         useUIStore.getState().setActiveMainView(buildDesktopPluginMainViewKey(pluginId, id))
       },
       openSettingsPage(id) {
-        const ui = useUIStore.getState()
-        ui.setActiveSettingsTab(buildDesktopPluginSettingsKey(pluginId, id))
-        ui.setActiveMainView('settings')
+        useUIStore.getState().openSettings(buildDesktopPluginSettingsKey(pluginId, id))
       },
       openSettingsSection(section) {
         const tab = settingsTabForSection(section)
         if (!tab) return
-        const ui = useUIStore.getState()
-        ui.setActiveSettingsTab(tab)
-        ui.setActiveMainView('settings')
+        useUIStore.getState().openSettings(tab)
       },
       openThread(threadId, workspacePath) {
         return openThread(threadId, workspacePath)

@@ -4,7 +4,6 @@ import type { ComposerDraftSegment } from '../types/composerDraft'
 import type { ThreadConfigurationWire } from '../types/thread'
 import type { InferenceSpeedWire, ReasoningEffortWire, ReasoningOutputWire } from './modelCatalogStore'
 import { normalizeSettingsTab, type SettingsTab } from '../types/settings'
-import type { AppNavigationLocation } from './appNavigationStore'
 import type { DiffMarkerMode } from '../../shared/appearance'
 import { useThreadStore } from './threadStore'
 import { useDetailPanelStore } from './detailPanelStore'
@@ -39,7 +38,7 @@ const PENDING_WELCOME_TIMEOUT_MS = 30_000
 
 export type ChangesDiffMode = 'inline' | 'split'
 
-export type BuiltInMainView = 'conversation' | 'agents' | 'skills' | 'automations' | 'settings'
+export type BuiltInMainView = 'conversation' | 'agents' | 'skills' | 'automations'
 export type DesktopPluginMainView = `desktop-plugin:${string}:${string}`
 export type ActiveMainView = BuiltInMainView | DesktopPluginMainView
 export type SelectedChannelKey = `channel:${string}` | `external:${string}` | null
@@ -103,17 +102,17 @@ export interface EnvironmentSettingsTarget {
   projectPath: string
   environmentId?: string
   create?: boolean
-  returnTo: AppNavigationLocation | null
+  returnsToCaller: boolean
 }
 
 export interface UIState extends ProjectThreadNavigationState {
   activeMainView: ActiveMainView
+  settingsOpen: boolean
   pluginCatalogSurface: PluginCatalogSurface
   browserDownloadHistoryOpen: boolean
   activeSettingsTab: SettingsTab
   environmentSettingsTarget: EnvironmentSettingsTarget | null
   selectedChannelKey: SelectedChannelKey
-  settingsCloseRequestSeq: number
   whatsNewOpenRequestSeq: number
   sidebarPreferredCollapsed: boolean
   sidebarCollapsed: boolean
@@ -150,11 +149,13 @@ export interface UIState extends ProjectThreadNavigationState {
 }
 
 interface UIStore extends UIState, ProjectThreadNavigationActions {
+  /** Navigating the main view also closes Settings. */
   setActiveMainView(view: ActiveMainView): void
+  openSettings(tab?: SettingsTab): void
   setPluginCatalogSurface(surface: PluginCatalogSurface): void
   goToNewChat(options?: { workspacePath?: string; clearDraft?: boolean }): void
   setActiveSettingsTab(tab: SettingsTab): void
-  openEnvironmentSettings(target: EnvironmentSettingsTarget): void
+  openEnvironmentSettings(request: Omit<EnvironmentSettingsTarget, 'returnsToCaller'>): void
   clearEnvironmentSettingsTarget(): void
   setSelectedChannelKey(key: SelectedChannelKey): void
   requestCloseSettings(): void
@@ -204,6 +205,16 @@ interface InternalState {
   _pendingWelcomeTimer: ReturnType<typeof setTimeout> | null
 }
 
+let settingsCloseGuard: (() => boolean) | null = null
+
+/** Lets the mounted Settings page veto closing, such as to confirm discarding edits. */
+export function setSettingsCloseGuard(guard: () => boolean): () => void {
+  settingsCloseGuard = guard
+  return () => {
+    if (settingsCloseGuard === guard) settingsCloseGuard = null
+  }
+}
+
 export function resolveResponsivePanels(
   layout: UIState['responsiveLayout'],
   sidebarPreferredCollapsed: boolean
@@ -226,12 +237,12 @@ function cloneWelcomeDraft(draft: WelcomeDraft): WelcomeDraft {
 
 export const useUIStore = create<UIStore & InternalState>((set, get) => ({
   activeMainView: 'conversation',
+  settingsOpen: false,
   pluginCatalogSurface: 'plugins',
   browserDownloadHistoryOpen: false,
   activeSettingsTab: 'general',
   environmentSettingsTarget: null,
   selectedChannelKey: null,
-  settingsCloseRequestSeq: 0,
   whatsNewOpenRequestSeq: 0,
   sidebarPreferredCollapsed: false,
   sidebarCollapsed: false,
@@ -264,7 +275,13 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
   diffMarkers: 'color',
 
   setActiveMainView(view) {
-    set({ activeMainView: view })
+    set({ activeMainView: view, settingsOpen: false })
+  },
+
+  openSettings(tab) {
+    set(tab
+      ? { settingsOpen: true, activeSettingsTab: normalizeSettingsTab(tab), browserDownloadHistoryOpen: false }
+      : { settingsOpen: true })
   },
 
   setPluginCatalogSurface(surface) {
@@ -279,20 +296,20 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
     if (options?.workspacePath) {
       get().setWelcomeDraftWorkspace(options.workspacePath)
     }
-    set({ activeMainView: 'conversation', planApprovalDismissed: {} })
+    set({ activeMainView: 'conversation', settingsOpen: false, planApprovalDismissed: {} })
   },
 
   setActiveSettingsTab(tab) {
     set({ activeSettingsTab: normalizeSettingsTab(tab), browserDownloadHistoryOpen: false })
   },
 
-  openEnvironmentSettings(target) {
-    set({
-      environmentSettingsTarget: target,
+  openEnvironmentSettings(request) {
+    set((state) => ({
+      environmentSettingsTarget: { ...request, returnsToCaller: !state.settingsOpen },
       activeSettingsTab: 'worktrees',
       browserDownloadHistoryOpen: false,
-      activeMainView: 'settings'
-    })
+      settingsOpen: true
+    }))
   },
 
   clearEnvironmentSettingsTarget() {
@@ -304,7 +321,8 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
   },
 
   requestCloseSettings() {
-    set((state) => ({ settingsCloseRequestSeq: state.settingsCloseRequestSeq + 1 }))
+    if (settingsCloseGuard && !settingsCloseGuard()) return
+    set({ settingsOpen: false })
   },
 
   requestOpenWhatsNew() {

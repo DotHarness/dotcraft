@@ -182,8 +182,7 @@ export function ThreadTaskOfferCard({ task }: { task: ThreadTask }): JSX.Element
               label: t('settings.title'),
               onClick: () => {
                 setMenu(null)
-                useUIStore.setState({ activeMainView: 'settings' })
-                useUIStore.getState().setActiveSettingsTab('general')
+                useUIStore.getState().openSettings('general')
               }
             }
           ]}

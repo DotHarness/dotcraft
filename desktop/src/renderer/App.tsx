@@ -40,7 +40,6 @@ import { applyMcpNotification } from './stores/mcpNotifications'
 import { useSkillsStore } from './stores/skillsStore'
 import { usePluginStore } from './stores/pluginStore'
 import { useHooksStore } from './stores/hooksStore'
-import { usePendingRestartStore } from './stores/pendingRestartStore'
 import { useAppBindingStore } from './stores/appBindingStore'
 import { useThreadRouteStore } from './stores/threadRouteStore'
 import { useGitStore } from './stores/gitStore'
@@ -59,6 +58,8 @@ import { CustomMenuBar } from './components/layout/CustomMenuBar'
 import { MacSidebarTitleBar } from './components/layout/MacSidebarTitleBar'
 import { Sidebar } from './components/layout/Sidebar'
 import { SettingsSidebar } from './components/layout/SettingsSidebar'
+import { SettingsDialog } from './components/settings/SettingsDialog'
+import { SettingsPendingRestartBanner } from './components/settings/SettingsPendingRestartBanner'
 import { SpaceSidebar } from './components/layout/SpaceSidebar'
 import { startOwnedThreadsSync } from './stores/ownedThreadsStore'
 import { startSpaceTracking, useActiveSpace } from './stores/spaceStore'
@@ -76,11 +77,10 @@ import {
   type WorkspaceLaunchTransitionPhase
 } from './components/WorkspaceLaunchTransition'
 import { ConfirmDialogHost } from './components/ui/ConfirmDialog'
-import { Button } from './components/ui/Button'
 import { ToastContainer } from './components/ui/ToastContainer'
 import { SkillDetailHost } from './components/skills/SkillDetailHost'
 import { DesktopPluginMainViewOutlet } from './components/desktopPlugins/DesktopPluginOutlets'
-import { CoreMainViewBoundary, coreMainViews, prefetchCoreMainView, retainsMainView } from './core/coreMainViewRoutes'
+import { CoreMainViewBoundary, CoreSettingsView, coreMainViews, retainsMainView } from './core/coreMainViewRoutes'
 import { MainViewOutlet } from './components/layout/MainViewOutlet'
 import { SettingsViewSkeleton } from './components/settings/SettingsSkeleton'
 import { scheduleIdlePrefetch } from './core/idlePrefetch'
@@ -137,7 +137,6 @@ const DEFAULT_WINDOW_VISIBILITY_STATE: WindowVisibilityState = {
 const CoreAgentBuilderView = coreMainViews.agents
 const CoreAutomationsView = coreMainViews.automations
 const CorePluginsView = coreMainViews.skills
-const CoreSettingsView = coreMainViews.settings
 
 interface WorkspaceLaunchTransitionState {
   phase: WorkspaceLaunchTransitionPhase
@@ -457,7 +456,8 @@ export function App(): JSX.Element {
   const activeMainView = useUIStore((s) => s.activeMainView)
   const activeSettingsTab = useUIStore((s) => s.activeSettingsTab)
   const localImport = foregroundChat != null
-  const showingLocalImport = localImport && activeMainView === 'settings' && activeSettingsTab === 'import'
+  const settingsOpen = useUIStore((s) => s.settingsOpen)
+  const showingLocalImport = localImport && settingsOpen && activeSettingsTab === 'import'
   const [settingsViewKey, setSettingsViewKey] = useState(foregroundThreadListKey)
   if (settingsViewKey !== foregroundThreadListKey && !showingLocalImport) {
     setSettingsViewKey(foregroundThreadListKey)
@@ -468,13 +468,6 @@ export function App(): JSX.Element {
   const activeDesktopPluginView = desktopPluginMainViews.find((entry) => entry.viewKey === activeMainView) ?? null
   const whatsNewOpenRequestSeq = useUIStore((s) => s.whatsNewOpenRequestSeq)
   const setQuickOpenVisible = useUIStore((s) => s.setQuickOpenVisible)
-  const pendingRestartVisible = usePendingRestartStore((s) => s.visible)
-  const pendingRestartApplying = usePendingRestartStore((s) => s.applying)
-  const pendingRestartMessageKey = usePendingRestartStore((s) => s.messageKey)
-  const pendingRestartApplyKey = usePendingRestartStore((s) => s.applyKey)
-  const pendingRestartApplyingKey = usePendingRestartStore((s) => s.applyingKey)
-  const applyPendingRestart = usePendingRestartStore((s) => s.apply)
-  const ignorePendingRestart = usePendingRestartStore((s) => s.ignore)
   const workspacePathRef = useRef(initialWorkspacePath)
   const protocolWorkspacePathRef = useRef(initialProtocolWorkspacePath)
   const setupWorkspaceStatusSnapshotRef = useRef<WorkspaceStatusPayload | null>(
@@ -777,7 +770,7 @@ export function App(): JSX.Element {
 
   useEffect(() => {
     return window.api.window.onOpenChromeSettings(() => {
-      useUIStore.getState().setActiveMainView('settings')
+      useUIStore.getState().openSettings()
       setChromeSettingsOpenSeq((current) => current + 1)
     })
   }, [])
@@ -1171,6 +1164,11 @@ export function App(): JSX.Element {
     function handleKeyDown(e: KeyboardEvent): void {
       const ctrl = e.ctrlKey || e.metaKey
 
+      if (useUIStore.getState().settingsOpen) {
+        if (ctrl && e.key === ',') e.preventDefault()
+        return
+      }
+
       if (handleAppNavigationShortcut(e)) return
 
       if (handleFindShortcut(e)) return
@@ -1273,7 +1271,7 @@ export function App(): JSX.Element {
 
       if (ctrl && e.key === ',') {
         e.preventDefault()
-        useUIStore.getState().setActiveMainView('settings')
+        useUIStore.getState().openSettings()
         return
       }
 
@@ -1478,9 +1476,7 @@ export function App(): JSX.Element {
           onOpenSettings={() => {
             setLaunchErrorScreenVisible(false)
             useConnectionStore.getState().setStatus({ status: 'disconnected' })
-            const ui = useUIStore.getState()
-            ui.setActiveMainView('settings')
-            ui.setActiveSettingsTab('connections')
+            useUIStore.getState().openSettings('connections')
           }}
         />
       </>
@@ -1535,51 +1531,6 @@ export function App(): JSX.Element {
             {translate(locale, 'settings.restartingAppServer')}
           </div>
         )}
-        {activeMainView === 'settings' && pendingRestartVisible && (
-          <div
-            role="status"
-            aria-live="polite"
-            style={{
-              padding: '8px 16px',
-              backgroundColor: 'rgba(245, 158, 11, 0.12)',
-              borderBottom: '1px solid rgba(245, 158, 11, 0.35)',
-              color: 'var(--text-primary)',
-              fontSize: '12px',
-              flexShrink: 0,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '8px 12px',
-              flexWrap: 'wrap'
-            }}
-          >
-            <span style={{ minWidth: '180px', flex: '1 1 220px', overflowWrap: 'anywhere' }}>
-              {translate(locale, pendingRestartMessageKey)}
-            </span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => ignorePendingRestart()}
-                disabled={pendingRestartApplying}
-              >
-                {translate(locale, 'settings.pendingRestart.ignore')}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  void applyPendingRestart()
-                }}
-                disabled={pendingRestartApplying}
-              >
-                {pendingRestartApplying
-                  ? translate(locale, pendingRestartApplyingKey)
-                  : translate(locale, pendingRestartApplyKey)}
-              </Button>
-            </span>
-          </div>
-        )}
         {showSlowConnectingHint && (
           <div
             role="status"
@@ -1598,9 +1549,7 @@ export function App(): JSX.Element {
         )}
         <ThreePanel
           sidebar={
-            activeMainView === 'settings'
-              ? <SettingsSidebar localImport={localImport} />
-              : activeSpace
+            activeSpace
                 ? <SpaceSidebar active={activeSpace} />
                 : (
                   <Sidebar
@@ -1615,25 +1564,6 @@ export function App(): JSX.Element {
               activeView={activeMainView}
               retains={retainsMainView}
               renderView={(view) => {
-                if (view === 'settings') {
-                  prefetchCoreMainView('settings')
-                  return (
-                    <CoreMainViewBoundary fallback={<SettingsViewSkeleton />}>
-                      <CoreSettingsView
-                        key={settingsViewKey}
-                        localImport={localImport}
-                        workspacePath={workspacePath}
-                        identityWorkspacePath={protocolWorkspacePath || workspacePath}
-                        onThreadListRefreshRequested={() => {
-                          void reloadThreadList()
-                        }}
-                        workspaceConfigChange={workspaceConfigChange}
-                        workspaceConfigChangeSeq={workspaceConfigChangeSeq}
-                        openChromeSettingsSeq={chromeSettingsOpenSeq}
-                      />
-                    </CoreMainViewBoundary>
-                  )
-                }
                 if (view === 'agents') return <CoreMainViewBoundary><CoreAgentBuilderView /></CoreMainViewBoundary>
                 if (view === 'skills') return <CoreMainViewBoundary><CorePluginsView /></CoreMainViewBoundary>
                 if (view === 'automations') return <CoreMainViewBoundary><CoreAutomationsView /></CoreMainViewBoundary>
@@ -1655,6 +1585,25 @@ export function App(): JSX.Element {
           }
           detail={<DetailPanel workspacePath={activeConversationWorkspacePath} remoteWorkspace={remoteWorkspaceActive} />}
         />
+        {settingsOpen && (
+          <SettingsDialog navigation={<SettingsSidebar localImport={localImport} />}>
+            <SettingsPendingRestartBanner />
+            <CoreMainViewBoundary fallback={<SettingsViewSkeleton />}>
+              <CoreSettingsView
+                key={settingsViewKey}
+                localImport={localImport}
+                workspacePath={workspacePath}
+                identityWorkspacePath={protocolWorkspacePath || workspacePath}
+                onThreadListRefreshRequested={() => {
+                  void reloadThreadList()
+                }}
+                workspaceConfigChange={workspaceConfigChange}
+                workspaceConfigChangeSeq={workspaceConfigChangeSeq}
+                openChromeSettingsSeq={chromeSettingsOpenSeq}
+              />
+            </CoreMainViewBoundary>
+          </SettingsDialog>
+        )}
       </>
     )
   }

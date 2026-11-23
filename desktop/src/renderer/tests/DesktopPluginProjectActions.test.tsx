@@ -143,19 +143,20 @@ describe('Desktop extension projectActions', () => {
     expect(select).toHaveBeenCalledWith({ workspacePath: WORKSPACE, environmentId: null })
   })
 
-  it('opens environment settings and remembers the conversation to return to', async () => {
+  it('opens environment settings over the conversation and returns to it', async () => {
     installDesktopApiMock({})
-    setRendererTestState({ activeMainView: 'conversation', environmentSettingsTarget: null })
+    setRendererTestState({ activeMainView: 'conversation', settingsOpen: false, environmentSettingsTarget: null })
 
     await host().projectActions.openSettings({ workspacePath: WORKSPACE, environmentId: 'e' })
 
     const ui = getRendererTestState()
-    expect(ui.activeMainView).toBe('settings')
+    expect(ui.settingsOpen).toBe(true)
+    expect(ui.activeMainView).toBe('conversation')
     expect(ui.activeSettingsTab).toBe('worktrees')
     expect(ui.environmentSettingsTarget).toMatchObject({
       projectPath: WORKSPACE,
       environmentId: 'e',
-      returnTo: { kind: 'conversation' }
+      returnsToCaller: true
     })
   })
 

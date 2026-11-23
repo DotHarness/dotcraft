@@ -28,8 +28,7 @@ export function BrowserFeedbackControls({ tabId, state, run, active = true }: {
   useLayerPresence(popup !== null)
   function openSettings(history: boolean) {
     setPopup(null)
-    useUIStore.setState({ activeMainView: 'settings' })
-    useUIStore.getState().setActiveSettingsTab('browserUse')
+    useUIStore.getState().openSettings('browserUse')
     if (history) useUIStore.setState({ browserDownloadHistoryOpen: true })
   }
   return (

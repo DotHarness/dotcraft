@@ -6,7 +6,7 @@ import type {
 import { translate } from '../../shared/locales'
 import { projectActionTerminalTabId, type ProjectEnvironmentsResult } from '../../shared/projectActions'
 import { requestAddProjectActionDialog } from '../components/projectActions/AddProjectActionDialog'
-import { openEnvironmentSettings } from '../stores/appNavigationStore'
+import { useUIStore } from '../stores/uiStore'
 import { useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useDetailPanelStore } from '../stores/detailPanelStore'
@@ -101,7 +101,7 @@ export async function openDesktopPluginProjectSettings(request: {
   environmentId?: string
 }): Promise<void> {
   localWorkspace()
-  openEnvironmentSettings({
+  useUIStore.getState().openEnvironmentSettings({
     projectPath: request.workspacePath,
     ...(request.environmentId ? { environmentId: request.environmentId } : {})
   })

@@ -1,5 +1,5 @@
 import { prefetchSettingsPanel } from '../components/settings/coreSettingsPanels'
-import { prefetchCoreMainView } from './coreMainViewRoutes'
+import { prefetchSettings } from './coreMainViewRoutes'
 
 const BACKGROUND_READY_DELAY_MS = 5_000
 const IDLE_TIMEOUT_MS = 2_000
@@ -9,7 +9,7 @@ export function scheduleIdlePrefetch(): () => void {
   const timer = window.setTimeout(() => {
     idleHandle = window.requestIdleCallback(() => {
       idleHandle = null
-      prefetchCoreMainView('settings')
+      prefetchSettings()
       prefetchSettingsPanel('appearance')
     }, { timeout: IDLE_TIMEOUT_MS })
   }, BACKGROUND_READY_DELAY_MS)

@@ -37,7 +37,7 @@ it('pauses and reuses the Welcome canvas until the hidden conversation view expi
     return { setActive, destroy: () => canvas.remove() }
   })
 
-  const app = (activeView: 'conversation' | 'settings') => (
+  const app = (activeView: 'conversation' | 'agents') => (
     <LocaleProvider loadSettings={false}>
       <MainViewOutlet
         activeView={activeView}
@@ -51,7 +51,7 @@ it('pauses and reuses the Welcome canvas until the hidden conversation view expi
   const canvas = session.container.querySelector('canvas')
   expect(canvas).toBeInTheDocument()
 
-  session.rerender(app('settings'))
+  session.rerender(app('agents'))
   expect(canvas).toBeInTheDocument()
   expect(setActive).toHaveBeenLastCalledWith(false)
 
@@ -59,7 +59,7 @@ it('pauses and reuses the Welcome canvas until the hidden conversation view expi
   expect(session.container.querySelector('canvas')).toBe(canvas)
   expect(setActive).toHaveBeenLastCalledWith(true)
 
-  session.rerender(app('settings'))
+  session.rerender(app('agents'))
   act(() => vi.advanceTimersByTime(RETAIN_HIDDEN_VIEW_MS))
   expect(canvas).not.toBeInTheDocument()
 })

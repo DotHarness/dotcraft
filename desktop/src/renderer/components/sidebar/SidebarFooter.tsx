@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useT } from '../../contexts/LocaleContext'
 import { useUIStore } from '../../stores/uiStore'
-import { prefetchCoreMainView } from '../../core/coreMainViewRoutes'
+import { prefetchSettings } from '../../core/coreMainViewRoutes'
 import {
   SIDEBAR_NAV_BORDER_INACTIVE,
   SIDEBAR_NAV_ICON_SLOT,
@@ -14,8 +14,8 @@ import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
 
 export function SidebarFooter(): JSX.Element {
   const t = useT()
-  const { activeMainView, setActiveMainView } = useUIStore()
-  const settingsActive = activeMainView === 'settings'
+  const settingsActive = useUIStore((state) => state.settingsOpen)
+  const openSettings = useUIStore((state) => state.openSettings)
   const [settingsRowActive, setSettingsRowActive] = useState(false)
   return (
     <div
@@ -29,14 +29,14 @@ export function SidebarFooter(): JSX.Element {
         className="dotcraft-sidebar-row-radius"
         type="button"
         data-nav-icon-host=""
-        onClick={() => setActiveMainView('settings')}
+        onClick={() => openSettings()}
         aria-label={t('sidebar.openSettingsAria')}
         onFocus={() => {
           setSettingsRowActive(true)
-          prefetchCoreMainView('settings')
+          prefetchSettings()
         }}
         onBlur={() => setSettingsRowActive(false)}
-        onPointerEnter={() => prefetchCoreMainView('settings')}
+        onPointerEnter={prefetchSettings}
         onMouseEnter={() => setSettingsRowActive(true)}
         onMouseLeave={() => setSettingsRowActive(false)}
         style={{

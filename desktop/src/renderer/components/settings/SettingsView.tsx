@@ -34,7 +34,7 @@ import {
   type ConnectionSettingsDraft,
   type RemoteConnectionValidationCode
 } from '../../../shared/remoteConnection'
-import { useUIStore } from '../../stores/uiStore'
+import { setSettingsCloseGuard, useUIStore } from '../../stores/uiStore'
 import { useConnectionStore } from '../../stores/connectionStore'
 import {
   readConfigValue,
@@ -259,7 +259,6 @@ export function SettingsView({
   const browserDownloadHistoryOpen = useUIStore(state => state.browserDownloadHistoryOpen)
   const activeSettingsTab = useUIStore((s) => s.activeSettingsTab)
   const setActiveSettingsTab = useUIStore((s) => s.setActiveSettingsTab)
-  const settingsCloseRequestSeq = useUIStore((s) => s.settingsCloseRequestSeq)
   const showThinkingContent = useUIStore((s) => s.showThinkingContent)
   const setShowThinkingContent = useUIStore((s) => s.setShowThinkingContent)
   const capabilities = useConnectionStore((s) => s.capabilities)
@@ -325,7 +324,6 @@ export function SettingsView({
   const [skillsRestartPending, setSkillsRestartPending] = useState(false)
   const [resettingMemory, setResettingMemory] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
-  const settingsCloseRequestSeqRef = useRef(settingsCloseRequestSeq)
   const workspaceConfig = useConfig()
   const configConfirmed = useConfigStore((state) => state.confirmed)
   const configProviderPreferences = useMemo(
@@ -932,20 +930,16 @@ export function SettingsView({
     setRemoteToken(baselineConnection.remoteToken)
   }
 
-  function closeSettings(): void {
-    if (connectionDirty) {
-      const shouldDiscard = window.confirm(t('settings.pendingChanges.leaveConfirm'))
-      if (!shouldDiscard) return
-      restoreConnectionBaseline()
-    }
-    setActiveMainView('conversation')
+  function allowCloseSettings(): boolean {
+    if (!connectionDirty) return true
+    if (!window.confirm(t('settings.pendingChanges.leaveConfirm'))) return false
+    restoreConnectionBaseline()
+    return true
   }
+  const allowCloseSettingsRef = useRef(allowCloseSettings)
+  allowCloseSettingsRef.current = allowCloseSettings
 
-  useEffect(() => {
-    if (settingsCloseRequestSeqRef.current === settingsCloseRequestSeq) return
-    settingsCloseRequestSeqRef.current = settingsCloseRequestSeq
-    closeSettings()
-  }, [settingsCloseRequestSeq])
+  useEffect(() => setSettingsCloseGuard(() => allowCloseSettingsRef.current()), [])
 
   function startMcpDraft(server?: McpServerConfigWire): void {
     if (server && isPluginManagedMcpServer(server, mcpOriginsEnabled)) return
@@ -1396,10 +1390,7 @@ export function SettingsView({
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
-        minHeight: 0,
-        // Transparent so the shared ThreePanel main-surface frame shows through;
-        // an opaque --bg-primary here hides that frame.
-        backgroundColor: 'transparent'
+        minHeight: 0
       }}
     >
       <main className="dc-scrollbar-stable" style={settingsMainStyle()}>

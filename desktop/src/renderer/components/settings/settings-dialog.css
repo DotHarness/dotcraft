@@ -1,0 +1,116 @@
+.dotcraft-settings-dialog-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--overlay-scrim) 45%, transparent);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+  animation: dotcraft-settings-dialog-fade var(--duration-base) var(--ease-standard);
+}
+
+html[data-software-compositing] .dotcraft-settings-dialog-scrim {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.dotcraft-settings-dialog {
+  position: relative;
+  display: flex;
+  width: min(92vw, 1200px);
+  height: min(85vh, 784px);
+  overflow: hidden;
+  border-radius: 12px;
+  outline: 1px solid var(--glass-border);
+  background: var(--bg-primary);
+  box-shadow: var(--glass-shadow-soft);
+  animation: dotcraft-settings-dialog-enter var(--duration-expand) var(--ease-expand);
+}
+
+.dotcraft-settings-dialog:focus-visible {
+  outline: 1px solid var(--glass-border);
+}
+
+.dotcraft-settings-dialog__navigation {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  width: min(33.333%, 260px);
+  min-height: 0;
+  box-sizing: border-box;
+  padding-top: 16px;
+  border-inline-end: 1px solid var(--glass-border);
+  background: var(--shell-chrome-tone);
+}
+
+.dotcraft-settings-nav-title {
+  margin: 0 0 8px;
+  padding: 0 16px;
+  color: var(--text-primary);
+  font-size: var(--type-heading-size);
+  font-weight: 600;
+  line-height: var(--type-heading-line-height);
+}
+
+.dotcraft-settings-dialog__page {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.dotcraft-settings-dialog__close {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+}
+
+.dotcraft-settings-restart-banner {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 8px 56px 8px 16px;
+  border-bottom: 1px solid color-mix(in srgb, var(--warning) 35%, transparent);
+  background: var(--warning-bg);
+  color: var(--text-primary);
+  font-size: var(--type-secondary-size);
+}
+
+.dotcraft-settings-restart-banner__message {
+  flex: 1 1 220px;
+  min-width: 180px;
+  overflow-wrap: anywhere;
+}
+
+.dotcraft-settings-restart-banner__actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+@keyframes dotcraft-settings-dialog-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes dotcraft-settings-dialog-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dotcraft-settings-dialog-scrim,
+  .dotcraft-settings-dialog {
+    animation: none;
+  }
+}
