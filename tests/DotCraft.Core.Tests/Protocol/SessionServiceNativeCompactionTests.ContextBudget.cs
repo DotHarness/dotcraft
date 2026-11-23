@@ -10,9 +10,10 @@ namespace DotCraft.Tests.Sessions.Protocol;
 public sealed partial class SessionServiceNativeCompactionTests
 {
     [Fact]
-    public async Task FirstTurnAndItsCompactionUseTheDialectCapturedAfterCatalogRefresh()
+    public async Task FirstTurnAndItsCompactionUseTheCatalogCapturedAtAdmission()
     {
         _provider.AdvertisedUseResponsesLite = true;
+        _provider.AdvertisedContextBudget = new ProviderContextBudget(160_000);
         _provider.ReportHighUsageNextResponse = true;
         await using var factory = CreateFactory(postTurnCompactThresholdPercent: 50);
         var service = new SessionService(factory, defaultAgent: null,
@@ -24,17 +25,29 @@ public sealed partial class SessionServiceNativeCompactionTests
         _provider.BeforeNextResponse = async ct =>
         {
             _provider.AdvertisedUseResponsesLite = false;
+            _provider.AdvertisedContextBudget = new ProviderContextBudget(200_000);
             var context = factory.RuntimeContext;
             await ModelProviderCatalog.FetchAsync(context.Config, context.ChatClientRegistry.RuntimeResolver,
                 refreshStrategy: ModelCatalogRefreshStrategy.Online, cancellationToken: ct);
         };
 
-        await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("initial question")]));
+        var events = new List<SessionEvent>();
+        await foreach (var evt in service.SubmitInputAsync(thread.Id, [new TextContent("initial question")]))
+            events.Add(evt);
 
         using var sample = JsonDocument.Parse(Assert.Single(_provider.Requests));
         Assert.Equal("all_turns", sample.RootElement.GetProperty("reasoning").GetProperty("context").GetString());
         var compact = Assert.Single(_provider.Compactions);
         Assert.Equal("all_turns", compact.Reasoning?.GetProperty("context").GetString());
+
+        Assert.Contains(events, evt => evt.UsageDeltaPayload?.ContextUsage is
+            { ContextWindow: 140_000, AutoCompactThreshold: 127_000 });
+        Assert.Contains(events, evt => evt.SystemEventPayload is
+            { Kind: "compacted", ContextUsage: { ContextWindow: 140_000, AutoCompactThreshold: 127_000 } });
+        var liveUsage = service.TryGetContextUsageSnapshot(thread.Id);
+        Assert.NotNull(liveUsage);
+        Assert.Equal(180_000, liveUsage.ContextWindow);
+        Assert.Equal(167_000, liveUsage.AutoCompactThreshold);
     }
 
     [Theory]

@@ -43,7 +43,8 @@ public sealed partial class SessionService
                 runtime.LatestToolSnapshot,
                 runtime.ToolLocation,
                 runtime.SubAgentModels,
-                modelRuntime);
+                modelRuntime,
+                modelRuntime is null ? null : agentFactory.GetCompactionPipeline(runtime.Thread.Id, config, modelRuntime));
         }
         return resources;
     }

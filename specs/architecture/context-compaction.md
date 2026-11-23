@@ -4,7 +4,7 @@
 |---|---|
 | **Version** | 0.9.7 |
 | **Status** | Draft |
-| **Date** | 2026-11-15 |
+| **Date** | 2026-11-23 |
 | **Parent Specs** | [Session Core](session-core.md), [Model Runtime](model-runtime.md), [Canonical OpenAI Responses Provider History](responses-provider-history.md), [OpenAI Subscription Auth](openai-subscription-auth.md) |
 
 Purpose: Define the backend-neutral context compaction pipeline. This spec owns backend selection,
@@ -334,6 +334,9 @@ anchors that refer to the replaced request boundary. Both produce the `partial` 
 `compacted` event, and persistent compaction `SystemNotice`.
 
 ## Context usage
+
+For a ChatGPT OAuth turn, streamed usage and compaction events report the budget used by that
+turn's compaction decisions. Standalone context usage queries use the current budget.
 
 Neutral history cannot estimate a provider-native compacted window because the opaque item has no
 semantic `ChatMessage` representation. A valid provider usage anchor plus uncovered tail takes

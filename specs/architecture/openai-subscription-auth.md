@@ -309,9 +309,10 @@ The cache lookup uses the current persisted account. The bearer, account header 
 cache identity for each request, including a retry, come from the credentials used by that
 request. A response for a different account does not fill the original account's cache.
 
-An account entry hidden from the picker remains hidden when a bundled entry has the same model
-ID. If the account catalog has no visible models, the picker can offer bundled entries whose
-IDs are absent from the account catalog.
+The effective catalog starts with the account entries. If none are visible, it also includes
+bundled entries whose IDs are absent from the account catalog. Runtime lookup and ModelService
+use these same entries. The picker filters them by visibility, so a hidden account entry does not
+reappear through a bundled entry with the same ID.
 
 The subscription catalog's `max_context_window` is a ceiling on the client's long-context budget.
 The ordinary `context_window` is a default, not that ceiling. For the exact model ID, valid fields

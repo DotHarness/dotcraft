@@ -64,7 +64,7 @@ internal static class ChatGptCodexModelCatalog
     }
 
     internal static IEnumerable<string> ResolveRuntimeModelIds(EffectiveModelRuntime runtime, string? accountId) =>
-        ResolveModels(runtime, accountId).Select(model => model.Slug.Trim());
+        ResolveModels(runtime, accountId).Select(model => model.Slug.Trim()).Distinct(StringComparer.OrdinalIgnoreCase);
 
     private static CodexModelInfo? ResolveModel(EffectiveModelRuntime runtime, string? accountId) =>
         FindModel(ResolveModels(runtime, accountId), runtime.Model);
@@ -79,7 +79,7 @@ internal static class ChatGptCodexModelCatalog
 
         var cache = ModelCatalogCache.Load(ResolveCachePath(runtime));
         return cache.TryGet(cacheKey, CacheTtl, requireFresh: false, out var cachedModels)
-            ? cachedModels
+            ? AccountModels.GetOrAdd(cacheKey, _ => WithBundledFallback(cachedModels))
             : BuiltInModels.Value;
     }
 
@@ -142,17 +142,21 @@ internal static class ChatGptCodexModelCatalog
     private static OpenAIModelCatalogResult Remember(
         string cacheKey, string? accountId, IReadOnlyList<CodexModelInfo> models)
     {
-        AccountModels[cacheKey] = models;
-        return Success(accountId, models);
+        var effectiveModels = WithBundledFallback(models);
+        AccountModels[cacheKey] = effectiveModels;
+        return Success(accountId, effectiveModels);
     }
+
+    private static IReadOnlyList<CodexModelInfo> WithBundledFallback(IReadOnlyList<CodexModelInfo> models) =>
+        models.Any(IsVisible)
+            ? models
+            : [.. models, .. BuiltInModels.Value.Where(model => FindModel(models, model.Slug) is null)];
 
     private static OpenAIModelCatalogResult Success(string? accountId, IReadOnlyList<CodexModelInfo> models) => new()
     {
         Success = true,
         CatalogAccountId = accountId ?? string.Empty,
-        Models = ToPickerEntries(models.Any(IsVisible)
-            ? models
-            : BuiltInModels.Value.Where(model => FindModel(models, model.Slug) is null))
+        Models = ToPickerEntries(models)
     };
 
     private static List<OpenAIModelCatalogEntry> ToPickerEntries(IEnumerable<CodexModelInfo> models)

@@ -187,6 +187,7 @@ public sealed partial class SessionService
             TurnModelHistory? turnModelHistory = null;
             var reactiveCompaction = new ReactiveCompactionState();
             EffectiveModelRuntime? modelRuntime = null;
+            CompactionPipeline? admittedCompactionPipeline = null;
             string? sessionStartHookContext = null;
 
             void FinalizeStreamingAgentMessage()
@@ -473,13 +474,14 @@ public sealed partial class SessionService
                     await SavePreparedContextEstimateAsync(
                         threadId,
                         usageEstimate,
-                        CancellationToken.None);
+                        CancellationToken.None,
+                        admittedCompactionPipeline);
                 }
                 if (!usageEstimate.EligibleForAutoCompact)
                     return null;
 
                 var tokenHint = usageEstimate.Tokens;
-                var coordinator = GetCompactionCoordinatorForThread(thread, modelRuntime);
+                var coordinator = GetCompactionCoordinatorForThread(thread, modelRuntime, admittedCompactionPipeline);
                 var threshold = coordinator.EvaluateThreshold(tokenHint);
                 if (phase == CompactionPhase.PostTurn ? !threshold.AbovePostTurn : !threshold.AboveAuto)
                     return null;
@@ -488,7 +490,8 @@ public sealed partial class SessionService
                     threadId,
                     tokenHint,
                     usageEstimate.Source,
-                    usageEstimate.IsEstimate);
+                    usageEstimate.IsEstimate,
+                    admittedCompactionPipeline);
                 var preCompactHook = await RunCompactionHookAsync(
                     HookEvent.PreCompact,
                     thread,
@@ -666,7 +669,8 @@ public sealed partial class SessionService
                             source: isProviderNative
                                 ? "provider_compacted_estimate"
                                 : "compacted_estimate",
-                            ct: CancellationToken.None);
+                            ct: CancellationToken.None,
+                            pipeline: admittedCompactionPipeline);
                         if (status.Outcome == CompactionOutcome.Partial)
                             traceCollector?.RecordContextCompaction(threadId);
                         eventChannel.EmitSystemEvent(
@@ -833,6 +837,7 @@ public sealed partial class SessionService
                 var executionResources = await turnContext.Resources.WaitAsync(executionCt).ConfigureAwait(false);
                 var agent = executionResources.Agent;
                 modelRuntime = executionResources.ModelRuntime;
+                admittedCompactionPipeline = executionResources.CompactionPipeline;
                 turnRuntime.ToolSnapshot = executionResources.ToolSnapshot;
                 var toolLocation = executionResources.ToolLocation ?? new ToolLocation(turnContext.Workspace);
                 toolLocation.MoveTo(turnContext.Workspace);
@@ -1268,7 +1273,8 @@ public sealed partial class SessionService
                         await SavePreparedContextEstimateAsync(
                             threadId,
                             preflightEstimate,
-                            ct: CancellationToken.None);
+                            CancellationToken.None,
+                            admittedCompactionPipeline);
                     }
 
                     using var promptSectionRecorder = SystemPromptSectionRecorder.Begin(threadId);
@@ -1311,7 +1317,8 @@ public sealed partial class SessionService
                                     await SavePreparedContextEstimateAsync(
                                         threadId,
                                         preparedEstimate.Estimate,
-                                        ct: CancellationToken.None);
+                                        CancellationToken.None,
+                                        admittedCompactionPipeline);
                                 }
                             },
                             TryCompactWithSnapshotAsync = TryCompactBeforeSamplingAsync,
@@ -1736,7 +1743,8 @@ public sealed partial class SessionService
                                                 anchor,
                                                 source: "provider_context",
                                                 isEstimate: false,
-                                                ct: CancellationToken.None);
+                                                ct: CancellationToken.None,
+                                                pipeline: admittedCompactionPipeline);
                                             eventChannel.EmitUsageDelta(
                                                 delta.InputTokens,
                                                 delta.OutputTokens,
@@ -1855,7 +1863,7 @@ public sealed partial class SessionService
                 }
 
                 {
-                    var compactionPipeline = GetCompactionPipelineForThread(thread, modelRuntime);
+                    var compactionPipeline = admittedCompactionPipeline ?? GetCompactionPipelineForThread(threadId, thread);
                     if (compactionPipeline.PostTurnCompactionEnabled
                         && !executionCt.IsCancellationRequested
                         && !HasPendingQueuedInput(thread)
@@ -1882,7 +1890,8 @@ public sealed partial class SessionService
                         threadId,
                         contextTokens,
                         contextTokens > 0 ? "provider_context" : null,
-                        isEstimate: false);
+                        isEstimate: false,
+                        pipeline: compactionPipeline);
                     if (threshold.AboveError)
                     {
                         eventChannel.EmitSystemEvent(
@@ -2035,16 +2044,16 @@ public sealed partial class SessionService
                             thread.Ephemeral && _runtimeRegistry.TryGetRuntime(thread.Id, out var reactiveRuntime)
                                 ? reactiveRuntime
                                 : null);
-                        var reactiveCoordinator = GetCompactionCoordinatorForThread(thread, modelRuntime);
-                        var existingContextUsage = TryGetContextUsageSnapshot(threadId);
+                        var reactiveCoordinator = GetCompactionCoordinatorForThread(thread, modelRuntime, admittedCompactionPipeline);
+                        var existingContextUsage = persistence.LoadContextUsageSnapshot(threadId);
                         var preReactiveTokens = existingContextUsage?.Tokens ?? tokenTracker?.LastContextTokens ?? 0;
                         var preReactiveThreshold = reactiveCoordinator.EvaluateThreshold(preReactiveTokens);
-                        var preReactiveUsage = existingContextUsage
-                            ?? CreateContextUsageSnapshot(
-                                threadId,
-                                preReactiveTokens,
-                                source: "reactive_estimate",
-                                isEstimate: true);
+                        var preReactiveUsage = CreateContextUsageSnapshot(
+                            threadId,
+                            preReactiveTokens,
+                            source: existingContextUsage is null ? "reactive_estimate" : existingContextUsage.Source,
+                            isEstimate: existingContextUsage?.IsEstimate ?? true,
+                            pipeline: admittedCompactionPipeline);
                         var preCompactHook = await RunCompactionHookAsync(
                             HookEvent.PreCompact,
                             thread,
@@ -2152,7 +2161,8 @@ public sealed partial class SessionService
                                     source: installedProviderNative
                                         ? "provider_compacted_estimate"
                                         : "compacted_estimate",
-                                    ct: CancellationToken.None);
+                                    ct: CancellationToken.None,
+                                    pipeline: admittedCompactionPipeline);
                                 traceCollector?.RecordContextCompaction(threadId);
                                 eventChannel.EmitSystemEvent(
                                     "compacted",

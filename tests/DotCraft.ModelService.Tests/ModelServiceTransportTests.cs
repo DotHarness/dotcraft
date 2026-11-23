@@ -107,8 +107,10 @@ public sealed class ModelServiceTransportTests
             var runtime = source.Runtime with { ProviderStateDirectory = state.FullName };
             var provider = (IModelCatalogProvider)new OpenAIClientProvider(httpTransport: fixture.Transport);
             var catalog = await provider.FetchModelsAsync(runtime with { IsRemote = true, AccountId = accountId }, default);
-            Assert.NotEmpty(catalog.Models);
             Assert.DoesNotContain(catalog.Models, item => item.Id == model);
+            var bundled = (IProviderRuntimeMetadataResolver)new OpenAIClientProvider();
+            var fallback = catalog.Models.First(item =>
+                bundled.Resolve(runtime with { Model = item.Id }).UseLightweightResponses);
 
             var tokenStore = new OpenAITokenStore(state.FullName);
             tokenStore.Save(new AuthDotJson { Tokens = new OpenAITokenSet { AccountId = accountId, IdToken = "e30.e30." } });
@@ -117,6 +119,7 @@ public sealed class ModelServiceTransportTests
 
             Assert.NotNull(remote.Models);
             Assert.Equal(new ProviderContextBudget(800_000, 92, 700_000), remote.Models[model].ContextBudget);
+            Assert.True(remote.Models[fallback.Id].UseResponsesLite);
         }
         finally
         {
