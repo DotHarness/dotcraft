@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DotCraft.Configuration;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Agents;
@@ -98,6 +99,7 @@ public interface IProviderConversationHistory
 public interface IProviderHistorySessionFactory
 {
     IProviderConversationHistory CreateSession(
+        EffectiveModelRuntime runtime,
         ProviderConversationIdentity conversationIdentity,
         OpaqueProviderHistorySnapshot snapshot,
         IReadOnlyList<ChatMessage> coveredMessages,

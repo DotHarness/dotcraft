@@ -226,7 +226,10 @@ Every outbound input item that supports an id has a stable id of the form `<pref
 Valid provider ids are preserved. Missing ids are assigned before first send and retained in
 model history so tool loops, retries, and resumed sessions replay the same ids. Invalid ids are
 replaced or omitted without changing tool `call_id`. Local prefixes follow the item type (`msg`,
-`rs`, `fc`, `fco`, `tsc`, `tso`, `ig`).
+`rs`, `fc`, `fco`, `tsc`, `tso`, `ig`). For Lite canonical history, each local user message
+item that needs a new id receives a `msg_<UUIDv7>` identity. It is assigned once when the item
+enters history and is reused across sampling, retries, and resume. This allocation does not
+rewrite recorded items or change the identities of request-local instruction and tool prefixes.
 
 For threads using provider-history schema version 1, completed raw provider items and newly mapped
 local input items are durably appended to the canonical Responses history, and later requests

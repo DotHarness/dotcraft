@@ -20,6 +20,7 @@ internal sealed partial class OpenAIResponsesProviderHistoryContext :
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly ProviderConversationIdentity _identity;
     private readonly string _providerId;
+    private readonly bool _useUniqueUserItemIds;
     private readonly ProviderMessageOrigin? _origin;
     private readonly Func<ProviderHistoryItemsAppendedPayload, CancellationToken, Task>? _appendAsync;
     private readonly Func<ProviderHistoryReplacedPayload, CancellationToken, Task>? _replaceAsync;
@@ -44,10 +45,12 @@ internal sealed partial class OpenAIResponsesProviderHistoryContext :
         Func<ProviderHistoryReplacedPayload, CancellationToken, Task>? replaceAsync,
         Func<ProviderHistoryAttemptAbortedPayload, CancellationToken, Task>? abortAsync,
         Func<string, string, CancellationToken, Task>? reconcileContextWindowAsync = null,
-        ProviderMessageOrigin? origin = null)
+        ProviderMessageOrigin? origin = null,
+        bool useUniqueUserItemIds = false)
     {
         _identity = identity ?? throw new ArgumentNullException(nameof(identity));
         _origin = origin;
+        _useUniqueUserItemIds = useUniqueUserItemIds;
         _providerId = string.IsNullOrWhiteSpace(providerId)
             ? throw new ArgumentException("Provider ID must be configured.", nameof(providerId))
             : providerId.Trim();
@@ -129,7 +132,8 @@ internal sealed partial class OpenAIResponsesProviderHistoryContext :
                         tail,
                         options,
                         BuildCallCorrelationIndex(),
-                        itemOrdinalOffset: _entries.Count);
+                        itemOrdinalOffset: _entries.Count,
+                        useUniqueUserItemIds: _useUniqueUserItemIds);
                     foreach (var node in mapped.Input)
                         input.Add(node?.DeepClone());
                     NormalizeCallOutputs(input);
@@ -139,20 +143,8 @@ internal sealed partial class OpenAIResponsesProviderHistoryContext :
                 coveredThroughTurnId = _identity.TurnId ?? _coveredThroughTurnId;
             }
 
-            var items = new List<ProviderHistoryItem>(input.Count);
-            var itemIndex = 0;
-            foreach (var node in input)
-            {
-                if (node is not JsonObject item)
-                    continue;
-                using var document = JsonDocument.Parse(item.ToJsonString());
-                items.Add(new ProviderHistoryItem(
-                    $"compaction-input:{itemIndex++}",
-                    document.RootElement.Clone()));
-            }
-
             return new ProviderNativeCompactionInput(
-                items,
+                ProjectInputItems(input),
                 coveredMessageCount,
                 coveredThroughTurnId);
         }
@@ -306,7 +298,8 @@ internal sealed partial class OpenAIResponsesProviderHistoryContext :
         try
         {
             messages = GetSamplingProjection(messages);
-            var mapped = ResponsesToolSearchMapper.BuildInputItems(messages, options);
+            var mapped = ResponsesToolSearchMapper.BuildInputItems(
+                messages, options, useUniqueUserItemIds: _useUniqueUserItemIds);
             var entries = CreateEntries(mapped.Input, ProviderHistorySources.LocalInput, attemptId: null);
             var currentIdentity = ProviderRequestContextScope.Current?.CurrentIdentity
                                   ?? OpenAIResponsesCodexRuntimeScope.Current?.ConversationIdentity
@@ -408,24 +401,37 @@ internal sealed partial class OpenAIResponsesProviderHistoryContext :
             _coveredThroughTurnId,
             _isNativeCompacted) { Origin = _origin };
 
-    public OpaqueProviderHistorySnapshot CaptureOpaqueSnapshot()
-    {
-        var snapshot = CaptureSnapshot();
-        return new OpaqueProviderHistorySnapshot(
+    public OpaqueProviderHistorySnapshot CaptureOpaqueSnapshot() =>
+        CreateOpaqueSnapshot(
+            _entries.Select(static entry => new ProviderHistoryItem(entry.Entry.EntryId, entry.Entry.Item.Clone()))
+                .ToArray(),
+            _coveredThroughTurnId);
+
+    internal OpaqueProviderHistorySnapshot CaptureSamplingSnapshot(CanonicalResponsesInput input) =>
+        CreateOpaqueSnapshot(ProjectInputItems(input.Input), _identity.TurnId ?? _coveredThroughTurnId);
+
+    private OpaqueProviderHistorySnapshot CreateOpaqueSnapshot(
+        IReadOnlyList<ProviderHistoryItem> items,
+        string? coveredThroughTurnId) =>
+        new(
             new ProviderHistoryIdentity(
                 _providerId,
                 ModelProviderProtocols.OpenAIResponses,
                 ProviderHistorySchema.CurrentSchemaVersion,
                 _identity.CurrentThreadId,
                 _identity.TurnId,
-                snapshot.GenerationId,
-                snapshot.ContextWindowId) { Model = _origin?.Model },
-            snapshot.Entries
-                .Select(static entry => new ProviderHistoryItem(entry.EntryId, entry.Item.Clone()))
-                .ToArray(),
-            snapshot.CoveredThroughTurnId,
-            snapshot.IsNativeCompacted);
-    }
+                _generationId,
+                _contextWindowId) { Model = _origin?.Model },
+            items,
+            coveredThroughTurnId,
+            _isNativeCompacted);
+
+    private static ProviderHistoryItem[] ProjectInputItems(JsonArray input) =>
+        input.OfType<JsonObject>()
+            .Select(static (item, index) => new ProviderHistoryItem(
+                $"compaction-input:{index}",
+                JsonSerializer.SerializeToElement(item)))
+            .ToArray();
 
     ValueTask IProviderConversationHistory.HistoryReplacedAsync(
         IReadOnlyList<ChatMessage> messages,

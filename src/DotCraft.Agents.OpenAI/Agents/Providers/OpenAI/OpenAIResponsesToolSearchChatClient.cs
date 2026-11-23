@@ -115,6 +115,8 @@ internal sealed class OpenAIResponsesToolSearchChatClient : IChatClient
             canonicalInput?.ItemIdentity,
             this,
             cancellationToken);
+        if (canonicalInput is not null && requestContext?.OnSamplingHistoryPrepared is { } publishHistory)
+            publishHistory(providerHistory!.CaptureSamplingSnapshot(canonicalInput));
         var responseOptions = preparedResponse.Options;
         responseOptions.Patch.TryGetValue("$.service_tier"u8, out string? requestedTier);
         using var serviceTierScope = ProviderRequestServiceTierScope.Push(requestedTier);

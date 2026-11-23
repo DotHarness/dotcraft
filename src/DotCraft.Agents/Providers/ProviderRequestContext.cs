@@ -96,6 +96,8 @@ public sealed record ProviderRequestContext(
     IModelRuntimeDiagnostics? Diagnostics = null,
     ProviderConversationState? ConversationState = null)
 {
+    public Action<OpaqueProviderHistorySnapshot>? OnSamplingHistoryPrepared { get; init; }
+
     public ProviderConversationIdentity CurrentIdentity =>
         ConversationState?.Identity ?? ConversationIdentity;
 }

@@ -174,7 +174,7 @@ public sealed partial class SessionService
         };
 
         var prefix = tail.Count == 0 ? history : history.Take(history.Count - tail.Count).ToArray();
-        var context = factory.CreateSession(identity, inherited, prefix, sink: null);
+        var context = factory.CreateSession(model, identity, inherited, prefix, sink: null);
         if (tail.Count > 0)
         {
             await context.AppendLocalInputAsync(tail, ct);

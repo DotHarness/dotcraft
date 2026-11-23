@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DotCraft.Agents;
+using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Sessions;
 using Microsoft.Extensions.AI;
@@ -10,16 +11,25 @@ namespace DotCraft.Tests.Sessions.Protocol;
 public sealed partial class SessionServiceNativeCompactionTests
 {
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public async Task FullHistorySubAgent_KeepsNativePrefixAndCompactionState(bool compactParent, bool ephemeralChild)
+    [InlineData(false, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(true, false, false)]
+    [InlineData(true, true, false)]
+    [InlineData(false, false, true)]
+    public async Task FullHistorySubAgent_KeepsNativePrefixAndCompactionState(
+        bool compactParent, bool ephemeralChild, bool lite)
     {
         string childId;
         string[] forkPrefix = [];
         await using (var factory = CreateFactory())
         {
+            if (lite)
+            {
+                _provider.AdvertisedUseResponsesLite = true;
+                var context = factory.RuntimeContext;
+                await ModelProviderCatalog.FetchAsync(context.Config, context.ChatClientRegistry.RuntimeResolver,
+                    refreshStrategy: ModelCatalogRefreshStrategy.Online);
+            }
             var service = CreateService(factory);
             var identity = new SessionIdentity
             {
@@ -38,8 +48,7 @@ public sealed partial class SessionServiceNativeCompactionTests
             _provider.BeforeNextResponse = async ct =>
             {
                 using var request = JsonDocument.Parse(_provider.Requests[^1]);
-                forkPrefix = request.RootElement.GetProperty("input").EnumerateArray().Skip(1)
-                    .Select(item => item.GetRawText()).ToArray();
+                forkPrefix = GetCanonicalInput(request.RootElement).Select(item => item.GetRawText()).ToArray();
                 var snapshot = Assert.IsType<PromptRequestSnapshot>(
                     service.TryGetLastPromptRequestSnapshot(parent.Id));
                 child = await service.CreateThreadAsync(identity, parent.Configuration,
@@ -78,8 +87,8 @@ public sealed partial class SessionServiceNativeCompactionTests
             await DrainAsync(service.SubmitInputAsync(parent.Id, [new TextContent("parent-only-after-fork")]));
             Assert.DoesNotContain("inspect-child", _provider.Requests[^1]);
             using var parentRequest = JsonDocument.Parse(_provider.Requests[^1]);
-            Assert.Equal(forkPrefix, parentRequest.RootElement.GetProperty("input").EnumerateArray()
-                .Skip(1).Take(forkPrefix.Length).Select(item => item.GetRawText()));
+            Assert.Equal(forkPrefix, GetCanonicalInput(parentRequest.RootElement)
+                .Take(forkPrefix.Length).Select(item => item.GetRawText()));
 
             if (ephemeralChild)
             {
@@ -100,11 +109,16 @@ public sealed partial class SessionServiceNativeCompactionTests
         }
     }
 
+    private static IEnumerable<JsonElement> GetCanonicalInput(JsonElement request)
+    {
+        var input = request.GetProperty("input");
+        return input.EnumerateArray().Skip(input[0].GetProperty("type").GetString() == "additional_tools" ? 2 : 1);
+    }
+
     private static void AssertForkPrefix(string request, string[] prefix, bool compactParent)
     {
         using var document = JsonDocument.Parse(request);
-        Assert.Equal(prefix, document.RootElement.GetProperty("input").EnumerateArray()
-            .Skip(1).Take(prefix.Length).Select(item => item.GetRawText()));
+        Assert.Equal(prefix, GetCanonicalInput(document.RootElement).Take(prefix.Length).Select(item => item.GetRawText()));
         Assert.Contains(compactParent ? "encrypted-test" : "old-reasoning-cache", request);
         AssertContainsOnce(request, "delegate inspection");
         AssertContainsOnce(request, "inspect-child");
