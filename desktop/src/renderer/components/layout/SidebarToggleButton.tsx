@@ -1,5 +1,5 @@
 import { useState, type CSSProperties } from 'react'
-import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { PanelLeft } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useUIStore } from '../../stores/uiStore'
 import { DotCraftLogo } from '../ui/DotCraftLogo'
@@ -16,9 +16,9 @@ export function SidebarToggleButton({ showBrand = false, style }: {
   const toggleSidebar = useUIStore((s) => s.toggleSidebar)
   const [hovered, setHovered] = useState(false)
   const label = collapsed ? t('sidebar.expandAria') : t('sidebar.collapseAria')
-  const icon = collapsed
-    ? <PanelLeftOpen size={16} aria-hidden="true" />
-    : <PanelLeftClose size={16} aria-hidden="true" />
+  const icon = showBrand && collapsed && !hovered
+    ? <DotCraftLogo size={18} />
+    : <PanelLeft size={16} aria-hidden="true" />
 
   return (
     <IconButton
@@ -38,7 +38,7 @@ export function SidebarToggleButton({ showBrand = false, style }: {
         cancelSidebarPeekOpen()
       }}
       style={style}
-      icon={showBrand && !hovered ? <DotCraftLogo size={20} /> : icon}
+      icon={icon}
     />
   )
 }
