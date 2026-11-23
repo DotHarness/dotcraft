@@ -5,8 +5,7 @@ export function settingsMainStyle(): CSSProperties {
     flex: 1,
     minWidth: 0,
     overflowY: 'auto',
-    // The top inset clears the dialog's close button, which sits over the page's trailing corner.
-    padding: '48px 28px 28px'
+    padding: '0 28px 28px'
   }
 }
 

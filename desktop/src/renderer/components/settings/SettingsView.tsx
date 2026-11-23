@@ -68,6 +68,7 @@ import {
 import { SettingsDescriptionWithLearnMore } from './SettingsLearnMoreLink'
 import { PersonalizationPanelShell } from './PersonalizationPanelShell'
 import { SettingsPanelShell } from './SettingsPanelShell'
+import { SettingsHeaderSlotContext } from './settingsHeaderSlot'
 import { WorkspaceResourceNotice } from './WorkspaceResourceNotice'
 import { SettingsBreadcrumb } from './SettingsBreadcrumb'
 import { PluginIcon, pluginSubtitle, pluginTitle } from '../plugins/PluginCatalogItem'
@@ -1382,6 +1383,7 @@ export function SettingsView({
 
   const activeCoreSection = coreSettingsSectionForTab(activeSettingsTab)
   const activeCoreSectionTitle = activeCoreSection ? coreSettingsSectionTitle(activeCoreSection, t) : ''
+  const [headerSlot, setHeaderSlot] = useState<HTMLDivElement | null>(null)
 
   return (
     <div
@@ -1393,9 +1395,18 @@ export function SettingsView({
         minHeight: 0
       }}
     >
+      <div className="dotcraft-settings-page__header dc-scrollbar-stable">
+        <div
+          ref={setHeaderSlot}
+          className={`${SETTINGS_SURFACE_CLASS} dotcraft-settings-page__header-slot`}
+          style={settingsContentContainerStyle()}
+        />
+      </div>
       <main className="dc-scrollbar-stable" style={settingsMainStyle()}>
         <div className={SETTINGS_SURFACE_CLASS} style={settingsContentContainerStyle()}>
           <WorkspaceResourceNotice providerError={providerError} onRetryProviders={() => { void reloadProviders() }} />
+          {headerSlot && (
+          <SettingsHeaderSlotContext.Provider value={headerSlot}>
           <CoreSettingsSectionFrame section={activeCoreSection} title={activeCoreSectionTitle}>
           <Suspense fallback={<SettingsPanelSkeleton />}>
             {activeSettingsTab === 'profile' && (
@@ -2062,6 +2073,8 @@ export function SettingsView({
           </CoreSettingsSectionFrame>
           {activeDesktopPluginSettingsPage && (
             <DesktopPluginSettingsPageOutlet contribution={activeDesktopPluginSettingsPage} />
+          )}
+          </SettingsHeaderSlotContext.Provider>
           )}
         </div>
       </main>

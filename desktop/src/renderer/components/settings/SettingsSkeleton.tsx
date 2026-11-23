@@ -35,6 +35,7 @@ export function SettingsPanelSkeleton(): JSX.Element {
 export function SettingsViewSkeleton(): JSX.Element {
   return (
     <div aria-busy="true" style={viewStyle}>
+      <div className="dotcraft-settings-page__header dc-scrollbar-stable" />
       <main className="dc-scrollbar-stable" style={settingsMainStyle()}>
         <div className={SETTINGS_SURFACE_CLASS} style={settingsContentContainerStyle()}>
           <SettingsPanelSkeleton />

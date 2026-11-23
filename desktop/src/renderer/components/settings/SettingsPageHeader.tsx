@@ -1,5 +1,7 @@
-import type { CSSProperties, JSX, ReactNode } from 'react'
+import { useContext, type CSSProperties, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 
+import { SettingsHeaderSlotContext } from './settingsHeaderSlot'
 import { settingsDescriptionStyle, settingsPageTitleStyle } from './settingsTypography'
 
 interface SettingsPageHeaderProps {
@@ -17,8 +19,9 @@ export function SettingsPageHeader({
   action,
   breadcrumb,
   children
-}: SettingsPageHeaderProps): JSX.Element {
-  return (
+}: SettingsPageHeaderProps): ReactNode {
+  const slot = useContext(SettingsHeaderSlotContext)
+  const header = (
     <div style={settingsPageHeaderStyle()}>
       <div style={settingsPageHeaderTextStyle()}>
         {/* On sub-pages the breadcrumb's current segment is the heading, so it
@@ -30,6 +33,7 @@ export function SettingsPageHeader({
       {action && <div style={settingsPageHeaderActionStyle()}>{action}</div>}
     </div>
   )
+  return slot ? createPortal(header, slot) : header
 }
 
 export function settingsPageHeaderStyle(): CSSProperties {

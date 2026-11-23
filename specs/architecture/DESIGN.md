@@ -1905,15 +1905,15 @@ Settings opens as a dialog over the window instead of replacing the main view, s
 the place the user came from stays beneath it and closing returns there
 unchanged. The scrim is `--overlay-scrim` at 45% strength with a `3px` backdrop
 blur: it quiets the window without hiding it, so an Appearance or theme change
-still previews against the real app. Software compositing keeps the scrim and
-drops the blur.
+still previews against the real app.
 
 The frame is centred, `min(92vw, 1200px)` wide and `min(85vh, 784px)` tall,
 with 12px corners, a `1px` `--glass-border` hairline, and
 `--glass-shadow-soft`. Its leading column holds the Settings navigation on the
 opaque chrome tone (`--shell-chrome-tone`), one third of the frame up to
-`260px`, divided from the page by a hairline. The page area is `--bg-primary`,
-scrolls on its own, and keeps the settings content column. The shared Dialog
+`260px`, divided from the page by a hairline. The page area is `--bg-primary`
+and keeps the settings content column. The page title and description stay
+fixed at its top while the content below them scrolls. The shared Dialog
 close sits at the frame's top trailing corner. The close button, Escape, and a
 scrim click dismiss the dialog. A dialog, menu, or field opened inside Settings
 takes Escape first.
