@@ -102,7 +102,7 @@ function ChoiceRow({
     <SettingsRow>
       <div className={styles.choice}>
         <span className={styles.choiceMark}>
-          <ProviderPresetMark mark={provider ? providerPresetMark(provider) : null} size={16} />
+          <ProviderPresetMark mark={provider ? providerPresetMark(provider) : null} pluginId={provider?.pluginId} size={16} />
         </span>
         <span className={styles.choiceModel}>{choice.model}</span>
         <span className={styles.choiceProvider}>{provider?.displayName ?? choice.providerId}</span>

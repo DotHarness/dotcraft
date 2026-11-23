@@ -1823,6 +1823,7 @@ Non-obvious fields:
 
 - `protocol`: `openai-chat-completions`, `openai-responses`, or `anthropic`; a backend instance reports its backend's protocol.
 - `backendId`: present for [model backend](../architecture/model-backend-plugins.md) instances.
+- `pluginId`: present when `backendId` resolves to an active plugin-contributed model backend.
 - `isAuthenticated`: present when the provider's configured method supports sign-in or a model service manages it.
 - `apiKey`: a redacted marker when a key exists; raw secrets are never returned. `hasApiKey` reports presence.
 - `endPoint`: empty means the protocol's official endpoint.

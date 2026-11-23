@@ -43,18 +43,35 @@ export async function refreshWorkspaceResources(): Promise<void> {
   await Promise.all(requests)
 }
 
+function matchesScope(
+  scope: WorkspaceResourceScope | null,
+  source: Partial<AppServerConnectionSource>
+): boolean {
+  return scope != null
+    && (!source.connectionKey || source.connectionKey === scope.connectionKey)
+    && (!source.connectionId || source.connectionId === scope.connectionId)
+}
+
+export function applyWorkspacePluginSnapshotChange(source: Partial<AppServerConnectionSource>): boolean {
+  const scope = useWorkspaceResourcesStore.getState().scope
+  if (!matchesScope(scope, source)) return false
+  if (useConnectionStore.getState().capabilities?.providerManagement === true) {
+    void useProvidersStore.getState().reload()
+  }
+  return true
+}
+
 export function applyWorkspaceResourceConfigChange(
   regions: string[],
   source: Partial<AppServerConnectionSource>
 ): boolean {
   const scope = useWorkspaceResourcesStore.getState().scope
-  if (!scope || (source.connectionKey && source.connectionKey !== scope.connectionKey) ||
-      (source.connectionId && source.connectionId !== scope.connectionId)) return false
+  if (!matchesScope(scope, source)) return false
   const capabilities = useConnectionStore.getState().capabilities
   useConfigStore.getState().handleConfigChanged(regions)
   if (capabilities?.modelCatalogManagement === true) useModelCatalogStore.getState().handleConfigChanged(regions)
   if (capabilities?.providerManagement === true &&
-      (regions.includes('providers') || hasConfigKeyPathChange(regions, 'ProviderId'))) {
+      (regions.includes('providers') || regions.includes('plugins') || hasConfigKeyPathChange(regions, 'ProviderId'))) {
     void useProvidersStore.getState().reload()
   }
   return true

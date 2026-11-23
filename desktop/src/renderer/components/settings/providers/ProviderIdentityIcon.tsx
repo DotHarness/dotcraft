@@ -1,18 +1,29 @@
 import type { CSSProperties, JSX } from 'react'
 import { Plug } from 'lucide-react'
+import { findPluginEntry, usePluginStore } from '../../../stores/pluginStore'
+import { pluginIconUrl } from '../../plugins/PluginCatalogItem'
 import { ProviderMark } from '../../ui/ProviderMark'
 import { providerPresetMark } from './providerPresets'
 
 interface ProviderIdentityIconProps {
-  provider: Parameters<typeof providerPresetMark>[0]
+  provider: Parameters<typeof providerPresetMark>[0] & { pluginId?: string | null }
   size?: number
 }
 
 export function ProviderIdentityIcon({ provider, size = 28 }: ProviderIdentityIconProps): JSX.Element {
   const mark = providerPresetMark(provider)
+  const pluginSrc = usePluginStore((state) => {
+    if (mark || !provider.pluginId) return null
+    const plugin = findPluginEntry(state.plugins, provider.pluginId)
+    return plugin ? pluginIconUrl(plugin) : null
+  })
   return (
     <span style={frameStyle(size)} aria-hidden="true">
-      {mark ? <ProviderMark kind={mark} size={size} style={MARK_STYLE} /> : <Plug size={Math.round(size * 0.75)} strokeWidth={1.8} />}
+      {mark
+        ? <ProviderMark kind={mark} size={size} style={MARK_STYLE} />
+        : pluginSrc
+          ? <img src={pluginSrc} alt="" width={size} height={size} style={IMAGE_STYLE} />
+          : <Plug size={Math.round(size * 0.75)} strokeWidth={1.8} />}
     </span>
   )
 }
@@ -21,6 +32,11 @@ const MARK_STYLE: CSSProperties = {
   width: '75%',
   height: '75%',
   display: 'block'
+}
+
+const IMAGE_STYLE: CSSProperties = {
+  ...MARK_STYLE,
+  objectFit: 'contain'
 }
 
 function frameStyle(size: number): CSSProperties {

@@ -89,6 +89,7 @@ export function ProviderUsageMeter({ provider }: { provider: ProviderInfoWire })
             title={provider.displayName}
             usage={usage}
             markKind={usage.pluginId ? undefined : providerPresetMark(provider) ?? undefined}
+            pluginId={usage.pluginId ?? provider.pluginId ?? null}
           />
         </span>
       )}

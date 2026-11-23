@@ -43,12 +43,12 @@ export function ApiKeyUsageBadge({ provider, markKind }: { provider: ProviderSum
       aria-expanded={open} aria-label={`${provider.displayName}: ${label}`} onClick={() => { hover.dismiss(); setOpen(!open) }}>
       {markKind
         ? <ProviderMark kind={markKind} size={16} />
-        : <PluginUsageIcon pluginId={usage?.pluginId ?? null} size={16} />}
+        : <PluginUsageIcon pluginId={usage?.pluginId ?? provider.pluginId ?? null} size={16} />}
       {formatted ? <><span>{formatted}</span><span className={styles.suffix}>{suffix}</span></> : <span>{label}</span>}
     </button>
     {hover.visible && !open && usage && reading && <UsageHoverCard entries={[{ provider, usage, reading }]} />}
     {open && <div className={styles.popover}>
-      <ProviderUsagePopover title={provider.displayName} usage={usage} markKind={markKind ?? undefined} />
+      <ProviderUsagePopover title={provider.displayName} usage={usage} markKind={markKind ?? undefined} pluginId={usage?.pluginId ?? provider.pluginId ?? null} />
     </div>}
   </div>
 }

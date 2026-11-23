@@ -3,6 +3,7 @@ import { ListChecks, TestTube2 } from 'lucide-react'
 import type { ProviderBackendInfo } from '@dotcraft/sdk/contracts'
 import type { DesktopProviderProtocol } from '../../../../shared/providerProtocols'
 import { useT } from '../../../contexts/LocaleContext'
+import { usePluginStore } from '../../../stores/pluginStore'
 import { slugProviderId } from '../../../utils/providerId'
 import { ActionTooltip } from '../../ui/ActionTooltip'
 import { Button } from '../../ui/Button'
@@ -87,8 +88,9 @@ export function ProviderEditor({
 }: ProviderEditorProps): JSX.Element {
   const t = useT()
   const [signingIn, setSigningIn] = useState(false)
+  const plugins = usePluginStore((state) => state.plugins)
   const knownBackends = backends ?? []
-  const presets = providerPresets(knownBackends, t)
+  const presets = providerPresets(knownBackends, t, plugins)
   const preset = findProviderPreset(presets, draft.preset)
   const auth = preset ? providerPresetAuth(preset, draft.authMethod) : null
   const connectionMode = providerConnectionMode(draft, knownBackends)
@@ -97,7 +99,7 @@ export function ProviderEditor({
     value: item.id,
     label: item.label,
     description: item.hint,
-    icon: <ProviderPresetMark mark={item.mark} />
+    icon: <ProviderPresetMark mark={item.mark} iconUrl={item.iconUrl} />
   }))
   if (!preset && draft.backendId) {
     presetOptions.push({

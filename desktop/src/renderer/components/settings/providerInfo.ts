@@ -15,6 +15,7 @@ interface ProviderCapabilitiesWire {
 export interface ProviderInfoWire {
   backendSettings?: Record<string, import('@dotcraft/sdk/contracts').JsonValue>
   backendId?: string
+  pluginId?: string
   id: string
   displayName: string
   protocol: string
@@ -44,6 +45,7 @@ export function normalizeProviderList(value: unknown): ProviderInfoWire[] {
         id,
         backendSettings: raw.backendSettings,
         backendId: typeof raw.backendId === 'string' ? raw.backendId : undefined,
+        pluginId: typeof raw.pluginId === 'string' && raw.pluginId ? raw.pluginId : undefined,
         displayName: typeof raw.displayName === 'string' && raw.displayName.trim() !== '' ? raw.displayName : id,
         protocol: raw.backendId && typeof raw.protocol === 'string' ? raw.protocol : normalizeProviderProtocol(raw.protocol),
         apiKey: typeof raw.apiKey === 'string' ? raw.apiKey : null,

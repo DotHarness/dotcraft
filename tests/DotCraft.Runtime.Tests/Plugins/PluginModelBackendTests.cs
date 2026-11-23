@@ -18,6 +18,10 @@ public sealed class PluginModelBackendTests
         var attempt = await harness.ActivateAsync("backend-test");
         var generation = Assert.IsType<PluginGeneration>(attempt.Generation);
         using var resolver = new ModelBackendResolver(new ModelProviderRegistry([]), harness.Registry, harness.Root);
+        var registration = Assert.Single(resolver.GetBackendRegistrations());
+        Assert.Equal("backend-test", registration.PluginId);
+        Assert.Equal("Custom backend hint", registration.Descriptor.Description);
+        Assert.Equal("backend-test", resolver.TryGetPluginId("test.backend"));
         var clients = new ChatClientRegistry(new ModelProviderRegistry([]), resolver);
         var config = new AppConfig { Providers = new() { ["demo"] = new() { BackendId = "test.backend" } } };
         var client = clients.GetChatClient(config, "demo", "model");
@@ -181,7 +185,8 @@ public sealed class PluginModelBackendTests
                 {
                     new ProviderAuthenticationMethod("local", "Local", "delegated"),
                     new ProviderAuthenticationMethod("fail", "Fail", "oauth")
-                }, new ModelProviderCapabilities());
+                }, new ModelProviderCapabilities())
+            { Description = "  Custom backend hint  " };
             public IModelProvider CreateProvider(ModelBackendContext context) => this;
             public IReadOnlyCollection<string> Protocols => new[] { "backend-test" };
             public IChatClient CreateChatClient(EffectiveModelRuntime runtime) => new Client();

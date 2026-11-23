@@ -23,7 +23,7 @@ export function UsageProviderMark({ provider, usage, size }: { provider: Provide
   const kind = usageProviderMarkKind(provider, usage)
   return kind
     ? <ProviderMark kind={kind} size={size} />
-    : <PluginUsageIcon pluginId={usage?.pluginId ?? null} size={size} />
+    : <PluginUsageIcon pluginId={usage?.pluginId ?? provider.pluginId ?? null} size={size} />
 }
 
 export function usageProviderTitle(provider: ProviderSummary, t: (key: string) => string): string {
@@ -70,6 +70,7 @@ function UsageSections({ entries }: { entries: UsageEntry[] }): JSX.Element {
               title={usageProviderTitle(provider, t)}
               usage={usage}
               markKind={usageProviderMarkKind(provider, usage) ?? undefined}
+              pluginId={usage.pluginId ?? provider.pluginId ?? null}
               showFetched={false}
             />
           </div>

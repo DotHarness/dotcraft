@@ -51,6 +51,64 @@ public sealed class ModelBackendAuthenticationTests
         if (Directory.Exists(root)) Directory.Delete(root, true);
     }
 
+    [Fact]
+    public async Task BackendAndProviderListsReportPluginAttributionAndDescription()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "backend-meta-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var contributions = new ContributionRegistry();
+            using var pluginRegistrar = contributions.CreateRegistrar(ContributionOrigin.Plugin("acme.models", "gen-1"));
+            pluginRegistrar.Add<IModelBackendSource>(new Source("plugin-demo", "Plugin demo", "  Use your Acme account  "));
+            var official = new Source("official-demo", "Official demo", "   ");
+            using var resolver = new ModelBackendResolver(new ModelProviderRegistry([]), contributions, root, [official]);
+            await using var authentication = new ProviderAuthenticationCoordinator(resolver);
+            var globalConfigPath = Path.Combine(root, "global-config.json");
+            Directory.CreateDirectory(root);
+            await File.WriteAllTextAsync(globalConfigPath, JsonSerializer.Serialize(new
+            {
+                ProviderId = "p-plugin",
+                Providers = new Dictionary<string, object>
+                {
+                    ["p-plugin"] = new { BackendId = " plugin-demo " },
+                    ["p-official"] = new { BackendId = "official-demo" }
+                }
+            }));
+            var config = new AppConfig
+            {
+                GlobalConfigPath = globalConfigPath,
+                ProviderId = "p-plugin",
+                Providers = new()
+                {
+                    ["p-plugin"] = new() { BackendId = " plugin-demo " },
+                    ["p-official"] = new() { BackendId = "official-demo" }
+                }
+            };
+            using var harness = new AppServerTestHarness(
+                workspaceCraftPath: root,
+                appConfigMonitor: new AppConfigMonitor(config),
+                modelRuntimeResolver: resolver,
+                providerAuthentication: authentication);
+            await harness.InitializeAsync();
+
+            var backends = (await Request(harness, "provider/backend/list", new { }))
+                .GetProperty("backends").EnumerateArray().ToDictionary(item => item.GetProperty("id").GetString()!);
+            Assert.Equal("acme.models", backends["plugin-demo"].GetProperty("pluginId").GetString());
+            Assert.Equal("Use your Acme account", backends["plugin-demo"].GetProperty("description").GetString());
+            Assert.False(backends["official-demo"].TryGetProperty("pluginId", out _));
+            Assert.False(backends["official-demo"].TryGetProperty("description", out _));
+
+            var providers = (await Request(harness, "provider/list", new { }))
+                .GetProperty("providers").EnumerateArray().ToDictionary(item => item.GetProperty("id").GetString()!);
+            Assert.Equal("acme.models", providers["p-plugin"].GetProperty("pluginId").GetString());
+            Assert.False(providers["p-official"].TryGetProperty("pluginId", out _));
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+        }
+    }
+
     private static async Task<JsonElement> WaitState(AppServerTestHarness harness, string id, string status)
     {
         for (var attempt = 0; attempt < 100; attempt++)
@@ -75,13 +133,15 @@ public sealed class ModelBackendAuthenticationTests
         }
     }
 
-    private sealed class Source : IModelBackendSource, IModelBackend, IModelProvider, IProviderAuthenticator
+    private sealed class Source(string id = "rpc-demo", string displayName = "RPC demo", string? description = null)
+        : IModelBackendSource, IModelBackend, IModelProvider, IProviderAuthenticator
     {
         private IProviderCredentialStore? _credentials;
         public TaskCompletionSource Cancelled { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public IModelBackend Backend => this;
-        public ModelBackendDescriptor Descriptor => new("rpc-demo", "RPC demo", "test", ["test"],
-            [new("manual", "Manual", "secret")], new ModelProviderCapabilities());
+        public ModelBackendDescriptor Descriptor => new(id, displayName, "test", ["test"],
+            [new("manual", "Manual", "secret")], new ModelProviderCapabilities())
+        { Description = description };
         public IReadOnlyCollection<string> Protocols => ["test"];
         public IModelProvider CreateProvider(ModelBackendContext context) { _credentials = context.Credentials; return this; }
         public IChatClient CreateChatClient(EffectiveModelRuntime runtime) => throw new NotSupportedException();

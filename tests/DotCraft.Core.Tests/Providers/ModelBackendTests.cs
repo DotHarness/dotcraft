@@ -225,6 +225,26 @@ public sealed class ModelBackendTests : IDisposable
         Assert.Equal("Provider sign-in failed. Try again.", unexpectedFailed.ErrorMessage);
     }
 
+    [Fact]
+    public void BackendRegistrationsAttributePluginBackendsOnly()
+    {
+        var official = new Backend("official");
+        using var pluginRegistrar = _contributions.CreateRegistrar(ContributionOrigin.Plugin("acme.models", "gen-1"));
+        pluginRegistrar.Add<IModelBackendSource>(new Source(new Backend("plugin") { Description = "Use Acme models" }));
+        _contributions.Add<IModelBackendSource>(new Source(new Backend("host")));
+        using var resolver = new ModelBackendResolver(new ModelProviderRegistry([]), _contributions, _root, [official]);
+
+        var registrations = resolver.GetBackendRegistrations().ToDictionary(item => item.Descriptor.Id, StringComparer.Ordinal);
+        Assert.Null(registrations["official"].PluginId);
+        Assert.Null(registrations["host"].PluginId);
+        Assert.Equal("acme.models", registrations["plugin"].PluginId);
+        Assert.Equal("Use Acme models", registrations["plugin"].Descriptor.Description);
+        Assert.Equal("acme.models", resolver.TryGetPluginId("plugin"));
+        Assert.Null(resolver.TryGetPluginId("official"));
+        Assert.Null(resolver.TryGetPluginId("host"));
+        Assert.Null(resolver.TryGetPluginId("missing"));
+    }
+
     private ModelBackendResolver Resolver() => _resolver ??= new(new ModelProviderRegistry([]), _contributions, _root);
     private AppConfig Config(params (string Id, string Backend)[] entries) => new()
     {
@@ -269,8 +289,10 @@ public sealed class ModelBackendTests : IDisposable
         public IReadOnlyList<string> Protocols { get; init; } = ["anthropic"];
         public Func<EffectiveModelRuntime, EffectiveModelRuntime>? RuntimeResolver { get; init; }
         public Func<string, IProviderLoginInteraction, CancellationToken, Task<ProviderAuthenticationStatus>>? LoginHandler { get; init; }
+        public string? Description { get; init; }
         public ModelBackendDescriptor Descriptor => new(id, id, Protocols[0], Protocols,
-            [new("oauth", "Sign in", "oauth")], new ModelProviderCapabilities());
+            [new("oauth", "Sign in", "oauth")], new ModelProviderCapabilities())
+        { Description = Description };
         public IModelProvider CreateProvider(ModelBackendContext context) => new Provider(this, id, context.Credentials);
     }
 

@@ -4,6 +4,8 @@ using DotCraft.Contributions;
 
 namespace DotCraft.Agents;
 
+public sealed record ModelBackendRegistration(ModelBackendDescriptor Descriptor, string? PluginId);
+
 public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
 {
     private readonly ModelProviderRegistry builtins;
@@ -35,9 +37,28 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
     internal IContributionView Contributions => contributions;
 
     public IReadOnlyList<ModelBackendDescriptor> GetBackends() =>
-        officialBackends.Values.Select(backend => backend.Descriptor)
-            .Concat(contributions.Resolve<IModelBackendSource>().Where(source => !officialBackends.ContainsKey(source.Backend.Descriptor.Id)).Select(source => source.Backend.Descriptor))
-            .OrderBy(descriptor => descriptor.Id, StringComparer.Ordinal).ToArray();
+        GetBackendRegistrations().Select(registration => registration.Descriptor).ToArray();
+
+    public IReadOnlyList<ModelBackendRegistration> GetBackendRegistrations() =>
+        officialBackends.Values.Select(backend => new ModelBackendRegistration(backend.Descriptor, null))
+            .Concat(contributions.ResolveEntries<IModelBackendSource>()
+                .Where(entry => !officialBackends.ContainsKey(entry.Contribution.Backend.Descriptor.Id))
+                .Select(entry => new ModelBackendRegistration(
+                    entry.Contribution.Backend.Descriptor,
+                    entry.Origin.Kind == ContributionOriginKind.Plugin ? entry.Origin.Name : null)))
+            .OrderBy(registration => registration.Descriptor.Id, StringComparer.Ordinal).ToArray();
+
+    public string? TryGetPluginId(string? backendId)
+    {
+        if (string.IsNullOrWhiteSpace(backendId) || officialBackends.ContainsKey(backendId))
+            return null;
+        foreach (var entry in contributions.ResolveEntries<IModelBackendSource>())
+        {
+            if (entry.Contribution.Backend.Descriptor.Id == backendId)
+                return entry.Origin.Kind == ContributionOriginKind.Plugin ? entry.Origin.Name : null;
+        }
+        return null;
+    }
 
     public EffectiveModelRuntime Normalize(EffectiveModelRuntime runtime)
     {

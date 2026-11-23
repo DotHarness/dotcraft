@@ -62,6 +62,9 @@
         }
       ]
     },
+    "pluginId": {
+      "type": "string"
+    },
     "protocol": {
       "type": "string"
     },

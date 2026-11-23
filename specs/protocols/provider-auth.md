@@ -120,9 +120,13 @@ InvalidRequest naming the management location.
 
 ## Backends
 
-Backend descriptors do not contain credentials. Backend IDs and settings are configured through
-existing configuration writes. Provider listings add `backendId`; missing backend code does not
-remove saved configuration.
+Backend descriptors do not contain credentials. Each `provider/backend/list` entry includes `id`,
+`displayName`, `defaultProtocol`, `protocols`, `authenticationMethods`, optional `description` when
+the backend descriptor supplies one, and optional `pluginId` for plugin-contributed backends
+(omitted for built-in backends). Backend IDs and settings are configured through existing
+configuration writes. Provider listings add `backendId` and, when the configured backend is
+contributed by an active plugin, `pluginId`. Missing backend code does not remove saved
+configuration.
 
 ## CLI
 

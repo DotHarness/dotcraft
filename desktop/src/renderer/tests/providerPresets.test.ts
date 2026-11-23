@@ -83,4 +83,99 @@ describe('provider presets', () => {
     const draft = applyProviderPreset(createProviderDraft(), preset('backend:plugin'), null)
     expect(providerConnectionMode(draft, [plugin])).toBe('signIn')
   })
+
+  it('resolves plugin backend icons and subtitles from backend descriptors and installed plugins', () => {
+    const backends: ProviderBackendInfo[] = [
+      ...BUILT_IN_BACKENDS,
+      {
+        id: 'acme-models',
+        displayName: 'Acme Models',
+        pluginId: 'acme-models',
+        description: 'Custom backend subtitle',
+        defaultProtocol: 'acme-cli',
+        protocols: ['acme-cli'],
+        authenticationMethods: [{ id: 'cli', displayName: 'CLI', kind: 'cli' }]
+      },
+      {
+        id: 'short-desc',
+        displayName: 'ShortDesc',
+        pluginId: 'short-desc-plugin',
+        defaultProtocol: 'proto',
+        protocols: ['proto'],
+        authenticationMethods: []
+      },
+      {
+        id: 'plain-desc',
+        displayName: 'PlainDesc',
+        pluginId: 'plain-desc-plugin',
+        defaultProtocol: 'proto',
+        protocols: ['proto'],
+        authenticationMethods: []
+      },
+      {
+        id: 'fallback-only',
+        displayName: 'Fallback',
+        pluginId: 'missing-plugin',
+        defaultProtocol: 'proto',
+        protocols: ['proto'],
+        authenticationMethods: []
+      }
+    ]
+    const plugins = [
+      {
+        id: 'acme-models',
+        installed: false,
+        interface: { composerIconDataUrl: 'data:image/svg+xml,catalog', shortDescription: 'Catalog copy' }
+      },
+      {
+        id: 'acme-models',
+        installed: true,
+        interface: {
+          composerIconDataUrl: 'data:image/svg+xml,installed',
+          logoDataUrl: 'data:image/svg+xml,logo',
+          shortDescription: 'Plugin short description'
+        }
+      },
+      {
+        id: 'short-desc-plugin',
+        installed: true,
+        description: 'Longer plugin description',
+        interface: {
+          logoDataUrl: 'data:image/svg+xml,logo-only',
+          shortDescription: 'Use your ShortDesc account'
+        }
+      },
+      {
+        id: 'plain-desc-plugin',
+        installed: true,
+        description: 'Plain plugin description'
+      }
+    ]
+    const resolved = providerPresets(backends, t, plugins)
+    expect(findProviderPreset(resolved, 'backend:acme-models')).toMatchObject({
+      mark: null,
+      iconUrl: 'data:image/svg+xml,installed',
+      hint: 'Custom backend subtitle'
+    })
+    expect(findProviderPreset(resolved, 'backend:short-desc')).toMatchObject({
+      mark: null,
+      iconUrl: 'data:image/svg+xml,logo-only',
+      hint: 'Use your ShortDesc account'
+    })
+    expect(findProviderPreset(resolved, 'backend:plain-desc')).toMatchObject({
+      mark: null,
+      iconUrl: null,
+      hint: 'Plain plugin description'
+    })
+    expect(findProviderPreset(resolved, 'backend:fallback-only')).toMatchObject({
+      mark: null,
+      iconUrl: null,
+      hint: t('providerPreset.backendHint')
+    })
+    expect(findProviderPreset(resolved, 'backend:openrouter')).toMatchObject({
+      mark: 'openrouter',
+      iconUrl: null,
+      hint: t('providerPreset.openrouterHint')
+    })
+  })
 })

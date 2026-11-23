@@ -17,14 +17,15 @@ interface ProviderUsagePopoverProps {
   title: string
   usage: ProviderUsageSnapshot | null
   markKind?: ProviderMarkKind
+  pluginId?: string | null
 }
 
 const POPOVER_WIDTH = 280
 
-export function ProviderUsagePopover({ title, usage, markKind }: ProviderUsagePopoverProps): JSX.Element {
+export function ProviderUsagePopover({ title, usage, markKind, pluginId }: ProviderUsagePopoverProps): JSX.Element {
   return (
     <ProviderUsageCard label={title}>
-      <ProviderUsageContent title={title} usage={usage} markKind={markKind} />
+      <ProviderUsageContent title={title} usage={usage} markKind={markKind} pluginId={pluginId} />
     </ProviderUsageCard>
   )
 }
@@ -37,12 +38,13 @@ export function ProviderUsageCard({ label, children }: { label?: string; childre
   )
 }
 
-export function ProviderUsageContent({ title, usage, markKind, showFetched = true }: ProviderUsagePopoverProps & { showFetched?: boolean }): JSX.Element {
+export function ProviderUsageContent({ title, usage, markKind, pluginId, showFetched = true }: ProviderUsagePopoverProps & { showFetched?: boolean }): JSX.Element {
   const t = useT()
   const locale = useLocale()
   const [now, setNow] = useState(() => Date.now())
+  const iconPluginId = usage?.pluginId ?? pluginId ?? null
   const heading = <div className={styles.identity}>
-    {markKind ? <ProviderMark kind={markKind} size={18} /> : usage?.pluginId ? <PluginUsageIcon pluginId={usage.pluginId} size={18} /> : null}
+    {markKind ? <ProviderMark kind={markKind} size={18} /> : iconPluginId ? <PluginUsageIcon pluginId={iconPluginId} size={18} /> : null}
     <span style={titleStyle()}>{title}{usage?.planType ? <span style={planNameStyle()}> {formatPlanName(usage.planType)}</span> : null}</span>
   </div>
 

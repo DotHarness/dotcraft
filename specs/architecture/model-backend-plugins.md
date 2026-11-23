@@ -37,6 +37,9 @@ configured maximum while the host preserves provider identity, configured settin
 status and generation tracking.
 
 Desktop lists backend instances with every other provider and creates them from the same editor.
+A backend descriptor may supply an optional short `Description` for provider selection, and the host
+attributes plugin-contributed backends to their owning plugin (`pluginId`) so clients can present
+the plugin's artwork and fallback subtitle.
 Backend-specific options use typed controls in a plugin settings surface. `BackendSettings` holds
 their serialized values. Authentication uses the shared provider sign-in flow and backend credential
 storage.
