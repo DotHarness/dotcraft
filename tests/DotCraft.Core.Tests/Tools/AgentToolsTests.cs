@@ -31,6 +31,7 @@ public sealed class AgentToolsTests
             .ToArray();
         Assert.DoesNotContain("model", required);
         Assert.DoesNotContain("reasoningEffort", required);
+        Assert.False(function.JsonSchema.GetProperty("properties").TryGetProperty("workingDirectory", out _));
     }
 
     [Fact]

@@ -32,8 +32,7 @@ public static partial class SubAgentSessionControl
         }
 
         var role = roleConfig.Name;
-        var requestedWorkingDirectory = NormalizeOptional(options.WorkingDirectory);
-        var workspace = requestedWorkingDirectory ?? context.ParentThread.WorkspacePath;
+        var workspace = context.ParentThread.WorkspacePath;
         var depth = context.Depth + 1;
         var maxDepth = Math.Max(1, options.MaxDepth);
         if (depth > maxDepth)

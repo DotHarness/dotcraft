@@ -1,7 +1,7 @@
 import { useEffect, useState, type JSX } from 'react'
 import { useT } from '../../../../contexts/LocaleContext'
 import { useModelCatalog } from '../../../../hooks/useModelCatalog'
-import { readConfigValue, useConfig, useConfigSetting } from '../../../../stores/configStore'
+import { configKeyPath, readConfigValue, useConfig, useConfigSetting } from '../../../../stores/configStore'
 import { useModelCatalogStore } from '../../../../stores/modelCatalogStore'
 import {
   cloneModelPreference,
@@ -22,11 +22,9 @@ import { SegmentedControl } from '../../ui/SegmentedControl'
 import { ProviderSelect } from '../../providers/ProviderSelect'
 import {
   findProvider,
-  findSubAgentSelection,
   providerTrouble,
-  readSubAgentSelections,
-  setSubAgentSelection,
-  toSubAgentSelectionsConfig,
+  readSubAgentSelection,
+  toSubAgentSelectionConfig,
   type SubAgentModelSelection
 } from './subAgentModels'
 import styles from './SubAgentModels.module.css'
@@ -50,13 +48,13 @@ export function SubAgentDefaultModelField({
 }: SubAgentDefaultModelFieldProps): JSX.Element {
   const t = useT()
   const config = useConfig()
-  const setting = useConfigSetting('SubAgent.ProviderPreferences', (error) =>
+  const keyPath = configKeyPath('SubAgent', 'ProviderPreferences', mainProviderId.trim())
+  const setting = useConfigSetting(keyPath, (error) =>
     t('settings.llm.toast.saveSubAgentModelFailed', { error }))
-  const selections = readSubAgentSelections(setting.value)
+  const current = readSubAgentSelection(setting.value, mainProviderId)
   const [pendingProviderId, setPendingProviderId] = useState<string | null>(null)
   const [manualDraft, setManualDraft] = useState('')
 
-  const current = findSubAgentSelection(selections, mainProviderId)
   const custom = current != null || pendingProviderId != null
   const targetProviderId = pendingProviderId ?? current?.providerId ?? mainProviderId
   const catalog = useModelCatalog(targetProviderId)
@@ -93,8 +91,8 @@ export function SubAgentDefaultModelField({
   }, [catalog.models, catalog.status, pendingProviderId])
 
   function persist(next: SubAgentModelSelection | null): void {
-    const nextSelections = setSubAgentSelection(selections, mainProviderId, next)
-    void setting.set(Object.keys(nextSelections).length === 0 ? null : toSubAgentSelectionsConfig(nextSelections))
+    if (!mainProviderId.trim()) return
+    void setting.set(next == null ? null : toSubAgentSelectionConfig(mainProviderId, next))
   }
 
   function commitManualModel(): void {

@@ -87,12 +87,16 @@ public static class ConfigurationSubsystems
 
     private static string? ValidateSubAgentProviderPreferences(AppConfig runtime, AppConfig previous, AppConfig candidate)
     {
-        foreach (var (providerId, preference) in candidate.SubAgent.ProviderPreferences)
+        if (candidate.SubAgent.ProviderPreferences is not { } preferences)
+            return "'SubAgent.ProviderPreferences' must be an object.";
+
+        foreach (var (providerId, preference) in preferences)
         {
             var targetProviderId = string.IsNullOrWhiteSpace(preference?.ProviderId)
                 ? providerId
                 : preference.ProviderId.Trim();
-            if (previous.SubAgent.ProviderPreferences.TryGetValue(providerId, out var prior)
+            if (previous.SubAgent.ProviderPreferences is { } previousPreferences
+                && previousPreferences.TryGetValue(providerId, out var prior)
                 && prior != null
                 && preference != null
                 && string.Equals(prior.ProviderId ?? providerId, targetProviderId, StringComparison.OrdinalIgnoreCase)

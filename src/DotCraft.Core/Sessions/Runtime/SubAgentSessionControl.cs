@@ -81,8 +81,6 @@ public sealed class SubAgentSpawnOptions
 
     public string? AgentRole { get; set; }
 
-    public string? WorkingDirectory { get; set; }
-
     public IReadOnlyList<SubAgentRoleConfig>? RoleConfigs { get; set; }
 
     public SubAgentModelPreference? SubAgentPreference { get; set; }
