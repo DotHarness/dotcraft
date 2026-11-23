@@ -143,20 +143,8 @@ internal sealed partial class OpenAIResponsesProviderHistoryContext :
                 coveredThroughTurnId = _identity.TurnId ?? _coveredThroughTurnId;
             }
 
-            var items = new List<ProviderHistoryItem>(input.Count);
-            var itemIndex = 0;
-            foreach (var node in input)
-            {
-                if (node is not JsonObject item)
-                    continue;
-                using var document = JsonDocument.Parse(item.ToJsonString());
-                items.Add(new ProviderHistoryItem(
-                    $"compaction-input:{itemIndex++}",
-                    document.RootElement.Clone()));
-            }
-
             return new ProviderNativeCompactionInput(
-                items,
+                ProjectInputItems(input),
                 coveredMessageCount,
                 coveredThroughTurnId);
         }
@@ -413,24 +401,37 @@ internal sealed partial class OpenAIResponsesProviderHistoryContext :
             _coveredThroughTurnId,
             _isNativeCompacted) { Origin = _origin };
 
-    public OpaqueProviderHistorySnapshot CaptureOpaqueSnapshot()
-    {
-        var snapshot = CaptureSnapshot();
-        return new OpaqueProviderHistorySnapshot(
+    public OpaqueProviderHistorySnapshot CaptureOpaqueSnapshot() =>
+        CreateOpaqueSnapshot(
+            _entries.Select(static entry => new ProviderHistoryItem(entry.Entry.EntryId, entry.Entry.Item.Clone()))
+                .ToArray(),
+            _coveredThroughTurnId);
+
+    internal OpaqueProviderHistorySnapshot CaptureSamplingSnapshot(CanonicalResponsesInput input) =>
+        CreateOpaqueSnapshot(ProjectInputItems(input.Input), _identity.TurnId ?? _coveredThroughTurnId);
+
+    private OpaqueProviderHistorySnapshot CreateOpaqueSnapshot(
+        IReadOnlyList<ProviderHistoryItem> items,
+        string? coveredThroughTurnId) =>
+        new(
             new ProviderHistoryIdentity(
                 _providerId,
                 ModelProviderProtocols.OpenAIResponses,
                 ProviderHistorySchema.CurrentSchemaVersion,
                 _identity.CurrentThreadId,
                 _identity.TurnId,
-                snapshot.GenerationId,
-                snapshot.ContextWindowId) { Model = _origin?.Model },
-            snapshot.Entries
-                .Select(static entry => new ProviderHistoryItem(entry.EntryId, entry.Item.Clone()))
-                .ToArray(),
-            snapshot.CoveredThroughTurnId,
-            snapshot.IsNativeCompacted);
-    }
+                _generationId,
+                _contextWindowId) { Model = _origin?.Model },
+            items,
+            coveredThroughTurnId,
+            _isNativeCompacted);
+
+    private static ProviderHistoryItem[] ProjectInputItems(JsonArray input) =>
+        input.OfType<JsonObject>()
+            .Select(static (item, index) => new ProviderHistoryItem(
+                $"compaction-input:{index}",
+                JsonSerializer.SerializeToElement(item)))
+            .ToArray();
 
     ValueTask IProviderConversationHistory.HistoryReplacedAsync(
         IReadOnlyList<ChatMessage> messages,

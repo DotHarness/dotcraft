@@ -156,28 +156,13 @@ public sealed partial class SessionService
         };
     }
 
-    private static async Task<PromptRequestSnapshot> CaptureProviderHistorySnapshotAsync(
-        PromptRequestSnapshot snapshot,
-        CancellationToken ct)
+    private void PublishSampledPrompt(
+        string threadId,
+        PromptRequestSnapshot? request,
+        OpaqueProviderHistorySnapshot history)
     {
-        if (ProviderRequestContextScope.Current is not { History: { }, Compaction: { } bridge } context)
-        {
-            return snapshot;
-        }
-
-        var input = await bridge.CaptureInputAsync(
-            ProviderCompactionPhase.MidTurn,
-            snapshot.Messages,
-            MaintenanceForkRunner.BuildOptions(snapshot),
-            ct);
-        return snapshot with
-        {
-            ProviderHistory = context.History.CaptureOpaqueSnapshot() with
-            {
-                Items = input.Items,
-                CoveredThroughTurnId = input.CoveredThroughTurnId
-            }
-        };
+        if (request is not null && _runtimeRegistry.TryGetRuntime(threadId, out var runtime))
+            runtime.LastPromptRequest = request with { ProviderHistory = history };
     }
 
     private void InvalidatePromptRequestSnapshot(string threadId, string reason)

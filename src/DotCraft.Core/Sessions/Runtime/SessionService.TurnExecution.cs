@@ -1201,12 +1201,16 @@ public sealed partial class SessionService
                             ? "subagent_role_instructions_changed"
                             : null,
                         modelRuntime: modelRuntime);
+                PromptRequestSnapshot? pendingPromptRequest = null;
                 reactiveCompaction.ProviderContext = new ProviderRequestContext(
                     providerIdentity,
                     responsesProviderHistoryContext,
                     responsesProviderHistoryContext as IProviderCompactionBridge,
                     traceCollector,
-                    providerConversationState);
+                    providerConversationState)
+                {
+                    OnSamplingHistoryPrepared = history => PublishSampledPrompt(threadId, pendingPromptRequest, history)
+                };
                 using var responsesProviderHistoryScope = responsesProviderHistoryContext == null
                     ? null
                     : ProviderRequestContextScope.Push(reactiveCompaction.ProviderContext);
@@ -1304,10 +1308,11 @@ public sealed partial class SessionService
                                             .Where(static item => item.Status == ItemStatus.Completed)
                                             .Select(static item => item.Id).ToHashSet(StringComparer.Ordinal)
                                     };
-                                    runtime.LastPromptRequest = await CaptureProviderHistorySnapshotAsync(
-                                        request, CancellationToken.None);
+                                    pendingPromptRequest = request;
+                                    if (responsesProviderHistoryContext is null)
+                                        runtime.LastPromptRequest = request;
                                     runtime.ContextComposition = ContextUsageComposition.Capture(
-                                        runtime.LastPromptRequest,
+                                        request,
                                         promptSectionRecorder.Sections,
                                         promptSectionRecorder.CraftPath,
                                         turnRuntime?.ToolSnapshot);
