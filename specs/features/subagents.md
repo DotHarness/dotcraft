@@ -81,7 +81,7 @@ description uses the existing generic subagent origin instead of claiming comple
 
 Session Core creates a SubAgent in this order:
 
-1. Validate the task, path, `forkTurns`, working directory, and requested role.
+1. Validate the task, path, `forkTurns`, and requested role.
 2. Resolve the role, parent/root ancestry, and child depth.
 3. Enforce the configured depth and open-child residency limits.
 4. Resolve the child thread configuration (sections 6 and 7).
