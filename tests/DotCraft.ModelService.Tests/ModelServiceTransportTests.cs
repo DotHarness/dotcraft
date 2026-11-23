@@ -88,6 +88,22 @@ public sealed class ModelServiceTransportTests
     }
 
     [Fact]
+    public async Task ChatGptCatalogCarriesModelContextBudgetThroughRemoteTransport()
+    {
+        const string model = "gpt-6.2-sol";
+        await using var fixture = await Fixture.CreateAsync(_ => throw new Xunit.Sdk.XunitException("Unexpected upstream call."),
+            authMethod: ModelProviderAuthMethods.ChatGptOAuth);
+        var source = Assert.Single(await fixture.Access.GetProvidersAsync(new ModelServiceCaller("stack-a"), default));
+        var resolver = (IProviderRuntimeMetadataResolver)new OpenAIClientProvider(source.Authentication);
+        var expected = Assert.IsType<ProviderContextBudget>(resolver.Resolve(source.Runtime with { Model = model }).ContextBudget);
+
+        var remote = Assert.Single((await fixture.Transport.GetCatalogAsync()).Providers);
+
+        Assert.NotNull(remote.Models);
+        Assert.Equal(expected, remote.Models[model].ContextBudget);
+    }
+
+    [Fact]
     public async Task StreamWithoutContentTypeRecordsUsageAndRetainsResponse()
     {
         const string stream = "event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"usage\":{\"input_tokens\":2400,\"output_tokens\":120,\"input_tokens_details\":{\"cached_tokens\":1800},\"output_tokens_details\":{\"reasoning_tokens\":64}}}}\n\n";

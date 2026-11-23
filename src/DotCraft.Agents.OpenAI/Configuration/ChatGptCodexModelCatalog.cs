@@ -36,6 +36,33 @@ internal static class ChatGptCodexModelCatalog
         string tier) =>
         ResolveModel(runtime, accountId)?.ServiceTiers.Contains(tier) == true;
 
+    internal static ProviderRuntimeMetadata ResolveRuntimeMetadata(
+        EffectiveModelRuntime runtime,
+        string? accountId)
+    {
+        var adaptation = runtime.RequestAdaptation;
+        var useAccountBudget = runtime.IsChatGptOAuth && !runtime.IsRemote && accountId is not null;
+        var model = adaptation is null || useAccountBudget ? ResolveModel(runtime, accountId) : null;
+        var useLite = adaptation?.UseResponsesLite ?? model?.UseResponsesLite ?? false;
+        if (!runtime.IsChatGptOAuth)
+            return new(useLite);
+
+        if (runtime.IsRemote && adaptation?.ContextBudget is { } remoteBudget)
+            return new(useLite, remoteBudget);
+
+        var accountModel = useAccountBudget ? model : null;
+        var bundledModel = FindModel(BuiltInModels.Value, runtime.Model);
+        var maxWindow = Positive(accountModel?.MaxContextWindow) ?? Positive(bundledModel?.MaxContextWindow);
+        return new(useLite, maxWindow is { } window
+            ? new ProviderContextBudget(
+                window,
+                Percent(accountModel?.EffectiveContextWindowPercent)
+                    ?? Percent(bundledModel?.EffectiveContextWindowPercent)
+                    ?? 95,
+                Positive(accountModel?.AutoCompactTokenLimit) ?? Positive(bundledModel?.AutoCompactTokenLimit))
+            : null);
+    }
+
     private static CodexModelInfo? ResolveModel(EffectiveModelRuntime runtime, string? accountId)
     {
         ArgumentNullException.ThrowIfNull(runtime);
@@ -213,7 +240,10 @@ internal static class ChatGptCodexModelCatalog
                 Visibility = ReadString(modelElement, "visibility") ?? string.Empty,
                 Priority = ReadInt(modelElement, "priority") ?? int.MaxValue,
                 UseResponsesLite = ReadBoolean(modelElement, "use_responses_lite"),
-                ServiceTiers = ReadServiceTiers(modelElement)
+                ServiceTiers = ReadServiceTiers(modelElement),
+                MaxContextWindow = ReadInt(modelElement, "max_context_window"),
+                EffectiveContextWindowPercent = ReadInt(modelElement, "effective_context_window_percent"),
+                AutoCompactTokenLimit = ReadInt(modelElement, "auto_compact_token_limit")
             });
         }
 
@@ -246,6 +276,10 @@ internal static class ChatGptCodexModelCatalog
             .ToList();
     }
 
+    private static int? Positive(int? value) => value is > 0 ? value : null;
+
+    private static int? Percent(int? value) => value is >= 1 and <= 100 ? value : null;
+
     private static bool ReadBoolean(JsonElement element, string name) =>
         element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.True;
 
@@ -260,6 +294,12 @@ internal static class ChatGptCodexModelCatalog
         public bool UseResponsesLite { get; set; }
 
         public List<string> ServiceTiers { get; set; } = [];
+
+        public int? MaxContextWindow { get; set; }
+
+        public int? EffectiveContextWindowPercent { get; set; }
+
+        public int? AutoCompactTokenLimit { get; set; }
     }
 
     private sealed class ModelCatalogCache

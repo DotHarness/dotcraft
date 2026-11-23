@@ -83,7 +83,10 @@ public static class ModelServiceProviderCatalog
                 metadata?.UseLightweightResponses ?? false,
                 ModelThinkingAdapterCatalog.ShouldApplyDeepThinking(runtime.EndPoint, model, thinkingCatalogPath),
                 ModelThinkingAdapterCatalog.ResolveAnthropicThinkingAdapter(runtime.EndPoint, model, thinkingCatalogPath),
-                ModelThinkingAdapterCatalog.ResolveAnthropicMessageContentAdapter(runtime.EndPoint, model, thinkingCatalogPath));
+                ModelThinkingAdapterCatalog.ResolveAnthropicMessageContentAdapter(runtime.EndPoint, model, thinkingCatalogPath))
+            {
+                ContextBudget = metadata?.ContextBudget
+            };
         }, StringComparer.OrdinalIgnoreCase);
         return source.Description with
         {

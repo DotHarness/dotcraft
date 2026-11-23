@@ -194,7 +194,8 @@ public sealed class ChatClientRegistry
         if (!runtime.IsChatGptOAuth)
             return runtime with
             {
-                UseResponsesLite = false
+                UseResponsesLite = false,
+                ContextBudget = null
             };
 
         var accountId = _providerRegistry
@@ -206,7 +207,8 @@ public sealed class ChatClientRegistry
         return runtime with
         {
             AccountId = accountId,
-            UseResponsesLite = metadata.UseLightweightResponses
+            UseResponsesLite = metadata.UseLightweightResponses,
+            ContextBudget = metadata.ContextBudget
         };
     }
 

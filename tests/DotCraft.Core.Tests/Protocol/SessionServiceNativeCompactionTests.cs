@@ -359,7 +359,11 @@ public sealed partial class SessionServiceNativeCompactionTests : IDisposable
         Assert.True(result.Outcome == "partial", result.Message ?? result.Outcome);
     }
 
-    private AgentFactory CreateFactory(bool oauth = true, int postTurnCompactThresholdPercent = 0, bool smallTail = false)
+    private AgentFactory CreateFactory(
+        bool oauth = true,
+        int postTurnCompactThresholdPercent = 0,
+        bool smallTail = false,
+        Action<AppConfig>? configure = null)
     {
         var config = AppConfigTestFactory.CreateOpenAI(model: "gpt-test");
         config.Providers["openai"].Protocol = ModelProviderProtocols.OpenAIResponses;
@@ -374,6 +378,7 @@ public sealed partial class SessionServiceNativeCompactionTests : IDisposable
             config.Compaction.KeepRecentMaxTokens = 500;
             config.Compaction.MicrocompactEnabled = false;
         }
+        configure?.Invoke(config);
         return new AgentFactory(_workspace, _workspace, config, new MemoryStore(_workspace),
             new SkillsLoader(_workspace), new AutoApproveApprovalService(), blacklist: null,
             toolSources: [], chatClientRegistry: new ChatClientRegistry(_provider));
@@ -398,7 +403,8 @@ public sealed partial class SessionServiceNativeCompactionTests : IDisposable
     }
 
     private sealed class NativeProvider : IModelProvider, IProviderNativeCompactorFactory,
-        IResponsesToolSearchTransport, IChatGptResponsesCompactTransport, IProviderNativeCompactor
+        IResponsesToolSearchTransport, IChatGptResponsesCompactTransport, IProviderNativeCompactor,
+        IProviderRuntimeMetadataResolver
     {
         private readonly OpenAIClientProvider _historyProvider = new();
         public List<string> Requests { get; } = [];
@@ -408,6 +414,7 @@ public sealed partial class SessionServiceNativeCompactionTests : IDisposable
         public bool OverflowNextRequest { get; set; }
         public bool ReportHighUsageNextResponse { get; set; }
         public long? InputTokensNextResponse { get; set; }
+        public ProviderContextBudget? ContextBudget { get; set; }
         public bool ToolNextResponse { get; set; }
         public string? TextBeforeNextTool { get; set; }
         public bool ReasoningNextResponse { get; set; }
@@ -419,6 +426,7 @@ public sealed partial class SessionServiceNativeCompactionTests : IDisposable
         public object? GetService(Type type, object? key = null) =>
             type == typeof(IProviderHistorySessionFactory) ? _historyProvider :
             type.IsInstanceOfType(this) ? this : null;
+        public ProviderRuntimeMetadata Resolve(EffectiveModelRuntime runtime) => new(ContextBudget: ContextBudget);
         public IProviderNativeCompactor CreateCompactor(EffectiveModelRuntime runtime, IChatClient? rawRepresentationClient = null) =>
             this;
 

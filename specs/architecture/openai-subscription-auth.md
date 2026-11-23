@@ -4,7 +4,7 @@
 |---|---|
 | Version | 0.14.0 |
 | Status | Living |
-| Date | 2026-11-21 |
+| Date | 2026-11-23 |
 
 DotCraft can authenticate outgoing model requests against a user's ChatGPT subscription (Plus,
 Pro, Team, Business, Enterprise, Edu) as an alternative to a pay-as-you-go OpenAI API key. This
@@ -302,6 +302,16 @@ provider's configured Endpoint and ApiKey are ignored. The model catalog comes f
 credentials, cached per account in `~/.craft/model-catalog-cache.json` for five minutes, with the
 bundled catalog as the offline fallback. `client_version` is a fixed compatible client version, not
 DotCraft's app version, because the backend uses it to decide model eligibility.
+
+The subscription catalog's `max_context_window` is a ceiling on the client's long-context budget.
+The ordinary `context_window` is a default, not that ceiling. For the exact model ID, valid fields
+from the current account take precedence over the bundled catalog's known values. If neither
+source supplies a ceiling, the ordinary client budget rules apply.
+
+For a budget with a subscription ceiling, the usable window is limited to
+`effective_context_window_percent` of the bounded window (95% if absent). Independently, automatic
+compaction is limited to 90% of the bounded window or the smaller `auto_compact_token_limit` when
+present. Neither limit expands the client's local budget or applies to API-key providers.
 
 ## Configuration shape
 

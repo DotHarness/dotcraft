@@ -236,10 +236,8 @@ public sealed class AgentFactory : IAsyncDisposable
     {
         var effectiveConfig = configOverride ?? _config;
         var runtime = _chatClientRegistry.ResolveMainRuntime(effectiveConfig, providerIdOverride, modelOverride);
-        var effectiveMainModel = runtime.Model;
         var compactionConfig = ModelCatalog.ResolveCompactionConfig(
-            effectiveConfig,
-            effectiveMainModel, runtime.ModelMetadata?.ContextWindow);
+            effectiveConfig, runtime.Model, runtime.ModelMetadata?.ContextWindow, runtime.ContextBudget);
         var key = CompactionPipelineKey.From(
             string.IsNullOrWhiteSpace(sessionKey) ? string.Empty : sessionKey.Trim(),
             runtime,

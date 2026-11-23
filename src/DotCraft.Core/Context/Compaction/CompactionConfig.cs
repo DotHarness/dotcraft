@@ -1,3 +1,4 @@
+using DotCraft.Agents;
 using DotCraft.Configuration;
 
 namespace DotCraft.Context.Compaction;
@@ -30,6 +31,8 @@ public sealed class CompactionConfig
     [ConfigField(Ignore = true)]
     [System.Text.Json.Serialization.JsonIgnore]
     public int ContextWindow { get; set; } = 256_000;
+
+    internal ProviderContextBudget? ProviderBudget { get; set; }
 
     /// <summary>A positive value caps the catalog window; -1 uses the full catalog capacity.</summary>
     [ConfigField(Ignore = true)]
@@ -143,6 +146,7 @@ public sealed class CompactionConfig
         AutoCompactEnabled = AutoCompactEnabled,
         ReactiveCompactEnabled = ReactiveCompactEnabled,
         ContextWindow = ContextWindow,
+        ProviderBudget = ProviderBudget,
         MaxContextWindow = MaxContextWindow,
         SummaryReserveTokens = SummaryReserveTokens,
         SummaryMaxOutputTokens = SummaryMaxOutputTokens,
@@ -160,25 +164,29 @@ public sealed class CompactionConfig
         MaxConsecutiveFailures = MaxConsecutiveFailures
     };
 
-    /// <summary>
-    /// Computes the effective context window: ContextWindow − SummaryReserve,
-    /// floored so the auto-compact threshold cannot go negative.
-    /// </summary>
     public int EffectiveContextWindow()
     {
-        var effective = ContextWindow - SummaryReserveTokens;
-        var floor = SummaryReserveTokens + AutoCompactBufferTokens;
-        return Math.Max(effective, floor);
+        var local = LocalEffectiveContextWindow();
+        return ProviderBudget is { } budget
+            ? Math.Max(1, Math.Min(local, WindowPercentage(budget.EffectiveContextWindowPercent)))
+            : local;
     }
 
-    /// <summary>
-    /// Token count at which auto-compact fires.
-    /// </summary>
     public int AutoCompactThreshold()
     {
-        var effective = EffectiveContextWindow();
-        return Math.Max(1, effective - AutoCompactBufferTokens);
+        var threshold = LocalEffectiveContextWindow() - AutoCompactBufferTokens;
+        if (ProviderBudget is { } budget)
+        {
+            var provider = Math.Min(WindowPercentage(90), budget.AutoCompactTokenLimit ?? int.MaxValue);
+            threshold = Math.Min(threshold, Math.Min(provider, EffectiveContextWindow()));
+        }
+        return Math.Max(1, threshold);
     }
+
+    private int LocalEffectiveContextWindow() =>
+        Math.Max(ContextWindow - SummaryReserveTokens, SummaryReserveTokens + AutoCompactBufferTokens);
+
+    private int WindowPercentage(int percent) => (int)((long)ContextWindow * percent / 100);
 
     /// <summary>
     /// Token count at which the turn-end phase compacts, or zero when turn-end compaction is disabled.

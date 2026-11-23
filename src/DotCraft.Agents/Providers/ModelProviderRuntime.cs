@@ -164,6 +164,7 @@ public sealed record EffectiveModelRuntime(
     public string? ConfiguredProtocol { get; init; }
     public string? ConfiguredEndPoint { get; init; }
     public ModelCatalogEntry? ModelMetadata { get; init; }
+    public DotCraft.Agents.ProviderContextBudget? ContextBudget { get; init; }
     public int? ConfiguredMaxOutputTokens { get; init; }
     public IReadOnlyDictionary<string, DotCraft.Agents.ProviderRequestAdaptation>? RemoteModels { get; init; }
     public ModelCatalogResult? RemoteCatalogState { get; init; }

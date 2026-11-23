@@ -47,8 +47,15 @@ public interface IProviderRuntimeIdentityResolver
     string? ResolveAccountId(EffectiveModelRuntime runtime);
 }
 
+public sealed record ProviderContextBudget(
+    int MaxContextWindow,
+    int EffectiveContextWindowPercent = 95,
+    int? AutoCompactTokenLimit = null);
+
 /// <summary>Provider-owned model metadata that affects Core orchestration.</summary>
-public sealed record ProviderRuntimeMetadata(bool UseLightweightResponses = false);
+public sealed record ProviderRuntimeMetadata(
+    bool UseLightweightResponses = false,
+    ProviderContextBudget? ContextBudget = null);
 
 /// <summary>Resolves provider-owned runtime metadata without exposing provider catalog types.</summary>
 public interface IProviderRuntimeMetadataResolver

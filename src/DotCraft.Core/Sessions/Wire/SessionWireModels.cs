@@ -104,10 +104,6 @@ public sealed record ContextUsageSnapshot
     /// </summary>
     public long Tokens { get; init; }
 
-    /// <summary>
-    /// Raw configured context window (<c>CompactionConfig.EffectiveContextWindow()</c>).
-    /// This is the denominator the desktop ring should use.
-    /// </summary>
     public int ContextWindow { get; init; }
 
     /// <summary>
