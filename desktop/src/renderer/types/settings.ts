@@ -19,7 +19,6 @@ export type SettingsTab =
   | 'worktrees'
   | 'hooks'
   | 'mcp'
-  | 'subAgents'
   | DesktopPluginSettingsTab
 
 /** Ids a persisted or deep-linked location may still name after a page merge. */

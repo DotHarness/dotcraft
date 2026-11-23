@@ -1,27 +1,19 @@
 using System.Globalization;
-using System.Text.Json;
 using DotCraft.Sessions;
 
 namespace DotCraft.SessionImport;
 
 internal sealed class SessionImportWorkspaceState
 {
-    internal const string ExternalCliSessionsMetadataKey = "dotcraft.externalCliSessions";
-
     private SessionImportWorkspaceState(IReadOnlyList<ThreadSummary> summaries)
     {
         var threads = new Dictionary<string, ThreadSummary>(StringComparer.OrdinalIgnoreCase);
         foreach (var summary in summaries)
             threads[summary.Id] = summary;
         Threads = threads;
-        ExternalCliSessionIds = summaries
-            .SelectMany(static summary => ReadExternalCliSessionIds(summary.Metadata))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
 
     public IReadOnlyDictionary<string, ThreadSummary> Threads { get; }
-
-    public IReadOnlySet<string> ExternalCliSessionIds { get; }
 
     public static async Task<SessionImportWorkspaceState> LoadAsync(
         ISessionService sessions,
@@ -68,24 +60,4 @@ internal sealed class SessionImportWorkspaceState
 
         return document;
     }
-
-    private static IEnumerable<string> ReadExternalCliSessionIds(IReadOnlyDictionary<string, string> metadata) =>
-        metadata.TryGetValue(ExternalCliSessionsMetadataKey, out var raw) ? ReadExternalCliSessionIds(raw) : [];
-
-    internal static IEnumerable<string> ReadExternalCliSessionIds(string raw)
-    {
-        try
-        {
-            return JsonSerializer.Deserialize<ExternalCliSession[]>(raw, JsonSerializerOptions.Web)?
-                .Select(static session => session.SessionId)
-                .OfType<string>()
-                .ToArray() ?? [];
-        }
-        catch (JsonException)
-        {
-            return [];
-        }
-    }
-
-    private sealed record ExternalCliSession(string? SessionId);
 }

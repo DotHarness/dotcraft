@@ -137,7 +137,6 @@ public sealed class Plugin : IDotCraftPlugin, IDisposable
         contributions.Add<ICommitMessageSuggester>(
             new ReviewCommitMessageSuggester(service),
             new ContributionOptions(ReplaceTarget: SuggestionServiceNames.CommitMessageSuggest));
-        contributions.Add<ISubAgentRuntimeSource>(new ReviewSubAgentRuntimeSource());
 
         contributions.Add<ITraceSink>(new ReviewTraceSink(journal));
     }

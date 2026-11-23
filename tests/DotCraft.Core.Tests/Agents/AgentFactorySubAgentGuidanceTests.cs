@@ -94,10 +94,7 @@ public sealed class AgentFactorySubAgentGuidanceTests : IDisposable
             ContextPageManager = new ContextPageManager(),
             ApprovalService = new AutoApproveApprovalService(),
             CurrentThreadId = "thread_child",
-            CurrentThreadSource = ThreadSource.ForSubAgent(new SubAgentThreadSource
-            {
-                RuntimeType = NativeSubAgentRuntime.RuntimeTypeName
-            })
+            CurrentThreadSource = ThreadSource.ForSubAgent(new SubAgentThreadSource())
         };
 
         return new AgentFactory(

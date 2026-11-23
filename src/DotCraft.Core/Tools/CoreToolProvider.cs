@@ -99,17 +99,7 @@ public sealed class CoreToolSource(
         var subAgentPreference = SubAgentModelPreference.Find(
             config.SubAgent.ProviderPreferences,
             mainRuntime.ProviderId);
-        var subAgentCoordinator = new SubAgentCoordinator(
-            context.WorkspacePath,
-            [new CliOneshotRuntime()],
-            config.SubAgentProfiles,
-            approvalService,
-            config.SubAgent.DisabledProfiles,
-            externalCliSessionStore: null,
-            enableExternalCliSessionResume: config.SubAgent.EnableExternalCliSessionResume,
-            catalog: SubAgentProfileCatalog.Resolve(contributions, context.ThreadId));
         var agentTools = new AgentTools(
-            subAgentCoordinator: subAgentCoordinator,
             subAgentRoles: config.SubAgent.Roles,
             maxSubAgentDepth: config.SubAgent.MaxDepth,
             subAgentPreference: subAgentPreference,

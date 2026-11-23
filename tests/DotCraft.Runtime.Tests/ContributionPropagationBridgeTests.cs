@@ -23,14 +23,13 @@ public sealed class ContributionPropagationBridgeTests
         [
             registry.Add<IToolSource>(new StubToolSource("late")),
             registry.Add<IAgentContextSource>(new StubContextContribution()),
-            registry.Add<IToolRestriction>(new StubRestriction()),
-            registry.Add<ISubAgentRuntimeSource>(new StubSubAgentRuntimeContribution())
+            registry.Add<IToolRestriction>(new StubRestriction())
         ];
-        Assert.Equal(4, refresh.Invalidations);
+        Assert.Equal(3, refresh.Invalidations);
 
         foreach (var handle in handles)
             handle.Dispose();
-        Assert.Equal(8, refresh.Invalidations);
+        Assert.Equal(6, refresh.Invalidations);
     }
 
     [Fact]
@@ -112,35 +111,6 @@ public sealed class ContributionPropagationBridgeTests
         public Task OnThreadRuntimeSignalAsync(
             ThreadRuntimeSignalContext context,
             CancellationToken cancellationToken = default) => Task.CompletedTask;
-    }
-
-    private sealed class StubSubAgentRuntimeContribution : ISubAgentRuntimeSource
-    {
-        public ISubAgentRuntime Runtime { get; } = new StubSubAgentRuntime();
-    }
-
-    private sealed class StubSubAgentRuntime : ISubAgentRuntime
-    {
-        public string RuntimeType => "stub-runtime";
-
-        public Task<SubAgentSessionHandle> CreateSessionAsync(
-            SubAgentProfile profile,
-            SubAgentLaunchContext context,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(new SubAgentSessionHandle(RuntimeType, profile.Name));
-
-        public Task<DotCraft.Agents.SubAgentRunResult> RunAsync(
-            SubAgentSessionHandle session,
-            SubAgentTaskRequest request,
-            ISubAgentEventSink sink,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(new DotCraft.Agents.SubAgentRunResult { Text = request.Task });
-
-        public Task CancelAsync(SubAgentSessionHandle session, CancellationToken cancellationToken) =>
-            Task.CompletedTask;
-
-        public Task DisposeSessionAsync(SubAgentSessionHandle session, CancellationToken cancellationToken) =>
-            Task.CompletedTask;
     }
 
     private sealed class StubRestriction : IToolRestriction

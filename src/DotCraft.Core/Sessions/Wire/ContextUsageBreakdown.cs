@@ -28,7 +28,6 @@ public static class ContextUsageCategoryIds
     public const string SystemPrompt = "systemPrompt";
     public const string MemoryFiles = "memoryFiles";
     public const string Skills = "skills";
-    public const string Subagents = "subagents";
     public const string BuiltInTools = "builtInTools";
     public const string McpTools = "mcpTools";
     public const string Messages = "messages";

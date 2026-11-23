@@ -46,23 +46,6 @@ public sealed class ConfigChangedTests : IDisposable
             mcpClientManager: manager);
         using var bridge = AttachConfigChangedBridge(harness);
         await harness.InitializeAsync(configChange: true);
-        var subAgentDefinition = new
-        {
-            runtime = "cli-oneshot",
-            bin = "codex",
-            args = new[] { "exec", "--skip-git-repo-check" },
-            workingDirectoryMode = "workspace",
-            inputMode = "arg",
-            outputFormat = "text",
-            outputFileArgTemplate = "--output-last-message {path}",
-            readOutputFile = true,
-            deleteOutputFileAfterRead = true,
-            supportsStreaming = false,
-            supportsResume = false,
-            timeout = 600,
-            maxOutputBytes = 1048576,
-            trustLevel = "prompt"
-        };
 
         foreach (var (method, parameters, region) in new (string Method, object Params, string Region)[]
                  {
@@ -72,10 +55,7 @@ public sealed class ConfigChangedTests : IDisposable
                          scope = "workspace",
                          server = new { name = "demo", enabled = false, transport = "streamableHttp", url = "https://example.com/mcp" }
                      }, ConfigChangeRegions.Mcp),
-                     (DotCraft.Protocol.AppServer.AppServerMethodNames.McpRemove, new { name = "demo", scope = "workspace" }, ConfigChangeRegions.Mcp),
-                     (DotCraft.Protocol.AppServer.AppServerMethodNames.SubAgentProfileSetEnabled, new { name = "cursor-cli", enabled = false }, ConfigChangeRegions.SubAgent),
-                     (DotCraft.Protocol.AppServer.AppServerMethodNames.SubAgentProfileUpsert, new { name = "codex-cli", definition = subAgentDefinition }, ConfigChangeRegions.SubAgent),
-                     (DotCraft.Protocol.AppServer.AppServerMethodNames.SubAgentProfileRemove, new { name = "codex-cli" }, ConfigChangeRegions.SubAgent)
+                     (DotCraft.Protocol.AppServer.AppServerMethodNames.McpRemove, new { name = "demo", scope = "workspace" }, ConfigChangeRegions.Mcp)
                  })
         {
             await harness.ExecuteRequestAsync(harness.BuildRequest(method, parameters));

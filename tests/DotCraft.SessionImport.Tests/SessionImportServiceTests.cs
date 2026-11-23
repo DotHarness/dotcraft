@@ -202,26 +202,6 @@ public sealed class SessionImportServiceTests : IDisposable
         Assert.Null(new SessionImportLedger(_craft).TryRead());
     }
 
-    [Fact]
-    public async Task ExternalCliSessionsFromThreadMetadataReachTheSources()
-    {
-        _sessions.Threads["thread_parent"] = new SessionThread
-        {
-            Id = "thread_parent",
-            WorkspacePath = _workspace,
-            Status = ThreadStatus.Active,
-            Metadata = new Dictionary<string, string>
-            {
-                ["dotcraft.externalCliSessions"] =
-                    "[{\"profileName\":\"codex\",\"workingDirectory\":\"x\",\"sessionId\":\"cli-session-1\",\"lastUpdatedAt\":\"2026-09-20T10:00:00Z\"}]"
-            }
-        };
-
-        await CreateService().DetectAsync(null);
-
-        Assert.Contains("cli-session-1", _source.LastScope!.ExternalCliSessionIds);
-    }
-
     private SessionImportService CreateService()
     {
         var service = new SessionImportService(

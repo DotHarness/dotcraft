@@ -42,7 +42,7 @@ public sealed class SessionServiceSubAgentStartupTests : IDisposable
             if (duringCreation) throw failure;
         };
         var result = await Assert.ThrowsAsync<IOException>(() => SubAgentSessionControl.SpawnAgentAsync(context,
-            new() { AgentPrompt = "work", TaskName = "worker", ChildCreated = (_, _) => throw failure }, false, null, CancellationToken.None));
+            new() { AgentPrompt = "work", TaskName = "worker", ChildCreated = (_, _) => throw failure }, false, CancellationToken.None));
         Assert.Same(failure, result);
         Assert.False(result.Data.Contains("SubAgentStartupCleanup"));
         Assert.Null(await _store.LoadThreadAsync(childId!));
@@ -72,7 +72,7 @@ public sealed class SessionServiceSubAgentStartupTests : IDisposable
             {
                 AgentPrompt = "work", TaskName = "worker", ForkTurns = "none",
                 ChildCreated = (child, _) => { childId = child.Id; return Task.CompletedTask; }
-            }, true, null, cancellation.Token);
+            }, true, cancellation.Token);
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
         await completed.Task.WaitAsync(TimeSpan.FromSeconds(10));

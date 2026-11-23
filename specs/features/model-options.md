@@ -103,15 +103,15 @@ The public provider-neutral preset is `ModelPreference`:
 }
 ```
 
-MainAgent preferences are stored under `ProviderPreferences[providerId]`. Native SubAgent preferences
+MainAgent preferences are stored under `ProviderPreferences[providerId]`. SubAgent preferences
 are stored under `SubAgent.ProviderPreferences[providerId]`. Provider keys are case-insensitive and
 normalized when written. A workspace preference replaces the personal preference for the same provider
 as one atomic record; fields within a preference are never merged across scopes. Preferences for other
 providers remain inherited.
 
-Missing native SubAgent preferences inherit the parent thread's complete MainAgent preference.
+Missing SubAgent preferences inherit the parent thread's complete MainAgent preference.
 Consumer-specific role and invocation precedence normalize the resulting complete preference
-against the final model. External CLI runtimes do not consume native preferences.
+against the final model.
 
 ### 2.3 Defaults and Normalization
 

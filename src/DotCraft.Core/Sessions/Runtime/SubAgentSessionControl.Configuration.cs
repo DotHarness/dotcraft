@@ -1,5 +1,4 @@
 using DotCraft.Configuration;
-using DotCraft.Tools;
 using ModelPreference = DotCraft.Configuration.ModelPreference;
 
 namespace DotCraft.Sessions;
@@ -9,20 +8,17 @@ public static partial class SubAgentSessionControl
     private static ThreadConfiguration ApplyRoleToChildConfiguration(
         ThreadConfiguration? parentConfiguration,
         SubAgentRoleConfig role,
-        SubAgentModelPreference? nativeSubAgentPreference,
+        SubAgentModelPreference? subAgentPreference,
         SubAgentInvocationModelOverride? invocationModelOverride,
         AppConfig? runtimeConfig,
-        bool isNativeRuntime,
-        bool inheritsFullHistory,
-        int childDepth,
-        int maxDepth)
+        bool inheritsFullHistory)
     {
         var child = parentConfiguration == null
             ? new ThreadConfiguration()
             : ThreadConfigurationCloner.Clone(parentConfiguration);
         child.AgentBuilderTargetId = null;
         child.AgentBuilderTargetSource = null;
-        if (!isNativeRuntime || !inheritsFullHistory)
+        if (!inheritsFullHistory)
         {
             child.RoleInstructions = null;
             child.DeveloperInstructions = null;
@@ -39,12 +35,12 @@ public static partial class SubAgentSessionControl
                 Reasoning = ThreadConfigurationCloner.CloneNullableReasoningConfig(child.Reasoning) ?? new AppConfig.ReasoningConfig(),
                 Speed = child.Speed ?? InferenceSpeed.Standard,
             };
-            if (nativeSubAgentPreference != null)
+            if (subAgentPreference != null)
             {
-                providerId = nativeSubAgentPreference.ProviderId ?? parentProviderId;
-                preference = nativeSubAgentPreference.ToModelPreference();
+                providerId = subAgentPreference.ProviderId ?? parentProviderId;
+                preference = subAgentPreference.ToModelPreference();
             }
-            if ((!isNativeRuntime || !inheritsFullHistory) && !string.IsNullOrWhiteSpace(role.Model))
+            if (!inheritsFullHistory && !string.IsNullOrWhiteSpace(role.Model))
                 SelectModel(runtimeConfig, ref providerId, preference, role.ProviderId ?? parentProviderId, role.Model);
             if (invocationModelOverride != null)
             {
@@ -65,14 +61,6 @@ public static partial class SubAgentSessionControl
 
         child.SubAgentRoleInstructions = NormalizeOptional(role.Instructions);
         child.OverrideBasePrompt = role.OverrideBasePrompt;
-        if (!isNativeRuntime)
-        {
-            child.ToolAllowList = MergeAllowLists(parentConfiguration?.ToolAllowList, role.ToolAllowList);
-            child.ToolDenyList = MergeDenyLists(parentConfiguration?.ToolDenyList, role.ToolDenyList);
-            if (role.OverrideBasePrompt && !string.IsNullOrWhiteSpace(role.Instructions))
-                child.AgentInstructions = role.Instructions;
-            ApplyAgentControlPolicy(child, role, childDepth, maxDepth);
-        }
         return child;
     }
 
@@ -93,59 +81,5 @@ public static partial class SubAgentSessionControl
         preference.Model = defaults.Model;
         preference.Reasoning = defaults.Reasoning;
         preference.Speed = defaults.Speed;
-    }
-
-    private static void ApplyAgentControlPolicy(
-        ThreadConfiguration child,
-        SubAgentRoleConfig role,
-        int childDepth,
-        int maxDepth)
-    {
-        var requestedAccess = role.AgentControlToolAccess;
-        var requestedAllowed = role.AllowedAgentControlTools
-            .Where(name => !string.IsNullOrWhiteSpace(name))
-            .ToHashSet(StringComparer.Ordinal);
-
-        if (requestedAccess == AgentControlToolAccess.Full)
-            requestedAllowed = AgentControlToolPolicy.AllToolNames.ToHashSet(StringComparer.Ordinal);
-
-        if (childDepth >= maxDepth)
-            requestedAllowed.Remove(nameof(AgentTools.SpawnAgent));
-
-        if (requestedAccess == AgentControlToolAccess.Disabled || requestedAllowed.Count == 0)
-        {
-            child.AgentControlToolAccess = AgentControlToolAccess.Disabled;
-            child.AllowedAgentControlTools = null;
-            return;
-        }
-
-        child.AgentControlToolAccess = requestedAccess == AgentControlToolAccess.AllowList || childDepth >= maxDepth
-            ? AgentControlToolAccess.AllowList
-            : AgentControlToolAccess.Full;
-        child.AllowedAgentControlTools = child.AgentControlToolAccess == AgentControlToolAccess.AllowList
-            ? requestedAllowed.ToArray()
-            : null;
-    }
-
-    private static string[]? MergeAllowLists(string[]? parent, IReadOnlyList<string> role)
-    {
-        var parentSet = parent?.Where(v => !string.IsNullOrWhiteSpace(v)).ToHashSet(StringComparer.Ordinal);
-        var roleSet = role.Where(v => !string.IsNullOrWhiteSpace(v)).ToHashSet(StringComparer.Ordinal);
-        if (parentSet is not { Count: > 0 })
-            return roleSet.Count == 0 ? null : roleSet.ToArray();
-        if (roleSet.Count == 0)
-            return parentSet.ToArray();
-
-        parentSet.IntersectWith(roleSet);
-        return parentSet.Count == 0 ? [] : parentSet.ToArray();
-    }
-
-    private static string[]? MergeDenyLists(string[]? parent, IReadOnlyList<string> role)
-    {
-        var deny = parent?.Where(v => !string.IsNullOrWhiteSpace(v)).ToHashSet(StringComparer.Ordinal)
-            ?? new HashSet<string>(StringComparer.Ordinal);
-        foreach (var item in role.Where(v => !string.IsNullOrWhiteSpace(v)))
-            deny.Add(item);
-        return deny.Count == 0 ? null : deny.ToArray();
     }
 }

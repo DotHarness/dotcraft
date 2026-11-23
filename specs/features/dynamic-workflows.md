@@ -116,7 +116,7 @@ terminal state arrives as a task notification (§8.6).
 
 The worker exposes only these workflow-specific globals:
 
-- `agent(input, options?)` starts one native child Agent and resolves to its result or `null`.
+- `agent(input, options?)` starts one child Agent and resolves to its result or `null`.
 - `parallel(items)` evaluates deferred Agent calls concurrently and preserves input order.
 - `pipeline(items, ...stages)` runs each item through stages sequentially while independent items
   progress concurrently. Each stage receives `(previous, original, index)`.
@@ -163,7 +163,7 @@ and its result is `null`.
 
 ### 5.1 Context and Policy
 
-Each `agent()` call creates a fresh native child thread with `forkTurns=none` and waits for its
+Each `agent()` call creates a fresh child thread with `forkTurns=none` and waits for its
 current task. The task name is scoped to the run, so runs never collide, and the child uses silent
 completion: its result returns only to the script. It inherits the parent invocation's stable base
 instructions, workspace, permission policy, and effective model defaults.

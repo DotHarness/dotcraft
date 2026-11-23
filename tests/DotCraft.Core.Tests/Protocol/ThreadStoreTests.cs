@@ -157,14 +157,7 @@ public sealed class ThreadStoreTests : IDisposable
             TaskName = "review",
             AgentNickname = "reviewer",
             AgentRole = "critic",
-            ProfileName = "strict",
-            RuntimeType = "process",
-            ForkTurns = "all",
-            SupportsSendInput = true,
-            SupportsResume = true,
-            SupportsSendMessage = true,
-            SupportsFollowupTask = true,
-            SupportsClose = false
+            ForkTurns = "all"
         });
 
         await _store.SaveThreadAsync(thread);

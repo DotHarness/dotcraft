@@ -56,13 +56,6 @@ export interface SubAgentThreadSourceWire {
   taskName?: string
   agentNickname?: string
   agentRole?: string
-  profileName?: string
-  runtimeType?: string
-  supportsSendInput?: boolean
-  supportsResume?: boolean
-  supportsSendMessage?: boolean
-  supportsFollowupTask?: boolean
-  supportsClose?: boolean
 }
 
 export interface ThreadSourceWire {

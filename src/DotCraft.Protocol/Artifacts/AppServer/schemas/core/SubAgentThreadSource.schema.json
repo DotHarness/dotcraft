@@ -50,28 +50,8 @@
         }
       ]
     },
-    "profileName": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
     "rootThreadId": {
       "type": "string"
-    },
-    "runtimeType": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ]
     },
     "spawnCallId": {
       "anyOf": [
@@ -82,21 +62,6 @@
           "type": "null"
         }
       ]
-    },
-    "supportsClose": {
-      "type": "boolean"
-    },
-    "supportsFollowupTask": {
-      "type": "boolean"
-    },
-    "supportsResume": {
-      "type": "boolean"
-    },
-    "supportsSendInput": {
-      "type": "boolean"
-    },
-    "supportsSendMessage": {
-      "type": "boolean"
     },
     "taskName": {
       "anyOf": [
@@ -113,11 +78,6 @@
   "required": [
     "depth",
     "parentThreadId",
-    "rootThreadId",
-    "supportsClose",
-    "supportsFollowupTask",
-    "supportsResume",
-    "supportsSendInput",
-    "supportsSendMessage"
+    "rootThreadId"
   ]
 }

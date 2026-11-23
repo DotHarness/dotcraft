@@ -5,7 +5,7 @@ public sealed partial class SessionService
     internal async Task WakeForAgentMessagesAsync(string threadId, CancellationToken ct)
     {
         var thread = await GetOrLoadThreadAsync(threadId, ct).ConfigureAwait(false);
-        if (thread.Status != ThreadStatus.Active || !SubAgentSessionControl.IsNativeRuntime(thread))
+        if (thread.Status != ThreadStatus.Active)
             return;
 
         var source = thread.Source.SubAgent;

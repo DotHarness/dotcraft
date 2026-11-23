@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 namespace DotCraft.Configuration;
 
 /// <summary>
-/// A native SubAgent model preference keyed by the parent's provider; a null <see cref="ProviderId"/> means that key.
+/// A SubAgent model preference keyed by the parent's provider; a null <see cref="ProviderId"/> means that key.
 /// </summary>
 public sealed class SubAgentModelPreference
 {

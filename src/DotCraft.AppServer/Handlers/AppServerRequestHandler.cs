@@ -222,7 +222,7 @@ public sealed class AppServerRequestHandler(
         ThreadHandler,
         new TurnRequestHandler(sessionService, connection, transport, ResponseWriter, services.SkillsLoader, services.TraceStore, _defaultApprovalDecision, services.LoggerFactory?.CreateLogger<TurnRequestHandler>()),
         new WorktreeRequestHandler(sessionService, ResponseWriter, ThreadBinder, WorkspaceConfig, services.AppConfigMonitor, services.HostWorkspacePath, ProfileResolver, ThreadProjector.ProjectAsync, ThreadHandler.AttachCreatedThreadAsync),
-        new SubAgentRequestHandler(sessionService, services.AppConfigMonitor, services.WorkspaceCraftPath, services.HostWorkspacePath, RuntimeConfig, ThreadProjector.ProjectHeaderAsync, services.SubAgentCoordinatorFactory, services.Contributions),
+        new SubAgentRequestHandler(sessionService, ThreadProjector.ProjectHeaderAsync),
         new SubAgentBoardRequestHandler(sessionService),
         new UsageRequestHandler(services.UsageAnalytics),
         new AutomationRequestHandler(services.AutomationsHandler),

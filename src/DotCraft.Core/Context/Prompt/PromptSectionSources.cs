@@ -32,9 +32,6 @@ internal sealed class PromptSectionSources
     /// <summary>Gets the MCP servers whose tools are discovered on demand.</summary>
     internal IReadOnlyList<string>? DeferredMcpServerNames { get; init; }
 
-    /// <summary>Gets the pre-rendered SubAgent profile section, when SubAgents are exposed.</summary>
-    internal string? SubAgentProfilesSection { get; init; }
-
     /// <summary>Gets the thread's skill policy, which keeps excluded always-loaded skills out of the prompt.</summary>
     internal ThreadSkillsPolicy? SkillsPolicy { get; init; }
 

@@ -79,7 +79,6 @@ internal sealed class InitializeRequestHandler(
             ChannelManagement = channelManagement,
             AgentProfileManagement = true,
             ToolCatalog = true,
-            SubAgentManagement = !string.IsNullOrWhiteSpace(workspaceCraftPath),
             SubAgentSessions = true,
             McpStatus = services.McpClientManager != null,
             HooksManagement = !string.IsNullOrWhiteSpace(workspaceCraftPath),

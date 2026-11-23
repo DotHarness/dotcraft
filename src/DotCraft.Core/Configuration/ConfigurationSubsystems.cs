@@ -57,6 +57,8 @@ public static class ConfigurationSubsystems
         configuration.RegisterValidator(ProviderConfiguration.KeyPath, (previous, candidate) =>
             ProviderConfiguration.ValidateProviders(previous, candidate)
             ?? ProviderConfiguration.ValidateSelection(previous, candidate, monitor.Current));
+        configuration.RegisterValidator("SubAgent.ProviderPreferences", (previous, candidate) =>
+            ValidateSubAgentProviderPreferences(monitor.Current, previous, candidate));
         configuration.RegisterValidator("SubAgent.Models", (previous, candidate) =>
             SubAgentModelChoiceRules.Validate(
                 previous.SubAgent.Models,
@@ -77,6 +79,42 @@ public static class ConfigurationSubsystems
             if (string.IsNullOrEmpty(model) || string.Equals(model, "default", StringComparison.OrdinalIgnoreCase))
                 return $"'ProviderPreferences.{providerId}.Model' is required.";
             if (ModelPreferenceRules.ValidateReasoning(runtime, providerId, model, preference!.Reasoning ?? new()) is { } error)
+                return error;
+        }
+
+        return null;
+    }
+
+    private static string? ValidateSubAgentProviderPreferences(AppConfig runtime, AppConfig previous, AppConfig candidate)
+    {
+        if (candidate.SubAgent.ProviderPreferences is not { } preferences)
+            return "'SubAgent.ProviderPreferences' must be an object.";
+
+        foreach (var (providerId, preference) in preferences)
+        {
+            var targetProviderId = string.IsNullOrWhiteSpace(preference?.ProviderId)
+                ? providerId
+                : preference.ProviderId.Trim();
+            if (previous.SubAgent.ProviderPreferences is { } previousPreferences
+                && previousPreferences.TryGetValue(providerId, out var prior)
+                && prior != null
+                && preference != null
+                && string.Equals(prior.ProviderId ?? providerId, targetProviderId, StringComparison.OrdinalIgnoreCase)
+                && ModelPreferenceRules.ValueEquals(prior.ToModelPreference(), preference.ToModelPreference()))
+            {
+                continue;
+            }
+
+            var model = preference?.Model?.Trim();
+            if (string.IsNullOrEmpty(model) || string.Equals(model, "default", StringComparison.OrdinalIgnoreCase))
+                return $"'SubAgent.ProviderPreferences.{providerId}.Model' is required.";
+            if (!string.IsNullOrWhiteSpace(preference!.ProviderId)
+                && !candidate.Providers.ContainsKey(targetProviderId)
+                && !runtime.Providers.ContainsKey(targetProviderId))
+            {
+                return $"Model provider '{targetProviderId}' is not configured.";
+            }
+            if (ModelPreferenceRules.ValidateReasoning(runtime, targetProviderId, model, preference.Reasoning ?? new()) is { } error)
                 return error;
         }
 

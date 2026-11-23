@@ -32,7 +32,7 @@ namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 /// <c>SubmitInputAsync</c> yields canned <see cref="SessionEvent"/> sequences queued
 /// per thread via <see cref="EnqueueSubmitEvents"/>.
 /// </summary>
-public partial class TestableSessionService : ISessionService, IThreadAgentRefreshService, ISubAgentSyntheticTurnService, ISubAgentThreadLifecycleService
+public partial class TestableSessionService : ISessionService, IThreadAgentRefreshService, ISubAgentThreadLifecycleService
 {
     private readonly ThreadStore _store;
     private readonly Dictionary<string, SessionThread> _cache = new();
@@ -700,105 +700,6 @@ public partial class TestableSessionService : ISessionService, IThreadAgentRefre
             turnId ??= evt.TurnId;
         return turnId ?? throw new InvalidOperationException($"Thread '{threadId}' has no queued input to start.");
     }
-
-    public async Task<SessionTurn> StartSubAgentSyntheticTurnAsync(
-        string threadId,
-        IList<AIContent> content,
-        string runtimeType,
-        string? profileName,
-        CancellationToken ct = default)
-    {
-        var thread = await GetOrLoadAsync(threadId, ct);
-        var text = string.Concat(content.OfType<TextContent>().Select(c => c.Text));
-        var triggerInfo = TurnTriggerScope.Current;
-        var turn = new SessionTurn
-        {
-            Id = SessionIdGenerator.NewTurnId(thread.Turns.Count + 1),
-            ThreadId = threadId,
-            Status = TurnStatus.Running,
-            StartedAt = DateTimeOffset.UtcNow,
-            OriginChannel = thread.OriginChannel
-        };
-        var userItem = new SessionItem
-        {
-            Id = SessionIdGenerator.NewItemId(1),
-            TurnId = turn.Id,
-            Type = ItemType.UserMessage,
-            Status = ItemStatus.Completed,
-            CreatedAt = DateTimeOffset.UtcNow,
-            CompletedAt = DateTimeOffset.UtcNow,
-            Payload = new UserMessagePayload
-            {
-                Text = text,
-                TriggerKind = triggerInfo?.Kind,
-                TriggerLabel = triggerInfo?.Label,
-                TriggerRefId = triggerInfo?.RefId
-            }
-        };
-        turn.Input = userItem;
-        turn.Items.Add(userItem);
-        thread.Turns.Add(turn);
-        thread.Metadata["subagent.syntheticRuntime"] = runtimeType;
-        if (!string.IsNullOrWhiteSpace(profileName))
-            thread.Metadata["subagent.profileName"] = profileName;
-        await _store.SaveThreadAsync(thread, ct);
-        return turn;
-    }
-
-    public async Task<SessionTurn> CompleteSubAgentSyntheticTurnAsync(
-        string threadId,
-        string turnId,
-        string text,
-        bool isError,
-        SubAgentTokenUsage? tokensUsed,
-        CancellationToken ct = default)
-    {
-        var thread = await GetOrLoadAsync(threadId, ct);
-        var turn = thread.Turns.Single(t => t.Id == turnId);
-        var item = new SessionItem
-        {
-            Id = SessionIdGenerator.NewItemId(turn.Items.Count + 1),
-            TurnId = turn.Id,
-            Type = isError ? ItemType.Error : ItemType.AgentMessage,
-            Status = ItemStatus.Completed,
-            CreatedAt = DateTimeOffset.UtcNow,
-            CompletedAt = DateTimeOffset.UtcNow,
-            Payload = isError
-                ? new ErrorPayload { Message = text, Code = "subagent_error", Fatal = true }
-                : new AgentMessagePayload { Text = text }
-        };
-        turn.Items.Add(item);
-        turn.Status = isError ? TurnStatus.Failed : TurnStatus.Completed;
-        turn.CompletedAt = DateTimeOffset.UtcNow;
-        turn.Error = isError ? text : null;
-        if (tokensUsed != null)
-        {
-            turn.TokenUsage = new TokenUsageInfo
-            {
-                InputTokens = tokensUsed.InputTokens,
-                OutputTokens = tokensUsed.OutputTokens,
-                TotalTokens = tokensUsed.InputTokens + tokensUsed.OutputTokens
-            };
-        }
-        await _store.SaveThreadAsync(thread, ct);
-        return turn;
-    }
-
-    public async Task<SessionTurn> CancelSubAgentSyntheticTurnAsync(
-        string threadId,
-        string turnId,
-        string reason,
-        CancellationToken ct = default)
-    {
-        var thread = await GetOrLoadAsync(threadId, ct);
-        var turn = thread.Turns.Single(t => t.Id == turnId);
-        turn.Status = TurnStatus.Cancelled;
-        turn.CompletedAt = DateTimeOffset.UtcNow;
-        await _store.SaveThreadAsync(thread, ct);
-        return turn;
-    }
-
-
 
     public Task ResolveApprovalAsync(
         string threadId, string turnId, string requestId,

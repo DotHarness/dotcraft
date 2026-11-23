@@ -1,9 +1,8 @@
-import { useEffect, useRef, useState, type JSX } from 'react'
+import { useEffect, useState, type JSX } from 'react'
 import { useT } from '../../../../contexts/LocaleContext'
 import { useModelCatalog } from '../../../../hooks/useModelCatalog'
-import { readConfigValue, useConfig } from '../../../../stores/configStore'
+import { configKeyPath, readConfigValue, useConfig, useConfigSetting } from '../../../../stores/configStore'
 import { useModelCatalogStore } from '../../../../stores/modelCatalogStore'
-import { addToast } from '../../../../stores/toastStore'
 import {
   cloneModelPreference,
   createManualModelPreference,
@@ -23,13 +22,10 @@ import { SegmentedControl } from '../../ui/SegmentedControl'
 import { ProviderSelect } from '../../providers/ProviderSelect'
 import {
   findProvider,
-  findSubAgentSelection,
   providerTrouble,
-  readSubAgentSelections,
-  setSubAgentSelection,
-  toContractSubAgentSelections,
-  type SubAgentModelSelection,
-  type SubAgentSelections
+  readSubAgentSelection,
+  toSubAgentSelectionConfig,
+  type SubAgentModelSelection
 } from './subAgentModels'
 import styles from './SubAgentModels.module.css'
 
@@ -40,7 +36,6 @@ interface SubAgentDefaultModelFieldProps {
   mainPreference: ModelPreference
   providers: ProviderInfoWire[]
   disabled?: boolean
-  refreshKey?: number
   onEditProvider?: (provider: ProviderInfoWire) => void
 }
 
@@ -49,18 +44,17 @@ export function SubAgentDefaultModelField({
   mainPreference,
   providers,
   disabled = false,
-  refreshKey = 0,
   onEditProvider
 }: SubAgentDefaultModelFieldProps): JSX.Element {
   const t = useT()
   const config = useConfig()
-  const [selections, setSelections] = useState<SubAgentSelections>({})
-  const selectionsRef = useRef<SubAgentSelections>({})
-  const [applying, setApplying] = useState(false)
+  const keyPath = configKeyPath('SubAgent', 'ProviderPreferences', mainProviderId.trim())
+  const setting = useConfigSetting(keyPath, (error) =>
+    t('settings.llm.toast.saveSubAgentModelFailed', { error }))
+  const current = readSubAgentSelection(setting.value, mainProviderId)
   const [pendingProviderId, setPendingProviderId] = useState<string | null>(null)
   const [manualDraft, setManualDraft] = useState('')
 
-  const current = findSubAgentSelection(selections, mainProviderId)
   const custom = current != null || pendingProviderId != null
   const targetProviderId = pendingProviderId ?? current?.providerId ?? mainProviderId
   const catalog = useModelCatalog(targetProviderId)
@@ -72,22 +66,6 @@ export function SubAgentDefaultModelField({
   const preference = manualFallback ? { ...cloneModelPreference(shown), model: manualDraft } : shown
   const trouble = current ? providerTrouble(current.providerId, providers) : null
   const troubleProvider = current ? findProvider(providers, current.providerId) : undefined
-
-  useEffect(() => {
-    let cancelled = false
-    void window.api.appServer.sendRequest('subagent/profiles/list', {})
-      .then((result) => {
-        if (cancelled) return
-        const settings = (result as { settings?: { providerPreferences?: unknown } }).settings
-        const next = readSubAgentSelections(settings?.providerPreferences)
-        selectionsRef.current = next
-        setSelections(next)
-      })
-      .catch(() => undefined)
-    return () => {
-      cancelled = true
-    }
-  }, [refreshKey])
 
   useEffect(() => {
     setPendingProviderId(null)
@@ -108,29 +86,13 @@ export function SubAgentDefaultModelField({
       ? normalizePreferenceForModel(mainForTarget, catalog.models)
       : createCatalogDefaultPreference(catalog.models[0], '')
     setPendingProviderId(null)
-    void persist({ providerId: pendingProviderId, preference: next })
+    persist({ providerId: pendingProviderId, preference: next })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [catalog.models, catalog.status, pendingProviderId])
 
-  async function persist(next: SubAgentModelSelection | null): Promise<void> {
-    const previous = selectionsRef.current
-    const nextSelections = setSubAgentSelection(previous, mainProviderId, next)
-    selectionsRef.current = nextSelections
-    setSelections(nextSelections)
-    setApplying(true)
-    try {
-      await window.api.appServer.sendRequest('subagent/settings/update', {
-        providerPreferences: toContractSubAgentSelections(nextSelections)
-      }, 20_000)
-    } catch (err) {
-      selectionsRef.current = previous
-      setSelections(previous)
-      addToast(t('settings.llm.toast.saveSubAgentModelFailed', {
-        error: err instanceof Error ? err.message : String(err)
-      }), 'error')
-    } finally {
-      setApplying(false)
-    }
+  function persist(next: SubAgentModelSelection | null): void {
+    if (!mainProviderId.trim()) return
+    void setting.set(next == null ? null : toSubAgentSelectionConfig(mainProviderId, next))
   }
 
   function commitManualModel(): void {
@@ -139,10 +101,10 @@ export function SubAgentDefaultModelField({
     const providerId = pendingProviderId ?? targetProviderId
     const base = current && pendingProviderId == null ? current.preference : createManualModelPreference(model)
     setPendingProviderId(null)
-    void persist({ providerId, preference: { ...cloneModelPreference(base), model } })
+    persist({ providerId, preference: { ...cloneModelPreference(base), model } })
   }
 
-  const busy = disabled || applying
+  const busy = disabled || setting.pending
 
   return (
     <div className={styles.field}>

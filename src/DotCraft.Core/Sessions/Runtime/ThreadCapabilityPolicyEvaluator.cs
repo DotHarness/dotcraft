@@ -196,8 +196,7 @@ internal sealed class ThreadCapabilityPolicyEvaluator(ThreadConfiguration config
     private bool AllowsSubAgentRole(string toolName, AIFunctionArguments arguments, out string reason, ShellFamily? shellFamily = null)
     {
         var source = context.CurrentThreadSource?.SubAgent;
-        if (source == null
-            || !string.Equals(source.RuntimeType, NativeSubAgentRuntime.RuntimeTypeName, StringComparison.OrdinalIgnoreCase))
+        if (source == null)
         {
             reason = string.Empty;
             return true;

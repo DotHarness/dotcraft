@@ -323,7 +323,6 @@ public sealed partial class SessionService
         var runtime = modelRuntime ?? baseCtx.ChatClientRegistry.ResolveMainRuntime(currentConfig, config.ProviderId, config.Model);
         var effectiveMainModel = runtime.Model;
         var threadChatClient = ResolveThreadChatClient(baseCtx, runtime);
-        var externalCliSessionStore = new ThreadExternalCliSessionStore(thread);
         var threadBaseContext = CloneContextWithChatClient(
             baseCtx,
             currentConfig,
@@ -331,7 +330,6 @@ public sealed partial class SessionService
             runtime.ProviderId,
             runtime.Protocol,
             effectiveMainModel,
-            externalCliSessionStore,
             thread);
 
         AgentRuntimeContext? scopedContext = null;
@@ -362,7 +360,6 @@ public sealed partial class SessionService
                 BotPath = craftPath,
                 SkillsLoader = scopedSkills,
                 PathBlacklist = new PathBlacklist([]),
-                ExternalCliSessionStore = externalCliSessionStore,
                 AutomationTaskDirectory = config.AutomationTaskDirectory,
                 RequireApprovalOutsideWorkspace = config.RequireApprovalOutsideWorkspace,
                 CurrentThreadId = thread.Id,
@@ -575,7 +572,6 @@ public sealed partial class SessionService
         string effectiveProviderId,
         string effectiveProviderProtocol,
         string effectiveMainModel,
-        IExternalCliSessionStore? externalCliSessionStore = null,
         SessionThread? thread = null)
     {
         var cloned = new AgentRuntimeContext(source)
@@ -587,7 +583,6 @@ public sealed partial class SessionService
             EffectiveMainModel = effectiveMainModel,
             EffectiveReasoning = ThreadConfigurationCloner.CloneReasoningConfig(thread?.Configuration?.Reasoning ?? config.Reasoning),
             EffectiveSpeed = thread?.Configuration?.Speed ?? InferenceSpeed.Standard,
-            ExternalCliSessionStore = externalCliSessionStore ?? source.ExternalCliSessionStore,
             CurrentThreadId = thread?.Id ?? source.CurrentThreadId,
             CurrentThreadSource = thread?.Source ?? source.CurrentThreadSource,
             AgentBuilderTargetId = thread?.Configuration?.AgentBuilderTargetId ?? source.AgentBuilderTargetId,

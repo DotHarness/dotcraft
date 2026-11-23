@@ -183,10 +183,6 @@ public sealed partial class SessionService
             ["agent_nickname"] = source?.AgentNickname,
             ["agentRole"] = source?.AgentRole,
             ["agent_role"] = source?.AgentRole,
-            ["profileName"] = source?.ProfileName,
-            ["profile_name"] = source?.ProfileName,
-            ["runtimeType"] = source?.RuntimeType,
-            ["runtime_type"] = source?.RuntimeType,
             ["depth"] = source?.Depth,
             ["status"] = request.Status,
             ["message"] = request.Message

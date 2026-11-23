@@ -39,7 +39,7 @@ internal sealed class CursorSessionSource(string root) : ISessionImportSource
                     ? WorkspacePathMatcher.ResolveHostCursorProjectCwd(project, roots)
                     : WorkspacePathMatcher.ResolveCursorProjectCwd(project, workspaceRoot);
             var sessionId = Path.GetFileNameWithoutExtension(path);
-            if ((cwd is null && scope.HostProjects is null) || scope.ExternalCliSessionIds.Contains(sessionId) || !seen.Add(sessionId))
+            if ((cwd is null && scope.HostProjects is null) || !seen.Add(sessionId))
                 continue;
 
             candidates.Add(new SessionImportCandidateFile(sessionId, path, modifiedAt, cwd ?? "") { ProjectUnresolved = cwd is null });

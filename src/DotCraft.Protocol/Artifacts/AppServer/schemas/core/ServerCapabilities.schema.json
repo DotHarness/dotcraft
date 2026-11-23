@@ -128,9 +128,6 @@
     "sourceControlManagement": {
       "type": "boolean"
     },
-    "subAgentManagement": {
-      "type": "boolean"
-    },
     "subAgentSessions": {
       "type": "boolean"
     },

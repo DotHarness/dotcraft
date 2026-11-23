@@ -30,7 +30,6 @@ public sealed partial class SubAgentSessionControlTests
                 RuntimeConfig = TwoProviderConfig()
             },
             waitForCompletion: false,
-            coordinator: null,
             CancellationToken.None);
 
         var child = await _sessionService.GetThreadAsync(result.ChildThreadId);
@@ -60,7 +59,6 @@ public sealed partial class SubAgentSessionControlTests
                 InvocationModelCatalogSnapshot = snapshot
             },
             waitForCompletion: false,
-            coordinator: null,
             CancellationToken.None);
 
         var child = await _sessionService.GetThreadAsync(result.ChildThreadId);
@@ -86,7 +84,6 @@ public sealed partial class SubAgentSessionControlTests
                 RuntimeConfig = config
             },
             waitForCompletion: false,
-            coordinator: null,
             CancellationToken.None));
 
         Assert.Empty(await _sessionService.ListSubAgentChildrenAsync(context.ParentThread.Id));

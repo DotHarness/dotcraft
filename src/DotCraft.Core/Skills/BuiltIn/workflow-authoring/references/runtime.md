@@ -19,7 +19,7 @@ export const meta = {
 
 ## Available globals
 
-- `agent(input, options?)` starts one fresh native SubAgent and resolves to text, a schema-validated value, or `null`.
+- `agent(input, options?)` starts one fresh SubAgent and resolves to text, a schema-validated value, or `null`.
 - `parallel(thunks)` runs an array of deferred functions concurrently and preserves declaration order.
 - `pipeline(items, ...stages)` processes items concurrently while running each item's stages in order. A stage receives `(previous, original, index)`.
 - `phase(name, detail?)` records a progress boundary and makes `name` the current phase.
@@ -48,7 +48,7 @@ Pass either a prompt string or an object containing `prompt` and JSON-serializab
 - `model`: invocation-specific child model override.
 - `effort`: invocation-specific reasoning override; `xhigh` normalizes to `extraHigh` and `max` stays `max`.
 - `isolation`: `shared` or managed `worktree`.
-- `agentType`: a native Agent role name supplied by the current context.
+- `agentType`: an Agent role name supplied by the current context.
 
 Use `model` or `agentType` only when the environment supplies an exact valid name. A Workflow child starts with fresh conversation context and does not inherit the parent's dialogue history.
 

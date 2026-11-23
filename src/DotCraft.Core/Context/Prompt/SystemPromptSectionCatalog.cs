@@ -37,7 +37,6 @@ public static class SystemPromptSectionCatalog
         Definitions { get; } =
     [
         (SystemPromptSectionNames.Identity, 100, IdentityPromptSection.Build),
-        (SystemPromptSectionNames.SubAgentProfiles, 200, SubAgentPromptSections.Profiles),
         (SystemPromptSectionNames.BackgroundTasks, 250, BackgroundTaskPromptSection.Build),
         (SystemPromptSectionNames.SubAgentLifecycle, 300, SubAgentPromptSections.Lifecycle),
         (SystemPromptSectionNames.AgentMessageBoard, 310, SubAgentPromptSections.MessageBoard),

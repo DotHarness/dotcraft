@@ -254,12 +254,12 @@ public sealed class SessionServiceMessageBoardTests : SessionServiceRuntimeSigna
         var child = await service.CreateThreadAsync(MakeIdentity(), source: ThreadSource.ForSubAgent(new SubAgentThreadSource
         {
             ParentThreadId = root.Id, RootThreadId = root.Id, AgentPath = path, TaskName = name,
-            RuntimeType = "native", Depth = 1, AgentRole = role
+            Depth = 1, AgentRole = role
         }));
         await service.UpsertThreadSpawnEdgeAsync(new ThreadSpawnEdge
         {
             ParentThreadId = root.Id, ChildThreadId = child.Id, AgentPath = path,
-            TaskName = name, RuntimeType = "native", Status = ThreadSpawnEdgeStatus.Open, Depth = 1, AgentRole = role
+            TaskName = name, Status = ThreadSpawnEdgeStatus.Open, Depth = 1, AgentRole = role
         });
         return child;
     }

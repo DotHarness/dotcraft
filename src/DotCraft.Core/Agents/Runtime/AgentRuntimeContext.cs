@@ -69,7 +69,6 @@ public sealed class AgentRuntimeContext
         LspServerManager = source.LspServerManager;
         DeferredToolActivationIndex = source.DeferredToolActivationIndex;
         TraceCollector = source.TraceCollector;
-        ExternalCliSessionStore = source.ExternalCliSessionStore;
         CurrentThreadId = source.CurrentThreadId;
         CurrentThreadSource = source.CurrentThreadSource;
         AgentBuilderTargetId = source.AgentBuilderTargetId;
@@ -289,11 +288,6 @@ public sealed class AgentRuntimeContext
     /// Optional trace collector for debugging and monitoring.
     /// </summary>
     public TraceCollector? TraceCollector { get; init; }
-
-    /// <summary>
-    /// Optional thread-scoped store for external CLI session ids used by resumable subagents.
-    /// </summary>
-    public IExternalCliSessionStore? ExternalCliSessionStore { get; init; }
 
     /// <summary>
     /// Current session-backed thread id, when tools are being created for a specific thread.

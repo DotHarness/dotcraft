@@ -139,7 +139,7 @@ public sealed partial class SessionTaskNotificationTests : IAsyncLifetime
         await using var harness = await CreateHarnessAsync();
         var worker = await ChildContextAsync(harness, "worker", nickname: "Ada");
 
-        await SubAgentSessionControl.SendAgentMessageAsync(worker, "/root", "found the cause", coordinator: null, CancellationToken.None);
+        await SubAgentSessionControl.SendAgentMessageAsync(worker, "/root", "found the cause", CancellationToken.None);
 
         var thread = await WaitForThreadAsync(harness, t => t.TurnCount == 1 && t.Turns[0].Status == TurnStatus.Completed);
         var input = thread.Turns[0].Input!.AsUserMessage!;
@@ -280,12 +280,12 @@ public sealed partial class SessionTaskNotificationTests : IAsyncLifetime
             source: ThreadSource.ForSubAgent(new SubAgentThreadSource
             {
                 ParentThreadId = harness.ThreadId, RootThreadId = harness.ThreadId, AgentPath = path,
-                TaskName = name, RuntimeType = "native", Depth = 1
+                TaskName = name, Depth = 1
             }));
         await harness.Service.UpsertThreadSpawnEdgeAsync(new ThreadSpawnEdge
         {
             ParentThreadId = harness.ThreadId, ChildThreadId = child.Id, AgentPath = path,
-            TaskName = name, AgentNickname = nickname, RuntimeType = "native", Status = ThreadSpawnEdgeStatus.Open, Depth = 1
+            TaskName = name, AgentNickname = nickname, Status = ThreadSpawnEdgeStatus.Open, Depth = 1
         });
         return new SubAgentSessionContext
         {

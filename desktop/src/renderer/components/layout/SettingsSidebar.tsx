@@ -29,7 +29,7 @@ export function SettingsSidebar({ localImport = false }: { localImport?: boolean
   const locale = useLocale()
   const capabilities = useConnectionStore((s) => s.capabilities)
   const activeSettingsTab = useUIStore((s) => s.activeSettingsTab)
-  const activeSidebarTab = activeSettingsTab === 'dreams' || activeSettingsTab === 'subAgents'
+  const activeSidebarTab = activeSettingsTab === 'dreams'
     ? 'personalization'
     : activeSettingsTab
   const setActiveSettingsTab = useUIStore((s) => s.setActiveSettingsTab)
@@ -54,7 +54,7 @@ export function SettingsSidebar({ localImport = false }: { localImport?: boolean
 
   const searching = query.trim().length > 0
   const results = filterSettingsSearchEntries(
-    buildSettingsSearchEntries(tabs, t, { subAgentEnabled: capabilities?.subAgentManagement === true }),
+    buildSettingsSearchEntries(tabs, t),
     query
   )
 

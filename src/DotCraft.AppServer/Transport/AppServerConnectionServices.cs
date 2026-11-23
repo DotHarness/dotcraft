@@ -96,7 +96,6 @@ public sealed record AppServerConnectionServices
     public UsageAnalyticsService? UsageAnalytics { get; init; }
     public IReadOnlyList<string>? BuiltInPluginSourceRoots { get; init; }
     public WireRuntimeAdditionalContextProvider? WireRuntimeAdditionalContextProvider { get; init; }
-    public Func<SessionThread, SubAgentCoordinator?>? SubAgentCoordinatorFactory { get; init; }
 
     /// <summary>Read-only contribution view, so handlers resolve contributions live instead of capturing them per connection.</summary>
     public IContributionView? Contributions { get; init; }

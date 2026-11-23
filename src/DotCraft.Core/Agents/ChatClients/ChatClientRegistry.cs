@@ -73,7 +73,7 @@ public sealed class ChatClientRegistry
         ResolveMainRuntime(config, providerIdOverride).ProviderId;
 
     /// <summary>
-    /// Resolves the effective native SubAgent runtime for the current thread context.
+    /// Resolves the effective SubAgent runtime for the current thread context.
     /// </summary>
     public EffectiveModelRuntime ResolveSubAgentRuntime(
         AppConfig config,
@@ -86,7 +86,7 @@ public sealed class ChatClientRegistry
     }
 
     /// <summary>
-    /// Resolves the effective native SubAgent model for the current thread context.
+    /// Resolves the effective SubAgent model for the current thread context.
     /// </summary>
     public string ResolveSubAgentModel(
         AppConfig config,

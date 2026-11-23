@@ -69,7 +69,7 @@ The script has a small set of orchestration calls:
 
 | API | Purpose |
 |---|---|
-| `agent(input, options?)` | Start one native subagent with fresh context and return its result or `null`. |
+| `agent(input, options?)` | Start one subagent with fresh context and return its result or `null`. |
 | `parallel(thunks)` | Start deferred calls concurrently and return results in declaration order. |
 | `pipeline(items, ...stages)` | Process items concurrently while running each item's stages in order. |
 | `phase(name, detail?)` | Record a named progress boundary. |

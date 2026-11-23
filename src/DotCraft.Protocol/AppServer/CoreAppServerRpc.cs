@@ -206,18 +206,7 @@ public static partial class AppServerRpc
 
     public static readonly RpcNotification<SubAgentGraphChangedNotification> SubAgentGraphChanged = new("subagent/graph/changed", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", scope: "connection", notificationOptOut: true);
 
-    public static readonly RpcRequest<global::DotCraft.Protocol.RpcEmpty, SubAgentProfileListResult> SubAgentProfileList = new("subagent/profiles/list", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);
-
-    public static readonly RpcRequest<SubAgentProfileRemoveParams, SubAgentProfileRemoveResult> SubAgentProfileRemove = new("subagent/profiles/remove", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);
-
-    public static readonly RpcRequest<SubAgentProfileSetEnabledParams, SubAgentProfileSetEnabledResult> SubAgentProfileSetEnabled = new("subagent/profiles/setEnabled", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);
-
-    public static readonly RpcRequest<SubAgentProfileUpsertParams, SubAgentProfileUpsertResult> SubAgentProfileUpsert = new("subagent/profiles/upsert", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);
-
     public static readonly RpcNotification<SubAgentProgressNotification> SubAgentProgress = new("subagent/progress", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", scope: "connection", notificationOptOut: true);
-
-
-    public static readonly RpcRequest<SubAgentSettingsUpdateParams, SubAgentSettingsUpdateResult> SubAgentSettingsUpdate = new("subagent/settings/update", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", scope: "connection", errors: CommonErrors);
 
     public static readonly RpcNotification<SystemEventNotification> SystemEvent = new("system/event", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", scope: "connection", notificationOptOut: true);
 

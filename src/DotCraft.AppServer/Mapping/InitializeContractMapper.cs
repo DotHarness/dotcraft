@@ -87,7 +87,6 @@ internal static class InitializeContractMapper
         ChannelManagement = value.ChannelManagement,
         ToolCatalog = value.ToolCatalog,
         AgentProfileManagement = value.AgentProfileManagement,
-        SubAgentManagement = value.SubAgentManagement,
         SubAgentSessions = value.SubAgentSessions,
         McpStatus = value.McpStatus,
         HooksManagement = value.HooksManagement,

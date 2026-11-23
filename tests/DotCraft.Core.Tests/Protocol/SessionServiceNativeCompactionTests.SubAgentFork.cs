@@ -60,7 +60,6 @@ public sealed partial class SessionServiceNativeCompactionTests
                         Depth = 1,
                         AgentPath = "/root/inspect",
                         TaskName = "inspect",
-                        RuntimeType = NativeSubAgentRuntime.RuntimeTypeName,
                         ForkTurns = "all"
                     }), ephemeral: ephemeralChild);
                 child.Turns.Add(new SessionTurn

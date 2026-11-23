@@ -283,7 +283,6 @@ public sealed partial class SessionServiceAgentInstructionsTests : IDisposable
                 Depth = 1,
                 AgentPath = "/root/inspect",
                 TaskName = "inspect",
-                RuntimeType = NativeSubAgentRuntime.RuntimeTypeName,
                 ForkTurns = "all"
             }));
         child.Turns.Add(new SessionTurn

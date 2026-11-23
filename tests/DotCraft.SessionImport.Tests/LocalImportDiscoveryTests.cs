@@ -210,14 +210,13 @@ public sealed class LocalImportDiscoveryTests : IDisposable
     }
 
     [Fact]
-    public async Task RecoversOwnershipFromPersistedThreadAndExcludesDotCraftSpawnedSessions()
+    public async Task RecoversOwnershipFromPersistedThread()
     {
         var parent = _temp.CreateDirectory("repo");
         var child = _temp.CreateDirectory("repo", "nested");
         var data = Path.Combine(parent, ".craft");
         var importedAt = DateTimeOffset.UtcNow.AddHours(-1);
         Claude("archived", child);
-        Codex("spawned", child);
 
         await using var store = new ThreadStore(data);
         await store.SaveThreadAsync(new SessionThread
@@ -235,24 +234,10 @@ public sealed class LocalImportDiscoveryTests : IDisposable
                 [SessionImportIdentity.ImportedAtMetadataKey] = importedAt.ToString("O")
             }
         });
-        await store.SaveThreadAsync(new SessionThread
-        {
-            Id = "thread-parent",
-            WorkspacePath = parent,
-            OriginChannel = "appserver",
-            Status = ThreadStatus.Active,
-            CreatedAt = importedAt,
-            LastActiveAt = importedAt,
-            Metadata = new Dictionary<string, string>
-            {
-                [SessionImportWorkspaceState.ExternalCliSessionsMetadataKey] = "[{\"sessionId\":\"spawned\"}]"
-            }
-        });
 
         var results = await Discovery().DetectAsync([parent, child]);
         var recovered = Assert.Single(results.Single(source => source.Source == "claude-code").Items);
         Assert.Equal((parent, "deferred"), (recovered.ProjectPath, recovered.Candidate.State));
-        Assert.Empty(results.Single(source => source.Source == "codex").Items);
         Assert.False(File.Exists(Path.Combine(data, "imports", "sessions.json")));
     }
 

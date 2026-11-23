@@ -38,7 +38,7 @@ public sealed class SubAgentTurnCompletionTests
         {
             AgentPrompt = "work", TaskName = "worker", ForkTurns = "none", SilentCompletion = true,
             ChildCreated = (child, _) => { childId = child.Id; return Task.CompletedTask; }
-        }, true, null, CancellationToken.None);
+        }, true, CancellationToken.None);
         try
         {
             if (status == TurnStatus.Cancelled)
@@ -82,7 +82,7 @@ public sealed class SubAgentTurnCompletionTests
         await using var notifications = observation.Events.GetAsyncEnumerator();
         var initialNotice = ReadNotificationCountAsync(notifications, 1);
         var spawned = await SubAgentSessionControl.SpawnAgentAsync(context,
-            new() { AgentPrompt = "first", TaskName = "worker", ForkTurns = "none" }, true, null, CancellationToken.None);
+            new() { AgentPrompt = "first", TaskName = "worker", ForkTurns = "none" }, true, CancellationToken.None);
         await initialNotice.WaitAsync(TimeSpan.FromSeconds(10));
         var queuedNotice = ReadNotificationCountAsync(notifications, 2);
         var queued = await service.EnqueueTurnInputAsync(spawned.ChildThreadId, [new TextContent("follow up")]);
@@ -115,7 +115,7 @@ public sealed class SubAgentTurnCompletionTests
         var context = await CreateContextAsync(service, host.WorkspacePath);
         var spawned = await SubAgentSessionControl.SpawnAgentAsync(context,
             new() { AgentPrompt = "first", TaskName = "worker", ForkTurns = "none", SilentCompletion = true },
-            true, null, CancellationToken.None);
+            true, CancellationToken.None);
         var child = await service.GetThreadAsync(spawned.ChildThreadId);
         var initialTurnId = child.Turns[^1].Id;
         Assert.False(service.GetThreadRuntimeSnapshot(child).Running);
@@ -167,7 +167,7 @@ public sealed class SubAgentTurnCompletionTests
         {
             AgentPrompt = "work", TaskName = "worker", ForkTurns = "none", SilentCompletion = true,
             ChildCreated = (child, _) => { childId = child.Id; return Task.CompletedTask; }
-        }, true, null, CancellationToken.None);
+        }, true, CancellationToken.None);
 
         await client.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
         await WaitUntilAsync(() => service.GetThreadRuntimeSnapshot(context.ParentThread).HasBackgroundWork);
@@ -215,7 +215,7 @@ public sealed class SubAgentTurnCompletionTests
             SessionService = service, ParentThread = parent, RootThreadId = parent.Id, ParentTurnId = "parent"
         };
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() => SubAgentSessionControl.SpawnAgentAsync(
-            context, new() { AgentPrompt = "work", TaskName = "worker", ForkTurns = "none" }, true, null, CancellationToken.None));
+            context, new() { AgentPrompt = "work", TaskName = "worker", ForkTurns = "none" }, true, CancellationToken.None));
         Assert.Contains("terminal Turn result", error.Message);
     }
 

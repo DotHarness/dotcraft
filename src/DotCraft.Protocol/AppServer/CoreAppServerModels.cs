@@ -2496,27 +2496,6 @@ public sealed partial class ModelListResult : ExtensibleJsonObject
 
 }
 
-public sealed class SubAgentModelPreference : ExtensibleJsonObject
-{
-
-    [JsonPropertyName("providerId")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> ProviderId { get; init; }
-
-    [JsonPropertyName("model")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Model { get; init; }
-
-    [JsonPropertyName("reasoning")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ReasoningConfig> Reasoning { get; init; }
-
-    [JsonPropertyName("speed")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Speed { get; init; }
-
-}
-
 public sealed partial class ModelReasoningCapability : ExtensibleJsonObject
 {
     [JsonPropertyName("defaultEffort")]
@@ -4461,29 +4440,9 @@ public sealed class SubAgentControlResult : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> Message { get; init; }
 
-    [JsonPropertyName("profileName")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> ProfileName { get; init; }
-
-    [JsonPropertyName("runtimeType")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> RuntimeType { get; init; }
-
     [JsonPropertyName("status")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> Status { get; init; }
-
-    [JsonPropertyName("supportsClose")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool> SupportsClose { get; init; }
-
-    [JsonPropertyName("supportsFollowupTask")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool> SupportsFollowupTask { get; init; }
-
-    [JsonPropertyName("supportsSendMessage")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool> SupportsSendMessage { get; init; }
 
     [JsonPropertyName("taskName")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -4500,262 +4459,6 @@ public sealed class SubAgentGraphChangedNotification : ExtensibleJsonObject
     [JsonPropertyName("parentThreadId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> ParentThreadId { get; init; }
-
-}
-
-public sealed class SubAgentProfileDiagnostic : ExtensibleJsonObject
-{
-    [JsonPropertyName("binaryResolved")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool> BinaryResolved { get; init; }
-
-    [JsonPropertyName("enabled")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool> Enabled { get; init; }
-
-    [JsonPropertyName("hiddenFromPrompt")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool> HiddenFromPrompt { get; init; }
-
-    [JsonPropertyName("hiddenReason")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> HiddenReason { get; init; }
-
-    [JsonPropertyName("warnings")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<string>> Warnings { get; init; }
-
-}
-
-public sealed class SubAgentProfileEntry : ExtensibleJsonObject
-{
-    [JsonPropertyName("builtInDefaults")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<SubAgentProfileWrite?> BuiltInDefaults { get; init; }
-
-    [JsonPropertyName("definition")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<SubAgentProfileWrite> Definition { get; init; }
-
-    [JsonPropertyName("diagnostic")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<SubAgentProfileDiagnostic> Diagnostic { get; init; }
-
-    [JsonPropertyName("enabled")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool> Enabled { get; init; }
-
-    [JsonPropertyName("hasWorkspaceOverride")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool> HasWorkspaceOverride { get; init; }
-
-    [JsonPropertyName("isBuiltIn")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool> IsBuiltIn { get; init; }
-
-    [JsonPropertyName("isDefault")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool> IsDefault { get; init; }
-
-    [JsonPropertyName("isTemplate")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool> IsTemplate { get; init; }
-
-    [JsonPropertyName("name")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Name { get; init; }
-
-}
-
-public sealed class SubAgentProfileListResult : ExtensibleJsonObject
-{
-    [JsonPropertyName("defaultName")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> DefaultName { get; init; }
-
-    [JsonPropertyName("profiles")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<SubAgentProfileEntry>> Profiles { get; init; }
-
-    [JsonPropertyName("settings")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<SubAgentSettings> Settings { get; init; }
-
-}
-
-public sealed class SubAgentProfileRemoveParams : ExtensibleJsonObject
-{
-    [JsonPropertyName("name")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Name { get; init; }
-
-}
-
-public sealed class SubAgentProfileRemoveResult : ExtensibleJsonObject
-{
-    [JsonPropertyName("removed")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool> Removed { get; init; }
-
-}
-
-public sealed class SubAgentProfileSetEnabledParams : ExtensibleJsonObject
-{
-    [JsonPropertyName("enabled")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool> Enabled { get; init; }
-
-    [JsonPropertyName("name")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Name { get; init; }
-
-}
-
-public sealed class SubAgentProfileSetEnabledResult : ExtensibleJsonObject
-{
-    [JsonPropertyName("profile")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<SubAgentProfileEntry> Profile { get; init; }
-
-}
-
-public sealed class SubAgentProfileUpsertParams : ExtensibleJsonObject
-{
-    [JsonPropertyName("definition")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<SubAgentProfileWrite> Definition { get; init; }
-
-    [JsonPropertyName("name")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Name { get; init; }
-
-}
-
-public sealed class SubAgentProfileUpsertResult : ExtensibleJsonObject
-{
-    [JsonPropertyName("profile")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<SubAgentProfileEntry> Profile { get; init; }
-
-}
-
-public sealed class SubAgentProfileWrite : ExtensibleJsonObject
-{
-    [JsonPropertyName("args")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<string>?> Args { get; init; }
-
-    [JsonPropertyName("bin")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> Bin { get; init; }
-
-    [JsonPropertyName("deleteOutputFileAfterRead")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool?> DeleteOutputFileAfterRead { get; init; }
-
-    [JsonPropertyName("env")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyDictionary<string, string>?> Env { get; init; }
-
-    [JsonPropertyName("envPassthrough")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<string>?> EnvPassthrough { get; init; }
-
-    [JsonPropertyName("inputArgTemplate")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> InputArgTemplate { get; init; }
-
-    [JsonPropertyName("inputEnvKey")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> InputEnvKey { get; init; }
-
-    [JsonPropertyName("inputFormat")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> InputFormat { get; init; }
-
-    [JsonPropertyName("inputMode")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> InputMode { get; init; }
-
-    [JsonPropertyName("maxOutputBytes")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<int?> MaxOutputBytes { get; init; }
-
-    [JsonPropertyName("outputFileArgTemplate")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> OutputFileArgTemplate { get; init; }
-
-    [JsonPropertyName("outputFormat")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> OutputFormat { get; init; }
-
-    [JsonPropertyName("outputInputTokensJsonPath")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> OutputInputTokensJsonPath { get; init; }
-
-    [JsonPropertyName("outputJsonPath")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> OutputJsonPath { get; init; }
-
-    [JsonPropertyName("outputOutputTokensJsonPath")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> OutputOutputTokensJsonPath { get; init; }
-
-    [JsonPropertyName("outputTotalTokensJsonPath")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> OutputTotalTokensJsonPath { get; init; }
-
-    [JsonPropertyName("permissionModeMapping")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyDictionary<string, string>?> PermissionModeMapping { get; init; }
-
-    [JsonPropertyName("readOutputFile")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool?> ReadOutputFile { get; init; }
-
-    [JsonPropertyName("resumeArgTemplate")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> ResumeArgTemplate { get; init; }
-
-    [JsonPropertyName("resumeSessionIdJsonPath")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> ResumeSessionIdJsonPath { get; init; }
-
-    [JsonPropertyName("resumeSessionIdRegex")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> ResumeSessionIdRegex { get; init; }
-
-    [JsonPropertyName("runtime")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Runtime { get; init; }
-
-    [JsonPropertyName("sanitizationRules")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<JsonElement?> SanitizationRules { get; init; }
-
-    [JsonPropertyName("supportsModelSelection")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool?> SupportsModelSelection { get; init; }
-
-    [JsonPropertyName("supportsResume")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool?> SupportsResume { get; init; }
-
-    [JsonPropertyName("supportsStreaming")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool?> SupportsStreaming { get; init; }
-
-    [JsonPropertyName("timeout")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<int?> Timeout { get; init; }
-
-    [JsonPropertyName("trustLevel")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> TrustLevel { get; init; }
-
-    [JsonPropertyName("workingDirectoryMode")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> WorkingDirectoryMode { get; init; }
 
 }
 
@@ -4821,38 +4524,6 @@ public sealed class SubAgentProgressNotification : ExtensibleJsonObject
     [JsonPropertyName("turnId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> TurnId { get; init; }
-
-}
-
-public sealed class SubAgentSettingsUpdateParams : ExtensibleJsonObject
-{
-    [JsonPropertyName("externalCliSessionResumeEnabled")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool?> ExternalCliSessionResumeEnabled { get; init; }
-
-    [JsonPropertyName("providerPreferences")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyDictionary<string, SubAgentModelPreference>?> ProviderPreferences { get; init; }
-
-}
-
-public sealed class SubAgentSettingsUpdateResult : ExtensibleJsonObject
-{
-    [JsonPropertyName("settings")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<SubAgentSettings> Settings { get; init; }
-
-}
-
-public sealed class SubAgentSettings : ExtensibleJsonObject
-{
-    [JsonPropertyName("externalCliSessionResumeEnabled")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool> ExternalCliSessionResumeEnabled { get; init; }
-
-    [JsonPropertyName("providerPreferences")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyDictionary<string, SubAgentModelPreference>?> ProviderPreferences { get; init; }
 
 }
 
@@ -5728,37 +5399,9 @@ public sealed class ThreadSpawnEdge : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> ParentTurnId { get; init; }
 
-    [JsonPropertyName("profileName")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> ProfileName { get; init; }
-
-    [JsonPropertyName("runtimeType")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> RuntimeType { get; init; }
-
     [JsonPropertyName("status")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> Status { get; init; }
-
-    [JsonPropertyName("supportsClose")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool> SupportsClose { get; init; }
-
-    [JsonPropertyName("supportsFollowupTask")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool> SupportsFollowupTask { get; init; }
-
-    [JsonPropertyName("supportsResume")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool> SupportsResume { get; init; }
-
-    [JsonPropertyName("supportsSendInput")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool> SupportsSendInput { get; init; }
-
-    [JsonPropertyName("supportsSendMessage")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool> SupportsSendMessage { get; init; }
 
     [JsonPropertyName("taskName")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

@@ -68,7 +68,7 @@ return agent({
 
 | API | 用途 |
 |---|---|
-| `agent(input, options?)` | 启动一个拥有全新上下文的原生 subagent，返回它的结果或 `null`。 |
+| `agent(input, options?)` | 启动一个拥有全新上下文的 subagent，返回它的结果或 `null`。 |
 | `parallel(thunks)` | 并行启动一组延迟调用，按声明顺序返回结果。 |
 | `pipeline(items, ...stages)` | 并行处理多个 item，同时让每个 item 依次经过各个 stage。 |
 | `phase(name, detail?)` | 记录一个具名的进度边界。 |

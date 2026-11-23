@@ -684,15 +684,6 @@ public sealed class AgentFactory : IAsyncDisposable
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .OrderBy(static name => name, StringComparer.OrdinalIgnoreCase)
                     .ToArray());
-            string? subAgentProfilesSection = null;
-            if (callableToolNames.Contains("SpawnAgent", StringComparer.OrdinalIgnoreCase))
-            {
-                subAgentProfilesSection = SubAgentProfilePromptSectionBuilder.Build(
-                    ctx.Config.SubAgentProfiles,
-                    SubAgentProfileCatalog.Resolve(ctx.Contributions, ctx.CurrentThreadId, _logger),
-                    ctx.Config.SubAgent.DisabledProfiles,
-                    enableExternalCliSessionResume: ctx.Config.SubAgent.EnableExternalCliSessionResume);
-            }
 
             // When deferred loading is active, derive connected server names from the
             // ToolServerMap so the system prompt can list them for the model.
@@ -714,7 +705,6 @@ public sealed class AgentFactory : IAsyncDisposable
                 ToolNames = sortedToolNames,
                 CallableToolNames = callableToolNames,
                 DeferredMcpServerNames = deferredServerNames,
-                SubAgentProfilesSection = subAgentProfilesSection,
                 SkillsPolicy = ctx.SkillsPolicy
             };
             // Reads the same inputs a replacement of the memory target sees, so both compose from one set of facts.
@@ -725,7 +715,6 @@ public sealed class AgentFactory : IAsyncDisposable
                 ctx.WorkspacePath,
                 () => promptInputs.CallableToolNames,
                 deferredMcpServerNames: promptInputs.DeferredMcpServerNames,
-                subAgentProfilesSection: promptInputs.SubAgentProfilesSection,
                 contextPageManager: ctx.ContextPageManager,
                 threadId: ctx.CurrentThreadId,
                 originChannel: ctx.CurrentOriginChannel,

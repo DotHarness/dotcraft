@@ -21,7 +21,6 @@ public sealed class SubAgentModelCatalogSnapshotForkTests : IDisposable
             context,
             Options("all"),
             waitForCompletion: false,
-            coordinator: null,
             CancellationToken.None);
 
         var child = await service.GetThreadAsync(result.ChildThreadId);
@@ -44,7 +43,6 @@ public sealed class SubAgentModelCatalogSnapshotForkTests : IDisposable
             context,
             Options(forkTurns),
             waitForCompletion: false,
-            coordinator: null,
             CancellationToken.None);
 
         var child = await service.GetThreadAsync(result.ChildThreadId);
@@ -65,7 +63,6 @@ public sealed class SubAgentModelCatalogSnapshotForkTests : IDisposable
                 context,
                 options,
                 waitForCompletion: false,
-                coordinator: null,
                 CancellationToken.None));
     }
 
@@ -86,7 +83,6 @@ public sealed class SubAgentModelCatalogSnapshotForkTests : IDisposable
                 context,
                 options,
                 waitForCompletion: false,
-                coordinator: null,
                 CancellationToken.None));
     }
 

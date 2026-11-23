@@ -38,9 +38,8 @@ internal sealed record ContextUsageComposition(
         IReadOnlyList<string> memoryIndexFiles)
     {
         var skills = SectionTokens(SystemPromptSectionNames.ActiveSkills, SystemPromptSectionNames.SkillsSummary);
-        var subagents = SectionTokens(SystemPromptSectionNames.SubAgentProfiles);
         var bootstrap = SectionTokens(SystemPromptSectionNames.BootstrapFiles);
-        var systemPrompt = Math.Max(0, InstructionsTokens - skills - subagents - bootstrap);
+        var systemPrompt = Math.Max(0, InstructionsTokens - skills - bootstrap);
         IReadOnlyList<string> bootstrapFiles = bootstrap > 0 && CraftPath is { } craftPath
             ? [.. WorkspaceContextPromptSections.BootstrapFiles.Select(name => Path.Combine(craftPath, name))]
             : [];
@@ -85,7 +84,6 @@ internal sealed record ContextUsageComposition(
                 .. MemoryIndexTokens > 0 ? memoryIndexFiles : []
             ]));
         Add(categories, ContextUsageCategoryIds.Skills, skills);
-        Add(categories, ContextUsageCategoryIds.Subagents, subagents);
         Add(categories, ContextUsageCategoryIds.BuiltInTools, loaded.BuiltIn);
         Add(categories, ContextUsageCategoryIds.McpTools, loaded.McpTotal, items: loaded.McpItems());
         var fixedTokens = categories.Sum(static category => category.Tokens);

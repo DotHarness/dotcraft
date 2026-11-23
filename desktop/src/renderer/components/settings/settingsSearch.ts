@@ -43,8 +43,7 @@ const SECTION_ENTRIES: SectionEntry[] = [
 
 export function buildSettingsSearchEntries(
   tabs: SettingsTabDefinition[],
-  t: (key: MessageKey) => string,
-  options: { subAgentEnabled: boolean }
+  t: (key: MessageKey) => string
 ): IndexedSettingsEntry[] {
   const entries: IndexedSettingsEntry[] = tabs.map((tab) => ({
     id: tab.id,
@@ -68,18 +67,6 @@ export function buildSettingsSearchEntries(
       icon: panel.icon,
       keywords: section.keywords ?? '',
       revealLabel: label
-    })
-  }
-  const personalization = tabs.find((tab) => tab.id === 'personalization')
-  if (options.subAgentEnabled && personalization) {
-    entries.push({
-      id: 'subAgents',
-      tab: 'subAgents',
-      label: t('settings.tab.subAgents'),
-      panelLabel: personalization.label,
-      group: personalization.group,
-      icon: personalization.icon,
-      keywords: 'agent delegate'
     })
   }
   return entries

@@ -148,9 +148,9 @@ Built-ins, modules, and plugins share these rules. Plugin registrars add two lif
 
 ### 4.2 Propagation
 
-Call-time points resolve the current list for each operation. Five kernel contracts are captured
-while an agent is built: `IToolSource`, `IToolRestriction`, `IChatMiddleware`,
-`IAgentContextSource`, and `ISubAgentRuntimeSource`. Their mutations invalidate live thread agents
+Call-time points resolve the current list for each operation. Four kernel contracts are captured
+while an agent is built: `IToolSource`, `IToolRestriction`, `IChatMiddleware`, and
+`IAgentContextSource`. Their mutations invalidate live thread agents
 for the next turn; an in-flight operation keeps the view it started with. Prompt sections
 and assemblers remain dynamically resolved.
 
@@ -194,7 +194,6 @@ The catalog reuses kernel contracts. Capability tiers are:
 | Lifecycle | `IThreadLifecycleContributor`, `ITurnLifecycleContributor` | A | Contained fan-out |
 | Lifecycle | `IThreadRuntimeSignalContributor` | A | Bounded asynchronous fan-out |
 | Suggestions | `ICommitMessageSuggester` | B | Authority per request |
-| Subagents | `ISubAgentRuntimeSource` | A | Materialized; runtime is a gated host adapter |
 | Tracing | `ITraceSink` | A | Bounded asynchronous fan-out when tracing is enabled |
 
 The runtime uses an explicit adapter policy for this table. Unknown contribution contracts are

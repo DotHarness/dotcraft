@@ -203,10 +203,6 @@ public sealed partial class AppConfig
     [JsonConverter(typeof(ChannelConfigListConverter))]
     public List<ChannelEntry> Channels { get; set; } = [];
 
-    [ConfigField(Ignore = true)]
-    [JsonConverter(typeof(SubAgentProfileListConverter))]
-    public List<SubAgentProfile> SubAgentProfiles { get; set; } = [];
-
     /// <summary>
     /// Captures all module-specific config sections that are not defined in Core.
     /// Module projects (QQ, WeCom, etc.) store their config here when they
@@ -944,27 +940,13 @@ public sealed partial class AppConfig
     public sealed class SubAgentConfig
     {
         /// <summary>
-        /// SubAgent profile names disabled for prompt exposure and execution.
-        /// The protected default profile remains enabled even if listed here.
-        /// </summary>
-        [ConfigField(Hint = "JSON array of SubAgent profile names to disable", Reload = ReloadBehavior.Hot, HasReload = true)]
-        public List<string> DisabledProfiles { get; set; } = [];
-
-        /// <summary>
-        /// Whether external CLI subagents may resume previously saved external sessions.
-        /// When disabled, DotCraft always launches a fresh external CLI session.
-        /// </summary>
-        [ConfigField(Hint = "Reuse saved external CLI sessions for supported SubAgent profiles", Reload = ReloadBehavior.Hot, HasReload = true)]
-        public bool EnableExternalCliSessionResume { get; set; }
-
-        /// <summary>
-        /// Complete native SubAgent preference keyed by the parent's provider id.
+        /// Complete SubAgent preference keyed by the parent's provider id.
         /// A missing entry inherits the current thread's effective MainAgent preference.
         /// </summary>
-        [ConfigField(Ignore = true)]
+        [ConfigField(Reload = ReloadBehavior.SubsystemRestart, HasReload = true, SubsystemKey = ConfigurationSubsystems.ThreadAgents)]
         public Dictionary<string, SubAgentModelPreference> ProviderPreferences { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
-        [ConfigField(Hint = "JSON array of { ProviderId, Model } that SpawnAgent may name for fresh or bounded native SubAgents", Reload = ReloadBehavior.Hot, HasReload = true)]
+        [ConfigField(Hint = "JSON array of { ProviderId, Model } that SpawnAgent may name for fresh or bounded SubAgents", Reload = ReloadBehavior.Hot, HasReload = true)]
         public List<SubAgentModelChoice> Models { get; set; } = [];
 
         /// <summary>

@@ -35,19 +35,11 @@ public sealed partial class SessionService
             Path.GetFullPath(effectiveCwd),
             globalConfigPath,
             config.ProjectDocMaxBytes.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        var shouldLoad = thread.Source.SubAgent is not { } subAgent
-                         || string.Equals(
-                subAgent.RuntimeType ?? string.Empty,
-                             NativeSubAgentRuntime.RuntimeTypeName,
-                             StringComparison.OrdinalIgnoreCase);
-
         return AgentInstructionContextPages.GetOrAdd(
             thread.Id,
             ContextPageKeys.AgentInstructions(variant),
             ContextPageLifecycle.StableUntilCompaction,
-            () => shouldLoad
-                ? new AgentInstructionsLoader(Logger).Load(effectiveCwd, config).ToContextPageDocument()
-                : ContextPageDocument.FromContent(string.Empty));
+            () => new AgentInstructionsLoader(Logger).Load(effectiveCwd, config).ToContextPageDocument());
     }
 
     private void RecordAgentInstructionsSnapshot(string threadId, ContextPageSnapshot snapshot) =>

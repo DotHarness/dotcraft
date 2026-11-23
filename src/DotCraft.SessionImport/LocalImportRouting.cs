@@ -44,12 +44,6 @@ internal sealed class LocalImportRouting
         _registered.Keys.Concat(discoveredPaths.Select(WorkspacePathMatcher.ResolveExistingDirectory).OfType<string>())
             .Concat(_registered.Values).Distinct(WorkspacePathMatcher.Comparer).ToArray();
 
-    public void CollectExternalCliSessions(HashSet<string> ids, CancellationToken ct)
-    {
-        foreach (var state in _states.Values)
-            state.CollectExternalCliSessions(ids, ct);
-    }
-
     public LocalImportRoute ResolveDirectory(string? sourceCwd, bool unresolved = false) =>
         ResolveDirectory(sourceCwd, unresolved, exactProjectRoot: false);
 

@@ -16,7 +16,7 @@ DotCraft sends four layers to the model:
 |-------|-----------|-------|---------|
 | Base instructions | Provider/system instruction channel | Agent runtime | Stable identity, operating rules, workspace context, and skills. Derived only from configuration and workspace state. |
 | Project instructions | Plain `user` context updates before the current input | Session runtime | Stable user- and repository-level `AGENTS.md` instructions with directory scope and source provenance. |
-| Thread context items | Conversation history, appended before the turn's user message | Session runtime | Role and developer instructions, native SubAgent role guidance, client-bound runtime context, and other state that persists across turns. |
+| Thread context items | Conversation history, appended before the turn's user message | Session runtime | Role and developer instructions, SubAgent role guidance, client-bound runtime context, and other state that persists across turns. |
 | Turn input | Current user-message content | Session runtime and client/app input | User text, materialized references, queued app/team input, mailbox input, and per-turn runtime reminders. |
 
 Base instructions must be reproducible from configuration alone: two threads with equal
@@ -181,7 +181,7 @@ Rules:
    are delivered as new local input for the turn, so a protocol with a canonical history baseline
    captures that baseline before appending the new context.
 3. **Append on change.** A changed value appends a new item; sent items are never edited in place.
-   Replacing native SubAgent role text is the one exception and establishes an explicit history
+   Replacing SubAgent role text is the one exception and establishes an explicit history
    replacement boundary.
 4. **Identity.** Each item carries an item-kind marker in message metadata, never in model-visible
    text, so the runtime can find its own items in inherited history.
@@ -204,13 +204,12 @@ Rules:
 
 ## 6. SubAgents
 
-DotCraft has three SubAgent-related prompt paths:
+DotCraft has two SubAgent-related prompt paths:
 
 | Path | Prompt behavior |
 |------|-----------------|
-| Parent prompt | The parent sees available SubAgent profiles and lifecycle guidance so it can choose and manage children. |
-| Native session-backed child | A normal thread with narrowed configuration and the same generated base instructions as its parent. Its role guidance is a thread context item (§4b). |
-| External CLI child | Role text is prepended to the external task prompt; it does not use DotCraft's generated base instruction pipeline. |
+| Parent prompt | The parent sees SubAgent lifecycle guidance so it can delegate to and manage children. |
+| Session-backed child | A normal thread with narrowed configuration and the same generated base instructions as its parent. Its role guidance is a thread context item (§4b). |
 
 SubAgent communications are delivered as materialized user-role input, not system prompt sections. Messages Agents send with `SendMessage` share one structured envelope; a child's result reaches its parent as a task notification. The envelope also identifies the recipient task path and sender path before the payload. The persisted native/display input remains clean client-facing text, while the materialized input preserves the exact structured envelope sent to the model.
 

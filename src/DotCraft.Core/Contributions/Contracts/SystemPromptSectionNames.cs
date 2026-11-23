@@ -6,9 +6,6 @@ public static class SystemPromptSectionNames
     /// <summary>Product identity, workspace paths, environment, and tool usage policy.</summary>
     public const string Identity = "identity";
 
-    /// <summary>The available SubAgent profiles, present only when <c>SpawnAgent</c> is exposed.</summary>
-    public const string SubAgentProfiles = "subagent-profiles";
-
     /// <summary>How the agent waits for commands, SubAgents, and Workflow runs that continue in the background.</summary>
     public const string BackgroundTasks = "background-tasks";
 

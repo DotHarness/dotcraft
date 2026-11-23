@@ -15,8 +15,7 @@ internal sealed class ContributionPropagationBridge : IDisposable
         typeof(IToolRestriction),
         typeof(IChatMiddleware),
         typeof(IModelBackendSource),
-        typeof(IAgentContextSource),
-        typeof(ISubAgentRuntimeSource)
+        typeof(IAgentContextSource)
     ];
 
     private readonly IContributionRegistry _registry;

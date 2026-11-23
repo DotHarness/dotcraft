@@ -414,13 +414,6 @@ public sealed class ServerCapabilitySnapshot
     public bool AgentProfileManagement { get; set; }
 
     /// <summary>
-    /// Server supports SubAgent profile management methods
-    /// (<c>subagent/profiles/list</c>, <c>subagent/profiles/setEnabled</c>, etc.).
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public bool SubAgentManagement { get; set; }
-
-    /// <summary>
     /// Server supports session-backed SubAgent child threads.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

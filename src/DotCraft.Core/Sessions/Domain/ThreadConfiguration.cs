@@ -128,7 +128,7 @@ public sealed class ThreadConfiguration
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? RoleInstructions { get; set; }
 
-    /// <summary>A native SubAgent role's text, kept apart from <see cref="RoleInstructions"/> and not sent to clients.</summary>
+    /// <summary>A SubAgent role's text, kept apart from <see cref="RoleInstructions"/> and not sent to clients.</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? SubAgentRoleInstructions { get; set; }
 

@@ -30,7 +30,6 @@ The catalog of contribution points is the whole contribution surface. Each one d
 | **Tool restriction** | `IToolRestriction` | A |
 | **Compaction summary** | `ICompactionSummarizer` | B |
 | **Compactable tool** | `ICompactableToolPolicy` | A, B |
-| **Subagent runtime** | `ISubAgentRuntimeSource` | A |
 | **Trace sink** | `ITraceSink` | A |
 | **Auxiliary generators** | `ICommitMessageSuggester` | B |
 

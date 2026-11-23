@@ -252,23 +252,7 @@ public static class ServiceRegistration
         ILogger? logger = null)
     {
         var validator = new ConfigValidator(moduleRegistry);
-        var isValid = validator.ValidateAndLogErrors(config, logger);
-        // Startup validation predates plugin activation, so it can only see the host's own catalog.
-        var subAgentCatalog = SubAgentProfileCatalog.BuiltIn;
-        var subAgentWarnings = SubAgentProfileRegistry.ValidateProfiles(
-            config.SubAgentProfiles,
-            subAgentCatalog.KnownRuntimeTypes);
-        foreach (var warning in subAgentWarnings)
-            logger?.LogWarning("SubAgent profile configuration warning: {ValidationError}", warning);
-
-        var subAgentRegistry = subAgentCatalog.CreateRegistry(
-            config.SubAgentProfiles,
-            disabledProfiles: config.SubAgent.DisabledProfiles);
-        var hiddenBuiltInNotes = subAgentRegistry.GetHiddenBuiltInReasons();
-        foreach (var note in hiddenBuiltInNotes)
-            logger?.LogInformation("SubAgent profile configuration note: {ConfigurationNote}", note);
-
-        return isValid;
+        return validator.ValidateAndLogErrors(config, logger);
     }
 }
 

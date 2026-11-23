@@ -156,11 +156,6 @@ export interface ClientRequestMethods {
   "subagent/children/list": { params: Models.SubAgentChildrenListParams; result: Models.SubAgentChildrenListResult };
   "subagent/close": { params: Models.SubAgentTargetParams; result: Models.SubAgentControlResult };
   "subagent/followupTask": { params: Models.SubAgentTargetMessageParams; result: Models.SubAgentControlResult };
-  "subagent/profiles/list": { params: Models.RpcEmpty; result: Models.SubAgentProfileListResult };
-  "subagent/profiles/remove": { params: Models.SubAgentProfileRemoveParams; result: Models.SubAgentProfileRemoveResult };
-  "subagent/profiles/setEnabled": { params: Models.SubAgentProfileSetEnabledParams; result: Models.SubAgentProfileSetEnabledResult };
-  "subagent/profiles/upsert": { params: Models.SubAgentProfileUpsertParams; result: Models.SubAgentProfileUpsertResult };
-  "subagent/settings/update": { params: Models.SubAgentSettingsUpdateParams; result: Models.SubAgentSettingsUpdateResult };
   "terminal/clean": { params: Models.TerminalCleanParams; result: Models.TerminalCleanResult };
   "terminal/list": { params: Models.TerminalListParams; result: Models.TerminalListResult };
   "terminal/read": { params: Models.TerminalReadParams; result: Models.TerminalReadResult };

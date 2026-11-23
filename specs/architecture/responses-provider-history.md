@@ -150,7 +150,7 @@ machine.
   non-Responses turns creates a replacement from current MEAI history and advances the context
   window before the next Responses request.
 - **Fork:** a whole-turn fork copies an exact compatible canonical prefix when available, whether or
-  not the source history is natively compacted. A full-history native SubAgent copies the spawning
+  not the source history is natively compacted. A full-history SubAgent copies the spawning
   request's canonical input, including its pending local tail, before appending child context.
   The copy retains provider/model ownership and native-compaction state under the child's own
   generation and context-window identity. A partial fork retains compatible canonical history

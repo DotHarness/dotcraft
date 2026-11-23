@@ -30,7 +30,6 @@
 | **工具约束** | `IToolRestriction` | A |
 | **压缩摘要** | `ICompactionSummarizer` | B |
 | **可压缩工具** | `ICompactableToolPolicy` | A、B |
-| **Subagent 运行时** | `ISubAgentRuntimeSource` | A |
 | **Trace 汇聚** | `ITraceSink` | A |
 | **辅助生成器** | `ICommitMessageSuggester` | B |
 

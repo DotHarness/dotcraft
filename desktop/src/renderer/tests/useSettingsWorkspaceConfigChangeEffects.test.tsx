@@ -8,19 +8,15 @@ function HookHost(props: {
   change: ConfigChangedPayload | null
   changeSeq: number
   mcpEnabled?: boolean
-  subAgentEnabled?: boolean
   reloadDreamsStatus?: () => Promise<void> | void
   reloadMcpData?: () => Promise<void> | void
-  reloadSubAgentData?: () => Promise<void> | void
 }): JSX.Element {
   useSettingsWorkspaceConfigChangeEffects({
     change: props.change,
     changeSeq: props.changeSeq,
     mcpEnabled: props.mcpEnabled ?? false,
-    subAgentEnabled: props.subAgentEnabled ?? false,
     reloadDreamsStatus: props.reloadDreamsStatus,
-    reloadMcpData: props.reloadMcpData ?? vi.fn(),
-    reloadSubAgentData: props.reloadSubAgentData ?? vi.fn()
+    reloadMcpData: props.reloadMcpData ?? vi.fn()
   })
 
   return <div />
@@ -82,32 +78,27 @@ describe('useSettingsWorkspaceConfigChangeEffects', () => {
     })
   })
 
-  it('refreshes subagent data from incoming config events', async () => {
-    const reloadSubAgentData = vi.fn()
+  it('refreshes configuration from incoming subagent config events', async () => {
     const { rerender } = render(
       <HookHost
         change={null}
         changeSeq={0}
-        subAgentEnabled={true}
-        reloadSubAgentData={reloadSubAgentData}
       />
     )
 
     rerender(
       <HookHost
         change={{
-          source: 'subagent/profiles/upsert',
+          source: 'config/reload',
           regions: ['subagent'],
           changedAt: '2026-04-21T10:15:03Z'
         }}
         changeSeq={1}
-        subAgentEnabled={true}
-        reloadSubAgentData={reloadSubAgentData}
       />
     )
 
     await waitFor(() => {
-      expect(reloadSubAgentData).toHaveBeenCalledTimes(1)
+      expect(refreshConfig).toHaveBeenCalledTimes(1)
     })
   })
 

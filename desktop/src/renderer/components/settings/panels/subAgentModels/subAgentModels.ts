@@ -3,9 +3,19 @@ import {
   readModelPreference,
   type ModelPreference
 } from '../../../../../shared/modelPreference'
-import type { SubAgentModelPreference as ContractSubAgentModelPreference } from '@dotcraft/sdk/contracts'
 import type { ProviderInfoWire } from '../../providerInfo'
 import { providerUsable } from '../../providers/providerDraft'
+
+export interface SubAgentModelPreferenceConfig {
+  ProviderId?: string
+  Model: string
+  Reasoning: {
+    Enabled: boolean
+    Effort: ModelPreference['reasoning']['effort']
+    Output: ModelPreference['reasoning']['output']
+  }
+  Speed: ModelPreference['speed']
+}
 
 export const MAX_SUBAGENT_MODEL_CHOICES = 8
 
@@ -59,17 +69,22 @@ export function hasSubAgentModelChoice(choices: SubAgentModelChoice[], candidate
     && choice.model.toLowerCase() === candidate.model.trim().toLowerCase())
 }
 
+export function readSubAgentSelection(value: unknown, mainProviderId: string): SubAgentModelSelection | null {
+  const key = mainProviderId.trim()
+  const preference = readModelPreference(value)
+  if (!key || !preference) return null
+  const providerId = value != null && typeof value === 'object'
+    ? readString(value as Record<string, unknown>, 'providerId')
+    : ''
+  return { providerId: providerId || key, preference }
+}
+
 export function readSubAgentSelections(value: unknown): SubAgentSelections {
   if (value == null || typeof value !== 'object' || Array.isArray(value)) return {}
   const result: SubAgentSelections = {}
   for (const [rawKey, raw] of Object.entries(value as Record<string, unknown>)) {
-    const key = rawKey.trim()
-    const preference = readModelPreference(raw)
-    if (!key || !preference) continue
-    const providerId = raw != null && typeof raw === 'object'
-      ? readString(raw as Record<string, unknown>, 'providerId')
-      : ''
-    result[key] = { providerId: providerId || key, preference }
+    const selection = readSubAgentSelection(raw, rawKey)
+    if (selection) result[rawKey.trim()] = selection
   }
   return result
 }
@@ -79,25 +94,22 @@ export function findSubAgentSelection(selections: SubAgentSelections, mainProvid
   return entry ? { providerId: entry[1].providerId, preference: cloneModelPreference(entry[1].preference) } : null
 }
 
-export function setSubAgentSelection(
-  selections: SubAgentSelections,
+export function toSubAgentSelectionConfig(
   mainProviderId: string,
-  selection: SubAgentModelSelection | null
-): SubAgentSelections {
-  const result = Object.fromEntries(
-    Object.entries(selections).filter(([key]) => !sameProvider(key, mainProviderId))
-  )
-  if (selection && mainProviderId.trim()) result[mainProviderId.trim()] = selection
-  return result
-}
-
-export function toContractSubAgentSelections(selections: SubAgentSelections): Record<string, ContractSubAgentModelPreference> {
-  return Object.fromEntries(Object.entries(selections).map(([key, selection]) => {
-    const { model, reasoning, speed } = selection.preference
-    const value: ContractSubAgentModelPreference = { model, reasoning: { ...reasoning }, speed }
-    if (!sameProvider(key, selection.providerId)) value.providerId = selection.providerId
-    return [key, value]
-  }))
+  selection: SubAgentModelSelection
+): SubAgentModelPreferenceConfig {
+  const { model, reasoning, speed } = selection.preference
+  const value: SubAgentModelPreferenceConfig = {
+    Model: model,
+    Reasoning: {
+      Enabled: reasoning.enabled,
+      Effort: reasoning.effort,
+      Output: reasoning.output
+    },
+    Speed: speed
+  }
+  if (!sameProvider(mainProviderId, selection.providerId)) value.ProviderId = selection.providerId
+  return value
 }
 
 function readString(record: Record<string, unknown>, key: string): string {

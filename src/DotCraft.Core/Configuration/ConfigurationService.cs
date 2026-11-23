@@ -208,14 +208,11 @@ public sealed class ConfigurationService
             return;
         }
 
-        var subAgentChanged = !JsonNode.DeepEquals(SubAgentNodes(_appliedUser), SubAgentNodes(user));
+        var subAgentChanged = !JsonNode.DeepEquals(SubAgentNode(_appliedUser), SubAgentNode(user));
         _appliedUser = user;
         _appliedUserStamp = stamp;
         if (subAgentChanged)
-        {
             _monitor.Current.SubAgent = next.SubAgent;
-            _monitor.Current.SubAgentProfiles = next.SubAgentProfiles;
-        }
 
         await ApplyAsync(
             changed,
@@ -225,8 +222,8 @@ public sealed class ConfigurationService
             CancellationToken.None).ConfigureAwait(false);
     }
 
-    private static JsonArray SubAgentNodes(JsonObject layer) =>
-        [AtomicConfigDocument.Value(layer, "SubAgent")?.DeepClone(), AtomicConfigDocument.Value(layer, "SubAgentProfiles")?.DeepClone()];
+    private static JsonNode? SubAgentNode(JsonObject layer) =>
+        AtomicConfigDocument.Value(layer, "SubAgent")?.DeepClone();
 
     private async Task ApplyAsync(
         IReadOnlyList<(ConfigFieldDescriptor Field, object? Value)> changed,

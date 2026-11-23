@@ -85,7 +85,7 @@ public sealed class ConfigurationServiceUserReloadTests
     }
 
     [Fact]
-    public async Task UserLayerSubAgentProfileChange_ReloadsProfilesAndAnnouncesSubAgent()
+    public async Task UserLayerSubAgentChange_ReloadsSubAgentConfigAndAnnouncesSubAgent()
     {
         using var a = new ConfigurationServiceFixture();
         var b = OtherWorkspace(a, workspace: null);
@@ -96,14 +96,12 @@ public sealed class ConfigurationServiceUserReloadTests
             return Task.CompletedTask;
         });
 
-        SubAgentProfilesPersistence.SaveState(
+        ConfigurationServiceFixture.WriteFile(
             a.UserPath,
-            [],
-            enableExternalCliSessionResume: false,
-            [new SubAgentProfile { Name = "reviewer", Runtime = "cli-oneshot", Bin = "reviewer" }]);
+            """{"SubAgent":{"MaxDepth":3}}""");
         await b.Service.ReloadUserLayerAsync();
 
-        Assert.Equal("reviewer", Assert.Single(b.Monitor.Current.SubAgentProfiles).Name);
+        Assert.Equal(3, b.Monitor.Current.SubAgent.MaxDepth);
         Assert.Contains(ConfigChangeRegions.SubAgent, Assert.Single(b.Events).Regions);
         Assert.Equal(1, invalidations);
     }

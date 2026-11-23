@@ -1954,8 +1954,7 @@ names the project it edits.
 General holds how the app and the agent behave by default: an Agent group carries
 the default approval policy, Code Mode, and shared skills, and prompt suggestions
 sit with the Composer rows. Personalization holds only what the agent learns about
-the user, Memory, with Subagents as its second segment; the page is hidden when
-neither is available.
+the user, Memory; the page is hidden when Memory is unavailable.
 
 Search sits directly below the title. It is the composed search control without a
 frame: `36px` tall, pill radius, and a `--bg-hover` fill. The field does not take

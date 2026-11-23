@@ -9,7 +9,6 @@ export type SettingsDocsTopic =
   | 'modelProviders'
   | 'security'
   | 'servers'
-  | 'subAgents'
 
 interface SettingsDocsRoute {
   en: string
@@ -30,9 +29,6 @@ const SETTINGS_DOCS_ROUTES: Record<SettingsDocsTopic, SettingsDocsRoute> = {
   },
   memory: {
     en: '/guide/memory'
-  },
-  subAgents: {
-    en: '/guide/subagents'
   },
   mcp: {
     en: '/guide/plugins-tools#connect-an-mcp-server',

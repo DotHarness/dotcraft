@@ -3553,7 +3553,6 @@ export interface ServerCapabilities {
   sideChat?: boolean;
   skillsManagement?: boolean;
   sourceControlManagement?: boolean;
-  subAgentManagement?: boolean;
   subAgentSessions?: boolean;
   threadFork?: boolean;
   threadGoals?: boolean;
@@ -4008,12 +4007,7 @@ export interface SubAgentControlResult {
   agentPath?: string | null;
   agentRole?: string | null;
   message?: string | null;
-  profileName?: string | null;
-  runtimeType?: string | null;
   status?: string;
-  supportsClose?: boolean;
-  supportsFollowupTask?: boolean;
-  supportsSendMessage?: boolean;
   taskName?: string | null;
   [key: string]: unknown;
 }
@@ -4021,108 +4015,6 @@ export interface SubAgentControlResult {
 export interface SubAgentGraphChangedNotification {
   childThreadId?: string;
   parentThreadId?: string;
-  [key: string]: unknown;
-}
-
-export interface SubAgentModelPreference {
-  model?: string;
-  providerId?: string | null;
-  reasoning?: ReasoningConfig;
-  speed?: string;
-  [key: string]: unknown;
-}
-
-export interface SubAgentProfileDiagnostic {
-  binaryResolved?: boolean;
-  enabled?: boolean;
-  hiddenFromPrompt?: boolean;
-  hiddenReason?: string | null;
-  warnings?: string[];
-  [key: string]: unknown;
-}
-
-export interface SubAgentProfileEntry {
-  builtInDefaults?: SubAgentProfileWrite | null;
-  definition?: SubAgentProfileWrite;
-  diagnostic?: SubAgentProfileDiagnostic;
-  enabled?: boolean;
-  hasWorkspaceOverride?: boolean;
-  isBuiltIn?: boolean;
-  isDefault?: boolean;
-  isTemplate?: boolean;
-  name?: string;
-  [key: string]: unknown;
-}
-
-export interface SubAgentProfileListResult {
-  defaultName?: string;
-  profiles?: SubAgentProfileEntry[];
-  settings?: SubAgentSettings;
-  [key: string]: unknown;
-}
-
-export interface SubAgentProfileRemoveParams {
-  name?: string;
-  [key: string]: unknown;
-}
-
-export interface SubAgentProfileRemoveResult {
-  removed?: boolean;
-  [key: string]: unknown;
-}
-
-export interface SubAgentProfileSetEnabledParams {
-  enabled?: boolean;
-  name?: string;
-  [key: string]: unknown;
-}
-
-export interface SubAgentProfileSetEnabledResult {
-  profile?: SubAgentProfileEntry;
-  [key: string]: unknown;
-}
-
-export interface SubAgentProfileUpsertParams {
-  definition?: SubAgentProfileWrite;
-  name?: string;
-  [key: string]: unknown;
-}
-
-export interface SubAgentProfileUpsertResult {
-  profile?: SubAgentProfileEntry;
-  [key: string]: unknown;
-}
-
-export interface SubAgentProfileWrite {
-  args?: string[] | null;
-  bin?: string | null;
-  deleteOutputFileAfterRead?: boolean | null;
-  env?: Record<string, string> | null;
-  envPassthrough?: string[] | null;
-  inputArgTemplate?: string | null;
-  inputEnvKey?: string | null;
-  inputFormat?: string | null;
-  inputMode?: string | null;
-  maxOutputBytes?: number | null;
-  outputFileArgTemplate?: string | null;
-  outputFormat?: string | null;
-  outputInputTokensJsonPath?: string | null;
-  outputJsonPath?: string | null;
-  outputOutputTokensJsonPath?: string | null;
-  outputTotalTokensJsonPath?: string | null;
-  permissionModeMapping?: Record<string, string> | null;
-  readOutputFile?: boolean | null;
-  resumeArgTemplate?: string | null;
-  resumeSessionIdJsonPath?: string | null;
-  resumeSessionIdRegex?: string | null;
-  runtime?: string;
-  sanitizationRules?: JsonValue;
-  supportsModelSelection?: boolean | null;
-  supportsResume?: boolean | null;
-  supportsStreaming?: boolean | null;
-  timeout?: number | null;
-  trustLevel?: string | null;
-  workingDirectoryMode?: string;
   [key: string]: unknown;
 }
 
@@ -4147,23 +4039,6 @@ export interface SubAgentProgressNotification {
   [key: string]: unknown;
 }
 
-export interface SubAgentSettings {
-  externalCliSessionResumeEnabled?: boolean;
-  providerPreferences?: Record<string, SubAgentModelPreference> | null;
-  [key: string]: unknown;
-}
-
-export interface SubAgentSettingsUpdateParams {
-  externalCliSessionResumeEnabled?: boolean | null;
-  providerPreferences?: Record<string, SubAgentModelPreference> | null;
-  [key: string]: unknown;
-}
-
-export interface SubAgentSettingsUpdateResult {
-  settings?: SubAgentSettings;
-  [key: string]: unknown;
-}
-
 export interface SubAgentTargetMessageParams {
   deliveryMode?: string;
   message?: string;
@@ -4185,15 +4060,8 @@ export interface SubAgentThreadSource {
   depth: number;
   parentThreadId: string;
   parentTurnId?: string | null;
-  profileName?: string | null;
   rootThreadId: string;
-  runtimeType?: string | null;
   spawnCallId?: string | null;
-  supportsClose: boolean;
-  supportsFollowupTask: boolean;
-  supportsResume: boolean;
-  supportsSendInput: boolean;
-  supportsSendMessage: boolean;
   taskName?: string | null;
   [key: string]: unknown;
 }
@@ -4973,14 +4841,7 @@ export interface ThreadSpawnEdge {
   depth?: number;
   parentThreadId?: string;
   parentTurnId?: string | null;
-  profileName?: string | null;
-  runtimeType?: string | null;
   status?: string;
-  supportsClose?: boolean;
-  supportsFollowupTask?: boolean;
-  supportsResume?: boolean;
-  supportsSendInput?: boolean;
-  supportsSendMessage?: boolean;
   taskName?: string | null;
   updatedAt?: string;
   [key: string]: unknown;

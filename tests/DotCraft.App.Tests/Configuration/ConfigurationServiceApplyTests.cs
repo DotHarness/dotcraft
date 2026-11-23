@@ -131,8 +131,6 @@ public sealed class ConfigurationServiceApplyTests
             "ProjectDocMaxBytes",
             "Permissions.DefaultApprovalPolicy",
             "PromptSuggestions.Enabled",
-            "SubAgent.DisabledProfiles",
-            "SubAgent.EnableExternalCliSessionResume",
             "SubAgent.MaxConcurrentSubAgents",
             "SubAgent.MaxDepth",
             "SubAgent.Models",
@@ -147,5 +145,46 @@ public sealed class ConfigurationServiceApplyTests
         Assert.All(
             fields.Where(f => f.Reload == ReloadBehavior.SubsystemRestart),
             f => Assert.Contains(f.SubsystemKey, ConfigurationSubsystems.Keys));
+    }
+
+    [Fact]
+    public async Task Write_SubAgentProviderPreferences_PersistsPerProviderAndValidates()
+    {
+        using var fixture = new ConfigurationServiceFixture(
+            workspace: """{"SubAgent":{"ProviderPreferences":{"anthropic":{"Model":"claude-haiku-4-5"}}}}""");
+        ConfigurationSubsystems.Register(fixture.Service, fixture.Monitor, new NoopThreadAgentRefresh(), skills: null, lsp: null, dreams: null, contextPages: null);
+        var invalidations = 0;
+        fixture.Service.RegisterSubsystemHandler(ConfigurationSubsystems.ThreadAgents, (_, _) =>
+        {
+            invalidations++;
+            return Task.CompletedTask;
+        });
+
+        var written = await fixture.WriteAsync(
+            "SubAgent.ProviderPreferences.openai",
+            """{"Model":"gpt-4o-mini","Reasoning":{"Enabled":false,"Effort":"medium","Output":"full"},"Speed":"standard"}""");
+
+        Assert.Equal(ConfigWriteStatus.Ok, written.Status);
+        Assert.Equal("gpt-4o-mini", fixture.Monitor.Current.SubAgent.ProviderPreferences["openai"].Model);
+        Assert.Equal("claude-haiku-4-5", fixture.Monitor.Current.SubAgent.ProviderPreferences["anthropic"].Model);
+        var userPrefs = ConfigurationServiceFixture.ReadFile(fixture.UserPath)["SubAgent"]!["ProviderPreferences"]!.AsObject();
+        Assert.True(userPrefs.ContainsKey("openai"));
+        Assert.False(userPrefs.ContainsKey("anthropic"));
+        Assert.Equal(1, invalidations);
+
+        var ex = await Assert.ThrowsAsync<ConfigWriteException>(() =>
+            fixture.WriteAsync("SubAgent.ProviderPreferences.openai", """{"Model":""}"""));
+        Assert.Contains("SubAgent.ProviderPreferences.openai.Model", ex.Message, StringComparison.Ordinal);
+
+        var nullDoc = System.Text.Json.Nodes.JsonNode.Parse("""{"SubAgent":{"ProviderPreferences":null}}""")!.AsObject();
+        var nullEx = await Assert.ThrowsAsync<ConfigWriteException>(() =>
+            fixture.Service.ReplaceLayerAsync(ConfigLayerType.Workspace, nullDoc, "test"));
+        Assert.Contains("SubAgent.ProviderPreferences", nullEx.Message, StringComparison.Ordinal);
+    }
+
+    private sealed class NoopThreadAgentRefresh : DotCraft.Sessions.IThreadAgentRefreshService
+    {
+        public Task RefreshThreadAgentAsync(string threadId, CancellationToken ct = default) => Task.CompletedTask;
+        public void InvalidateThreadAgents() { }
     }
 }

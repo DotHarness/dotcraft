@@ -81,10 +81,6 @@ public sealed class SubAgentSpawnOptions
 
     public string? AgentRole { get; set; }
 
-    public string? ProfileName { get; set; }
-
-    public string? WorkingDirectory { get; set; }
-
     public IReadOnlyList<SubAgentRoleConfig>? RoleConfigs { get; set; }
 
     public SubAgentModelPreference? SubAgentPreference { get; set; }
@@ -149,22 +145,6 @@ public sealed class SubAgentControlResult
     public string? AgentNickname { get; set; }
 
     public string? AgentRole { get; set; }
-
-    public string? ProfileName { get; set; }
-
-    public string? RuntimeType { get; set; }
-
-    [JsonIgnore]
-    public bool SupportsSendInput { get; set; }
-
-    [JsonIgnore]
-    public bool SupportsResume { get; set; }
-
-    public bool SupportsSendMessage { get; set; }
-
-    public bool SupportsFollowupTask { get; set; }
-
-    public bool SupportsClose { get; set; } = true;
 }
 
 public sealed class SubAgentListResult
@@ -200,7 +180,7 @@ public enum SubAgentFollowupDeliveryMode
     /// <summary>Append the task to the target thread's FIFO queue.</summary>
     Queue,
 
-    /// <summary>Promote the task into same-turn guidance for a running native SubAgent.</summary>
+    /// <summary>Promote the task into same-turn guidance for a running SubAgent.</summary>
     Steer
 }
 
@@ -271,9 +251,4 @@ public static partial class SubAgentSessionControl
             ?? "Subagent";
         return firstLine.Length <= 48 ? firstLine : firstLine[..48];
     }
-
-    private sealed record SubAgentCapabilities(
-        bool SupportsSendInput,
-        bool SupportsResume,
-        bool SupportsClose);
 }

@@ -157,7 +157,7 @@ The Responses adapter derives one request identity from that snapshot:
 | Default `prompt_cache_key` | Root thread id |
 | Turn, window, parent, fork, source, and subagent metadata | Corresponding snapshot fields |
 
-For a native subagent created through thread spawn, provider metadata uses the provider taxonomy:
+For a subagent created through thread spawn, provider metadata uses the provider taxonomy:
 
 | Provider projection | Value |
 |---|---|

@@ -112,7 +112,6 @@ public sealed partial class SessionServiceForkTests
             },
             new SubAgentSpawnOptions { AgentPrompt = "inspect the code", TaskName = "inspect" },
             waitForCompletion: false,
-            coordinator: null,
             CancellationToken.None));
         Assert.Equal(0, created);
     }

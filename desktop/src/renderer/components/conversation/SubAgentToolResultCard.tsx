@@ -142,8 +142,6 @@ export function getSubAgentToolDisplay(
 ): SubAgentToolDisplay | null {
   if (!isSubAgentOperation(operation)) return null
   const parsed = parseToolResultObject(result)
-  const profile = getString(parsed, 'profileName') ?? getString(args, 'profile')
-  const runtimeType = getString(parsed, 'runtimeType')
   const agentRole = getString(parsed, 'agentRole') ?? getString(args, 'agentRole')
   const agentPath = getString(parsed, 'agentPath')
     ?? getString(args, 'target')
@@ -168,7 +166,7 @@ export function getSubAgentToolDisplay(
     name: label,
     identified: resolvedName != null,
     sent: operation === 'sendMessage' && !failed,
-    meta: formatSubAgentMeta({ agentRole, profileName: profile, runtimeType }),
+    meta: formatSubAgentMeta({ agentRole }),
     prompt: prompt ? truncateSubAgentPrompt(prompt, 120) : null,
     child: matchedChild,
     message: !success && error ? error : null,

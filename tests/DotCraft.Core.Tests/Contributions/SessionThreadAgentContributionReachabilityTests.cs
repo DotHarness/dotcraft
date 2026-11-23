@@ -53,7 +53,6 @@ public sealed class SessionThreadAgentContributionReachabilityTests : IDisposabl
         _registry.Add<IAgentContextSource>(new MarkerContextContribution());
         _registry.Add<IToolSource>(new MarkerToolSource("marker", ["kept", "masked", "SpawnAgent"]));
         _registry.Add<IToolRestriction>(new MarkerRestriction("masked"));
-        _registry.Add<ISubAgentRuntimeSource>(new MarkerSubAgentRuntimeContribution());
         var chatClient = new CapturingChatClient();
         var service = CreateService(chatClient);
 
@@ -62,7 +61,6 @@ public sealed class SessionThreadAgentContributionReachabilityTests : IDisposabl
         var instructions = chatClient.LastInstructions ?? string.Empty;
         Assert.Contains(PromptMarker, instructions, StringComparison.Ordinal);
         Assert.Contains(ContextMarker, instructions, StringComparison.Ordinal);
-        Assert.Contains($"`{MarkerSubAgentRuntimeContribution.ProfileName}`", instructions, StringComparison.Ordinal);
         Assert.Contains(nameof(MarkerChatClient), ChainTypes(run.Agent.ChatClient));
         Assert.True(middleware.Invocations > 0, "The contributed middleware never saw the thread's request.");
         var provider = Assert.Single(run.Agent.AIContextProviders.OfType<MarkerContextProvider>());
@@ -330,43 +328,6 @@ public sealed class SessionThreadAgentContributionReachabilityTests : IDisposabl
             onCall();
             return base.GetStreamingResponseAsync(messages, options, cancellationToken);
         }
-    }
-
-    private sealed class MarkerSubAgentRuntimeContribution : ISubAgentRuntimeSource
-    {
-        public const string RuntimeTypeName = "contribution-marker-runtime";
-        public const string ProfileName = "contribution-marker-profile";
-
-        public ISubAgentRuntime Runtime { get; } = new MarkerSubAgentRuntime();
-
-        public IReadOnlyList<SubAgentProfile> Profiles { get; } =
-        [
-            new() { Name = ProfileName, Runtime = RuntimeTypeName, WorkingDirectoryMode = "workspace" }
-        ];
-    }
-
-    private sealed class MarkerSubAgentRuntime : ISubAgentRuntime
-    {
-        public string RuntimeType => MarkerSubAgentRuntimeContribution.RuntimeTypeName;
-
-        public Task<SubAgentSessionHandle> CreateSessionAsync(
-            SubAgentProfile profile,
-            SubAgentLaunchContext context,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(new SubAgentSessionHandle(RuntimeType, profile.Name));
-
-        public Task<DotCraft.Agents.SubAgentRunResult> RunAsync(
-            SubAgentSessionHandle session,
-            SubAgentTaskRequest request,
-            ISubAgentEventSink sink,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(new DotCraft.Agents.SubAgentRunResult { Text = request.Task });
-
-        public Task CancelAsync(SubAgentSessionHandle session, CancellationToken cancellationToken) =>
-            Task.CompletedTask;
-
-        public Task DisposeSessionAsync(SubAgentSessionHandle session, CancellationToken cancellationToken) =>
-            Task.CompletedTask;
     }
 
     private sealed class MarkerContextContribution : IAgentContextSource

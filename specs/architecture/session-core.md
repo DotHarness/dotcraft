@@ -189,7 +189,7 @@ Queued-input materialization is local-only. Inline `image` parts (base64 data UR
 
 #### 4.1.1.4 SubAgent Child Threads
 
-Child agents are ordinary Threads with `Source.kind = "subagent"` and `OriginChannel = "subagent"`. Native children use the same Turn, Item, approval, persistence, and resume contracts. External runtimes persist synthetic Turns with input, final output or failure, and available usage.
+Child agents are ordinary Threads with `Source.kind = "subagent"` and `OriginChannel = "subagent"`. Children use the same Turn, Item, approval, persistence, and resume contracts.
 
 Parent-child edges, stored child configuration, and pending communication are durable. Child control identity is independent of the display name. Root-scoped communication must not leak into another root's execution or wakeups.
 
@@ -500,7 +500,7 @@ WaitingApproval/WaitingInput ──────────► Cancelled
 
 `Completed`, `Failed`, and `Cancelled` are terminal; a terminal Turn never transitions. A normally completed model stream ending with `stop` and no provider error may have no assistant content; the Turn completes without synthesizing an AgentMessage or Error Item and retains its history and usage. This applies equally to user input, task notifications, and internal prompt suggestions; a completion event does not require a visible reply. When a Turn of a read-receipt-eligible thread reaches a terminal state, Session Core applies the [Thread Read State](../features/thread-read-state.md#41-new-results) new-result rules and commits the receipt before publishing the terminal Turn notification.
 
-A native SubAgent invocation settles from its Turn's terminal event. Terminal events follow the
+A SubAgent invocation settles from its Turn's terminal event. Terminal events follow the
 result commit; persistence failures are reported explicitly. The Turn stream closes after owner
 cleanup, including resource release and lifecycle contributors. Stopping observation does not cancel
 execution, and post-terminal cleanup failures do not replace the result.
@@ -1020,7 +1020,7 @@ The adapter only presents the request and returns the decision. Approval UX is c
 
 ### 10.3 Model-Initiated User Input
 
-`RequestUserInput` lets the agent ask one to three short structured questions before continuing. It is exposed to main user threads and declared to native full-history SubAgents, which keep their parent's tool schema ([SubAgents §5](../features/subagents.md#5-context-and-fork-modes)) and have their calls rejected. It keeps the same schema in Agent and Plan modes.
+`RequestUserInput` lets the agent ask one to three short structured questions before continuing. It is exposed to main user threads and declared to full-history SubAgents, which keep their parent's tool schema ([SubAgents §5](../features/subagents.md#5-context-and-fork-modes)) and have their calls rejected. It keeps the same schema in Agent and Plan modes.
 
 Each `UserInputRequest` carries `isBlocking`, set by Session Core from the active mode: `true` in Plan mode, `false` in Agent mode. It is client-facing metadata, not a tool argument, and does not change the server-side wait: both modes pause until resolution or Turn end.
 
@@ -1032,7 +1032,7 @@ Interactive adapters present the request natively. A client may auto-resolve a n
 
 `SendUserMessageAsync` is exposed by default to top-level Agent and Plan threads (not Internal or SubAgent threads). Native full-history SubAgents keep it declared and have their calls rejected. It validates a non-empty message, persists and broadcasts an `AgentMessage` with `deliveryMode = "async"`, returns `{ "accepted": true }`, and lets the loop continue.
 
-The `clock` namespace is exposed by default to ordinary agent threads, including native SubAgents but not Internal threads. `clock/CurrentTime` returns the current UTC time. No tool holds a Turn open to wait: a reply, Agent message, or task notification that arrives after the Turn ends starts the next Turn.
+The `clock` namespace is exposed by default to ordinary agent threads, including SubAgents but not Internal threads. `clock/CurrentTime` returns the current UTC time. No tool holds a Turn open to wait: a reply, Agent message, or task notification that arrives after the Turn ends starts the next Turn.
 
 When these tools are available, prompt composition describes the choice: `RequestUserInput` when a structured answer blocks further work, and `SendUserMessageAsync` when independent authorized work can continue. An asynchronous message is not repeated in the final answer. These tools never create a Goal or change Goal continuation.
 
@@ -1118,7 +1118,7 @@ ThreadConfiguration
 ├── ToolProfile: string?                            // Named tool profile to inject
 ├── UseToolProfileOnly: bool                        // Use only the profile tools
 ├── AgentInstructions: string?                      // Extra system instructions
-├── SubAgentRoleInstructions: string?               // A native SubAgent role's text, in its role guidance; not on the wire
+├── SubAgentRoleInstructions: string?               // A SubAgent role's text, in its role guidance; not on the wire
 ├── DeveloperInstructions: string?                  // Starting application's instructions, a thread context item
 ├── ApprovalPolicy: default|prompt|autoApprove|deny // Thread-scoped approval behavior
 ├── AutomationTaskDirectory: string?                // Local automation task directory
@@ -1137,7 +1137,7 @@ Model preference:
 
 - At creation, a server-managed thread captures the effective provider and its complete model preference (model, reasoning, speed). An explicit thread configuration wins; otherwise the preference comes from the workspace provider preferences. A provider without a complete preference is not a valid main-agent runtime.
 - The main agent uses the captured values for every Turn, resume, and tool-planning operation; workspace changes affect only new threads.
-- Native full-history SubAgents inherit the parent's complete captured preference and ignore other overrides. External CLI SubAgents do not use native preferences.
+- Full-history SubAgents inherit the parent's complete captured preference and ignore other overrides.
 - Changing provider or preference on an existing thread atomically replaces those values and keeps the rest of the configuration.
 - A server-managed thread also captures its memory scope and workspace memory switch at creation.
 
