@@ -55,8 +55,14 @@ export const ThreadActionCard = memo(function ThreadActionCard({ action }: Threa
             : <MessageSquareText size={22} strokeWidth={1.8} aria-hidden />}
         </span>
         <span style={textWrapStyle}>
-          <span style={titleStyle}>{name ?? outcome}</span>
-          {(name || subtitle !== outcome) && <RunningShimmer active={working} style={subtitleStyle}>{subtitle}</RunningShimmer>}
+          {name || subtitle !== outcome ? (
+            <>
+              <span style={titleStyle}>{name ?? outcome}</span>
+              <RunningShimmer active={working} style={subtitleStyle}>{subtitle}</RunningShimmer>
+            </>
+          ) : (
+            <RunningShimmer active={working} style={titleStyle}>{outcome}</RunningShimmer>
+          )}
         </span>
       </button>
       {waiting && <ThreadWaitingBadge status={waiting} />}
