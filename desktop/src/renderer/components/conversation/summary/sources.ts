@@ -24,7 +24,7 @@ export interface Source {
   readonly toolGroups?: readonly SourceToolGroup[]
 }
 
-export type SourceUsage = 'attached' | 'provided' | 'read' | 'loaded'
+export type SourceUsage = 'attached' | 'read' | 'loaded'
 
 export interface WebSearchPage {
   readonly url: string
@@ -142,7 +142,7 @@ export function extractSources(items: readonly SummaryItem[], workspacePath: str
     const callId = stringOf(payload.callId) ?? item.id
 
     if (item.type === 'userMessage') {
-      for (const source of userSources(payload, workspacePath)) add(source, source.kind === 'file' ? 'attached' : 'provided')
+      for (const source of userSources(payload, workspacePath)) add(source, source.kind === 'file' ? 'attached' : 'loaded')
       continue
     }
 

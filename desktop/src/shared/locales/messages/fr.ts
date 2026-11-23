@@ -4786,7 +4786,6 @@ export const MESSAGES_FR = {
   'summary.sourceResult': 'Résultat',
   'summary.sourceCallCancelled': 'Annulé',
   'summary.sourceAttached': 'Joint à la conversation',
-  'summary.sourceProvided': 'Fourni dans la conversation',
   'summary.sourceRead': 'Lu pendant la discussion',
   'summary.sourceLoaded': 'Chargé pendant la discussion',
   'summary.sourceToolUsedOnce': '{{name}} une fois',

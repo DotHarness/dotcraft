@@ -14,7 +14,6 @@ import styles from './SourcesTab.module.css'
 
 const USAGE_KEYS: Record<SourceUsage, string> = {
   attached: 'summary.sourceAttached',
-  provided: 'summary.sourceProvided',
   read: 'summary.sourceRead',
   loaded: 'summary.sourceLoaded'
 }

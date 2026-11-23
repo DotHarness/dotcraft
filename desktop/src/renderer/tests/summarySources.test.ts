@@ -139,7 +139,7 @@ describe('Summary sources', () => {
     expect(sources).toEqual([
       { kind: 'file', id: 'specs/summary.md', title: 'summary.md', target: 'specs/summary.md', image: false, usage: ['attached'] },
       { kind: 'file', id: '.craft/attachments/images/shot.png', title: 'Screenshot.png', target: '/work/.craft/attachments/images/shot.png', image: true, usage: ['attached'] },
-      { kind: 'skill', id: 'design-prototype', title: 'design-prototype', target: 'design-prototype', usage: ['provided', 'loaded'] }
+      { kind: 'skill', id: 'design-prototype', title: 'design-prototype', target: 'design-prototype', usage: ['loaded'] }
     ])
   })
 

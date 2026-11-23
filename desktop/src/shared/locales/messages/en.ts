@@ -4830,7 +4830,6 @@ export const MESSAGES_EN = {
   'summary.sourceResult': 'Result',
   'summary.sourceCallCancelled': 'Canceled',
   'summary.sourceAttached': 'Attached to the conversation',
-  'summary.sourceProvided': 'Provided in the conversation',
   'summary.sourceRead': 'Read during the chat',
   'summary.sourceLoaded': 'Loaded during the chat',
   'summary.sourceToolUsedOnce': '{{name}} once',

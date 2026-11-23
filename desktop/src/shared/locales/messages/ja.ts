@@ -4785,7 +4785,6 @@ export const MESSAGES_JA = {
   'summary.sourceResult': '結果',
   'summary.sourceCallCancelled': 'キャンセル済み',
   'summary.sourceAttached': '会話に添付',
-  'summary.sourceProvided': '会話で提供',
   'summary.sourceRead': 'チャット中に読み取り',
   'summary.sourceLoaded': 'チャット中に読み込み',
   'summary.sourceToolUsedOnce': '{{name}} 1 回',

@@ -4785,7 +4785,6 @@ export const MESSAGES_KO = {
   'summary.sourceResult': '결과',
   'summary.sourceCallCancelled': '취소됨',
   'summary.sourceAttached': '대화에 첨부됨',
-  'summary.sourceProvided': '대화에서 제공됨',
   'summary.sourceRead': '채팅 중 읽음',
   'summary.sourceLoaded': '채팅 중 불러옴',
   'summary.sourceToolUsedOnce': '{{name}} 1회',

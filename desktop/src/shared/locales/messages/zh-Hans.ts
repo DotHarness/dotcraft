@@ -4811,7 +4811,6 @@ export const MESSAGES_ZH_HANS = {
   'summary.sourceResult': '结果',
   'summary.sourceCallCancelled': '已取消',
   'summary.sourceAttached': '已附加到对话',
-  'summary.sourceProvided': '在对话中提供',
   'summary.sourceRead': '在对话中读取',
   'summary.sourceLoaded': '在对话中加载',
   'summary.sourceToolUsedOnce': '{{name}} 1 次',

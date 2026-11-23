@@ -4786,7 +4786,6 @@ export const MESSAGES_ES = {
   'summary.sourceResult': 'Resultado',
   'summary.sourceCallCancelled': 'Cancelado',
   'summary.sourceAttached': 'Adjuntado a la conversación',
-  'summary.sourceProvided': 'Proporcionado en la conversación',
   'summary.sourceRead': 'Leído durante el chat',
   'summary.sourceLoaded': 'Cargado durante el chat',
   'summary.sourceToolUsedOnce': '{{name}} una vez',
