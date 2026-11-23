@@ -36,7 +36,6 @@ export interface ServerCapabilities {
   dreams?: boolean
   mcpManagement?: boolean
   mcpServerOrigins?: boolean
-  subAgentManagement?: boolean
   channelManagement?: boolean
   channelStatus?: boolean
   mcpStatus?: boolean

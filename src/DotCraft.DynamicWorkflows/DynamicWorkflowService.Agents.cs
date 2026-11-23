@@ -142,7 +142,6 @@ public sealed partial class DynamicWorkflowService
                     }
                 },
                 waitForCompletion: true,
-                coordinator: null,
                 cancellationToken).ConfigureAwait(false);
 
             var child = await session.GetThreadAsync(result.ChildThreadId, cancellationToken).ConfigureAwait(false);

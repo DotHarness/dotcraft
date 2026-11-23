@@ -147,7 +147,6 @@ public sealed class SessionServiceLongHistoryTests : IDisposable
             context,
             new SubAgentSpawnOptions { AgentPrompt = "some history", TaskName = "last_two", ForkTurns = "2" },
             waitForCompletion: true,
-            coordinator: null,
             CancellationToken.None);
 
         Assert.Equal(

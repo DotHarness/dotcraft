@@ -11,7 +11,7 @@ public sealed partial class SessionTaskNotificationTests
         await using var harness = await CreateHarnessAsync();
         var sideChat = await SideChatContextAsync(harness);
 
-        var result = await SubAgentSessionControl.SendAgentMessageAsync(sideChat, "main", "Use port 8080", coordinator: null, CancellationToken.None);
+        var result = await SubAgentSessionControl.SendAgentMessageAsync(sideChat, "main", "Use port 8080", CancellationToken.None);
 
         Assert.Equal("started", result.Status);
         var thread = await WaitForThreadAsync(harness, t => t.Turns.Count == 1 && t.Turns[0].Status == TurnStatus.Completed);
@@ -34,7 +34,7 @@ public sealed partial class SessionTaskNotificationTests
         var turn = harness.RunUserTurnAsync("work");
         await harness.Client.FirstRequestStarted.WaitAsync(TimeSpan.FromSeconds(10));
 
-        var result = await SubAgentSessionControl.SendAgentMessageAsync(sideChat, "main", "The user wants tests too", coordinator: null, CancellationToken.None);
+        var result = await SubAgentSessionControl.SendAgentMessageAsync(sideChat, "main", "The user wants tests too", CancellationToken.None);
         harness.Client.ReleaseFirstRequest();
         await turn;
 
@@ -56,7 +56,7 @@ public sealed partial class SessionTaskNotificationTests
         var sideChat = await SideChatContextAsync(harness);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            SubAgentSessionControl.SendAgentMessageAsync(sideChat, target, "hello", coordinator: null, CancellationToken.None));
+            SubAgentSessionControl.SendAgentMessageAsync(sideChat, target, "hello", CancellationToken.None));
 
         var thread = await harness.Service.GetThreadAsync(harness.ThreadId);
         Assert.Empty(thread.Turns);
@@ -71,7 +71,7 @@ public sealed partial class SessionTaskNotificationTests
         await harness.Service.DeleteThreadPermanentlyAsync(harness.ThreadId);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            SubAgentSessionControl.SendAgentMessageAsync(sideChat, "main", "hello", coordinator: null, CancellationToken.None));
+            SubAgentSessionControl.SendAgentMessageAsync(sideChat, "main", "hello", CancellationToken.None));
     }
 
     private static async Task<SubAgentSessionContext> SideChatContextAsync(Harness harness)

@@ -414,10 +414,6 @@ public sealed class ServerCapabilities : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool AgentProfileManagement { get; init; }
 
-    [JsonPropertyName("subAgentManagement")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public bool SubAgentManagement { get; init; }
-
     [JsonPropertyName("subAgentSessions")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool SubAgentSessions { get; init; }
@@ -1250,29 +1246,6 @@ public sealed class SubAgentThreadSource : ExtensibleJsonObject
     [JsonPropertyName("agentRole")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? AgentRole { get; init; }
-
-    [JsonPropertyName("profileName")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? ProfileName { get; init; }
-
-    [JsonPropertyName("runtimeType")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? RuntimeType { get; init; }
-
-    [JsonPropertyName("supportsSendInput")]
-    public required bool SupportsSendInput { get; init; }
-
-    [JsonPropertyName("supportsResume")]
-    public required bool SupportsResume { get; init; }
-
-    [JsonPropertyName("supportsSendMessage")]
-    public required bool SupportsSendMessage { get; init; }
-
-    [JsonPropertyName("supportsFollowupTask")]
-    public required bool SupportsFollowupTask { get; init; }
-
-    [JsonPropertyName("supportsClose")]
-    public required bool SupportsClose { get; init; }
 }
 
 /// <summary>Resolved App Binding origin branding for a thread.</summary>

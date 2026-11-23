@@ -52,8 +52,6 @@ public sealed class LocalImportDiscovery
         foreach (var project in projectPaths.Append(_chatPath))
             ConfigFor(project);
 
-        var excluded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        routing.CollectExternalCliSessions(excluded, ct);
         var now = DateTimeOffset.UtcNow;
         var sessionItems = _sources.ToDictionary(source => source.SourceId, _ => new List<LocalImportItem>(), StringComparer.Ordinal);
         while (pendingWindows.TryDequeue(out var window))
@@ -63,8 +61,7 @@ public sealed class LocalImportDiscovery
                 WorkspaceRoot = _chatPath,
                 Now = now,
                 MaxAge = TimeSpan.FromDays(window.MaxSessionAgeDays),
-                MaxSessions = window.MaxSessionsPerSource,
-                ExternalCliSessionIds = excluded
+                MaxSessions = window.MaxSessionsPerSource
             }, explicitRoots, ct).ConfigureAwait(false);
             foreach (var cwd in scan.ProjectPaths)
             {

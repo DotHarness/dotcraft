@@ -4,7 +4,7 @@ Subagent 是主 Agent 的委派机制：把一段独立任务交给它，在单�
 
 ![DotCraft subagent 委派示意图](/subagent-delegation-overview.svg)
 
-每个 subagent 由两件事定义：角色决定它能做什么，运行时决定它在哪里跑。默认配置即可安全使用：主 Agent 可以创建一级 subagent，subagent 不会再往下派生。完整配置字段见[Subagent 配置](../configuration/subagents)。
+每个 subagent 在 DotCraft 内部以独立上下文运行，并由角色决定它能做什么。默认配置即可安全使用：主 Agent 可以创建一级 subagent，subagent 不会再往下派生。完整配置字段见[Subagent 配置](../configuration/subagents)。
 
 ## 角色决定它能做什么
 
@@ -16,14 +16,6 @@ Subagent 是主 Agent 的委派机制：把一段独立任务交给它，在单�
 
 角色限制在工具调用时强制执行。subagent 调用被禁止的工具会得到明确的拒绝原因，可以据此换一条路。你也可以在工作区配置中自定义角色，为团队固定常用的委派方式。
 
-## 运行时决定它在哪里跑
-
-原生运行时由 DotCraft 自己执行 subagent，角色的工具限制完整生效，并且与主对话共用同一份提示词前缀，启动开销小。
-
-也可以用外部 coding CLI 作为运行时，内置支持 Codex CLI 和 Cursor CLI。外部 CLI 以独立进程运行一次性任务，通常只汇报阶段性进度。DotCraft 会把角色说明传给它，但无法约束它内部的工具调用。需要强隔离时优先使用原生运行时，并按[安全](../self-hosting/security)里的做法收紧它的工具和审批。
-
-要接入其他 CLI，在 Desktop 打开 **设置 → 子智能体**，点 **添加自定义智能体**。会打开一个新对话，你说出要用的 CLI，DotCraft 会读它的帮助、试跑一个小任务，再把配置保存好。之后它会出现在列表里，可以开关、在对话里修改或删除。想手写配置，见[外部 CLI Profile](../configuration/subagents#外部-cli-profile)。
-
 ## 在 Desktop 中查看 subagent 进度
 
 ![在 DotCraft Desktop 中查看多个后台 subagent 及其状态](https://github.com/DotHarness/resources/raw/master/dotcraft/docs/subagents.webp)
@@ -32,16 +24,16 @@ subagent 工作时，Desktop 中的主对话仍然可用。打开后台 Agent �
 
 ## 审批照常生效
 
-原生 subagent 的文件和命令操作走当前对话同一套审批，每条请求都会标注来自哪个 subagent。外部 CLI 的内部操作 DotCraft 无法逐条拦截，但会把当前的审批模式尽量传递给它。
+subagent 的文件和命令操作走当前对话同一套审批，每条请求都会标注来自哪个 subagent。需要更强隔离时，按[安全](../self-hosting/security)里的做法收紧角色的工具清单和审批。
 
 ## 怎么选
 
 | 场景 | 推荐 |
 |---|---|
-| 受控的只读探索 | 原生运行时 + `explorer` |
-| 在当前工作区内完成实现 | 原生运行时 + `worker` |
-| 想复用特定外部 coding CLI 的工作流 | 外部 CLI 运行时 |
-| 需要最强的工具隔离 | 原生运行时 + 收紧的工具清单 + 请求批准 |
+| 受控的只读探索 | `explorer` |
+| 在当前工作区内完成实现 | `worker` |
+| 总结、分析或通用协作 | `default` |
+| 需要最强的工具隔离 | 自定义角色 + 收紧的工具清单 + 请求批准 |
 
 subagent 的对话会作为主对话的子对话保存。归档、恢复或删除主对话时，子对话一并处理，重启后角色和工具限制依然有效。
 

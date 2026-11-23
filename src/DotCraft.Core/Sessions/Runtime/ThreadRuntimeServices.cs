@@ -106,31 +106,6 @@ public interface IThreadMcpRuntimeService
         throw new NotSupportedException("Binding MCP sessions are not supported by this session service.");
 }
 
-/// <summary>Records persisted Turn history for profile-backed SubAgents outside the native agent loop.</summary>
-public interface ISubAgentSyntheticTurnService
-{
-    Task<SessionTurn> StartSubAgentSyntheticTurnAsync(
-        string threadId,
-        IList<AIContent> content,
-        string runtimeType,
-        string? profileName,
-        CancellationToken ct = default);
-
-    Task<SessionTurn> CompleteSubAgentSyntheticTurnAsync(
-        string threadId,
-        string turnId,
-        string text,
-        bool isError,
-        SubAgentTokenUsage? tokensUsed,
-        CancellationToken ct = default);
-
-    Task<SessionTurn> CancelSubAgentSyntheticTurnAsync(
-        string threadId,
-        string turnId,
-        string reason,
-        CancellationToken ct = default);
-}
-
 public interface ISubAgentThreadLifecycleService
 {
     /// <summary>

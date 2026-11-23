@@ -505,7 +505,7 @@ The table below covers common method families used by AppServer clients.
 | Models | `model/list` | Model catalog. |
 | MCP | `mcp/list`, `mcp/get`, `mcp/upsert`, `mcp/test`, `mcpServerStatus/list` | MCP configuration and status. |
 | Channels | `channel/status`, `channel/setEnabled`, `channel/logs`, `channel/configOptionAvailability`, `channel/setup/read` | Workspace selections, connectivity, diagnostics, and interactive setup. Set platform settings with `plugin/config/get` and `plugin/config/mutate`. |
-| Subagents | `subagent/profiles/list`, `subagent/profiles/upsert` | Subagent profile management. |
+| Subagents | `subagent/children/list`, `subagent/followupTask`, `subagent/close` | Subagent session inspection and control. |
 | Automations | `automation/list`, `automation/create`, `automation/runs/list` | Local task lifecycle, binding, and managed worktree cleanup. |
 | Worktrees | `worktree/list`, `worktree/status`, `thread/worktree/handoff`, `worktree/remove` | Managed Git worktree status, handoff, and removal. |
 | Configuration | `config/schema`, `config/read`, `config/value/write`, `config/batchWrite` | Read and change user and workspace configuration by key path. |

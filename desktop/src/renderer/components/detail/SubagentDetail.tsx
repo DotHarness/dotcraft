@@ -53,11 +53,7 @@ export function SubagentDetail({ child, onBack }: { child: SubAgentChild; onBack
     return watchTranscript(childThreadId)
   }, [childThreadId, connected, connectionEpoch, projectKey, watchTranscript])
 
-  const meta = formatSubAgentMeta({
-    agentRole: child.agentRole,
-    profileName: child.profileName,
-    runtimeType: child.runtimeType
-  })
+  const meta = formatSubAgentMeta({ agentRole: child.agentRole })
   const modelLabel = formatModelLabel(transcript?.configuration ?? null, t)
 
   return (

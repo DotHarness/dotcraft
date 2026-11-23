@@ -26,13 +26,6 @@ internal sealed partial class ThreadMetadataStore(WorkspaceStateDatabase stateRu
                 task_name,
                 agent_nickname,
                 agent_role,
-                profile_name,
-                runtime_type,
-                supports_send_input,
-                supports_resume,
-                supports_send_message,
-                supports_followup_task,
-                supports_close,
                 status,
                 created_at,
                 updated_at
@@ -45,13 +38,6 @@ internal sealed partial class ThreadMetadataStore(WorkspaceStateDatabase stateRu
                 $task_name,
                 $agent_nickname,
                 $agent_role,
-                $profile_name,
-                $runtime_type,
-                $supports_send_input,
-                $supports_resume,
-                $supports_send_message,
-                $supports_followup_task,
-                $supports_close,
                 $status,
                 $created_at,
                 $updated_at
@@ -63,13 +49,6 @@ internal sealed partial class ThreadMetadataStore(WorkspaceStateDatabase stateRu
                 task_name = excluded.task_name,
                 agent_nickname = excluded.agent_nickname,
                 agent_role = excluded.agent_role,
-                profile_name = excluded.profile_name,
-                runtime_type = excluded.runtime_type,
-                supports_send_input = excluded.supports_send_input,
-                supports_resume = excluded.supports_resume,
-                supports_send_message = excluded.supports_send_message,
-                supports_followup_task = excluded.supports_followup_task,
-                supports_close = excluded.supports_close,
                 status = excluded.status,
                 updated_at = excluded.updated_at
             """;
@@ -81,13 +60,6 @@ internal sealed partial class ThreadMetadataStore(WorkspaceStateDatabase stateRu
         command.Parameters.AddWithValue("$task_name", (object?)edge.TaskName ?? DBNull.Value);
         command.Parameters.AddWithValue("$agent_nickname", (object?)edge.AgentNickname ?? DBNull.Value);
         command.Parameters.AddWithValue("$agent_role", (object?)edge.AgentRole ?? DBNull.Value);
-        command.Parameters.AddWithValue("$profile_name", (object?)edge.ProfileName ?? DBNull.Value);
-        command.Parameters.AddWithValue("$runtime_type", (object?)edge.RuntimeType ?? DBNull.Value);
-        command.Parameters.AddWithValue("$supports_send_input", edge.SupportsSendInput ? 1 : 0);
-        command.Parameters.AddWithValue("$supports_resume", edge.SupportsResume ? 1 : 0);
-        command.Parameters.AddWithValue("$supports_send_message", edge.SupportsSendMessage ? 1 : 0);
-        command.Parameters.AddWithValue("$supports_followup_task", edge.SupportsFollowupTask ? 1 : 0);
-        command.Parameters.AddWithValue("$supports_close", edge.SupportsClose ? 1 : 0);
         command.Parameters.AddWithValue("$status", edge.Status);
         command.Parameters.AddWithValue("$created_at", edge.CreatedAt.UtcDateTime.ToString("O"));
         command.Parameters.AddWithValue("$updated_at", edge.UpdatedAt.UtcDateTime.ToString("O"));
@@ -129,13 +101,13 @@ internal sealed partial class ThreadMetadataStore(WorkspaceStateDatabase stateRu
         using var command = connection.CreateCommand();
         command.CommandText = includeClosed
             ? """
-              SELECT parent_thread_id, child_thread_id, parent_turn_id, depth, agent_path, task_name, agent_nickname, agent_role, profile_name, runtime_type, supports_send_input, supports_resume, supports_send_message, supports_followup_task, supports_close, status, created_at, updated_at
+              SELECT parent_thread_id, child_thread_id, parent_turn_id, depth, agent_path, task_name, agent_nickname, agent_role, status, created_at, updated_at
               FROM thread_spawn_edges
               WHERE parent_thread_id = $parent_thread_id
               ORDER BY updated_at DESC, child_thread_id DESC
               """
             : """
-              SELECT parent_thread_id, child_thread_id, parent_turn_id, depth, agent_path, task_name, agent_nickname, agent_role, profile_name, runtime_type, supports_send_input, supports_resume, supports_send_message, supports_followup_task, supports_close, status, created_at, updated_at
+              SELECT parent_thread_id, child_thread_id, parent_turn_id, depth, agent_path, task_name, agent_nickname, agent_role, status, created_at, updated_at
               FROM thread_spawn_edges
               WHERE parent_thread_id = $parent_thread_id AND status <> $closed
               ORDER BY updated_at DESC, child_thread_id DESC
@@ -157,16 +129,9 @@ internal sealed partial class ThreadMetadataStore(WorkspaceStateDatabase stateRu
                 TaskName = reader.IsDBNull(5) ? null : reader.GetString(5),
                 AgentNickname = reader.IsDBNull(6) ? null : reader.GetString(6),
                 AgentRole = reader.IsDBNull(7) ? null : reader.GetString(7),
-                ProfileName = reader.IsDBNull(8) ? null : reader.GetString(8),
-                RuntimeType = reader.IsDBNull(9) ? null : reader.GetString(9),
-                SupportsSendInput = !reader.IsDBNull(10) && reader.GetInt32(10) != 0,
-                SupportsResume = !reader.IsDBNull(11) && reader.GetInt32(11) != 0,
-                SupportsSendMessage = !reader.IsDBNull(12) && reader.GetInt32(12) != 0,
-                SupportsFollowupTask = !reader.IsDBNull(13) && reader.GetInt32(13) != 0,
-                SupportsClose = reader.IsDBNull(14) || reader.GetInt32(14) != 0,
-                Status = reader.GetString(15),
-                CreatedAt = DateTimeOffset.Parse(reader.GetString(16)),
-                UpdatedAt = DateTimeOffset.Parse(reader.GetString(17))
+                Status = reader.GetString(8),
+                CreatedAt = DateTimeOffset.Parse(reader.GetString(9)),
+                UpdatedAt = DateTimeOffset.Parse(reader.GetString(10))
             });
         }
 

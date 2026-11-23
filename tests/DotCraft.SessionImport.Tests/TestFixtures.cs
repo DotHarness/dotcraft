@@ -56,13 +56,11 @@ internal static class Scopes
     public static SessionImportScope For(
         string workspaceRoot,
         int maxSessions = 50,
-        TimeSpan? maxAge = null,
-        params string[] externalCliSessionIds) => new()
+        TimeSpan? maxAge = null) => new()
     {
         WorkspaceRoot = workspaceRoot,
         Now = DateTimeOffset.UtcNow,
         MaxAge = maxAge ?? TimeSpan.FromDays(30),
-        MaxSessions = maxSessions,
-        ExternalCliSessionIds = externalCliSessionIds.ToHashSet(StringComparer.OrdinalIgnoreCase)
+        MaxSessions = maxSessions
     };
 }

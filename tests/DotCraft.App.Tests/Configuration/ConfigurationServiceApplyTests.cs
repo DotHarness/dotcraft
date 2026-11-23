@@ -131,8 +131,6 @@ public sealed class ConfigurationServiceApplyTests
             "ProjectDocMaxBytes",
             "Permissions.DefaultApprovalPolicy",
             "PromptSuggestions.Enabled",
-            "SubAgent.DisabledProfiles",
-            "SubAgent.EnableExternalCliSessionResume",
             "SubAgent.MaxConcurrentSubAgents",
             "SubAgent.MaxDepth",
             "SubAgent.Models",
@@ -147,5 +145,35 @@ public sealed class ConfigurationServiceApplyTests
         Assert.All(
             fields.Where(f => f.Reload == ReloadBehavior.SubsystemRestart),
             f => Assert.Contains(f.SubsystemKey, ConfigurationSubsystems.Keys));
+    }
+
+    [Fact]
+    public async Task Write_SubAgentProviderPreferences_PersistsValidEntriesAndRejectsMissingModel()
+    {
+        using var fixture = new ConfigurationServiceFixture();
+        ConfigurationSubsystems.Register(fixture.Service, fixture.Monitor, new NoopThreadAgentRefresh(), skills: null, lsp: null, dreams: null, contextPages: null);
+        var invalidations = 0;
+        fixture.Service.RegisterSubsystemHandler(ConfigurationSubsystems.ThreadAgents, (_, _) =>
+        {
+            invalidations++;
+            return Task.CompletedTask;
+        });
+
+        await fixture.WriteAsync(
+            "SubAgent.ProviderPreferences",
+            """{"openai":{"Model":"gpt-4o-mini","Reasoning":{"Enabled":false,"Effort":"medium","Output":"full"},"Speed":"standard"}}""");
+
+        Assert.Equal("gpt-4o-mini", fixture.Monitor.Current.SubAgent.ProviderPreferences["openai"].Model);
+        Assert.Equal(1, invalidations);
+
+        var ex = await Assert.ThrowsAsync<ConfigWriteException>(() =>
+            fixture.WriteAsync("SubAgent.ProviderPreferences", """{"openai":{"Model":""}}"""));
+        Assert.Contains("SubAgent.ProviderPreferences.openai.Model", ex.Message, StringComparison.Ordinal);
+    }
+
+    private sealed class NoopThreadAgentRefresh : DotCraft.Sessions.IThreadAgentRefreshService
+    {
+        public Task RefreshThreadAgentAsync(string threadId, CancellationToken ct = default) => Task.CompletedTask;
+        public void InvalidateThreadAgents() { }
     }
 }

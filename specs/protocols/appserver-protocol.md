@@ -40,7 +40,7 @@ Serialized shapes are defined by the `DotCraft.Protocol` C# contracts and the ge
 - [22A. Hooks Management Methods](#22a-hooks-management-methods)
 - [23. Channel Management Methods](#23-channel-management-methods)
 - [23A. Agent Profile Management Methods](#23a-agent-profile-management-methods)
-- [24. SubAgent Profile Management Methods](#24-subagent-profile-management-methods)
+- [24. SubAgent Session Methods](#24-subagent-session-methods)
 - [25. Configuration Methods](#25-configuration-methods)
 - [25A. Source Control Methods](#25a-source-control-methods)
 - [25B. File System Methods](#25b-file-system-methods)
@@ -218,7 +218,6 @@ The surface id is the channel of every Turn the connection starts, enqueues, or 
 | `generativeUi` | `generativeUi/state/*` and `generativeUi/state/updated`; reported only when the client advertises it. |
 | `channelManagement` | Workspace channel selection, logs, live configuration options, and setup artifacts (§23). |
 | `agentProfileManagement` | `agent/profiles/*`, including builder drafts and Agent package methods. |
-| `subAgentManagement` | `subagent/profiles/*`, `subagent/settings/update`. |
 | `subAgentSessions` | `subagent/children/list`, `subagent/followupTask`, `subagent/close`, `subagent/board/*`. |
 | `usageTelemetry` | User-level `usage/*` and `profile/insights` queries. Available when the host provides the statistics service, independently of the current workspace's trace collection switch. |
 | `remoteToolHost` | `remoteToolHost/*`. Absent when the workspace has no Remote Tool Host client. |
@@ -279,7 +278,7 @@ The server emits `thread/started` after the response. When any channel in a shar
 - `outputSchema`, `display`, `_meta`, `_meta.ui`, and `exposure` are invalid; interactive result UI uses MCP Apps.
 - `approval` uses the channel-tool approval metadata ([Section 3.2](#32-initialize)); approval is evaluated before dispatch.
 - Dynamic tools are not filtered by Agent Profile tool allow/deny lists; mode policy, approval policy, the owning connection lease, and Thread/Turn authority still apply.
-- A native SubAgent full-history fork snapshots the parent's current declarations and owning connection onto the child before its first sampling, with an independent owner generation. Fresh and bounded forks do not inherit them.
+- A SubAgent full-history fork snapshots the parent's current declarations and owning connection onto the child before its first sampling, with an independent owner generation. Fresh and bounded forks do not inherit them.
 - If the bound connection closes, calls fail with a failed `dynamicToolCall` item until a capable client resumes the thread with replacement `dynamicTools`.
 
 #### 4.1.0.2 Runtime Additional Context
@@ -312,7 +311,7 @@ A request carrying `chat` from a connection without `capabilities.channelAdapter
 | `cwd`, `runtimeWorkspaceRoots` | Sticky working directory and ordered roots. Omitted roots default to cwd; `[]` supplies no roots; a supplied array replaces the list. |
 | `toolProfile`, `useToolProfileOnly` | Named tool profile; when `useToolProfileOnly`, only its tools. |
 | `codeModeExcludedNamespaces` | Tool namespaces kept off Code Mode's nested surface, so their tools stay direct model tools ([Code Mode §4.3](../features/code-mode.md#43-nested-surface-and-declarations)). Matched exactly. Omitted or `[]` excludes none. Set by the starting application for its own tools that wait on the user. |
-| `developerInstructions` | Instructions from the starting application (at most 32768 characters), delivered after role instructions as a thread context item before the first user message. A full-history native SubAgent inherits them; fresh and bounded children do not. Accepted with `agentProfileId`. |
+| `developerInstructions` | Instructions from the starting application (at most 32768 characters), delivered after role instructions as a thread context item before the first user message. A full-history SubAgent inherits them; fresh and bounded children do not. Accepted with `agentProfileId`. |
 | `toolAllowList` / `toolDenyList` | Exact-name lists; deny wins. |
 | `toolPolicy` | `allow`, `deny`, `agentControl`, `allowedAgentControlTools`. Omitted keeps runtime defaults. |
 | `mcpPolicy` | `servers` lists exact server names, each selecting the server with that runtime name or else a plugin server declaring it ([Agent Profiles](../features/agent-profiles.md) §6); `tools.allow`/`tools.deny` match canonical selectors (`name` or `namespace/name`, `*` wildcards), never provider flat names, source ids, or runtime names. |
@@ -566,7 +565,7 @@ Backend selection and history replacement follow [Context Compaction](../archite
 Read what fills a thread's context window. Params `threadId`. Result: `{ breakdown }`, where `breakdown` is `null` until the thread has sampled a model request in this server process (including unknown or unloaded threads).
 
 - `breakdown.contextUsage` is the thread's current `contextUsage` (Section 4.4), so client totals and categories agree.
-- `breakdown.categories[]` is `{ id, tokens, onDemand, items? }`. `id` is a stable key the client localizes: `systemPrompt`, `memoryFiles` (AGENTS.md instructions, workspace bootstrap files, and the memory index in context), `skills`, `subagents`, `builtInTools`, `mcpTools`, `messages`. Categories with zero tokens are omitted. `mcpTools` carries one `{ name, tokens }` item per MCP server; `memoryFiles` carries one item per file, named by its absolute path and estimated from the file's current content.
+- `breakdown.categories[]` is `{ id, tokens, onDemand, items? }`. `id` is a stable key the client localizes: `systemPrompt`, `memoryFiles` (AGENTS.md instructions, workspace bootstrap files, and the memory index in context), `skills`, `builtInTools`, `mcpTools`, `messages`. Categories with zero tokens are omitted. `mcpTools` carries one `{ name, tokens }` item per MCP server; `memoryFiles` carries one item per file, named by its absolute path and estimated from the file's current content.
 - `onDemand = true` marks deferred tools the model can load later; they do not occupy the context window. `builtInTools` and `mcpTools` may each appear once loaded and once on demand.
 - The categories with `onDemand = false` sum to `contextUsage.tokens`: instruction sections and tool schemas are local estimates from the thread's last sampled request, and `messages` is the remainder. When those estimates exceed `contextUsage.tokens`, they are scaled down to fit and `messages` is omitted.
 - Compaction keeps the instruction and tool estimates; only `messages` follows the new `contextUsage` until the next sampled request.
@@ -1285,7 +1284,7 @@ The ACP (Agent Client Protocol) integration lets agent tools use the IDE client'
 
 ### 11.5 Node REPL Runtime
 
-Browser and computer-use tools run through a **server → client** Node REPL backend. Requests go only to the thread-bound client that declared `capabilities.nodeRepl` with `browserUse` or `computerUse`; the client selects a declared backend. A native SubAgent full-history fork snapshots the parent's live Node REPL binding onto the child before its first sampling (fresh and bounded forks do not); evaluations use the child's identity and later parent rebinding does not propagate. The binding is ephemeral and is re-established through thread resume after process recovery.
+Browser and computer-use tools run through a **server → client** Node REPL backend. Requests go only to the thread-bound client that declared `capabilities.nodeRepl` with `browserUse` or `computerUse`; the client selects a declared backend. A SubAgent full-history fork snapshots the parent's live Node REPL binding onto the child before its first sampling (fresh and bounded forks do not); evaluations use the child's identity and later parent rebinding does not propagate. The binding is ephemeral and is re-established through thread resume after process recovery.
 
 #### `ext/nodeRepl/evaluate`
 
@@ -2221,89 +2220,38 @@ Uploads and exports are held for the requesting connection for at most one hour 
 | `-32089` | `AgentProfileSourceUnavailable` | Source unsupported or not readable/writable. |
 | `-32091` | `AgentProfileConflict` | Id conflicts with the frontmatter name or a protected source. |
 
-## 24. SubAgent Profile Management Methods
+## 24. SubAgent Session Methods
 
-### 24.1 Scope
+With `capabilities.subAgentSessions`, SubAgents are ordinary child threads plus a parent/child graph running real child turns.
 
-A server-authoritative read/write path for SubAgent profile configuration. Profiles, enablement, and SubAgent settings are personal: reads report the effective configuration (user layer overlaid by the workspace layer), and mutations write the user layer. Gated by `capabilities.subAgentManagement` (otherwise `-32601`). Successful mutations emit `config/changed` with `source` set to the method name and `regions: ["subagent"]`.
-
-### 24.2 `SubAgentProfileWrite` Wire DTO
-
-`definition` payloads carry the full SubAgent profile definition, mirroring the `SubAgentProfiles.<name>` configuration shape without `name` (which travels in the request envelope): runtime, launch, input/output, resume, token-extraction, output-file, timeout, trust, permission-mapping, and sanitization fields.
-
-### 24.3 `SubAgentProfileEntry` Wire DTO
-
-- `definition`: the effective definition after built-in and configured-override resolution. `builtInDefaults`: present only for built-in profiles.
-- `isBuiltIn`, `isTemplate`, `isDefault`, `enabled`.
-- `hasWorkspaceOverride`: the user layer persists `SubAgentProfiles.<name>`, so `subagent/profiles/remove` can remove it.
-- `diagnostic`: `enabled`, `binaryResolved`, `hiddenFromPrompt` (effective prompt visibility after enablement, templates, runtime registration, binary resolution, and validation), optional `hiddenReason`, `warnings`.
-
-### 24.4 `subagent/profiles/list`
-
-Result `{ defaultName, settings, profiles }`: built-in profiles plus configured custom profiles from either layer.
-
-- `settings.externalCliSessionResumeEnabled`: whether external CLI profiles that support resume may reuse saved external session ids.
-- `settings.providerPreferences`: complete native SubAgent model selections keyed by the parent's provider id; a missing entry inherits the parent thread's complete preference. Each record carries `model`, `reasoning`, `speed`, and an optional `providerId` naming the provider the SubAgent runs on, which defaults to the key.
-
-### 24.5 `subagent/settings/update`
-
-Params: `externalCliSessionResumeEnabled`, `providerPreferences`, or both (at least one required).
-
-- `providerPreferences` replaces the whole user-layer map (`{}` clears it). Each record is normalized as a unit against its target provider; an unconfigured `providerId` or an invalid model, reasoning, or speed rejects the request without writing.
-- The resume toggle affects only profiles whose effective definition supports resume. Changing these settings never deletes saved external session ids.
-
-### 24.6 `subagent/profiles/setEnabled`
-
-Params `name`, `enabled`. Returns the updated `SubAgentProfileEntry`. `native` is protected and cannot be disabled.
-
-### 24.7 `subagent/profiles/upsert`
-
-Params `name`, `definition`. A built-in name creates or replaces a user-layer override, and any other name creates or replaces a custom user-layer profile. The user layer persists the full expanded definition.
-
-### 24.8 `subagent/profiles/remove`
-
-Params `name`. Result `{ removed }`. A built-in name removes only its user-layer override, restoring defaults (failing when there is none), and a custom name removes the user-layer profile. A profile defined only in the workspace layer is not removable.
-
-### 24.9 Error Codes
-
-| Code | Constant | When |
-|------|----------|------|
-| `-32083` | `SubAgentProfileNotFound` | Profile or user-layer override missing. |
-| `-32084` | `SubAgentProfileValidationFailed` | Invalid or incompatible with runtime rules. |
-| `-32085` | `SubAgentProfileProtected` | Targets a protected profile such as `native`. |
-
-### 24.10 Session-Backed SubAgent Child Threads
-
-With `capabilities.subAgentSessions`, profile-backed SubAgents are ordinary child threads plus a parent/child graph. Native profiles run real child turns; external CLI profiles persist synthetic child turns with the prompt, final output or error, and token metadata when available.
-
-**Agent paths**: control targets use stable agent paths. The root is `/root`; each child appends its `taskName` (lowercase ASCII letters, digits, underscores; `root`, `.`, `..` reserved), for example `/root/researcher`. Relative targets resolve from the caller's path; absolute targets start with `/root`. `agentNickname` is display metadata; a child's `displayName` starts from the nickname or task name, and renaming never changes the path. `agentRole` selects the child's role (tool policy, Agent control exposure, prompt profile, instructions); external CLI runtimes receive role instructions but tool filtering cannot be enforced inside them.
+**Agent paths**: control targets use stable agent paths. The root is `/root`; each child appends its `taskName` (lowercase ASCII letters, digits, underscores; `root`, `.`, `..` reserved), for example `/root/researcher`. Relative targets resolve from the caller's path; absolute targets start with `/root`. `agentNickname` is display metadata; a child's `displayName` starts from the nickname or task name, and renaming never changes the path. `agentRole` selects the child's role (tool policy, Agent control exposure, instructions).
 
 **Lifecycle**: `thread/list` hides children unless `includeSubAgents`. Parent archive and delete apply recursively; parent unarchive restores only descendants whose edge is still open; direct child archive or delete is invalid.
 
-#### `subagent/children/list`
+### 24.1 `subagent/children/list`
 
 Params `parentThreadId`, `includeClosed` (default `false`), `includeThreads`. Result `{ data: [{ edge, thread? }] }`.
 
-- `edge` carries parent and child ids, `parentTurnId`, `depth`, `agentPath`, `taskName`, `agentNickname`, `agentRole`, `profileName`, `runtimeType`, the `supportsSendMessage`/`supportsFollowupTask`/`supportsClose` flags, and `status`. `status: "open"` means the relationship is available for path-based control, not that the child is running. Edges without `agentPath` cannot be path targets.
+- `edge` carries parent and child ids, `parentTurnId`, `depth`, `agentPath`, `taskName`, `agentNickname`, `agentRole`, and `status`. `status: "open"` means the relationship is available for path-based control, not that the child is running. Edges without `agentPath` cannot be path targets.
 - With `includeThreads`, `thread` is the `thread/read` header, optionally with a `runtime` snapshot; clients use `thread.runtime.running` for activity and fetch bounded history only when expanding a child.
 - A child's working size is `thread.contextUsage.tokens`, not cumulative billing.
 - Closed edges are returned only with `includeClosed` (for audit or settings surfaces); background-agent widgets keep the default so closed agents disappear.
 
-`subagent/followupTask` and `subagent/close` return a `SubAgentControlResult`: resolved `agentPath`, `taskName`, `status` (for example `running`, `queued`, `guidancePending`, `closed`), optional `message`, display and profile fields, and the three `supports*` flags. Internal child thread ids and resume flags are not serialized.
+`subagent/followupTask` and `subagent/close` return a `SubAgentControlResult`: resolved `agentPath`, `taskName`, `status` (for example `running`, `queued`, `guidancePending`, `closed`), optional `message`, and display/role fields. Internal child thread ids are not serialized.
 
 - Delivered mailbox input is persisted as a `userMessage` with `deliveryMode = "subagentMailbox"` and `triggerKind = "subagentMailbox"`; clients keep it for history but render it neither as a parent user bubble nor as a child reply. Mailbox input that wakes an idle agent becomes its Turn's input with `deliveryMode = "queued"`. When every message has one sender, `triggerRefId` is the sender's agent path and `triggerLabel` its nickname. Both are absent for messages from several senders.
 - Mailbox delivery is serialized per target path, so sampling and follow-up tasks never consume the same entry concurrently.
 - When a path-addressable child Turn ends, the direct parent receives a task notification with `triggerKind = "subagent"`, `triggerRefId` = child path, and `triggerStatus` = child Turn status ([Background Tasks](../architecture/background-tasks.md) §5). A running child closed through `subagent/close` is reported as stopped by the user. Child listing never exposes child final text.
 
-#### `subagent/followupTask`
+### 24.2 `subagent/followupTask`
 
-Params `parentThreadId`, `target`, `message`, `deliveryMode` (`queue` default, or `steer`). An idle target starts a new child turn regardless of mode. With an active turn, `queue` appends to the target's FIFO queue and `steer` promotes the task into current-Turn guidance for a running native SubAgent; running external SubAgents reject `steer`. Pending mailbox messages are delivered with the task. The input carries `triggerKind = "subagentFollowupTask"`, `triggerLabel` = target display label, and `triggerRefId` = target path.
+Params `parentThreadId`, `target`, `message`, `deliveryMode` (`queue` default, or `steer`). An idle target starts a new child turn regardless of mode. With an active turn, `queue` appends to the target's FIFO queue and `steer` promotes the task into current-Turn guidance for a running SubAgent. Pending mailbox messages are delivered with the task. The input carries `triggerKind = "subagentFollowupTask"`, `triggerLabel` = target display label, and `triggerRefId` = target path.
 
-#### `subagent/close`
+### 24.3 `subagent/close`
 
 Params `parentThreadId`, `target`. Rejects `/root` and self-targets, cancels an active child turn the server still owns, marks the edge closed, and archives the child subtree. Default child listing no longer returns it.
 
-#### `subagent/board/topics/list`
+### 24.4 `subagent/board/topics/list`
 
 Params `threadId`, `channelName`, `cursor`, `limit` (default 50, maximum 100). Result `{ channels, data, nextCursor }` for the shared discussion board of `threadId`'s root tree ([SubAgents](../features/subagents.md) §8.1); any thread in the tree names the same board.
 
@@ -2311,7 +2259,7 @@ Params `threadId`, `channelName`, `cursor`, `limit` (default 50, maximum 100). R
 - `data` lists topics, filtered by `channelName` when given, newest activity first: `topicId`, `channelName`, `rootPost`, `replyCount`, and `lastActivityAt`. `rootPost.text` is the topic's opening post cut to 500 characters.
 - A tree whose root is ephemeral, has no board, or has a deleted board returns empty lists. Reading never creates a board, subscribes, notifies, or changes board state.
 
-#### `subagent/board/topic/read`
+### 24.5 `subagent/board/topic/read`
 
 Params `threadId`, `topicId`. Result `{ topic, posts, hasMore }`: `topic` has the list fields, or is `null` when the topic is not on the tree's board; `posts` holds the opening post and its replies, oldest first, up to 500 posts, with `hasMore` set when more exist.
 
@@ -2601,7 +2549,7 @@ Desktop's Personal Usage and Profile use one local statistics connection indepen
 
 #### Cost
 
-A fact's cost is in USD and covers the Turn's own model requests. A request uses the amount its provider reports when one exists (for example OpenRouter); otherwise it is estimated from the merged model catalog's price for the Turn's model (`models.json` `pricing`, overridable in global and workspace `.craft/models.json`): fresh input, cache-read, cache-write, and output tokens at their per-million rates, with cache rates falling back to the input rate. A Turn whose model has no price and whose provider reported no amount has no cost. Tokens reported by external CLI SubAgents are not priced. Catalog estimates apply the provider-owned service-tier rules in [Model options](../features/model-options.md#43-cost-estimation) per request. Provider-reported amounts, including zero, are never multiplied. Other provider tiers, context tiers, discounts, and subscriptions remain outside catalog estimates.
+A fact's cost is in USD and covers the Turn's own model requests. A request uses the amount its provider reports when one exists (for example OpenRouter); otherwise it is estimated from the merged model catalog's price for the Turn's model (`models.json` `pricing`, overridable in global and workspace `.craft/models.json`): fresh input, cache-read, cache-write, and output tokens at their per-million rates, with cache rates falling back to the input rate. A Turn whose model has no price and whose provider reported no amount has no cost. Catalog estimates apply the provider-owned service-tier rules in [Model options](../features/model-options.md#43-cost-estimation) per request. Provider-reported amounts, including zero, are never multiplied. Other provider tiers, context tiers, discounts, and subscriptions remain outside catalog estimates.
 
 #### Date ranges
 

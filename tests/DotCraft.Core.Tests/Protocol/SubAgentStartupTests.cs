@@ -137,7 +137,7 @@ public sealed class SubAgentStartupTests : IDisposable
                     : new IOException("journal unavailable"));
             },
             StartupFailed = (_, _) => { cleanupCalled = true; return Task.CompletedTask; }
-        }, waitForCompletion, null, CancellationToken.None);
+        }, waitForCompletion, CancellationToken.None);
 
         Assert.Equal(observedChildId, result.ChildThreadId);
         Assert.Equal(waitForCompletion ? "completed" : "running", result.Status);
@@ -167,37 +167,10 @@ public sealed class SubAgentStartupTests : IDisposable
                 return Task.CompletedTask;
             },
             StartupFailed = (_, _) => { cleanupCalled = true; return Task.CompletedTask; }
-        }, waitForCompletion, null, cancellation.Token));
+        }, waitForCompletion, cancellation.Token));
 
         Assert.NotNull(await _store.LoadThreadAsync(childId!));
         Assert.False(cleanupCalled);
-    }
-
-    [Fact]
-    public async Task ExternalSyntheticPersistenceFailure_DoesNotStartRuntimeOrRetainChild()
-    {
-        var context = await ContextAsync();
-        var runtime = new ExternalRuntime();
-        var coordinator = Coordinator(runtime);
-        _service.SyntheticStartHandler = (_, _) => throw new IOException("synthetic persistence");
-        await Assert.ThrowsAsync<IOException>(() => SubAgentSessionControl.SpawnAgentAsync(context,
-            new() { AgentPrompt = "work", TaskName = "worker", ProfileName = "external" }, true, coordinator, CancellationToken.None));
-        Assert.False(runtime.Started);
-        Assert.Single(await _store.LoadIndexAsync());
-        Assert.Empty(await _service.ListSubAgentChildrenAsync(context.ParentThread.Id, includeClosed: true));
-    }
-
-    [Fact]
-    public async Task ExternalRuntimeFailure_AfterSyntheticAdmissionRetainsHistory()
-    {
-        var context = await ContextAsync();
-        var runtime = new ExternalRuntime();
-        var result = await SubAgentSessionControl.SpawnAgentAsync(context,
-            new() { AgentPrompt = "work", TaskName = "worker", ProfileName = "external" }, true, Coordinator(runtime), CancellationToken.None);
-        Assert.Equal("failed", result.Status);
-        Assert.True(runtime.Started);
-        var child = await _store.LoadThreadAsync(result.ChildThreadId);
-        Assert.Equal(TurnStatus.Failed, Assert.Single(child!.Turns).Status);
     }
 
     private async Task<SubAgentSessionContext> ContextAsync()
@@ -207,27 +180,12 @@ public sealed class SubAgentStartupTests : IDisposable
     }
 
     private static Task<SubAgentControlResult> SpawnAsync(SubAgentSessionContext context, SubAgentSpawnOptions options, CancellationToken ct = default) =>
-        SubAgentSessionControl.SpawnAgentAsync(context, options, true, null, ct);
+        SubAgentSessionControl.SpawnAgentAsync(context, options, true, ct);
 
     private static async IAsyncEnumerable<SessionEvent> FailAfterAdmission(string id, [EnumeratorCancellation] CancellationToken ct)
     {
         yield return new() { ThreadId = id, EventType = SessionEventType.TurnStarted };
         await Task.Yield();
         throw new IOException("after admission");
-    }
-
-    private SubAgentCoordinator Coordinator(ExternalRuntime runtime) => new(_directory, [runtime],
-        [new SubAgentProfile { Name = "external", Runtime = CliOneshotRuntime.RuntimeTypeName, WorkingDirectoryMode = "workspace", Bin = "test", InputMode = "arg", OutputFormat = "text" }]);
-
-    private sealed class ExternalRuntime : ISubAgentRuntime
-    {
-        public string RuntimeType => CliOneshotRuntime.RuntimeTypeName;
-        public bool Started { get; private set; }
-        public Task<SubAgentSessionHandle> CreateSessionAsync(SubAgentProfile profile, SubAgentLaunchContext context, CancellationToken cancellationToken) =>
-            Task.FromResult(new SubAgentSessionHandle(RuntimeType, profile.Name));
-        public Task<DotCraft.Agents.SubAgentRunResult> RunAsync(SubAgentSessionHandle session, SubAgentTaskRequest request, ISubAgentEventSink sink, CancellationToken cancellationToken)
-        { Started = true; throw new IOException("runtime failed"); }
-        public Task CancelAsync(SubAgentSessionHandle session, CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task DisposeSessionAsync(SubAgentSessionHandle session, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 }

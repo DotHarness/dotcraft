@@ -77,7 +77,6 @@ internal sealed class CoreAppServerTestHarness : IDisposable
         TraceStore? traceStore = null,
         IReadOnlyList<string>? builtInPluginSourceRoots = null,
         WireRuntimeAdditionalContextProvider? wireRuntimeAdditionalContextProvider = null,
-        Func<SessionThread, SubAgentCoordinator?>? subAgentCoordinatorFactory = null,
         HookRunner? hookRunner = null,
         IReadOnlyList<IThreadOriginPresentationProvider>? threadOriginPresentationProviders = null,
         Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null,
@@ -152,7 +151,6 @@ internal sealed class CoreAppServerTestHarness : IDisposable
                 TraceStore = traceStore,
                 BuiltInPluginSourceRoots = builtInPluginSourceRoots,
                 WireRuntimeAdditionalContextProvider = wireRuntimeAdditionalContextProvider,
-                SubAgentCoordinatorFactory = subAgentCoordinatorFactory,
                 HookRunner = hookRunner,
                 ChannelStatusProvider = channelStatusProvider,
             });

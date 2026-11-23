@@ -3,9 +3,19 @@ import {
   readModelPreference,
   type ModelPreference
 } from '../../../../../shared/modelPreference'
-import type { SubAgentModelPreference as ContractSubAgentModelPreference } from '@dotcraft/sdk/contracts'
 import type { ProviderInfoWire } from '../../providerInfo'
 import { providerUsable } from '../../providers/providerDraft'
+
+export interface SubAgentModelPreferenceConfig {
+  ProviderId?: string
+  Model: string
+  Reasoning: {
+    Enabled: boolean
+    Effort: ModelPreference['reasoning']['effort']
+    Output: ModelPreference['reasoning']['output']
+  }
+  Speed: ModelPreference['speed']
+}
 
 export const MAX_SUBAGENT_MODEL_CHOICES = 8
 
@@ -91,11 +101,19 @@ export function setSubAgentSelection(
   return result
 }
 
-export function toContractSubAgentSelections(selections: SubAgentSelections): Record<string, ContractSubAgentModelPreference> {
+export function toSubAgentSelectionsConfig(selections: SubAgentSelections): Record<string, SubAgentModelPreferenceConfig> {
   return Object.fromEntries(Object.entries(selections).map(([key, selection]) => {
     const { model, reasoning, speed } = selection.preference
-    const value: ContractSubAgentModelPreference = { model, reasoning: { ...reasoning }, speed }
-    if (!sameProvider(key, selection.providerId)) value.providerId = selection.providerId
+    const value: SubAgentModelPreferenceConfig = {
+      Model: model,
+      Reasoning: {
+        Enabled: reasoning.enabled,
+        Effort: reasoning.effort,
+        Output: reasoning.output
+      },
+      Speed: speed
+    }
+    if (!sameProvider(key, selection.providerId)) value.ProviderId = selection.providerId
     return [key, value]
   }))
 }

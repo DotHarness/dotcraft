@@ -16,9 +16,6 @@ public sealed record AgentPromptInputs
     /// <summary>Gets the MCP servers whose tools are discovered on demand, or <see langword="null"/> when deferred loading is inactive.</summary>
     public IReadOnlyList<string>? DeferredMcpServerNames { get; init; }
 
-    /// <summary>Gets the pre-rendered SubAgent profile section, when SubAgents are exposed.</summary>
-    public string? SubAgentProfilesSection { get; init; }
-
     /// <summary>Gets the thread's skill policy, or <see langword="null"/> when every enabled skill is available.</summary>
     public DotCraft.Sessions.ThreadSkillsPolicy? SkillsPolicy { get; init; }
 }

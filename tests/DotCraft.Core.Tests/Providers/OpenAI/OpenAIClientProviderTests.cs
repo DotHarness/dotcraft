@@ -489,14 +489,13 @@ public sealed partial class OpenAIClientProviderTests : IDisposable
     }
 
     [Theory]
-    [InlineData("root", null, null, null, "user")]
-    [InlineData("subagent", "thread-root", null, "native", "subagent")]
-    [InlineData("fork", null, "thread-root", null, "user")]
+    [InlineData("root", null, null, "user")]
+    [InlineData("subagent", "thread-root", null, "subagent")]
+    [InlineData("fork", null, "thread-root", "user")]
     public async Task ChatGptOAuthResponsesWireIdentityUsesCurrentThreadAndPreservesLineageMetadata(
         string scenario,
         string? parentThreadId,
         string? forkedFromThreadId,
-        string? runtimeType,
         string threadSource)
     {
         const string installationId = "11111111-1111-4111-8111-111111111111";
@@ -518,9 +517,7 @@ public sealed partial class OpenAIClientProviderTests : IDisposable
                     {
                         ParentThreadId = parentThreadId!,
                         RootThreadId = "thread-root",
-                        RuntimeType = runtimeType,
-                        AgentRole = "worker",
-                        ProfileName = "default"
+                        AgentRole = "worker"
                     }),
                     _ => ThreadSource.User()
                 },
@@ -545,9 +542,7 @@ public sealed partial class OpenAIClientProviderTests : IDisposable
                 context.ConversationIdentity.SubagentKind);
             if (scenario == "subagent")
             {
-                Assert.Equal(runtimeType, thread.Source.SubAgent?.RuntimeType);
                 Assert.Equal("worker", thread.Source.SubAgent?.AgentRole);
-                Assert.Equal("default", thread.Source.SubAgent?.ProfileName);
             }
             using var codexScope = OpenAIResponsesCodexRuntimeScope.Set(context);
 
@@ -560,11 +555,12 @@ public sealed partial class OpenAIClientProviderTests : IDisposable
             Assert.Equal(expectedSessionId, request.Headers[OpenAIAuthConstants.SessionIdHeader]);
             Assert.Equal(currentThreadId, request.Headers[OpenAIAuthConstants.ThreadIdHeader]);
             Assert.Equal(currentThreadId, request.Headers[OpenAIAuthConstants.ClientRequestIdHeader]);
+            var isSubAgent = scenario == "subagent";
             Assert.Equal(parentThreadId != null, request.Headers.ContainsKey(OpenAIAuthConstants.ParentThreadIdHeader));
-            Assert.Equal(runtimeType != null, request.Headers.ContainsKey(OpenAIAuthConstants.SubAgentHeader));
+            Assert.Equal(isSubAgent, request.Headers.ContainsKey(OpenAIAuthConstants.SubAgentHeader));
             if (parentThreadId != null)
                 Assert.Equal(parentThreadId, request.Headers[OpenAIAuthConstants.ParentThreadIdHeader]);
-            if (runtimeType != null)
+            if (isSubAgent)
                 Assert.Equal("collab_spawn", request.Headers[OpenAIAuthConstants.SubAgentHeader]);
 
             using var document = JsonDocument.Parse(request.Body);
@@ -577,8 +573,8 @@ public sealed partial class OpenAIClientProviderTests : IDisposable
             Assert.Equal(turnId, metadata.GetProperty("turn_id").GetString());
             Assert.Equal(windowId, metadata.GetProperty(OpenAIAuthConstants.WindowIdHeader).GetString());
             Assert.Equal(parentThreadId != null, metadata.TryGetProperty(OpenAIAuthConstants.ParentThreadIdHeader, out _));
-            Assert.Equal(runtimeType != null, metadata.TryGetProperty(OpenAIAuthConstants.SubAgentHeader, out _));
-            if (runtimeType != null)
+            Assert.Equal(isSubAgent, metadata.TryGetProperty(OpenAIAuthConstants.SubAgentHeader, out _));
+            if (isSubAgent)
                 Assert.Equal("collab_spawn", metadata.GetProperty(OpenAIAuthConstants.SubAgentHeader).GetString());
 
             using var turnMetadata = JsonDocument.Parse(
@@ -589,12 +585,12 @@ public sealed partial class OpenAIClientProviderTests : IDisposable
             Assert.Equal(threadSource, turnMetadataRoot.GetProperty("thread_source").GetString());
             Assert.Equal(parentThreadId != null, turnMetadataRoot.TryGetProperty("parent_thread_id", out _));
             Assert.Equal(forkedFromThreadId != null, turnMetadataRoot.TryGetProperty("forked_from_thread_id", out _));
-            Assert.Equal(runtimeType != null, turnMetadataRoot.TryGetProperty("subagent_kind", out _));
+            Assert.Equal(isSubAgent, turnMetadataRoot.TryGetProperty("subagent_kind", out _));
             if (parentThreadId != null)
                 Assert.Equal(parentThreadId, turnMetadataRoot.GetProperty("parent_thread_id").GetString());
             if (forkedFromThreadId != null)
                 Assert.Equal(forkedFromThreadId, turnMetadataRoot.GetProperty("forked_from_thread_id").GetString());
-            if (runtimeType != null)
+            if (isSubAgent)
                 Assert.Equal("thread_spawn", turnMetadataRoot.GetProperty("subagent_kind").GetString());
         }
         finally

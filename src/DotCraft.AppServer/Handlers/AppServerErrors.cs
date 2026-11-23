@@ -104,9 +104,6 @@ public static class AppServerErrors
     public const int ChannelNotFoundCode = -32080;
     public const int ChannelValidationFailedCode = -32081;
     public const int ChannelNameConflictCode = -32082;
-    public const int SubAgentProfileNotFoundCode = -32083;
-    public const int SubAgentProfileValidationFailedCode = -32084;
-    public const int SubAgentProfileProtectedCode = -32085;
     public const int AgentProfileNotFoundCode = -32086;
     public const int AgentProfileValidationFailedCode = -32087;
     public const int AgentProfileProtectedCode = -32088;
@@ -407,15 +404,6 @@ public static class AppServerErrors
 
     public static AppServerException ChannelNameConflict(string detail) =>
         Create(ChannelNameConflictCode, "ChannelNameConflict", "errors.channelNameConflict", "Channel name conflict", detail: detail);
-
-    public static AppServerException SubAgentProfileNotFound(string name) =>
-        Create(SubAgentProfileNotFoundCode, "SubAgentProfileNotFound", "errors.subAgentProfileNotFound", $"SubAgent profile not found: {name}", new NamedResourceErrorParams(name));
-
-    public static AppServerException SubAgentProfileValidationFailed(string detail) =>
-        Create(SubAgentProfileValidationFailedCode, "SubAgentProfileValidationFailed", "errors.subAgentProfileValidationFailed", "SubAgent profile validation failed", detail: detail);
-
-    public static AppServerException SubAgentProfileProtected(string detail) =>
-        Create(SubAgentProfileProtectedCode, "SubAgentProfileProtected", "errors.subAgentProfileProtected", "SubAgent profile is protected", detail: detail);
 
     public static AppServerException AgentProfileNotFound(string detail) =>
         Create(AgentProfileNotFoundCode, "AgentProfileNotFound", "errors.agentProfileNotFound", "Agent profile not found", detail: detail);

@@ -1,6 +1,4 @@
-using System.Text;
 using System.Text.Json;
-using DotCraft.Configuration;
 
 namespace DotCraft.Sessions;
 
@@ -18,40 +16,6 @@ public static partial class SubAgentSessionControl
         var selected = SelectForkTurns(source, forkTurns, childThread.Id, now);
         if (selected.Count > 0)
             childThread.Turns.AddRange(selected);
-    }
-
-    private static async Task<string> BuildExternalForkContextAsync(
-        ISessionService sessionService,
-        SessionThread parentThread,
-        string forkTurns,
-        CancellationToken ct)
-    {
-        var source = await ReadForkSourceAsync(sessionService, parentThread, forkTurns, ct);
-        var selected = SelectForkTurns(source, forkTurns, parentThread.Id, DateTimeOffset.UtcNow);
-        return RenderTurnsAsPromptContext(selected);
-    }
-
-    private static async Task<string> BuildExternalThreadContextPromptAsync(
-        ISessionService sessionService,
-        SessionThread childThread,
-        string message,
-        CancellationToken ct)
-    {
-        var history = await ReadForkSourceAsync(sessionService, childThread, "all", ct);
-        var context = RenderTurnsAsPromptContext(history.Turns.Where(turn => !IsActiveTurn(turn)).ToArray());
-        if (string.IsNullOrWhiteSpace(context))
-            return message;
-
-        return
-$$"""
-## Existing Thread Context
-
-{{context}}
-
-## Task
-
-{{message}}
-""";
     }
 
     private static async Task<SessionThread> ReadForkSourceAsync(
@@ -147,31 +111,6 @@ $$"""
     private static bool IsActiveTurn(SessionTurn turn) =>
         turn.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput;
 
-    private static string RenderTurnsAsPromptContext(IReadOnlyList<SessionTurn> turns)
-    {
-        var sb = new StringBuilder();
-        foreach (var turn in turns)
-        {
-            var user = turn.Input?.AsUserMessage?.Text;
-            if (!string.IsNullOrWhiteSpace(user))
-            {
-                sb.AppendLine("User:");
-                sb.AppendLine(user.Trim());
-                sb.AppendLine();
-            }
-
-            var agentText = ExtractFinalAgentText(turn);
-            if (!string.IsNullOrWhiteSpace(agentText))
-            {
-                sb.AppendLine("Agent:");
-                sb.AppendLine(agentText.Trim());
-                sb.AppendLine();
-            }
-        }
-
-        return sb.ToString().Trim();
-    }
-
     private static string NormalizeForkTurns(string? forkTurns)
     {
         var normalized = NormalizeOptional(forkTurns) ?? "all";
@@ -183,41 +122,5 @@ $$"""
             return count.ToString();
 
         throw new ArgumentException("'forkTurns' must be 'all', 'none', or a positive integer string.", nameof(forkTurns));
-    }
-
-    private static string BuildExternalRuntimePrompt(
-        string prompt,
-        SubAgentRoleConfig role,
-        string forkContext)
-    {
-        var rolePrompt = BuildExternalRolePrompt(prompt, role);
-        if (string.IsNullOrWhiteSpace(forkContext))
-            return rolePrompt;
-
-        return
-$$"""
-## Parent Context
-
-{{forkContext}}
-
-{{rolePrompt}}
-""";
-    }
-
-    private static string BuildExternalRolePrompt(string prompt, SubAgentRoleConfig role)
-    {
-        if (string.IsNullOrWhiteSpace(role.Instructions))
-            return prompt;
-
-        return
-$$"""
-## SubAgent Role: {{role.Name}}
-
-{{role.Instructions.Trim()}}
-
-## Task
-
-{{prompt}}
-""";
     }
 }

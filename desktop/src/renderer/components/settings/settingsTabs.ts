@@ -46,7 +46,6 @@ export function isPersonalizationAvailable(capabilities: ServerCapabilities | nu
   return capabilities?.workspaceConfigManagement === true
     || capabilities?.memoryManagement === true
     || capabilities?.dreams === true
-    || capabilities?.subAgentManagement === true
 }
 
 export function buildSettingsTabs(t: Translate, options: SettingsTabOptions): SettingsTabDefinition[] {

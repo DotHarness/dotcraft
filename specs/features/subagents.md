@@ -8,7 +8,7 @@
 | **Parent Specs** | [Session Core](../architecture/session-core.md), [Prompt Composition](../architecture/prompt-composition.md), [Prompt Cache](../architecture/prompt-cache.md), [Tool Architecture](../architecture/tools-architecture.md), [Background Tasks](../architecture/background-tasks.md) |
 | **Related Specs** | [Agent Profiles](agent-profiles.md) |
 
-Purpose: define the shared SubAgent child-thread, runtime, context, model-resolution, policy,
+Purpose: define the shared SubAgent child-thread, context, model-resolution, policy,
 communication, and lifecycle contracts owned by Session Core.
 
 ## 1. Goals and boundaries
@@ -17,13 +17,13 @@ SubAgents delegate bounded tasks from one server-managed thread to child threads
 DotCraft's session, policy, persistence, and ownership rules. This specification is authoritative for
 the core behavior shared by model tools, AppServer controls, and module-managed callers.
 
-It covers runtime selection; child identity, ancestry, depth, and residency; context creation;
-role, profile, model, permission, and tool resolution; task dispatch, communication, continuation,
+It covers child identity, ancestry, depth, and residency; context creation;
+role, model, permission, and tool resolution; task dispatch, communication, continuation,
 cancellation, and closure; persistence, recovery, progress, and parent ownership; and Desktop
 identity resolution and activity state.
 
-Feature-specific orchestration, module-owned task graphs, client layout, external runtime command
-lines, and wire DTOs belong to their owning specifications.
+Feature-specific orchestration, module-owned task graphs, client layout, and wire DTOs belong to their
+owning specifications.
 
 ## 2. Core concepts
 
@@ -32,23 +32,18 @@ lines, and wire DTOs belong to their owning specifications.
 | **Child thread** | A normal session thread whose source is `subagent` and whose lifecycle is owned by its parent thread. |
 | **Agent path** | An immutable address rooted at `/root`, formed from validated `taskName` path segments. |
 | **Role** | A DotCraft policy selector for instructions, mode, model default, tools, shell access, and recursive Agent control. |
-| **Profile** | A runtime selector and runtime-specific launch configuration. Omission selects the protected native profile. |
-| **Runtime** | The execution engine selected by the profile: native or external CLI. |
-| **Spawn edge** | Durable parent-child metadata containing ancestry, path, role, profile, runtime, capabilities, and open/closed state. |
+| **Spawn edge** | Durable parent-child metadata containing ancestry, path, role, and open/closed state. |
 | **Fork mode** | The `forkTurns` selection that determines which parent history and runtime bindings enter the child. |
 | **Model selection** | A provider id plus a complete model preference: model, reasoning, and speed. |
 | **Default preference** | The model selection, keyed by the parent's provider, applied before role and invocation-specific overrides. |
-| **Model choices** | The configured model selections a caller may name for fresh and bounded native children. |
-| **Invocation override** | A caller-authorized model or reasoning change that applies only to one fresh or bounded native child. |
+| **Model choices** | The configured model selections a caller may name for fresh and bounded children. |
+| **Invocation override** | A caller-authorized model or reasoning change that applies only to one fresh or bounded child. |
 
 `taskName` is the stable path identity and contains only lowercase ASCII letters, digits, or
 underscores. `root`, `.` and `..` are reserved. Absolute addresses begin with `/root`; relative
 addresses append to the current path. Siblings under one parent cannot reuse a `taskName`, including
 after closure. `agentNickname` and the thread display name are presentation metadata and do not
 change routing.
-
-`agentRole` and `profile` are independent: a role controls DotCraft behavior; a profile selects the
-runtime.
 
 ### Desktop identity and activity
 
@@ -86,8 +81,8 @@ description uses the existing generic subagent origin instead of claiming comple
 
 Session Core creates a SubAgent in this order:
 
-1. Validate the task, path, `forkTurns`, working directory, requested role, and requested profile.
-2. Resolve the role, profile, runtime, advertised capabilities, parent/root ancestry, and child depth.
+1. Validate the task, path, `forkTurns`, working directory, and requested role.
+2. Resolve the role, parent/root ancestry, and child depth.
 3. Enforce the configured depth and open-child residency limits.
 4. Resolve the child thread configuration (sections 6 and 7).
 5. Create the provisional child thread and run its preparation callback.
@@ -103,8 +98,7 @@ correlate it as soon as creation is persisted.
 ### Startup admission and compensation
 
 Spawn returns success only after context and spawn-edge persistence and acceptance of the initial
-input. Native admission is the persisted `TurnStarted` boundary; external admission is persistence
-of the initial synthetic Turn. A child-started observer runs after admission; its failures are
+input, confirmed at the persisted `TurnStarted` boundary. A child-started observer runs after admission; its failures are
 diagnostic and do not fail an admitted spawn. Caller cancellation still propagates.
 
 An exception or cancellation before admission rolls back the provisional child: cleanup settles
@@ -125,35 +119,22 @@ permits Agent control.
 spawning, Session Core may close the oldest idle child (including one stopped with `TaskStop`) to
 make room. It never evicts a running child; spawning fails when every resident child is active.
 
-## 4. Runtime paths
+## 4. Child execution
 
-### 4.1 Native runtime
-
-A native child uses the normal Session Core Turn, Item, persistence, model, tool, approval, and resume
-pipeline. It shares the root thread's cache identity while retaining its own configuration, history,
-role context item, path, and lifecycle. Native children accept new tasks when idle and current-Turn
+A child thread uses the normal Session Core Turn, Item, persistence, model, tool, approval, and
+resume pipeline. It shares the root thread's cache identity while retaining its own configuration,
+history, role context item, path, and lifecycle. Children accept new tasks when idle and current-Turn
 steering while running.
-
-### 4.2 External runtime
-
-An external child is a Session Core child thread whose profile delegates execution to a short-lived
-external process. The profile declares whether the runtime supports later input, session resume,
-streaming, and closure. Session Core persists synthetic Turns and runtime session metadata when the
-adapter provides them.
-
-External runtimes do not consume native model preferences or overrides; their model and permission
-semantics belong to the runtime and profile. Running external children do not support steering;
-callers queue a later task.
 
 ## 5. Context and fork modes
 
-| `forkTurns` | Context behavior | Native model behavior | Runtime binding behavior |
-|-------------|------------------|-----------------------|--------------------------|
+| `forkTurns` | Context behavior | Model behavior | Runtime binding behavior |
+|-------------|------------------|----------------|--------------------------|
 | `all` or omitted | Copies the parent's provider-visible history unchanged. | Inherits the parent's complete preference. Overrides are disabled. | Snapshots eligible direct-parent tool and client bindings. |
 | `none` | Starts without parent conversation Turns. | Resolves a fresh-child selection, possibly on another provider, and permits authorized overrides. | Does not inherit parent runtime bindings. |
 | Positive integer | Copies the selected trailing stable Turns and active user input. | Resolves a bounded-child selection, possibly on another provider, and permits authorized overrides. | Does not inherit parent runtime bindings. |
 
-A native full-history fork keeps the parent's prompt-cache prefix, so its first request reads the
+A full-history fork keeps the parent's prompt-cache prefix, so its first request reads the
 parent's cached history instead of paying for it again. Before the first child sampling, it copies
 the input of the parent request that issued the spawn, in order and unchanged, including assistant,
 reasoning, tool, and thread context items such as the parent's role and developer instructions. When that request is unavailable, it copies the parent's stored model
@@ -170,8 +151,7 @@ changing the prefix.
 
 Fresh and bounded children rebuild their model context from the child configuration, establish an
 independent prefix, and do not inherit client-owned dynamic tools, browser transport, or other
-full-history-only bindings. External runtimes receive the selected parent Turns as rendered prompt
-context.
+full-history-only bindings.
 
 The `SpawnAgent` declaration is static, so model choices never change the tool schema. Session Core
 resolves a thread's model choices each time it builds the thread's Agent, and the `subagent_models`
@@ -198,7 +178,7 @@ model id containing `/` stays unambiguous. A provider whose catalog fails to loa
 entries without reasoning efforts. When no overrides are listed, `SpawnAgent` stays available: omitted
 override fields use the default preference, and explicit overrides fail.
 
-## 6. Native model resolution
+## 6. Model resolution
 
 Model resolution operates on a complete model selection. A full-history child always runs on the
 parent's provider; a fresh or bounded child may run on any configured provider.
@@ -238,7 +218,7 @@ as a [protocol switch](../architecture/model-runtime.md#9-lifecycle-contract) do
 reasoning payloads from the parent do not carry over.
 
 `SpawnAgent` accepts optional `model` and `reasoningEffort` arguments, valid only for fresh and bounded
-native children. `model` must name an override from the calling thread's current choices. Full-history children
+children. `model` must name an override from the calling thread's current choices. Full-history children
 reject either argument. Unknown models and provider rejection follow normal Turn failure.
 
 ## 7. Role, tools, and approval policy
@@ -250,14 +230,14 @@ A role may define:
 
 - instructions and whether they replace normal SubAgent guidance;
 - thread mode;
-- a model default, optionally on another provider, for fresh and bounded native children;
+- a model default, optionally on another provider, for fresh and bounded children;
 - tool allow and deny lists;
 - shell access of `none`, `readOnly`, or `full` (default), where `readOnly` admits exactly the
   commands the read-only classifier in [Shell Command Safety](../architecture/shell-command-safety.md)
   accepts and rejects stdin writes while still allowing empty `WriteStdin` polls;
 - Agent-control access and allowed Agent-control tools.
 
-Native child tools use the normal session tool-construction path: the parent's allow/deny boundary,
+Child tools use the normal session tool-construction path: the parent's allow/deny boundary,
 then role restrictions. Roles only narrow authority and cannot bypass the parent's approval service,
 approval context, or workspace policy. Tool reachability and shell access are independent gates. The
 default role denies Agent control; explorer permits read-only exploration; worker permits writes and
@@ -272,25 +252,21 @@ boundary before sampling. They never replace the `roleInstructions` and `develop
 full-history child inherits; fresh and bounded children hold neither. Task data belongs in the task
 input.
 
-External runtimes receive role instructions through their runtime prompt; their profile translates
-DotCraft approval intent into launch behavior.
-
 ## 8. Communication and continuation
 
 SubAgent communication uses durable envelopes scoped to one root Agent tree:
 
 | Operation | Behavior |
 |-----------|----------|
-| `SendMessage` | To any other open path, including `/root`: starts the recipient when idle or stopped, steers a running native recipient, or runs after an external recipient's active Turn. |
+| `SendMessage` | To any other open path, including `/root`: starts the recipient when idle or stopped, or steers a running recipient. |
 | `ListAgents` | Returns `/root` and open path-addressable children with the latest Turn's lifecycle state, or `idle` when no Turn exists. |
 | `TaskStop` | Given a descendant's Agent path, cancels the child's active Turn and leaves it open. Returns the settled status and last agent message. |
 
-Waking a SubAgent reuses the same child thread with its stored role, profile, runtime, model
+Waking a SubAgent reuses the same child thread with its stored role, model
 configuration, workspace, and path, delivering pending mailbox messages with the message. A running
-native recipient receives the message at its next sampling boundary, or as its next Turn if the
+recipient receives the message at its next sampling boundary, or as its next Turn if the
 active Turn ends first. A message to an idle `/root` is queued input that starts a root Turn.
-`SendMessage` fails for a closed edge or an external child whose edge has
-`supportsFollowupTask = false`. Agents wait for one another by ending their Turn, never by holding it
+`SendMessage` fails for a closed edge. Agents wait for one another by ending their Turn, never by holding it
 open.
 
 There is no persisted pause state. Cancelling, stopping, or completing a Turn leaves an open child
@@ -320,16 +296,16 @@ the child's final agent message, waking an idle parent (see
 
 ### 8.1 Shared discussion board
 
-Each persistent native root tree shares one board, scoped by state workspace and root thread ID. The
-root and native descendants share channels and topics regardless of `forkTurns` or working directory.
-Identity comes from the active Turn, never tool arguments. Temporary and internal threads and external
-runtimes cannot use the board. Cross-root access is prohibited.
+Each persistent root tree shares one board, scoped by state workspace and root thread ID. The
+root and descendants share channels and topics regardless of `forkTurns` or working directory.
+Identity comes from the active Turn, never tool arguments. Temporary and internal threads
+cannot use the board. Cross-root access is prohibited.
 
-The default native tools are `BoardCreateChannel`, `BoardGetChannels`, `BoardListThreads`,
+The default tools are `BoardCreateChannel`, `BoardGetChannels`, `BoardListThreads`,
 `BoardSearchPosts`, `BoardReadThread`, `BoardReadPost`, `BoardSubscribe`, `BoardUnsubscribe` and
 `BoardPost`. Their schemas are stable across Plan and Agent modes. Board access is independent of
-Agent-control authority; Plan and built-in explorer permit collaboration writes, while parent, profile,
-and custom role tool restrictions still apply. Direct calls and CodeMode obey the same contract.
+Agent-control authority; Plan and built-in explorer permit collaboration writes, while parent,
+Agent Profile, and custom role tool restrictions still apply. Direct calls and CodeMode obey the same contract.
 
 Posts are append-only and contain a stable message ID, channel, author path, creation time, and topic
 root ID; the first post identifies its topic. A post requires exactly one destination: an existing
@@ -339,7 +315,7 @@ arguments fails; distinct nested CodeMode calls remain distinct.
 
 Creating a channel subscribes its creator; posting subscribes the author to the topic unless opted
 out. Channel subscriptions cover new topics; topic subscriptions cover replies. Subscribe and
-unsubscribe can target another open native Agent in the tree. Explicit recipients receive a one-time
+unsubscribe can target another open Agent in the tree. Explicit recipients receive a one-time
 notice without changing subscriptions. Recipients are deduplicated and exclude the author. Shared
 content is peer data, not system instructions.
 
@@ -380,14 +356,14 @@ recovery packages do not include the board.
 
 Clients read the board through `subagent/board/topics/list` and `subagent/board/topic/read`, and
 learn of committed channels and posts from `subagent/board/changed` ([AppServer
-Protocol](../protocols/appserver-protocol.md) §24.10). Client reads are observation only: they never
+Protocol](../protocols/appserver-protocol.md) §24.4–24.5). Client reads are observation only: they never
 create a board, subscribe, notify an Agent, or write a post.
 
 ## 9. Persistence, recovery, and ownership
 
 The child thread, its SubAgent source, spawn edge, mailbox entries, and model configuration are
-durable. Cold recovery preserves open identity, ancestry, path, role, profile, runtime metadata,
-capabilities, and pending communications. Recovery does not reopen a closed child.
+durable. Cold recovery preserves open identity, ancestry, path, role, and pending communications.
+Recovery does not reopen a closed child.
 
 Top-level thread lists hide SubAgent children by default; clients read the parent's spawn edges for
 the child graph.
@@ -409,6 +385,5 @@ Session Core emits SubAgent progress snapshots while child work is active, ident
 current tool when available, cumulative usage, and completion state. Progress is observational; the
 child Thread and Turn remain authoritative.
 
-Native usage aggregates into the owning parent Turn per the Session Core usage contract. External
-usage is reported only when the adapter supplies trustworthy metadata. Lifecycle hooks observe
-SubAgent start and stop without replacing persistence or terminal communication.
+Usage aggregates into the owning parent Turn per the Session Core usage contract. Lifecycle hooks
+observe SubAgent start and stop without replacing persistence or terminal communication.

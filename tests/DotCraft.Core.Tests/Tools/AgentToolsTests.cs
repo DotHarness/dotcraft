@@ -71,7 +71,6 @@ public sealed class AgentToolsTests
                 message: "inspect code",
                 taskName: "inspect",
                 agentNickname: "Inspect",
-                profile: "native",
                 cancellationToken: CancellationToken.None);
 
             using var doc = JsonDocument.Parse(resultJson);
@@ -80,11 +79,9 @@ public sealed class AgentToolsTests
             Assert.Equal("/root/inspect", root.GetProperty("agentPath").GetString());
             Assert.Equal("inspect", root.GetProperty("taskName").GetString());
             Assert.Equal("Inspect", root.GetProperty("agentNickname").GetString());
-            Assert.Equal("native", root.GetProperty("profileName").GetString());
-            Assert.Equal("native", root.GetProperty("runtimeType").GetString());
-            Assert.True(root.GetProperty("supportsSendMessage").GetBoolean());
-            Assert.True(root.GetProperty("supportsFollowupTask").GetBoolean());
             Assert.False(root.TryGetProperty("childThreadId", out _));
+            Assert.False(root.TryGetProperty("profileName", out _));
+            Assert.False(root.TryGetProperty("runtimeType", out _));
             Assert.False(root.TryGetProperty("supportsSendInput", out _));
         }
         finally

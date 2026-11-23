@@ -107,33 +107,6 @@ public sealed class SessionServiceThreadTokenUsageTests : SessionServiceRuntimeS
         Assert.Equal(55, update.Total.TotalTokens);
     }
 
-    [Fact]
-    public async Task CompleteSubAgentSyntheticTurnAsync_PublishesTheTurnUsageOnce()
-    {
-        IChatClient chatClient = new FakeChatClient([new ChatResponseUpdate(ChatRole.Assistant, [new TextContent("ok")])]);
-        await using var agentFactory = CreateAgentFactory(chatClient);
-        var svc = CreateService(agentFactory, chatClient);
-        var updates = new ConcurrentQueue<ThreadTokenUsageUpdate>();
-        svc.ThreadTokenUsageUpdatedForBroadcast = updates.Enqueue;
-        var child = await CreateSubAgentChildAsync(svc, parentThreadId: "parent-cli", childThreadId: "child-cli");
-
-        var first = await svc.StartSubAgentSyntheticTurnAsync(child.Id, [new TextContent("one")], "cli", profileName: null);
-        await svc.CompleteSubAgentSyntheticTurnAsync(child.Id, first.Id, "done", isError: false, new SubAgentTokenUsage(1_000, 100, CachedInputTokens: 600));
-        var second = await svc.StartSubAgentSyntheticTurnAsync(child.Id, [new TextContent("two")], "cli", profileName: null);
-        Assert.Single(updates);
-        await svc.CompleteSubAgentSyntheticTurnAsync(child.Id, second.Id, "done", isError: false, new SubAgentTokenUsage(400, 40));
-
-        var seen = updates.ToArray();
-        Assert.Equal(2, seen.Length);
-        Assert.All(seen, update => Assert.Equal("parent-cli", update.ParentThreadId));
-        Assert.Equal(second.Id, seen[1].TurnId);
-        Assert.Equal(440, seen[1].Last.TotalTokens);
-        Assert.Equal(1_400, seen[1].Total.InputTokens);
-        Assert.Equal(600, seen[1].Total.CachedInputTokens);
-        Assert.Equal(1_540, seen[1].Total.TotalTokens);
-        Assert.Null(seen[1].ModelContextWindow);
-    }
-
     private Task<SessionThread> CreateSubAgentChildAsync(SessionService svc, string parentThreadId, string childThreadId) =>
         svc.CreateThreadAsync(
             new SessionIdentity

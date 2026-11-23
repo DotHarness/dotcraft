@@ -197,7 +197,7 @@ internal static class DotNetExtensionSampleEffects
         await AssertRestrictionAsync(host, manager, planning, ledger);
     }
 
-    /// <summary>The Tier-B suggestion generator, the contributed SubAgent runtime, and the sink.</summary>
+    /// <summary>The Tier-B suggestion generator and the sink.</summary>
     internal static async Task AssertSessionAndSurfaceEffectsAsync(
         DotNetExtensionSampleHost host,
         SampleCoverageLedger ledger)
@@ -206,11 +206,6 @@ internal static class DotNetExtensionSampleEffects
             .SuggestAsync(new CommitMessageSuggestionRequest { ThreadId = ThreadId, Paths = ["src/a.cs"] });
         Assert.StartsWith("review: summarize the staged change", commit.Message, StringComparison.Ordinal);
         ledger.Prove<ICommitMessageSuggester>();
-
-        var catalog = SubAgentProfileCatalog.Resolve(host.Registry, ThreadId);
-        Assert.Contains("acme-review-pass", catalog.KnownRuntimeTypes);
-        Assert.True(catalog.CreateRegistry(null).TryGet("review-pass", out _));
-        ledger.Prove<ISubAgentRuntimeSource>();
 
         host.Traces.Record(new TraceEvent { Type = TraceEventType.Request, SessionKey = "sample-session" });
         Assert.True(host.TraceSinks.WaitForPendingSinks(TimeSpan.FromSeconds(10)));
@@ -284,7 +279,6 @@ internal static class DotNetExtensionSampleEffects
         Assert.Same(
             CompactionSummarizerCatalog.Resolve(null),
             CompactionSummarizerCatalog.Resolve(host.Registry, ThreadId));
-        Assert.Same(SubAgentProfileCatalog.BuiltIn, SubAgentProfileCatalog.Resolve(host.Registry, ThreadId));
         Assert.Empty(host.Registry.Resolve<IMemoryWriteGate>(ThreadId));
         Assert.False(CompactableToolPolicyCatalog.IsCompactable(host.Registry, ThreadId, "review.summary"));
     }

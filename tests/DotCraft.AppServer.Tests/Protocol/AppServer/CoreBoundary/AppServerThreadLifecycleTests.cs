@@ -477,10 +477,7 @@ public sealed partial class AppServerThreadLifecycleTests : IDisposable
                 Depth = 1,
                 AgentPath = "/root/worker",
                 TaskName = "worker",
-                AgentNickname = "Worker",
-                SupportsSendMessage = true,
-                SupportsFollowupTask = true,
-                SupportsClose = true
+                AgentNickname = "Worker"
             }));
         await _h.Service.UpsertThreadSpawnEdgeAsync(new ThreadSpawnEdge
         {
@@ -492,11 +489,6 @@ public sealed partial class AppServerThreadLifecycleTests : IDisposable
             TaskName = "worker",
             AgentNickname = "Worker",
             AgentRole = "worker",
-            ProfileName = "native",
-            RuntimeType = "native",
-            SupportsSendMessage = true,
-            SupportsFollowupTask = true,
-            SupportsClose = true,
             Status = ThreadSpawnEdgeStatus.Open
         });
 
@@ -514,115 +506,21 @@ public sealed partial class AppServerThreadLifecycleTests : IDisposable
         var edge = wire.GetProperty("edge");
         Assert.Equal("/root/worker", edge.GetProperty("agentPath").GetString());
         Assert.Equal("worker", edge.GetProperty("taskName").GetString());
-        Assert.True(edge.GetProperty("supportsSendMessage").GetBoolean());
-        Assert.True(edge.GetProperty("supportsFollowupTask").GetBoolean());
         Assert.Equal("Worker", wire.GetProperty("thread").GetProperty("displayName").GetString());
     }
 
     [Fact]
-    public async Task SubAgentFollowupTask_UsesCoordinatorForExternalChild()
-    {
-        var runtime = new FakeSubAgentRuntime(CliOneshotRuntime.RuntimeTypeName, "followed");
-        using var harness = new CoreAppServerTestHarness(
-            subAgentCoordinatorFactory: thread => CreateCoordinator(thread.WorkspacePath, runtime));
-        await harness.InitializeAsync();
-        var (parent, child) = await CreatePathSubAgentAsync(
-            harness,
-            runtimeType: CliOneshotRuntime.RuntimeTypeName,
-            profileName: "cli-run");
-        await harness.Service.AddSubAgentMailboxEntryAsync(new SubAgentMailboxEntry
-        {
-            Id = $"mailbox_{Guid.NewGuid():N}",
-            RootThreadId = parent.Id,
-            SenderAgentPath = AgentPath.Root,
-            TargetAgentPath = "/root/worker",
-            Message = "mailbox note",
-            Status = SubAgentMailboxStatus.Pending,
-            CreatedAt = DateTimeOffset.UtcNow
-        });
-
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SubAgentFollowupTask, new
-        {
-            parentThreadId = parent.Id,
-            target = "/root/worker",
-            message = "continue work"
-        });
-        await harness.ExecuteRequestAsync(msg);
-
-        var response = await harness.Transport.ReadNextSentAsync();
-        CoreAppServerTestHarness.AssertIsSuccessResponse(response);
-        var result = response.RootElement.GetProperty("result");
-        Assert.Equal("running", result.GetProperty("status").GetString());
-        Assert.Equal("/root/worker", result.GetProperty("agentPath").GetString());
-        var waited = await harness.Service.WaitForTaskEndingAsync("/root/worker");
-        var pending = await harness.Service.ListPendingSubAgentMailboxAsync(parent.Id, "/root/worker");
-
-        Assert.Equal("followed", waited.Result);
-        Assert.Empty(pending);
-        Assert.Contains("mailbox note", runtime.LastRequest?.Task, StringComparison.Ordinal);
-        Assert.Contains("continue work", runtime.LastRequest?.Task, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task SubAgentFollowupTask_WhenExternalChildRunning_QueuesTask()
-    {
-        var runtime = new FakeSubAgentRuntime(CliOneshotRuntime.RuntimeTypeName, "followed");
-        using var harness = new CoreAppServerTestHarness(
-            subAgentCoordinatorFactory: thread => CreateCoordinator(thread.WorkspacePath, runtime));
-        await harness.InitializeAsync();
-        var (parent, child) = await CreatePathSubAgentAsync(
-            harness,
-            runtimeType: CliOneshotRuntime.RuntimeTypeName,
-            profileName: "cli-run");
-        await harness.Service.StartSubAgentSyntheticTurnAsync(
-            child.Id,
-            [new TextContent("active work")],
-            CliOneshotRuntime.RuntimeTypeName,
-            "cli-run");
-        await harness.Service.AddSubAgentMailboxEntryAsync(new SubAgentMailboxEntry
-        {
-            Id = $"mailbox_{Guid.NewGuid():N}",
-            RootThreadId = parent.Id,
-            SenderAgentPath = AgentPath.Root,
-            TargetAgentPath = "/root/worker",
-            Message = "mailbox note",
-            Status = SubAgentMailboxStatus.Pending,
-            CreatedAt = DateTimeOffset.UtcNow
-        });
-
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SubAgentFollowupTask, new
-        {
-            parentThreadId = parent.Id,
-            target = "/root/worker",
-            message = "continue work"
-        });
-        await harness.ExecuteRequestAsync(msg);
-
-        var response = await harness.Transport.ReadNextSentAsync();
-        CoreAppServerTestHarness.AssertIsSuccessResponse(response);
-        var result = response.RootElement.GetProperty("result");
-        Assert.Equal("queued", result.GetProperty("status").GetString());
-        Assert.Equal("/root/worker", result.GetProperty("agentPath").GetString());
-        Assert.False(result.TryGetProperty("childThreadId", out _));
-        child = await harness.Service.GetThreadAsync(child.Id);
-        var queued = Assert.Single(child.QueuedInputs);
-        Assert.Equal("subagentFollowupTask", queued.TriggerKind);
-        Assert.Equal("/root/worker", queued.TriggerRefId);
-        Assert.Contains("mailbox note", Assert.Single(queued.MaterializedInputParts).Text, StringComparison.Ordinal);
-        Assert.Contains("continue work", Assert.Single(queued.MaterializedInputParts).Text, StringComparison.Ordinal);
-        Assert.Empty(await harness.Service.ListPendingSubAgentMailboxAsync(parent.Id, "/root/worker"));
-        Assert.Null(runtime.LastRequest);
-    }
-
-    [Fact]
-    public async Task SubAgentFollowupTask_WhenNativeChildRunningAndDeliveryModeSteer_PromotesTaskToGuidance()
+    public async Task SubAgentFollowupTask_WhenChildRunningAndDeliveryModeSteer_PromotesTaskToGuidance()
     {
         var (parent, child) = await CreatePathSubAgentAsync();
-        await _h.Service.StartSubAgentSyntheticTurnAsync(
-            child.Id,
-            [new TextContent("active work")],
-            NativeSubAgentRuntime.RuntimeTypeName,
-            SubAgentCoordinator.DefaultProfileName);
+        child.Turns.Add(new SessionTurn
+        {
+            Id = "turn_001",
+            ThreadId = child.Id,
+            Status = TurnStatus.Running,
+            StartedAt = DateTimeOffset.UtcNow,
+            OriginChannel = child.OriginChannel
+        });
         await _h.Service.AddSubAgentMailboxEntryAsync(new SubAgentMailboxEntry
         {
             Id = $"mailbox_{Guid.NewGuid():N}",
@@ -658,51 +556,6 @@ public sealed partial class AppServerThreadLifecycleTests : IDisposable
         Assert.Contains("mailbox note", Assert.Single(queued.MaterializedInputParts).Text, StringComparison.Ordinal);
         Assert.Contains("continue work", Assert.Single(queued.MaterializedInputParts).Text, StringComparison.Ordinal);
         Assert.Empty(await _h.Service.ListPendingSubAgentMailboxAsync(parent.Id, "/root/worker"));
-    }
-
-    [Fact]
-    public async Task SubAgentFollowupTask_WhenExternalChildRunningAndDeliveryModeSteer_ReturnsInvalidParams()
-    {
-        var runtime = new FakeSubAgentRuntime(CliOneshotRuntime.RuntimeTypeName, "followed");
-        using var harness = new CoreAppServerTestHarness(
-            subAgentCoordinatorFactory: thread => CreateCoordinator(thread.WorkspacePath, runtime));
-        await harness.InitializeAsync();
-        var (parent, child) = await CreatePathSubAgentAsync(
-            harness,
-            runtimeType: CliOneshotRuntime.RuntimeTypeName,
-            profileName: "cli-run");
-        await harness.Service.StartSubAgentSyntheticTurnAsync(
-            child.Id,
-            [new TextContent("active work")],
-            CliOneshotRuntime.RuntimeTypeName,
-            "cli-run");
-        await harness.Service.AddSubAgentMailboxEntryAsync(new SubAgentMailboxEntry
-        {
-            Id = $"mailbox_{Guid.NewGuid():N}",
-            RootThreadId = parent.Id,
-            SenderAgentPath = AgentPath.Root,
-            TargetAgentPath = "/root/worker",
-            Message = "mailbox note",
-            Status = SubAgentMailboxStatus.Pending,
-            CreatedAt = DateTimeOffset.UtcNow
-        });
-
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.SubAgentFollowupTask, new
-        {
-            parentThreadId = parent.Id,
-            target = "/root/worker",
-            message = "continue work",
-            deliveryMode = "steer"
-        });
-        await harness.ExecuteRequestAsync(msg);
-
-        var response = await harness.Transport.ReadNextSentAsync();
-        CoreAppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
-        child = await harness.Service.GetThreadAsync(child.Id);
-        Assert.Empty(child.QueuedInputs);
-        var pending = await harness.Service.ListPendingSubAgentMailboxAsync(parent.Id, "/root/worker");
-        Assert.Single(pending);
-        Assert.Null(runtime.LastRequest);
     }
 
     [Fact]
@@ -1416,9 +1269,7 @@ public sealed partial class AppServerThreadLifecycleTests : IDisposable
     }
 
     private async Task<(SessionThread Parent, SessionThread Child)> CreatePathSubAgentAsync(
-        CoreAppServerTestHarness? harness = null,
-        string runtimeType = NativeSubAgentRuntime.RuntimeTypeName,
-        string profileName = SubAgentCoordinator.DefaultProfileName)
+        CoreAppServerTestHarness? harness = null)
     {
         var h = harness ?? _h;
         var parent = await h.Service.CreateThreadAsync(h.Identity);
@@ -1440,12 +1291,7 @@ public sealed partial class AppServerThreadLifecycleTests : IDisposable
                 Depth = 1,
                 AgentPath = "/root/worker",
                 TaskName = "worker",
-                AgentNickname = "Worker",
-                ProfileName = profileName,
-                RuntimeType = runtimeType,
-                SupportsSendMessage = true,
-                SupportsFollowupTask = true,
-                SupportsClose = true
+                AgentNickname = "Worker"
             }));
         await h.Service.UpsertThreadSpawnEdgeAsync(new ThreadSpawnEdge
         {
@@ -1457,58 +1303,10 @@ public sealed partial class AppServerThreadLifecycleTests : IDisposable
             TaskName = "worker",
             AgentNickname = "Worker",
             AgentRole = "worker",
-            ProfileName = profileName,
-            RuntimeType = runtimeType,
-            SupportsSendMessage = true,
-            SupportsFollowupTask = true,
-            SupportsClose = true,
             Status = ThreadSpawnEdgeStatus.Open
         });
 
         return (parent, child);
-    }
-
-    private static SubAgentCoordinator CreateCoordinator(string workspacePath, FakeSubAgentRuntime runtime) =>
-        new(
-            workspacePath,
-            [runtime],
-            [
-                new SubAgentProfile
-                {
-                    Name = "cli-run",
-                    Runtime = CliOneshotRuntime.RuntimeTypeName,
-                    WorkingDirectoryMode = "workspace",
-                    Bin = "test-cli",
-                    InputMode = "arg",
-                    OutputFormat = "text"
-                }
-            ]);
-
-    private sealed class FakeSubAgentRuntime(string runtimeType, string resultText) : ISubAgentRuntime
-    {
-        public string RuntimeType { get; } = runtimeType;
-
-        public SubAgentTaskRequest? LastRequest { get; private set; }
-
-        public Task<SubAgentSessionHandle> CreateSessionAsync(
-            SubAgentProfile profile,
-            SubAgentLaunchContext context,
-            CancellationToken cancellationToken)
-            => Task.FromResult(new SubAgentSessionHandle(RuntimeType, profile.Name));
-
-        public Task<DotCraft.Agents.SubAgentRunResult> RunAsync(
-            SubAgentSessionHandle session,
-            SubAgentTaskRequest request,
-            ISubAgentEventSink sink,
-            CancellationToken cancellationToken)
-        {
-            LastRequest = request;
-            return Task.FromResult(new DotCraft.Agents.SubAgentRunResult { Text = resultText });
-        }
-
-        public Task CancelAsync(SubAgentSessionHandle session, CancellationToken cancellationToken) => Task.CompletedTask;
-
-        public Task DisposeSessionAsync(SubAgentSessionHandle session, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     private static readonly Lazy<string> GitWorkspaceTemplate = new(CreateGitWorkspaceTemplate);

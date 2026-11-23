@@ -61,14 +61,7 @@ internal static class ThreadContractMapper
         AgentPath = value.AgentPath,
         TaskName = value.TaskName,
         AgentNickname = value.AgentNickname,
-        AgentRole = value.AgentRole,
-        ProfileName = value.ProfileName,
-        RuntimeType = value.RuntimeType,
-        SupportsSendInput = value.SupportsSendInput,
-        SupportsResume = value.SupportsResume,
-        SupportsSendMessage = value.SupportsSendMessage,
-        SupportsFollowupTask = value.SupportsFollowupTask,
-        SupportsClose = value.SupportsClose
+        AgentRole = value.AgentRole
     };
 
     private static Contract.ThreadRuntimeState ToContract(Domain.ThreadSummaryRuntime value) => new()

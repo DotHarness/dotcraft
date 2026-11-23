@@ -44,7 +44,7 @@ Backend-specific options use typed controls in a plugin settings surface. `Backe
 their serialized values. Authentication uses the shared provider sign-in flow and backend credential
 storage.
 
-One runtime resolver serves chat, native subagents, summaries, maintenance, cache warming, model
+One runtime resolver serves chat, subagents, summaries, maintenance, cache warming, model
 catalogs, authentication and usage. Backend generation and instance configuration
 participate in cache identity. Authentication changes invalidate affected identities.
 

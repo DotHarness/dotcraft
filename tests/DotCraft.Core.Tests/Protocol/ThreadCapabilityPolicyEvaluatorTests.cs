@@ -717,8 +717,7 @@ public sealed class ThreadCapabilityPolicyEvaluatorTests : IDisposable
             ParentThreadId = "thread_parent",
             RootThreadId = "thread_root",
             Depth = depth,
-            AgentRole = role,
-            RuntimeType = NativeSubAgentRuntime.RuntimeTypeName
+            AgentRole = role
         });
 
     private static AITool Tool(string name) =>

@@ -84,23 +84,7 @@ public sealed class SubAgentThreadSource
     public string? AgentRole { get; set; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? ProfileName { get; set; }
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? RuntimeType { get; set; }
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? ForkTurns { get; set; }
-
-    public bool SupportsSendInput { get; set; }
-
-    public bool SupportsResume { get; set; }
-
-    public bool SupportsSendMessage { get; set; }
-
-    public bool SupportsFollowupTask { get; set; }
-
-    public bool SupportsClose { get; set; } = true;
 }
 
 internal sealed class PersistedThreadSource
@@ -128,14 +112,7 @@ internal sealed class PersistedSubAgentThreadSource
     public string? TaskName { get; init; }
     public string? AgentNickname { get; init; }
     public string? AgentRole { get; init; }
-    public string? ProfileName { get; init; }
-    public string? RuntimeType { get; init; }
     public string? ForkTurns { get; init; }
-    public bool SupportsSendInput { get; init; }
-    public bool SupportsResume { get; init; }
-    public bool SupportsSendMessage { get; init; }
-    public bool SupportsFollowupTask { get; init; }
-    public bool SupportsClose { get; init; } = true;
 }
 
 internal static class PersistedThreadSourceCodec
@@ -168,14 +145,7 @@ internal static class PersistedThreadSourceCodec
                     TaskName = subAgent.TaskName,
                     AgentNickname = subAgent.AgentNickname,
                     AgentRole = subAgent.AgentRole,
-                    ProfileName = subAgent.ProfileName,
-                    RuntimeType = subAgent.RuntimeType,
-                    ForkTurns = subAgent.ForkTurns,
-                    SupportsSendInput = subAgent.SupportsSendInput,
-                    SupportsResume = subAgent.SupportsResume,
-                    SupportsSendMessage = subAgent.SupportsSendMessage,
-                    SupportsFollowupTask = subAgent.SupportsFollowupTask,
-                    SupportsClose = subAgent.SupportsClose
+                    ForkTurns = subAgent.ForkTurns
                 }
             },
             ThreadSourceKinds.SubAgent => throw new InvalidOperationException("A subagent thread source requires subagent details."),
@@ -208,14 +178,7 @@ internal static class PersistedThreadSourceCodec
                     TaskName = subAgent.TaskName,
                     AgentNickname = subAgent.AgentNickname,
                     AgentRole = subAgent.AgentRole,
-                    ProfileName = subAgent.ProfileName,
-                    RuntimeType = subAgent.RuntimeType,
-                    ForkTurns = subAgent.ForkTurns,
-                    SupportsSendInput = subAgent.SupportsSendInput,
-                    SupportsResume = subAgent.SupportsResume,
-                    SupportsSendMessage = subAgent.SupportsSendMessage,
-                    SupportsFollowupTask = subAgent.SupportsFollowupTask,
-                    SupportsClose = subAgent.SupportsClose
+                    ForkTurns = subAgent.ForkTurns
                 }),
             ThreadSourceKinds.User => throw new InvalidOperationException("A user thread source cannot contain subagent details."),
             ThreadSourceKinds.SubAgent => throw new InvalidOperationException("A subagent thread source requires subagent details."),
@@ -253,22 +216,6 @@ public sealed class ThreadSpawnEdge
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? AgentRole { get; set; }
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? ProfileName { get; set; }
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? RuntimeType { get; set; }
-
-    public bool SupportsSendInput { get; set; }
-
-    public bool SupportsResume { get; set; }
-
-    public bool SupportsSendMessage { get; set; }
-
-    public bool SupportsFollowupTask { get; set; }
-
-    public bool SupportsClose { get; set; } = true;
 
     public string Status { get; set; } = ThreadSpawnEdgeStatus.Open;
 

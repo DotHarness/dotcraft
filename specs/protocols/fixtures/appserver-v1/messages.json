@@ -666,8 +666,6 @@
         { "jsonrpc": "2.0", "id": 30, "result": {} },
         { "jsonrpc": "2.0", "id": 31, "method": "sourceControl/get", "params": {} },
         { "jsonrpc": "2.0", "id": 31, "result": {} },
-        { "jsonrpc": "2.0", "id": 32, "method": "subagent/profiles/list", "params": {} },
-        { "jsonrpc": "2.0", "id": 32, "result": {} },
         { "jsonrpc": "2.0", "id": 33, "method": "terminal/list", "params": {} },
         { "jsonrpc": "2.0", "id": 33, "result": {} },
         { "jsonrpc": "2.0", "id": 34, "method": "tool/list", "params": {} },

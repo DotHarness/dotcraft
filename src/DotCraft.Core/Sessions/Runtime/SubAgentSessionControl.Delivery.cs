@@ -17,7 +17,6 @@ public static partial class SubAgentSessionControl
         SubAgentSessionContext context,
         string target,
         string message,
-        SubAgentCoordinator? coordinator,
         CancellationToken ct)
     {
         var normalizedMessage = NormalizeRequired(message, nameof(message));
@@ -42,31 +41,24 @@ public static partial class SubAgentSessionControl
             targetPath.Value,
             requireOpen: true,
             ct);
-        var native = IsNativeRuntime(resolved.Thread);
-        if (!native && resolved.Edge?.SupportsFollowupTask == false)
-            throw new InvalidOperationException($"Subagent '{resolved.Path.Value}' cannot be continued; its runtime does not accept new tasks.");
 
         var service = context.SessionService as SessionService;
         var descendant = targetPath.IsSameOrDescendantOf(callerPath);
         SubAgentControlResult result;
-        if (!native)
-        {
-            result = await FollowupTaskAsync(context, targetPath.Value, normalizedMessage, coordinator, ct);
-        }
-        else if (descendant && GetActiveTurn(resolved.Thread) != null)
+        if (descendant && GetActiveTurn(resolved.Thread) != null)
         {
             try
             {
-                result = await FollowupTaskAsync(context, targetPath.Value, normalizedMessage, coordinator, ct, SubAgentFollowupDeliveryMode.Steer);
+                result = await FollowupTaskAsync(context, targetPath.Value, normalizedMessage, ct, SubAgentFollowupDeliveryMode.Steer);
             }
             catch (InvalidOperationException)
             {
-                result = await FollowupTaskAsync(context, targetPath.Value, normalizedMessage, coordinator, ct);
+                result = await FollowupTaskAsync(context, targetPath.Value, normalizedMessage, ct);
             }
         }
         else if (descendant)
         {
-            result = await FollowupTaskAsync(context, targetPath.Value, normalizedMessage, coordinator, ct);
+            result = await FollowupTaskAsync(context, targetPath.Value, normalizedMessage, ct);
         }
         else
         {
@@ -107,12 +99,7 @@ public static partial class SubAgentSessionControl
             TaskName = resolved.Edge?.TaskName,
             Status = "sent",
             AgentNickname = resolved.Edge?.AgentNickname ?? resolved.Thread.DisplayName,
-            AgentRole = resolved.Edge?.AgentRole,
-            ProfileName = resolved.Edge?.ProfileName,
-            RuntimeType = resolved.Edge?.RuntimeType,
-            SupportsSendMessage = resolved.Edge?.SupportsSendMessage ?? true,
-            SupportsFollowupTask = resolved.Edge?.SupportsFollowupTask ?? true,
-            SupportsClose = resolved.Edge?.SupportsClose ?? true
+            AgentRole = resolved.Edge?.AgentRole
         };
     }
 
@@ -120,7 +107,6 @@ public static partial class SubAgentSessionControl
         SubAgentSessionContext context,
         string target,
         string message,
-        SubAgentCoordinator? coordinator,
         CancellationToken ct,
         SubAgentFollowupDeliveryMode deliveryMode = SubAgentFollowupDeliveryMode.Queue)
     {
@@ -161,16 +147,10 @@ public static partial class SubAgentSessionControl
                 resolved.Path.Value,
                 ct);
             var turnPrompt = BuildFollowupPrompt(pending, followupCommunication);
-            if (!IsNativeRuntime(resolved.Thread))
-                turnPrompt = await BuildExternalThreadContextPromptAsync(context.SessionService, resolved.Thread, turnPrompt, ct);
 
             var activeTurn = GetActiveTurn(resolved.Thread);
             if (activeTurn != null)
             {
-                if (deliveryMode == SubAgentFollowupDeliveryMode.Steer && !IsNativeRuntime(resolved.Thread))
-                    throw new InvalidOperationException(
-                        "FollowupTask deliveryMode 'steer' is supported only for running native SubAgents. Use deliveryMode 'queue' for external SubAgents.");
-
                 var queued = await QueueFollowupTaskAsync(
                     context.SessionService,
                     resolved,
@@ -195,8 +175,6 @@ public static partial class SubAgentSessionControl
                     context.SessionService,
                     resolved.Thread,
                     turnPrompt,
-                    coordinator,
-                    requireExternalResume: false,
                     CreateSubAgentTrigger(SubAgentFollowupTriggerKind, BuildFollowupTriggerLabel(resolved), resolved.Path.Value),
                     context.LifecycleHook,
                     context.ParentTurnCancellation ?? ct,
@@ -215,8 +193,6 @@ public static partial class SubAgentSessionControl
         }
         result.AgentPath = resolved.Path.Value;
         result.TaskName = resolved.Edge?.TaskName;
-        result.SupportsSendMessage = resolved.Edge?.SupportsSendMessage ?? true;
-        result.SupportsFollowupTask = resolved.Edge?.SupportsFollowupTask ?? true;
         return result;
     }
 
@@ -224,21 +200,19 @@ public static partial class SubAgentSessionControl
         ISessionService sessionService,
         string childThreadId,
         string message,
-        SubAgentCoordinator? coordinator,
         CancellationToken ct)
     {
         Func<SubAgentLifecycleHookRequest, CancellationToken, Task>? lifecycleHook = null;
         if (sessionService is SessionService service)
             lifecycleHook = service.RunSubAgentLifecycleHookAsync;
 
-        return await SendInputAsync(sessionService, childThreadId, message, coordinator, lifecycleHook, ct);
+        return await SendInputAsync(sessionService, childThreadId, message, lifecycleHook, ct);
     }
 
     internal static async Task<SubAgentControlResult> SendInputAsync(
         ISessionService sessionService,
         string childThreadId,
         string message,
-        SubAgentCoordinator? coordinator,
         Func<SubAgentLifecycleHookRequest, CancellationToken, Task>? lifecycleHook,
         CancellationToken ct)
     {
@@ -248,8 +222,6 @@ public static partial class SubAgentSessionControl
             sessionService,
             child,
             normalizedMessage,
-            coordinator,
-            requireExternalResume: true,
             CreateSubAgentTrigger(SubAgentInputTriggerKind, BuildChildTriggerLabel(child), child.Source.SubAgent?.AgentPath),
             lifecycleHook,
             ct,
@@ -292,12 +264,7 @@ public static partial class SubAgentSessionControl
             TaskName = resolved.Edge?.TaskName ?? resolved.Path.TaskName,
             Status = "queued",
             AgentNickname = resolved.Edge?.AgentNickname ?? resolved.Thread.DisplayName,
-            AgentRole = resolved.Edge?.AgentRole,
-            ProfileName = resolved.Edge?.ProfileName,
-            RuntimeType = resolved.Edge?.RuntimeType ?? resolved.Thread.Source.SubAgent?.RuntimeType,
-            SupportsSendMessage = resolved.Edge?.SupportsSendMessage ?? true,
-            SupportsFollowupTask = resolved.Edge?.SupportsFollowupTask ?? true,
-            SupportsClose = resolved.Edge?.SupportsClose ?? true
+            AgentRole = resolved.Edge?.AgentRole
         };
         return new QueuedFollowupTaskResult(result, queued);
     }
@@ -337,41 +304,6 @@ public static partial class SubAgentSessionControl
                 ex);
         }
     }
-
-    private static async Task<QueuedTurnInput?> TryTakeNextSubAgentFollowupQueuedInputAsync(
-        ISessionService sessionService,
-        string childThreadId,
-        CancellationToken ct)
-    {
-        var child = await sessionService.GetThreadAsync(childThreadId, ct);
-        if (HasActiveTurn(child))
-            return null;
-
-        var queued = child.QueuedInputs.FirstOrDefault(input => string.Equals(input.Status, "queued", StringComparison.Ordinal));
-        if (queued == null || !string.Equals(queued.TriggerKind, SubAgentFollowupTriggerKind, StringComparison.Ordinal))
-            return null;
-
-        await sessionService.RemoveQueuedTurnInputAsync(childThreadId, queued.Id, ct);
-        return queued;
-    }
-
-    private static string BuildQueuedInputPrompt(QueuedTurnInput queued)
-    {
-        var text = string.Concat(
-            queued.MaterializedInputParts
-                .Select(part => part.ToAIContent())
-                .OfType<TextContent>()
-                .Select(content => content.Text));
-        return string.IsNullOrWhiteSpace(text) ? queued.DisplayText : text;
-    }
-
-    /// <summary>
-    /// Bounds the number of open (resident) SubAgents in the root thread's subtree.
-    /// When spawning would exceed the limit, the oldest idle (non-running) SubAgent is
-    /// closed to make room. If every resident SubAgent is still running, the spawn
-    /// fails instead of evicting active work. Runs before a new child thread/edge is
-    /// created.
-    /// </summary>
 
     private static string BuildFollowupTriggerLabel(ResolvedAgentTarget resolved) =>
         NormalizeOptional(resolved.Thread.DisplayName)

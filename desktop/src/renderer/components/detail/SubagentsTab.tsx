@@ -184,11 +184,7 @@ function SubagentRow({
   const [stopping, setStopping] = useState(false)
   const running = isSubAgentChildRunning(child)
   const working = isSubAgentChildWorking(child)
-  const meta = formatSubAgentMeta({
-    agentRole: child.agentRole,
-    profileName: child.profileName,
-    runtimeType: child.runtimeType
-  })
+  const meta = formatSubAgentMeta({ agentRole: child.agentRole })
   const ended = working ? null : endedStatus(child, t)
   const timeLabel = working
     ? running ? formatRunningElapsed(subAgentChildRuntime(child)?.activeTurnStartedAt, elapsedNowMs) : ''

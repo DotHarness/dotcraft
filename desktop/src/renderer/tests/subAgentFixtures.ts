@@ -5,8 +5,7 @@ import type { ThreadSummary } from '../types/thread'
 export function makeSubAgent(overrides: Partial<SubAgentChild> = {}): SubAgentChild {
   return {
     childThreadId: 'child-B', parentThreadId: 'parent-B', agentPath: '/root/review_core',
-    nickname: 'Core B', agentRole: 'explorer', profileName: 'native', runtimeType: 'native',
-    supportsClose: true, supportsResume: true, supportsSendInput: true,
+    nickname: 'Core B', agentRole: 'explorer',
     status: 'open', currentTool: null, lastToolDisplay: null,
     model: null, contextTokens: null,
     ...overrides

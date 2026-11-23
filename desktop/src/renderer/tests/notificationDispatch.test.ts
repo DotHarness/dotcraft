@@ -353,11 +353,6 @@ describe('notification dispatch payload format', () => {
                 parentThreadId: 'thread-1',
                 childThreadId: 'child-1',
                 agentNickname: 'Lovelace',
-                profileName: 'native',
-                runtimeType: 'native',
-                supportsSendInput: true,
-                supportsResume: true,
-                supportsClose: true,
                 status: 'open'
               },
               thread: {
@@ -421,8 +416,7 @@ describe('notification dispatch payload format', () => {
         expect.objectContaining({
           childThreadId: 'child-1',
           isPlaceholder: false,
-          lastToolDisplay: 'Reading sprite atlas',
-          supportsClose: true
+          lastToolDisplay: 'Reading sprite atlas'
         })
       )
       expect(useThreadStore.getState().threadList.some((thread) => thread.id === 'child-1')).toBe(true)
@@ -436,11 +430,6 @@ describe('notification dispatch payload format', () => {
         parentThreadId: 'thread-1',
         nickname: 'Lovelace',
         agentRole: null,
-        profileName: 'native',
-        runtimeType: 'native',
-        supportsSendInput: true,
-        supportsResume: true,
-        supportsClose: true,
         status: 'open',
         lastToolDisplay: 'Reading sprite atlas',
         currentTool: 'ReadFile',

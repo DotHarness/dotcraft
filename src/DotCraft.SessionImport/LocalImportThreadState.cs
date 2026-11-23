@@ -49,33 +49,6 @@ internal sealed class LocalImportThreadState(string workspacePath, string dataPa
             && thread.Turns.All(turn => turn.OriginChannel == ThreadImportConstants.ChannelName);
     }
 
-    public void CollectExternalCliSessions(HashSet<string> ids, CancellationToken ct)
-    {
-        if (!File.Exists(Path.Combine(DataPath, "state.db"))) return;
-        try
-        {
-            using var state = new WorkspaceStateDatabase(DataPath, readOnly: true);
-            using var connection = state.OpenConnection();
-            using var command = connection.CreateCommand();
-            command.CommandText = """
-                SELECT json_extract(CASE WHEN json_valid(metadata_json) THEN metadata_json END, $key)
-                FROM threads
-                WHERE instr(metadata_json, $metadataKey) > 0
-                """;
-            var key = SessionImportWorkspaceState.ExternalCliSessionsMetadataKey;
-            command.Parameters.AddWithValue("$key", "$.\"" + key + "\"");
-            command.Parameters.AddWithValue("$metadataKey", key);
-            using var reader = command.ExecuteReader();
-            while (reader.Read())
-            {
-                ct.ThrowIfCancellationRequested();
-                if (!reader.IsDBNull(0))
-                    ids.UnionWith(SessionImportWorkspaceState.ReadExternalCliSessionIds(reader.GetString(0)));
-            }
-        }
-        catch (Exception ex) when (LocalImportConfiguration.IsUnavailable(ex) || ex is SqliteException) { }
-    }
-
     private async Task<SessionThread?> ReadThreadAsync(string threadId, CancellationToken ct)
     {
         if (threadId.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0) return null;

@@ -153,7 +153,6 @@ const ConnectionsPanel = coreSettingsPanels.connections
 const SourceControlPanel = coreSettingsPanels.sourceControl
 const WorktreesPanel = coreSettingsPanels.worktrees
 const HooksPanel = coreSettingsPanels.hooks
-const SubAgentsPanel = coreSettingsPanels.subAgents
 const ImportPanel = coreSettingsPanels.import
 const ArchivedThreadsSettingsView = coreSettingsPanels.archivedThreads
 
@@ -357,12 +356,10 @@ export function SettingsView({
   const [authenticatingMcpName, setAuthenticatingMcpName] = useState<string | null>(null)
   const [mcpTestResult, setMcpTestResult] = useState<McpTestResultWire | null>(null)
   const [mcpSavedHint, setMcpSavedHint] = useState('')
-  const [subAgentRefreshTick, setSubAgentRefreshTick] = useState(0)
 
   const mcpEnabled = capabilities?.mcpManagement === true
   const { mcpStatuses, mcpServers, mcpLoading, mcpError, reloadMcpServers, reloadMcpStatuses } = useMcpManagementData(mcpEnabled)
   const mcpOriginsEnabled = capabilities?.mcpServerOrigins === true
-  const subAgentEnabled = capabilities?.subAgentManagement === true
   const hooksEnabled = capabilities?.hooksManagement === true
   const sourceControlEnabled = capabilities?.sourceControlManagement === true
   const pluginManagementEnabled = capabilities?.pluginManagement === true
@@ -802,13 +799,9 @@ export function SettingsView({
     change: workspaceConfigChange,
     changeSeq: workspaceConfigChangeSeq,
     mcpEnabled,
-    subAgentEnabled,
     reloadDreamsStatus: dreams.reloadStatus,
     reloadMcpData: async () => {
       await Promise.all([reloadMcpServers(), reloadMcpStatuses()])
-    },
-    reloadSubAgentData: () => {
-      setSubAgentRefreshTick((current) => current + 1)
     }
   })
 
@@ -817,13 +810,12 @@ export function SettingsView({
       || (activeSettingsTab === 'sourceControl' && !sourceControlEnabled)
       || (activeSettingsTab === 'hooks' && !hooksEnabled)
       || (activeSettingsTab === 'import' && !sessionImportEnabled)
-      || (activeSettingsTab === 'personalization' && !personalizationAvailable && !subAgentEnabled)
+      || (activeSettingsTab === 'personalization' && !personalizationAvailable)
       || (isDesktopPluginSettingsTab(activeSettingsTab) && !activeDesktopPluginSettingsPage)
-    const subAgentsUnavailable = activeSettingsTab === 'subAgents' && !subAgentEnabled
-    if (!unavailable && !subAgentsUnavailable) return
-    runWithoutAppNavigationRecording(() => setActiveSettingsTab(subAgentsUnavailable ? 'personalization' : 'general'))
+    if (!unavailable) return
+    runWithoutAppNavigationRecording(() => setActiveSettingsTab('general'))
     replaceCurrentAppNavigationLocation()
-  }, [activeDesktopPluginSettingsPage, activeSettingsTab, hooksEnabled, mcpEnabled, personalizationAvailable, subAgentEnabled, sourceControlEnabled, sessionImportEnabled])
+  }, [activeDesktopPluginSettingsPage, activeSettingsTab, hooksEnabled, mcpEnabled, personalizationAvailable, sourceControlEnabled, sessionImportEnabled])
 
   useEffect(() => {
     if (activeSettingsTab === 'browserUse' && pluginManagementEnabled) {
@@ -1601,20 +1593,19 @@ export function SettingsView({
                             {providerModelError}
                           </div>
                         )}
-                        {subAgentEnabled && selectedProviderId && (
+                        {configManagementEnabled && selectedProviderId && (
                           <SubAgentDefaultModelField
                             mainProviderId={selectedProviderId}
                             mainPreference={workspacePreference}
                             providers={providers}
                             disabled={applyingWorkspaceProvider || providerModelLoading}
-                            refreshKey={subAgentRefreshTick}
                             onEditProvider={providerEditingEnabled ? startEditProvider : undefined}
                           />
                         )}
                       </div>
                     </SettingsGroup>
 
-                    {subAgentEnabled && (
+                    {configManagementEnabled && (
                       <SubAgentModelChoicesGroup providers={providers} mainProviderId={selectedProviderId} />
                     )}
 
@@ -1674,7 +1665,7 @@ export function SettingsView({
 
             {activeSettingsTab === 'personalization' && (
               <GeneralPanel>
-              <PersonalizationPanelShell segment="personalization">
+              <PersonalizationPanelShell>
                 {personalizationAvailable && (
                   <MemorySettingsGroup
                     memoryToggle={configManagementEnabled
@@ -2060,13 +2051,6 @@ export function SettingsView({
             {activeSettingsTab === 'archivedThreads' && (
               <ArchivedThreadsSettingsView
                 onThreadListRefreshRequested={onThreadListRefreshRequested}
-              />
-            )}
-
-            {activeSettingsTab === 'subAgents' && (
-              <SubAgentsPanel
-                enabled={subAgentEnabled}
-                refreshTick={subAgentRefreshTick}
               />
             )}
           </Suspense>

@@ -35,12 +35,11 @@ public sealed class CursorSessionSourceTests : IDisposable
         Transcript(WorkspacePathMatcher.CursorSlug(sibling), "sibling", nested: true);
         Transcript($"{_slug}-docs", "missing-folder", nested: true);
         Transcript("unrelated-project", "unrelated", nested: true);
-        Transcript(_slug, "external", nested: true);
         Jsonl.Write(
             Path.Combine(_root, "projects", _slug, "agent-transcripts", "root", "subagents", "child.jsonl"),
             UserRecord("<user_query>child</user_query>"));
 
-        var candidates = await new CursorSessionSource(_root).EnumerateCandidatesAsync(Scopes.For(_workspace, externalCliSessionIds: "external"));
+        var candidates = await new CursorSessionSource(_root).EnumerateCandidatesAsync(Scopes.For(_workspace));
 
         Assert.Equal(
             new[] { ("hyphenated", hyphenated), ("nested", nested), ("root", _workspace) },

@@ -106,7 +106,7 @@ public sealed partial class SessionService(
     IEnumerable<IToolSnapshotFinalizer>? toolSnapshotFinalizers = null,
     IEnumerable<IBackgroundTaskKind>? backgroundTaskKinds = null,
     IEnumerable<IMcpToolCatalogContributor>? mcpToolCatalogContributors = null)
-    : ISessionService, IThreadAgentRefreshService, IThreadToolDispatchService, IThreadToolSnapshotService, IThreadToolSnapshotChangeSource, IThreadMcpRuntimeService, IThreadSystemNoticeService, IThreadForkToolBindingService, INativeSubAgentForkMaterializationService, IToolInvocationRecorder, ISubAgentSyntheticTurnService, ISubAgentThreadLifecycleService, ISubAgentCommunicationRuntimeProvider
+    : ISessionService, IThreadAgentRefreshService, IThreadToolDispatchService, IThreadToolSnapshotService, IThreadToolSnapshotChangeSource, IThreadMcpRuntimeService, IThreadSystemNoticeService, IThreadForkToolBindingService, INativeSubAgentForkMaterializationService, IToolInvocationRecorder, ISubAgentThreadLifecycleService, ISubAgentCommunicationRuntimeProvider
 {
     private sealed record PreparedContextTokenEstimate(
         IReadOnlyList<ChatMessage> History,
@@ -514,53 +514,6 @@ public sealed partial class SessionService(
         DateTimeOffset deliveredAt,
         CancellationToken ct = default)
         => await SubAgents.MarkMailboxDeliveredAsync(rootThreadId, entryIds, deliveredAt, ct);
-
-    public async Task<SessionTurn> StartSubAgentSyntheticTurnAsync(
-        string threadId,
-        IList<AIContent> content,
-        string runtimeType,
-        string? profileName,
-        CancellationToken ct = default)
-    {
-        var capturedContent = content.ToList();
-        return await InvokeThreadCommandAsync(
-            threadId,
-            commandCt => SubAgents.StartSyntheticTurnAsync(
-                threadId,
-                capturedContent,
-                runtimeType,
-                profileName,
-                commandCt),
-            ct);
-    }
-
-    public async Task<SessionTurn> CompleteSubAgentSyntheticTurnAsync(
-        string threadId,
-        string turnId,
-        string text,
-        bool isError,
-        SubAgentTokenUsage? tokensUsed,
-        CancellationToken ct = default)
-        => await InvokeThreadCommandAsync(
-            threadId,
-            commandCt => SubAgents.CompleteSyntheticTurnAsync(
-                threadId,
-                turnId,
-                text,
-                isError,
-                tokensUsed,
-                commandCt),
-            ct);
-
-    public async Task<SessionTurn> CancelSubAgentSyntheticTurnAsync(
-        string threadId,
-        string turnId,
-        string reason,
-        CancellationToken ct = default)
-        => await InvokeThreadCommandAsync(
-            threadId,
-            commandCt => SubAgents.CancelSyntheticTurnAsync(threadId, turnId, reason, commandCt),
-            ct);
 
     public Task ArchiveSubAgentTreeForCloseAsync(string childThreadId, CancellationToken ct = default)
         => ThreadLifecycle.ArchiveSubAgentTreeForCloseAsync(childThreadId, ct);

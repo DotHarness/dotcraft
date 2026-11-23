@@ -4,7 +4,7 @@ A subagent is how the main agent delegates. Hand it a self-contained task, it wo
 
 ![How DotCraft delegates a task to a subagent](/subagent-delegation-overview.svg)
 
-Two things define a subagent: the role decides what it can do, and the runtime decides where it runs. The defaults are safe to use as they are — the main agent can create one level of subagents, and a subagent does not spawn further ones. Full configuration fields are in the [Subagents configuration](../configuration/subagents).
+A subagent runs inside DotCraft with its own context and a role that decides what it can do. The defaults are safe to use as they are — the main agent can create one level of subagents, and a subagent does not spawn further ones. Full configuration fields are in the [Subagents configuration](../configuration/subagents).
 
 ## The role decides what it can do
 
@@ -16,14 +16,6 @@ Two things define a subagent: the role decides what it can do, and the runtime d
 
 Role limits are enforced at the moment a tool is called. A subagent that calls a tool it is not allowed gets a clear reason and can take another route. You can also define your own roles in workspace configuration to fix the delegation patterns your team uses most.
 
-## The runtime decides where it runs
-
-The native runtime runs subagents inside DotCraft itself. Role tool limits apply in full, the subagent shares the same prompt prefix as the main chat, and startup costs little.
-
-You can also use an external coding CLI as the runtime, with built-in support for Codex CLI and Cursor CLI. An external CLI runs a one-shot task in its own process and usually reports stage-level progress only. DotCraft passes the role instructions to it, but cannot constrain the tool calls it makes internally. When you need strong isolation, prefer the native runtime and tighten its tools and approvals as described in [Security](../self-hosting/security).
-
-To use another CLI, open **Settings → Subagents** in Desktop and choose **Add custom agent**. A new chat opens where you name the CLI. DotCraft reads its help, tries one small task, and saves the setup for you. The new agent then appears in the list, where you can turn it on or off, change it in a chat, or remove it. To write the setup by hand instead, see [External CLI profiles](../configuration/subagents#external-cli-profiles).
-
 ## Follow subagent progress in Desktop
 
 ![Following several background subagents and their status in DotCraft Desktop](https://github.com/DotHarness/resources/raw/master/dotcraft/docs/subagents.webp)
@@ -32,16 +24,16 @@ Desktop keeps the main chat available while subagents work. Open the background-
 
 ## Approvals still apply
 
-File and command operations from a native subagent go through the same approval flow as the current chat, and every request is labeled with the subagent it came from. DotCraft cannot intercept an external CLI's internal operations one by one, but it passes the current approval mode along as far as the CLI allows.
+File and command operations from a subagent go through the same approval flow as the current chat, and every request is labeled with the subagent it came from. When you need stronger isolation, tighten a role's tool list and approvals as described in [Security](../self-hosting/security).
 
 ## How to choose
 
 | Situation | Recommendation |
 |---|---|
-| Bounded read-only exploration | Native runtime with `explorer` |
-| Implementation inside the current workspace | Native runtime with `worker` |
-| Reusing a specific external coding CLI workflow | External CLI runtime |
-| The strongest tool isolation | Native runtime, a tightened tool list, and Ask for approval |
+| Bounded read-only exploration | `explorer` |
+| Implementation inside the current workspace | `worker` |
+| Summaries, analysis, or general collaboration | `default` |
+| The strongest tool isolation | A custom role with a tightened tool list and Ask for approval |
 
 A subagent's chat is saved as a child of the main chat. Archiving, restoring, or deleting the main chat handles the child chats with it, and role and tool limits survive a restart.
 

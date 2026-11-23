@@ -36,7 +36,7 @@ internal sealed class CodexSessionSource(string root) : ISessionImportSource
                 continue;
             }
 
-            if (meta is not { IsUserSession: true } || scope.ExternalCliSessionIds.Contains(meta.Id))
+            if (meta is not { IsUserSession: true })
                 continue;
             var memberCwd = scope.HostProjects is not null ? meta.Cwd ?? "" : WorkspacePathMatcher.ResolveMemberCwd(meta.Cwd, scope.WorkspaceRoot);
             if (memberCwd is null) continue;

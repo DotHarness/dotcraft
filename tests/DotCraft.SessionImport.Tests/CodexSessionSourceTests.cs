@@ -155,7 +155,7 @@ public sealed class CodexSessionSourceTests : IDisposable
     }
 
     [Fact]
-    public async Task ExcludesNonUserSourcesDotCraftSubAgentsAndCodexImports()
+    public async Task ExcludesNonUserSourcesAndCodexImports()
     {
         Session("01990000-0000-7000-8000-000000000002", Meta("01990000-0000-7000-8000-000000000002", source: "exec"));
         Session("01990000-0000-7000-8000-000000000003", Meta("01990000-0000-7000-8000-000000000003", threadSource: "subagent"));
@@ -163,15 +163,13 @@ public sealed class CodexSessionSourceTests : IDisposable
             "01990000-0000-7000-8000-000000000004",
             source: new { subagent = new { thread_spawn = new { parent_thread_id = ThreadId } } }));
         Session("01990000-0000-7000-8000-000000000005", Meta("01990000-0000-7000-8000-000000000005", source: new { custom = "ide-extension" }));
-        Session("01990000-0000-7000-8000-000000000006", Meta("01990000-0000-7000-8000-000000000006"));
         Session(
             "01990000-0000-7000-8000-000000000007",
             Meta("01990000-0000-7000-8000-000000000007"),
             AgentItem("2026-09-20T10:00:03.000Z", "t1", "a9", ThreadImportConstants.Marker));
         var source = new CodexSessionSource(_root);
 
-        var candidates = await source.EnumerateCandidatesAsync(
-            Scopes.For(_workspace, externalCliSessionIds: "01990000-0000-7000-8000-000000000006"));
+        var candidates = await source.EnumerateCandidatesAsync(Scopes.For(_workspace));
 
         Assert.Equal(
             new[] { "01990000-0000-7000-8000-000000000005", "01990000-0000-7000-8000-000000000007" },

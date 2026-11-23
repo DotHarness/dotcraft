@@ -12,7 +12,6 @@ public static partial class SubAgentSessionControl
         SubAgentSessionContext context,
         SubAgentSpawnOptions options,
         bool waitForCompletion,
-        SubAgentCoordinator? coordinator,
         CancellationToken ct)
     {
         if (CacheSharingFork.PurposeOf(context.ParentThread) == ThreadForkPurpose.SideChat)
@@ -33,70 +32,24 @@ public static partial class SubAgentSessionControl
         }
 
         var role = roleConfig.Name;
-        var requestedProfileName = NormalizeOptional(options.ProfileName);
         var requestedWorkingDirectory = NormalizeOptional(options.WorkingDirectory);
-        var request = new SubAgentTaskRequest
-        {
-            Task = prompt,
-            Label = nickname,
-            WorkingDirectory = requestedWorkingDirectory,
-            ApprovalContext = ApprovalContextScope.Current
-        };
-        var prepared = PrepareRun(coordinator, request, requestedProfileName);
-        var profileName = prepared?.Profile.Name ?? SubAgentCoordinator.DefaultProfileName;
-        var runtimeType = prepared?.RuntimeType ?? NativeSubAgentRuntime.RuntimeTypeName;
-        if (prepared != null
-            && !string.Equals(runtimeType, NativeSubAgentRuntime.RuntimeTypeName, StringComparison.OrdinalIgnoreCase))
-        {
-            var forkContext = await BuildExternalForkContextAsync(context.SessionService, context.ParentThread, forkTurns, ct);
-            prepared = prepared with
-            {
-                Request = prepared.Request with
-                {
-                    Task = BuildExternalRuntimePrompt(prompt, roleConfig, forkContext)
-                }
-            };
-        }
-
-        var workspace = prepared?.LaunchContext.WorkingDirectory
-            ?? requestedWorkingDirectory
-            ?? context.ParentThread.WorkspacePath;
-        var capabilities = ResolveCapabilities(runtimeType, prepared?.Profile, coordinator);
+        var workspace = requestedWorkingDirectory ?? context.ParentThread.WorkspacePath;
         var depth = context.Depth + 1;
         var maxDepth = Math.Max(1, options.MaxDepth);
         if (depth > maxDepth)
             throw new InvalidOperationException($"Subagent depth limit reached. Maximum depth is {maxDepth}.");
         await EnforceResidencyLimitAsync(context, options.MaxConcurrentSubAgents, ct);
         var now = DateTimeOffset.UtcNow;
-        var isNativeRuntime = string.Equals(
-            runtimeType,
-            NativeSubAgentRuntime.RuntimeTypeName,
-            StringComparison.OrdinalIgnoreCase);
-        if (options.InvocationModelOverride != null)
-        {
-            if (!isNativeRuntime)
-                throw new InvalidOperationException("Subagent model overrides are available only for native runtimes.");
-            if (string.Equals(forkTurns, "all", StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("Full-history subagents inherit the parent model and reasoning and do not accept overrides.");
-        }
+        var inheritsFullHistory = string.Equals(forkTurns, "all", StringComparison.OrdinalIgnoreCase);
+        if (options.InvocationModelOverride != null && inheritsFullHistory)
+            throw new InvalidOperationException("Full-history subagents inherit the parent model and reasoning and do not accept overrides.");
         var childConfiguration = ApplyRoleToChildConfiguration(
             context.ParentThread.Configuration,
             roleConfig,
-            isNativeRuntime
-                && !string.Equals(forkTurns, "all", StringComparison.OrdinalIgnoreCase)
-                ? options.SubAgentPreference
-                : null,
-            isNativeRuntime
-                && !string.Equals(forkTurns, "all", StringComparison.OrdinalIgnoreCase)
-                ? options.InvocationModelOverride
-                : null,
-            isNativeRuntime
-                ? options.RuntimeConfig
-                : null,
-            isNativeRuntime,
-            string.Equals(forkTurns, "all", StringComparison.OrdinalIgnoreCase),
-            depth,
-            maxDepth);
+            !inheritsFullHistory ? options.SubAgentPreference : null,
+            !inheritsFullHistory ? options.InvocationModelOverride : null,
+            options.RuntimeConfig,
+            inheritsFullHistory);
         if (options.InvocationModelOverride != null && options.InvocationModelCatalogSnapshot != null)
         {
             var validationOverride = options.InvocationModelOverride.Model == null
@@ -112,8 +65,7 @@ public static partial class SubAgentSessionControl
                 options.InvocationModelCatalogSnapshot,
                 validationOverride);
         }
-        if (isNativeRuntime
-            && options.RuntimeConfig != null
+        if (options.RuntimeConfig != null
             && !string.Equals(
                 childConfiguration.ProviderId,
                 context.ParentThread.Configuration?.ProviderId ?? options.RuntimeConfig.ProviderId,
@@ -123,7 +75,7 @@ public static partial class SubAgentSessionControl
             throw new InvalidOperationException(
                 $"Model provider '{childConfiguration.ProviderId}' is not configured or has no usable credentials, so the subagent cannot start.");
         }
-        if (!isNativeRuntime || !string.Equals(forkTurns, "all", StringComparison.OrdinalIgnoreCase))
+        if (!inheritsFullHistory)
             childConfiguration.SubAgentModelCatalogSnapshot = null;
 
         var source = ThreadSource.ForSubAgent(new SubAgentThreadSource
@@ -138,14 +90,7 @@ public static partial class SubAgentSessionControl
             TaskName = taskName,
             AgentNickname = nickname,
             AgentRole = role,
-            ProfileName = profileName,
-            RuntimeType = runtimeType,
-            ForkTurns = forkTurns,
-            SupportsSendInput = capabilities.SupportsSendInput,
-            SupportsResume = capabilities.SupportsResume,
-            SupportsSendMessage = true,
-            SupportsFollowupTask = true,
-            SupportsClose = capabilities.SupportsClose
+            ForkTurns = forkTurns
         });
 
         var identity = new SessionIdentity
@@ -171,16 +116,14 @@ public static partial class SubAgentSessionControl
             if (options.ChildCreated != null)
                 await options.ChildCreated(childThread, ct);
             await ApplyForkTurnsAsync(context.SessionService, childThread, context.ParentThread, forkTurns, now, ct);
-            var materializedFork = isNativeRuntime
-                                   && string.Equals(forkTurns, "all", StringComparison.OrdinalIgnoreCase)
+            var materializedFork = inheritsFullHistory
                                    && context.SessionService is INativeSubAgentForkMaterializationService materializationService
                                    && await materializationService.MaterializeNativeSubAgentForkAsync(
                                        context.ParentThread,
                                        childThread,
                                        context.ParentModelHistory,
                                        ct);
-            var inheritedToolBindings = isNativeRuntime
-                                        && string.Equals(forkTurns, "all", StringComparison.OrdinalIgnoreCase)
+            var inheritedToolBindings = inheritsFullHistory
                                         && context.SessionService is IThreadForkToolBindingService forkBindingService
                                         && forkBindingService.TryForkThreadToolBindings(context.ParentThread.Id, childThread.Id);
             if ((childThread.TurnCount > 0 || materializedFork || inheritedToolBindings || options.ChildCreated != null)
@@ -202,13 +145,6 @@ public static partial class SubAgentSessionControl
                 TaskName = taskName,
                 AgentNickname = nickname,
                 AgentRole = role,
-                ProfileName = profileName,
-                RuntimeType = runtimeType,
-                SupportsSendInput = capabilities.SupportsSendInput,
-                SupportsResume = capabilities.SupportsResume,
-                SupportsSendMessage = true,
-                SupportsFollowupTask = true,
-                SupportsClose = capabilities.SupportsClose,
                 Status = ThreadSpawnEdgeStatus.Open,
                 CreatedAt = now,
                 UpdatedAt = now
@@ -225,9 +161,7 @@ public static partial class SubAgentSessionControl
             var childCts = CancellationTokenSource.CreateLinkedTokenSource(context.ParentTurnCancellation ?? ct);
             startup.Cancellation = childCts;
             var initialTrigger = CreateSubAgentTrigger(SubAgentInputTriggerKind, nickname, agentPath.Value);
-            var completion = string.Equals(runtimeType, NativeSubAgentRuntime.RuntimeTypeName, StringComparison.OrdinalIgnoreCase)
-                ? RunChildTurnAsync(context.SessionService, childThread.Id, prompt, initialTrigger, childCts.Token, startup.Admission)
-                : RunExternalChildTurnsAsync(context.SessionService, coordinator, prepared!, childThread.Id, prompt, initialTrigger, childCts.Token, startup.Admission);
+            var completion = RunChildTurnAsync(context.SessionService, childThread.Id, prompt, initialTrigger, childCts.Token, startup.Admission);
             startup.Completion = completion;
             await using (ct.Register(childCts.Cancel))
                 await startup.Admission.Task.ConfigureAwait(false);
@@ -261,14 +195,7 @@ public static partial class SubAgentSessionControl
                     TaskName = taskName,
                     Status = "running",
                     AgentNickname = nickname,
-                    AgentRole = role,
-                    ProfileName = profileName,
-                    RuntimeType = runtimeType,
-                    SupportsSendInput = capabilities.SupportsSendInput,
-                    SupportsResume = capabilities.SupportsResume,
-                    SupportsSendMessage = true,
-                    SupportsFollowupTask = true,
-                    SupportsClose = capabilities.SupportsClose
+                    AgentRole = role
                 };
             }
 
@@ -281,14 +208,7 @@ public static partial class SubAgentSessionControl
                 Status = result.Status,
                 Message = result.Message,
                 AgentNickname = nickname,
-                AgentRole = role,
-                ProfileName = profileName,
-                RuntimeType = runtimeType,
-                SupportsSendInput = capabilities.SupportsSendInput,
-                SupportsResume = capabilities.SupportsResume,
-                SupportsSendMessage = true,
-                SupportsFollowupTask = true,
-                SupportsClose = capabilities.SupportsClose
+                AgentRole = role
             };
         }
         catch (Exception ex)

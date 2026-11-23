@@ -107,25 +107,9 @@ public sealed class NativeSubAgentGuidanceTests
     }
 
     [Fact]
-    public void Reconcile_DoesNotChangeExternalSubAgentHistory()
-    {
-        var thread = CreateNativeThread("Native-only guidance.");
-        thread.Source.SubAgent!.RuntimeType = CliOneshotRuntime.RuntimeTypeName;
-        var history = new List<ChatMessage>
-        {
-            new(ChatRole.User, "task")
-        };
-
-        var change = NativeSubAgentGuidance.Reconcile(thread, history, ThreadContextCarrier.DeveloperMessage);
-
-        Assert.Equal(NativeSubAgentGuidanceChange.None, change);
-        Assert.Single(history);
-    }
-
-    [Fact]
     public void Reconcile_AppendsPurposeSpecificProviderGuidance()
     {
-        var thread = CreateNativeThread(instructions: null);
+        var thread = CreateSubAgentThread(instructions: null);
         thread.Source.SubAgent!.Purpose = "test-purpose";
         var history = new List<ChatMessage>();
 
@@ -138,14 +122,13 @@ public sealed class NativeSubAgentGuidanceTests
         Assert.Contains("Purpose-specific guidance.", Assert.Single(history).Text, StringComparison.Ordinal);
     }
 
-    private static SessionThread CreateNativeThread(string? instructions) => new()
+    private static SessionThread CreateNativeThread(string? instructions) => CreateSubAgentThread(instructions);
+
+    private static SessionThread CreateSubAgentThread(string? instructions) => new()
     {
         Id = "thread_child",
         Configuration = new ThreadConfiguration { SubAgentRoleInstructions = instructions },
-        Source = ThreadSource.ForSubAgent(new SubAgentThreadSource
-        {
-            RuntimeType = NativeSubAgentRuntime.RuntimeTypeName
-        })
+        Source = ThreadSource.ForSubAgent(new SubAgentThreadSource())
     };
 
     private sealed class TestGuidanceProvider : ISubAgentGuidanceProvider

@@ -9,9 +9,9 @@ public static partial class SubAgentSessionControl
     {
         var resolved = await ResolveAgentTargetAsync(context.SessionService, context.ParentThread,
             context.ParentThread.Source.SubAgent?.RootThreadId ?? context.ParentThread.Id, target, requireOpen: true, ct);
-        if (resolved.Thread.Ephemeral || !IsNativeRuntime(resolved.Thread)
+        if (resolved.Thread.Ephemeral
             || ToolPlanningThreadClassifier.Classify(resolved.Thread) == ToolPlanningThreadKind.Internal)
-            throw new BoardException("board_unavailable", "Message boards require a persistent native Agent.");
+            throw new BoardException("board_unavailable", "Message boards require a persistent Agent.");
         return resolved.Thread;
     }
 }

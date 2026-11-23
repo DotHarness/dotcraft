@@ -169,7 +169,7 @@ any projection for a specific required tool.
 
 Adjacent `PromptCacheRequestShape` events are compared by `inputItemHashes` from the start of the array: a long common prefix with only appended tail items means the provider-visible prefix stayed stable, and an early mismatch locates the change. Retries share the request index and increment `attemptNumber`. A changed `promptCacheKeyHash` with stable item hashes means the cache identity changed; when both are stable but cached reads drop, the evidence points to provider cache routing rather than a DotCraft prefix mutation.
 
-When a full-history native SubAgent fork is materialized, tracing captures the parent's latest `PromptCacheRequestShape` as an immutable fork anchor. The parent is still inside the spawning tool call at that point, so the anchor is the request that issued the spawn rather than a later parent request. The child's first request shape produces exactly one `SubAgentPrefixDiagnostic` with one of three statuses:
+When a full-history SubAgent fork is materialized, tracing captures the parent's latest `PromptCacheRequestShape` as an immutable fork anchor. The parent is still inside the spawning tool call at that point, so the anchor is the request that issued the spawn rather than a later parent request. The child's first request shape produces exactly one `SubAgentPrefixDiagnostic` with one of three statuses:
 
 | Status | Meaning |
 |--------|---------|
@@ -213,7 +213,7 @@ These rules apply to every protocol unless the protocol contract above explicitl
 9. **Tool identity shape is cache state.** Provider projection and replay preserve immutable tool
    identities; cache shaping does not rename, regroup, or reorder definitions.
 10. **Thread-scoped context is history, not prefix.** Content specific to a thread, its role, the application that started it, or an attached client connection MUST NOT reach the system prompt / `instructions` channel on any protocol. It travels as a thread context item, placed and carried as specified in [Prompt Composition](prompt-composition.md).
-11. **Thread context items append; they do not mutate.** Rewriting an already-sent item, or rebuilding the system prompt because a binding or capability changed, would invalidate the whole cached prefix and is not done. Replacing native SubAgent role instructions is the one exception and establishes an explicit replacement boundary.
+11. **Thread context items append; they do not mutate.** Rewriting an already-sent item, or rebuilding the system prompt because a binding or capability changed, would invalidate the whole cached prefix and is not done. Replacing SubAgent role instructions is the one exception and establishes an explicit replacement boundary.
 
 ## 4. Failure modes the runtime must guard against
 

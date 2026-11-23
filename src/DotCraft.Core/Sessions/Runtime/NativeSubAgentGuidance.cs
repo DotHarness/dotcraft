@@ -11,7 +11,7 @@ internal enum NativeSubAgentGuidanceChange
 }
 
 /// <summary>
-/// Materializes native SubAgent role guidance as a thread context item. The child's generated base
+/// Materializes SubAgent role guidance as a thread context item. The child's generated base
 /// instructions stay identical to its parent's, so the pair can share a provider-side cache prefix.
 /// </summary>
 internal static class NativeSubAgentGuidance
@@ -39,14 +39,8 @@ internal static class NativeSubAgentGuidance
         ArgumentNullException.ThrowIfNull(thread);
         ArgumentNullException.ThrowIfNull(history);
 
-        if (thread.Source.SubAgent is not { } source
-            || !string.Equals(
-                source.RuntimeType,
-                NativeSubAgentRuntime.RuntimeTypeName,
-                StringComparison.OrdinalIgnoreCase))
-        {
+        if (thread.Source.SubAgent is null)
             return NativeSubAgentGuidanceChange.None;
-        }
 
         var desired = BuildGuidance(thread, providers);
         var existingIndex = FindExistingIndex(history);

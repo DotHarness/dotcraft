@@ -6,7 +6,7 @@
 | **Status** | Draft |
 | **Date** | 2026-11-19 |
 | **Parent Specs** | [Session Core](../architecture/session-core.md), [Runtime Module Boundaries](../architecture/runtime-module-boundaries.md) |
-| **Related Specs** | [External CLI SubAgent](external-cli-subagent.md), [Context Compaction](../architecture/context-compaction.md), [Agent Import](agent-import.md) |
+| **Related Specs** | [Context Compaction](../architecture/context-compaction.md), [Agent Import](agent-import.md) |
 
 Purpose: define how a workspace imports chat sessions recorded by other coding agents on the same
 machine (Claude Code, ChatGPT, Cursor) into DotCraft threads, and how those imports are kept in sync.
@@ -93,10 +93,7 @@ are not candidates.
   message record has no `cwd`.
 - `codex`: threads whose `session_meta.source` is not `cli`, `vscode`, or a `custom` value, or whose
   `thread_source` is not `user`; threads that contain the `<EXTERNAL SESSION IMPORTED>` marker
-  (sessions Codex itself imported from another agent); threads whose id appears in any workspace
-  thread's `dotcraft.externalCliSessions` metadata (sessions DotCraft spawned as external CLI
-  sub-agents).
-- `cursor`: sessions whose id appears in `dotcraft.externalCliSessions` metadata.
+  (sessions Codex itself imported from another agent).
 
 ### 3.5 Candidate state
 

@@ -18,8 +18,6 @@ export const coreSettingsPanels = {
     .then((module) => module.WorktreesPanel)),
   hooks: lazyWithPrefetch(() => import('./panels/HooksPanel')
     .then((module) => module.HooksPanel)),
-  subAgents: lazyWithPrefetch(() => import('./panels/SubAgentsPanel')
-    .then((module) => module.SubAgentsPanel)),
   import: lazyWithPrefetch(() => import('./panels/ImportPanel')
     .then((module) => module.ImportPanel)),
   archivedThreads: lazyWithPrefetch(() => import('./archivedThreads/ArchivedThreadsSettingsView')
@@ -35,7 +33,6 @@ const panelByTab: Partial<Record<SettingsTab, { prefetch: () => Promise<void> }>
   sourceControl: coreSettingsPanels.sourceControl,
   worktrees: coreSettingsPanels.worktrees,
   hooks: coreSettingsPanels.hooks,
-  subAgents: coreSettingsPanels.subAgents,
   import: coreSettingsPanels.import,
   archivedThreads: coreSettingsPanels.archivedThreads
 }

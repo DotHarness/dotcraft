@@ -178,7 +178,7 @@ required `executionSessionId`, and live lease references. The route is omitted f
 configuration and cold resume starts disconnected.
 
 A workspace lease is exclusive between Agent Host processes. Threads within one Agent Host process
-MAY share the same lease, including Native SubAgents that inherit the parent's route at child
+MAY share the same lease, including SubAgents that inherit the parent's route at child
 creation. Parent and child routes are independent after creation. A second Agent Host receives
 `WorkspaceBusy` immediately; there is no queue and no force option. Workspace descriptors report a
 lease as `self` when the requesting Agent Host owns it and `other` otherwise, together with the

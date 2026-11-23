@@ -67,14 +67,7 @@ public static partial class SubAgentSessionControl
             TaskName = child.Source.SubAgent?.TaskName,
             Status = ThreadSpawnEdgeStatus.Closed,
             AgentNickname = child.Source.SubAgent?.AgentNickname,
-            AgentRole = child.Source.SubAgent?.AgentRole,
-            ProfileName = child.Source.SubAgent?.ProfileName,
-            RuntimeType = child.Source.SubAgent?.RuntimeType,
-            SupportsSendInput = child.Source.SubAgent?.SupportsSendInput ?? true,
-            SupportsResume = child.Source.SubAgent?.SupportsResume ?? true,
-            SupportsSendMessage = child.Source.SubAgent?.SupportsSendMessage ?? true,
-            SupportsFollowupTask = child.Source.SubAgent?.SupportsFollowupTask ?? true,
-            SupportsClose = child.Source.SubAgent?.SupportsClose ?? true
+            AgentRole = child.Source.SubAgent?.AgentRole
         };
     }
 
@@ -82,10 +75,6 @@ public static partial class SubAgentSessionControl
     {
         var source = child.Source.SubAgent;
         if (source == null)
-            return;
-
-        var runtimeType = NormalizeOptional(source.RuntimeType) ?? NativeSubAgentRuntime.RuntimeTypeName;
-        if (!string.Equals(runtimeType, NativeSubAgentRuntime.RuntimeTypeName, StringComparison.OrdinalIgnoreCase))
             return;
 
         var label = NormalizeOptional(source.AgentNickname)
@@ -141,22 +130,7 @@ public static partial class SubAgentSessionControl
         if (activeTurn == null)
             return child;
 
-        if (sessionService is ISubAgentSyntheticTurnService syntheticTurns
-            && !string.Equals(
-                child.Source.SubAgent?.RuntimeType,
-                NativeSubAgentRuntime.RuntimeTypeName,
-                StringComparison.OrdinalIgnoreCase))
-        {
-            await syntheticTurns.CancelSubAgentSyntheticTurnAsync(
-                childThreadId,
-                activeTurn.Id,
-                "Subagent was cancelled.",
-                CancellationToken.None);
-        }
-        else
-        {
-            await sessionService.CancelTurnAsync(childThreadId, activeTurn.Id, ct);
-        }
+        await sessionService.CancelTurnAsync(childThreadId, activeTurn.Id, ct);
 
         return await sessionService.GetThreadAsync(childThreadId, ct);
     }
@@ -176,12 +150,7 @@ public static partial class SubAgentSessionControl
             ChildThreadId = childThreadId,
             Status = ThreadSpawnEdgeStatus.Open,
             AgentNickname = child.Source.SubAgent?.AgentNickname,
-            AgentRole = child.Source.SubAgent?.AgentRole,
-            ProfileName = child.Source.SubAgent?.ProfileName,
-            RuntimeType = child.Source.SubAgent?.RuntimeType,
-            SupportsSendInput = child.Source.SubAgent?.SupportsSendInput ?? true,
-            SupportsResume = child.Source.SubAgent?.SupportsResume ?? true,
-            SupportsClose = child.Source.SubAgent?.SupportsClose ?? true
+            AgentRole = child.Source.SubAgent?.AgentRole
         };
     }
 

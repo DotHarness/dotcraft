@@ -60,7 +60,6 @@ internal static class DotNetExtensionSampleCoverage
         Effect<IMemoryWriteGate>("FileTools writes shared memory but refuses to delete it while the plugin gate is active."),
         Effect<IThreadRuntimeSignalContributor>("The plugin's journal line for a signal published through ThreadRuntimeSignalDispatcher."),
         Effect<ICommitMessageSuggester>("The message ContributedCommitMessageSuggestService returns while the replacement is registered."),
-        Effect<ISubAgentRuntimeSource>("The contributed runtime type and profile in the catalog every SubAgent site reads."),
         Effect<ITraceSink>("The plugin's journal line for an event recorded on TraceStore."),
 
         RegistrationOnly<IAgentContextSource>(

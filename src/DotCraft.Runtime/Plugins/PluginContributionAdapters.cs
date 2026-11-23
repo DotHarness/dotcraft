@@ -64,8 +64,6 @@ internal static class PluginContributionAdapters
                 new ThreadRuntimeSignalAdapter(value, invocation),
             ICommitMessageSuggester value when typeof(TContract) == typeof(ICommitMessageSuggester) =>
                 new CommitMessageSuggesterAdapter(value, invocation),
-            ISubAgentRuntimeSource value when typeof(TContract) == typeof(ISubAgentRuntimeSource) =>
-                new PluginSubAgentRuntimeSourceAdapter(value, invocation),
             ITraceSink value when typeof(TContract) == typeof(ITraceSink) =>
                 new TraceSinkAdapter(value, invocation),
             _ => throw Unsupported(typeof(TContract), "The contract is not in the plugin contribution catalog.")

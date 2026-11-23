@@ -33,8 +33,7 @@ public sealed partial class SessionImportService
             WorkspaceRoot = _options.WorkspacePath,
             Now = DateTimeOffset.UtcNow,
             MaxAge = TimeSpan.FromDays(_options.Config.MaxSessionAgeDays),
-            MaxSessions = _options.Config.MaxSessionsPerSource,
-            ExternalCliSessionIds = workspace.ExternalCliSessionIds
+            MaxSessions = _options.Config.MaxSessionsPerSource
         };
         var context = new DetectionContext(workspace, ledger, scope);
         if (_options.LocalHost is { } local)
@@ -45,13 +44,9 @@ public sealed partial class SessionImportService
             if (routing.IsKnownWorkspace(_options.WorkspacePath))
             {
                 var scan = new Lazy<Task<LocalImportHostScan>>(() =>
-                {
-                    var excluded = new HashSet<string>(scope.ExternalCliSessionIds, StringComparer.OrdinalIgnoreCase);
-                    routing.CollectExternalCliSessions(excluded, ct);
-                    return LocalImportHostScan.DiscoverAsync(
-                        _sources, routing, scope with { ExternalCliSessionIds = excluded },
-                        LocalImportConfiguration.ReadSourceProjectPaths(local.SourceRoots, local.CursorWorkspaceStorage), ct);
-                });
+                    LocalImportHostScan.DiscoverAsync(
+                        _sources, routing, scope,
+                        LocalImportConfiguration.ReadSourceProjectPaths(local.SourceRoots, local.CursorWorkspaceStorage), ct));
                 context.Host = (routing, scan);
             }
         }

@@ -146,14 +146,7 @@ public sealed class SessionContractParityTests
                 AgentPath = "researcher",
                 TaskName = "Parity",
                 AgentNickname = "Scout",
-                AgentRole = "research",
-                ProfileName = "default",
-                RuntimeType = "session",
-                SupportsSendInput = true,
-                SupportsResume = true,
-                SupportsSendMessage = true,
-                SupportsFollowupTask = true,
-                SupportsClose = true
+                AgentRole = "research"
             }),
             Status = ThreadStatus.Active,
             CreatedAt = DateTimeOffset.Parse("2026-08-03T01:02:03Z"),

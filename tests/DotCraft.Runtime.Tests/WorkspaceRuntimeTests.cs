@@ -252,15 +252,14 @@ public sealed class WorkspaceRuntimeTests
             var changes = new List<AppConfigChangedEventArgs>();
             monitor.Changed += (_, change) => changes.Add(change);
 
-            SubAgentProfilesPersistence.SaveState(
+            Directory.CreateDirectory(Path.GetDirectoryName(config.GlobalConfigPath)!);
+            File.WriteAllText(
                 config.GlobalConfigPath,
-                [],
-                enableExternalCliSessionResume: false,
-                [new SubAgentProfile { Name = "reviewer", Runtime = "cli-oneshot", Bin = "reviewer" }]);
+                """{"SubAgent":{"MaxDepth":3}}""");
             foreach (var refresher in host.Services.GetServices<ISessionRuntimeRefresher>())
                 await refresher.RefreshAsync(CancellationToken.None);
 
-            Assert.Contains(monitor.Current.SubAgentProfiles, profile => profile.Name == "reviewer");
+            Assert.Equal(3, monitor.Current.SubAgent.MaxDepth);
             var change = Assert.Single(changes, change => change.Source == ConfigurationService.ConfigReloadSource);
             Assert.Contains(ConfigChangeRegions.SubAgent, change.Regions);
 

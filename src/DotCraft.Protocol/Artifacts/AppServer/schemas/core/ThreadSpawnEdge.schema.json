@@ -57,43 +57,8 @@
         }
       ]
     },
-    "profileName": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
-    "runtimeType": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
     "status": {
       "type": "string"
-    },
-    "supportsClose": {
-      "type": "boolean"
-    },
-    "supportsFollowupTask": {
-      "type": "boolean"
-    },
-    "supportsResume": {
-      "type": "boolean"
-    },
-    "supportsSendInput": {
-      "type": "boolean"
-    },
-    "supportsSendMessage": {
-      "type": "boolean"
     },
     "taskName": {
       "anyOf": [

@@ -65,24 +65,6 @@ internal static class ThreadConfigurationContractMapper
         RequireApprovalOutsideWorkspace = OmitIfNull(value.RequireApprovalOutsideWorkspace)
     };
 
-    public static Contract.SubAgentModelPreference ToContract(SubAgentModelPreference value) => new()
-    {
-        ProviderId = value.ProviderId is { } providerId ? providerId : default(Protocol.Optional<string?>),
-        Model = value.Model,
-        Reasoning = ToContract(value.Reasoning),
-        Speed = WireString(value.Speed),
-    };
-
-    public static SubAgentModelPreference FromContract(Contract.SubAgentModelPreference value) => new()
-    {
-        ProviderId = ValueOrDefault(value.ProviderId)?.Trim() is { Length: > 0 } providerId ? providerId : null,
-        Model = ValueOrDefault(value.Model) ?? string.Empty,
-        Reasoning = ValueOrDefault(value.Reasoning) is { } reasoning
-            ? FromContract(reasoning)
-            : new AppConfig.ReasoningConfig(),
-        Speed = ParseEnum(ValueOrDefault(value.Speed), InferenceSpeed.Standard),
-    };
-
     public static Domain.ThreadConfiguration FromContract(Contract.ThreadConfiguration value, Domain.ThreadConfiguration? existing = null) => new()
     {
         AgentProfileId = ValueOrDefault(value.AgentProfileId),

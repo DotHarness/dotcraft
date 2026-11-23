@@ -12,10 +12,6 @@ internal static class SubAgentPromptSections
         Notifications only reach a running turn and do not start idle agents. Read the board to catch up on missed posts. Use SendMessage for directed messages and to give your subagents work when that tool is available.
         """ : null;
 
-    /// <summary>Builds the <c>subagent-profiles</c> section from the pre-rendered profile text.</summary>
-    internal static string? Profiles(SystemPromptSectionContext context) =>
-        context.RequireSources().SubAgentProfilesSection;
-
     /// <summary>Builds the <c>subagent-lifecycle</c> section, or omits it without <c>SpawnAgent</c>.</summary>
     internal static string? Lifecycle(SystemPromptSectionContext context)
     {

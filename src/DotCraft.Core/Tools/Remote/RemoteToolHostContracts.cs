@@ -175,7 +175,7 @@ public interface IRemoteToolHostClient
     /// <summary>Gets model-safe runtime connection state without performing network work.</summary>
     bool TryGetConnectionSnapshot(string threadId, out RemoteToolConnectionSnapshot snapshot);
 
-    /// <summary>Copies the parent's current route reference to a native child thread.</summary>
+    /// <summary>Copies the parent's current route reference to a child thread.</summary>
     bool TryForkRoute(string parentThreadId, string childThreadId);
 
     /// <summary>Writes a generated image once to its captured remote workspace route.</summary>

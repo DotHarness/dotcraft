@@ -61,7 +61,6 @@ public sealed class FullHistorySubAgentPrefixTests : IDisposable
                 MaxDepth = 1
             },
             waitForCompletion: false,
-            coordinator: null,
             CancellationToken.None);
         await WaitUntilAsync(() => client.Requests.Count > 2);
         var childRequest = client.Requests[2];
@@ -114,7 +113,6 @@ public sealed class FullHistorySubAgentPrefixTests : IDisposable
                 MaxDepth = 1
             },
             waitForCompletion: true,
-            coordinator: null,
             CancellationToken.None);
 
         await CompactAndContinueAsync(spawned.ChildThreadId);
@@ -161,7 +159,6 @@ public sealed class FullHistorySubAgentPrefixTests : IDisposable
                 MaxDepth = 1
             },
             waitForCompletion: true,
-            coordinator: null,
             CancellationToken.None);
 
         var childRequest = client.Requests[^1];
@@ -192,7 +189,6 @@ public sealed class FullHistorySubAgentPrefixTests : IDisposable
                             MaxDepth = 1
                         },
                         waitForCompletion: false,
-                        coordinator: null,
                         CancellationToken.None);
                 }
                 return [new TextContent("ok")];
