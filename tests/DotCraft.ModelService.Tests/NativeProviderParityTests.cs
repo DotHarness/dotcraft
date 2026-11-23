@@ -109,13 +109,18 @@ public sealed class NativeProviderParityTests
     [Fact]
     public void CatalogRoundTripPreservesResolvedRequestAdapters()
     {
-        var thinking = new ModelThinkingAdapterCatalog.AnthropicThinkingAdapterData { ThinkingType = "adaptive" };
+        var thinking = new ModelThinkingAdapterCatalog.AnthropicThinkingAdapterData
+        {
+            ThinkingType = "adaptive",
+            SupportsThinkingBlockBinding = false
+        };
         thinking.OutputConfigEffortMap["extraHigh"] = "max";
         var model = new ProviderRequestAdaptation(true, true, thinking,
             new ModelThinkingAdapterCatalog.AnthropicMessageContentAdapterData { ReasoningHistoryBlockType = "reasoning" });
         var json = new JsonSerializerOptions(JsonSerializerDefaults.Web);
         var roundtrip = JsonSerializer.Deserialize<ProviderRequestAdaptation>(JsonSerializer.Serialize(model, json), json)!;
         Assert.Equal("max", roundtrip.AnthropicThinking!.OutputConfigEffortMap["extraHigh"]);
+        Assert.False(roundtrip.AnthropicThinking.SupportsThinkingBlockBinding);
         Assert.Equal("reasoning", roundtrip.AnthropicMessageContent!.ReasoningHistoryBlockType);
         Assert.True(roundtrip.UseResponsesLite);
     }

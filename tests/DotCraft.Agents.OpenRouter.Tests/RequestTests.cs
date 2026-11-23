@@ -80,6 +80,53 @@ public sealed class RequestTests
     }
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AnthropicThinkingBindingDefaultsOnAndHonorsScopedOverride(bool optOut)
+    {
+        using var server = new LocalServer();
+        var stateDirectory = Directory.CreateTempSubdirectory();
+        try
+        {
+            if (optOut)
+            {
+                await File.WriteAllTextAsync(Path.Combine(stateDirectory.FullName, ModelThinkingAdapterCatalog.FileName), """
+                    {"anthropicThinking":{"adapters":[{
+                      "models":["claude-opus-5-5"],
+                      "endpoints":["127.0.0.1"],
+                      "thinking":{"supportsBlockBinding":false}
+                    }]}}
+                    """);
+            }
+
+            var runtime = RoutingTests.Runtime() with
+            {
+                EndPoint = server.Root,
+                ConfiguredEndPoint = server.Root,
+                ProviderStateDirectory = stateDirectory.FullName,
+                Model = "anthropic/claude-opus-5.5"
+            };
+            using var client = RoutingTests.Create(runtime).CreateChatClient(runtime);
+            var captured = server.Reply("anthropic");
+            var options = new ChatOptions();
+            ProviderReasoningOptions.Apply(options, true, ProviderReasoningEffort.Medium, ReasoningOutput.None);
+            await client.GetResponseAsync([new ChatMessage(ChatRole.User, "hello")], options);
+
+            var request = await captured;
+            var thinking = request.Body["thinking"]!;
+            Assert.Equal("adaptive", thinking["type"]!.GetValue<string>());
+            Assert.Equal("omitted", thinking["display"]!.GetValue<string>());
+            Assert.Equal("medium", request.Body["output_config"]!["effort"]!.GetValue<string>());
+            Assert.Equal(optOut ? null : "drop_block", thinking["block_binding"]?["prefix_mismatch_behavior"]?.GetValue<string>());
+            Assert.Equal(!optOut, request.Betas.Contains("thinking-binding-controls-2026-08-01"));
+        }
+        finally
+        {
+            stateDirectory.Delete(recursive: true);
+        }
+    }
+
+    [Theory]
     [InlineData("anthropic", true)]
     [InlineData("openai-chat-completions", true)]
     [InlineData("openai-responses", true)]
@@ -151,7 +198,8 @@ public sealed class RequestTests
             Root = $"http://127.0.0.1:{port}/api/v1";
             _listener.Prefixes.Add($"http://127.0.0.1:{port}/"); _listener.Start();
         }
-        internal async Task<(string Path, string? Authorization, string? ApiKey, JsonObject Body)> Reply(string protocol, string? payload = null, bool streaming = false)
+        internal async Task<(string Path, string? Authorization, string? ApiKey, JsonObject Body, string[] Betas)> Reply(
+            string protocol, string? payload = null, bool streaming = false)
         {
             var context = await AcceptAsync();
             using var reader = new StreamReader(context.Request.InputStream);
@@ -170,7 +218,9 @@ public sealed class RequestTests
             for (var offset = 0; offset < bytes.Length; offset += 17)
                 await context.Response.OutputStream.WriteAsync(bytes.AsMemory(offset, Math.Min(17, bytes.Length - offset)));
             context.Response.Close();
-            return (context.Request.Url!.AbsolutePath, context.Request.Headers["Authorization"], context.Request.Headers["x-api-key"], body);
+            var headers = context.Request.Headers;
+            var betas = headers["anthropic-beta"]?.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries) ?? [];
+            return (context.Request.Url!.AbsolutePath, headers["Authorization"], headers["x-api-key"], body, betas);
         }
         internal Task<HttpListenerContext> AcceptAsync() => _listener.GetContextAsync().WaitAsync(TimeSpan.FromSeconds(15));
         public void Dispose() => _listener.Close();

@@ -65,11 +65,15 @@ public sealed partial class OpenRouterProvider : IModelProvider, IProviderModelR
         var capacity = runtime.ConfiguredMaxOutputTokens;
         var maxOutput = capacity is > 0 && model.MaxOutputTokens is > 0 ? Math.Min(capacity.Value, model.MaxOutputTokens.Value)
             : capacity ?? model.MaxOutputTokens;
-        var adaptation = _adaptations.GetOrAdd((model.Id, protocol, snapshot.Revision), _ => new ProviderRequestAdaptation(false, false,
-            protocol == "anthropic" && model.Reasoning is not null
-                ? ModelThinkingAdapterCatalog.ResolveAnthropicThinkingAdapter(_root, model.Id)
-                    ?? new ModelThinkingAdapterCatalog.AnthropicThinkingAdapterData { ThinkingType = "adaptive", OutputConfigEffort = "fromReasoningEffort" }
-                : null, null, model, protocol));
+        var adaptation = runtime.IsRemote
+            ? runtime.RemoteModels![model.Id]
+            : _adaptations.GetOrAdd((model.Id, protocol, snapshot.Revision), _ => new ProviderRequestAdaptation(false, false,
+                protocol == "anthropic" && model.Reasoning is not null
+                    ? ModelThinkingAdapterCatalog.ResolveAnthropicThinkingAdapter(_root, model.Id,
+                        globalCatalogPath: string.IsNullOrWhiteSpace(runtime.ProviderStateDirectory)
+                            ? null : Path.Combine(runtime.ProviderStateDirectory, ModelThinkingAdapterCatalog.FileName),
+                        useAdaptiveFallback: true)
+                    : null, null, model, protocol));
         return resolved with
         {
             Protocol = protocol, EndPoint = protocol == "anthropic" ? _root[..^3] : _root,

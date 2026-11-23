@@ -23,8 +23,7 @@ public sealed class AnthropicThinkingBindingTests
     {
         using var handler = new CaptureHandler(streaming);
         using var http = new HttpClient(handler);
-        var sdk = new AnthropicClient { HttpClient = http, ApiKey = "test", MaxRetries = 0 };
-        using var client = new AnthropicThinkingChatClient(sdk.Beta.AsIChatClient(Model, 1024), Adapter(true), Model);
+        using var client = new AnthropicClientProvider(new Transport(http)).CreateChatClient(Runtime("https://proxy.example", Model));
         var reasoning = new TextReasoningContent("prior reasoning") { ProtectedData = "original-signature" };
         var assistant = new ChatMessage(ChatRole.Assistant, [reasoning, new TextContent("prior answer")]);
         ChatMessage[] history = [new(ChatRole.User, "start"), assistant, new(ChatRole.User, "continue")];
@@ -112,21 +111,23 @@ public sealed class AnthropicThinkingBindingTests
     }
 
     [Theory]
-    [InlineData("https://api.anthropic.com", false, true)]
-    [InlineData("https://proxy.example", false, false)]
-    [InlineData("https://model-service.example", true, true)]
-    public async Task Provider_pipeline_uses_resolved_transport_support(string endpoint, bool remote, bool expected)
+    [InlineData("https://api.anthropic.com", "claude-opus-5", null, true)]
+    [InlineData("https://proxy.example", "claude-opus-5", null, false)]
+    [InlineData("https://proxy.example", "claude-opus-4-8", null, false)]
+    [InlineData("https://model-service.example", "custom-reasoner", true, true)]
+    [InlineData("https://model-service.example", Model, false, false)]
+    public async Task Provider_pipeline_uses_resolved_transport_support(
+        string endpoint, string model, bool? publishedSupport, bool expected)
     {
         using var handler = new CaptureHandler(false);
         using var http = new HttpClient(handler);
-        var runtime = new EffectiveModelRuntime(
-            "test", Model, ModelProviderProtocols.Anthropic, "Test", "key", endpoint, 10, 1024,
-            ModelProviderCapabilities.ForProtocol(ModelProviderProtocols.Anthropic), IsRemote: remote);
-        if (remote)
+        var runtime = Runtime(endpoint, model);
+        if (publishedSupport is { } supported)
         {
-            var adaptation = new ProviderRequestAdaptation(false, false, Adapter(true), null);
+            var adaptation = new ProviderRequestAdaptation(false, false, Adapter(supported), null);
             runtime = runtime with
             {
+                IsRemote = true,
                 RequestAdaptation = JsonSerializer.Deserialize<ProviderRequestAdaptation>(JsonSerializer.Serialize(adaptation))
             };
         }
@@ -139,6 +140,43 @@ public sealed class AnthropicThinkingBindingTests
         if (expected)
             AssertBinding(request.Body);
     }
+
+    [Fact]
+    public async Task Provider_pipeline_honors_scoped_opt_out_without_changing_adaptive_thinking()
+    {
+        var directory = Directory.CreateTempSubdirectory();
+        try
+        {
+            File.WriteAllText(Path.Combine(directory.FullName, ModelThinkingAdapterCatalog.FileName), """
+                {"anthropicThinking":{"adapters":[{
+                  "endpoints":["proxy.example"],"models":["claude-opus-5-5"],
+                  "thinking":{"supportsBlockBinding":false}
+                }]}}
+                """);
+
+            using var handler = new CaptureHandler(false);
+            using var http = new HttpClient(handler);
+            var runtime = Runtime("https://proxy.example", Model) with { ProviderStateDirectory = directory.FullName };
+            using var client = new AnthropicClientProvider(new Transport(http)).CreateChatClient(runtime);
+            await Send(client, [new(ChatRole.User, "continue")], Options(), false);
+
+            var request = Assert.Single(handler.Requests);
+            var thinking = request.Body.GetProperty("thinking");
+            Assert.Equal("adaptive", thinking.GetProperty("type").GetString());
+            Assert.Equal("omitted", thinking.GetProperty("display").GetString());
+            Assert.Equal("high", request.Body.GetProperty("output_config").GetProperty("effort").GetString());
+            Assert.False(thinking.TryGetProperty("block_binding", out _));
+            Assert.DoesNotContain(BindingBeta, request.Betas);
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
+    private static EffectiveModelRuntime Runtime(string endpoint, string model) =>
+        new("test", model, ModelProviderProtocols.Anthropic, "Test", "key", endpoint, 10, 1024,
+            ModelProviderCapabilities.ForProtocol(ModelProviderProtocols.Anthropic));
 
     private static ModelThinkingAdapterCatalog.AnthropicThinkingAdapterData Adapter(bool supported) => new()
     {

@@ -4,24 +4,25 @@ namespace DotCraft.Configuration;
 
 internal static partial class AnthropicThinkingBindingSupport
 {
-    internal static bool IsVerified(string? endpoint, string? model)
+    internal static bool IsEnabledByDefault(string? endpoint, string? model)
     {
-        if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var uri)
-            || uri.Scheme != Uri.UriSchemeHttps
-            || uri.Host is not ("api.anthropic.com" or "openrouter.ai")
-            || string.IsNullOrWhiteSpace(model))
+        if (ModelCapabilityIdentity.ForMatching(model) is not { } id)
             return false;
 
-        var id = model.Trim().ToLowerInvariant();
-        if (id.StartsWith("~anthropic/", StringComparison.Ordinal))
-            id = id[11..];
-        else if (id.StartsWith("anthropic/", StringComparison.Ordinal))
-            id = id[10..];
-        if (uri.Host == "openrouter.ai" && id == "claude-opus-5")
+        var version = ClaudeVersion().Match(id[(id.LastIndexOf('/') + 1)..]);
+        if (!int.TryParse(version.Groups["major"].ValueSpan, out var major) || major < 5)
             return false;
-        return VerifiedModels().IsMatch(id);
+        var minor = version.Groups["minor"];
+        if (major > 5 || (int.TryParse(minor.ValueSpan, out var number) && number >= 1))
+            return true;
+
+        return !minor.Success
+            && version.Groups["family"].ValueSpan.Equals("opus", StringComparison.OrdinalIgnoreCase)
+            && Uri.TryCreate(endpoint, UriKind.Absolute, out var uri)
+            && uri.Scheme == Uri.UriSchemeHttps
+            && uri.Host == "api.anthropic.com";
     }
 
-    [GeneratedRegex(@"^claude-(?:opus-(?:5|5[.-]5)|(?:sonnet|haiku)-5[.-]5|(?:fable|mythos)-5[.-][12])(?:-\d{8})?$", RegexOptions.CultureInvariant)]
-    private static partial Regex VerifiedModels();
+    [GeneratedRegex(@"^claude-(?<family>opus|sonnet|haiku|fable|mythos)-(?<major>[0-9]+)(?:-(?<minor>[0-9]{1,2}))?(?:-[0-9]{8})?(?:[@:][a-z0-9_.-]+)?$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex ClaudeVersion();
 }

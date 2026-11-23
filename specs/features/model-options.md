@@ -222,14 +222,20 @@ For Anthropic:
 - disabled reasoning omits `thinking` when the model supports disabling it
 - enabled reasoning uses the most-specific Anthropic thinking adapter
 - adaptive models map to `thinking.type="adaptive"`, output display, and `output_config.effort`
-- supported adaptive-thinking transports send `thinking.block_binding.prefix_mismatch_behavior="drop_block"`
-  with the `thinking-binding-controls-2026-08-01` beta, allowing the provider to discard thinking
-  blocks whose conversation prefix no longer matches without rewriting persisted history
-- thinking binding support defaults on only for verified model families at `api.anthropic.com` or
-  `openrouter.ai`; unknown compatible endpoints default off. An Anthropic thinking adapter can
-  explicitly set `thinking.supportsBlockBinding` to override support for its matched transport.
-  The resolved capability travels with model-service request adaptation. Disabled thinking never
-  receives binding controls, and existing beta headers are preserved
+- adaptive-thinking requests with binding support send
+  `thinking.block_binding.prefix_mismatch_behavior="drop_block"` with the
+  `thinking-binding-controls-2026-08-01` beta. The provider can discard thinking blocks whose
+  conversation prefix no longer matches without rewriting persisted history or requiring a retry.
+  Existing beta headers are preserved. Binding support does not enable or change the thinking mode
+- binding support defaults on for recognized Claude 5.1 and later model IDs on Anthropic Messages,
+  including compatible endpoints. Claude Opus 5 also defaults on at the official Anthropic HTTPS
+  endpoint. Other older and unrecognized IDs default off
+- a matching `thinking.supportsBlockBinding` boolean in the global `model-thinking-adapters.json`
+  overrides the default for direct Anthropic Messages and OpenRouter's Anthropic route. An override
+  can specify `models`, `endpoints`, or both. If both are specified, both must match. The last
+  matching explicit value wins. A binding-only entry does not change the thinking adapter's type,
+  display, or effort. For a Model Service provider, the service resolves the value from its own
+  configuration and includes it in request adaptation
 - `extraHigh` maps to `xhigh`; `max` and the effective Ultra effort map to `max`
 - models that always reason advertise `supportsDisable=false`
 

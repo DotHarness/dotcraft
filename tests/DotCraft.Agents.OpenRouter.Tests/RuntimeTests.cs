@@ -29,6 +29,30 @@ public sealed class RuntimeTests
         Assert.Single(resolver.GetBackends());
     }
 
+    [Fact]
+    public void RemoteProviderKeepsTheServiceThinkingBindingOverride()
+    {
+        var model = new ModelCatalogEntry
+        {
+            Id = "anthropic/claude-opus-5.5",
+            SupportedProtocols = ["anthropic"],
+            Reasoning = new(false, [ProviderReasoningEffort.Medium], ProviderReasoningEffort.Medium, true)
+        };
+        var adaptation = new ProviderRequestAdaptation(false, false,
+            new() { ThinkingType = "adaptive", SupportsThinkingBlockBinding = false }, null, model, "anthropic");
+        var runtime = RoutingTests.Runtime() with
+        {
+            Model = model.Id,
+            IsRemote = true,
+            RemoteModels = new Dictionary<string, ProviderRequestAdaptation> { [model.Id] = adaptation }
+        };
+
+        var selected = RoutingTests.Create(runtime).ResolveRuntime(runtime);
+
+        Assert.Equal("anthropic", selected.Protocol);
+        Assert.Equal(false, selected.RequestAdaptation?.AnthropicThinking?.SupportsThinkingBlockBinding);
+    }
+
     private sealed class Source : IModelBackendSource
     {
         public IModelBackend Backend { get; } = new OpenRouterBackend();

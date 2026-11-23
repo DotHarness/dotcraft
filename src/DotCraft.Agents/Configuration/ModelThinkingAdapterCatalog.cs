@@ -28,15 +28,19 @@ public static class ModelThinkingAdapterCatalog
         string? endpoint,
         string? model,
         string? globalCatalogPath = null,
-        string? workspaceCatalogPath = null)
+        string? workspaceCatalogPath = null,
+        bool useAdaptiveFallback = false)
     {
         var catalog = LoadBuiltInCatalog();
         MergeFile(catalog, globalCatalogPath);
         MergeFile(catalog, workspaceCatalogPath);
 
         var adapter = catalog.AnthropicThinking.Resolve(endpoint, model);
+        if (adapter is null && useAdaptiveFallback)
+            adapter = new() { ThinkingType = "adaptive", OutputConfigEffort = "fromReasoningEffort" };
         if (adapter is not null)
-            adapter.SupportsThinkingBlockBinding ??= AnthropicThinkingBindingSupport.IsVerified(endpoint, model);
+            adapter.SupportsThinkingBlockBinding = catalog.AnthropicThinking.ResolveBindingOverride(endpoint, model)
+                ?? AnthropicThinkingBindingSupport.IsEnabledByDefault(endpoint, model);
         return adapter;
     }
 
@@ -113,7 +117,7 @@ public static class ModelThinkingAdapterCatalog
                     ReadStringMap(outputConfigElement, "effortMap", adapter.OutputConfigEffortMap);
                 }
 
-                if (adapter.HasMatch && adapter.HasRequestShape)
+                if (adapter.HasMatch && (adapter.HasRequestShape || adapter.SupportsThinkingBlockBinding.HasValue))
                     catalog.AnthropicThinking.Adapters.Add(adapter);
             }
         }
@@ -491,8 +495,23 @@ public static class ModelThinkingAdapterCatalog
             for (var i = Adapters.Count - 1; i >= 0; i--)
             {
                 var adapter = Adapters[i];
-                if (MatchesModel(model, adapter.Models) || MatchesEndpoint(endpoint, adapter.Endpoints))
+                if (adapter.HasRequestShape
+                    && (MatchesModel(model, adapter.Models) || MatchesEndpoint(endpoint, adapter.Endpoints)))
                     return adapter;
+            }
+
+            return null;
+        }
+
+        internal bool? ResolveBindingOverride(string? endpoint, string? model)
+        {
+            for (var i = Adapters.Count - 1; i >= 0; i--)
+            {
+                var rule = Adapters[i];
+                if (rule.SupportsThinkingBlockBinding is { } supported
+                    && (rule.Models.Count == 0 || MatchesModel(model, rule.Models))
+                    && (rule.Endpoints.Count == 0 || MatchesEndpoint(endpoint, rule.Endpoints)))
+                    return supported;
             }
 
             return null;
