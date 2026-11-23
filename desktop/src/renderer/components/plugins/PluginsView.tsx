@@ -321,14 +321,6 @@ export function PluginsView(): JSX.Element {
   // The backend validates the folder before copying anything and returns the reason on
   // failure, which the toast surfaces.
   async function handleInstallFromDisk(): Promise<void> {
-    const proceed = await confirm({
-      title: t('plugins.installLocal.confirm.title'),
-      message: t('plugins.installLocal.confirm.message'),
-      confirmLabel: t('plugins.installLocal.confirm.action'),
-      cancelLabel: t('common.cancel')
-    })
-    if (!proceed) return
-
     let path: string | null
     try {
       path = await window.api.workspace.pickFolder({ title: t('plugins.installLocal.pickTitle') })
