@@ -227,6 +227,7 @@ export function ProviderEditor({
         <SettingsGroup title={t('settings.llm.connectionTitle')}>
           <ProviderSignIn
             providerId={savedProvider?.id ?? null}
+            initialAuthenticated={savedProvider?.isAuthenticated}
             method={draft.authMethod}
             title={preset ? auth && preset.auth.length > 1 ? `${preset.label} · ${auth.label}` : preset.label : draft.backendId ?? ''}
             hint={t(draft.backendId ? 'settings.llm.signIn.hintBackend' : 'settings.llm.signIn.hintChatGpt')}

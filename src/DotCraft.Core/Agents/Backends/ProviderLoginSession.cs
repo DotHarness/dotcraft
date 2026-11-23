@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+
 namespace DotCraft.Agents;
 
 internal sealed class ProviderLoginSession : IProviderLoginInteraction, IDisposable
@@ -8,13 +10,14 @@ internal sealed class ProviderLoginSession : IProviderLoginInteraction, IDisposa
     private readonly string _method;
     private readonly Action<ProviderLoginState> _publish;
     private readonly Action _authenticated;
+    private readonly ILogger? _logger;
     private readonly DateTimeOffset _createdAt = DateTimeOffset.UtcNow;
     private TaskCompletionSource<string>? _answer;
     private ProviderLoginState _state;
 
     public ProviderLoginSession(string providerId, string instanceKey, string owner, IProviderAuthenticator authenticator,
         string method, CancellationToken generationStopping, CancellationToken ownerStopping,
-        Action<ProviderLoginState> publish, Action authenticated)
+        Action<ProviderLoginState> publish, Action authenticated, ILogger? logger = null)
     {
         Owner = owner;
         InstanceKey = instanceKey;
@@ -22,6 +25,7 @@ internal sealed class ProviderLoginSession : IProviderLoginInteraction, IDisposa
         _method = method;
         _publish = publish;
         _authenticated = authenticated;
+        _logger = logger;
         _cancellation = CancellationTokenSource.CreateLinkedTokenSource(generationStopping, ownerStopping);
         _cancellation.CancelAfter(TimeSpan.FromMinutes(15));
         _state = new ProviderLoginState(Guid.NewGuid().ToString("N"), providerId, 0, "running");
@@ -95,8 +99,13 @@ internal sealed class ProviderLoginSession : IProviderLoginInteraction, IDisposa
                 ErrorMessage = string.IsNullOrWhiteSpace(exception.Message) ? "Provider sign-in failed. Try again." : exception.Message.Trim()
             });
         }
-        catch (Exception)
+        catch (Exception exception)
         {
+            _logger?.LogWarning(
+                "Provider login failed unexpectedly for '{ProviderId}' ({ExceptionType}): {Message}",
+                State.ProviderId,
+                exception.GetType().Name,
+                exception.Message);
             Update(state => state with
             {
                 Status = "failed", ErrorCode = "ProviderLoginFailed",

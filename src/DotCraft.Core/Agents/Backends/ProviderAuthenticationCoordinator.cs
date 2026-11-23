@@ -1,5 +1,6 @@
 using DotCraft.Configuration;
 using DotCraft.Contributions;
+using Microsoft.Extensions.Logging;
 
 namespace DotCraft.Agents;
 
@@ -9,7 +10,8 @@ public sealed record ProviderLoginState(
     ProviderAuthenticationStatus? Authentication = null, string? ErrorCode = null, string? ErrorMessage = null);
 
 public sealed class ProviderAuthenticationCoordinator(
-    ModelBackendResolver resolver, HttpClient? balanceClient = null, TimeProvider? time = null) : IAsyncDisposable
+    ModelBackendResolver resolver, HttpClient? balanceClient = null, TimeProvider? time = null,
+    ILogger<ProviderAuthenticationCoordinator>? logger = null) : IAsyncDisposable
 {
     private static readonly HttpClient DefaultBalanceClient = new();
     private static readonly TimeSpan UsageSourceTimeout = TimeSpan.FromSeconds(15);
@@ -50,7 +52,7 @@ public sealed class ProviderAuthenticationCoordinator(
                 throw new ProviderAuthenticationException("ProviderLoginInProgress", "A login is already in progress for this provider.");
             var session = new ProviderLoginSession(runtime.ProviderId, key, owner, authenticator, selected.Id,
                 resolver.GetStopping(runtime), ownerStopping, state => Publish(owner, state),
-                () => resolver.InvalidateAuthentication(runtime));
+                () => resolver.InvalidateAuthentication(runtime), logger);
             _sessions.Add(session.State.Id, session);
             session.Start();
             return session.State;

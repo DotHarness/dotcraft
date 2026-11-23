@@ -28,7 +28,7 @@ export function ProviderSignIn({
 }: ProviderSignInProps): JSX.Element {
   const t = useT()
   const signIn = useProviderSignIn(options)
-  const { status, login, pending, busy, error } = signIn
+  const { status, checking, login, pending, busy, error } = signIn
   const signedIn = status?.isAuthenticated === true && !pending
 
   useEffect(() => {
@@ -53,7 +53,7 @@ export function ProviderSignIn({
             {t('settings.llm.signIn.signOut')}
           </Button>
         ) : (
-          <Button onClick={() => void signIn.signIn()} loading={busy} disabled={disabled || unavailable}>
+          <Button onClick={() => void signIn.signIn()} loading={busy || checking} disabled={disabled || unavailable || checking}>
             {t('settings.llm.signIn.signIn')}
           </Button>
         )}

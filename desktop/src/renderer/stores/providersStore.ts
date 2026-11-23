@@ -302,7 +302,7 @@ function ensureUsageSubscription(entry: ProviderListEntry): void {
 function refreshMeteredUsage(): void {
   const store = useProvidersStore.getState()
   for (const [key, snapshot] of Object.entries(store.usage)) {
-    if (snapshot.balances || snapshot.labels?.scope === 'apiKey') void store.refreshUsage(key)
+    if (snapshot.balances || snapshot.labels?.scope === 'apiKey' || snapshot.pluginId) void store.refreshUsage(key)
   }
 }
 

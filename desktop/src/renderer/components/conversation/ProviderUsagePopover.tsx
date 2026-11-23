@@ -62,9 +62,10 @@ export function ProviderUsageContent({ title, usage, markKind, pluginId, showFet
     )
   }
 
-  const displayWindows = shapeChatGptUsageWindows(usage)
+  const quotaPools = shapeQuotaPools(usage)
+  const displayWindows = quotaPools.length > 0 ? [] : shapeChatGptUsageWindows(usage)
   const hasSupplementalUsage = usage.credits?.hasCredits === true || usage.limitReachedKind != null
-  const balances = displayWindows.length === 0 ? usage.balances : null
+  const balances = quotaPools.length === 0 && displayWindows.length === 0 ? usage.balances : null
   return (
     <div style={contentStyle()}>
       <div style={headerRowStyle()}>
@@ -80,6 +81,10 @@ export function ProviderUsageContent({ title, usage, markKind, pluginId, showFet
       <div className={styles.divider} />
 
       {usage.labels?.scope === 'apiKey' && <OpenRouterUsageRows usage={usage} />}
+
+      {quotaPools.map((pool) => (
+        <QuotaPoolRow key={pool.key} pool={pool} now={now} t={t} />
+      ))}
 
       {displayWindows.map((display, index) => (
         <UsageWindowRow
@@ -99,7 +104,7 @@ export function ProviderUsageContent({ title, usage, markKind, pluginId, showFet
         <div style={emptyStateStyle()}>{t('composer.balanceUsage.empty')}</div>
       )}
 
-      {usage.labels?.scope !== 'apiKey' && displayWindows.length === 0 && !hasSupplementalUsage && !balances && (
+      {usage.labels?.scope !== 'apiKey' && quotaPools.length === 0 && displayWindows.length === 0 && !hasSupplementalUsage && !balances && (
         <div style={emptyStateStyle()}>{t('composer.chatgptUsage.unavailable')}</div>
       )}
 
@@ -145,6 +150,68 @@ function BalanceRow({ balance, locale, t }: BalanceRowProps): JSX.Element {
       <div style={windowFooterStyle()}>
         <span>{t('composer.balanceUsage.toppedUp')}</span>
         <span style={{ fontVariantNumeric: 'tabular-nums' }}>{formatBalanceAmount(balance.toppedUp, balance.currency, locale)}</span>
+      </div>
+    </div>
+  )
+}
+
+interface QuotaPoolDisplay {
+  key: string
+  name: string
+  remainingPercent: number
+  resetAtMs: number | null
+}
+
+function shapeQuotaPools(usage: ProviderUsageSnapshot): QuotaPoolDisplay[] {
+  const order = (usage.labels?.pool_order ?? '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+  if (order.length === 0) return []
+  const values = usage.values ?? {}
+  const labels = usage.labels ?? {}
+  const pools: QuotaPoolDisplay[] = []
+  for (const key of order) {
+    const remaining = values[`pool.${key}.remaining`]
+    if (typeof remaining !== 'number' || !Number.isFinite(remaining)) continue
+    const resetEpoch = values[`pool.${key}.reset_epoch_ms`]
+    pools.push({
+      key,
+      name: labels[`pool.${key}.name`] || key,
+      remainingPercent: Math.max(0, Math.min(100, Math.round(remaining))),
+      resetAtMs: typeof resetEpoch === 'number' && Number.isFinite(resetEpoch) ? resetEpoch : null
+    })
+  }
+  return pools
+}
+
+function QuotaPoolRow({
+  pool,
+  now,
+  t
+}: {
+  pool: QuotaPoolDisplay
+  now: number
+  t: (key: string, vars?: Record<string, string | number>) => string
+}): JSX.Element {
+  const color = colorForRemaining(pool.remainingPercent)
+  return (
+    <div style={windowRowStyle()}>
+      <div style={windowLabelRowStyle()}>
+        <span style={windowLabelStyle()}>{pool.name}</span>
+      </div>
+      <div style={progressTrackStyle()}>
+        <div style={{ ...progressFillStyle(), width: `${pool.remainingPercent}%`, background: color }} />
+      </div>
+      <div style={windowFooterStyle()}>
+        <span style={{ color, fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>
+          {t('composer.chatgptUsage.percentLeft', { percent: pool.remainingPercent })}
+        </span>
+        {pool.resetAtMs !== null && (
+          <span>
+            {t('composer.chatgptUsage.resetsIn', { duration: formatDuration(pool.resetAtMs - now, t) })}
+          </span>
+        )}
       </div>
     </div>
   )

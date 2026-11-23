@@ -9,6 +9,7 @@ const AUTH_REQUEST_TIMEOUT_MS = 30_000
 
 export interface ProviderSignInOptions {
   providerId: string | null
+  initialAuthenticated?: boolean
   method: string
   prepare?: () => Promise<string | null>
   onSignedIn?: (providerId: string) => void | Promise<void>
@@ -17,6 +18,7 @@ export interface ProviderSignInOptions {
 
 export interface ProviderSignIn {
   status: ProviderAuthStatusResult | null
+  checking: boolean
   login: ProviderAuthLoginState | null
   pending: boolean
   busy: boolean
@@ -27,9 +29,21 @@ export interface ProviderSignIn {
   signOut: () => Promise<void>
 }
 
-export function useProviderSignIn({ providerId, method, prepare, onSignedIn, onSignedOut }: ProviderSignInOptions): ProviderSignIn {
+function seededStatus(providerId: string | null, initialAuthenticated?: boolean): ProviderAuthStatusResult | null {
+  return providerId && initialAuthenticated !== undefined ? { isAuthenticated: initialAuthenticated } : null
+}
+
+export function useProviderSignIn({
+  providerId,
+  initialAuthenticated,
+  method,
+  prepare,
+  onSignedIn,
+  onSignedOut
+}: ProviderSignInOptions): ProviderSignIn {
   const t = useT()
-  const [status, setStatus] = useState<ProviderAuthStatusResult | null>(null)
+  const [status, setStatus] = useState<ProviderAuthStatusResult | null>(() => seededStatus(providerId, initialAuthenticated))
+  const [checking, setChecking] = useState(() => Boolean(providerId && initialAuthenticated === undefined))
   const [login, setLogin] = useState<ProviderAuthLoginState | null>(null)
   const [starting, setStarting] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -38,18 +52,24 @@ export function useProviderSignIn({ providerId, method, prepare, onSignedIn, onS
   const mounted = useRef(true)
   const statusRequest = useRef(0)
   const handled = useRef<{ completed: string | null; openedUrl: string | null }>({ completed: null, openedUrl: null })
-  const latest = useRef({ t, onSignedIn, onSignedOut })
-  latest.current = { t, onSignedIn, onSignedOut }
+  const latest = useRef({ t, onSignedIn, onSignedOut, initialAuthenticated })
+  latest.current = { t, onSignedIn, onSignedOut, initialAuthenticated }
 
-  const readStatus = useCallback(async (id: string): Promise<void> => {
+  const readStatus = useCallback(async (id: string, showChecking = false): Promise<void> => {
     const request = ++statusRequest.current
+    if (showChecking) setChecking(true)
     try {
       const result = await window.api.appServer.sendRequest(
         'provider/auth/status', { providerId: id }, AUTH_REQUEST_TIMEOUT_MS
       ) as ProviderAuthStatusResult
-      if (mounted.current && request === statusRequest.current) setStatus(result)
+      if (mounted.current && request === statusRequest.current) {
+        setStatus(result)
+        if (result.isAuthenticated) setError(null)
+      }
     } catch (cause) {
       if (mounted.current && request === statusRequest.current) setError(describeProviderAuthError(cause, latest.current.t))
+    } finally {
+      if (mounted.current && request === statusRequest.current) setChecking(false)
     }
   }, [])
 
@@ -91,8 +111,14 @@ export function useProviderSignIn({ providerId, method, prepare, onSignedIn, onS
 
   useEffect(() => {
     statusRequest.current++
-    setStatus(null)
-    if (providerId) void readStatus(providerId)
+    const seeded = seededStatus(providerId, latest.current.initialAuthenticated)
+    setStatus(seeded)
+    setError(null)
+    if (providerId) {
+      void readStatus(providerId, seeded === null)
+    } else {
+      setChecking(false)
+    }
   }, [providerId, readStatus])
 
   async function recover(loginId: string): Promise<void> {
@@ -201,6 +227,7 @@ export function useProviderSignIn({ providerId, method, prepare, onSignedIn, onS
   const loginActive = login != null && !isLoginTerminal(login)
   return {
     status,
+    checking,
     login: loginActive ? login : null,
     pending: starting || loginActive,
     busy,
