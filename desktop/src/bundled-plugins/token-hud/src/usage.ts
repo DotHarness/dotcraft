@@ -1,13 +1,24 @@
 import type { DesktopPluginHost } from '@dotcraft/plugin'
+import type { SpeedComparison } from './speedTrend'
 import { ThroughputMeter, type RequestTiming } from './throughput'
 
-export interface UsageState {
+interface TimingReadout {
   readonly tokensPerSecond: number | null
-  readonly latestRequestTokensPerSecond: number | null
+  readonly firstTokenLatencyMs: number | null
+}
+
+interface ThreadTiming {
+  readonly meter: ThroughputMeter
+  turnId: string | null
+  readout: TimingReadout
+  lastRequestSpeed: number | null
+}
+
+export interface UsageState extends TimingReadout {
+  readonly timingScope: string | null
+  readonly speedComparison: SpeedComparison | null
   readonly waitingForSample: boolean
   readonly cacheHitRate: number | null
-  /** Mean host-measured first-output latency over the current turn's model requests. */
-  readonly firstTokenLatencyMs: number | null
   readonly threadUsage: ThreadUsageSnapshot | null
 }
 
@@ -31,15 +42,21 @@ interface CacheUsage {
   readonly cachedInputTokens: number
 }
 
-export const EMPTY_USAGE: UsageState = {
+const EMPTY_TIMING: TimingReadout = {
   tokensPerSecond: null,
-  latestRequestTokensPerSecond: null,
+  firstTokenLatencyMs: null
+}
+
+export const EMPTY_USAGE: UsageState = {
+  ...EMPTY_TIMING,
+  timingScope: null,
+  speedComparison: null,
   waitingForSample: false,
   cacheHitRate: null,
-  firstTokenLatencyMs: null,
   threadUsage: null
 }
 
+const MAX_CACHED_THREADS = 100
 const THREAD_USAGE_DEBOUNCE_MS = 250
 
 const listeners = new Set<(state: UsageState) => void>()
@@ -68,7 +85,35 @@ export function startUsageFeed(host: DesktopPluginHost): () => void {
   let workspacePath = host.session.workspacePath
   let activeTurnId: string | null = null
   let liveCacheUsageSeen = false
-  const meter = new ThroughputMeter()
+  const timingByThread = new Map<string, ThreadTiming>()
+  const scopeForThread = (): string | null =>
+    workspacePath && threadId ? JSON.stringify([workspacePath, threadId]) : null
+
+  const selectTiming = (scope: string | null): ThreadTiming => {
+    const cached = scope === null ? undefined : timingByThread.get(scope)
+    const timing = cached ?? {
+      meter: new ThroughputMeter(),
+      turnId: null,
+      readout: EMPTY_TIMING,
+      lastRequestSpeed: null
+    }
+    if (scope !== null) {
+      timingByThread.delete(scope)
+      timingByThread.set(scope, timing)
+      if (timingByThread.size > MAX_CACHED_THREADS) {
+        const oldest = timingByThread.keys().next()
+        if (!oldest.done) timingByThread.delete(oldest.value)
+      }
+    }
+    return timing
+  }
+
+  let timing = selectTiming(scopeForThread())
+  const setMeterTurn = (turnId?: string | null): void => {
+    if (turnId == null || timing.turnId === turnId) return
+    timing.turnId = turnId
+    timing.meter.startTurn()
+  }
 
   const showCacheHitRate = (usage: CacheUsage | null): void => {
     update({
@@ -79,11 +124,19 @@ export function startUsageFeed(host: DesktopPluginHost): () => void {
   }
 
   const showThroughput = (finished = false): void => {
-    const tokensPerSecond = meter.tokensPerSecond()
+    const tokensPerSecond = timing.meter.tokensPerSecond()
+    timing.readout = { tokensPerSecond, firstTokenLatencyMs: timing.meter.firstTokenLatencyMs() }
+
+    const speed = timing.meter.latestRequestTokensPerSecond()
+    let speedComparison = speed === null ? null : current.speedComparison
+    if (speed !== null && speed !== timing.lastRequestSpeed) {
+      speedComparison = timing.lastRequestSpeed === null ? null : { previous: timing.lastRequestSpeed, next: speed }
+      timing.lastRequestSpeed = speed
+    }
+
     update({
-      tokensPerSecond,
-      firstTokenLatencyMs: meter.firstTokenLatencyMs(),
-      latestRequestTokensPerSecond: meter.latestRequestTokensPerSecond(),
+      ...timing.readout,
+      speedComparison,
       ...(finished || tokensPerSecond !== null ? { waitingForSample: false } : {})
     })
   }
@@ -110,7 +163,7 @@ export function startUsageFeed(host: DesktopPluginHost): () => void {
     }, delay)
   }
 
-  update({ ...EMPTY_USAGE, waitingForSample: host.session.busy })
+  update({ ...EMPTY_USAGE, timingScope: scopeForThread(), waitingForSample: host.session.busy })
   void refreshThreadUsage()
 
   const stopSession = host.session.onChange((session) => {
@@ -119,9 +172,16 @@ export function startUsageFeed(host: DesktopPluginHost): () => void {
     workspacePath = session.workspacePath
     activeTurnId = null
     liveCacheUsageSeen = false
-    meter.startTurn()
-    update({ threadUsage: null, latestRequestTokensPerSecond: null, waitingForSample: session.busy })
-    showCacheHitRate(null)
+    const timingScope = scopeForThread()
+    timing = selectTiming(timingScope)
+    update({
+      ...timing.readout,
+      threadUsage: null,
+      cacheHitRate: null,
+      speedComparison: null,
+      timingScope,
+      waitingForSample: session.busy && timing.readout.tokensPerSecond === null
+    })
     void refreshThreadUsage()
   })
 
@@ -132,13 +192,14 @@ export function startUsageFeed(host: DesktopPluginHost): () => void {
   const stopStarted = host.appServer.onNotification('turn/started', (params) => {
     if (params.turn.threadId !== threadId) return
     activeTurnId = params.turn.id
-    meter.startTurn()
+    setMeterTurn(activeTurnId)
     update({ waitingForSample: true })
   })
 
   const stopDelta = host.appServer.onNotification('item/usage/delta', (params) => {
     if (!inActiveTurn(params)) return
-    meter.usage({
+    setMeterTurn(params.turnId)
+    timing.meter.usage({
       llmCall: positiveNumber(params.turnLlmCalls),
       outputTokens: positiveNumber(params.outputTokens) ?? 0,
       timing: toRequestTiming(params.requestTiming)
@@ -158,6 +219,7 @@ export function startUsageFeed(host: DesktopPluginHost): () => void {
     if (params.turn.threadId !== threadId) return
     if (activeTurnId !== null && params.turn.id !== activeTurnId) return
     activeTurnId = null
+    setMeterTurn(params.turn.id)
     showThroughput(true)
     scheduleThreadUsage(0)
   }

@@ -1,20 +1,29 @@
 import { renderHook } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { useSpeedTrend } from './speedTrend'
+import { useCountedValue, useSpeedTrend, type SpeedComparison } from './speedTrend'
 
 describe('speed trend', () => {
-  it('compares each request with the previous one until the value clears', () => {
-    const { result, rerender } = renderHook(({ value }) => useSpeedTrend(value), { initialProps: { value: 100 as number | null } })
+  it('shows a cue only for a comparison that crosses the threshold', () => {
+    const { result, rerender } = renderHook(({ comparison }) => useSpeedTrend(comparison), {
+      initialProps: { comparison: null as SpeedComparison | null }
+    })
     expect(result.current.trend).toBeNull()
 
-    rerender({ value: 80 })
+    rerender({ comparison: { previous: 100, next: 80 } })
     expect(result.current.trend).toBe('down')
-
-    rerender({ value: 82 })
+    rerender({ comparison: { previous: 80, next: 82 } })
     expect(result.current.trend).toBeNull()
-
-    rerender({ value: null })
-    rerender({ value: 50 })
+    rerender({ comparison: { previous: 82, next: 96 } })
+    expect(result.current.trend).toBe('up')
+    rerender({ comparison: null })
     expect(result.current.trend).toBeNull()
+  })
+
+  it('restores speed without animating across threads', () => {
+    const { result, rerender } = renderHook(({ value, scope }) => useCountedValue(value, scope), {
+      initialProps: { value: 30, scope: 'thread-1' }
+    })
+    rerender({ value: 80, scope: 'thread-2' })
+    expect(result.current).toBe(80)
   })
 })

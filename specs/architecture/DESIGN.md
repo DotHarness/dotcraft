@@ -589,12 +589,14 @@ speed, counts to each new value over about half a second, easing out, instead of
 swapping. The Token HUD compares the latest model request's generation speed with
 the previous request's, so one slower request shows even when the turn average
 barely moves. A move of 8% or more points a small chevron at the number's leading
-edge up or down, then fades after `3s`. Smaller moves show none. The previous
-request carries across turns, so a single-request reply still compares with the
-last one. Switching threads starts without a previous request. The chevron uses
-the readout's own ink, never a status colour, and sits outside the layout so the
-unit and neighbouring readouts never shift. Reduced motion swaps the number and
-shows the chevron without travel or fade.
+edge up or down, then fades after `3s`. Smaller moves show none. The last valid
+request carries across turns and gaps without timing within the same thread.
+Untimed requests do not show a chevron. Switching threads restores only that
+thread's readout without animating the number or replaying the chevron. The next
+valid reading compares against that thread's own last valid request.
+The chevron uses the readout's own ink, never a status colour, and sits outside
+the layout so the unit and neighbouring readouts never shift. Reduced motion
+swaps the number and shows the chevron without travel or fade.
 
 ### Sidebar selection
 
