@@ -111,6 +111,7 @@ import {
   StatusIndicator,
   statusTextStyle
 } from './panels/settingsStatusStyles'
+import { usePrefetchSettingsWorktrees } from './panels/worktrees/worktreeSettingsResource'
 import { coreSettingsPanels } from './coreSettingsPanels'
 import { coreSettingsSectionForTab, coreSettingsSectionTitle } from './coreSettingsSections'
 import { settingsContentContainerStyle, settingsMainStyle } from './settingsLayout'
@@ -253,6 +254,7 @@ export function SettingsView({
   workspaceConfigChangeSeq = 0,
   openChromeSettingsSeq = 0
 }: SettingsViewProps): JSX.Element {
+  usePrefetchSettingsWorktrees(workspacePath)
   const t = useT()
   const confirm = useConfirmDialog()
   const isMac = window.api.platform === 'darwin'

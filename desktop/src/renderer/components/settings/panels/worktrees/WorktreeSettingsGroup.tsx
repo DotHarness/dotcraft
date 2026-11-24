@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState, type JSX } from 'react'
+import { useEffect, useState, type JSX } from 'react'
 import { useT } from '../../../../contexts/LocaleContext'
 import { useConfigSetting } from '../../../../stores/configStore'
 import { useThreadStore } from '../../../../stores/threadStore'
+import { requestWorkspaceResource, type WorkspaceResourceScope } from '../../../../stores/workspaceResourceScope'
 import { SettingsEmptyRow, SettingsGroup, SettingsRow } from '../../SettingsGroup'
 import { settingsDescriptionStyle } from '../../settingsTypography'
 import { useConfirmDialog } from '../../../ui/ConfirmDialog'
@@ -9,16 +10,9 @@ import { Button } from '../../../ui/Button'
 import { Input } from '../../../ui/Input'
 import { ScriptOutput } from '../../../worktreeCreation/ScriptOutput'
 import { WorktreeLoadingRow } from './WorktreeLoadingRow'
-import { removeAnyway, removeWorktree, type WorktreeRemovalOutcome } from './worktreeRemoval'
+import { removeAnyway, removeWorktree, type WorktreeRemoval, type WorktreeRemovalOutcome } from './worktreeRemoval'
+import { refreshWorktreeList, useWorktreeList, type ListedWorktree } from './worktreeSettingsResource'
 import styles from './WorktreeSettingsGroup.module.css'
-
-interface WorktreeStatusWire {
-  threadId?: string | null
-  path: string
-  branchName: string
-  hasUncommittedChanges?: boolean
-  aheadCount?: number
-}
 
 const PREFIX_INPUT_ID = 'settings-worktree-branch-prefix'
 
@@ -26,31 +20,25 @@ function prefixError(value: string): boolean {
   return value.length === 0 || /\s/.test(value) || value.endsWith('/') || value.startsWith('/')
 }
 
-export function WorktreeSettingsGroup(): JSX.Element {
+export function WorktreeSettingsGroup({ scope }: { scope: WorkspaceResourceScope }): JSX.Element {
   const t = useT()
   const confirm = useConfirmDialog()
   const prefix = useConfigSetting('Worktrees.BranchPrefix', (error) => t('settings.worktrees.saveFailed', { error }))
   const savedPrefix = typeof prefix.value === 'string' ? prefix.value : 'dotcraft'
   const [prefixDraft, setPrefixDraft] = useState(savedPrefix)
-  const [worktrees, setWorktrees] = useState<WorktreeStatusWire[] | null>(null)
-  const [loadError, setLoadError] = useState<string | null>(null)
+  const list = useWorktreeList(scope)
+  const worktrees = list?.data ?? null
+  const [removalError, setRemovalError] = useState<string | null>(null)
+  const error = removalError ?? list?.error ?? null
   const [removingPath, setRemovingPath] = useState<string | null>(null)
   const [cleanupFailure, setCleanupFailure] = useState<Extract<WorktreeRemovalOutcome, { kind: 'cleanupFailed' }> | null>(null)
   const threads = useThreadStore((state) => state.threadList)
 
   useEffect(() => setPrefixDraft(savedPrefix), [savedPrefix])
 
-  const reload = useCallback(async () => {
-    try {
-      const result = await window.api.appServer.sendRequest('worktree/list', {}) as { data?: WorktreeStatusWire[] }
-      setWorktrees(result.data ?? [])
-      setLoadError(null)
-    } catch (err) {
-      setLoadError(err instanceof Error ? err.message : String(err))
-    }
-  }, [])
-
-  useEffect(() => { void reload() }, [reload])
+  function request(method: 'worktree/remove', params: WorktreeRemoval): Promise<unknown> {
+    return requestWorkspaceResource(scope, method, { ...params })
+  }
 
   function commitPrefix(): void {
     const next = prefixDraft.trim()
@@ -61,7 +49,7 @@ export function WorktreeSettingsGroup(): JSX.Element {
     if (next !== savedPrefix) void prefix.set(next)
   }
 
-  async function remove(worktree: WorktreeStatusWire): Promise<void> {
+  async function remove(worktree: ListedWorktree): Promise<void> {
     const hasWork = worktree.hasUncommittedChanges === true || (worktree.aheadCount ?? 0) > 0
     if (hasWork) {
       const ok = await confirm({
@@ -78,6 +66,7 @@ export function WorktreeSettingsGroup(): JSX.Element {
 
   async function settleRemoval(path: string, run: () => Promise<WorktreeRemovalOutcome>): Promise<void> {
     setRemovingPath(path)
+    setRemovalError(null)
     await window.api.devServers.stopFolder(path).catch(() => undefined)
     setCleanupFailure(null)
     const outcome = await run()
@@ -85,9 +74,9 @@ export function WorktreeSettingsGroup(): JSX.Element {
     if (outcome.kind === 'cleanupFailed') {
       setCleanupFailure(outcome)
     } else if (outcome.kind === 'failed') {
-      setLoadError(outcome.message)
+      setRemovalError(outcome.message)
     } else {
-      await reload()
+      await refreshWorktreeList(scope, path)
     }
   }
 
@@ -112,9 +101,9 @@ export function WorktreeSettingsGroup(): JSX.Element {
           />
         }
       />
-      {loadError && <SettingsEmptyRow tone="error">{loadError}</SettingsEmptyRow>}
-      {worktrees === null && loadError === null && <WorktreeLoadingRow />}
-      {worktrees?.length === 0 && loadError === null ? (
+      {error && <SettingsEmptyRow tone="error">{error}</SettingsEmptyRow>}
+      {worktrees === null && error === null && <WorktreeLoadingRow />}
+      {worktrees?.length === 0 && error === null ? (
         <SettingsEmptyRow>{t('settings.worktrees.empty')}</SettingsEmptyRow>
       ) : worktrees?.map((worktree) => {
         const owner = worktree.threadId ? threads.find((thread) => thread.id === worktree.threadId) : undefined
@@ -166,9 +155,5 @@ export function WorktreeSettingsGroup(): JSX.Element {
       })}
     </SettingsGroup>
   )
-}
-
-function request(method: 'worktree/remove', params: { path: string; discardChanges: boolean; skipCleanup?: boolean }): Promise<unknown> {
-  return window.api.appServer.sendRequest(method, params)
 }
 

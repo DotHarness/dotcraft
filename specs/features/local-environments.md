@@ -104,7 +104,7 @@ Settings has a **Worktrees** page with two tabs.
 
 ### 6.1 General
 
-General shows the branch prefix and worktree list with removal for the foreground Git workspace. It uses the workspace's known source-control state when reopened. A loading placeholder appears only after a short wait for unknown data, without replacing settings that are already available. The list shows an empty state only after a successful load confirms there are no worktrees.
+General shows the branch prefix and worktree list with removal for the foreground Git workspace. Opening Settings starts refreshing the list before the user selects Worktrees. Within the same workspace and connection, General shows the last successful result while refreshing, including a confirmed empty list. A loading placeholder appears only after a short wait for unknown data, without replacing settings that are already available. A failed first load does not count as an empty list. Successful removal updates the list and refreshes it.
 
 ### 6.2 Environments
 
