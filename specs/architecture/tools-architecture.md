@@ -385,13 +385,15 @@ The wire declaration is a tagged union:
 
 ### 11.2 Lifetime
 
-The Thread retains its last accepted declarations across disconnect, unload, and restart. The connection owns only the callback lease. Disconnect does not remove permitted declarations from the model's direct or deferred tools.
+The Thread retains its persisted declarations across disconnect, unload, and restart. The connection owns only the callback lease. Disconnect does not remove permitted declarations from the model's direct or deferred tools.
 
 - Omitted declarations change neither the declarations nor the callback owner.
 - An empty array from the current owner clears the declarations and callback lease.
 - A non-empty array from an authorized connection replaces the declarations and acquires a callback lease. Rebinding identical declarations changes only the lease.
 
-Declaration changes are durable before they take effect on future Turns. A failed replacement leaves the previous declarations and lease unchanged. A running Turn retains its snapshot and never redirects a call to a replacement lease.
+Declaration changes take effect on future Turns only after a successful durable write. A running Turn retains its snapshot and never redirects a call to a replacement lease.
+
+A replacement rejected before writing does not change the declarations or lease. If a write starts but durability cannot be confirmed, the live declarations and lease remain unchanged, but the durable outcome is unconfirmed. Clients should retry the same replacement before relying on its result.
 
 Only declarations are persisted, not live executors or leases. A call without its original live lease fails with the stable disconnect category, distinct from timeout and protocol failures.
 
