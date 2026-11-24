@@ -1,4 +1,5 @@
 import { isComplete, type ChatHistory, type HistoryItem, type HistoryTurn } from './history'
+import { todoCard } from './todoCard'
 import { createItemProjector } from './transcriptItems'
 import { joinResponses, type TurnPiece } from './responseRuns'
 import { layoutTurn, replyIndex, sameReferences, showsWork, stabilizeEntries } from './transcriptLayout'
@@ -74,7 +75,9 @@ export function createTranscriptProjector(sharedChanges?: ChangesProjector): Tra
 
   return {
     project(history, workspacePath = null, options = {}) {
-      if (input?.history === history && input.workspacePath === workspacePath && input.stopped === options.stopped && input.spawnedFrom === options.spawnedFrom && input.workingAgentPaths === options.workingAgentPaths) return previous
+      if (input?.history === history && input.workspacePath === workspacePath && input.stopped === options.stopped
+        && input.spawnedFrom === options.spawnedFrom && input.workingAgentPaths === options.workingAgentPaths
+        && input.hasBackgroundWork === options.hasBackgroundWork && input.todoPlan === options.todoPlan && input.planInput === options.planInput) return previous
       input = { history, workspacePath, ...options }
       const stopped = new Set(options.stopped ?? [])
       const firstTurn = history.olderCursor ? null : (history.turns[0]?.id ?? null)
@@ -175,7 +178,6 @@ export function createTranscriptProjector(sharedChanges?: ChangesProjector): Tra
         nextCache.set(key, next)
         pieces.push(piece)
       }
-      const output = [...stabilizeEntries(joinResponses(pieces), previous)]
       turnsCache = nextCache
       if (echoes !== history.echoes) {
         echoes = history.echoes
@@ -185,8 +187,17 @@ export function createTranscriptProjector(sharedChanges?: ChangesProjector): Tra
           return segments.length > 0 || images.length > 0 ? [{ kind: 'user', id: `echo-${echo.clientId}`, text: echo.text, segments, images, added: echo.added, origin: null, goal: false }] : []
         })
       }
-      output.push(...echoEntries)
-      previous = sameReferences(output, previous) ? previous : output
+      const latestTurn = history.turns.at(-1)
+      const hasBackgroundWork = options.hasBackgroundWork === true
+      const joined = joinResponses(pieces, {
+        workspacePath,
+        latestTurnId: latestTurn?.id,
+        hasBackgroundWork,
+        latestTodoCard: (run) => options.todoPlan && echoEntries.length === 0
+          ? todoCard(options.todoPlan, latestTurn, run.flatMap(({ turnId }) => relatedItems.get(turnId) ?? []), hasBackgroundWork, options.planInput)
+          : null,
+      })
+      previous = stabilizeEntries([...joined, ...echoEntries], previous)
       return previous
     },
     clear() {

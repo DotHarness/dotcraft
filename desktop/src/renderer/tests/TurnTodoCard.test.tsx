@@ -27,10 +27,10 @@ function Popover() {
   return <output aria-label="Summary">{String(useSummaryView().popoverOpen)}</output>
 }
 
-function card(status: TurnTodoStatus, plan: TurnTodoPlan) {
+function card(status: TurnTodoStatus, plan: TurnTodoPlan, waitingOnTasks = false) {
   return (
     <LocaleProvider loadSettings={false}>
-      <TurnTodoCard threadId="thread" turnId="turn" status={status} plan={plan} />
+      <TurnTodoCard threadId="thread" turnId="turn" status={status} waitingOnTasks={waitingOnTasks} plan={plan} />
       <Claimed />
       <Popover />
     </LocaleProvider>
@@ -79,6 +79,17 @@ it('takes the running task count from the working line while it shows it', () =>
   rerender(card('failed', PLAN))
   expect(screen.getByRole('status', { name: 'Claimed' })).toHaveTextContent('false')
   expect(screen.queryByRole('button')).not.toBeInTheDocument()
+})
+
+it('keeps the background tasks button reachable when every step is complete and the list folds', () => {
+  taskCount.value = 1
+  const { rerender } = render(card('completed', { ...PLAN, todos: Array.from({ length: 7 }, (_, i) => ({
+    id: String(i), content: `Step ${i + 1}`, status: 'completed'
+  })) }, true))
+  fireEvent.click(screen.getByRole('button', { name: '1 running task' }))
+  expect(screen.getByRole('status', { name: 'Summary' })).toHaveTextContent('true')
+  rerender(card('completed', PLAN))
+  expect(screen.getByRole('status', { name: 'Claimed' })).toHaveTextContent('false')
 })
 
 it('leaves the running task count to the working line while the turn runs', () => {

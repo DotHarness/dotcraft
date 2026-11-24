@@ -16,16 +16,20 @@ import { TurnTodoCard } from './TurnTodoCard'
 
 type TurnEndStatus = DesktopPluginTurnStatusContext['status']
 
-export function TurnStatusSeat({ turn, running, inReply = false }: { turn: ConversationTurn; running: boolean; inReply?: boolean }): JSX.Element {
+export function TurnStatusSeat({ turn, leadingTurns, running, inReply = false }: {
+  turn: ConversationTurn
+  leadingTurns: readonly ConversationTurn[]
+  running: boolean
+  inReply?: boolean
+}): JSX.Element {
   const workspacePath = useConversationThread()?.workspacePath ?? null
   const { id: turnId, threadId } = turn
   const activeThreadId = useConversationStore.useThreadId()
   const snapshot = useConversationStore((state) => threadId === activeThreadId ? state.plan : null)
   const status = turnEndStatus(running, turn.status)
-  const inputId = turn.items.find((item) => item.type === 'userMessage' && item.deliveryMode !== 'guidance')?.clientUserMessageId
-  const implementsPlan = inputId != null && inputId === readPlanApprovalInput(threadId)
-  const updatedTodos = turn.items.some((item) =>
-    item.type === 'toolCall' && item.success === true && resolveToolKind(item) === 'todoWrite')
+  const approvalInput = readPlanApprovalInput(threadId)
+  const implementsPlan = executesPlan(turn, approvalInput)
+  const updatedTodos = wroteTodos(turn)
   const taskCount = useRunningTaskCount(desktopSummaryServices, threadId, status === 'running')
   const backgroundWork = useThreadStore((state) => state.runtimeSnapshots.get(threadId)?.hasBackgroundWork === true)
   const settled = status !== 'running' && !backgroundWork
@@ -37,11 +41,27 @@ export function TurnStatusSeat({ turn, running, inReply = false }: { turn: Conve
     }),
     [workspacePath, threadId, turnId, status, settled, snapshot, implementsPlan, updatedTodos, taskCount]
   )
+  const checklist = context.plan && {
+    ...context.plan,
+    implementsPlan: implementsPlan || leadingTurns.some((member) => executesPlan(member, approvalInput)),
+    updatedTodos: updatedTodos || leadingTurns.some(wroteTodos)
+  }
   const content = <>
-    <TurnTodoCard threadId={threadId} turnId={turnId} status={status} plan={context.plan} />
+    <TurnTodoCard threadId={threadId} turnId={turnId} status={status}
+      waitingOnTasks={status === 'completed' && backgroundWork} plan={checklist} />
     <DesktopPluginSurface name="conversation.turn.status" context={context} />
   </>
   return inReply ? <div className={styles.reply}>{content}</div> : content
+}
+
+function executesPlan(turn: ConversationTurn, approvalInput: string | null): boolean {
+  const inputId = turn.items.find((item) => item.type === 'userMessage' && item.deliveryMode !== 'guidance')?.clientUserMessageId
+  return inputId != null && inputId === approvalInput
+}
+
+function wroteTodos(turn: ConversationTurn): boolean {
+  return turn.items.some((item) =>
+    item.type === 'toolCall' && item.success === true && resolveToolKind(item) === 'todoWrite')
 }
 
 function turnEndStatus(running: boolean, status: string): TurnEndStatus {

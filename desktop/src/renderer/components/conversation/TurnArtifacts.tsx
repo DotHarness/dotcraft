@@ -3,22 +3,18 @@ import { ExternalLink, FileText, Globe2 } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
-import { turnWrittenFiles } from '../../stores/turnDiffs'
+import { filesForTurns } from '../../stores/turnDiffs'
 import { useDetailPanelStore } from '../../stores/detailPanelStore'
 import type { FileDiff } from '../../types/toolCall'
 import { basename } from '../../utils/path'
 import { toAbsoluteWorkspacePath } from '../../utils/workspacePaths'
 import { OpenTargetButton } from './OpenTargetButton'
-import { toTurnArtifact, type TurnArtifact } from './turnArtifactFiles'
+import { createdTurnArtifacts } from './turnArtifactFiles'
 import { Button } from '../ui/Button'
 
-interface TurnArtifactsProps {
-  turnId: string
-}
-
-export const TurnArtifacts = memo(function TurnArtifacts({ turnId }: TurnArtifactsProps): JSX.Element | null {
+export const TurnArtifacts = memo(function TurnArtifacts({ turnIds }: { turnIds: readonly string[] }): JSX.Element | null {
   const t = useT()
-  const writtenFiles = useConversationStore(useShallow((s) => turnWrittenFiles(s.turnDiffs, turnId)))
+  const rows = useConversationStore(useShallow((s) => filesForTurns(s.turnDiffs, turnIds)))
   const workspacePath = useConversationStore((s) => s.workspacePath)
   const currentThreadId = useDetailPanelStore((s) => s.currentThreadId)
   const openFile = useDetailPanelStore((s) => s.openFile)
@@ -27,9 +23,7 @@ export const TurnArtifacts = memo(function TurnArtifacts({ turnId }: TurnArtifac
   const setActiveViewerTab = useDetailPanelStore((s) => s.setActiveViewerTab)
   const setDetailPanelVisible = useDetailPanelStore((s) => s.setDetailPanelVisible)
 
-  const artifacts = writtenFiles
-    .map((row) => toTurnArtifact(row.diff))
-    .filter((item): item is TurnArtifact => item !== null)
+  const artifacts = createdTurnArtifacts(rows, workspacePath)
 
   if (artifacts.length === 0) return null
 

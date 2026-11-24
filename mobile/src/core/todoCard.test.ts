@@ -24,24 +24,26 @@ const turn = (status: string): HistoryTurn => ({ id: 't1', status, error: null }
 
 describe('to-do card', () => {
   it('shows a list the running turn updates, with its step live', () => {
-    expect(todoCard(plan(['completed', 'in_progress', 'pending']), turn('inProgress'), [input(), ...todoWrite], true, null))
+    expect(todoCard(plan(['completed', 'in_progress', 'pending']), turn('inProgress'), [input(), ...todoWrite], false, null))
       .toMatchObject({ live: true })
   })
 
-  it('shows an approved plan while its execution turn runs, but hides it after success without a write', () => {
+  it('keeps an approved plan visible without a write until background work ends', () => {
     const planned = plan(['pending', 'pending'], 'Ship it')
     const items = [input('implement')]
-    expect(todoCard(planned, turn('inProgress'), items, true, null)).toBeNull()
-    expect(todoCard(planned, turn('inProgress'), items, true, 'implement')).toMatchObject({ live: true })
+    expect(todoCard(planned, turn('inProgress'), items, false, null)).toBeNull()
+    expect(todoCard(planned, turn('inProgress'), items, false, 'implement')).toMatchObject({ live: true })
+    expect(todoCard(planned, turn('completed'), items, true, 'implement')).toMatchObject({ live: true })
+    expect(todoCard(plan(['completed'], 'Ship it'), turn('completed'), items, true, 'implement')).not.toBeNull()
     expect(todoCard(planned, turn('completed'), items, false, 'implement')).toBeNull()
   })
 
   it('keeps unfinished work after a stopped turn without a live step', () => {
-    expect(todoCard(plan(['completed', 'in_progress']), turn('cancelled'), [input(), ...todoWrite], false, null)).toMatchObject({ live: false })
+    expect(todoCard(plan(['completed', 'in_progress']), turn('cancelled'), [input(), ...todoWrite], true, null)).toMatchObject({ live: false })
   })
 
   it('keeps a checked-off list visible while the turn runs', () => {
-    expect(todoCard(plan(['completed', 'completed']), turn('inProgress'), [input(), ...todoWrite], true, null)).not.toBeNull()
+    expect(todoCard(plan(['completed', 'completed']), turn('inProgress'), [input(), ...todoWrite], false, null)).not.toBeNull()
   })
 
   it('hides an unfinished list once its turn completes successfully', () => {
@@ -49,7 +51,7 @@ describe('to-do card', () => {
   })
 
   it('does not carry unfinished tasks into a turn that has not updated them', () => {
-    expect(todoCard(plan(['completed', 'in_progress', 'pending']), turn('inProgress'), [input()], true, null)).toBeNull()
+    expect(todoCard(plan(['completed', 'in_progress', 'pending']), turn('inProgress'), [input()], false, null)).toBeNull()
     expect(todoCard(plan(['completed', 'in_progress', 'pending']), turn('completed'), [input()], false, null)).toBeNull()
   })
 

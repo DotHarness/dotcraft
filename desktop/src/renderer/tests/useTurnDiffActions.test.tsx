@@ -57,7 +57,7 @@ describe('useTurnDiffActions', () => {
     const actions = renderActions()
 
     let pending: Promise<TurnPatchOutcome> = Promise.resolve('reverted')
-    act(() => { pending = actions.current.revertTurn('turn-1') })
+    act(() => { pending = actions.current.revert(['turn-1']) })
     await waitFor(() => expect(applyPatch).toHaveBeenCalledWith(WORKSPACE, 'diff --git a/a.ts b/a.ts', { reverse: true }))
     expect(statuses()).toEqual(['written'])
 
@@ -77,7 +77,7 @@ describe('useTurnDiffActions', () => {
     seed(row('a'), row('b'), row('c'))
     const actions = renderActions()
 
-    const outcome = await act(() => actions.current.revertTurn('turn-1'))
+    const outcome = await act(() => actions.current.revert(['turn-1']))
 
     expect(outcome).toBe('partial')
     expect(appliedPatches()).toEqual([
@@ -92,7 +92,7 @@ describe('useTurnDiffActions', () => {
     seed(row('a'), row('b'))
     const actions = renderActions()
 
-    const outcome = await act(() => actions.current.revertTurn('turn-1'))
+    const outcome = await act(() => actions.current.revert(['turn-1']))
 
     expect(outcome).toBe('failed')
     expect(applyPatch).toHaveBeenCalledTimes(1)
@@ -104,7 +104,7 @@ describe('useTurnDiffActions', () => {
     seed(row('a'))
     const actions = renderActions()
 
-    const outcome = await act(() => actions.current.revertTurn('turn-1'))
+    const outcome = await act(() => actions.current.revert(['turn-1']))
 
     expect(outcome).toBe('not-git-repo')
     expect(statuses()).toEqual(['written'])
@@ -114,23 +114,31 @@ describe('useTurnDiffActions', () => {
     seed(row('a', { truncated: true }), reverted('b'), row('c'))
     const actions = renderActions()
 
-    const outcome = await act(() => actions.current.revertTurn('turn-1'))
+    const outcome = await act(() => actions.current.revert(['turn-1']))
 
     expect(outcome).toBe('reverted')
     expect(appliedPatches()).toEqual([['diff --git a/c.ts b/c.ts', { reverse: true }]])
   })
 
-  it('re-applies a turn oldest first', async () => {
-    seed(reverted('a'), reverted('b'))
+  it('undoes across turns in reverse order and reapplies them forward', async () => {
+    seed(row('before'))
+    const after = row('after', { turnId: 'turn-2', key: 'turn-2::after' })
+    useConversationStore.setState(({ turnDiffs }) => ({
+      turnDiffs: new Map([...turnDiffs, ['turn-2', { turnId: 'turn-2', source: 'history', files: [after] }]])
+    }))
     const actions = renderActions()
+    const ids = ['turn-1', 'turn-2']
 
-    const outcome = await act(() => actions.current.reapplyTurn('turn-1'))
-
-    expect(outcome).toBe('reapplied')
+    expect(await act(() => actions.current.revert(ids))).toBe('reverted')
+    expect(await act(() => actions.current.reapply(ids))).toBe('reapplied')
     expect(appliedPatches()).toEqual([
-      ['diff --git a/a.ts b/a.ts', { reverse: false }],
-      ['diff --git a/b.ts b/b.ts', { reverse: false }]
+      ['diff --git a/after.ts b/after.ts', { reverse: true }],
+      ['diff --git a/before.ts b/before.ts', { reverse: true }],
+      ['diff --git a/before.ts b/before.ts', { reverse: false }],
+      ['diff --git a/after.ts b/after.ts', { reverse: false }]
     ])
-    expect(statuses()).toEqual(['written', 'written'])
+    expect(statuses()).toEqual(['written'])
+    expect(useConversationStore.getState().turnDiffs.get('turn-2')?.files[0].diff.status).toBe('written')
   })
+
 })

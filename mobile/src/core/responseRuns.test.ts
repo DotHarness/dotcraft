@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { emptyHistory, type ChatHistory, type HistoryItem } from './history'
-import { buildTranscript } from './transcript'
+import { todoPlanOf } from './todoCard'
+import { buildTranscript, createTranscriptProjector } from './transcript'
 
 let clock = 0
 
@@ -51,7 +52,7 @@ describe('responses spanning turns', () => {
     expect(activity.children.filter((entry) => entry.kind === 'tool' || entry.kind === 'toolGroup')).toHaveLength(3)
   })
 
-  it('assigns Copy only to the final reply of a continued response', () => {
+  it('groups changes by path on the final reply and opens the latest changed turn', () => {
     const items = [
       item('t1', 'userMessage', { text: 'Clean up' }),
       ...read('t1', 'r1'),
@@ -62,21 +63,24 @@ describe('responses spanning turns', () => {
       item('t2', 'agentMessage', { text: 'Checking the output.', phase: 'commentary' }),
       ...read('t2', 'r2'),
       item('t2', 'toolCall', { toolName: 'EditFile', callId: 'e2', arguments: { path: 'b.ts' }, source: { kind: 'CoreNative', sourceId: 'core-native' }, presentation: { presentationId: 'core.file-write', options: { operation: 'edit' } } }),
-      item('t2', 'toolResult', { toolName: 'EditFile', callId: 'e2', result: 'ok', structuredContent: { kind: 'fileChange', changes: [{ path: 'b.ts', kind: 'update', additions: 1, deletions: 0 }] } }),
+      item('t2', 'toolResult', { toolName: 'EditFile', callId: 'e2', result: 'ok', structuredContent: { kind: 'fileChange', changes: [
+        { path: 'D:\\Repo\\A.ts', kind: 'update', additions: 1, deletions: 2 },
+        { path: 'b.ts', kind: 'update', additions: 4, deletions: 0 },
+      ] } }),
       item('t2', 'agentMessage', { text: 'Done.', phase: 'final' }),
     ]
-    const transcript = buildTranscript(history(items, [['t1', 0, 10], ['t2', 30, 5]]))
+    const transcript = buildTranscript(history(items, [['t1', 0, 10], ['t2', 30, 5]]), 'D:\\repo')
     const activity = transcript.find((entry) => entry.kind === 'activity') as Extract<(typeof transcript)[number], { kind: 'activity' }>
     const messages = [...activity.children, ...transcript].filter((entry) => entry.kind === 'assistant')
 
     expect(messages.filter((entry) => entry.copy)).toMatchObject([{ text: 'Done.', phase: 'final' }])
     expect(messages.filter((entry) => entry.phase === 'commentary')).toMatchObject([{ copy: false, changes: [] }, { copy: false, changes: [] }])
-    expect(messages.find((entry) => entry.copy)).toMatchObject({ changes: [
-      { turnId: 't1', added: 2, removed: 1 },
-      { turnId: 't2', added: 1, removed: 0 },
-    ] })
-    expect(transcript.some((entry) => entry.kind === 'changes')).toBe(false)
-    expect(activity.children.some((entry) => entry.kind === 'changes')).toBe(false)
+    expect(messages.find((entry) => entry.copy)).toMatchObject({ changes: [{
+      turnId: 't2', added: 7, removed: 3, files: [
+        { path: 'a.ts', added: 3, removed: 3 },
+        { path: 'b.ts', added: 4, removed: 0 },
+      ],
+    }] })
   })
 
   it.each([
@@ -125,6 +129,42 @@ describe('responses spanning turns', () => {
     expect(activity.children.find((entry) => entry.kind === 'assistant')).toMatchObject({ text: 'Started the build.', copy: false, changes: [] })
     expect(activity.children.filter((entry) => entry.kind === 'wake')).toMatchObject([{ origin: { task: 'terminal', label: 'npm test' } }])
     expect(transcript[2]).toMatchObject({ text: 'The build passed.', copy: true, changes: [{ turnId: 't1', added: 2, removed: 1 }] })
+  })
+
+  it('retains the latest response checklist across notification turns until background work ends', () => {
+    const todoPlan = todoPlanOf({ todos: [{ id: 'verify', content: 'Verify', activeForm: 'Verifying', status: 'in_progress' }] })
+    const presentation = { presentationId: 'core.todo', options: { operation: 'todoWrite' } }
+    const opening = [
+      item('t1', 'userMessage', { text: 'Clean up' }),
+      item('t1', 'toolCall', { toolName: 'TodoWrite', callId: 'todos', presentation }),
+      item('t1', 'toolResult', { callId: 'todos', success: true }),
+      item('t1', 'toolResult', { structuredContent: { kind: 'fileChange', changes: [{ path: 'a.ts', additions: 1, deletions: 0 }] } }),
+      item('t1', 'agentMessage', { text: 'Waiting for a worker.', phase: 'final' }),
+    ]
+    const wake = [commandEnded('t2'), ...read('t2', 'r2')]
+    const projector = createTranscriptProjector()
+    const options = { todoPlan, hasBackgroundWork: true }
+    const activeTodo = { live: true, todos: [{ id: 'verify', status: 'in_progress', activeForm: 'Verifying' }] }
+
+    const waiting = projector.project(history(opening, [['t1', 0, 10]]), null, options)
+    expect(waiting.find((entry) => entry.kind === 'assistant')).toMatchObject({ copy: false, changes: [], todos: activeTodo })
+
+    const resumed = history([...opening, ...wake], [['t1', 0, 10], ['t2', 30, 5]])
+    resumed.turns[1] = { ...resumed.turns[1], status: 'inProgress' }
+    expect(projector.project(resumed, null, options).find((entry) => entry.kind === 'todos'))
+      .toMatchObject({ card: activeTodo })
+
+    const finished = history([...opening, ...wake, item('t2', 'agentMessage', { text: 'Done.', phase: 'final' })], [['t1', 0, 10], ['t2', 30, 5]])
+    expect(projector.project(finished, null, options).find((entry) => entry.kind === 'assistant'))
+      .toMatchObject({ copy: false, changes: [], todos: activeTodo })
+    const settled = projector.project(finished, null, { ...options, hasBackgroundWork: false })
+    const reply = settled.find((entry) => entry.kind === 'assistant')
+    expect(reply).toMatchObject({ copy: true, changes: [{ turnId: 't1' }] })
+    expect(reply).not.toHaveProperty('todos')
+
+    const other = history([...opening, item('t2', 'userMessage', { text: 'New request' }), ...read('t2', 'r2')], [['t1', 0, 10], ['t2', 30, 5]])
+    other.turns[1] = { ...other.turns[1], status: 'inProgress' }
+    expect(projector.project(other, null, options).some((entry) => entry.kind === 'todos' || (entry.kind === 'assistant' && entry.todos))).toBe(false)
   })
 
   it('keeps the earlier turns expanded while the response has no reply', () => {

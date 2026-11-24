@@ -22,16 +22,16 @@ function image(id: string, extra: Partial<ConversationItem> = {}): ConversationI
   }
 }
 
-function diffs(...files: Array<string | [string, FileDiff['status']]>): Map<string, TurnDiff> {
+function diffs(...files: Array<string | [string, FileDiff['status'], boolean?]>): Map<string, TurnDiff> {
   return new Map([['t1', {
     turnId: 't1',
     source: 'history',
     files: files.map((file, index) => {
-      const [filePath, status] = typeof file === 'string' ? [file, 'written' as const] : file
+      const [filePath, status, isNewFile = true] = typeof file === 'string' ? [file, 'written' as const] : file
       return {
         key: `t1::item-${index}`,
         turnId: 't1',
-        diff: { filePath, additions: 1, deletions: 0, diffHunks: [], status, isNewFile: true },
+        diff: { filePath, additions: 1, deletions: 0, diffHunks: [], status, isNewFile },
         patchText: '',
         truncated: false
       }
@@ -40,10 +40,10 @@ function diffs(...files: Array<string | [string, FileDiff['status']]>): Map<stri
 }
 
 describe('turn outputs', () => {
-  it('lists written Markdown files, HTML files, and generated images', () => {
+  it('lists newly created Markdown and HTML files and successfully generated images', () => {
     const outputs = deriveTurnOutputs(
       turn('completed', [image('img-1'), image('img-failed', { imageGenerationStatus: 'failed', result: undefined })]),
-      diffs('docs/guide.md', 'site/index.html', 'src/app.ts', ['docs/reverted.md', 'reverted'], '.craft/visualizations/chart.html')
+      diffs('docs/guide.md', 'site/index.html', 'src/app.ts', ['docs/existing.md', 'written', false], ['docs/reverted.md', 'reverted'], '.craft/visualizations/chart.html')
     )
 
     expect(outputs).toEqual([

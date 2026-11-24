@@ -5,7 +5,8 @@ import { useT } from '../../contexts/LocaleContext'
 import { useTurnDiffActions, type TurnDiffSource, type TurnPatchOutcome } from '../../hooks/useTurnDiffActions'
 import { useConversationStore } from '../../stores/conversationStore'
 import { showToast, type ToastType } from '../../stores/toastStore'
-import { turnPatchTotals } from '../../stores/turnDiffs'
+import { useShallow } from 'zustand/react/shallow'
+import { filesForTurns, turnPatchTotals } from '../../stores/turnDiffs'
 import { useUIStore } from '../../stores/uiStore'
 import type { TurnFileChange } from '../../types/turnDiff'
 import { basename } from '../../utils/path'
@@ -25,30 +26,27 @@ const SquarePlusMinusIcon = createLucideIcon('square-plus-minus', [
   ['path', { d: 'M9.5 16h5', key: 'minus' }]
 ])
 
-interface TurnCompletionSummaryProps {
-  turnId: string
-}
-
-const NO_ROWS: TurnFileChange[] = []
 const COLLAPSED_ROW_LIMIT = 3
 
-const openInChanges = (key: string): void => useUIStore.getState().showChangesForKey(key)
-
-export const TurnCompletionSummary = memo(function TurnCompletionSummary({ turnId }: TurnCompletionSummaryProps): JSX.Element | null {
-  const rows = useConversationStore((s) => s.turnDiffs.get(turnId)?.files ?? NO_ROWS)
+export const TurnCompletionSummary = memo(function TurnCompletionSummary({ turnIds, threadId }: {
+  turnIds: readonly string[]
+  threadId: string
+}): JSX.Element | null {
+  const rows = useConversationStore(useShallow((s) => filesForTurns(s.turnDiffs, turnIds)))
   const workspacePath = useConversationStore((s) => s.workspacePath)
-  return <TurnChangesCard turnId={turnId} rows={rows} workspacePath={workspacePath} onReview={openInChanges} />
+  const review = (key: string): void => useUIStore.getState().showChangesForKey(key, { threadId, turnIds })
+  return <TurnChangesCard turnIds={turnIds} rows={rows} workspacePath={workspacePath} onReview={review} />
 })
 
 interface TurnChangesCardProps {
-  turnId: string
+  turnIds: readonly string[]
   rows: TurnFileChange[]
   workspacePath: string
   source?: TurnDiffSource
   onReview?: (key: string) => void
 }
 
-export function TurnChangesCard({ turnId, rows, workspacePath, source, onReview }: TurnChangesCardProps): JSX.Element | null {
+export function TurnChangesCard({ turnIds, rows, workspacePath, source, onReview }: TurnChangesCardProps): JSX.Element | null {
   const t = useT()
   const files = useMemo(() => groupTurnFileChanges(rows, workspacePath), [rows, workspacePath])
   const totals = useMemo(() => turnPatchTotals(rows), [rows])
@@ -85,7 +83,7 @@ export function TurnChangesCard({ turnId, rows, workspacePath, source, onReview 
           </span>
         </div>
         <div className={styles.actions}>
-          <TurnPatchButton turnId={turnId} rows={rows} workspacePath={workspacePath} source={source} />
+          <TurnPatchButton turnIds={turnIds} rows={rows} workspacePath={workspacePath} source={source} />
           {onReview && (
             <Button variant="outlineGhost" size="toolbar" onClick={() => onReview(rows[0].key)}>
               {t('turnChanges.review')}
@@ -136,27 +134,26 @@ function outcomeToast(outcome: Exclude<TurnPatchOutcome, 'not-git-repo'>, undo: 
 }
 
 function TurnPatchButton({
-  turnId,
+  turnIds,
   rows,
   workspacePath,
   source
 }: {
-  turnId: string
+  turnIds: readonly string[]
   rows: TurnFileChange[]
   workspacePath: string
   source?: TurnDiffSource
 }): JSX.Element {
   const t = useT()
   const confirm = useConfirmDialog()
-  const { revertTurn, reapplyTurn } = useTurnDiffActions(workspacePath, source)
+  const { revert, reapply } = useTurnDiffActions(workspacePath, source)
   const [pending, setPending] = useState(false)
-  // Truncated rows are never applied, so only the rest decide between Undo and Reapply.
   const applicable = rows.filter((row) => !row.truncated)
   const undo = applicable.some((row) => row.diff.status === 'written')
 
   async function handleClick(): Promise<void> {
     setPending(true)
-    const outcome = await (undo ? revertTurn(turnId) : reapplyTurn(turnId))
+    const outcome = await (undo ? revert(turnIds) : reapply(turnIds))
     setPending(false)
     if (outcome === 'not-git-repo') {
       void confirm({

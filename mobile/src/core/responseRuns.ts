@@ -1,5 +1,6 @@
+import { withTodoCard, type TodoCard } from './todoCard'
 import type { TaskWake, TranscriptEntry } from './transcriptTypes'
-import type { TurnChanges } from './turnChanges'
+import { responseChanges, type TurnChanges } from './turnChanges'
 
 type ActivityEntry = Extract<TranscriptEntry, { kind: 'activity' }>
 
@@ -33,15 +34,15 @@ function wakeLine(piece: TurnPiece): TranscriptEntry[] {
   return piece.wakeEntry ? [piece.wakeEntry] : piece.wake && !piece.wake.message ? [{ kind: 'wake', id: `wake-${piece.turnId}`, origin: piece.wake }] : []
 }
 
-function work(piece: TurnPiece, first: boolean, lifted: boolean): TranscriptEntry[] {
+function work(piece: TurnPiece, first: boolean): TranscriptEntry[] {
   const { activity, rest } = split(piece)
   const body = [...(activity?.children ?? []), ...rest]
   return [
     ...(first ? [] : wakeLine(piece)),
     ...body.flatMap((entry): TranscriptEntry[] => {
-      if (entry.kind === 'changes') return lifted ? [] : [entry]
+      if (entry.kind === 'changes') return []
       if (entry.kind !== 'assistant') return [entry]
-      return [{ ...entry, copy: false, changes: lifted ? [] : entry.changes }]
+      return [{ ...entry, copy: false, changes: [] }]
     }),
     ...(activity?.pendingTurnId !== undefined ? [{ kind: 'turnWork' as const, id: `turn-work-${piece.turnId}`, turnId: activity.pendingTurnId }] : []),
   ]
@@ -54,7 +55,7 @@ function joinRun(run: TurnPiece[]): TranscriptEntry[] {
   const head = split(leading[0])
   const tail = split(last)
   const folds = tail.activity?.status === 'worked' && (last.replied || tail.activity.pendingTurnId !== undefined)
-  const earlier = leading.flatMap((piece, index) => work(piece, index === 0, folds))
+  const earlier = leading.flatMap((piece, index) => work(piece, index === 0))
   if (!tail.activity) return [...head.opening, ...earlier, ...wakeLine(last), ...tail.rest]
   const started = Date.parse(tail.activity.startedAt ?? '')
   const before = leading.reduce((sum, piece) => sum + elapsed(split(piece).activity), 0)
@@ -64,33 +65,53 @@ function joinRun(run: TurnPiece[]): TranscriptEntry[] {
     origin: head.activity?.origin ?? null,
   }
   if (!folds) return [...head.opening, activity, ...earlier, ...wakeLine(last), ...tail.rest]
-  const earlierChanges = leading.flatMap((piece) => piece.changes ? [piece.changes] : [])
-  const reply = last.replied ? tail.rest.findLastIndex((entry) => entry.kind === 'assistant' && (entry.copy || entry.phase === 'final')) : -1
-  const rest = reply < 0 || earlierChanges.length === 0 ? tail.rest : tail.rest.map((entry, index) =>
-    index === reply && entry.kind === 'assistant' ? { ...entry, changes: [...earlierChanges, ...entry.changes] } : entry)
-  const working = rest.findIndex((entry) => entry.kind === 'thinking')
-  const end = working < 0 ? rest.length : working
   return [
     ...head.opening,
     { ...activity, children: [...earlier, ...wakeLine(last), ...tail.activity.children] },
-    ...rest.slice(0, end),
-    ...(reply < 0 ? earlierChanges.map((changes): TranscriptEntry => ({ kind: 'changes', id: `changes-${changes.turnId}`, changes })) : []),
-    ...rest.slice(end),
+    ...tail.rest,
   ]
 }
 
-export function joinResponses(pieces: readonly TurnPiece[]): TranscriptEntry[] {
+function responseCompletion(entries: TranscriptEntry[], changes: TurnChanges | null, settled: boolean): TranscriptEntry[] {
+  const reply = entries.findLastIndex((entry) => entry.kind === 'assistant' && entry.copy)
+  const output = entries.flatMap((entry, index): TranscriptEntry[] => {
+    if (entry.kind === 'changes') return []
+    if (index !== reply || entry.kind !== 'assistant') return [entry]
+    return [{ ...entry, copy: settled, changes: changes ? [changes] : [] }]
+  })
+  if (reply < 0 && changes) output.push({ kind: 'changes', id: `changes-${changes.turnId}`, changes })
+  return output
+}
+
+export function joinResponses(pieces: readonly TurnPiece[], options: {
+  workspacePath: string | null
+  latestTurnId: string | undefined
+  hasBackgroundWork: boolean
+  latestTodoCard: (run: readonly TurnPiece[]) => TodoCard | null
+}): TranscriptEntry[] {
   const output: TranscriptEntry[] = []
   let run: TurnPiece[] = []
-  let previous: TurnPiece | undefined
+  function flush() {
+    const last = run.at(-1)
+    if (!last) return
+    const latest = last.turnId === options.latestTurnId
+    const settled = last.completed && !(latest && options.hasBackgroundWork)
+    const joined = joinRun(run.filter((piece) => piece.entries.length > 0))
+    const entries = latest ? withTodoCard(joined, options.latestTodoCard(run)) : joined
+    if (run.length === 1 && (settled || !last.completed)) {
+      output.push(...entries)
+      return
+    }
+    const changes = settled ? responseChanges(run.flatMap((piece) => piece.changes ? [piece.changes] : []), options.workspacePath) : null
+    output.push(...responseCompletion(entries, changes, settled))
+  }
   for (const piece of pieces) {
-    if (!continues(previous, piece)) {
-      output.push(...joinRun(run))
+    if (!continues(run.at(-1), piece)) {
+      flush()
       run = []
     }
-    previous = piece
-    if (piece.entries.length > 0) run.push(piece)
+    run.push(piece)
   }
-  if (run.length > 0) output.push(...joinRun(run))
+  flush()
   return output
 }

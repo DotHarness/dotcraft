@@ -38,6 +38,11 @@ const PENDING_WELCOME_TIMEOUT_MS = 30_000
 
 export type ChangesDiffMode = 'inline' | 'split'
 
+export interface ResponseChangesScope {
+  threadId: string
+  turnIds: readonly string[]
+}
+
 export type BuiltInMainView = 'conversation' | 'agents' | 'skills' | 'automations'
 export type DesktopPluginMainView = `desktop-plugin:${string}:${string}`
 export type ActiveMainView = BuiltInMainView | DesktopPluginMainView
@@ -126,6 +131,7 @@ export interface UIState extends ProjectThreadNavigationState {
   explorerWidth: number
   explorerRevealPath: string | null
   selectedChangeKey: string | null
+  responseChangesScope: ResponseChangesScope | null
   changesDiffModeByThread: Record<string, ChangesDiffMode>
   changesWordWrap: boolean
   composerPrefill: string | null
@@ -173,11 +179,11 @@ interface UIStore extends UIState, ProjectThreadNavigationActions {
   setExplorerWidth(width: number): void
   revealInExplorer(absoluteDir: string): void
   consumeExplorerReveal(): void
-  selectChangeKey(key: string | null): void
+  selectChangeKey(key: string | null, scope?: ResponseChangesScope | null): void
   getChangesDiffMode(threadId: string | null): ChangesDiffMode
   setChangesDiffMode(threadId: string | null, mode: ChangesDiffMode): void
   toggleChangesWordWrap(): void
-  showChangesForKey(key: string): void
+  showChangesForKey(key: string, scope?: ResponseChangesScope): void
   /** Set text to be picked up by InputComposer on its next mount. */
   setComposerPrefill(text: string): void
   consumeComposerPrefill(): string | null
@@ -256,6 +262,7 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
   explorerWidth: EXPLORER_DEFAULT_WIDTH,
   explorerRevealPath: null,
   selectedChangeKey: null,
+  responseChangesScope: null,
   changesDiffModeByThread: {},
   changesWordWrap: false,
   composerPrefill: null,
@@ -410,8 +417,8 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
     }
   },
 
-  selectChangeKey(key) {
-    set({ selectedChangeKey: key })
+  selectChangeKey(key, scope) {
+    set((state) => ({ selectedChangeKey: key, responseChangesScope: scope === undefined ? state.responseChangesScope : scope }))
   },
 
   getChangesDiffMode(threadId) {
@@ -433,8 +440,8 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
     set((state) => ({ changesWordWrap: !state.changesWordWrap }))
   },
 
-  showChangesForKey(key) {
-    set({ selectedChangeKey: key })
+  showChangesForKey(key, scope) {
+    get().selectChangeKey(key, scope ?? null)
     useDetailPanelStore.getState().setActiveDetailTab('changes')
   },
 

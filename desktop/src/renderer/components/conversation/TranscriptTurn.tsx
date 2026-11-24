@@ -28,7 +28,7 @@ export const TranscriptTurn = memo(function TranscriptTurn({
   isLastTurn: boolean
   running: boolean
   live: TranscriptLiveText | null
-  renderTurnCompletion?: (turnId: string) => ReactNode
+  renderTurnCompletion?: (turnIds: readonly string[]) => ReactNode
 }): JSX.Element | null {
   const loadTurnItems = useSubAgentTranscriptStore((s) => s.loadTurnItems)
   const hasFileChanges = useSubAgentTranscriptStore((s) =>
