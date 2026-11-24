@@ -1,11 +1,13 @@
 import { useEffect, useState, type JSX } from 'react'
 import { useT } from '../../../contexts/LocaleContext'
 import { addToast } from '../../../stores/toastStore'
+import { useConfirmDialog } from '../../ui/ConfirmDialog'
 import { PillSwitch } from '../../ui/PillSwitch'
 import { SettingsRow } from '../SettingsGroup'
 
 export function CdpDebuggingRow(): JSX.Element {
   const t = useT()
+  const confirm = useConfirmDialog()
   const [enabled, setEnabled] = useState(false)
   const [saving, setSaving] = useState(false)
 
@@ -18,6 +20,13 @@ export function CdpDebuggingRow(): JSX.Element {
   }, [])
 
   async function toggle(checked: boolean): Promise<void> {
+    if (checked && !(await confirm({
+      title: t('settings.cdpDebugging.warningTitle'),
+      message: t('settings.cdpDebugging.warningBody'),
+      confirmLabel: t('settings.cdpDebugging.warningConfirm'),
+      cancelLabel: t('common.cancel'),
+      danger: true
+    }))) return
     setEnabled(checked)
     setSaving(true)
     try {

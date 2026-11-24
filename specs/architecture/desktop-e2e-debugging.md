@@ -22,7 +22,9 @@ uses `npm run dev:debug` (port `9222` by default); packaged builds accept
 `--remote-debugging-port=<port>`. The CDP debugging switch in Settings › General is a persisted
 startup choice: while it is on, each later start of the Desktop process enables port `9222`
 unless its command line names a port. Changing the switch never affects the running process, so
-the switch says that it applies after a restart. When another process already holds port `9222`, the
+the switch says that it applies after a restart. Turning the switch on first asks the person to
+confirm a warning that any program on this computer could then read and control DotCraft, and
+canceling leaves it off. Turning it off needs no confirmation. When another process already holds port `9222`, the
 switch leaves CDP off for that start and Desktop declares no endpoint. A requested-port collision fails
 rather than scanning for another endpoint. Installing a renderer plugin cannot enable CDP after startup.
 
