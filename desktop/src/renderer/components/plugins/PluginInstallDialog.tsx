@@ -31,6 +31,7 @@ const dotharLogoUrl = new URL('../../assets/brand/dothar.svg', import.meta.url).
 export function PluginInstallDialog({
   plugin,
   installing,
+  confirmLabel,
   onInstall,
   onTrust,
   onSetupComplete,
@@ -38,6 +39,8 @@ export function PluginInstallDialog({
 }: {
   plugin: PluginEntry
   installing?: boolean
+  /** Replaces the setup steps with one action that answers a confirmation request through `onInstall`. */
+  confirmLabel?: string
   onInstall: () => Promise<void> | void
   onTrust?: () => Promise<void> | void
   onSetupComplete?: () => void
@@ -106,12 +109,12 @@ export function PluginInstallDialog({
   const setupFinished = setupStage.stage === 'complete'
   const completionReported = useRef(false)
   useEffect(() => {
-    if (!setupFinished || completionReported.current) return
+    if (confirmLabel || !setupFinished || completionReported.current) return
     completionReported.current = true
     ;(onSetupComplete ?? onClose)()
-  }, [onClose, onSetupComplete, setupFinished])
+  }, [confirmLabel, onClose, onSetupComplete, setupFinished])
 
-  const dialogTitle = plugin.installed && (hasApps || needsTrust)
+  const dialogTitle = plugin.installed && (confirmLabel || hasApps || needsTrust)
     ? t('plugins.installDialog.setupTitle', { name: title })
     : t('plugins.installDialog.title', { name: title })
 
@@ -224,7 +227,28 @@ export function PluginInstallDialog({
       )}
       footer={(
         <div className={styles.actions}>
-          {setupStage.stage === 'pluginInstall' ? (
+          {confirmLabel ? (
+            <>
+              {needsTrust && <TrustNotice name={title} />}
+              <Button size="prominent" variant="primary" onClick={() => { void onInstall() }} disabled={installing} loading={installing} className={styles.wide}>
+                {confirmLabel}
+              </Button>
+            </>
+          ) : setupStage.stage === 'trustRequired' ? (
+            <>
+              <TrustNotice name={title} />
+              <Button
+                size="prominent"
+                variant="primary"
+                onClick={onTrust ? () => { void run('plugin:trust', async () => { await onTrust() }) } : undefined}
+                disabled={!onTrust || busyKey === 'plugin:trust'}
+                loading={busyKey === 'plugin:trust'}
+                className={styles.wide}
+              >
+                {t('plugins.installDialog.trustAction')}
+              </Button>
+            </>
+          ) : setupStage.stage === 'pluginInstall' ? (
             <Button size="prominent" variant="primary" onClick={() => { void onInstall() }} disabled={installing} loading={installing} className={styles.wide}>
               {installing ? t('plugins.installing') : t('plugins.installDialog.addToDotCraft')}
             </Button>
@@ -232,9 +256,7 @@ export function PluginInstallDialog({
             <CurrentSetupStage
               stage={setupStage.stage}
               apps={setupStage.apps}
-              trustName={title}
               busyKey={busyKey}
-              onTrust={onTrust ? () => run('plugin:trust', async () => { await onTrust() }) : undefined}
               onConnect={handleConnect}
               onInstallNative={handleInstallNative}
               onRefresh={() => { void run('setup:refresh', refreshAppSetup) }}
@@ -293,48 +315,34 @@ function ContentChips({ plugin }: { plugin: PluginEntry }): JSX.Element {
   )
 }
 
+function TrustNotice({ name }: { name: string }): JSX.Element {
+  const t = useT()
+  return (
+    <SetupPanel
+      tone="warning"
+      title={t('plugins.installDialog.trustRequired')}
+      status={t('plugins.installDialog.trustStep', { name })}
+    />
+  )
+}
+
 function CurrentSetupStage({
   stage,
   apps,
-  trustName,
   busyKey,
   onConnect,
   onInstallNative,
   onRefresh,
-  onTrust,
   t
 }: {
   stage: SetupStage
   apps: AppSetupState[]
-  trustName: string
   busyKey: string | null
   onConnect: (app: PluginAppInfo) => Promise<void>
   onInstallNative: (app: PluginAppInfo) => Promise<void>
   onRefresh: () => void
-  onTrust?: () => void
   t: ReturnType<typeof useT>
 }): JSX.Element | null {
-  if (stage === 'trustRequired') {
-    return (
-      <SetupPanel
-        tone="warning"
-        title={t('plugins.installDialog.trustRequired')}
-        status={t('plugins.installDialog.trustStep', { name: trustName })}
-      >
-        <Button
-          size="sm"
-          variant="primary"
-          onClick={onTrust}
-          disabled={!onTrust || busyKey === 'plugin:trust'}
-          loading={busyKey === 'plugin:trust'}
-          className={styles.trailing}
-        >
-          {t('plugins.installDialog.trustAction')}
-        </Button>
-      </SetupPanel>
-    )
-  }
-
   if (stage === 'complete') return null
 
   const nativeStage = stage === 'nativeAppRequired' || stage === 'nativeAppPending'

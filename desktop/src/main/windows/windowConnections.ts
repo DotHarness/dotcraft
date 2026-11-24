@@ -130,7 +130,7 @@ export async function connectViaWebSocket(
         client.connectionId ? { connectionKey: entry.key, connectionId: client.connectionId } : undefined)
     }
     ctx.getThreadTasks().handleNotification(method, params, win.webContents.id)
-    ctx.app.projectCreationConfirm.observeNotification(method, params)
+    ctx.app.toolConfirm.observeNotification(method, params)
     observeLinkedChatNotification(ctx, entry, method, params)
   })
 

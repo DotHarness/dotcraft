@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.16.0 |
+| **Version** | 0.14.2 |
 | **Status** | Living |
-| **Date** | 2026-11-23 |
+| **Date** | 2026-11-24 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
 | **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Hub Architecture](../architecture/hub-architecture.md), [Device Gateway](../protocols/device-gateway.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Goal Design](../features/goal.md), [Session Import](../features/session-import.md), [Desktop DESIGN.md](../architecture/DESIGN.md) |
 
@@ -707,16 +707,18 @@ Desktop exposes a client-owned thread-management profile as Runtime Dynamic Tool
 
 **Declaration**
 
-- Tools use PascalCase names in two namespaces. `desktop_conversation` holds the tools that put something in front of the user: `CreateThread`, `DismissProposal`, `WrapUp`, and on local connections `CreateProject`. `desktop` holds the rest: `ListProjects`, `ListThreads`, `ReadThread`, `SearchThreadMessages`, `ListThreadItems`, `ReadThreadItem`, `SendMessageToThread`, `StopThread`, `SetThreadTitle`, `SetThreadArchived`, `SetThreadPinned`, `ReadTerminal`, and `ListTerminalTabs`. No other model-visible aliases exist.
-- Desktop starts every thread, on `thread/start` and `worktree/createAndStart`, with `codeModeExcludedNamespaces = ["desktop_conversation"]`, so these tools stay direct model calls under Code Mode ([Code Mode §4.3](../features/code-mode.md#43-nested-surface-and-declarations)). An offer or project confirmation then waits as one open tool call rather than a script the agent has to keep polling.
+- Tools use PascalCase names in two namespaces. `desktop_conversation` holds the tools that put something in front of the user: `CreateThread`, `DismissProposal`, `WrapUp`, `ActivatePlugin`, and on local connections `CreateProject`. `desktop` holds the rest: `ListProjects`, `ListPlugins`, `ListThreads`, `ReadThread`, `SearchThreadMessages`, `ListThreadItems`, `ReadThreadItem`, `SendMessageToThread`, `StopThread`, `SetThreadTitle`, `SetThreadArchived`, `SetThreadPinned`, `ReadTerminal`, and `ListTerminalTabs`. No other model-visible aliases exist.
+- Desktop starts every thread, on `thread/start` and `worktree/createAndStart`, with `codeModeExcludedNamespaces = ["desktop_conversation"]`, so these tools stay direct model calls under Code Mode ([Code Mode §4.3](../features/code-mode.md#43-nested-surface-and-declarations)). An offer, project confirmation, or plugin confirmation then waits as one open tool call rather than a script the agent has to keep polling.
 - Tools are declared with `deferLoading = true` so they are discoverable on demand, except on runtimes without deferred-tool discovery. `ReadTerminal` and `WrapUp` are always loaded. The `desktop` namespace also carries the [local dev server tools](../features/desktop-dev-servers.md#7-agent-tools) on local connections.
 - Whenever the tools are declared, Desktop also declares `additionalContext["desktop.threadCoordination"]` (`kind = "application"`): a hint to search for the relevant thread tool before background thread management, the rules for creating local projects and starting other chats (how to classify the user's latest message, when to offer, propose, or start a chat, and that loading the deferred `CreateThread` does not count as the turn's first call).
+- On local connections of a Desktop started with CDP, Desktop also declares `additionalContext["desktop.cdp"]` with the endpoint ([Desktop E2E and developer debugging](../architecture/desktop-e2e-debugging.md#agent-access)).
 - Declarations are stable across Agent/Plan switches; handlers enforce mode policy.
 - Desktop declares the tools only when it can handle their `item/tool/call` requests on the active transport. On reconnect with `capabilities.dynamicToolRebind = true`, Desktop re-declares the same specs and context when resuming; without rebind, pending calls fail through the normal unavailable path.
 
 **Presentation**
 
 - Each tool reads as what it did, in progress, done, or failed (Reading chat, Read chat, Couldn't read chat), never by its tool name, and has its own icon. A call streaming its arguments already reads as in progress. Archive and pin tools read by the requested state, so unarchiving reads as restoring.
+- An `ActivatePlugin` row names the plugin by its display name, or by its id while the name is unknown.
 - These rows have no expanded detail. A row for reading or messaging a chat opens that chat, and a row for creating a project opens that project. In a collapsed summary, calls join by what they did, one phrase each.
 - A sent or queued message card shows the target chat's title when available. Desktop resolves it in the target project without opening the project or reconnecting a disconnected device. If the title is unavailable, the card shows the send outcome without labeling the target as a new chat.
 
@@ -736,8 +738,8 @@ Desktop exposes a client-owned thread-management profile as Runtime Dynamic Tool
 - `SetThreadTitle` and `SetThreadArchived` map to `thread/rename`, `thread/archive`, and `thread/unarchive`; visible state updates through normal broadcasts.
 - `SetThreadPinned` rejects archived and subagent threads when pinning and updates the project-scoped pin preference so the sidebar updates immediately.
 - Optional `model` and `reasoningEffort` on send are admitted together with the follow-up and affect the new or future Turns, not the active Turn. Unsupported options fail rather than being ignored.
-- Calls render as ordinary dynamic tool activity and are non-modal unless an underlying call triggers approval or user input, `CreateThread` shows an offer, or `CreateProject` asks the user to confirm creating a project. Background-changed threads update sidebar indicators without forcing navigation.
-- Results distinguish started from queued work. Failures carry an English fallback and a stable code: `UnsupportedTool`, `UnsupportedOption`, `InvalidArguments`, `ThreadNotFound`, `ThreadArchived`, `ThreadBusy`, `ThreadManagementUnavailable`, `TargetUnsupported`, `AppServerRequestFailed`, `TerminalNotFound`, `ProjectNotFound`, `ProjectUnavailable`, `ProjectAlreadyExists`, `ProjectCreationCanceled`, or `NotLinked`. Outcomes the agent must act on, such as an offer's answer, a card that was not shown, or a refused proposal start, are successful results whose text says what to do next.
+- Calls render as ordinary dynamic tool activity and are non-modal unless an underlying call triggers approval or user input, `CreateThread` shows an offer, `CreateProject` asks the user to confirm creating a project, or `ActivatePlugin` asks the user to confirm activating a plugin. Background-changed threads update sidebar indicators without forcing navigation.
+- Results distinguish started from queued work. Failures carry an English fallback and a stable code: `UnsupportedTool`, `UnsupportedOption`, `InvalidArguments`, `ThreadNotFound`, `ThreadArchived`, `ThreadBusy`, `ThreadManagementUnavailable`, `TargetUnsupported`, `AppServerRequestFailed`, `TerminalNotFound`, `ProjectNotFound`, `ProjectUnavailable`, `ProjectAlreadyExists`, `ProjectCreationCanceled`, `PluginActivationCanceled`, or `NotLinked`. Outcomes the agent must act on, such as an offer's answer, a card that was not shown, or a refused proposal start, are successful results whose text says what to do next.
 
 **Creating projects: `CreateProject`**
 
@@ -748,6 +750,16 @@ Desktop exposes a client-owned thread-management profile as Runtime Dynamic Tool
 - Before touching disk or Hub, Desktop shows a trusted confirmation dialog on the owning window listing the project name and either the new folder path to create under Documents (with Git initialization) or the exact existing folders to attach (marking the primary folder when multiple). The `item/tool/call` waits without a timeout until the person confirms or cancels, or until the Turn ends or the window closes. Auto-approve policies never bypass this confirmation, because attaching a project folder grants future Turns runtime workspace access to that folder.
 - Canceling or abandoning before confirmation leaves disk and Hub untouched and fails with `ProjectCreationCanceled`.
 - On confirmation, Desktop creates the new folder and initializes Git when `folders` was omitted, registers the primary folder with Hub, persists the project name and attached folders in Desktop settings, and updates the Projects rail across all windows without changing the user's active conversation or foreground project. The result returns `{ project: { id, name, path, primaryFolder, secondaryFolders }, createdNewFolder, gitInitialized? }`.
+
+**Plugins: `ListPlugins` and `ActivatePlugin`**
+
+These tools let the agent turn on a plugin it found or wrote, with the same AppServer methods as the Plugins view, so every window updates through the usual plugin and configuration notifications.
+
+- `ListPlugins` returns what `plugin/list` reports for the calling thread's workspace and changes nothing. Each plugin has `id`, `marketplaceName` when it comes from a marketplace, display name, `installed`, `installable`, `enabled`, and what it would run: a Desktop module, hooks, MCP servers, and .NET code with its runtime state and trust status. Diagnostics are included.
+- `ActivatePlugin` takes `id` and an optional `marketplaceName`, selecting an entry as `plugin/view` does, and makes that plugin active in the workspace. A plugin the agent writes into a plugin root is already discovered, so the agent passes its id. Desktop plans the steps the plugin still needs, in order: install it from its catalog (`plugin/install`), enable it (`plugin/setEnabled`), trust its hooks (`hooks/trustPlugin`) when any of them is untrusted, and trust its .NET code (`plugin/setTrusted`) when its trust status is not `trusted`.
+- When the plan installs, enables, or trusts anything, Desktop first shows the plugin's install dialog on the owning window with one Activate action. The dialog shows the entry the tool resolved on the calling thread's connection, which may be a background project, and its contents, including any Desktop module, hooks, MCP servers, and .NET code, and the security notice when .NET code needs trust. The rules of `CreateProject` apply: the Turn must come from a person at a Desktop composer, otherwise the call fails with `TargetUnsupported`; the call waits without a timeout until the person answers, the Turn ends, or the window closes; and auto-approve policies never bypass the dialog, because each of these steps lets plugin code run on this computer. Canceling or abandoning changes nothing and fails with `PluginActivationCanceled`.
+- A plugin that is already installed, enabled, and trusted is reloaded without a dialog, by disabling and re-enabling it, so edited skills, servers, hooks, workflows, and Desktop modules take effect. An edit to trusted hooks invalidates their grant, so the plan trusts them again and shows the dialog. Reloading restarts the .NET code DotCraft already accepted and says so in the result: `CSharp.Build` applies source changes to a .NET extension under development ([.NET extensions §7.6](../architecture/dotnet-extensions.md#76-agent-authoring-build)), and other changes to .NET files take effect after DotCraft restarts.
+- The result lists the steps that were applied and the plugin's final state, `installed`, `enabled`, and its .NET runtime state, with operation diagnostics. A step that returns `notApplied` stops the plan, and the result reports its diagnostics.
 
 **Starting chats: `CreateThread`**
 

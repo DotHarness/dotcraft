@@ -1,18 +1,17 @@
 import { randomUUID } from 'node:crypto'
 import type {
-  ProjectCreationConfirmOutcome,
-  ProjectCreationConfirmRequest
-} from '../shared/projectCreationConfirm'
+  DesktopToolConfirmDetails,
+  DesktopToolConfirmOutcome,
+  DesktopToolConfirmRequest
+} from '../shared/desktopToolConfirm'
 import { readBrowserTurnNotification } from './browserTabLifecycle'
 
-export interface ProjectCreationConfirmPromptOptions {
+export interface DesktopToolConfirmPromptOptions {
   ownerId: number
   threadId?: string
   turnId?: string
-  name: string
-  folders: string[]
-  createsNewFolder: boolean
-  sendToRenderer(request: ProjectCreationConfirmRequest): boolean
+  details: DesktopToolConfirmDetails
+  sendToRenderer(request: DesktopToolConfirmRequest): boolean
   dismissInRenderer(requestId: string): void
   notifyAttention?(requestId: string): void
 }
@@ -23,7 +22,7 @@ interface PendingConfirmation {
   threadId?: string
   turnId?: string
   dismissInRenderer(requestId: string): void
-  resolve(outcome: ProjectCreationConfirmOutcome): void
+  resolve(outcome: DesktopToolConfirmOutcome): void
 }
 
 interface QueuedConfirmation {
@@ -34,12 +33,12 @@ interface QueuedConfirmation {
   cancel(): void
 }
 
-export class ProjectCreationConfirmManager {
+export class DesktopToolConfirmManager {
   private readonly queues = new Map<number, Promise<void>>()
   private readonly queued = new Set<QueuedConfirmation>()
   private readonly pending = new Map<string, PendingConfirmation>()
 
-  confirm(options: ProjectCreationConfirmPromptOptions): Promise<ProjectCreationConfirmOutcome> {
+  confirm(options: DesktopToolConfirmPromptOptions): Promise<DesktopToolConfirmOutcome> {
     const previous = this.queues.get(options.ownerId) ?? Promise.resolve()
     let releaseQueue!: () => void
     const current = new Promise<void>((resolve) => {
@@ -48,8 +47,8 @@ export class ProjectCreationConfirmManager {
     const tail = previous.then(() => current)
     this.queues.set(options.ownerId, tail)
 
-    let resolveOutcome!: (outcome: ProjectCreationConfirmOutcome) => void
-    const outcomePromise = new Promise<ProjectCreationConfirmOutcome>((resolve) => {
+    let resolveOutcome!: (outcome: DesktopToolConfirmOutcome) => void
+    const outcomePromise = new Promise<DesktopToolConfirmOutcome>((resolve) => {
       resolveOutcome = resolve
     })
 
@@ -75,12 +74,7 @@ export class ProjectCreationConfirmManager {
       }
 
       const requestId = randomUUID()
-      const delivered = options.sendToRenderer({
-        requestId,
-        name: options.name,
-        folders: options.folders,
-        createsNewFolder: options.createsNewFolder
-      })
+      const delivered = options.sendToRenderer({ ...options.details, requestId })
       if (!delivered) {
         resolveOutcome('abandoned')
         releaseQueue()

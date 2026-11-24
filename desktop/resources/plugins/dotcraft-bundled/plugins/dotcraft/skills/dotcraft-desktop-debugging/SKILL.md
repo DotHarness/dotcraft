@@ -15,7 +15,7 @@ Attach the official Playwright CLI to an existing DotCraft Desktop process witho
 
 ## Connect Once
 
-Prefer an already running debug-enabled Desktop. The default endpoint is `http://127.0.0.1:9222`; accept a different loopback endpoint when the caller provides one.
+Prefer an already running debug-enabled Desktop. When the runtime context names a `desktop.cdp` endpoint, use it: that Desktop is the window the user is working in. Otherwise the default endpoint is `http://127.0.0.1:9222`; accept a different loopback endpoint when the caller provides one.
 
 For source development, start Desktop from `desktop/` in a long-lived terminal:
 
@@ -29,7 +29,7 @@ To select a workspace explicitly, forward Electron arguments after an additional
 npm run dev:debug -- -- --workspace <workspace-path>
 ```
 
-For a packaged build, start it explicitly with:
+For a packaged build, the user turns on Settings › General › CDP debugging and restarts DotCraft, or starts it explicitly with:
 
 ```powershell
 DotCraft.exe --remote-debugging-port=9222
@@ -37,7 +37,7 @@ DotCraft.exe --remote-debugging-port=9222
 
 CDP is a startup capability: restart an instance that was opened without the flag. A debug-enabled window shows the CDP status indicator in its lower-right corner; if the indicator is absent, do not try to attach. Do not start Electron from Playwright CLI. `dev:debug` intentionally fails when port 9222 is already in use instead of choosing another instance or port.
 
-From a DotCraft source checkout, use the repository-local `playwright-cli` binary. Run it with the stable session name `dotcraft` and the explicit loopback endpoint:
+From a DotCraft source checkout, use the repository-local `playwright-cli` binary. Elsewhere, use `playwright-cli` from `PATH` in place of `npx --no-install playwright-cli`. When it is not installed, stop and report that rather than installing it. Run it with the stable session name `dotcraft` and the explicit loopback endpoint:
 
 ```powershell
 cd desktop

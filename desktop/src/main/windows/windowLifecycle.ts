@@ -26,7 +26,7 @@ export async function teardownRuntime(
   const win = ctx.mainWindow
   if (win) viewerBrowserManager.destroyAllTabs(win)
   if (win) ctx.getThreadTasks().abandonOffersForOwner(win.webContents.id)
-  if (win) ctx.app.projectCreationConfirm.abandonOwner(win.webContents.id)
+  if (win) ctx.app.toolConfirm.abandonOwner(win.webContents.id)
   if (options?.cleanupIpcHandlers) {
     if (win) unregisterIpcHandlers(win)
     ctx.sshMachinesManager?.dispose()

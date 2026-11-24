@@ -132,7 +132,7 @@ describe('desktop runtime thread tools', () => {
     ])
     const [conversation, desktop] = tools
     if (conversation.type !== 'namespace' || desktop.type !== 'namespace') throw new Error('Expected namespace declarations')
-    expect(conversation.tools.map((tool) => tool.name)).toEqual(['CreateThread', 'DismissProposal', 'WrapUp', 'CreateProject'])
+    expect(conversation.tools.map((tool) => tool.name)).toEqual(['CreateThread', 'DismissProposal', 'WrapUp', 'ActivatePlugin', 'CreateProject'])
     expect([...conversation.tools, ...desktop.tools].filter((tool) => tool.deferLoading !== true).map((tool) => tool.name)).toEqual(['WrapUp', 'ReadTerminal'])
     expect(desktop.tools.map((tool) => tool.name)).toEqual(expect.arrayContaining([
       'ListProjects', 'StopThread', 'SetThreadPinned', 'ReadThread', 'SearchThreadMessages', 'ListThreadItems', 'ReadThreadItem', 'ListTerminalTabs'
@@ -140,7 +140,7 @@ describe('desktop runtime thread tools', () => {
 
     const [remoteConversation] = buildDesktopThreadDynamicTools(false)
     if (remoteConversation.type !== 'namespace') throw new Error('Expected namespace declaration')
-    expect(remoteConversation.tools.map((tool) => tool.name)).toEqual(['CreateThread', 'DismissProposal', 'WrapUp'])
+    expect(remoteConversation.tools.map((tool) => tool.name)).toEqual(['CreateThread', 'DismissProposal', 'WrapUp', 'ActivatePlugin'])
   })
 
   it('rejects server callbacks on a remote connection without querying its thread', async () => {

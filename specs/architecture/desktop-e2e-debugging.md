@@ -2,9 +2,9 @@
 
 | Field | Value |
 | --- | --- |
-| Version | 0.9.5 |
+| Version | 0.14.2 |
 | Status | Living |
-| Date | 2026-10-25 |
+| Date | 2026-11-24 |
 
 This specification defines explicit CDP startup, the renderer readiness driver, and
 non-owning automation attachment. It does not define a scenario suite or state-reset service.
@@ -19,8 +19,12 @@ client owns only its CDP connection, never the Desktop, tray, Hub, or AppServer 
 
 CDP is disabled unless startup explicitly enables a remote debugging port. Source development
 uses `npm run dev:debug` (port `9222` by default); packaged builds accept
-`--remote-debugging-port=<port>`. A requested-port collision fails rather than scanning for
-another endpoint. Installing a renderer plugin cannot enable CDP after startup.
+`--remote-debugging-port=<port>`. The CDP debugging switch in Settings › General is a persisted
+startup choice: while it is on, each later start of the Desktop process enables port `9222`
+unless its command line names a port. Changing the switch never affects the running process, so
+the switch says that it applies after a restart. When another process already holds port `9222`, the
+switch leaves CDP off for that start and Desktop declares no endpoint. A requested-port collision fails
+rather than scanning for another endpoint. Installing a renderer plugin cannot enable CDP after startup.
 
 Tray and New Window child processes do not inherit a debugging port; each debuggable process
 requires an explicit, independent startup choice.
@@ -52,10 +56,19 @@ The supported attachment flow uses the repository's official Playwright CLI depe
 3. Reuse that session for accessible-DOM interaction and diagnostics.
 4. Detach without closing the browser or terminating Desktop processes.
 
+## Agent access
+
+On local connections, a Desktop started with CDP declares `additionalContext["desktop.cdp"]` on
+its threads ([Desktop client §5.14](../clients/desktop-client.md#514-desktop-runtime-thread-tools)).
+It gives the loopback endpoint and tells the agent that the endpoint is the window the user is
+working in, so it attaches with the session flow above and never closes, reloads, or restarts it.
+Remote threads do not receive it, because their commands run on another machine.
+
 ## Security
 
 CDP is unauthenticated and highly privileged. Only explicit startup and caller-provided loopback
-endpoints are supported; the workflow does not advertise, discover, or scan for instances.
+endpoints are supported; the workflow does not discover or scan for instances, and Desktop
+advertises its own endpoint only to its local threads.
 Desktop extension trust does not add a second CDP permission system.
 
 ## State and lifecycle

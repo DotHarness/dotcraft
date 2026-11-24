@@ -98,10 +98,6 @@
   width: 100%;
 }
 
-.trailing {
-  margin-inline-start: auto;
-}
-
 .setupPanel {
   display: grid;
   grid-template-columns: 24px minmax(0, 1fr);

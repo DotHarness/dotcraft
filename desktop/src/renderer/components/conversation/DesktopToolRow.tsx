@@ -1,9 +1,12 @@
 import type { JSX } from 'react'
 import type { AppLocale } from '../../../shared/locales'
 import { openThread } from '../../utils/desktopNavigation'
+import { usePluginStore } from '../../stores/pluginStore'
+import { pluginTitle } from '../plugins/PluginCatalogItem'
 import {
   formatDesktopToolLabel,
   getDesktopToolIcon,
+  getDesktopToolTargetPlugin,
   getDesktopToolTargetProjectPath,
   getDesktopToolTargetThreadId,
   type DesktopToolOperation
@@ -20,7 +23,13 @@ export function DesktopToolRow({ item, operation, running, success, locale }: {
   success: boolean
   locale: AppLocale
 }): JSX.Element {
-  const label = formatDesktopToolLabel(operation, running ? 'active' : success ? 'completed' : 'failed', locale)
+  const targetPlugin = getDesktopToolTargetPlugin(operation, item.arguments, item.structuredResult)
+  const listedPlugin = usePluginStore((state) => targetPlugin
+    ? state.plugins.find((plugin) => plugin.installed && plugin.id === targetPlugin.id)
+      ?? state.plugins.find((plugin) => plugin.id === targetPlugin.id)
+    : undefined)
+  const pluginName = targetPlugin && (targetPlugin.name ?? (listedPlugin ? pluginTitle(listedPlugin) : targetPlugin.id))
+  const label = formatDesktopToolLabel(operation, running ? 'active' : success ? 'completed' : 'failed', locale, pluginName)
   const threadId = running || success ? getDesktopToolTargetThreadId(operation, item.arguments) : null
   const projectPath = !running && success ? getDesktopToolTargetProjectPath(operation, item.structuredResult) : null
   const title = running

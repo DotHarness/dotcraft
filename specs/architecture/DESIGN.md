@@ -775,7 +775,8 @@ the standard band.
 
 The prominent size is a deliberate exception: the single primary button in a
 focused setup or install dialog, or a lone full-width confirm. When one shares a
-row with other buttons, raise the others to its height.
+row with other buttons, raise the others to its height. A warning that explains
+that decision sits above the button and carries no action of its own.
 
 Action labels trim to cap height so text centres optically; icons sit outside
 the label. Loading overlays the spinner without changing the control's footprint

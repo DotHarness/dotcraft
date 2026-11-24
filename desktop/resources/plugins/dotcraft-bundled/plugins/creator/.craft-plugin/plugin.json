@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "creator",
+  "version": "0.14.1",
+  "displayName": "Creator",
+  "description": "Build plugins, skills, and extensions for DotCraft, then activate and check them in the running app.",
+  "capabilities": ["skill"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Creator",
+    "shortDescription": "Extend DotCraft with Agent",
+    "longDescription": "Describe something you want DotCraft to do. Creator builds the plugin, skill, or extension, activates it after you approve, and checks that it works in the running app.",
+    "developerName": "DotHarness",
+    "category": "Engineering",
+    "capabilities": ["Skill", "Write"],
+    "defaultPrompt": "Help me build a plugin that adds a new capability to DotCraft.",
+    "composerIcon": "./assets/creator.svg",
+    "logo": "./assets/creator.svg"
+  }
+}

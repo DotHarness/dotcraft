@@ -1,8 +1,10 @@
 import { BrowserWindow } from 'electron'
 import {
-  PROJECT_CREATION_CONFIRM_DISMISSED_CHANNEL,
-  PROJECT_CREATION_CONFIRM_REQUEST_CHANNEL
-} from '../../shared/projectCreationConfirm'
+  DESKTOP_TOOL_CONFIRM_DISMISSED_CHANNEL,
+  DESKTOP_TOOL_CONFIRM_REQUEST_CHANNEL,
+  type DesktopToolConfirmDetails,
+  type DesktopToolConfirmOutcome
+} from '../../shared/desktopToolConfirm'
 import { type ThreadTask } from '../../shared/threadTasks'
 import { createChatFolderFromSettings } from '../chatFoldersIpc'
 import { isDefaultChatWorkspace } from '../defaultChatWorkspace'
@@ -27,7 +29,7 @@ import type { DesktopThreadTasks } from '../threadTasks/threadTaskService'
 import { viewerTerminalManager } from '../viewerTerminal'
 import {
   NEW_TASK_OFFER_ATTENTION,
-  PROJECT_CREATION_CONFIRM_ATTENTION,
+  DESKTOP_TOOL_CONFIRM_ATTENTION,
   WRAP_UP_QUESTION_ATTENTION
 } from '../windowAttentionNotifier'
 import { hasRemoteEndpointArg } from '../workspaceArgs'
@@ -80,6 +82,7 @@ export function desktopThreadToolOptions(ctx: DesktopWindowRuntime, source?: Wor
       }
     },
     tasks: ctx.getThreadTasks(),
+    confirmTool: (details, threadId, turnId) => confirmDesktopTool(ctx, details, threadId, turnId),
     ownerId: ctx.mainWindow?.webContents.id,
     themes: ctx.mainWindow ? themeHostFor(ctx.mainWindow) : undefined,
     ...(entry?.kind === 'local' ? {
@@ -99,29 +102,8 @@ export function desktopThreadToolOptions(ctx: DesktopWindowRuntime, source?: Wor
         planNewFolder: (name: string) => planNewLocalProjectFolder(name),
         createNewFolder: (name: string, preferredPath: string) =>
           createNewLocalProjectFolder(name, { preferredPath }),
-        confirmCreation: (request) => {
-          const win = ctx.mainWindow
-          if (!win || win.isDestroyed()) return Promise.resolve('abandoned')
-          return ctx.app.projectCreationConfirm.confirm({
-            ownerId: win.webContents.id,
-            ...request,
-            sendToRenderer: (payload) => {
-              if (win.isDestroyed()) return false
-              win.webContents.send(PROJECT_CREATION_CONFIRM_REQUEST_CHANNEL, payload)
-              return true
-            },
-            dismissInRenderer: (requestId) => {
-              if (!win.isDestroyed()) {
-                win.webContents.send(PROJECT_CREATION_CONFIRM_DISMISSED_CHANNEL, { requestId })
-              }
-            },
-            notifyAttention: (requestId) => {
-              if (request.threadId) {
-                notifyThreadAttention(ctx, PROJECT_CREATION_CONFIRM_ATTENTION, request.threadId, request.turnId, requestId)
-              }
-            }
-          })
-        },
+        confirmCreation: ({ threadId, turnId, ...project }) =>
+          confirmDesktopTool(ctx, { kind: 'projectCreation', ...project }, threadId, turnId),
         registerProject: (params) =>
           registerLocalProject({
             openInHub: (projectPath) => ctx.app.localProjects.open(projectPath),
@@ -142,6 +124,35 @@ export function desktopThreadToolOptions(ctx: DesktopWindowRuntime, source?: Wor
           : Promise.resolve('gone')
     }
   }
+}
+
+function confirmDesktopTool(
+  ctx: DesktopWindowRuntime,
+  details: DesktopToolConfirmDetails,
+  threadId: string | undefined,
+  turnId: string | undefined
+): Promise<DesktopToolConfirmOutcome> {
+  const win = ctx.mainWindow
+  if (!win || win.isDestroyed()) return Promise.resolve('abandoned')
+  return ctx.app.toolConfirm.confirm({
+    ownerId: win.webContents.id,
+    threadId,
+    turnId,
+    details,
+    sendToRenderer: (payload) => {
+      if (win.isDestroyed()) return false
+      win.webContents.send(DESKTOP_TOOL_CONFIRM_REQUEST_CHANNEL, payload)
+      return true
+    },
+    dismissInRenderer: (requestId) => {
+      if (!win.isDestroyed()) {
+        win.webContents.send(DESKTOP_TOOL_CONFIRM_DISMISSED_CHANNEL, { requestId })
+      }
+    },
+    notifyAttention: (requestId) => {
+      if (threadId) notifyThreadAttention(ctx, DESKTOP_TOOL_CONFIRM_ATTENTION, threadId, turnId, requestId)
+    }
+  })
 }
 
 export function getThreadTasks(ctx: DesktopWindowRuntime): DesktopThreadTasks {
@@ -192,7 +203,7 @@ export function resetThreadToolState(ctx: DesktopWindowRuntime): void {
   if (ctx.wireClient) resetDesktopThreadToolBindings(ctx.wireClient)
   if (ctx.mainWindow) {
     ctx.getThreadTasks().abandonOffersForOwner(ctx.mainWindow.webContents.id)
-    ctx.app.projectCreationConfirm.abandonOwner(ctx.mainWindow.webContents.id)
+    ctx.app.toolConfirm.abandonOwner(ctx.mainWindow.webContents.id)
   }
 }
 

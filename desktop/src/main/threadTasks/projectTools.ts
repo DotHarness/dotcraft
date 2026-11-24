@@ -1,5 +1,5 @@
 import * as path from 'node:path'
-import type { ProjectCreationConfirmOutcome } from '../../shared/projectCreationConfirm'
+import type { DesktopToolConfirmOutcome } from '../../shared/desktopToolConfirm'
 import type { DynamicToolCallParams, DynamicToolCallResult } from '../desktopRuntimeThreadTools'
 import {
   LocalProjectOperationError,
@@ -44,7 +44,7 @@ export interface DesktopProjectCreatorHost {
     name: string
     folders: string[]
     createsNewFolder: boolean
-  }): Promise<ProjectCreationConfirmOutcome>
+  }): Promise<DesktopToolConfirmOutcome>
   registerProject(params: {
     primaryFolder: string
     secondaryFolders: string[]
@@ -217,7 +217,7 @@ function alreadyExistsResult(primaryFolder: string, existingId: string): Dynamic
   )
 }
 
-function canceledResult(outcome: Exclude<ProjectCreationConfirmOutcome, 'confirmed'>): DynamicToolCallResult {
+function canceledResult(outcome: Exclude<DesktopToolConfirmOutcome, 'confirmed'>): DynamicToolCallResult {
   const message = outcome === 'abandoned'
     ? 'Project creation was canceled before the user confirmed. Do not create it again unless they ask.'
     : 'The user canceled creating the project. Do not create it again unless they ask.'

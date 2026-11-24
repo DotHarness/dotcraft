@@ -34,6 +34,6 @@ npm run build
 
 Run these from `desktop/`. The build type-checks the source and writes `dist/index.mjs` and `dist/index.css`. Treat `dist/` as generated output. Verification fails until it exists.
 
-After building, the user refreshes Desktop > Plugins, enables the plugin, and opens its main view. After a source change, rebuild and refresh or re-enable the plugin.
+After building, call `ActivatePlugin`, then open its main view. After a source change, rebuild and call `ActivatePlugin` again to reload it. Without that tool, the user refreshes Desktop > Plugins and enables or re-enables the plugin. Desktop UI in a .NET extension under development does not load from `CSharp.Build`, so tell the user and mark that UI unverified.
 
 Desktop extensions execute as trusted renderer code. Enabling the plugin is the trust decision, and the Host API is an authoring contract rather than a sandbox. Use MCP Apps for untrusted interactive tool UI.

@@ -1,74 +1,20 @@
-import { useCallback, useEffect, useRef, useState, type JSX } from 'react'
+import { useEffect, useRef, type JSX } from 'react'
 import { Folder, FolderOpen, FolderPlus } from 'lucide-react'
-import type { ProjectCreationConfirmRequest } from '../../../shared/projectCreationConfirm'
+import type { ProjectCreationConfirmDetails } from '../../../shared/desktopToolConfirm'
 import { useT } from '../../contexts/LocaleContext'
 import { basename } from '../../utils/path'
 import { Button } from '../ui/Button'
 import { ModalDialog, ModalFooter } from '../ui/ModalDialog'
 import { ModalHeader } from '../ui/ModalHeader'
 import projectStyles from './ProjectDialog.module.css'
-import styles from './ProjectCreationConfirmHost.module.css'
-
-export function ProjectCreationConfirmHost(): JSX.Element | null {
-  const [request, setRequest] = useState<ProjectCreationConfirmRequest | null>(null)
-  const responding = useRef(false)
-  const [submitting, setSubmitting] = useState(false)
-
-  useEffect(() => {
-    const offRequest = window.api.workspace.onProjectCreationConfirmRequest((next) => {
-      responding.current = false
-      setSubmitting(false)
-      setRequest(next)
-    })
-    const offDismissed = window.api.workspace.onProjectCreationConfirmDismissed(({ requestId }) => {
-      setRequest((current) => {
-        if (current?.requestId !== requestId) return current
-        responding.current = false
-        setSubmitting(false)
-        return null
-      })
-    })
-    return () => {
-      offRequest()
-      offDismissed()
-    }
-  }, [])
-
-  const respond = useCallback(async (confirmed: boolean): Promise<void> => {
-    if (!request || responding.current) return
-    responding.current = true
-    setSubmitting(true)
-    try {
-      await window.api.workspace.respondProjectCreationConfirm({
-        requestId: request.requestId,
-        confirmed
-      })
-      setRequest((current) => (current?.requestId === request.requestId ? null : current))
-    } catch (error) {
-      console.warn('Failed to respond to project creation confirmation', error)
-    } finally {
-      responding.current = false
-      setSubmitting(false)
-    }
-  }, [request])
-
-  if (!request) return null
-  return (
-    <ProjectCreationConfirmDialog
-      key={request.requestId}
-      request={request}
-      submitting={submitting}
-      onRespond={(confirmed) => { void respond(confirmed) }}
-    />
-  )
-}
+import styles from './ProjectCreationConfirmDialog.module.css'
 
 export function ProjectCreationConfirmDialog({
   request,
   submitting = false,
   onRespond
 }: {
-  request: ProjectCreationConfirmRequest
+  request: ProjectCreationConfirmDetails
   submitting?: boolean
   onRespond: (confirmed: boolean) => void
 }): JSX.Element {
