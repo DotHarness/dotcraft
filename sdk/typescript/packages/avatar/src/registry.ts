@@ -1,4 +1,4 @@
-import { items, seriesIds, slots, type AnyItemId, type AnySeries, type ExternalItemId, type ItemSpec, type Rarity, type Series, type Slot, type SlotItemId, type Zone } from './items.js'
+import { items, seriesIds, slots, type AnyItemId, type AnySeries, type ExternalItemId, type ItemId, type ItemSpec, type Rarity, type Series, type Slot, type SlotItemId, type Zone } from './items.js'
 import { coreDecorationCopy, seriesLabels, type DecorationCopy } from './decorationCatalog.js'
 import { paintMaterialOf, type PaintMaterial } from './paintMaterials.js'
 import type { PaletteEntry } from './palette.js'
@@ -51,6 +51,12 @@ export interface AvatarRegistry {
   paintMaterialOf(skin: string): PaintMaterial | undefined
   seriesLabelOf(series: string): string
   decorationOf(id: string): (AvatarItemSpec & DecorationCopy) | undefined
+}
+
+const coreSwatchViewBoxes: Partial<Record<ItemId, string>> = {
+  'vocal-twintails': '26 140 972 780',
+  'twin-tails': '150 135 724 680',
+  'sheriff-star': '396 720 232 232',
 }
 
 const KEBAB_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
@@ -180,7 +186,7 @@ export function createAvatarRegistry(options: AvatarRegistryOptions = {}): Avata
         derivable: true,
         paintMaterial: item.slot === 'skin' ? paintMaterialOf(item.id) : undefined,
         meta: coreDecorationCopy[item.id],
-        swatchViewBox: item.id === 'vocal-twintails' ? '26 140 972 780' : item.id === 'twin-tails' ? '150 135 724 680' : undefined,
+        swatchViewBox: coreSwatchViewBoxes[item.id],
       }
       allItems.push(normalized)
       byId.set(normalized.id, normalized)
