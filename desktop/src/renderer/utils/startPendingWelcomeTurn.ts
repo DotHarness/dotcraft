@@ -56,7 +56,7 @@ export async function startPendingWelcomeTurn({
       threadId,
       workspacePath,
       sentAsGoal: pending.sentAsGoal,
-      request: target.request,
+      target,
       throwOnStartError: true
     })
   } catch {

@@ -32,7 +32,6 @@ interface StartTurnParams {
   attachmentFallbackThreadName?: string
   renameThreadFromText?: boolean
   throwOnStartError?: boolean
-  /** False when the turn belongs to a thread the user is no longer looking at. */
   onScreen?: boolean
   onOptimisticEcho?: () => void
   sentAsGoal?: boolean
@@ -50,7 +49,6 @@ export interface OptimisticTurn {
   title?: { request: ThreadTitleRequest; rename: boolean }
 }
 
-/** Echoes the submission; callers gating the RPC pass the result to `submitOptimisticTurn` later. */
 export function echoOptimisticTurn({
   clientUserMessageId = crypto.randomUUID(),
   threadId,
@@ -126,10 +124,12 @@ export async function submitOptimisticTurn(
     identityWorkspacePath,
     sentAsGoal = false,
     mode,
-    request = window.api.appServer.sendRequest,
+    target,
     throwOnStartError = false
-  }: Pick<StartTurnParams, 'threadId' | 'workspacePath' | 'identityWorkspacePath' | 'sentAsGoal' | 'mode' | 'request' | 'throwOnStartError'>
+  }: Pick<StartTurnParams, 'threadId' | 'workspacePath' | 'identityWorkspacePath' | 'sentAsGoal' | 'mode' | 'throwOnStartError'>
+    & { target: Pick<ComposerAttachmentTarget, 'request' | 'source'> }
 ): Promise<void> {
+  const { request, source } = target
   const conversation = echo.onScreen ? useConversationStore.getState() : null
   try {
     const identityPath = identityWorkspacePath ?? workspacePath
@@ -153,7 +153,7 @@ export async function submitOptimisticTurn(
     if (res.turn?.id && echo.onScreen) {
       conversation?.promoteOptimisticTurn(echo.optimisticTurnId, res.turn.id)
     }
-    if (echo.title) void generateThreadTitle(threadId, echo.title.request)
+    if (echo.title && source) void generateThreadTitle(threadId, echo.title.request, { request, source })
   } catch (err) {
     console.error('turn/start failed:', err)
     conversation?.removeOptimisticTurn(echo.optimisticTurnId)
@@ -182,7 +182,10 @@ export async function reissueFailedTurn({
 export async function startTurnWithOptimisticUI(params: StartTurnParams): Promise<void> {
   const target = params.attachmentTarget ?? captureComposerAttachmentTarget(params.threadId)
   const prepared = params.inputParts || !target.remote ? {} : await prepareComposerAttachments({ ...params, target })
-  const submission = { ...params, ...prepared, request: params.request ?? target.request }
+  const submission = { ...params, ...prepared }
   const echo = echoOptimisticTurn(submission)
-  if (echo) await submitOptimisticTurn(echo, submission)
+  if (echo) await submitOptimisticTurn(echo, {
+    ...submission,
+    target: { source: target.source, request: params.request ?? target.request }
+  })
 }

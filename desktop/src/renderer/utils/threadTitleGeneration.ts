@@ -1,4 +1,5 @@
 import type { ClientRequestMethods } from '@dotcraft/sdk/contracts'
+import type { AppServerConnectionSource, TypedAppServerRequestApi } from '../../shared/appServerBoundary'
 import type { LineCommentContext } from '../../shared/composerContext'
 import type { ThreadConfigurationWire } from '../types/thread'
 import { useModelCatalogStore, type ModelReasoningCapability } from '../stores/modelCatalogStore'
@@ -13,7 +14,7 @@ const EFFORT_ORDER = ['low', 'medium', 'high', 'extraHigh', 'max', 'ultra'] as c
 type HelperConfiguration = NonNullable<ClientRequestMethods['thread/start']['params']['config']>
 type HelperReasoning = NonNullable<HelperConfiguration['reasoning']>
 
-export const TITLE_INSTRUCTIONS = [
+const TITLE_INSTRUCTIONS = [
   'You name conversations. The next user message is the request that starts a conversation; do not answer it or act on it, and do not use tools.',
   `Reply only with JSON: {"title": "..."}, where the title is a concise single-line task title of at most ${GENERATED_TITLE_MAX_CHARS} characters, under five words where possible.`,
   'Start with an imperative verb. Capitalize only the first word unless the user\'s language, proper nouns, acronyms, or code terms require otherwise.',
@@ -147,12 +148,21 @@ interface TerminalTurn {
   items?: Array<{ type?: string; payload?: { text?: string } }>
 }
 
-async function readSourceThread(threadId: string): Promise<SourceThread | null> {
-  const result = await window.api.appServer.sendRequest('thread/read', { threadId }) as { thread?: SourceThread }
+type TitleConnection = {
+  source: AppServerConnectionSource
+  request: TypedAppServerRequestApi['sendRequest']
+}
+
+async function readSourceThread(threadId: string, send: TitleConnection['request']): Promise<SourceThread | null> {
+  const result = await send('thread/read', { threadId }) as { thread?: SourceThread }
   return result.thread ?? null
 }
 
-async function runHelperTurn(source: SourceThread, requestText: string): Promise<string | null> {
+async function runHelperTurn(
+  source: SourceThread,
+  requestText: string,
+  { source: connection, request: send }: TitleConnection
+): Promise<string | null> {
   let helperId: string | null = null
   let helperTurnId: string | null = null
   let terminal = false
@@ -160,7 +170,9 @@ async function runHelperTurn(source: SourceThread, requestText: string): Promise
   const terminalTurn = new Promise<TerminalTurn | null>((resolve) => { resolveTerminal = resolve })
   const timeout = window.setTimeout(() => resolveTerminal(null), GENERATION_TIMEOUT_MS)
   const unsubscribe = window.api.appServer.onNotification((notification) => {
-    if (helperId == null || !['turn/completed', 'turn/failed', 'turn/cancelled'].includes(notification.method)) return
+    if (helperId == null || notification.connectionKey !== connection.connectionKey
+      || notification.connectionId !== connection.connectionId
+      || !['turn/completed', 'turn/failed', 'turn/cancelled'].includes(notification.method)) return
     const turn = (notification.params as { turn?: TerminalTurn }).turn
     if (turn?.threadId !== helperId) return
     terminal = true
@@ -169,7 +181,7 @@ async function runHelperTurn(source: SourceThread, requestText: string): Promise
 
   try {
     const workspacePath = source.workspacePath ?? ''
-    const started = await window.api.appServer.sendRequest('thread/start', {
+    const started = await send('thread/start', {
       identity: {
         channelName: 'dotcraft-desktop',
         userId: source.userId || 'local',
@@ -180,11 +192,11 @@ async function runHelperTurn(source: SourceThread, requestText: string): Promise
       ephemeral: true,
       displayName: HELPER_DISPLAY_NAME,
       config: buildTitleHelperConfiguration(source.configuration)
-    }, GENERATION_TIMEOUT_MS) as { thread?: { id?: string } }
+    }, GENERATION_TIMEOUT_MS, { attachmentOwner: 'warm' }) as { thread?: { id?: string } }
     helperId = started.thread?.id ?? null
     if (helperId == null) return null
 
-    const turn = await window.api.appServer.sendRequest('turn/start', {
+    const turn = await send('turn/start', {
       threadId: helperId,
       input: [{ type: 'text', text: requestText }]
     }, GENERATION_TIMEOUT_MS) as { turn?: { id?: string } }
@@ -198,22 +210,27 @@ async function runHelperTurn(source: SourceThread, requestText: string): Promise
     window.clearTimeout(timeout)
     if (helperId != null) {
       if (!terminal && helperTurnId != null) {
-        await window.api.appServer.sendRequest('turn/interrupt', { threadId: helperId, turnId: helperTurnId }).catch(() => {})
+        await send('turn/interrupt', { threadId: helperId, turnId: helperTurnId }).catch(() => {})
       }
-      await window.api.appServer.sendRequest('thread/delete', { threadId: helperId }).catch(() => {})
+      await send('thread/delete', { threadId: helperId }).catch(() => {})
+      await send('thread/unsubscribe', { threadId: helperId }, undefined, { attachmentOwner: 'warm' }).catch(() => {})
     }
   }
 }
 
-export async function generateThreadTitle(threadId: string, request: ThreadTitleRequest): Promise<string | null> {
+export async function generateThreadTitle(
+  threadId: string,
+  request: ThreadTitleRequest,
+  connection: TitleConnection
+): Promise<string | null> {
   try {
-    const source = await readSourceThread(threadId)
+    const source = await readSourceThread(threadId, connection.request)
     if (!source || source.displayName !== request.provisionalTitle) return null
-    const title = parseGeneratedTitle(await runHelperTurn(source, request.requestText))
+    const title = parseGeneratedTitle(await runHelperTurn(source, request.requestText, connection))
     if (!title || title === request.provisionalTitle) return null
-    const current = await readSourceThread(threadId)
+    const current = await readSourceThread(threadId, connection.request)
     if (current?.displayName !== request.provisionalTitle) return null
-    await window.api.appServer.sendRequest('thread/rename', { threadId, displayName: title })
+    await connection.request('thread/rename', { threadId, displayName: title })
     return title
   } catch (error) {
     console.debug('[thread-title] generation failed', { threadId, error })

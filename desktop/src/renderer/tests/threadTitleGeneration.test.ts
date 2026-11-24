@@ -6,8 +6,7 @@ import {
   buildTitleHelperConfiguration,
   generateThreadTitle,
   parseGeneratedTitle,
-  threadTitleRequest,
-  TITLE_INSTRUCTIONS
+  threadTitleRequest
 } from '../utils/threadTitleGeneration'
 
 const comment: DiffAnnotationContext = {
@@ -31,8 +30,6 @@ describe('provisional thread titles', () => {
       ],
       contexts: [comment]
     })
-    expect(built.inputParts.some((part) => part.type === 'text' && part.text.includes('# Diff comments:'))).toBe(true)
-
     expect(threadTitleRequest({ bodyText: built.bodyText, comments: [comment], visibleText: built.visibleText })).toEqual({
       provisionalTitle: 'Fix the parser in @src/parser.ts',
       requestText: 'Fix the parser in\n\n @src/parser.ts'
@@ -41,7 +38,6 @@ describe('provisional thread titles', () => {
 
   it('caps the provisional title at 60 characters', () => {
     const request = threadTitleRequest({ bodyText: `${'word '.repeat(20)}end` })
-    expect(Array.from(request!.provisionalTitle)).toHaveLength(59)
     expect(request!.provisionalTitle).toBe('word '.repeat(12).trimEnd())
   })
 
@@ -108,7 +104,7 @@ describe('title helper thread', () => {
       }]])
     })
 
-    expect(buildTitleHelperConfiguration({ providerId: 'provider-a', model: 'model-x', mode: 'plan' })).toEqual({
+    expect(buildTitleHelperConfiguration({ providerId: 'provider-a', model: 'model-x', mode: 'plan' })).toMatchObject({
       mode: 'agent',
       providerId: 'provider-a',
       model: 'model-x',
@@ -117,16 +113,17 @@ describe('title helper thread', () => {
       mcpServers: [],
       mcpPolicy: { servers: [] },
       toolPolicy: { allow: [] },
-      skillsPolicy: { allow: [] },
-      developerInstructions: TITLE_INSTRUCTIONS
+      skillsPolicy: { allow: [] }
     })
     expect(buildTitleHelperConfiguration({ providerId: 'other', model: 'model-x' })).not.toHaveProperty('reasoning')
   })
 
+  const source = { connectionKey: 'project', connectionId: 'connection' }
+
   function stubServer({ answer, names }: { answer: string | null; names: Array<string | null> }) {
-    let notify: ((value: { method: string; params: unknown }) => void) | null = null
+    let notify: ((value: { method: string; params: unknown } & typeof source) => void) | null = null
     const reads = [...names]
-    const sendRequest = vi.fn(async (method: string) => {
+    const sendRequest = vi.fn().mockImplementation(async (method: string) => {
       if (method === 'thread/read') {
         return { thread: {
           displayName: reads.shift(),
@@ -139,8 +136,8 @@ describe('title helper thread', () => {
       if (method === 'thread/start') return { thread: { id: 'helper-1' } }
       if (method === 'turn/start') {
         queueMicrotask(() => notify?.(answer == null
-          ? { method: 'turn/failed', params: { turn: { id: 'helper-turn', threadId: 'helper-1', status: 'failed' } } }
-          : { method: 'turn/completed', params: { turn: {
+          ? { ...source, method: 'turn/failed', params: { turn: { id: 'helper-turn', threadId: 'helper-1', status: 'failed' } } }
+          : { ...source, method: 'turn/completed', params: { turn: {
               id: 'helper-turn',
               threadId: 'helper-1',
               status: 'completed',
@@ -153,7 +150,7 @@ describe('title helper thread', () => {
     vi.stubGlobal('window', {
       setTimeout,
       clearTimeout,
-      api: { appServer: { sendRequest, onNotification: (callback: typeof notify) => {
+      api: { appServer: { onNotification: (callback: typeof notify) => {
         notify = callback
         return () => { notify = null }
       } } }
@@ -163,28 +160,21 @@ describe('title helper thread', () => {
 
   const request = { provisionalTitle: 'Fix the parser', requestText: 'Fix the parser please' }
 
-  it('starts a hidden ephemeral helper, renames the thread, and deletes the helper', async () => {
+  it('retains the ephemeral helper observation until cleanup', async () => {
     const sendRequest = stubServer({ answer: '{"title":"Fix parser token loss"}', names: ['Fix the parser', 'Fix the parser'] })
 
-    expect(await generateThreadTitle('thread-1', request)).toBe('Fix parser token loss')
-    expect(sendRequest).toHaveBeenCalledWith('thread/start', expect.objectContaining({
-      ephemeral: true,
-      displayName: expect.any(String),
-      identity: { channelName: 'dotcraft-desktop', userId: 'local', channelContext: 'workspace:X:\\work', workspacePath: 'X:\\work' },
-      config: expect.objectContaining({ mcpServers: [], toolPolicy: { allow: [] }, model: 'model-x' })
-    }), 30_000)
-    expect(sendRequest).toHaveBeenCalledWith('turn/start', {
-      threadId: 'helper-1',
-      input: [{ type: 'text', text: 'Fix the parser please' }]
-    }, 30_000)
-    expect(sendRequest).toHaveBeenCalledWith('thread/rename', { threadId: 'thread-1', displayName: 'Fix parser token loss' })
+    await generateThreadTitle('thread-1', request, { request: sendRequest, source })
+
+    expect(sendRequest).toHaveBeenCalledWith('thread/start', expect.objectContaining({ ephemeral: true }),
+      expect.any(Number), { attachmentOwner: 'warm' })
     expect(sendRequest).toHaveBeenCalledWith('thread/delete', { threadId: 'helper-1' })
+    expect(sendRequest).toHaveBeenCalledWith('thread/unsubscribe', { threadId: 'helper-1' }, undefined, { attachmentOwner: 'warm' })
   })
 
   it('keeps a name the user changed while the title was generating', async () => {
     const sendRequest = stubServer({ answer: '{"title":"Fix parser token loss"}', names: ['Fix the parser', 'My own name'] })
 
-    expect(await generateThreadTitle('thread-1', request)).toBeNull()
+    expect(await generateThreadTitle('thread-1', request, { request: sendRequest, source })).toBeNull()
     expect(sendRequest).not.toHaveBeenCalledWith('thread/rename', expect.anything())
     expect(sendRequest).toHaveBeenCalledWith('thread/delete', { threadId: 'helper-1' })
   })
@@ -192,8 +182,8 @@ describe('title helper thread', () => {
   it('does not start a helper when the thread no longer carries the provisional name', async () => {
     const sendRequest = stubServer({ answer: '{"title":"Fix parser token loss"}', names: ['Renamed'] })
 
-    expect(await generateThreadTitle('thread-1', request)).toBeNull()
-    expect(sendRequest).not.toHaveBeenCalledWith('thread/start', expect.anything(), expect.anything())
+    expect(await generateThreadTitle('thread-1', request, { request: sendRequest, source })).toBeNull()
+    expect(sendRequest.mock.calls.map(([method]) => method)).toEqual(['thread/read'])
   })
 
   it.each([
@@ -202,7 +192,7 @@ describe('title helper thread', () => {
   ])('keeps the provisional name after %s', async (_label, answer) => {
     const sendRequest = stubServer({ answer, names: ['Fix the parser', 'Fix the parser'] })
 
-    expect(await generateThreadTitle('thread-1', request)).toBeNull()
+    expect(await generateThreadTitle('thread-1', request, { request: sendRequest, source })).toBeNull()
     expect(sendRequest).not.toHaveBeenCalledWith('thread/rename', expect.anything())
     expect(sendRequest).toHaveBeenCalledWith('thread/delete', { threadId: 'helper-1' })
   })

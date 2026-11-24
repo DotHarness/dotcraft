@@ -5,6 +5,8 @@ import type { WorkspaceProjectSummary } from '../../shared/workspaceProjects'
 import { useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
 import { installDesktopApiMock } from './desktopApiMock'
+import type { KnownNotificationPayload } from '../../shared/appServerBoundary'
+import { useConnectionStore } from '../stores/connectionStore'
 
 const sendRequest = vi.fn()
 const image = { tempPath: 'C:\\temp\\image.png', dataUrl: 'data:image/png;base64,abc', fileName: 'image.png', mimeType: 'image/png' }
@@ -76,6 +78,74 @@ describe('startTurnWithOptimisticUI thread naming', () => {
     expect(methods.indexOf('thread/rename')).toBeLessThan(methods.indexOf('turn/start'))
     expect(sendRequest).toHaveBeenCalledWith('thread/rename', { threadId: 'thread-1', displayName: 'Tighten the retry loop' })
     expect(useThreadStore.getState().threadList[0]?.displayName).toBe('Tighten the retry loop')
+  })
+})
+
+describe('first turn title connection', () => {
+  const origin = { connectionKey: 'project-a', connectionId: 'connection-a' }
+  const other = { connectionKey: 'project-b', connectionId: 'connection-b' }
+
+  afterEach(() => {
+    useConnectionStore.getState().reset()
+    vi.unstubAllGlobals()
+  })
+
+  it.each(['thread/start', 'thread/unsubscribe'])('keeps generating on the original connection when the project switches at %s', async switchAt => {
+    const renamed = Promise.withResolvers<string>()
+    let notify: ((payload: KnownNotificationPayload) => void) | undefined
+    const emitTitle = (source: typeof origin, title: string, foreground: boolean) => {
+      notify?.({
+        ...source,
+        foreground,
+        method: 'turn/completed',
+        params: { turn: {
+          id: 'helper-turn', threadId: 'helper', status: 'completed',
+          items: [{ type: 'agentMessage', payload: { text: JSON.stringify({ title }) } }]
+        } }
+      } as KnownNotificationPayload)
+    }
+
+    const foregroundRequest = vi.fn().mockRejectedValue(new Error('Unexpected foreground request'))
+    const connectionRequest = vi.fn().mockImplementation(async (
+      _key: string, method: string, params: { threadId?: string; displayName?: string }
+    ) => {
+      if (method === switchAt) useConnectionStore.getState().setStatus({ status: 'connected', ...other })
+      if (method === 'thread/read') return { thread: { displayName: 'Fix the parser', workspacePath: 'X:\\fixtures\\workspace' } }
+      if (method === 'thread/start') return { thread: { id: 'helper' } }
+      if (method === 'turn/start' && params.threadId === 'helper') {
+        emitTitle(other, 'Wrong project title', true)
+        emitTitle({ ...origin, connectionId: 'replacement' }, 'Wrong connection title', false)
+        emitTitle(origin, 'Fix parser token loss', switchAt !== 'thread/start')
+        return { turn: { id: 'helper-turn' } }
+      }
+      if (method === 'turn/start') return { turn: { id: 'turn-1' } }
+      if (method === 'thread/rename') renamed.resolve(params.displayName!)
+      return {}
+    })
+
+    vi.stubGlobal('window', { setTimeout, clearTimeout })
+    installDesktopApiMock({ appServer: {
+      sendRequest: foregroundRequest,
+      sendConnectionRequest: connectionRequest,
+      onNotification: callback => { notify = callback; return () => { notify = undefined } }
+    } })
+    useConnectionStore.getState().setStatus({ status: 'connected', ...origin })
+
+    await startTurnWithOptimisticUI({
+      threadId: 'thread-1',
+      workspacePath: 'X:\\fixtures\\workspace',
+      text: 'Fix the parser',
+      title: { provisionalTitle: 'Fix the parser', requestText: 'Fix the parser' },
+      fallbackThreadName: 'Message',
+      onScreen: false
+    })
+
+    expect(await renamed.promise).toBe('Fix parser token loss')
+    expect(foregroundRequest).not.toHaveBeenCalled()
+    for (const [key, , , , options] of connectionRequest.mock.calls) {
+      expect(key).toBe(origin.connectionKey)
+      expect(options.connectionId).toBe(origin.connectionId)
+    }
   })
 })
 
