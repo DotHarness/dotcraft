@@ -46,15 +46,23 @@
   display: flex;
   gap: 8px;
   align-items: center;
+  flex: 0 1 auto;
   min-width: 0;
+}
+
+.subscription {
+  flex-shrink: 0;
 }
 
 .trailing {
   display: flex;
   gap: 8px;
   align-items: center;
+  justify-content: flex-end;
   margin-left: auto;
+  flex: 0 1 auto;
   min-width: 0;
+  overflow: hidden;
 }
 
 @container composer-root (max-width: 340px) {

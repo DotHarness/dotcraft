@@ -392,8 +392,7 @@ export function ComposerWorkspaceFooter({
     if (isPerforceWelcome) {
       setBusy(true)
       try {
-        // No threadId → the AppServer creates the changelist on the foreground workspace; we
-        // carry the id as the welcome pre-selection until the first thread is created.
+        // No threadId → the AppServer creates the changelist on the foreground workspace.
         const result = await window.api.appServer.sendRequest(
           'sourceControl/changelist/create',
           { description: changelistDraft, setAsTarget: true },
@@ -454,7 +453,7 @@ export function ComposerWorkspaceFooter({
     {(showRunOn || showProjectSelector || showGitFooterControls || showPerforceFooterControls) && (
       <div ref={footerRef} className={css.controlRow} style={footerStyle}>
       {showProjectSelector && (
-        <div style={{ position: 'relative' }}>
+        <div className={css.pillWrap}>
           <WorkspaceFooterPill
             aria-label={projectLabelText}
             disabled={busy}
@@ -520,54 +519,56 @@ export function ComposerWorkspaceFooter({
         />
       )}
 
-      <div style={{ position: 'relative' }}>
-        <WorkspaceFooterPill
-          aria-label={branchLabel}
-          disabled={busy || !branchActionPath || !branchControlsReady}
-          open={openMenu === 'branch'}
-          onClick={() => setOpenMenu(openMenu === 'branch' ? null : 'branch')}
-        >
-          <GitBranch size={15} strokeWidth={1.8} aria-hidden />
-          <span className={css.compactLabel} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{branchLabel}</span>
-          <ChevronDown size={14} strokeWidth={1.8} aria-hidden />
-        </WorkspaceFooterPill>
-        {openMenu === 'branch' && (
-          <div ref={branchMenuRef} style={{ ...menuStyle, width: '320px' }}>
-            <ComposerOverlapBand height={branchBandHeight} radius={10} />
-            <FooterMenuSearchField
-              value={branchQuery}
-              placeholder={t('workspaceFooter.searchBranches')}
-              onChange={setBranchQuery}
-            />
-            <div style={{ maxHeight: '220px', overflowY: 'auto', padding: '4px 0' }}>
-              {filteredBranches.length === 0 ? (
-                <div style={{ padding: '8px', color: 'var(--text-dimmed)' }}>{t('workspaceFooter.noBranches')}</div>
-              ) : filteredBranches.map((branch) => {
-                const checked = variant === 'welcome' && mode === 'worktree'
-                  ? selectedBaseRef === branch.name && !worktreeBranchName
-                  : branch.current
-                return (
-                  <FooterMenuButton
-                    key={branch.name}
-                    icon={<GitBranch size={14} strokeWidth={1.8} aria-hidden />}
-                    checked={checked}
-                    onClick={() => { void selectBranch(branch.name) }}
-                  >
-                    <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{branch.name}</span>
-                  </FooterMenuButton>
-                )
-              })}
+      {!(isThread && mode === 'worktree') && (
+        <div className={css.pillWrap}>
+          <WorkspaceFooterPill
+            aria-label={branchLabel}
+            disabled={busy || !branchActionPath || !branchControlsReady}
+            open={openMenu === 'branch'}
+            onClick={() => setOpenMenu(openMenu === 'branch' ? null : 'branch')}
+          >
+            <GitBranch size={15} strokeWidth={1.8} aria-hidden />
+            <span className={css.compactLabel} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{branchLabel}</span>
+            <ChevronDown size={14} strokeWidth={1.8} aria-hidden />
+          </WorkspaceFooterPill>
+          {openMenu === 'branch' && (
+            <div ref={branchMenuRef} style={{ ...menuStyle, width: '320px' }}>
+              <ComposerOverlapBand height={branchBandHeight} radius={10} />
+              <FooterMenuSearchField
+                value={branchQuery}
+                placeholder={t('workspaceFooter.searchBranches')}
+                onChange={setBranchQuery}
+              />
+              <div style={{ maxHeight: '220px', overflowY: 'auto', padding: '4px 0' }}>
+                {filteredBranches.length === 0 ? (
+                  <div style={{ padding: '8px', color: 'var(--text-dimmed)' }}>{t('workspaceFooter.noBranches')}</div>
+                ) : filteredBranches.map((branch) => {
+                  const checked = variant === 'welcome' && mode === 'worktree'
+                    ? selectedBaseRef === branch.name && !worktreeBranchName
+                    : branch.current
+                  return (
+                    <FooterMenuButton
+                      key={branch.name}
+                      icon={<GitBranch size={14} strokeWidth={1.8} aria-hidden />}
+                      checked={checked}
+                      onClick={() => { void selectBranch(branch.name) }}
+                    >
+                      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{branch.name}</span>
+                    </FooterMenuButton>
+                  )
+                })}
+              </div>
+              <FooterMenuDivider />
+              <FooterMenuButton
+                icon={<Plus size={15} strokeWidth={1.8} aria-hidden />}
+                onClick={() => setCreateOpen(true)}
+              >
+                <span>{variant === 'welcome' && mode === 'worktree' ? t('workspaceFooter.createWorktreeBranch') : t('workspaceFooter.createCheckoutBranch')}</span>
+              </FooterMenuButton>
             </div>
-            <FooterMenuDivider />
-            <FooterMenuButton
-              icon={<Plus size={15} strokeWidth={1.8} aria-hidden />}
-              onClick={() => setCreateOpen(true)}
-            >
-              <span>{variant === 'welcome' && mode === 'worktree' ? t('workspaceFooter.createWorktreeBranch') : t('workspaceFooter.createCheckoutBranch')}</span>
-            </FooterMenuButton>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
       {isThread && <BranchPullRequestPill gitPath={branchActionPath} branch={branches?.current ?? null} />}
 
       {createOpen && createPortal(
@@ -589,7 +590,7 @@ export function ComposerWorkspaceFooter({
         </>
       )}
       {showPerforceFooterControls && (
-        <div style={{ position: 'relative' }}>
+        <div className={css.pillWrap}>
           <WorkspaceFooterPill
             aria-label={changelistLabel(selectedChangelist)}
             disabled={busy}

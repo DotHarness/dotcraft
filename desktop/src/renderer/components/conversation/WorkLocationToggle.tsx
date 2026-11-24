@@ -50,6 +50,11 @@ export function WorkLocationToggle({
     ? (variant === 'welcome' ? t('workspaceFooter.switchToWorktree') : t('workspaceFooter.clickToHandoffWorktree'))
     : (variant === 'welcome' ? t('workspaceFooter.switchToLocal') : t('workspaceFooter.clickToHandoffLocal'))
 
+  const mergedBranchLabel = variant === 'thread' && mode === 'worktree'
+    ? branchName?.trim() || null
+    : null
+  const displayLabel = mergedBranchLabel ?? locationLabel
+
   return (
     <ActionTooltip
       label={loadingDisabled ? '' : tooltipLabel}
@@ -57,14 +62,16 @@ export function WorkLocationToggle({
       disabledReason={blockedReason}
       multiline={blocked}
       placement="top"
+      wrapperClassName={mergedBranchLabel ? styles.tooltipAnchorMerged : styles.tooltipAnchor}
     >
       <button
         type="button"
         className={`dc-composer-pill ${styles.pill}`}
-        aria-label={locationLabel}
+        aria-label={mergedBranchLabel ? tooltipLabel : locationLabel}
         disabled={loadingDisabled}
         aria-disabled={blocked || undefined}
         data-blocked={blocked ? 'true' : undefined}
+        data-merged={mergedBranchLabel ? 'true' : undefined}
         onClick={() => {
           if (!blocked) onToggle(targetMode)
         }}
@@ -81,7 +88,7 @@ export function WorkLocationToggle({
             </span>
           )}
         </span>
-        <span className={styles.compactLabel}>{locationLabel}</span>
+        <span className={styles.compactLabel}>{displayLabel}</span>
       </button>
     </ActionTooltip>
   )

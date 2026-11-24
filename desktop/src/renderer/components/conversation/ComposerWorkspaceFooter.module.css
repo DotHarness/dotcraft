@@ -1,5 +1,23 @@
 .controlRow {
   display: flex;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.pillWrap {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+  flex: 0 1 auto;
+}
+
+.controlRow :global(.dc-composer-pill) > svg {
+  flex-shrink: 0;
+}
+
+.compactLabel {
+  min-width: 0;
 }
 
 .controlRow:has(> [data-dotcraft-plugin-surface]:only-child:empty) {

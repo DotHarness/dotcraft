@@ -155,7 +155,7 @@ describe('WorkLocationToggle in ComposerWorkspaceFooter', () => {
       </LocaleProvider>
     )
 
-    const toggle = await screen.findByRole('button', { name: 'Worktree' })
+    const toggle = await screen.findByRole('button', { name: 'Worktree · dotcraft/feature' })
     await waitFor(() => expect(toggle).toBeEnabled())
     fireEvent.click(toggle)
 

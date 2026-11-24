@@ -3,13 +3,38 @@
   align-items: center;
   gap: 6px;
   height: 28px;
-  max-width: 240px;
+  min-width: 0;
+  max-width: min(240px, 100%);
+  flex: 0 0 auto;
   padding: 0 8px;
   border: none;
   border-radius: 999px;
   color: var(--composer-footer-text);
   font: inherit;
   cursor: pointer;
+}
+
+.tooltipAnchor {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.tooltipAnchorMerged {
+  display: flex;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.pill[data-merged='true'] {
+  flex: 0 1 auto;
+}
+
+.compactLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .pill:disabled {

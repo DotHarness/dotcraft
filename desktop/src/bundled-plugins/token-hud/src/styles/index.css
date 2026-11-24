@@ -80,6 +80,18 @@
   opacity: 1;
 }
 
+@container composer-footer (max-width: 520px) {
+  .token-hud-cell[data-metric='cache'] {
+    display: none;
+  }
+}
+
+@container composer-footer (max-width: 420px) {
+  .token-hud-cell[data-metric='latency'] {
+    display: none;
+  }
+}
+
 .token-hud-popover {
   position: fixed;
   z-index: var(--z-tooltip);
