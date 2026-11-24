@@ -64,6 +64,7 @@ export function AppearanceAvatar({ appearance: storedAppearance, catalog, state 
   const held = !compact && handId !== 'none'
   const heldComponent = held ? activeCatalog.componentOf(handId) : undefined
   const heldStory = heldComponent?.slot === 'hand' ? heldComponent.workStory : undefined
+  const stowsHeld = (target: AvatarPose) => (target === 'working' && !heldStory) || target === 'waiting'
   const [shownExpression, setShownExpression] = useState(expression)
   useEffect(() => { if (!animated || (!paused && visible)) setShownExpression(expression) }, [expression, animated, paused, visible])
   useGesture(ref, gesture, gestureSequence, animated, paused || !visible, onGestureComplete)
@@ -78,13 +79,13 @@ export function AppearanceAvatar({ appearance: storedAppearance, catalog, state 
     if (state === displayed && eventSequence === displayedSequence) { if (exiting) { captureHandoff(); setExiting(false) } return }
     if (paused || !visible) return
     const show = () => { captureHandoff(); setDisplayed(state); setDisplayedSequence(eventSequence); setExiting(false) }
-    const changesWorkProp = displayed !== state && [displayed, state].some(pose => pose === 'working' || pose === 'waiting')
+    const changesWorkProp = displayed !== state && [displayed, state].some(stowsHeld)
     if (!changesWorkProp) { show(); return }
     // Retract props before changing the paired arm pose, since rapid changes cancel this timer.
     if (!exiting) { captureHandoff(); setExiting(true) }
     const timer = window.setTimeout(show, 160)
     return () => window.clearTimeout(timer)
-  }, [state, displayed, animated, paused, visible, identity, eventSequence, displayedSequence, exiting, captureHandoff])
+  }, [state, displayed, animated, paused, visible, identity, eventSequence, displayedSequence, exiting, captureHandoff, heldStory])
 
   const pose = animated ? displayed : state
   useWorkStory(ref, animated && pose === 'working' && !exiting, paused || !visible, heldStory ?? 'laptop')
@@ -175,7 +176,7 @@ export function AppearanceAvatar({ appearance: storedAppearance, catalog, state 
     data-pose={pose} data-mode={motion} data-motion={animated ? 'on' : 'off'} data-paused={paused || !visible} data-exiting={exiting} data-compact={compact}
     data-size-tier={tier} data-effects={effects}
     data-head={headId} data-face={faceId} data-hand={handId} data-back={backId} data-skin={skinId} data-base-face={appearance.baseFace}
-    data-gesture={animated ? gesture : undefined} data-held-state={held ? ((pose === 'working' && !heldStory) || pose === 'waiting' ? 'stowed' : 'holding') : undefined}>
+    data-gesture={animated ? gesture : undefined} data-held-state={held ? (stowsHeld(pose) ? 'stowed' : 'holding') : undefined}>
     <svg className="dca-canvas" width={size} height={size} viewBox="0 0 1024 1024" fill="none" role={label ? 'img' : undefined} aria-hidden={label ? undefined : true}
       aria-label={label}>
       <g className="dca-body-motion"><g className={classes}>

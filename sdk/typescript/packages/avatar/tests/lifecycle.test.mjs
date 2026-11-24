@@ -4,7 +4,8 @@ import { JSDOM } from 'jsdom'
 import { createElement } from 'react'
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
-import { Avatar } from '../dist/react.js'
+import { AppearanceAvatar, Avatar, createAvatarCatalog, defineAvatarPack } from '../dist/react.js'
+import { originalAppearance } from '../dist/index.js'
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 
@@ -47,7 +48,7 @@ function createEnvironment({ reduced = false, matchMedia = true } = {}) {
   else dom.window.matchMedia = undefined
 
   const root = createRoot(dom.window.document.querySelector('#root'))
-  const render = async props => act(async () => root.render(createElement(Avatar, props)))
+  const render = async (props, Component = Avatar) => act(async () => root.render(createElement(Component, props)))
   const flushFrame = async now => act(async () => {
     const pending = [...frames.values()]
     frames.clear()
@@ -113,4 +114,59 @@ test('gesture replay pauses active time and cancels superseded completion', asyn
     await env.flushFrame(13700)
     assert.deepEqual(completed, [1, 2, 4])
   } finally { await env.cleanup() }
+})
+
+test('working hand items with a workStory keep held state across greeting without exiting', async t => {
+  const env = createEnvironment()
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  t.mock.method(env.dom.window, 'setTimeout', globalThis.setTimeout)
+  t.mock.method(env.dom.window, 'clearTimeout', globalThis.clearTimeout)
+  const pack = defineAvatarPack({
+    namespace: 'role',
+    label: 'Role Pack',
+    items: [
+      { id: 'role:baton', slot: 'hand', rarity: 'rare', series: 'costume', zones: ['hand'], workStory: 'conduct', render: () => createElement('path', { d: 'M226 640v-200' }) },
+    ],
+  })
+  const catalog = createAvatarCatalog({ packs: [pack] })
+  const conductProps = { appearance: { ...originalAppearance, hand: 'role:baton' }, catalog, state: 'working', motion: 'on', size: 58 }
+  const robot = () => env.dom.window.document.querySelector('.dca-robot')
+  try {
+    await env.render(conductProps, AppearanceAvatar)
+    assert.equal(robot().dataset.pose, 'working')
+    assert.equal(robot().dataset.heldState, 'holding')
+    assert.equal(robot().dataset.exiting, 'false')
+
+    await env.render({ ...conductProps, state: 'greeting', eventSequence: 1 }, AppearanceAvatar)
+    assert.equal(robot().dataset.pose, 'greeting')
+    assert.equal(robot().dataset.heldState, 'holding')
+    assert.equal(robot().dataset.exiting, 'false')
+
+    await env.render(conductProps, AppearanceAvatar)
+    assert.equal(robot().dataset.pose, 'working')
+    assert.equal(robot().dataset.heldState, 'holding')
+    assert.equal(robot().dataset.exiting, 'false')
+
+    await env.render({ ...conductProps, state: 'waiting' }, AppearanceAvatar)
+    assert.equal(robot().dataset.pose, 'working')
+    assert.equal(robot().dataset.exiting, 'true')
+    await act(async () => t.mock.timers.tick(160))
+    assert.equal(robot().dataset.pose, 'waiting')
+    assert.equal(robot().dataset.heldState, 'stowed')
+    assert.equal(robot().dataset.exiting, 'false')
+
+    const laptopProps = { appearance: { ...originalAppearance, hand: 'magic-wand' }, catalog, state: 'working', motion: 'on', size: 58 }
+    await env.render(laptopProps, AppearanceAvatar)
+    assert.equal(robot().dataset.heldState, 'stowed')
+    await env.render({ ...laptopProps, state: 'greeting', eventSequence: 1 }, AppearanceAvatar)
+    assert.equal(robot().dataset.exiting, 'true')
+    await act(async () => t.mock.timers.tick(160))
+    assert.equal(robot().dataset.pose, 'greeting')
+    assert.equal(robot().dataset.heldState, 'holding')
+    assert.equal(robot().dataset.exiting, 'false')
+  } finally {
+    t.mock.restoreAll()
+    t.mock.timers.reset()
+    await env.cleanup()
+  }
 })
