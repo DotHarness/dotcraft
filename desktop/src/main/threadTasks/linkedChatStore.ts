@@ -19,6 +19,7 @@ export interface LinkedChat {
   parent: LinkedChatRef
   child: LinkedChatChild
   status: LinkedChatStatus
+  followed?: true
   waitingFor?: LinkedChatWait
   createdAt: string
 }
@@ -46,8 +47,8 @@ export function linkedChatRefKey(ref: LinkedChatRef): string {
   return JSON.stringify([ref.projectId, ref.threadId])
 }
 
-export function viewLinkedChat({ parent, child, status, waitingFor, createdAt }: StoredLinkedChat): LinkedChat {
-  return { parent: { ...parent }, child: { ...child }, status, ...(waitingFor ? { waitingFor } : {}), createdAt }
+export function viewLinkedChat({ parent, child, status, followed, waitingFor, createdAt }: StoredLinkedChat): LinkedChat {
+  return { parent: { ...parent }, child: { ...child }, status, ...(followed ? { followed } : {}), ...(waitingFor ? { waitingFor } : {}), createdAt }
 }
 
 function linkKey({ parent, child }: Pick<LinkedChat, 'parent' | 'child'>): string {
@@ -77,7 +78,11 @@ export class LinkedChatStore {
     return this.links.get(linkKey(link))
   }
 
-  add(parent: LinkedChatRef, child: LinkedChatChild): StoredLinkedChat {
+  add(
+    parent: LinkedChatRef,
+    child: LinkedChatChild,
+    initial?: Partial<Pick<StoredLinkedChat, 'followed' | 'status' | 'lastOutcome' | 'lastReportedTurnId' | 'lastReportedTurnStartedAt'>>
+  ): StoredLinkedChat {
     const key = linkKey({ parent, child })
     const existing = this.links.get(key)
     if (existing) return existing
@@ -86,11 +91,40 @@ export class LinkedChatStore {
       child: { ...child },
       status: 'idle',
       createdAt: new Date().toISOString(),
-      pending: []
+      pending: [],
+      ...initial
     }
     this.links.set(key, link)
     this.save()
     return link
+  }
+
+  removeFollow(link: LinkedChat): boolean {
+    const key = linkKey(link)
+    if (!this.links.get(key)?.followed) return false
+    this.links.delete(key)
+    this.save()
+    return true
+  }
+
+  wouldCycle(parent: LinkedChatRef, child: LinkedChatRef): boolean {
+    const parentKey = linkedChatRefKey(parent)
+    const targets = new Map<string, string[]>()
+    for (const link of this.links.values()) {
+      const key = linkedChatRefKey(link.parent)
+      const next = targets.get(key) ?? []
+      next.push(linkedChatRefKey(link.child))
+      targets.set(key, next)
+    }
+    const pending = [linkedChatRefKey(child)]
+    const visited = new Set<string>()
+    for (const key of pending) {
+      if (key === parentKey) return true
+      if (visited.has(key)) continue
+      visited.add(key)
+      pending.push(...(targets.get(key) ?? []))
+    }
+    return false
   }
 
   remove(ref: LinkedChatRef): boolean {

@@ -168,6 +168,25 @@ describe('cross-project Desktop thread tools', () => {
     expect(target.mock.calls.map(([method]) => method)).toEqual(['thread/start', 'turn/start'])
   })
 
+  it('follows and unfollows an existing chat without changing its work', async () => {
+    const { call, target, connect } = fixture()
+    const args = { threadId: child.threadId, project: library.id }
+    target.mockResolvedValueOnce({ thread: { displayName: child.title, status: 'active', runtime: {} } })
+      .mockResolvedValueOnce({ data: [{ id: 'old-turn', status: 'completed' }] })
+
+    expect(await call('FollowThread', args)).toMatchObject({ success: true })
+    expect(await call('ListThreads', { linked: true })).toMatchObject({
+      structuredContent: { threads: [{ id: child.threadId, project: library.id, startedHere: false, status: 'completed' }] }
+    })
+    expect(await call('StopThread', args)).toMatchObject({ errorCode: 'NotLinked' })
+
+    const offline = { projects: { list: async () => [chats], connect } }
+    expect(await call('UnfollowThread', args, offline)).toMatchObject({ structuredContent: { following: false, changed: true } })
+    expect(await call('ListThreads', { linked: true })).toMatchObject({ structuredContent: { threads: [] } })
+    expect(target.mock.calls.map(([method]) => method)).toEqual(['thread/read', 'thread/turns/list'])
+    expect(connect).toHaveBeenCalledOnce()
+  })
+
   it('stops the active turn only in a linked chat, and makes no interrupt request for idle chats', async () => {
     const { call, target, connect, links } = fixture()
     expect(await call('StopThread', { threadId: child.threadId, project: library.id })).toMatchObject({ errorCode: 'NotLinked' })

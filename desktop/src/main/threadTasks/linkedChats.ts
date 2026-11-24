@@ -31,14 +31,14 @@ interface RuntimeSnapshot {
   hasBackgroundWork?: boolean
 }
 
-interface LinkedTurn {
+export interface LinkedTurn {
   id: string
   startedAt?: string
   status: string
   items?: Array<{ type?: string; payload?: { text?: string; phase?: string; deliveryMode?: string } }>
 }
 
-interface ThreadHeaderResult {
+export interface ThreadHeaderResult {
   thread?: { status?: string; displayName?: string | null; runtime?: RuntimeSnapshot }
 }
 
@@ -75,8 +75,34 @@ export class DesktopLinkedChats {
   }
 
   link(parent: LinkedChatRef, child: LinkedChatChild): void {
-    const link = this.store.add(parent, child)
-    if (this.primary(child.projectId)) this.reconcile(link)
+    this.track(this.store.add(parent, child))
+  }
+
+  follow(parent: LinkedChatRef, child: LinkedChatChild, latest?: LinkedTurn): 'followed' | 'alreadyLinked' | 'cycle' {
+    if (this.store.get({ parent, child })) return 'alreadyLinked'
+    if (this.store.wouldCycle(parent, child)) return 'cycle'
+    const outcome = latest && terminalStatus(latest)
+    const link = this.store.add(parent, child, {
+      followed: true,
+      ...(outcome && {
+        status: outcome,
+        lastOutcome: outcome,
+        lastReportedTurnId: latest.id,
+        lastReportedTurnStartedAt: latest.startedAt
+      })
+    })
+    this.track(link)
+    return 'followed'
+  }
+
+  unfollow(link: LinkedChat): boolean {
+    if (!this.store.removeFollow(link)) return false
+    this.onConnectionNeedsChanged?.()
+    return true
+  }
+
+  private track(link: StoredLinkedChat): void {
+    if (this.primary(link.child.projectId)) this.reconcile(link)
     this.onConnectionNeedsChanged?.()
   }
 
@@ -88,15 +114,16 @@ export class DesktopLinkedChats {
     return this.store.all().filter(link => link.parent.threadId === threadId).reverse().map(viewLinkedChat)
   }
 
-  find(parent: LinkedChatRef, threadId: string): LinkedChat | undefined {
-    const link = this.store.all().findLast(link => sameChat(link.parent, parent) && link.child.threadId === threadId)
+  find(parent: LinkedChatRef, threadId: string, projectId?: string): LinkedChat | undefined {
+    const link = this.store.all().findLast(({ parent: source, child }) => sameChat(source, parent) &&
+      child.threadId === threadId && (projectId === undefined || child.projectId === projectId))
     return link && viewLinkedChat(link)
   }
 
   linkedProjectBetween(source: LinkedChatRef, targetThreadId: string): string | undefined {
-    for (const { parent, child } of this.store.all().reverse()) {
+    for (const { parent, child, followed } of this.store.all().reverse()) {
       if (targetThreadId === child.threadId && sameChat(source, parent)) return child.projectId
-      if (targetThreadId === parent.threadId && sameChat(source, child)) return parent.projectId
+      if (!followed && targetThreadId === parent.threadId && sameChat(source, child)) return parent.projectId
     }
   }
 

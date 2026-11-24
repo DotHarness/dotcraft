@@ -1,6 +1,8 @@
 import {
   Archive,
   ArchiveRestore,
+  BellMinus,
+  BellPlus,
   CircleStop,
   FolderOpen,
   FolderPlus,
@@ -29,6 +31,8 @@ export const DESKTOP_TOOL_OPERATIONS = [
   'activatePlugin',
   'searchChats',
   'sendMessage',
+  'followChat',
+  'unfollowChat',
   'stopChat',
   'createChat',
   'renameChat',
@@ -58,6 +62,8 @@ const OPERATIONS_BY_TOOL: Readonly<Record<string, DesktopToolOperation>> = {
   ActivatePlugin: 'activatePlugin',
   SearchThreadMessages: 'searchChats',
   SendMessageToThread: 'sendMessage',
+  FollowThread: 'followChat',
+  UnfollowThread: 'unfollowChat',
   StopThread: 'stopChat',
   CreateThread: 'createChat',
   SetThreadTitle: 'renameChat',
@@ -68,7 +74,9 @@ const OPERATIONS_BY_TOOL: Readonly<Record<string, DesktopToolOperation>> = {
   DismissProposal: 'dismissSuggestion'
 }
 
-const OPERATIONS_OPENING_CHAT: ReadonlySet<DesktopToolOperation> = new Set(['readChat', 'sendMessage', 'stopChat'])
+const OPERATIONS_OPENING_CHAT: ReadonlySet<DesktopToolOperation> = new Set([
+  'readChat', 'sendMessage', 'followChat', 'unfollowChat', 'stopChat'
+])
 
 const ICONS: Readonly<Record<DesktopToolOperation, LucideIcon>> = {
   readChat: MessageSquareText,
@@ -79,6 +87,8 @@ const ICONS: Readonly<Record<DesktopToolOperation, LucideIcon>> = {
   activatePlugin: Plug,
   searchChats: Search,
   sendMessage: MessageSquareText,
+  followChat: BellPlus,
+  unfollowChat: BellMinus,
   stopChat: CircleStop,
   createChat: MessageSquarePlus,
   renameChat: Pencil,

@@ -2,7 +2,7 @@ import type { AppServerRequestClient, DesktopThreadToolSettingsHost, DynamicTool
 import { submitThreadMessage } from '../desktopThreadMessageTool'
 import { normalizeWorkspaceProjectKey } from '../../shared/workspaceProjectKey'
 import { desktopIdentity, type ThreadTaskConnection } from './childThreads'
-import type { DesktopLinkedChats, LinkedChatChild } from './linkedChats'
+import type { DesktopLinkedChats, LinkedChatChild, LinkedChatRef, LinkedTurn, ThreadHeaderResult } from './linkedChats'
 import { callingThread, connectThreadProject, currentThreadProject, readProjectArgument, resolveThreadProject } from './threadProjects'
 
 export const MAX_LIST_THREADS_LIMIT = 100
@@ -48,9 +48,9 @@ export async function handleThreadManagementTool(
     const linked = optionalBoolean(args, 'linked', false)
     if (!linked.ok) return linked.error
     if (linked.value) {
-      const threads = parent && linkedChats ? linkedChats.list(parent).map(({ child, createdAt, status }) => ({
+      const threads = parent && linkedChats ? linkedChats.list(parent).map(({ child, createdAt, followed, status }) => ({
         id: child.threadId, displayName: child.title, project: child.projectId, projectName: child.projectName,
-        workspacePath: child.workspacePath, createdAt, status
+        workspacePath: child.workspacePath, createdAt, status, startedHere: !followed
       })) : []
       return threadListResult(threads, threads.length, null)
     }
@@ -60,14 +60,18 @@ export async function handleThreadManagementTool(
 
   const threadId = requiredNonEmptyString(args, 'threadId')
   if (!threadId.ok) return threadId.error
+  if (tool === 'FollowThread' || tool === 'UnfollowThread') {
+    if (!parent || !linkedChats) return fail('ThreadManagementUnavailable', 'Desktop chat following is unavailable.')
+    return changeThreadFollow(connection, linkedChats, parent, threadId.value, readProjectArgument(args.project), tool === 'FollowThread')
+  }
   if (tool === 'StopThread') {
-    readProjectArgument(args.project)
+    const projectId = readProjectArgument(args.project)
     if (threadId.value === callerId) return fail('NotLinked', 'A chat cannot stop itself.')
-    const link = parent && linkedChats?.find(parent, threadId.value)
-    if (!link || !linkedChats) return fail('NotLinked', 'Only chats started by this chat can be stopped.')
+    const link = parent && linkedChats?.find(parent, threadId.value, projectId)
+    if (!link || link.followed || !linkedChats) return fail('NotLinked', 'Only chats started by this chat can be stopped.')
     const target = await connectThreadProject(connection, linkedProject(link.child))
     const client = requestClient(target)
-    const { thread } = await client.sendRequest<{ thread?: { runtime?: { activeTurnId?: string } } }>('thread/read', { threadId: threadId.value })
+    const { thread } = await client.sendRequest<ThreadHeaderResult>('thread/read', { threadId: threadId.value })
     if (!thread) return fail('ThreadNotFound', `Thread '${threadId.value}' was not found.`)
     const turnId = thread.runtime?.activeTurnId
     const result = { threadId: threadId.value, ...targetRef(target), stopped: Boolean(turnId) }
@@ -98,6 +102,45 @@ export async function handleThreadManagementTool(
   }
 }
 
+async function changeThreadFollow(
+  source: ThreadTaskConnection,
+  linkedChats: DesktopLinkedChats,
+  parent: LinkedChatRef,
+  threadId: string,
+  projectId: string | undefined,
+  follow: boolean
+): Promise<DynamicToolCallResult> {
+  const existing = linkedChats.find(parent, threadId, projectId)
+  if (!follow) {
+    if (!existing) return ok('This chat was not followed.', { threadId, following: false, changed: false })
+    if (!linkedChats.unfollow(existing)) {
+      return followResult(existing.child, 'Still following a chat started here', true, false)
+    }
+    return followResult(existing.child, 'Stopped following', false, true)
+  }
+  if (existing) return followResult(existing.child, 'Already following', true, false)
+  const project = await resolveThreadProject(source, projectId)
+  if (parent.projectId === project.id && parent.threadId === threadId) return fail('TargetUnsupported', 'A chat cannot follow itself.')
+  const target = await connectThreadProject(source, project)
+  const client = requestClient(target)
+  const { thread } = await client.sendRequest<ThreadHeaderResult>('thread/read', { threadId })
+  if (!thread) return fail('ThreadNotFound', `Thread '${threadId}' was not found.`)
+  if (thread.status === 'archived') return fail('ThreadArchived', 'Archived chats cannot be followed.')
+  const child: LinkedChatChild = { ...callingThread(target, threadId), projectName: project.name, title: thread.displayName || threadId }
+  const latest = thread.runtime?.activeTurnId || thread.runtime?.hasBackgroundWork ? undefined :
+    (await client.sendRequest<{ data: LinkedTurn[] }>('thread/turns/list', {
+      threadId, limit: 1, sortDirection: 'descending', itemsView: 'none'
+    })).data[0]
+  const result = linkedChats.follow(parent, child, latest)
+  if (result === 'cycle') return fail('TargetUnsupported', 'Following this chat would create a cycle of reports.')
+  return followResult(child, result === 'followed' ? 'Now following' : 'Already following', true, result === 'followed')
+}
+
+function followResult(child: LinkedChatChild, message: string, following: boolean, changed: boolean): DynamicToolCallResult {
+  const { threadId, projectId, title } = child
+  return ok(`${message}: "${title}".`, { threadId, projectId, following, changed })
+}
+
 export async function resolveTargetThread(
   source: ThreadTaskConnection,
   links: DesktopLinkedChats | undefined,
@@ -105,7 +148,7 @@ export async function resolveTargetThread(
   callerId?: string
 ): Promise<ThreadTaskConnection> {
   const projectId = readProjectArgument(args.project)
-  const link = callerId && typeof args.threadId === 'string' && links?.find(callingThread(source, callerId), args.threadId.trim())
+  const link = callerId && typeof args.threadId === 'string' && links?.find(callingThread(source, callerId), args.threadId.trim(), projectId)
   return connectThreadProject(source, link ? linkedProject(link.child) : await resolveThreadProject(source, projectId))
 }
 

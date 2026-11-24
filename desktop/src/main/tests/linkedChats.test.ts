@@ -117,6 +117,43 @@ describe('linked chat registry', () => {
   })
 })
 
+describe('following an existing chat', () => {
+  it('reports new work after reconnect, without replaying old work or reporting after unfollow', async () => {
+    const filePath = statePath()
+    const child = appServer(CHILD)
+    const parent = appServer(PARENT)
+    const finished = turn('previous', 'completed', [agentMessage('Old result')], '2026-11-25T00:00:00Z')
+    child.state.turns = [finished]
+    new DesktopLinkedChats(filePath).follow(PARENT, CHILD, finished)
+
+    const reopened = new DesktopLinkedChats(filePath)
+    reopened.connected(parent.connection)
+    reopened.connected(child.connection)
+    await settle()
+    expect(parent.notify).not.toHaveBeenCalled()
+
+    reopened.disconnected(child.connection)
+    child.state.turns = [turn('next', 'completed', [agentMessage('New result')], '2026-11-25T00:01:00Z')]
+    reopened.connected(child.connection)
+    await settle()
+    expect(parent.notify).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ status: 'completed', result: 'New result' }))
+
+    reopened.unfollow(reopened.list(PARENT)[0])
+    runtime(reopened, child, { activeTurnId: 'later', waitingOnInput: true })
+    await settle()
+    expect(parent.notify).toHaveBeenCalledTimes(1)
+    expect(new DesktopLinkedChats(filePath).list(PARENT)).toEqual([])
+  })
+
+  it('blocks a report cycle through started and followed chats', () => {
+    const chats = new DesktopLinkedChats(null)
+    const third = { ...CHILD, threadId: 'third' }
+    chats.link(PARENT, CHILD)
+    chats.follow(CHILD, third)
+    expect(chats.follow(third, { ...PARENT, projectName: 'Chats', title: 'Parent' })).toBe('cycle')
+  })
+})
+
 describe('following linked chats', () => {
   it('holds one connection across background work, then reports the durable final reply once', async () => {
     const { chats, parent, child } = await fixture()

@@ -153,6 +153,8 @@ const TOOL_NAMES = new Set([
   'ListProjects',
   LIST_PLUGINS_TOOL_NAME,
   'ListThreads',
+  'FollowThread',
+  'UnfollowThread',
   'StopThread',
   ...threadHistoryToolNames,
   'SendMessageToThread',
@@ -274,6 +276,30 @@ export function buildDesktopThreadDynamicTools(local = true): DynamicToolSpec[] 
     },
     {
       namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
+      name: 'FollowThread',
+      description: 'When the user asks, follow an existing chat for automatic reports without messaging it.',
+      inputSchema: {
+        type: 'object',
+        properties: { threadId: { type: 'string' }, project: PROJECT_PROPERTY },
+        required: ['threadId'],
+        additionalProperties: false
+      },
+      display: { title: 'Follow chat', subtitle: 'Desktop' }
+    },
+    {
+      namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
+      name: 'UnfollowThread',
+      description: 'When the user asks, stop following a chat added with FollowThread.',
+      inputSchema: {
+        type: 'object',
+        properties: { threadId: { type: 'string' }, project: PROJECT_PROPERTY },
+        required: ['threadId'],
+        additionalProperties: false
+      },
+      display: { title: 'Unfollow chat', subtitle: 'Desktop' }
+    },
+    {
+      namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
       name: 'StopThread',
       description: 'Stop the active turn in a chat started by this chat. An idle chat stays open. Do not stop a chat waiting for the user in place of asking them.',
       inputSchema: {
@@ -286,12 +312,12 @@ export function buildDesktopThreadDynamicTools(local = true): DynamicToolSpec[] 
     {
       namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
       name: 'ListThreads',
-      description: 'List recent chats in a project, or all chats started by this chat across projects with linked: true.',
+      description: 'List recent chats in a project or chats linked to this chat.',
       inputSchema: {
         type: 'object',
         properties: {
           project: PROJECT_PROPERTY,
-          linked: { type: 'boolean', description: 'List chats started by this chat, newest first, with project and state. Ignores project.' },
+          linked: { type: 'boolean', description: 'List chats started or followed by this chat across projects, newest first. Ignores project.' },
           query: { type: 'string', description: 'Optional local text filter for thread id, title, or origin.' },
           limit: { type: 'integer', minimum: 1, maximum: MAX_LIST_THREADS_LIMIT },
           cursor: { type: 'string', description: 'Opaque cursor from a previous ListThreads result.' },
@@ -506,6 +532,8 @@ export async function handleDesktopRuntimeThreadToolCall(
       case 'ListProjects':
       case 'ListThreads':
       case 'SendMessageToThread':
+      case 'FollowThread':
+      case 'UnfollowThread':
       case 'StopThread':
       case 'SetThreadTitle':
       case 'SetThreadArchived':

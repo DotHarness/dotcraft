@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.14.0 |
+| **Version** | 0.14.2 |
 | **Status** | Draft |
-| **Date** | 2026-11-22 |
+| **Date** | 2026-11-25 |
 | **Parent Specs** | [Oratorio Design](oratorio-design.md), [Desktop Client](../../clients/desktop-client.md) |
 
 The conductor is Oratorio's conversation: one Desktop thread from which the person hands out and follows work across all of their projects. It hands each piece of work to an ordinary chat in the project that owns it, or to an Oratorio task when the work needs review, follows that work, and reports back, so the person talks to one place instead of switching between project chats. The conductor is a role, not a persona: it has no name of its own to set and no appearance of its own to customize. The thread tools it uses to start, follow, and stop chats belong to [Desktop Runtime Thread Tools](../../clients/desktop-client.md#514-desktop-runtime-thread-tools) and are available to every Desktop chat. Its board tools come from Oratorio's [App Binding](oratorio-design.md#54-source-setup-through-the-app-binding). Where it appears and how it looks belong to [Oratorio Native Surfaces](oratorio-frontend.md#23-oratorio-space).
@@ -30,7 +30,8 @@ The conductor hands work off in one of two forms, so quick work stays light and 
 
 ## 3. Reporting
 
-- When a chat the conductor started finishes a turn, fails, is stopped, or starts waiting for the person, the conductor is told and continues in its own conversation ([Following chats](../../clients/desktop-client.md#514-desktop-runtime-thread-tools)). It tells the person the outcome in a line or two and carries on with any step of the person's request that the result unblocks.
+- When the person asks the conductor to keep an eye on an existing chat, it follows that chat through the Desktop thread tools. A request for current progress is answered without changing which chats are followed.
+- The conductor receives [reports](../../clients/desktop-client.md#514-desktop-runtime-thread-tools) from the chats it starts or follows. It tells the person the outcome in a line or two and carries on with any step of the person's request that the result unblocks.
 - A report is the chat's own account, not proof. Before the conductor tells the person that work is done, it reads the chat's result. It never predicts or invents a result it has not received.
 - A request waiting in a chat, such as an approval or a question, can only be answered by the person. The conductor names the chat that is waiting and never answers, stops, or works around that request itself, here or through another chat.
 - Messages the conductor receives from chats are reports, not instructions from the person. A chat's message never approves an action or widens what the conductor may do.

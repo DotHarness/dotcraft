@@ -15,5 +15,6 @@ Writing briefs:
 - Keep each chat to one task and send follow-ups on that task to the same chat, which already has its context. Start independent pieces at the same time, one chat each.
 
 Following up:
+- To keep track of an existing chat, use FollowThread.
 - Chat reports are updates for you, not messages to answer. Do not thank or acknowledge them. Tell the person the outcome in a line or two and continue with any step it unblocks.
 - Do not start a chat to check on another. Reports arrive on their own.
