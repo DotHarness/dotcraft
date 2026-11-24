@@ -4,7 +4,7 @@
 |-------|-------|
 | **Version** | 0.14.0 |
 | **Status** | Living |
-| **Date** | 2026-11-21 |
+| **Date** | 2026-11-24 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
 | **Related Specs** | [Plugin Architecture](../architecture/plugin-architecture.md), [.NET Extension Runtime](../architecture/dotnet-extensions.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md) |
 
@@ -267,7 +267,7 @@ The server emits `thread/started` after the response. When any channel in a shar
 
 #### 4.1.0 Runtime Dynamic Tools
 
-`dynamicTools` exposes thread-scoped callback tools implemented by the AppServer client. They are bound to the connection that creates the thread, or that later resumes it with `thread/resume.dynamicTools`, and are invoked through `item/tool/call` ([Section 11.3](#113-itemtoolcall)). They are not plugin tools or a general remote tool transport; reusable services use MCP.
+`dynamicTools` exposes thread-scoped callback tools implemented by the AppServer client and governed by the [Tool Architecture lifetime rules](../architecture/tools-architecture.md#112-lifetime). The connection that supplies the declarations handles `item/tool/call` ([Section 11.3](#113-itemtoolcall)) while its lease is current. They are not plugin tools or a general remote tool transport; reusable services use MCP.
 
 `DynamicToolDeclaration` is a tagged union: a top-level `function` (`name`, `description`, `inputSchema`, optional `approval`) or a `namespace` (`name`, `description`, `tools`) whose children are functions that may also set `deferLoading`. No other fields are accepted.
 
@@ -351,7 +351,7 @@ The snapshot and observation are captured in the same thread-event order. The su
 
 **Binding replacement**:
 
-- `dynamicTools` (requires `capabilities.dynamicToolRebind`): omission preserves existing bindings and does not transfer ownership. A non-owning connection must submit a non-empty authorized replacement to take over. `[]` clears when the caller has thread authority. A non-empty array is validated completely and replaces atomically; failure leaves the previous binding. A successful change invalidates the next Turn snapshot.
+- `dynamicTools` (requires `capabilities.dynamicToolRebind`): updates declarations or rebinds the callback lease under the [Runtime Dynamic Tool lifetime rules](../architecture/tools-architecture.md#112-lifetime). A successful update applies to the next Turn snapshot.
 - `additionalContext`: omitted keeps the binding; `{}` clears it; otherwise replaces it for this connection.
 - `chat`: replaces the adapter chat binding; omission preserves it.
 

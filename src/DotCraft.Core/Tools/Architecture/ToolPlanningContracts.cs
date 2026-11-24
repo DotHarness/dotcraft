@@ -25,7 +25,8 @@ public sealed class ToolPlanningContext
         Memory.ThreadMemoryStores? memoryStores = null,
         ToolLocation? location = null,
         IEnumerable<string>? codeModeExcludedNamespaces = null,
-        ThreadFileVersions? fileVersions = null)
+        ThreadFileVersions? fileVersions = null,
+        IReadOnlyList<ThreadDynamicToolDeclaration>? dynamicToolDeclarations = null)
     {
         if (string.IsNullOrWhiteSpace(threadId))
             throw new ArgumentException("A thread identifier is required.", nameof(threadId));
@@ -55,6 +56,7 @@ public sealed class ToolPlanningContext
         CodeModeExcludedNamespaces = (codeModeExcludedNamespaces ?? [])
             .ToFrozenSet(StringComparer.Ordinal);
         FileVersions = fileVersions;
+        DynamicToolDeclarations = dynamicToolDeclarations ?? [];
     }
 
     /// <summary>Gets the thread identifier.</summary>
@@ -97,4 +99,5 @@ public sealed class ToolPlanningContext
     /// <summary>Gets the tool namespaces kept off the code mode nested surface.</summary>
     public IReadOnlySet<string> CodeModeExcludedNamespaces { get; }
     public ThreadFileVersions? FileVersions { get; }
+    public IReadOnlyList<ThreadDynamicToolDeclaration> DynamicToolDeclarations { get; }
 }

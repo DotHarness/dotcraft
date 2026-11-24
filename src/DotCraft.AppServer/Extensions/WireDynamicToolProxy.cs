@@ -22,38 +22,26 @@ public sealed class WireDynamicToolProxy : IToolSource, IThreadScopedToolSource,
 
     public int Priority => 90;
 
-    /// <summary>
-    /// Binds a thread to dynamic tools declared by the client that created the thread.
-    /// </summary>
     public void BindThread(
         string threadId,
         IAppServerTransport transport,
         AppServerConnection connection,
-        IReadOnlyList<RuntimeDynamicToolDeclarationSpec>? tools)
+        IReadOnlyList<ThreadDynamicToolDeclaration> declarations)
     {
-        if (tools is null)
-            return;
-
-        if (!TryValidateSpecs(tools, out var validationError))
-            throw new ArgumentException(validationError, nameof(tools));
-
-        if (tools.Count == 0)
-        {
-            if (_byThread.TryGetValue(threadId, out var current)
-                && ReferenceEquals(current.Connection, connection))
-            {
-                _byThread.TryRemove(threadId, out _);
-            }
-            return;
-        }
-
-        _byThread[threadId] = new DynamicToolThreadBinding(
-            threadId,
-            transport,
-            connection,
-            FlattenDeclarations(tools).Select(CloneSpec).ToArray(),
-            Interlocked.Increment(ref _generation));
+        var binding = new DynamicToolThreadBinding(
+            threadId, transport, connection, declarations, Interlocked.Increment(ref _generation));
+        _byThread[threadId] = binding;
+        if (connection.IsClosed)
+            _byThread.TryRemove(KeyValuePair.Create(threadId, binding));
     }
+
+    internal bool OwnsThread(string threadId, AppServerConnection connection) =>
+        _byThread.TryGetValue(threadId, out var binding) && ReferenceEquals(binding.Connection, connection);
+
+    private bool IsCurrentBinding(DynamicToolThreadBinding binding) =>
+        !binding.Connection.IsClosed
+        && _byThread.TryGetValue(binding.ThreadId, out var current)
+        && ReferenceEquals(current, binding);
 
     bool IThreadForkToolBindingSource.TryForkThreadBinding(string parentThreadId, string childThreadId)
     {
@@ -63,12 +51,7 @@ public sealed class WireDynamicToolProxy : IToolSource, IThreadScopedToolSource,
             return false;
         }
 
-        _byThread[childThreadId] = new DynamicToolThreadBinding(
-            childThreadId,
-            parent.Transport,
-            parent.Connection,
-            parent.Tools.Select(CloneSpec).ToArray(),
-            Interlocked.Increment(ref _generation));
+        BindThread(childThreadId, parent.Transport, parent.Connection, parent.Declarations);
         return true;
     }
 
@@ -175,8 +158,7 @@ public sealed class WireDynamicToolProxy : IToolSource, IThreadScopedToolSource,
             return false;
         }
 
-        var spec = new RuntimeDynamicToolSpec(toolNamespace, null, tool);
-        if (tool.Approval != null && !TryValidateApprovalDescriptor(spec, out message))
+        if (tool.Approval is { } approval && !TryValidateApprovalDescriptor(tool.InputSchema, approval, out message))
         {
             message = $"Dynamic Function '{tool.Name}' has an invalid approval descriptor: {message}";
             return false;
@@ -194,7 +176,7 @@ public sealed class WireDynamicToolProxy : IToolSource, IThreadScopedToolSource,
         foreach (var kv in _byThread.ToArray())
         {
             if (ReferenceEquals(kv.Value.Transport, transport))
-                _byThread.TryRemove(kv.Key, out _);
+                _byThread.TryRemove(kv);
         }
     }
 
@@ -220,52 +202,47 @@ public sealed class WireDynamicToolProxy : IToolSource, IThreadScopedToolSource,
     {
         ArgumentNullException.ThrowIfNull(context);
         cancellationToken.ThrowIfCancellationRequested();
-        if (!_byThread.TryGetValue(context.ThreadId, out var binding) || binding.Connection.IsClosed)
-            return ValueTask.FromResult<IReadOnlyList<ToolRegistration>>([]);
+        _byThread.TryGetValue(context.ThreadId, out var binding);
+        if (binding is not null && !ThreadDynamicToolDeclaration.Match(binding.Declarations, context.DynamicToolDeclarations))
+            binding = null;
 
-        var registrations = binding.Tools
-            .OrderBy(tool => tool.Namespace, StringComparer.Ordinal)
-            .ThenBy(tool => tool.Name, StringComparer.Ordinal)
-            .Select(tool => CreateRegistration(binding, tool, context.Revision))
+        var registrations = context.DynamicToolDeclarations
+            .Select(tool => CreateRegistration(context.ThreadId, binding, tool, context.Revision))
             .ToArray();
         return ValueTask.FromResult<IReadOnlyList<ToolRegistration>>(registrations);
     }
 
     private ToolRegistration CreateRegistration(
-        DynamicToolThreadBinding binding,
-        RuntimeDynamicToolSpec spec,
+        string threadId,
+        DynamicToolThreadBinding? binding,
+        ThreadDynamicToolDeclaration spec,
         long snapshotRevision)
     {
-        var sourceId = $"thread:{binding.ThreadId}";
+        var sourceId = $"thread:{threadId}";
         var sourceToolId = new SourceToolId(spec.Namespace is null ? spec.Name : $"{spec.Namespace}/{spec.Name}");
         var definitionId = new ToolDefinitionId(ToolSourceKind.RuntimeDynamic, sourceId, sourceToolId);
-        var inputSchema = JsonSerializer.Deserialize<JsonElement>(
-            (spec.InputSchema ?? new JsonObject { ["type"] = "object" }).ToJsonString(JsonOptions),
-            JsonOptions);
-        var annotations = spec.Approval is null
-            ? null
-            : new Dictionary<string, JsonElement>(StringComparer.Ordinal)
-            {
-                ["dotcraft/dynamicApproval"] = JsonSerializer.SerializeToElement(spec.Approval, JsonOptions)
-            };
+        var annotations = spec.Approval is { } approval
+            ? new Dictionary<string, JsonElement>(StringComparer.Ordinal) { ["dotcraft/dynamicApproval"] = approval }
+            : null;
         var definition = new ToolDefinition(
             definitionId,
             new ToolName(spec.Namespace, spec.Name),
             spec.Description,
-            inputSchema,
+            spec.InputSchema,
             annotations: annotations,
             policyHints: new ToolPolicyHints(RequiresApproval: spec.Approval is not null),
             provenance: new ToolProvenance(ToolSourceKind.RuntimeDynamic, sourceId, "thread"),
             namespaceDescription: spec.NamespaceDescription,
             policyScope: ToolPolicyScope.RuntimeManaged);
+        var bindingScope = $"dynamic:{threadId}:{binding?.Generation ?? 0}";
         var runtimeBinding = new ToolRuntimeBinding(
-            new RuntimeBindingId($"dynamic:{binding.ThreadId}:{binding.Generation}:{sourceToolId.Value}"),
+            new RuntimeBindingId($"{bindingScope}:{sourceToolId.Value}"),
             definitionId,
             new DynamicToolRuntime(this, binding, spec),
             new DynamicToolBindingLease(this, binding),
-            $"dynamic:{binding.ThreadId}:{binding.Generation}",
+            bindingScope,
             snapshotRevision);
-        var deferred = spec.DeferLoading == true && spec.Namespace is not null;
+        var deferred = spec.DeferLoading && spec.Namespace is not null;
         return new ToolRegistration(
             definition,
             runtimeBinding,
@@ -277,15 +254,15 @@ public sealed class WireDynamicToolProxy : IToolSource, IThreadScopedToolSource,
                 : null);
     }
 
-    internal async ValueTask<RuntimeDynamicToolCallResult> InvokeAsync(
-        DynamicToolThreadBinding binding,
-        RuntimeDynamicToolSpec spec,
+    private async ValueTask<RuntimeDynamicToolCallResult> InvokeAsync(
+        DynamicToolThreadBinding? binding,
+        ThreadDynamicToolDeclaration spec,
         ToolInvocationContext execution,
         JsonObject arguments,
         CancellationToken cancellationToken)
     {
-        if (binding.Connection.IsClosed)
-            return Failed("DynamicToolUnavailable", $"Dynamic tool '{spec.Name}' is unavailable because the client connection is closed.");
+        if (binding is null || !IsCurrentBinding(binding))
+            return Failed("DynamicToolUnavailable", $"Dynamic tool '{spec.Name}' has no current client connection.");
 
         try
         {
@@ -352,40 +329,28 @@ public sealed class WireDynamicToolProxy : IToolSource, IThreadScopedToolSource,
         ErrorMessage = result.ErrorMessage
     };
 
-    private static IEnumerable<RuntimeDynamicToolSpec> FlattenDeclarations(
-        IReadOnlyList<RuntimeDynamicToolDeclarationSpec> declarations)
-    {
-        foreach (var declaration in declarations)
+    internal static IReadOnlyList<ThreadDynamicToolDeclaration> Describe(
+        IReadOnlyList<RuntimeDynamicToolDeclarationSpec> declarations) =>
+        declarations.SelectMany(declaration => declaration switch
         {
-            if (declaration is RuntimeDynamicToolFunctionSpec function)
-            {
-                yield return new RuntimeDynamicToolSpec(null, null, function);
-            }
-            else if (declaration is RuntimeDynamicToolNamespaceSpec toolNamespace)
-            {
-                foreach (var child in toolNamespace.Tools.OfType<RuntimeDynamicToolFunctionSpec>())
-                    yield return new RuntimeDynamicToolSpec(toolNamespace.Name, toolNamespace.Description, child);
-            }
-        }
-    }
+            RuntimeDynamicToolFunctionSpec function => new[] { DescribeFunction(null, null, function) },
+            RuntimeDynamicToolNamespaceSpec group => group.Tools
+                .Cast<RuntimeDynamicToolFunctionSpec>()
+                .Select(function => DescribeFunction(group.Name, group.Description, function)),
+            _ => throw new ArgumentOutOfRangeException(nameof(declarations))
+        })
+            .OrderBy(tool => tool.Namespace, StringComparer.Ordinal)
+            .ThenBy(tool => tool.Name, StringComparer.Ordinal)
+            .ToArray();
 
-    private static RuntimeDynamicToolSpec CloneSpec(RuntimeDynamicToolSpec spec) =>
-        new(spec.Namespace, spec.NamespaceDescription, new RuntimeDynamicToolFunctionSpec
-        {
-            Name = spec.Name,
-            Description = spec.Description,
-            InputSchema = spec.InputSchema?.DeepClone() as JsonObject,
-            DeferLoading = spec.DeferLoading,
-            Approval = spec.Approval == null
-                ? null
-                : new ChannelToolApprovalSpec
-                {
-                    Kind = spec.Approval.Kind,
-                    TargetArgument = spec.Approval.TargetArgument,
-                    Operation = spec.Approval.Operation,
-                    OperationArgument = spec.Approval.OperationArgument
-                }
-        });
+    private static ThreadDynamicToolDeclaration DescribeFunction(
+        string? toolNamespace,
+        string? namespaceDescription,
+        RuntimeDynamicToolFunctionSpec function) =>
+        new(toolNamespace, namespaceDescription, function.Name, function.Description,
+            JsonSerializer.SerializeToElement(function.InputSchema, JsonOptions),
+            function.DeferLoading == true,
+            function.Approval is { } approval ? JsonSerializer.SerializeToElement(approval, JsonOptions) : null);
 
     private static RuntimeDynamicToolCallResult Failed(string code, string message) =>
         new()
@@ -476,15 +441,11 @@ public sealed class WireDynamicToolProxy : IToolSource, IThreadScopedToolSource,
         return true;
     }
 
-    private static bool TryValidateApprovalDescriptor(RuntimeDynamicToolSpec descriptor, out string message)
+    private static bool TryValidateApprovalDescriptor(
+        JsonObject schema,
+        ChannelToolApprovalSpec approval,
+        out string message)
     {
-        var approval = descriptor.Approval;
-        if (approval == null)
-        {
-            message = string.Empty;
-            return true;
-        }
-
         if (string.IsNullOrWhiteSpace(approval.Kind))
         {
             message = "approval.kind is required.";
@@ -505,7 +466,7 @@ public sealed class WireDynamicToolProxy : IToolSource, IThreadScopedToolSource,
             return false;
         }
 
-        if (!TryValidateStringProperty(descriptor.InputSchema, approval.TargetArgument, out message))
+        if (!TryValidateStringProperty(schema, approval.TargetArgument, out message))
             return false;
 
         var hasStaticOperation = !string.IsNullOrWhiteSpace(approval.Operation);
@@ -517,7 +478,7 @@ public sealed class WireDynamicToolProxy : IToolSource, IThreadScopedToolSource,
         }
 
         if (hasOperationArgument
-            && !TryValidateStringProperty(descriptor.InputSchema, approval.OperationArgument!, out message))
+            && !TryValidateStringProperty(schema, approval.OperationArgument!, out message))
         {
             return false;
         }
@@ -526,21 +487,15 @@ public sealed class WireDynamicToolProxy : IToolSource, IThreadScopedToolSource,
         return true;
     }
 
-    private static bool TryValidateStringProperty(JsonObject? schema, string propertyName, out string message)
+    private static bool TryValidateStringProperty(JsonObject schema, string propertyName, out string message)
     {
-        if (schema is not JsonObject schemaObject)
-        {
-            message = "inputSchema must be an object.";
-            return false;
-        }
-
-        if (!string.Equals(schemaObject["type"]?.GetValue<string>(), "object", StringComparison.Ordinal))
+        if (!string.Equals(schema["type"]?.GetValue<string>(), "object", StringComparison.Ordinal))
         {
             message = "inputSchema.type must be 'object' when approval metadata is declared.";
             return false;
         }
 
-        if (schemaObject["properties"] is not JsonObject properties
+        if (schema["properties"] is not JsonObject properties
             || !properties.TryGetPropertyValue(propertyName, out var propertySchema)
             || propertySchema is not JsonObject propertySchemaObject)
         {
@@ -558,33 +513,17 @@ public sealed class WireDynamicToolProxy : IToolSource, IThreadScopedToolSource,
         return true;
     }
 
-    internal sealed record DynamicToolThreadBinding(
+    private sealed record DynamicToolThreadBinding(
         string ThreadId,
         IAppServerTransport Transport,
         AppServerConnection Connection,
-        IReadOnlyList<RuntimeDynamicToolSpec> Tools,
+        IReadOnlyList<ThreadDynamicToolDeclaration> Declarations,
         long Generation);
-
-    internal sealed record RuntimeDynamicToolSpec(
-        string? Namespace,
-        string? NamespaceDescription,
-        RuntimeDynamicToolFunctionSpec Function)
-    {
-        public string Name => Function.Name;
-
-        public string Description => Function.Description;
-
-        public JsonObject? InputSchema => Function.InputSchema;
-
-        public bool? DeferLoading => Function.DeferLoading;
-
-        public ChannelToolApprovalSpec? Approval => Function.Approval;
-    }
 
     private sealed class DynamicToolRuntime(
         WireDynamicToolProxy proxy,
-        DynamicToolThreadBinding binding,
-        RuntimeDynamicToolSpec spec) : IToolRuntime
+        DynamicToolThreadBinding? binding,
+        ThreadDynamicToolDeclaration spec) : IToolRuntime
     {
         public async ValueTask<ToolExecutionResult> InvokeAsync(
             ToolInvocationContext context,
@@ -690,17 +629,14 @@ public sealed class WireDynamicToolProxy : IToolSource, IThreadScopedToolSource,
 
     private sealed class DynamicToolBindingLease(
         WireDynamicToolProxy proxy,
-        DynamicToolThreadBinding binding) : IToolBindingLease
+        DynamicToolThreadBinding? binding) : IToolBindingLease
     {
         public ValueTask<ToolBindingLeaseResult> CheckAsync(
             ToolInvocationContext context,
             CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var available = !binding.Connection.IsClosed
-                && proxy._byThread.TryGetValue(binding.ThreadId, out var current)
-                && ReferenceEquals(current, binding);
-            return ValueTask.FromResult(available
+            return ValueTask.FromResult(binding is not null && proxy.IsCurrentBinding(binding)
                 ? ToolBindingLeaseResult.Available
                 : new ToolBindingLeaseResult(
                     false,

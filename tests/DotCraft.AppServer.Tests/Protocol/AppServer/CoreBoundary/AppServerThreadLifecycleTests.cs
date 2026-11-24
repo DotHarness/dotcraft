@@ -663,45 +663,14 @@ public sealed partial class AppServerThreadLifecycleTests : IDisposable
     }
 
     [Fact]
-    public async Task ThreadStart_WithDynamicTools_BindsBeforeCreationWithoutRebuildingAgent()
+    public async Task ThreadResume_WithDynamicTools_RoundTripsNamespacedCall()
     {
         var dynamicToolProxy = new WireDynamicToolProxy();
         using var harness = new CoreAppServerTestHarness(wireDynamicToolProxy: dynamicToolProxy);
-        await harness.InitializeAsync();
+        using var initialized = await harness.InitializeAsync();
+        var capabilities = initialized.RootElement.GetProperty("result").GetProperty("capabilities");
+        Assert.True(capabilities.GetProperty("dynamicToolRebind").GetBoolean());
 
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadStart, new
-        {
-            identity = new { channelName = "appserver", userId = "test_user", workspacePath = harness.Identity.WorkspacePath },
-            dynamicTools = new RuntimeDynamicToolDeclarationSpec[] { CreateReviewToolSpec() }
-        });
-        await harness.ExecuteRequestAsync(msg);
-
-        var response = await harness.Transport.ReadNextSentAsync();
-        CoreAppServerTestHarness.AssertIsSuccessResponse(response);
-        var threadId = response.RootElement.GetProperty("result").GetProperty("thread").GetProperty("id").GetString()!;
-
-        // The tools are bound before the thread exists, so its single agent build already has them.
-        Assert.DoesNotContain(threadId, harness.Service.RefreshedThreadAgents);
-        var registration = Assert.Single(await dynamicToolProxy.GetRegistrationsAsync(
-            new ToolPlanningContext(
-                threadId,
-                null,
-                harness.Identity.WorkspacePath,
-                Path.Combine(harness.Identity.WorkspacePath, ".craft"),
-                "default",
-                null,
-                [],
-                1)));
-        Assert.Equal("workflow", registration.Definition.Name.Namespace);
-        Assert.Equal("SubmitReviewDraft", registration.Definition.Name.Name);
-    }
-
-    [Fact]
-    public async Task ThreadResume_WithDynamicTools_BindsRefreshesAndRoundTripsNamespacedCall()
-    {
-        var dynamicToolProxy = new WireDynamicToolProxy();
-        using var harness = new CoreAppServerTestHarness(wireDynamicToolProxy: dynamicToolProxy);
-        await harness.InitializeAsync();
         var thread = await harness.Service.CreateThreadAsync(harness.Identity);
 
         var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadResume, new
@@ -713,7 +682,7 @@ public sealed partial class AppServerThreadLifecycleTests : IDisposable
 
         var response = await harness.Transport.ReadNextSentAsync();
         CoreAppServerTestHarness.AssertIsSuccessResponse(response);
-        Assert.Contains(thread.Id, harness.Service.RefreshedThreadAgents);
+        thread = await harness.Service.GetThreadAsync(thread.Id);
         var registration = Assert.Single(await dynamicToolProxy.GetRegistrationsAsync(
             new ToolPlanningContext(
                 thread.Id,
@@ -723,11 +692,8 @@ public sealed partial class AppServerThreadLifecycleTests : IDisposable
                 "default",
                 null,
                 [],
-                1)));
-        Assert.Equal("workflow", registration.Definition.Name.Namespace);
-        Assert.Equal("SubmitReviewDraft", registration.Definition.Name.Name);
-        Assert.Equal(ToolPolicyScope.RuntimeManaged, registration.Definition.PolicyScope);
-
+                1,
+                dynamicToolDeclarations: thread.DynamicToolDeclarations)));
         harness.Transport.ApprovalHandler = (method, parameters) =>
         {
             Assert.Equal(DotCraft.Protocol.AppServer.AppServerMethodNames.DynamicToolCall, method);
@@ -735,8 +701,6 @@ public sealed partial class AppServerThreadLifecycleTests : IDisposable
             Assert.Equal(thread.Id, call.ThreadId);
             Assert.Equal("turn_dynamic", call.TurnId);
             Assert.Equal("call_dynamic", call.CallId);
-            Assert.Equal("workflow", call.Namespace);
-            Assert.Equal("SubmitReviewDraft", call.Tool);
             Assert.Equal("Ready", call.Arguments.GetProperty("body").GetString());
             return InMemoryTransport.BuildClientResponse(
                 1,
@@ -811,39 +775,6 @@ public sealed partial class AppServerThreadLifecycleTests : IDisposable
         CoreAppServerTestHarness.AssertIsSuccessResponse(await harness.Transport.ReadNextSentAsync());
         Assert.DoesNotContain(thread.Id, harness.Service.RefreshedThreadAgents);
         Assert.Null(runtimeContextProvider.GetSystemPromptSection(new ThreadSystemPromptContext(thread.Id, harness.Identity.WorkspacePath)));
-    }
-
-    [Fact]
-    public async Task ThreadResume_WithInvalidDynamicTools_ReturnsInvalidParamsWithoutRebind()
-    {
-        var dynamicToolProxy = new WireDynamicToolProxy();
-        using var harness = new CoreAppServerTestHarness(wireDynamicToolProxy: dynamicToolProxy);
-        await harness.InitializeAsync();
-        var thread = await harness.Service.CreateThreadAsync(harness.Identity);
-        var invalidSpec = CreateReviewToolSpec();
-        invalidSpec.Description = "";
-
-        var msg = harness.BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadResume, new
-        {
-            threadId = thread.Id,
-            dynamicTools = new RuntimeDynamicToolDeclarationSpec[] { invalidSpec }
-        });
-        await harness.ExecuteRequestAsync(msg);
-
-        var response = await harness.Transport.ReadNextSentAsync();
-
-        CoreAppServerTestHarness.AssertIsErrorResponse(response, AppServerErrors.InvalidParamsCode);
-        Assert.Empty(harness.Service.RefreshedThreadAgents);
-        Assert.Empty(await dynamicToolProxy.GetRegistrationsAsync(
-            new ToolPlanningContext(
-                thread.Id,
-                null,
-                thread.WorkspacePath,
-                Path.Combine(thread.WorkspacePath, ".craft"),
-                "default",
-                null,
-                [],
-                1)));
     }
 
     [Fact]

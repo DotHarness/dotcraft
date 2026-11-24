@@ -6,14 +6,12 @@ using System.Text.Json.Nodes;
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Context;
+using DotCraft.Sessions;
 using DotCraft.Tools;
 using DotCraft.Tracing;
 using Microsoft.Extensions.AI;
 using OpenAI.Responses;
 using DotCraft.AppServer;
-using DotCraft.Sessions;
-using SessionThread = DotCraft.Sessions.SessionThread;
-using ThreadConfiguration = DotCraft.Sessions.ThreadConfiguration;
 using Xunit;
 using DeferredToolRegistry = DotCraft.Tools.DeferredToolActivationIndex;
 
@@ -2059,59 +2057,24 @@ public sealed partial class OpenAIResponsesToolSearchChatClientTests
             transport,
             traceCollector);
 
-    private static AITool CreateRuntimeDynamicTool(string? toolNamespace, string name)
+    private static AITool CreateRuntimeDynamicTool(string toolNamespace, string name)
     {
-        var proxy = new WireDynamicToolProxy();
-        var thread = new SessionThread
-        {
-            Id = $"thread_{Guid.NewGuid():N}",
-            WorkspacePath = Environment.CurrentDirectory,
-            OriginChannel = "appserver",
-            Status = ThreadStatus.Active,
-            CreatedAt = DateTimeOffset.UtcNow,
-            LastActiveAt = DateTimeOffset.UtcNow,
-            Configuration = new ThreadConfiguration()
-        };
-
-        RuntimeDynamicToolDeclarationSpec declaration = toolNamespace is null
-            ? new RuntimeDynamicToolFunctionSpec
-            {
-                Name = name,
-                Description = "Generate an image.",
-                InputSchema = new JsonObject { ["type"] = "object" }
-            }
-            : new RuntimeDynamicToolNamespaceSpec
-            {
-                Name = toolNamespace,
-                Description = $"{toolNamespace} tools.",
-                Tools =
-                [
-                    new RuntimeDynamicToolFunctionSpec
-                    {
-                        Name = name,
-                        Description = "Generate an image.",
-                        InputSchema = new JsonObject { ["type"] = "object" }
-                    }
-                ]
-            };
-
-        proxy.BindThread(
-            thread.Id,
-            new NoopAppServerTransport(),
-            new AppServerConnection(),
-            [declaration]);
-
         var planning = new ToolPlanningContext(
-            thread.Id,
+            "thread_test",
             null,
-            thread.WorkspacePath,
-            Path.Combine(thread.WorkspacePath, ".craft"),
+            Environment.CurrentDirectory,
+            Path.Combine(Environment.CurrentDirectory, ".craft"),
             "default",
             null,
             [],
-            1);
+            1,
+            dynamicToolDeclarations:
+            [
+                new ThreadDynamicToolDeclaration(toolNamespace, $"{toolNamespace} tools.", name, "Generate an image.",
+                    JsonSerializer.SerializeToElement(new { type = "object" }), DeferLoading: false, Approval: null)
+            ]);
         var snapshot = new EffectiveToolSnapshotBuilder()
-            .BuildAsync([proxy], planning)
+            .BuildAsync([new WireDynamicToolProxy()], planning)
             .AsTask()
             .GetAwaiter()
             .GetResult();
@@ -2192,24 +2155,6 @@ public sealed partial class OpenAIResponsesToolSearchChatClientTests
     }
 
     private sealed class UnknownContent : AIContent;
-
-    private sealed class NoopAppServerTransport : IAppServerTransport
-    {
-        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
-
-        public Task<AppServerIncomingMessage?> ReadMessageAsync(CancellationToken ct = default) =>
-            Task.FromResult<AppServerIncomingMessage?>(null);
-
-        public Task WriteMessageAsync(object message, CancellationToken ct = default) =>
-            Task.CompletedTask;
-
-        public Task<AppServerPendingClientRequest> StartClientRequestAsync(
-            string method,
-            object? @params,
-            CancellationToken ct = default,
-            TimeSpan? timeout = null) =>
-            throw new NotSupportedException();
-    }
 
     private sealed class TestFunction(
         string name,

@@ -6,6 +6,7 @@ using DotCraft.Visualizations;
 using Microsoft.Extensions.AI;
 using DotCraft.Sessions;
 using DotCraft.Sessions.Wire;
+using DotCraft.Tools;
 using QueuedTurnInput = DotCraft.Sessions.QueuedTurnInput;
 using SessionIdentity = DotCraft.Sessions.SessionIdentity;
 using SessionItem = DotCraft.Sessions.SessionItem;
@@ -144,7 +145,8 @@ public partial class TestableSessionService : ISessionService, IThreadAgentRefre
         string? displayName = null,
         CancellationToken ct = default,
         ThreadSource? source = null,
-        bool ephemeral = false)
+        bool ephemeral = false,
+        IReadOnlyList<ThreadDynamicToolDeclaration>? dynamicToolDeclarations = null)
     {
         var thread = new SessionThread
         {
@@ -157,6 +159,7 @@ public partial class TestableSessionService : ISessionService, IThreadAgentRefre
             CreatedAt = DateTimeOffset.UtcNow,
             LastActiveAt = DateTimeOffset.UtcNow,
             Configuration = config,
+            DynamicToolDeclarations = ThreadDynamicToolDeclaration.Freeze(dynamicToolDeclarations),
             DisplayName = displayName,
             Source = source ?? ThreadSource.User(),
             Ephemeral = ephemeral

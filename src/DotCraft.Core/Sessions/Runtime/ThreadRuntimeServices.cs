@@ -15,6 +15,17 @@ public interface IThreadAgentRefreshService
     void InvalidateThreadAgents();
 }
 
+public interface IThreadDynamicToolDeclarationService
+{
+    /// <summary>The lease callback must not throw after declaration changes are persisted.</summary>
+    Task UpdateThreadDynamicToolsAsync(
+        string threadId,
+        IReadOnlyList<ThreadDynamicToolDeclaration> declarations,
+        Func<bool> canApply,
+        Action updateLease,
+        CancellationToken ct = default);
+}
+
 /// <summary>Reloads every thread's skills catalog before its next sampling request.</summary>
 public interface ISkillReloadService
 {

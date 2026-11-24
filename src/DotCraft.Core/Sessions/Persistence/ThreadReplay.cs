@@ -220,6 +220,7 @@ internal sealed class ThreadReplay
         _thread.Metadata = new Dictionary<string, string>(opened.Metadata);
         _thread.HistoryMode = opened.HistoryMode;
         _thread.Configuration = opened.Configuration;
+        _thread.DynamicToolDeclarations = opened.DynamicToolDeclarations;
         _thread.ProviderHistorySchemaVersion = opened.ProviderHistorySchemaVersion;
         _turnSequenceHighWatermark = Math.Max(_turnSequenceHighWatermark, opened.TurnSequenceHighWatermark);
         _hasCanonicalHeader = true;

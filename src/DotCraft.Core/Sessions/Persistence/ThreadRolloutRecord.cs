@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using DotCraft.Tools;
 
 namespace DotCraft.Sessions;
 
@@ -85,6 +86,8 @@ internal sealed class ThreadOpenedPayload
     public HistoryMode HistoryMode { get; init; }
 
     public ThreadConfiguration? Configuration { get; init; }
+
+    public IReadOnlyList<ThreadDynamicToolDeclaration> DynamicToolDeclarations { get; init; } = [];
 
     public int ProviderHistorySchemaVersion { get; init; }
 

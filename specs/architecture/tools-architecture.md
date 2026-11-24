@@ -4,7 +4,7 @@
 |---|---|
 | Version | 0.14.0 |
 | Status | Living |
-| Date | 2026-11-20 |
+| Date | 2026-11-24 |
 | Scope | Agent tools, authority binding, execution, session projection, and interactive presentation |
 
 ## 1. Purpose
@@ -59,7 +59,7 @@ The key words **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, and **MAY** ar
 | **Tool Invocation** | One model or host request to execute a registered tool. |
 | **Tool Execution Result** | Source-neutral result containing model content, client-only structured content, host-only metadata, success, and stable error information. |
 | **Presentation Descriptor** | Trusted metadata that selects or configures a local renderer. It is distinct from MCP Apps UI resource metadata. |
-| **Runtime Dynamic Tool** | A thread-scoped callback implemented by the connected AppServer client. It is connection-owned and not a general external app integration mechanism. |
+| **Runtime Dynamic Tool** | A Thread-owned declaration with a callback lease held by an AppServer client. It is not a general external app integration mechanism. |
 | **Binding MCP** | An MCP server connection authorized for one App Binding and added independently to one thread. |
 
 ## 5. Architectural layers
@@ -79,7 +79,7 @@ The source discovers or declares a definition and owns source-specific lifecycle
 | Core Native | process/workspace | DotCraft server | file, web, subagent |
 | Plugin Native | plugin enablement | trusted in-process plugin | plugin-contributed functions, managed channel tools |
 | MCP | MCP connection/session | MCP server | workspace, thread, plugin, or binding MCP |
-| Runtime Dynamic | AppServer connection + thread | connected AppServer client | client-owned thread management and run callbacks |
+| Runtime Dynamic | Thread declarations, connection lease | connected AppServer client | client-owned thread management and run callbacks |
 
 Core Native file and shell tools execute in the DotCraft process environment; for Docker Stack deployments, that is the DotCraft container.
 
@@ -385,15 +385,17 @@ The wire declaration is a tagged union:
 
 ### 11.2 Lifetime
 
-Declarations and callbacks are connection-owned. Resume requires explicit rebinding:
+The Thread retains its persisted declarations across disconnect, unload, and restart. The connection owns only the callback lease. Disconnect does not remove permitted declarations from the model's direct or deferred tools.
 
-- omitted declarations keep the bound set only when the request comes from the binding's current owning connection generation;
-- an empty array clears Runtime Dynamic Tools;
-- a non-empty array atomically replaces the set.
+- Omitted declarations change neither the declarations nor the callback owner.
+- An empty array clears the declarations and callback lease only when sent by the current owner, including on retry. An empty array from any other connection is ignored and does not prevent resume from succeeding.
+- A non-empty array from an authorized connection replaces the declarations and acquires a callback lease. Rebinding identical declarations changes only the lease.
 
-A new or non-owning connection cannot take over by omitting declarations; it submits a non-empty replacement and passes thread/connection authority. Whether a non-owner may clear with `[]` is decided by thread authority. Failed replacement leaves the previous binding unchanged.
+Declaration changes take effect on future Turns only after a successful durable write. A running Turn retains its snapshot and never redirects a call to a replacement lease.
 
-Live executors are never persisted; a non-sensitive last-known declaration summary MAY be kept for diagnostics but is never a live executor. After disconnect, calls fail quickly with a stable disconnect category; timeout and protocol failures use distinct categories.
+A replacement rejected before writing does not change the declarations or lease. If a write starts but durability cannot be confirmed, the live declarations and lease remain unchanged, but the durable outcome is unconfirmed. Clients should retry the same replacement before relying on its result.
+
+Only declarations are persisted, not live executors or leases. A call without its original live lease fails with the stable disconnect category, distinct from timeout and protocol failures.
 
 ### 11.3 Dynamic content items
 

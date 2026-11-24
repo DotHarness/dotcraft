@@ -3,6 +3,7 @@ using DotCraft.Sessions.Wire;
 using ContextUsageSnapshot = DotCraft.Sessions.Wire.ContextUsageSnapshot;
 using DotCraft.GenerativeUi;
 using DotCraft.Visualizations;
+using DotCraft.Tools;
 
 namespace DotCraft.Sessions;
 
@@ -25,7 +26,8 @@ public interface ISessionService
         string? displayName = null,
         CancellationToken ct = default,
         ThreadSource? source = null,
-        bool ephemeral = false);
+        bool ephemeral = false,
+        IReadOnlyList<ThreadDynamicToolDeclaration>? dynamicToolDeclarations = null);
 
     Task<SessionThread> ForkThreadAsync(
         string threadId,

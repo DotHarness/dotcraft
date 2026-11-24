@@ -167,7 +167,7 @@ public sealed class AppServerRequestHandler(
 
     private IEnumerable<IAppServerDomainHandler> BuildDomainHandlers() =>
     [
-        new InitializeRequestHandler(connection, services, _capabilityContributors, ThreadProjector),
+        new InitializeRequestHandler(connection, services, _capabilityContributors, ThreadProjector, ThreadBinder.SupportsDynamicTools),
         new TerminalRequestHandler(services.BackgroundTerminalService, sessionService),
         new RemoteToolHostRequestHandler(services.RemoteToolHostClient, sessionService),
         new DreamsRequestHandler(services.DreamsService, services.AppConfigMonitor, services.WorkspaceCraftPath),

@@ -146,6 +146,7 @@ internal static class ThreadSummaryScanner
             Thread.Metadata = new Dictionary<string, string>(opened.Metadata);
             Thread.HistoryMode = opened.HistoryMode;
             Thread.Configuration = opened.Configuration;
+            Thread.DynamicToolDeclarations = opened.DynamicToolDeclarations;
         }
 
         private void AddTurn(string? turnId)

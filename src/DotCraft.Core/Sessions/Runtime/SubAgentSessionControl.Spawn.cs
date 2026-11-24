@@ -110,7 +110,8 @@ public static partial class SubAgentSessionControl
                 childThreadId,
                 nickname,
                 ct,
-                source);
+                source,
+                dynamicToolDeclarations: inheritsFullHistory ? context.ParentThread.DynamicToolDeclarations : null);
             startup.Child = childThread;
             if (options.ChildCreated != null)
                 await options.ChildCreated(childThread, ct);

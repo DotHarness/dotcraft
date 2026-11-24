@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using DotCraft.Tools;
 
 namespace DotCraft.Sessions;
 
@@ -94,6 +95,8 @@ public sealed class SessionThread
     /// </summary>
     public ThreadConfiguration? Configuration { get; set; }
 
+    public IReadOnlyList<ThreadDynamicToolDeclaration> DynamicToolDeclarations { get; set; } = [];
+
     /// <summary>
     /// Ordered visible Turns. A loaded persistent Thread keeps only its active and most recent terminal Turns here.
     /// </summary>
@@ -113,6 +116,13 @@ public sealed class SessionThread
     {
         var copy = (SessionThread)MemberwiseClone();
         copy.Configuration = configuration;
+        return copy;
+    }
+
+    internal SessionThread WithDynamicToolDeclarations(IReadOnlyList<ThreadDynamicToolDeclaration> declarations)
+    {
+        var copy = (SessionThread)MemberwiseClone();
+        copy.DynamicToolDeclarations = declarations;
         return copy;
     }
 

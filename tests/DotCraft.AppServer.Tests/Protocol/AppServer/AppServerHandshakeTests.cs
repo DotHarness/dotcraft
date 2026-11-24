@@ -46,7 +46,7 @@ public sealed class AppServerHandshakeTests : IDisposable
     }
 
     [Fact]
-    public async Task Initialize_AdvertisesCapabilitiesOfRegisteredProviders()
+    public async Task Initialize_AdvertisesOnlyCapabilitiesSupportedByTheHost()
     {
         using var harness = new AppServerTestHarness(
             wireDynamicToolProxy: new WireDynamicToolProxy(),
@@ -55,7 +55,7 @@ public sealed class AppServerHandshakeTests : IDisposable
         using var initDoc = await harness.InitializeAsync();
         var caps = initDoc.RootElement.GetProperty("result").GetProperty("capabilities");
 
-        Assert.True(caps.GetProperty("dynamicToolRebind").GetBoolean());
+        Assert.False(caps.TryGetProperty("dynamicToolRebind", out _));
         Assert.True(caps.GetProperty("runtimeAdditionalContext").GetBoolean());
     }
 
