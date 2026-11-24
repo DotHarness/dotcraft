@@ -69,7 +69,7 @@ function segmentStyle(active: boolean, disabled: boolean): CSSProperties {
     cursor: disabled ? 'default' : 'pointer',
     background: active ? 'var(--bg-elevated)' : 'transparent',
     color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
-    boxShadow: active ? 'var(--shadow-md)' : 'none',
+    boxShadow: active ? 'var(--shadow-sm)' : 'none',
     opacity: disabled ? 0.6 : 1,
     transition: 'background 130ms ease, color 130ms ease'
   }

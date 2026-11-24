@@ -33,12 +33,16 @@ export function SettingsGroup({
   return (
     <section style={{ ...groupStyle(), ...style }}>
       {(title || description || headerAction) && (
-        <header style={headerStyle(Boolean(headerAction) || reserveHeaderAction, Boolean(description))}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            {title && <h2 data-settings-label style={{ margin: 0, ...settingsHeadingStyle() }}>{title}</h2>}
-            {description && <div style={settingsDescriptionStyle()}>{description}</div>}
+        <header>
+          <div style={titleLineStyle(Boolean(headerAction) || reserveHeaderAction)}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              {title && <h2 data-settings-label style={{ margin: 0, ...settingsHeadingStyle() }}>{title}</h2>}
+            </div>
+            {headerAction && <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>{headerAction}</div>}
           </div>
-          {headerAction && <div style={headerActionStyle(Boolean(description))}>{headerAction}</div>}
+          {description && (
+            <div style={settingsDescriptionStyle(!(headerAction || reserveHeaderAction))}>{description}</div>
+          )}
         </header>
       )}
       <div
@@ -161,25 +165,13 @@ function groupStyle(): CSSProperties {
   }
 }
 
-/** A header carrying an action is never shorter than the control band, so the action
- *  cannot overhang the gap to the card below. */
-function headerStyle(hasAction: boolean, described: boolean): CSSProperties {
+/** Grows to fit the action so it never overhangs the header, where a scroll container would clip it. */
+function titleLineStyle(hasAction: boolean): CSSProperties {
   return {
-    display: 'flex',
-    alignItems: hasAction && !described ? 'center' : 'flex-start',
-    gap: '12px',
-    ...(hasAction ? { minHeight: 'var(--button-height)' } : null)
-  }
-}
-
-/** Boxed to the title's own line so a taller control stays centred on the title
- *  instead of drifting down beside the description. */
-function headerActionStyle(described: boolean): CSSProperties {
-  return {
-    flexShrink: 0,
     display: 'flex',
     alignItems: 'center',
-    height: described ? 'var(--type-heading-line-height)' : undefined
+    gap: '12px',
+    ...(hasAction ? { minHeight: 'var(--button-height)' } : null)
   }
 }
 
