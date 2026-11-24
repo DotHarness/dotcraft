@@ -15,6 +15,7 @@ import type { BrowserDownloadRecord, BrowserFeedbackEvent, BrowserFindState, Bro
 import { contextBridge, ipcRenderer, shell, webFrame, webUtils } from 'electron'
 import { desktopPet } from './desktopPet'
 import { desktopToolConfirmPreload } from './desktopToolConfirm'
+import { creatorModePreload } from './creatorMode'
 import { themes } from './themes'
 import type { ClientRequestMethods } from '@dotcraft/sdk/contracts'
 import { resolveThemeMode, type ThemeMode } from '../shared/theme'
@@ -989,6 +990,7 @@ const api = {
     },
 
     ...desktopToolConfirmPreload,
+    ...creatorModePreload,
 
     getPathForFile(file: File): string {
       return webUtils.getPathForFile(file)

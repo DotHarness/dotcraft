@@ -44,7 +44,7 @@ Non-goals:
 | `skill-creator` | Creating and changing a Skill, whether standalone or inside a plugin |
 | `create-hooks` | Hook events, scripts, and their configuration |
 | `workflow-authoring` | Dynamic Workflow scripts |
-| `creator` | The build, activate, and verify loop for extending DotCraft from Desktop. It ships in the bundled Creator plugin and sends the Agent to the Skills above for the content |
+| Desktop Creator mode | The build, activate, and verify loop for extending DotCraft from Desktop. Its instructions ship with Desktop ([Desktop client §5.13](../clients/desktop-client.md#513-composer-system-actions)) and send the Agent to the Skills above for the content |
 | Public documentation | Contribution APIs, the manifest field reference, and SDK contracts |
 
 `plugin-creator` remains one Skill with detail loaded by lifecycle stage and contribution type. It sends the Agent to the owning Skill for the content of a contribution, and it does not restate that Skill's rules or the public API reference. A plugin Skill also carries interface metadata ([Skills](../architecture/skills.md) §2) so that it does not appear without a name or icon, and it may reuse the plugin's own assets.

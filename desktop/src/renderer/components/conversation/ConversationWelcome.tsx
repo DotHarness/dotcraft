@@ -61,6 +61,8 @@ import { useComposerImageAttachmentRequest } from './useComposerImageAttachmentR
 import { DetailPanelToggleButton } from './DetailPanelToggleButton'
 import { CommandSearchPopover } from './CommandSearchPopover'
 import { useSlashSkills } from './useSlashSkills'
+import { CREATOR_SYSTEM_ACTION_ID, isCreatorSlashCommand, useComposerCreatorControls } from './useComposerCreator'
+import { setThreadCreator } from '../../stores/creatorModeStore'
 import { GoalComposePill } from './GoalComposePill'
 import { FileSearchPopover } from './FileSearchPopover'
 import { useComposerThreadReferences } from './useComposerThreadReferences'
@@ -199,6 +201,7 @@ function ConversationWelcomeCore({
     welcomeChangelist, setWelcomeChangelist
   } = useWelcomeWorkspace(identityPath)
   const initialWelcomeDraftRef = useRef(useUIStore.getState().getWelcomeDraftForWorkspace(draftProjectKey))
+  const [welcomeCreator, setWelcomeCreator] = useState(() => initialWelcomeDraftRef.current?.creator === true)
   const workspaceConfig = useConfig()
   const configuredApprovalDefault = readConfigValue(workspaceConfig, 'Permissions.DefaultApprovalPolicy')
   const { welcomeApprovalPolicy, welcomeApprovalPolicyDirty, setWelcomeApprovalPolicyFromUser } =
@@ -233,6 +236,11 @@ function ConversationWelcomeCore({
   ))
   const connectionStatus = useConnectionStore((s) => s.status)
   const capabilities = useConnectionStore((s) => s.capabilities)
+  const creatorControls = useComposerCreatorControls({
+    available: true,
+    creator: welcomeCreator,
+    onChange: setWelcomeCreator
+  })
   const locale = useLocale()
   const activeUsageProvider = useProviderSummary(providerId)
   const { addThread, setActiveThreadId } = useThreadStore()
@@ -303,6 +311,7 @@ function ConversationWelcomeCore({
           icon: <ListChecks size={15} strokeWidth={2} aria-hidden />
         })
       }
+      if (creatorControls.action) actions.push(creatorControls.action)
       if (canUseAgentProfiles) {
         actions.push({
           id: 'profile',
@@ -323,7 +332,7 @@ function ConversationWelcomeCore({
       }
       return actions
     },
-    [canUseAgentProfiles, canUseCommandPicker, canUseThreadGoals, initAvailable, selectedProfileId, t, welcomeMode]
+    [canUseAgentProfiles, canUseCommandPicker, canUseThreadGoals, creatorControls.action, initAvailable, selectedProfileId, t, welcomeMode]
   )
   useEffect(() => {
     if (!canUseAppBinding || !isConnected) return
@@ -449,6 +458,7 @@ function ConversationWelcomeCore({
     setImages(welcomeDraft.images)
     setFiles([...(welcomeDraft.files ?? [])])
     setWelcomeMode(welcomeDraft.mode)
+    setWelcomeCreator(welcomeDraft.creator === true)
     hydrateDraft(welcomeDraft)
     setContentRevision((n) => n + 1)
     draftHydratedRef.current = true
@@ -471,6 +481,7 @@ function ConversationWelcomeCore({
       || reasoningConfig.effort !== DEFAULT_REASONING_CONFIG.effort
       || reasoningConfig.output !== DEFAULT_REASONING_CONFIG.output
     const hasCustomSettings = welcomeMode !== 'agent'
+      || welcomeCreator
       || model !== 'Default'
       || hasCustomReasoning
     const fallbackCaret = text.length
@@ -485,12 +496,13 @@ function ConversationWelcomeCore({
       images: [...images],
       files: [...files],
       mode: welcomeMode,
+      ...(welcomeCreator ? { creator: true } : {}),
       providerId,
       model,
       reasoning: reasoningConfig,
       speed: speedValue
     }
-  }, [files, images, modelName, providerId, reasoningConfig, speedValue, welcomeMode])
+  }, [files, images, modelName, providerId, reasoningConfig, speedValue, welcomeCreator, welcomeMode])
 
   const flushWelcomeDraft = useCallback((): void => {
     if (skipDraftPersistRef.current) return
@@ -532,7 +544,7 @@ function ConversationWelcomeCore({
     return () => {
       clearTimeout(timer)
     }
-  }, [contentRevision, files, flushWelcomeDraft, images, modelName, reasoningConfig, speedValue, welcomeMode])
+  }, [contentRevision, files, flushWelcomeDraft, images, modelName, reasoningConfig, speedValue, welcomeCreator, welcomeMode])
 
   const latestFlushWelcomeDraft = useRef(flushWelcomeDraft)
   latestFlushWelcomeDraft.current = flushWelcomeDraft
@@ -609,6 +621,7 @@ function ConversationWelcomeCore({
       }
     }
     if (target.source) registerThreadConnection(thread.id, { ...target.source, threadId: thread.id, workspaceKey: normalizeWorkspaceProjectKey(target.source.connectionKey), capabilities: null })
+    if (welcomeCreator) await setThreadCreator(thread.id, true)
     return thread
   }, [
     identityPath,
@@ -616,6 +629,7 @@ function ConversationWelcomeCore({
     remoteWorkspace,
     welcomeBaseRef,
     welcomeChangelist,
+    welcomeCreator,
     welcomeThreadConfiguration,
     welcomeWorkspaceMode,
     welcomeWorktreeBranchName
@@ -782,9 +796,11 @@ function ConversationWelcomeCore({
       return
     }
 
+    const creatorCommand = creatorControls.action !== null && isCreatorSlashCommand(trimmed)
     const systemCommand = parseWelcomeSystemSlashCommand(trimmed)
-    if (systemCommand) {
-      setWelcomeMode(systemCommand.kind)
+    if (creatorCommand || systemCommand) {
+      if (creatorCommand) creatorControls.toggle()
+      else if (systemCommand) setWelcomeMode(systemCommand.kind)
       richRef.current?.clear()
       setImages([])
       setFiles([])
@@ -868,6 +884,7 @@ function ConversationWelcomeCore({
       sendInFlightRef.current = false
     }
   }, [
+    creatorControls,
     files,
     images,
     isConnected,
@@ -931,13 +948,17 @@ function ConversationWelcomeCore({
       toggleWelcomeMode()
       return
     }
+    if (actionId === CREATOR_SYSTEM_ACTION_ID) {
+      creatorControls.toggle()
+      return
+    }
     if (actionId === 'profile') {
       setProfilePickerOpen(true)
       return
     }
     if (actionId !== 'goal') return
     enterGoalComposeMode()
-  }, [enterGoalComposeMode, sendFromWelcome, toggleWelcomeMode])
+  }, [creatorControls, enterGoalComposeMode, sendFromWelcome, toggleWelcomeMode])
 
   const onDragOver = useCallback((e: React.DragEvent): void => {
     e.preventDefault()
@@ -1038,6 +1059,7 @@ function ConversationWelcomeCore({
 
           <div className="welcome-composer-dock">
             <ComposerShell
+              mascotOutfit={creatorControls.mascotOutfit}
               before={<DesktopPluginSurface name="composer.before" context={desktopPluginSurfaceContext} />}
               adaptiveToolbar
               desktopPluginSurfaceContext={desktopPluginSurfaceContext}
@@ -1199,7 +1221,8 @@ function ConversationWelcomeCore({
                     />
                   ) : null}
                   mode={!compactVoiceFooter ? (
-                    selectedProfileId ? (
+                    <>
+                      {selectedProfileId ? (
                         <ComposerCustomProfileLabel
                           label={t('composer.mode.custom')}
                           onClear={() => setSelectedProfileId(null)}
@@ -1217,7 +1240,9 @@ function ConversationWelcomeCore({
                           title={t('composer.planPill.create')}
                           ariaLabel={t('composer.system.plan.disable')}
                         />
-                      )
+                      )}
+                      {creatorControls.pill}
+                    </>
                   ) : null}
                   goal={!compactVoiceFooter ? (
                     canUseThreadGoals && goalComposeMode && (

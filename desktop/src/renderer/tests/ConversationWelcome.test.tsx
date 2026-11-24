@@ -311,6 +311,20 @@ describe('ConversationWelcome composer', () => {
     expect((start?.[1] as { config?: Record<string, unknown> })?.config).not.toHaveProperty('approvalPolicy')
   })
 
+  it('records Creator for the thread a Creator welcome message starts', async () => {
+    const setCreatorThread = vi.spyOn(window.api.workspace, 'setCreatorThread')
+    renderWelcome()
+    const textbox = await screen.findByRole('textbox')
+    fireEvent.click(screen.getByRole('button', { name: 'Open commands' }))
+    fireEvent.click(await screen.findByRole('option', { name: /Creator/u }))
+    textbox.textContent = 'Build a status panel plugin'
+    fireEvent.input(textbox)
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+
+    await waitFor(() => expect(getRendererTestState().pendingWelcomeTurn).toMatchObject({ threadId: 'thread-welcome' }))
+    expect(setCreatorThread).toHaveBeenCalledWith('thread-welcome', true)
+  })
+
   it('retries a failed configuration read from the welcome model control', async () => {
     readConfig.mockRejectedValueOnce(new Error('configuration timeout'))
     renderWelcome()

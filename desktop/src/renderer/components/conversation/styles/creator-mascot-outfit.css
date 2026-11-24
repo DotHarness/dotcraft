@@ -1,0 +1,16 @@
+/* The craft work story moves these parts while working, so the idle beat stays off then. */
+@keyframes creator-fx-hover { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+@keyframes creator-fx-part-top { 0%, 70%, 86%, 100% { transform: translate(0, 0); } 74%, 82% { transform: translate(0, -24px); } }
+@keyframes creator-fx-part-left { 0%, 70%, 86%, 100% { transform: translate(0, 0); } 74%, 82% { transform: translate(-22px, 13px); } }
+@keyframes creator-fx-part-right { 0%, 70%, 86%, 100% { transform: translate(0, 0); } 74%, 82% { transform: translate(22px, 13px); } }
+@keyframes creator-fx-core { 0%, 70%, 88%, 100% { opacity: 0; } 74%, 83% { opacity: 1; } }
+@keyframes creator-fx-burst { 0%, 85%, 100% { opacity: 0; transform: scale(.4); } 86% { opacity: 1; transform: scale(.5); } 93% { opacity: 0; transform: scale(1.5); } }
+@keyframes creator-fx-visor-flash { 0%, 85%, 100% { fill: #e8fbff; stroke: #e8fbff; } 87%, 91% { fill: #ffd65c; stroke: #ffd65c; } }
+.dca-robot[data-effects='live']:not([data-pose='working']) .creator-fx-hover { animation: creator-fx-hover 3.2s ease-in-out infinite; }
+.dca-robot[data-effects='live'] .creator-fx-halo { animation: dca-fx-pulse 3.2s ease-in-out infinite; }
+.dca-robot[data-effects='live'][data-held-state='holding']:not([data-pose='working']) .creator-fx-part-top { animation: creator-fx-part-top 8s cubic-bezier(.3, 0, .2, 1) infinite; }
+.dca-robot[data-effects='live'][data-held-state='holding']:not([data-pose='working']) .creator-fx-part-left { animation: creator-fx-part-left 8s cubic-bezier(.3, 0, .2, 1) infinite; }
+.dca-robot[data-effects='live'][data-held-state='holding']:not([data-pose='working']) .creator-fx-part-right { animation: creator-fx-part-right 8s cubic-bezier(.3, 0, .2, 1) infinite; }
+.dca-robot[data-effects='live'][data-held-state='holding']:not([data-pose='working']) .creator-fx-core { animation: creator-fx-core 8s ease-in-out infinite; }
+.dca-robot[data-effects='live'][data-held-state='holding']:not([data-pose='working']) .creator-fx-burst { animation: creator-fx-burst 8s ease-out infinite; }
+.dca-robot[data-effects='live'][data-held-state='holding'][data-hand='creator:plugin-core']:not([data-pose='working']) .creator-fx-visor-eyes { animation: creator-fx-visor-flash 8s ease-in-out infinite; }

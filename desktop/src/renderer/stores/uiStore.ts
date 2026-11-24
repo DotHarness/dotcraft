@@ -64,6 +64,7 @@ export interface WelcomeDraft {
   images: ImageAttachment[]
   files?: ComposerFileAttachment[]
   mode: ThreadMode
+  creator?: boolean
   providerId?: string
   model: string
   reasoning?: {

@@ -3,6 +3,7 @@ import {
   hasDesktopThreadTools, resetDesktopThreadToolBindings, sendDesktopAppServerRequest, threadTaskConnection,
   type AppServerRequestClient
 } from '../desktopRuntimeThreadTools'
+import { CREATOR_CONTEXT_KEY, setCreatorThread } from '../creatorMode'
 
 function client(handler?: (method: string) => Promise<unknown>): AppServerRequestClient {
   return { sendRequest: vi.fn(handler ?? (async (method) => method === 'thread/start' || method === 'thread/resume'
@@ -18,6 +19,27 @@ function deferred<T>() {
 const rebind = { supportsDynamicToolRebind: true }
 
 describe('Desktop connection-local thread bindings', () => {
+  it('re-declares a thread with its Creator context before the turn after Creator mode changes', async () => {
+    const connection = client()
+    const resumedContexts = () => vi.mocked(connection.sendRequest).mock.calls
+      .filter(([method]) => method === 'thread/resume')
+      .map(([, params]) => Object.keys((params as { additionalContext: Record<string, unknown> }).additionalContext))
+    await sendDesktopAppServerRequest(connection, 'thread/start', {})
+    await sendDesktopAppServerRequest(connection, 'turn/start', { threadId: 'same-thread' }, undefined, rebind)
+    expect(resumedContexts()).toEqual([])
+
+    setCreatorThread('same-thread', true)
+    await sendDesktopAppServerRequest(connection, 'turn/start', { threadId: 'same-thread' }, undefined, rebind)
+    await sendDesktopAppServerRequest(connection, 'turn/start', { threadId: 'same-thread' }, undefined, rebind)
+    expect(resumedContexts()).toHaveLength(1)
+    expect(resumedContexts()[0]).toContain(CREATOR_CONTEXT_KEY)
+
+    setCreatorThread('same-thread', false)
+    await sendDesktopAppServerRequest(connection, 'turn/start', { threadId: 'same-thread' }, undefined, rebind)
+    expect(resumedContexts()).toHaveLength(2)
+    expect(resumedContexts()[1]).not.toContain(CREATOR_CONTEXT_KEY)
+  })
+
   it('retains both clients bindings and resets only the selected client', async () => {
     const first = client()
     const second = client()

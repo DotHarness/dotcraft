@@ -1,6 +1,0 @@
-interface:
-  display_name: "Creator"
-  short_description: "Build and check extensions for DotCraft"
-  icon_small: "../../assets/creator.svg"
-  icon_large: "../../assets/creator.svg"
-  default_prompt: "Use $creator to build a plugin that adds a new capability to DotCraft."

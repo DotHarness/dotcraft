@@ -1,10 +1,11 @@
 import { useEffect, useRef, type RefObject } from 'react'
 import { CONDUCT_STORY_CHANNELS, CONDUCT_STORY_DURATION, conductStoryKeyframes, type ConductStoryChannel } from './conductStory.js'
+import { CRAFT_STORY_CHANNELS, CRAFT_STORY_DURATION, craftStoryKeyframes, type CraftStoryChannel } from './craftStory.js'
 import { WORK_STORY_CHANNELS, WORK_STORY_DURATION, workStoryKeyframes, type WorkStoryChannel } from './workStory.js'
 
 const EXIT_MS = 160
 
-export type WorkStoryKind = 'laptop' | 'conduct'
+export type WorkStoryKind = 'laptop' | 'conduct' | 'craft'
 
 interface Story {
   duration: number
@@ -25,6 +26,12 @@ const STORIES: Record<WorkStoryKind, Story> = {
     delay: 0,
     tracks: (Object.keys(CONDUCT_STORY_CHANNELS) as ConductStoryChannel[])
       .map(channel => ({ ...CONDUCT_STORY_CHANNELS[channel], frames: conductStoryKeyframes(channel) })),
+  },
+  craft: {
+    duration: CRAFT_STORY_DURATION,
+    delay: 0,
+    tracks: (Object.keys(CRAFT_STORY_CHANNELS) as CraftStoryChannel[])
+      .map(channel => ({ ...CRAFT_STORY_CHANNELS[channel], frames: craftStoryKeyframes(channel) })),
   },
 }
 

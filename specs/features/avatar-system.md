@@ -252,9 +252,27 @@ conducting story instead, with no laptop.
 - The other working-story rules apply: one continuous seamless timeline, the operator expression,
   a 160 ms blend on leaving the pose, and no outer host loop.
 
-The package drives the story with the Web Animations API from a single exported timeline and applies
+A hand item that declares `workStory: "craft"` stays in hand while working and plays the crafting
+story instead, with no laptop. The item builds something in the avatar's hand, so it is drawn as
+parts that the story moves.
+
+- The story opens with the holding arm raising the item beside the head while the eyes study it,
+  so a short turn shows only that inspection. The item then comes apart: its parts separate around
+  an inner light while the other arm rises and makes small tuning motions, and the wrist turns the
+  item to look at it from each side. The parts lock back together in one beat that flashes the
+  light and dips the body, the holding arm presents the finished item overhead, and both arms lower
+  before the loop repeats.
+- The item marks the parts the story moves with `data-craft-part`: `top`, `left`, and `right` for
+  the pieces that separate, `core` for the inner light, and `burst` for the lock flash. Parts it
+  does not mark stay still, so a simpler item still plays the arm story.
+- Raised arms use the wave's hinge and stay between 70° and 118°. The wrist keeps the item upright
+  apart from its deliberate turns, and an arm rises or lowers within 240 ms.
+- The other working-story rules apply, and the item's own ambient beats pause while the story plays
+  so the two never move the same part.
+
+The package drives each story with the Web Animations API from a single exported timeline and applies
 the avatar's motion-off, reduced-motion, paused, and offscreen rules to it. The design catalog
-reviews the same timeline.
+reviews the same timelines.
 
 ## 9. Effects
 

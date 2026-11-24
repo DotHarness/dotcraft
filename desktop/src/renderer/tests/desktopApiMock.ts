@@ -60,7 +60,9 @@ const WORKSPACE_DEFAULT: ApiOverrides<Api>['workspace'] = {
   getChatsFolder: () => Promise.resolve({ path: '/workspace/chats', customized: false }),
   onDesktopToolConfirmRequest: () => () => undefined,
   onDesktopToolConfirmDismissed: () => () => undefined,
-  respondDesktopToolConfirm: () => Promise.resolve(true)
+  respondDesktopToolConfirm: () => Promise.resolve(true),
+  listCreatorThreads: () => Promise.resolve([]),
+  setCreatorThread: () => Promise.resolve()
 }
 
 const APP_SERVER_DEFAULT: ApiOverrides<Api>['appServer'] = {

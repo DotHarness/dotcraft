@@ -3,6 +3,7 @@ import { DesktopThreadBindings } from './desktopThreadBindings'
 import { devServerToolDefinitions, devServerToolNames, handleDevServerToolCall } from './devServers/devServerTools'
 import devServerGuidance from './prompts/devServers.md?raw'
 import cdpDebuggingGuidance from './prompts/cdpDebugging.md?raw'
+import { creatorAdditionalContext, creatorContextRevision } from './creatorMode'
 import { handleThreadManagementTool, MAX_LIST_THREADS_LIMIT, requestClient, resolveTargetThread } from './threadTasks/threadManagementTools'
 import { PROJECT_PROPERTY, ThreadProjectError, type ThreadProject, type ThreadProjectHost } from './threadTasks/threadProjects'
 import { themeToolDefinition, themeTool, type DesktopThemeHost } from './themes/themeTools'
@@ -171,7 +172,8 @@ const DESKTOP_THREAD_COORDINATION_CONTEXT: RuntimeAdditionalContextEntry = {
 
 const bindings = new DesktopThreadBindings({
   withTools: withDesktopThreadDynamicTools,
-  includesTools: requestIncludesDesktopThreadTools
+  includesTools: requestIncludesDesktopThreadTools,
+  contextRevision: creatorContextRevision
 })
 
 export function resetDesktopThreadToolBindings(client: AppServerRequestClient): void {
@@ -575,7 +577,8 @@ function withDesktopThreadDynamicTools(params: unknown, local: boolean): unknown
       : {}),
     additionalContext: {
       ...existingAdditionalContext,
-      ...buildDesktopThreadAdditionalContext(local)
+      ...buildDesktopThreadAdditionalContext(local),
+      ...creatorAdditionalContext(typeof params.threadId === 'string' ? params.threadId : null)
     },
     dynamicTools: [
       ...existing,

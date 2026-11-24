@@ -3,19 +3,20 @@ import {
   useRef,
   useState,
   type ButtonHTMLAttributes,
+  type ComponentProps,
   type CSSProperties,
   type DragEventHandler,
   type JSX,
   type ReactNode
 } from 'react'
-import { Bot, CircleX, ListChecks, Play, Square } from 'lucide-react'
+import { Bot, CircleX, Hammer, ListChecks, Play, Square } from 'lucide-react'
 import { Spinner } from '../ui/Spinner'
 import type {
   DesktopPluginComposerSurfaceContext,
 } from '@dotcraft/plugin'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { DesktopPluginSurface } from '../desktopPlugins/DesktopPluginSurface'
-import { ComposerMascot, ComposerMascotShadow, type MascotExpression, type MascotLight } from '@dotcraft/avatar/react'
+import { AvatarOutfitProvider, ComposerMascot, ComposerMascotShadow, type MascotExpression, type MascotLight } from '@dotcraft/avatar/react'
 import { MascotBubble, type MascotBubbleAction, type MascotBubbleTone } from './MascotBubble'
 import { useComposerOverlayLiftHost } from './composerOverlayLift'
 import { ContextMenu, type ContextMenuItem } from '../ui/ContextMenu'
@@ -81,6 +82,7 @@ interface ComposerShellProps {
   mascotReasoningEffort?: ComposerMascotReasoningEffort
   mascotSpeed?: ComposerMascotSpeed
   mascotName?: string
+  mascotOutfit?: Omit<ComponentProps<typeof AvatarOutfitProvider>, 'children'>
   mascotHandoff?: boolean
   /** How the desktop pet treats this composer; defaults to chat when it can chat, else decision. */
   petSurface?: PetSourceSurface
@@ -122,6 +124,7 @@ export function ComposerShell({
   mascotReasoningEffort = 'off',
   mascotSpeed = 'standard',
   mascotName,
+  mascotOutfit,
   mascotHandoff = false,
   petSurface
 }: ComposerShellProps): JSX.Element {
@@ -226,7 +229,7 @@ export function ComposerShell({
           bounceSignal={mascotBounceSignal}
           interaction={mascotInteraction ? { ...mascotInteraction, bubble: mascotInteraction.bubble ? <MascotBubble {...mascotInteraction.bubble} /> : undefined } : undefined}
           renderMenu={mascotInteraction?.menuItems?.length ? (position, close) => <ContextMenu items={mascotInteraction.menuItems!} position={position} onClose={close} /> : undefined}
-          renderCharacter={(character, context) => <DesktopPluginSurface name="composer.mascot" context={{ ...desktopPluginSurfaceContext, ...context }}>{character}</DesktopPluginSurface>}
+          renderCharacter={(character, context) => <DesktopPluginSurface name="composer.mascot" context={{ ...desktopPluginSurfaceContext, ...context }}>{mascotOutfit ? <AvatarOutfitProvider pack={mascotOutfit.pack} wear={mascotOutfit.wear}>{character}</AvatarOutfitProvider> : character}</DesktopPluginSurface>}
           reasoningEffort={mascotReasoningEffort}
           speed={mascotSpeed}
           name={mascotName}
@@ -390,6 +393,43 @@ export function ComposerPlanModeLabel({
         className="dc-composer-pill"
         style={composerModePillStyle}
     >
+        <Icon size={13} strokeWidth={2} aria-hidden />
+        <span>{label}</span>
+      </button>
+    </ActionTooltip>
+  )
+}
+
+interface ComposerCreatorLabelProps {
+  onDisable: () => void
+  label: string
+  title: string
+  ariaLabel: string
+}
+
+export function ComposerCreatorLabel({
+  onDisable,
+  label,
+  title,
+  ariaLabel
+}: ComposerCreatorLabelProps): JSX.Element {
+  const [hovered, setHovered] = useState(false)
+  const [focused, setFocused] = useState(false)
+  const Icon = hovered || focused ? CircleX : Hammer
+
+  return (
+    <ActionTooltip label={title} placement="top">
+      <button
+        type="button"
+        onClick={onDisable}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        aria-label={ariaLabel}
+        className="dc-composer-pill"
+        style={composerModePillStyle}
+      >
         <Icon size={13} strokeWidth={2} aria-hidden />
         <span>{label}</span>
       </button>

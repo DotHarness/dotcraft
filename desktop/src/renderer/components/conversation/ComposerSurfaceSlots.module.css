@@ -22,6 +22,7 @@
   display: inline-flex;
   flex-shrink: 0;
   align-items: center;
+  gap: inherit;
 }
 
 @container composer-card (max-width: 300px) {

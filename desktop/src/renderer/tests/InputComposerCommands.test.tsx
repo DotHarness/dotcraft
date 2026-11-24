@@ -62,6 +62,18 @@ function setCaretToEnd(element: HTMLElement): void {
   selection.addRange(range)
 }
 
+function renderThread(): void {
+  useConnectionStore.setState({ status: 'connected', capabilities: {} })
+  useThreadStore.getState().setActiveThreadId('thread-1')
+  useThreadStore.getState().setActiveThread({
+    id: 'thread-1', userId: 'local', workspacePath: 'X:\\fixtures\\workspace', displayName: 'Thread',
+    status: 'active', originChannel: 'dotcraft-desktop', metadata: {},
+    createdAt: '2026-11-24T00:00:00Z', lastActiveAt: '2026-11-24T00:00:00Z',
+    configuration: { mode: 'agent' }, turns: []
+  })
+  renderWithLocale(<InputComposer threadId="thread-1" workspacePath="X:\\fixtures\\workspace" />)
+}
+
 describe('InputComposer commands and references', () => {
   beforeEach(() => {
     localStorage.clear()
@@ -329,6 +341,39 @@ describe('InputComposer commands and references', () => {
       )
     })
     expect(useConversationStore.getState().contextUsage?.tokens).toBe(100)
+  })
+
+  it('turns Creator on from the command menu and off from its pill without starting a turn', async () => {
+    const setCreatorThread = vi.spyOn(window.api.workspace, 'setCreatorThread')
+    renderThread()
+
+    const textbox = screen.getByRole('textbox')
+    fireEvent.focus(textbox)
+    textbox.textContent = '/'
+    setCaretToEnd(textbox)
+    fireEvent.input(textbox)
+    fireEvent.click(await screen.findByRole('option', { name: /Creator/u }))
+
+    await waitFor(() => expect(setCreatorThread).toHaveBeenCalledWith('thread-1', true))
+    fireEvent.click(await screen.findByRole('button', { name: 'Turn off Creator' }))
+    await waitFor(() => expect(setCreatorThread).toHaveBeenCalledWith('thread-1', false))
+    expect(screen.queryByRole('button', { name: 'Turn off Creator' })).not.toBeInTheDocument()
+    expect(appServerSendRequest).not.toHaveBeenCalledWith('turn/start', expect.anything())
+  })
+
+  it('turns Creator on when /creator is submitted', async () => {
+    const setCreatorThread = vi.spyOn(window.api.workspace, 'setCreatorThread')
+    renderThread()
+
+    const textbox = screen.getByRole('textbox')
+    fireEvent.focus(textbox)
+    textbox.textContent = '/creator'
+    setCaretToEnd(textbox)
+    fireEvent.input(textbox)
+    fireEvent.keyDown(textbox, { key: 'Enter' })
+
+    await waitFor(() => expect(setCreatorThread).toHaveBeenCalledWith('thread-1', true))
+    expect(appServerSendRequest).not.toHaveBeenCalledWith('turn/start', expect.anything())
   })
 
   it('preserves compact usage and replaces history cursors when the post-compact header omits usage', async () => {

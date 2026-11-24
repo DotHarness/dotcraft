@@ -63,7 +63,7 @@ export function AppearanceAvatar({ appearance: storedAppearance, catalog, state 
 
   const held = !compact && handId !== 'none'
   const heldComponent = held ? activeCatalog.componentOf(handId) : undefined
-  const conducts = heldComponent?.slot === 'hand' && heldComponent.workStory === 'conduct'
+  const heldStory = heldComponent?.slot === 'hand' ? heldComponent.workStory : undefined
   const [shownExpression, setShownExpression] = useState(expression)
   useEffect(() => { if (!animated || (!paused && visible)) setShownExpression(expression) }, [expression, animated, paused, visible])
   useGesture(ref, gesture, gestureSequence, animated, paused || !visible, onGestureComplete)
@@ -87,12 +87,12 @@ export function AppearanceAvatar({ appearance: storedAppearance, catalog, state 
   }, [state, displayed, animated, paused, visible, identity, eventSequence, displayedSequence, exiting, captureHandoff])
 
   const pose = animated ? displayed : state
-  useWorkStory(ref, animated && pose === 'working' && !exiting, paused || !visible, conducts ? 'conduct' : 'laptop')
+  useWorkStory(ref, animated && pose === 'working' && !exiting, paused || !visible, heldStory ?? 'laptop')
   const effects = compact ? 'off' : tier === 'full' && animated ? 'live' : 'static'
   const classes = [
     'dca-rig',
     !compact && pose === 'waiting' ? 'dca-action-hold-sign' : '',
-    !compact && pose === 'working' && !conducts ? 'dca-action-prop-laptop' : '',
+    !compact && pose === 'working' && !heldStory ? 'dca-action-prop-laptop' : '',
     !compact && pose === 'done' ? 'dca-action-celebrate' : '',
     !compact && pose === 'greeting' && !exiting ? 'dca-action-wave' : '',
   ].filter(Boolean).join(' ')
@@ -175,7 +175,7 @@ export function AppearanceAvatar({ appearance: storedAppearance, catalog, state 
     data-pose={pose} data-mode={motion} data-motion={animated ? 'on' : 'off'} data-paused={paused || !visible} data-exiting={exiting} data-compact={compact}
     data-size-tier={tier} data-effects={effects}
     data-head={headId} data-face={faceId} data-hand={handId} data-back={backId} data-skin={skinId} data-base-face={appearance.baseFace}
-    data-gesture={animated ? gesture : undefined} data-held-state={held ? ((pose === 'working' && !conducts) || pose === 'waiting' ? 'stowed' : 'holding') : undefined}>
+    data-gesture={animated ? gesture : undefined} data-held-state={held ? ((pose === 'working' && !heldStory) || pose === 'waiting' ? 'stowed' : 'holding') : undefined}>
     <svg className="dca-canvas" width={size} height={size} viewBox="0 0 1024 1024" fill="none" role={label ? 'img' : undefined} aria-hidden={label ? undefined : true}
       aria-label={label}>
       <g className="dca-body-motion"><g className={classes}>

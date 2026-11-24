@@ -1335,10 +1335,14 @@ and state already say.
   numerals, right alignment, and no wrapping, independent of toolbar gaps. The
   waveform takes the remaining width; the primary action stays outside the group.
   Voice buttons are 32px standard and 28px compact.
-- Footer mode pills (Plan, Goal, a custom agent) are frameless 24px pills with an
+- Footer mode pills (Plan, Creator, Goal, a custom agent) are frameless 24px pills with an
   8px inset on both sides. At rest they show their mode icon; on hover or focus
   they take the hover fill and the icon becomes a circled clear mark. The
-  current-goal status pill shares the inset and radius.
+  current-goal status pill shares the inset and radius. Creator uses the hammer
+  glyph and sits after Plan or the custom agent and before Goal.
+- A Creator thread's mascot holds the plugin core and wears the HUD visor over
+  the person's own appearance, and works by crafting the core instead of typing.
+  Both items are drawn as a few large planes so they read at composer size.
 - Line comments and annotations each ride one attachment pill above the input:
   hairline border on the elevated surface, tertiary icon, and the count as a medium
   label, with a remove control revealed on hover or focus. Hovering or clicking

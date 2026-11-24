@@ -76,17 +76,23 @@ test('an outfit dresses the stored appearance over an explicit catalog', () => {
   assert.ok(html.includes('data-head="ringed-planet"'))
 })
 
-test('a conducting hand item stays in hand while working and replaces the laptop', () => {
+test('a hand item with its own work story stays in hand while working and replaces the laptop', () => {
   const pack = defineAvatarPack({
     namespace: 'role',
     label: 'Role Pack',
-    items: [{ id: 'role:baton', slot: 'hand', rarity: 'rare', series: 'costume', zones: ['hand'], workStory: 'conduct', render: () => createElement('path', { d: 'M226 640v-200' }) }],
+    items: [
+      { id: 'role:baton', slot: 'hand', rarity: 'rare', series: 'costume', zones: ['hand'], workStory: 'conduct', render: () => createElement('path', { d: 'M226 640v-200' }) },
+      { id: 'role:core', slot: 'hand', rarity: 'legendary', series: 'costume', zones: ['hand'], workStory: 'craft', render: () => createElement('path', { d: 'M233 560v-80' }) },
+    ],
   })
   const catalog = createAvatarCatalog({ packs: [pack] })
   const working = appearance => renderToStaticMarkup(createElement(AppearanceAvatar, { appearance, catalog, state: 'working', size: 64 }))
   const conducting = working({ ...originalAppearance, hand: 'role:baton' })
   assert.ok(conducting.includes('data-held-state="holding"'))
   assert.ok(!conducting.includes('dca-action-prop-laptop'))
+  const crafting = working({ ...originalAppearance, hand: 'role:core' })
+  assert.ok(crafting.includes('data-held-state="holding"'))
+  assert.ok(!crafting.includes('dca-action-prop-laptop'))
   const typing = working({ ...originalAppearance, hand: 'magic-wand' })
   assert.ok(typing.includes('data-held-state="stowed"') && typing.includes('dca-action-prop-laptop'))
 })

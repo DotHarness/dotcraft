@@ -41,6 +41,7 @@ import type { DesktopWindowRuntime } from './windows/windowRuntime'
 import { applyNativeChromeTheme, resolveInitialTheme, resolveThemeSurface } from './windowTheme'
 import { DesktopLinkedChats } from './threadTasks/linkedChats'
 import { DesktopOwnedThreads } from './threadTasks/ownedThreads'
+import { registerCreatorModeIpc } from './creatorMode'
 import { LINKED_CHATS_CHANGED_CHANNEL, OWNED_THREADS_CHANGED_CHANNEL } from '../shared/ownedThreads'
 import { hasRemoteEndpointArg, NO_WORKSPACE_ARG } from './workspaceArgs'
 
@@ -108,6 +109,7 @@ export class DesktopApplication implements DesktopApplicationServices {
 
   async start(argv: string[]): Promise<void> {
     registerDesktopApplicationIpc(this)
+    registerCreatorModeIpc(this)
     applyNativeThemeSource(nativeTheme, this.settings)
     this.refreshAppMenu()
     this.tray = createDesktopTray({

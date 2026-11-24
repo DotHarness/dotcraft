@@ -61,6 +61,7 @@ import { mentionedThreadIds } from '../../utils/threadReferences'
 import { CommandSearchPopover, type SlashSystemActionInfo } from './CommandSearchPopover'
 import { useSlashSkills } from './useSlashSkills'
 import { useChannelBindingCommands } from './useChannelBindingCommands'
+import { CREATOR_SYSTEM_ACTION_ID, isCreatorSlashCommand, useThreadComposerCreator } from './useComposerCreator'
 import { GoalControlPopover } from './GoalControlPopover'
 import { GoalComposePill } from './GoalComposePill'
 import { ModelPicker, type ReasoningQuickValue } from './ModelPicker'
@@ -326,6 +327,7 @@ function InputComposerCore({
   const rawProfileId = (activeThread?.configuration as Record<string, unknown> | null | undefined)?.agentProfileId
   const activeProfileId = typeof rawProfileId === 'string' && rawProfileId.length > 0 ? rawProfileId : undefined
   const hasProfile = activeProfileId !== undefined
+  const creatorControls = useThreadComposerCreator(threadId, ownsThreadControls)
   const resolvedProfileName = useResolvedProfileName(activeProfileId, workspacePath)
   const effectiveMascotName = mascotName ?? resolvedProfileName
   const desktopCommandContext = useMemo(() => ({
@@ -401,6 +403,7 @@ function InputComposerCore({
           icon: <ListChecks size={15} strokeWidth={2} aria-hidden />
         })
       }
+      if (creatorControls.action) actions.push(creatorControls.action)
       if (canUseAgentProfiles) {
         actions.push({
           id: 'profile',
@@ -449,7 +452,7 @@ function InputComposerCore({
       actions.push(...channelBindingCommands.actions)
       return actions
     },
-    [canCompactCurrentThread, canOpenSideChat, canUseAgentProfiles, canUseCommandPicker, canUseSystemActions, canUseThreadGoals, hasProfile, initAvailable, reloadSkillsAvailable, threadId, channelBindingCommands.actions, t, threadMode]
+    [canCompactCurrentThread, canOpenSideChat, canUseAgentProfiles, canUseCommandPicker, canUseSystemActions, canUseThreadGoals, creatorControls.action, hasProfile, initAvailable, reloadSkillsAvailable, threadId, channelBindingCommands.actions, t, threadMode]
   )
 
   useEffect(() => {
@@ -1157,6 +1160,12 @@ function InputComposerCore({
       return
     }
 
+    if (creatorControls.action && isCreatorSlashCommand(trimmed)) {
+      creatorControls.toggle()
+      resetComposerInput()
+      return
+    }
+
     const systemCommand = ownsThreadControls ? parseSystemSlashCommand(trimmed) : null
     if (systemCommand) {
       let clearInput = false
@@ -1313,7 +1322,7 @@ function InputComposerCore({
     } finally {
       sendInFlightRef.current = false
     }
-  }, [activeTurnId, clearComposerForSubmission, compactCurrentThread, reloadSkills, effectiveFileWorkspacePath, executeGoalCommand, files, followUpMode, placeEditedSubmission, hasEditPosition, clearEditPosition, queuePaused, choose, clearPausedQueue, images, isAgentBuilder, isBusyForInput, isRunning, isSideChat, isWaitingApproval, isWaitingInput, locale, modelLoading, onBeforeSend, captureTurnSettings, onOptimisticEcho, ownsThreadControls, remoteWorkspace, restoreComposerSubmission, setComposerMode, submitOverride, threadId, workspacePath, t, goalComposeMode, canUseThreadGoals, sendGoalFromComposer, channelBindingCommands, threadReferences])
+  }, [activeTurnId, clearComposerForSubmission, compactCurrentThread, creatorControls, reloadSkills, effectiveFileWorkspacePath, executeGoalCommand, files, followUpMode, placeEditedSubmission, hasEditPosition, clearEditPosition, queuePaused, choose, clearPausedQueue, images, isAgentBuilder, isBusyForInput, isRunning, isSideChat, isWaitingApproval, isWaitingInput, locale, modelLoading, onBeforeSend, captureTurnSettings, onOptimisticEcho, ownsThreadControls, remoteWorkspace, restoreComposerSubmission, setComposerMode, submitOverride, threadId, workspacePath, t, goalComposeMode, canUseThreadGoals, sendGoalFromComposer, channelBindingCommands, threadReferences])
 
   useEffect(() => registerComposerVoiceTarget(threadId, {
     capture: captureComposerDraft,
@@ -1567,6 +1576,10 @@ function InputComposerCore({
       void toggleMode()
       return
     }
+    if (actionId === CREATOR_SYSTEM_ACTION_ID) {
+      creatorControls.toggle()
+      return
+    }
     if (actionId === 'init') {
       richRef.current?.setContent({ text: '/init', segments: [] })
       void sendMessage()
@@ -1595,7 +1608,7 @@ function InputComposerCore({
     } else {
       enterGoalComposeMode()
     }
-  }, [currentGoal, enterGoalComposeMode, ensureCurrentGoal, compactCurrentThread, reloadSkills, sendMessage, channelBindingCommands, toggleMode, t, threadId])
+  }, [currentGoal, enterGoalComposeMode, ensureCurrentGoal, compactCurrentThread, creatorControls, reloadSkills, sendMessage, channelBindingCommands, toggleMode, t, threadId])
 
   const onSelectSkill = useCallback((skillName: string): void => {
     richRef.current?.insertSkillTag(skillName)
@@ -1615,6 +1628,7 @@ function InputComposerCore({
       <div style={effectiveComposerDockStyle}>
         <ConversationColumn>
       <ComposerShell
+        mascotOutfit={creatorControls.mascotOutfit}
         before={(
           <>
             <DesktopPluginSurface name="composer.before" context={desktopPluginSurfaceContext} />
@@ -1808,17 +1822,18 @@ function InputComposerCore({
             permissions={!compactVoiceFooter && !minimalChrome ? (
               <ApprovalPolicyPicker threadId={threadId} disabled={isWaitingInput} />
             ) : null}
-            mode={!compactVoiceFooter ? (
-              hasProfile ? (
-                <ComposerCustomProfileLabel
-                  label={t('composer.mode.custom')}
+            mode={!compactVoiceFooter && (hasProfile || ownsThreadControls) ? (
+              <>
+                {hasProfile ? (
+                  <ComposerCustomProfileLabel
+                    label={t('composer.mode.custom')}
                     onClear={() => {
                       void clearProfile()
                     }}
                     title={t('composer.customPill.title', { name: resolvedProfileName ?? activeProfileId ?? '' })}
                     ariaLabel={t('composer.customPill.aria')}
                   />
-                ) : ownsThreadControls ? (
+                ) : (
                   <ComposerPlanModeLabel
                     value={threadMode}
                     onDisable={() => {
@@ -1829,9 +1844,9 @@ function InputComposerCore({
                     title={t('composer.planPill.create')}
                     ariaLabel={t('composer.system.plan.disable')}
                   />
-                ) : (
-                  null
-                )
+                )}
+                {creatorControls.pill}
+              </>
             ) : null}
             goal={!compactVoiceFooter ? (
               canUseThreadGoals && !isAgentBuilder && (

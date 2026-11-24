@@ -37,7 +37,7 @@ export interface AvatarFaceplateComponentItem extends BaseComponentItem<'face', 
 
 export interface AvatarHandComponentItem extends BaseComponentItem<'hand', 'hand'> {
   render: () => ReactNode
-  workStory?: 'conduct'
+  workStory?: 'conduct' | 'craft'
 }
 
 export interface AvatarBackComponentItem extends BaseComponentItem<'back', 'back'> {

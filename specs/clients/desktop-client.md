@@ -664,8 +664,19 @@ The slash surface lists Desktop-owned system actions, extension actions, and Ski
 - **Init** appears only when command management is available and the workspace `command/list` result contains `/init` (AppServer omits it when root `AGENTS.md` or `AGENTS.override.md` exists; Desktop never inspects these files). Selecting it, or submitting `/init`, calls `command/execute` and starts a normal turn with the returned `expandedPrompt`. Command availability reloads after each turn ends.
 - **Reload skills** appears only when command management is available, the composer has a thread, and the workspace `command/list` result contains `/reload-skills`. Selecting it, or submitting `/reload-skills`, calls `command/execute` with that command, reports the result, and refreshes the skills list; it never starts an agent turn.
 - **Plan mode** is always shown and toggles mode through the same path as its keyboard shortcut, calling `thread/mode/set`. On Welcome it updates the pending mode without starting a thread.
+- **Creator** is always shown and toggles Creator mode for the composer's thread, or the pending mode on Welcome.
 - **Compact** appears only when `capabilities.manualCompaction = true`, the thread has a turn, and no turn is running or awaiting approval. It calls `thread/compact/start` with a long client-side wait; a client timeout does not imply server failure.
-- Direct `/plan`, `/agent`, `/compact`, and `/reload-skills` are handled locally and never start an agent turn; `/compact` reports unavailability when its conditions are not met.
+- Direct `/plan`, `/agent`, `/creator`, `/compact`, and `/reload-skills` are handled locally and never start an agent turn; `/compact` reports unavailability when its conditions are not met.
+
+**Creator mode**
+
+Creator mode points a thread at extending DotCraft itself: building or changing a plugin, Skill, hook, Workflow, Desktop extension, or .NET extension, activating it with `ActivatePlugin` (§5.14), and checking it in the running app.
+
+- It is Desktop-owned state per thread. Desktop records the threads that have it on in its per-user settings, so it survives restarts. Other clients neither show nor apply it.
+- The **Creator** action and a direct `/creator` submission turn it on without starting a turn. On Welcome it is pending and applies to the thread the first message starts. It combines with Plan mode and with an Agent Profile.
+- While it is on, a Creator pill sits in the footer mode area after the Plan or custom agent pill and before Goal, and its clear mark turns the mode off.
+- While it is on, Desktop declares `additionalContext["desktop.creator"]` (§5.14). A change takes effect from the thread's next turn, because Desktop re-declares the thread's context before starting it. A running turn keeps the context it started with.
+- While it is on, the Composer mascot wears the Creator outfit ([DESIGN](../architecture/DESIGN.md#composer)).
 
 **Follow-up while running**
 
@@ -712,6 +723,7 @@ Desktop exposes a client-owned thread-management profile as Runtime Dynamic Tool
 - Tools are declared with `deferLoading = true` so they are discoverable on demand, except on runtimes without deferred-tool discovery. `ReadTerminal` and `WrapUp` are always loaded. The `desktop` namespace also carries the [local dev server tools](../features/desktop-dev-servers.md#7-agent-tools) on local connections.
 - Whenever the tools are declared, Desktop also declares `additionalContext["desktop.threadCoordination"]` (`kind = "application"`): a hint to search for the relevant thread tool before background thread management, the rules for creating local projects and starting other chats (how to classify the user's latest message, when to offer, propose, or start a chat, and that loading the deferred `CreateThread` does not count as the turn's first call).
 - On local connections of a Desktop started with CDP, Desktop also declares `additionalContext["desktop.cdp"]` with the endpoint ([Desktop E2E and developer debugging](../architecture/desktop-e2e-debugging.md#agent-access)).
+- For a thread in Creator mode (§5.13), Desktop also declares `additionalContext["desktop.creator"]`: the build, activate, and check loop, the Skills that own the content of each form, and how to check Desktop UI through `desktop.cdp`.
 - Declarations are stable across Agent/Plan switches; handlers enforce mode policy.
 - Desktop declares the tools only when it can handle their `item/tool/call` requests on the active transport. On reconnect with `capabilities.dynamicToolRebind = true`, Desktop re-declares the same specs and context when resuming; without rebind, pending calls fail through the normal unavailable path.
 
