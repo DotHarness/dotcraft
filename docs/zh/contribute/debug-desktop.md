@@ -32,13 +32,13 @@ npm run dev:debug -- -- --workspace <workspace-path>
 
 ### 正式环境
 
-调试 Windows 打包版本时，使用调试端口启动可执行文件：
+调试打包版本时，打开 **设置 › 常规 › CDP 调试** 并重启 DotCraft。在 Windows 上也可以使用调试端口启动可执行文件：
 
 ```powershell
 DotCraft.exe --remote-debugging-port=9222
 ```
 
-这两种方式都会开放固定的 loopback endpoint `http://127.0.0.1:9222`。CDP 会在进程启动时开启。
+以上方式都会开放固定的 loopback endpoint `http://127.0.0.1:9222`。CDP 会在进程启动时开启。开启期间，这个 Desktop 中的对话会得知该 endpoint，Agent 无需另行告知即可检查应用。
 
 ## 确认 CDP 已启用
 

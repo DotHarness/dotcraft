@@ -23,7 +23,7 @@
     "src/preload/api.d.ts",
     "src/preload/index.ts",
     "src/preload/desktopPet.ts",
-    "src/preload/projectCreationConfirm.ts",
+    "src/preload/desktopToolConfirm.ts",
     "src/preload/themes.ts",
     "src/preload/notificationDispatcher.ts",
     "src/preload/serverRequestEvents.ts",

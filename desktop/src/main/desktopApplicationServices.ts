@@ -4,7 +4,7 @@ import type { BrowserWindow } from 'electron'
 import type { AppSettings } from './settings'
 import type { DesktopLifecycleController } from './desktopLifecycle'
 import type { LocalProjectList } from './localProjects'
-import type { ProjectCreationConfirmManager } from './projectCreationConfirm'
+import type { DesktopToolConfirmManager } from './desktopToolConfirm'
 import type { DesktopHubClient } from './desktopHub'
 import type { DesktopThreadTasks } from './threadTasks/threadTaskService'
 import type { WindowAttentionNotifier } from './windowAttentionNotifier'
@@ -17,7 +17,7 @@ export interface DesktopApplicationServices {
   settings: AppSettings
   lifecycle: DesktopLifecycleController
   localProjects: LocalProjectList
-  projectCreationConfirm: ProjectCreationConfirmManager
+  toolConfirm: DesktopToolConfirmManager
   tasks: DesktopThreadTasks
   ownedThreads: DesktopOwnedThreads
   readonly pairedComputers: PairedComputersManager

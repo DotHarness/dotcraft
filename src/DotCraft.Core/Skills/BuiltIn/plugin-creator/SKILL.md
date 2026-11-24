@@ -76,7 +76,7 @@ Passing verification does not show that a plugin works. Make it active and exerc
 | .NET extension | `CSharp.Build` succeeds, and a contributed tool runs on a later turn |
 | Settings | The field appears and its value reaches the plugin |
 
-Some steps belong to the user: refreshing Desktop > Plugins, sending `/reload-skills`, granting trust, or starting a new conversation. Name the exact step and mark the result unverified until you have evidence. Do not report success from file creation or installation alone.
+On Desktop, make the plugin active with `ActivatePlugin`, and call it again after each change to reload it. Desktop asks the user before it installs, enables, or trusts anything. Without that tool, refreshing Desktop > Plugins, sending `/reload-skills`, and granting trust belong to the user. Connecting a channel and starting a new conversation always do. Name the exact step and mark the result unverified until you have evidence. Do not report success from file creation or installation alone.
 
 When you finish, report the location, the contributions, the verification result, what was and was not exercised, and how to try it. You may mention in one line that the plugin can be shared.
 

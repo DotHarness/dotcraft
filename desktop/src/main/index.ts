@@ -6,6 +6,8 @@ import { DesktopApplication } from './desktopApplication'
 import { configureAppIdentity } from './appIdentity'
 import { computerUseManager } from './computerUse/runtime'
 import { installStandardIoErrorGuard } from './standardIoGuards'
+import { cdpDebuggingEndpoint, enableCdpDebuggingFromSettings } from './cdpDebugging'
+import { setDesktopCdpEndpoint } from './desktopRuntimeThreadTools'
 
 registerViewerScheme()
 registerPluginFileScheme()
@@ -15,6 +17,8 @@ configureAppIdentity()
 const singleInstance = app.isPackaged && process.platform !== 'darwin'
 if (singleInstance && !app.requestSingleInstanceLock()) app.exit(0)
 else {
+  enableCdpDebuggingFromSettings()
+  setDesktopCdpEndpoint(cdpDebuggingEndpoint())
   let application: DesktopApplication | null = null
   const launches: string[][] = []
   let finishedQuit = false

@@ -1,6 +1,6 @@
 import { dialog } from 'electron'
 import { promises as fs } from 'fs'
-import { PROJECT_CREATION_CONFIRM_RESPOND_CHANNEL } from '../shared/projectCreationConfirm'
+import { DESKTOP_TOOL_CONFIRM_RESPOND_CHANNEL } from '../shared/desktopToolConfirm'
 import type { WorkspaceSwitchOptions } from '../shared/workspaceProjects'
 import type {
   WorkspaceSetupModelListRequest,
@@ -31,13 +31,13 @@ export function registerWorkspaceHandlers(context: WindowIpcContext): void {
   })
 
   handleSafe(
-    PROJECT_CREATION_CONFIRM_RESPOND_CHANNEL,
+    DESKTOP_TOOL_CONFIRM_RESPOND_CHANNEL,
     (_event, params: { requestId?: unknown; confirmed?: unknown }) => {
       const requestId = typeof params?.requestId === 'string' ? params.requestId.trim() : ''
       if (!requestId || typeof params?.confirmed !== 'boolean') {
         throw new Error('A requestId and boolean confirmed flag are required.')
       }
-      return callbacks.respondProjectCreationConfirm?.(requestId, params.confirmed) === true
+      return callbacks.respondDesktopToolConfirm?.(requestId, params.confirmed) === true
     }
   )
 

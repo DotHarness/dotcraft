@@ -284,7 +284,7 @@ export function createSecondaryWorkspaceConnection(
     }
     if (current) {
       ctx.getThreadTasks().handleNotification(method, params, ctx.mainWindow?.webContents.id)
-      ctx.app.projectCreationConfirm.observeNotification(method, params)
+      ctx.app.toolConfirm.observeNotification(method, params)
       observeLinkedChatNotification(ctx, entry, method, params)
     }
   })

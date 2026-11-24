@@ -2,9 +2,20 @@ import { handleDesktopThreadHistoryTool, threadHistoryToolDefinitions, threadHis
 import { DesktopThreadBindings } from './desktopThreadBindings'
 import { devServerToolDefinitions, devServerToolNames, handleDevServerToolCall } from './devServers/devServerTools'
 import devServerGuidance from './prompts/devServers.md?raw'
+import cdpDebuggingGuidance from './prompts/cdpDebugging.md?raw'
 import { handleThreadManagementTool, MAX_LIST_THREADS_LIMIT, requestClient, resolveTargetThread } from './threadTasks/threadManagementTools'
 import { PROJECT_PROPERTY, ThreadProjectError, type ThreadProject, type ThreadProjectHost } from './threadTasks/threadProjects'
 import { themeToolDefinition, themeTool, type DesktopThemeHost } from './themes/themeTools'
+import {
+  ACTIVATE_PLUGIN_DESCRIPTION,
+  ACTIVATE_PLUGIN_PROPERTIES,
+  ACTIVATE_PLUGIN_TOOL_NAME,
+  LIST_PLUGINS_DESCRIPTION,
+  LIST_PLUGINS_TOOL_NAME,
+  activatePluginTool,
+  listPluginsTool
+} from './plugins/pluginTools'
+import type { DesktopToolConfirmDetails, DesktopToolConfirmOutcome } from '../shared/desktopToolConfirm'
 import {
   listTerminalTabsTool,
   listTerminalTabsToolDefinition,
@@ -36,6 +47,13 @@ export const DESKTOP_THREAD_TOOL_NAMESPACE = 'desktop'
 export const DESKTOP_CONVERSATION_TOOL_NAMESPACE = 'desktop_conversation'
 export const DESKTOP_THREAD_COORDINATION_CONTEXT_KEY = 'desktop.threadCoordination'
 const DEV_SERVERS_CONTEXT_KEY = 'desktop.devServers'
+const CDP_CONTEXT_KEY = 'desktop.cdp'
+
+let cdpEndpoint: string | undefined
+
+export function setDesktopCdpEndpoint(endpoint: string | undefined): void {
+  cdpEndpoint = endpoint
+}
 
 type JsonObject = Record<string, unknown>
 
@@ -92,6 +110,7 @@ export interface DesktopAppServerRequestOptions {
   createChatFolder?: (firstMessage: string) => Promise<string>
   projectWorkspaceFor?: (client: AppServerRequestClient, workspacePath: string) => ThreadTaskWorkspace | undefined
   tasks?: DesktopThreadTasks
+  confirmTool?: (details: DesktopToolConfirmDetails, threadId: string, turnId: string | undefined) => Promise<DesktopToolConfirmOutcome>
   terminals?: DesktopTerminalHost
   themes?: DesktopThemeHost
   openDevServerPreview?: (preview: { threadId: string; name: string; url: string }) => void
@@ -127,10 +146,11 @@ export interface DynamicToolCallResult {
 
 
 
-const CONVERSATION_TOOL_NAMES = new Set(['CreateThread', 'DismissProposal', 'WrapUp', CREATE_PROJECT_TOOL_NAME])
+const CONVERSATION_TOOL_NAMES = new Set(['CreateThread', 'DismissProposal', 'WrapUp', ACTIVATE_PLUGIN_TOOL_NAME, CREATE_PROJECT_TOOL_NAME])
 
 const TOOL_NAMES = new Set([
   'ListProjects',
+  LIST_PLUGINS_TOOL_NAME,
   'ListThreads',
   'StopThread',
   ...threadHistoryToolNames,
@@ -206,6 +226,18 @@ export function buildDesktopThreadDynamicTools(local = true): DynamicToolSpec[] 
       },
       deferLoading: false
     },
+    {
+      namespace: DESKTOP_CONVERSATION_TOOL_NAMESPACE,
+      name: ACTIVATE_PLUGIN_TOOL_NAME,
+      description: ACTIVATE_PLUGIN_DESCRIPTION,
+      inputSchema: {
+        type: 'object',
+        properties: ACTIVATE_PLUGIN_PROPERTIES,
+        required: ['id'],
+        additionalProperties: false
+      },
+      display: { title: 'Activate plugin', subtitle: 'Desktop' }
+    },
     ...(local ? [{
       namespace: DESKTOP_CONVERSATION_TOOL_NAMESPACE,
       name: CREATE_PROJECT_TOOL_NAME,
@@ -230,6 +262,13 @@ export function buildDesktopThreadDynamicTools(local = true): DynamicToolSpec[] 
       name: 'ListProjects',
       description: 'List the projects Desktop thread tools can reach, including projects that are not running. Use a returned id to target another project.',
       inputSchema: { type: 'object', properties: {}, additionalProperties: false }
+    },
+    {
+      namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
+      name: LIST_PLUGINS_TOOL_NAME,
+      description: LIST_PLUGINS_DESCRIPTION,
+      inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+      display: { title: 'List plugins', subtitle: 'Desktop' }
     },
     {
       namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
@@ -392,17 +431,20 @@ export function buildDesktopThreadDynamicTools(local = true): DynamicToolSpec[] 
   })
 
   return [
-    namespace(DESKTOP_CONVERSATION_TOOL_NAMESPACE, 'Desktop cards and the next-step box the user answers.'),
+    namespace(DESKTOP_CONVERSATION_TOOL_NAMESPACE, 'Desktop cards, confirmations, and the next-step box the user answers.'),
     namespace(DESKTOP_THREAD_TOOL_NAMESPACE, local
-      ? 'Desktop chats, terminal output, theme authoring, and local dev servers.'
-      : 'Desktop chats, terminal output, and theme authoring.')
+      ? 'Desktop chats, plugins, terminal output, theme authoring, and local dev servers.'
+      : 'Desktop chats, plugins, terminal output, and theme authoring.')
   ]
 }
 
 export function buildDesktopThreadAdditionalContext(local = true): Record<string, RuntimeAdditionalContextEntry> {
   return {
     [DESKTOP_THREAD_COORDINATION_CONTEXT_KEY]: { ...DESKTOP_THREAD_COORDINATION_CONTEXT },
-    ...(local ? { [DEV_SERVERS_CONTEXT_KEY]: { kind: 'application', value: devServerGuidance.trimEnd() } } : {})
+    ...(local ? { [DEV_SERVERS_CONTEXT_KEY]: { kind: 'application', value: devServerGuidance.trimEnd() } } : {}),
+    ...(local && cdpEndpoint
+      ? { [CDP_CONTEXT_KEY]: { kind: 'application', value: cdpDebuggingGuidance.trimEnd().replace('{{endpoint}}', cdpEndpoint) } }
+      : {})
   }
 }
 
@@ -448,6 +490,13 @@ export async function handleDesktopRuntimeThreadToolCall(
         return await createThreadTool(connection, options.tasks, args, p)
       case CREATE_PROJECT_TOOL_NAME:
         return await createProjectTool(connection, options.tasks, options.projectCreator, args, p)
+      case ACTIVATE_PLUGIN_TOOL_NAME:
+        return await activatePluginTool(client, options.confirmTool && {
+          canSeeCard: async (threadId, turnId) => options.tasks?.canSeeCard(connection, threadId, turnId) ?? false,
+          confirm: options.confirmTool
+        }, args, p)
+      case LIST_PLUGINS_TOOL_NAME:
+        return await listPluginsTool(client)
       case 'DismissProposal':
         return dismissProposalTool(options.tasks, args, p)
       case 'WrapUp':

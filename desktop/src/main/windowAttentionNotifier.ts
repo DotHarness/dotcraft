@@ -5,7 +5,7 @@ import type { AppSettings } from './settings'
 
 export const NEW_TASK_OFFER_ATTENTION = 'desktop/newTaskOffer'
 export const WRAP_UP_QUESTION_ATTENTION = 'desktop/wrapUpQuestion'
-export const PROJECT_CREATION_CONFIRM_ATTENTION = 'desktop/projectCreationConfirm'
+export const DESKTOP_TOOL_CONFIRM_ATTENTION = 'desktop/toolConfirm'
 
 const ATTENTION_REQUESTS: Record<string, { setting: 'approvalRequests' | 'questions'; bodyKey: string; hubDelivers: boolean }> = {
   'item/approval/request': {
@@ -28,7 +28,7 @@ const ATTENTION_REQUESTS: Record<string, { setting: 'approvalRequests' | 'questi
     bodyKey: 'hub.notification.input_requested.body',
     hubDelivers: false
   },
-  [PROJECT_CREATION_CONFIRM_ATTENTION]: {
+  [DESKTOP_TOOL_CONFIRM_ATTENTION]: {
     setting: 'questions',
     bodyKey: 'hub.notification.input_requested.body',
     hubDelivers: false

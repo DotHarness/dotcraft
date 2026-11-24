@@ -9,6 +9,8 @@ import {
   Pencil,
   Pin,
   PinOff,
+  Plug,
+  Puzzle,
   Search,
   X,
   type LucideIcon
@@ -23,6 +25,8 @@ export const DESKTOP_TOOL_OPERATIONS = [
   'listChats',
   'listProjects',
   'createProject',
+  'listPlugins',
+  'activatePlugin',
   'searchChats',
   'sendMessage',
   'stopChat',
@@ -50,6 +54,8 @@ const OPERATIONS_BY_TOOL: Readonly<Record<string, DesktopToolOperation>> = {
   ListThreads: 'listChats',
   ListProjects: 'listProjects',
   CreateProject: 'createProject',
+  ListPlugins: 'listPlugins',
+  ActivatePlugin: 'activatePlugin',
   SearchThreadMessages: 'searchChats',
   SendMessageToThread: 'sendMessage',
   StopThread: 'stopChat',
@@ -69,6 +75,8 @@ const ICONS: Readonly<Record<DesktopToolOperation, LucideIcon>> = {
   listChats: MessageSquareText,
   listProjects: FolderOpen,
   createProject: FolderPlus,
+  listPlugins: Puzzle,
+  activatePlugin: Plug,
   searchChats: Search,
   sendMessage: MessageSquareText,
   stopChat: CircleStop,
@@ -100,9 +108,25 @@ export function resolveDesktopToolOperation(
 export function formatDesktopToolLabel(
   operation: DesktopToolOperation,
   state: DesktopToolState,
-  locale: AppLocale
+  locale: AppLocale,
+  targetName?: string | null
 ): string {
+  if (operation === 'activatePlugin' && targetName) {
+    return translate(locale, `toolCall.desktop.activatePlugin.named.${state}`, { name: targetName })
+  }
   return translate(locale, `toolCall.desktop.${operation}.${state}`)
+}
+
+export function getDesktopToolTargetPlugin(
+  operation: DesktopToolOperation,
+  args: Record<string, unknown> | undefined,
+  structuredResult: unknown
+): { id: string; name?: string } | null {
+  if (operation !== 'activatePlugin' || typeof args?.id !== 'string' || !args.id.trim()) return null
+  const plugin = structuredResult && typeof structuredResult === 'object'
+    ? (structuredResult as { plugin?: { name?: unknown } }).plugin
+    : undefined
+  return { id: args.id.trim(), ...(typeof plugin?.name === 'string' && plugin.name ? { name: plugin.name } : {}) }
 }
 
 export function getDesktopToolIcon(operation: DesktopToolOperation): LucideIcon {

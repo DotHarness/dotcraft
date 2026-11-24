@@ -14,7 +14,7 @@ import type { ChatsFolderInfo } from '../shared/chatFolders'
 import type { BrowserDownloadRecord, BrowserFeedbackEvent, BrowserFindState, BrowserPageReference, BrowserSelectRequest } from '../shared/viewer/browserFeedback'
 import { contextBridge, ipcRenderer, shell, webFrame, webUtils } from 'electron'
 import { desktopPet } from './desktopPet'
-import { projectCreationConfirmPreload } from './projectCreationConfirm'
+import { desktopToolConfirmPreload } from './desktopToolConfirm'
 import { themes } from './themes'
 import type { ClientRequestMethods } from '@dotcraft/sdk/contracts'
 import { resolveThemeMode, type ThemeMode } from '../shared/theme'
@@ -988,7 +988,7 @@ const api = {
       return ipcRenderer.invoke('workspace:save-local-project', params)
     },
 
-    ...projectCreationConfirmPreload,
+    ...desktopToolConfirmPreload,
 
     getPathForFile(file: File): string {
       return webUtils.getPathForFile(file)
@@ -1604,6 +1604,7 @@ const api = {
       collapsedProjectIds?: string[]
       sidebarDestinationPins?: Record<string, boolean>
       showInMenuBar?: boolean
+      cdpDebugging?: boolean
       openTargetPreferences?: OpenTargetPreferences
       lastSeenWhatsNewVersion?: string
       browserUse?: {
@@ -1697,6 +1698,7 @@ const api = {
       collapsedProjectIds?: string[]
       sidebarDestinationPins?: Record<string, boolean>
       showInMenuBar?: boolean
+      cdpDebugging?: boolean
       openTargetPreferences?: OpenTargetPreferences
       lastSeenWhatsNewVersion?: string
       browserUse?: {

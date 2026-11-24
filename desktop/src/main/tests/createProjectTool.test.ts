@@ -14,7 +14,7 @@ import {
   planNewLocalProjectFolder,
   registerLocalProject
 } from '../localProjectOperations'
-import { ProjectCreationConfirmManager } from '../projectCreationConfirm'
+import { DesktopToolConfirmManager } from '../desktopToolConfirm'
 import type { AppSettings } from '../settings'
 import type { DesktopProjectCreatorHost } from '../threadTasks/projectTools'
 import { DesktopThreadTasks } from '../threadTasks/threadTaskService'
@@ -267,39 +267,25 @@ describe('CreateProject desktop tool', () => {
   })
 })
 
-describe('ProjectCreationConfirmManager', () => {
+describe('DesktopToolConfirmManager', () => {
   it('serializes confirmations per window, verifies window ownership, and abandons on turn end or owner teardown', async () => {
-    const manager = new ProjectCreationConfirmManager()
+    const manager = new DesktopToolConfirmManager()
     const sent: Array<{ requestId: string; name: string }> = []
     const dismissed: string[] = []
-
-    const first = manager.confirm({
+    const confirm = (turnId: string, name: string) => manager.confirm({
       ownerId: 1,
       threadId: 'thread-1',
-      turnId: 'turn-1',
-      name: 'First',
-      folders: ['/tmp/first'],
-      createsNewFolder: true,
+      turnId,
+      details: { kind: 'projectCreation', name, folders: [`/tmp/${name}`], createsNewFolder: true },
       sendToRenderer: (request) => {
-        sent.push({ requestId: request.requestId, name: request.name })
+        sent.push({ requestId: request.requestId, name: request.kind === 'projectCreation' ? request.name : '' })
         return true
       },
       dismissInRenderer: (requestId) => dismissed.push(requestId)
     })
 
-    const second = manager.confirm({
-      ownerId: 1,
-      threadId: 'thread-1',
-      turnId: 'turn-2',
-      name: 'Second',
-      folders: ['/tmp/second'],
-      createsNewFolder: false,
-      sendToRenderer: (request) => {
-        sent.push({ requestId: request.requestId, name: request.name })
-        return true
-      },
-      dismissInRenderer: (requestId) => dismissed.push(requestId)
-    })
+    const first = confirm('turn-1', 'First')
+    const second = confirm('turn-2', 'Second')
 
     await vi.waitFor(() => expect(sent).toHaveLength(1))
     expect(sent[0].name).toBe('First')
@@ -326,7 +312,7 @@ describe('desktopThreadToolOptions projectCreator gating', () => {
       lastConnectionStatus: {},
       app: {
         localProjects: { list: () => [], has: () => false, refresh: async () => true, open: async () => undefined },
-        projectCreationConfirm: new ProjectCreationConfirmManager(),
+        toolConfirm: new DesktopToolConfirmManager(),
         persistWindowSettings: () => undefined,
         broadcastWorkspaceProjects: () => undefined,
         broadcastPinnedThreadIdsChanged: () => undefined

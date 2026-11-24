@@ -91,6 +91,7 @@ import { ProviderListGroup } from './providers/ProviderListGroup'
 import { ProviderSelect } from './providers/ProviderSelect'
 import { SubAgentModelChoicesGroup } from './panels/subAgentModels/SubAgentModelChoicesGroup'
 import { GeneralPanel } from './panels/GeneralPanel'
+import { CdpDebuggingRow } from './panels/CdpDebuggingRow'
 import { FollowUpBehaviorRow } from './panels/FollowUpBehaviorRow'
 import { NewTaskBehaviorRow } from './panels/NewTaskBehaviorRow'
 import { DefaultOpenTargetRow } from './panels/DefaultOpenTargetRow'
@@ -1494,6 +1495,10 @@ export function SettingsView({
                   configManagementEnabled={configManagementEnabled}
                   onSharedSkillsChanged={() => setSkillsRestartPending(true)}
                 />
+
+                <SettingsGroup title={t('settings.group.developer')}>
+                  <CdpDebuggingRow />
+                </SettingsGroup>
               </SettingsPanelShell>
               </GeneralPanel>
             )}

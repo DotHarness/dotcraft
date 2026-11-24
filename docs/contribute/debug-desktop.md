@@ -32,13 +32,13 @@ npm run dev:debug -- -- --workspace <workspace-path>
 
 ### Packaged environment
 
-For a packaged Windows build, start the executable with the debugging port:
+For a packaged build, turn on **Settings › General › CDP debugging** and restart DotCraft. On Windows you can also start the executable with the debugging port:
 
 ```powershell
 DotCraft.exe --remote-debugging-port=9222
 ```
 
-Both commands expose the fixed loopback endpoint `http://127.0.0.1:9222`. CDP is enabled when the process starts.
+Each of these exposes the fixed loopback endpoint `http://127.0.0.1:9222`. CDP is enabled when the process starts. While it is on, chats in this Desktop are told the endpoint, so Agent can inspect the app without being given it.
 
 ## Confirm CDP is enabled
 

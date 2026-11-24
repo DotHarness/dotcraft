@@ -138,9 +138,9 @@ export function buildCallbacks(ctx: DesktopWindowRuntime): IpcHandlerCallbacks {
         broadcastProjects: ctx.app.broadcastWorkspaceProjects
       }, params)
     },
-    respondProjectCreationConfirm: (requestId, confirmed) => {
+    respondDesktopToolConfirm: (requestId, confirmed) => {
       const ownerId = ctx.mainWindow?.webContents.id
-      return ownerId !== undefined && ctx.app.projectCreationConfirm.respond(ownerId, requestId, confirmed)
+      return ownerId !== undefined && ctx.app.toolConfirm.respond(ownerId, requestId, confirmed)
     },
     restartWorkspace: async (workspacePath: string) => {
       const hubClient = ctx.app.createHubClient(ctx.settings)
@@ -184,7 +184,7 @@ export function buildCallbacks(ctx: DesktopWindowRuntime): IpcHandlerCallbacks {
     onAppServerRequestCompleted: (client, method, params, result, requestGeneration) => {
       ctx.observeAppServerRequestCompletion(client, method, params, result, requestGeneration)
       ctx.getThreadTasks().observeUserRequest(method, params)
-      ctx.app.projectCreationConfirm.observeUserRequest(method, params)
+      ctx.app.toolConfirm.observeUserRequest(method, params)
     },
     getUserInputAutoResolutionSnapshot: () => ctx.userInputAutoResolution.getSnapshot(),
     onUserInputConversationPresented: (threadId) => {

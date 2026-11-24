@@ -208,7 +208,7 @@
         "from": "resources/plugins",
         "to": "plugins",
         "filter": [
-          "dotcraft-bundled/plugins/{browser,chrome,computer,dotcraft,oratorio,satellite,token-hud,themes,memory-studio}/**/*",
+          "dotcraft-bundled/plugins/{browser,chrome,computer,creator,dotcraft,oratorio,satellite,token-hud,themes,memory-studio}/**/*",
           "!**/__pycache__/**",
           "!**/*.pyc"
         ]
