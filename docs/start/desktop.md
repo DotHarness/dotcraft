@@ -163,8 +163,6 @@ The two computers need to run the same DotCraft version or the other one newer. 
 
 On startup, DotCraft checks [GitHub Releases](https://github.com/DotHarness/dotcraft/releases) for a newer version. When an installer exists for your platform, a download button appears in the title bar: open it to read the release notes and download the installer with progress, then DotCraft quits and opens it for you.
 
-After an upgrade, **What's New** appears once when you enter a workspace and walks through the version's new capabilities with animated previews. Reopen it any time from **Help → What's New** or the version label at the bottom of the sidebar.
-
 ## Related docs
 
 - [Entry points overview](./entry-points) — when to switch to the CLI, an editor, or a group chat

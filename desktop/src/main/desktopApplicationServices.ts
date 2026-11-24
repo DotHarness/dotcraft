@@ -9,8 +9,6 @@ import type { DesktopHubClient } from './desktopHub'
 import type { DesktopThreadTasks } from './threadTasks/threadTaskService'
 import type { WindowAttentionNotifier } from './windowAttentionNotifier'
 import type { AppUpdateService } from './appUpdate'
-import type { WhatsNewCatalog } from './whatsNewCatalog'
-import type { WhatsNewMediaCache } from './whatsNewMediaCache'
 import type { DesktopWindowRuntime } from './windows/windowRuntime'
 
 export interface DesktopApplicationServices {
@@ -35,7 +33,5 @@ export interface DesktopApplicationServices {
   focusedWindow(): DesktopWindowRuntime | undefined
   windowFor(owner: BrowserWindow): DesktopWindowRuntime | undefined
   getAppUpdateService(): AppUpdateService
-  getWhatsNewMediaCache(): WhatsNewMediaCache
-  getWhatsNewCatalog(): WhatsNewCatalog
   broadcastPinnedThreadIdsChanged(payload: { workspacePath: string; threadIds: string[] }): void
 }

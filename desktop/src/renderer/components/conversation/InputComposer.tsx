@@ -62,6 +62,7 @@ import { CommandSearchPopover, type SlashSystemActionInfo } from './CommandSearc
 import { useSlashSkills } from './useSlashSkills'
 import { useChannelBindingCommands } from './useChannelBindingCommands'
 import { CREATOR_SYSTEM_ACTION_ID, isCreatorSlashCommand, useThreadComposerCreator } from './useComposerCreator'
+import { useSubagentChatSignal } from '../featureGuides/guides'
 import { GoalControlPopover } from './GoalControlPopover'
 import { GoalComposePill } from './GoalComposePill'
 import { ModelPicker, type ReasoningQuickValue } from './ModelPicker'
@@ -300,6 +301,7 @@ function InputComposerCore({
     followUpMode
   } = useComposerRunState(hasSubmitOverride, runtime)
   const rawMascotInteraction = useComposerMascot({ threadId, workspacePath })
+  useSubagentChatSignal(threadId)
   const linkedMascot = useLinkedChatMascot(threadId ?? null)
   const mascotInteraction = hasSubmitOverride
     ? undefined

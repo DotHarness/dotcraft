@@ -119,7 +119,6 @@ export interface UIState extends ProjectThreadNavigationState {
   activeSettingsTab: SettingsTab
   environmentSettingsTarget: EnvironmentSettingsTarget | null
   selectedChannelKey: SelectedChannelKey
-  whatsNewOpenRequestSeq: number
   sidebarPreferredCollapsed: boolean
   sidebarCollapsed: boolean
   sidebarWidth: number
@@ -166,7 +165,6 @@ interface UIStore extends UIState, ProjectThreadNavigationActions {
   clearEnvironmentSettingsTarget(): void
   setSelectedChannelKey(key: SelectedChannelKey): void
   requestCloseSettings(): void
-  requestOpenWhatsNew(): void
   setDiffMarkers(mode: DiffMarkerMode): void
   toggleSidebar(): void
   setSidebarCollapsed(collapsed: boolean): void
@@ -250,7 +248,6 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
   activeSettingsTab: 'general',
   environmentSettingsTarget: null,
   selectedChannelKey: null,
-  whatsNewOpenRequestSeq: 0,
   sidebarPreferredCollapsed: false,
   sidebarCollapsed: false,
   sidebarWidth: SIDEBAR_DEFAULT_WIDTH,
@@ -331,10 +328,6 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
   requestCloseSettings() {
     if (settingsCloseGuard && !settingsCloseGuard()) return
     set({ settingsOpen: false })
-  },
-
-  requestOpenWhatsNew() {
-    set((state) => ({ whatsNewOpenRequestSeq: state.whatsNewOpenRequestSeq + 1 }))
   },
 
   toggleSidebar() {

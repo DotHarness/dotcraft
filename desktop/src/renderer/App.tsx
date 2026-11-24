@@ -87,7 +87,8 @@ import { CoreMainViewBoundary, CoreSettingsView, coreMainViews, retainsMainView 
 import { MainViewOutlet } from './components/layout/MainViewOutlet'
 import { SettingsViewSkeleton } from './components/settings/SettingsSkeleton'
 import { scheduleIdlePrefetch } from './core/idlePrefetch'
-import { WhatsNewDialog } from './components/whats-new/WhatsNewDialog'
+import { CreatorFeatureGuide } from './components/featureGuides/guides'
+import { useFeatureGuideStore } from './stores/featureGuideStore'
 import { McpElicitationHost } from './components/mcp/McpElicitationHost'
 import { DesktopToolConfirmHost } from './components/DesktopToolConfirmHost'
 import { addJobResultToast, addToast } from './stores/toastStore'
@@ -112,15 +113,6 @@ import {
   resolveConfigChangedPayload,
   type ConfigChangedPayload
 } from './utils/configChanged'
-import {
-  compareAppVersions,
-  getLatestWhatsNewVersion,
-  getWhatsNewMediaStateKey,
-  getUnseenWhatsNewReleases,
-  getWhatsNewReleasesUpTo,
-  type WhatsNewMediaState,
-  type WhatsNewRelease
-} from '../shared/whatsNew'
 import { normalizeWorkspaceProjectKey } from '../shared/workspaceProjectKey'
 import type {
   BrowserUseApprovalRequestPayload,
@@ -131,7 +123,6 @@ import type {
 } from '../preload/api.d'
 const WORKSPACE_LAUNCH_TRANSITION_MS = 620
 const WORKSPACE_LAUNCH_REVEAL_MS = 360
-const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0'
 const DEFAULT_WINDOW_VISIBILITY_STATE: WindowVisibilityState = {
   minimized: false,
   visible: true,
@@ -171,49 +162,6 @@ function resolveWorkspaceDisplayName(status: WorkspaceStatusPayload): string {
   if (remoteName) return remoteName
   const path = status.workspacePath ?? ''
   return path ? basename(path) : 'DotCraft'
-}
-
-function getWhatsNewReleaseVersions(releases: WhatsNewRelease[]): string[] {
-  return releases.map((release) => release.version)
-}
-
-function mediaStatesEqual(a: WhatsNewMediaState | undefined, b: WhatsNewMediaState): boolean {
-  return (
-    a?.releaseVersion === b.releaseVersion &&
-    a.cardId === b.cardId &&
-    a.status === b.status &&
-    a.cachedUrl === b.cachedUrl &&
-    a.error === b.error
-  )
-}
-
-function mergeWhatsNewMediaStates(
-  current: Record<string, WhatsNewMediaState>,
-  states: WhatsNewMediaState[]
-): Record<string, WhatsNewMediaState> {
-  if (states.length === 0) return current
-  let next: Record<string, WhatsNewMediaState> | null = null
-  for (const state of states) {
-    const key = getWhatsNewMediaStateKey(state.releaseVersion, state.cardId)
-    if (mediaStatesEqual((next ?? current)[key], state)) continue
-    next ??= { ...current }
-    next[key] = state
-  }
-  return next ?? current
-}
-
-function areWhatsNewReleaseMediaReady(
-  releases: WhatsNewRelease[],
-  states: Record<string, WhatsNewMediaState>
-): boolean {
-  for (const release of releases) {
-    for (const card of release.cards) {
-      if (!card.media) continue
-      const state = states[getWhatsNewMediaStateKey(release.version, card.id)]
-      if (state?.status !== 'ready' || !state.cachedUrl) return false
-    }
-  }
-  return true
 }
 
 function createInitialWorkspaceLaunchTransition(
@@ -452,11 +400,6 @@ export function App(): JSX.Element {
   const remoteWorkspaceActiveRef = useRef(remoteWorkspaceActive)
   remoteWorkspaceActiveRef.current = remoteWorkspaceActive
   const [chromeSettingsOpenSeq, setChromeSettingsOpenSeq] = useState(0)
-  const [whatsNewDialog, setWhatsNewDialog] = useState<{
-    releases: WhatsNewRelease[]
-    markSeenVersion?: string
-  } | null>(null)
-  const [whatsNewMediaStates, setWhatsNewMediaStates] = useState<Record<string, WhatsNewMediaState>>({})
   const activeMainView = useUIStore((s) => s.activeMainView)
   const activeSettingsTab = useUIStore((s) => s.activeSettingsTab)
   const localImport = foregroundChat != null
@@ -470,7 +413,6 @@ export function App(): JSX.Element {
   const activeThreadEffectiveWorkspacePath = useThreadStore((s) => s.activeThread?.effectiveWorkspacePath ?? null)
   const desktopPluginMainViews = useDesktopPluginRegistry((state) => state.mainViews)
   const activeDesktopPluginView = desktopPluginMainViews.find((entry) => entry.viewKey === activeMainView) ?? null
-  const whatsNewOpenRequestSeq = useUIStore((s) => s.whatsNewOpenRequestSeq)
   const setQuickOpenVisible = useUIStore((s) => s.setQuickOpenVisible)
   const workspacePathRef = useRef(initialWorkspacePath)
   const protocolWorkspacePathRef = useRef(initialProtocolWorkspacePath)
@@ -479,18 +421,11 @@ export function App(): JSX.Element {
   )
   const workspaceStatusHydratedRef = useRef(hasPreloadedWorkspaceStatusRef.current)
   const configChangedDedupeRef = useRef<Map<string, number>>(new Map())
-  const whatsNewAutoCheckedVersionRef = useRef<string | null>(null)
-  const whatsNewMediaStatesRef = useRef<Record<string, WhatsNewMediaState>>({})
-  const whatsNewDialogOpenRef = useRef(false)
   const showMainWorkspaceUiRef = useRef(false)
   const addProject = useAddProjectFlow()
   const beginAddProjectRef = useRef(addProject.beginCreate)
   beginAddProjectRef.current = addProject.beginCreate
   const windowVisibilityStateRef = useRef<WindowVisibilityState>(DEFAULT_WINDOW_VISIBILITY_STATE)
-  const pendingAutoWhatsNewRef = useRef<{
-    releases: WhatsNewRelease[]
-    markSeenVersion?: string
-  } | null>(null)
 
   useEffect(() => {
     const applyVisibilityState = (state: WindowVisibilityState): void => {
@@ -502,8 +437,6 @@ export function App(): JSX.Element {
       .catch(() => undefined)
     return () => unsubscribeVisibility?.()
   }, [])
-
-  const lastSeenWhatsNewVersionRef = useRef<string | undefined>(undefined)
 
   useEffect(() => startOwnedThreadsSync(), [])
   useEffect(() => startSpaceTracking(), [])
@@ -639,96 +572,6 @@ export function App(): JSX.Element {
     }
   }, [])
 
-  const applyWhatsNewMediaStates = useCallback((states: WhatsNewMediaState[]): void => {
-    const next = mergeWhatsNewMediaStates(whatsNewMediaStatesRef.current, states)
-    if (next === whatsNewMediaStatesRef.current) return
-    whatsNewMediaStatesRef.current = next
-    setWhatsNewMediaStates(next)
-  }, [])
-
-  const openWhatsNew = useCallback((
-    releases: WhatsNewRelease[],
-    source: 'auto' | 'manual'
-  ): void => {
-    if (source === 'auto') {
-      pendingAutoWhatsNewRef.current = null
-    }
-    whatsNewDialogOpenRef.current = true
-    const markSeenVersion = getLatestWhatsNewVersion(releases)
-    setWhatsNewDialog({
-      releases,
-      ...(markSeenVersion ? { markSeenVersion } : {})
-    })
-  }, [])
-
-  const openPendingAutoWhatsNewIfReady = useCallback((): void => {
-    const pending = pendingAutoWhatsNewRef.current
-    if (!pending || !showMainWorkspaceUiRef.current || whatsNewDialogOpenRef.current) return
-
-    const markSeenVersion = pending.markSeenVersion
-    const lastSeenVersion = lastSeenWhatsNewVersionRef.current
-    if (
-      markSeenVersion &&
-      lastSeenVersion &&
-      compareAppVersions(markSeenVersion, lastSeenVersion) <= 0
-    ) {
-      pendingAutoWhatsNewRef.current = null
-      return
-    }
-
-    if (areWhatsNewReleaseMediaReady(pending.releases, whatsNewMediaStatesRef.current)) {
-      openWhatsNew(pending.releases, 'auto')
-    }
-  }, [openWhatsNew])
-
-  const startWhatsNewMediaPrefetch = useCallback((
-    releases: WhatsNewRelease[],
-    options: { openAutoWhenReady?: boolean } = {}
-  ): void => {
-    const releaseVersions = getWhatsNewReleaseVersions(releases)
-    if (releaseVersions.length === 0) return
-
-    void window.api.whatsNew
-      .getMediaStates(releaseVersions)
-      .then((states) => {
-        applyWhatsNewMediaStates(states)
-        if (options.openAutoWhenReady) openPendingAutoWhatsNewIfReady()
-      })
-      .catch(() => {})
-
-    void window.api.whatsNew
-      .prefetchMedia(releaseVersions)
-      .then((states) => {
-        applyWhatsNewMediaStates(states)
-        if (options.openAutoWhenReady) openPendingAutoWhatsNewIfReady()
-      })
-      .catch(() => {})
-  }, [applyWhatsNewMediaStates, openPendingAutoWhatsNewIfReady])
-
-  const openManualWhatsNew = useCallback((): void => {
-    void window.api.whatsNew
-      .getReleases()
-      .then((allReleases) => {
-        const releases = getWhatsNewReleasesUpTo(allReleases, APP_VERSION)
-        openWhatsNew(releases, 'manual')
-        startWhatsNewMediaPrefetch(releases)
-      })
-      .catch(() => {
-        openWhatsNew([], 'manual')
-      })
-  }, [openWhatsNew, startWhatsNewMediaPrefetch])
-
-  const closeWhatsNew = useCallback((): void => {
-    const markSeenVersion = whatsNewDialog?.markSeenVersion
-    whatsNewDialogOpenRef.current = false
-    setWhatsNewDialog(null)
-    if (markSeenVersion) {
-      lastSeenWhatsNewVersionRef.current = markSeenVersion
-      pendingAutoWhatsNewRef.current = null
-      void window.api.settings.set({ lastSeenWhatsNewVersion: markSeenVersion })
-    }
-  }, [whatsNewDialog])
-
   useEffect(initPromptSuggestionStore, [])
 
   useEffect(() => {
@@ -778,24 +621,6 @@ export function App(): JSX.Element {
       setChromeSettingsOpenSeq((current) => current + 1)
     })
   }, [])
-
-  useEffect(() => {
-    return window.api.window.onOpenWhatsNew(() => {
-      openManualWhatsNew()
-    })
-  }, [openManualWhatsNew])
-
-  useEffect(() => {
-    if (whatsNewOpenRequestSeq <= 0) return
-    openManualWhatsNew()
-  }, [whatsNewOpenRequestSeq, openManualWhatsNew])
-
-  useEffect(() => {
-    return window.api.whatsNew.onMediaStateChanged((state) => {
-      applyWhatsNewMediaStates([state])
-      openPendingAutoWhatsNewIfReady()
-    })
-  }, [applyWhatsNewMediaStates, openPendingAutoWhatsNewIfReady])
 
   useEffect(() => {
     return window.api.window.onOpenThread((payload) => {
@@ -1414,37 +1239,9 @@ export function App(): JSX.Element {
   }, [protocolWorkspacePath, showMainWorkspaceUi, workspacePath])
 
   useEffect(() => {
-    if (!showMainWorkspaceUi) return
-    if (whatsNewAutoCheckedVersionRef.current === APP_VERSION) return
-    whatsNewAutoCheckedVersionRef.current = APP_VERSION
+    if (showMainWorkspaceUi) void useFeatureGuideStore.getState().load().catch(() => {})
+  }, [showMainWorkspaceUi])
 
-    let disposed = false
-    void (async () => {
-      try {
-        const [settings, allReleases] = await Promise.all([
-          window.api.settings.get(),
-          window.api.whatsNew.getReleases()
-        ])
-        if (disposed) return
-        lastSeenWhatsNewVersionRef.current = settings.lastSeenWhatsNewVersion
-        const unseen = getUnseenWhatsNewReleases(allReleases, APP_VERSION, settings.lastSeenWhatsNewVersion)
-        const markSeenVersion = getLatestWhatsNewVersion(unseen)
-        if (unseen.length === 0 || !markSeenVersion) return
-
-        pendingAutoWhatsNewRef.current = {
-          releases: unseen,
-          markSeenVersion
-        }
-        startWhatsNewMediaPrefetch(unseen, { openAutoWhenReady: true })
-      } catch {
-        // Ignore automatic prompt failures; the manual entry point still works.
-      }
-    })()
-
-    return () => {
-      disposed = true
-    }
-  }, [showMainWorkspaceUi, startWhatsNewMediaPrefetch])
 
   const setupFlowWorkspaceStatus =
     workspaceStatus.status === 'needs-setup'
@@ -1621,13 +1418,7 @@ export function App(): JSX.Element {
       <>
         {content}
         <FindOverlay />
-        {whatsNewDialog && (
-          <WhatsNewDialog
-            releases={whatsNewDialog.releases}
-            mediaStates={whatsNewMediaStates}
-            onClose={closeWhatsNew}
-          />
-        )}
+        {showMainWorkspaceUi && <CreatorFeatureGuide />}
         <McpElicitationHost />
         <DesktopToolConfirmHost />
       </>

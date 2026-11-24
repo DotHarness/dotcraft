@@ -27,8 +27,11 @@ import { EffortSlider } from './EffortSlider'
 import { ComposerOverlapBand, useComposerOverlapBandHeight } from './useComposerOverlapBand'
 import css from './ModelPicker.module.css'
 import { ModelCatalogNotice } from './ModelCatalogNotice'
+import { SubagentModelsFeatureGuide } from '../featureGuides/guides'
 import { acceleratedSpeeds, effectiveSpeed } from './modelSpeed'
 import { SpeedControl, SpeedFlyout, SpeedIcon, speedFlyoutStyle, useSpeedFlyoutController } from './ModelPickerSpeed'
+
+const SUBAGENT_MODELS_GUIDE_STYLE: CSSProperties = { right: 'calc(100% + 12px)', bottom: 0 }
 
 export type ReasoningQuickValue = 'default' | 'off' | ReasoningEffortWire
 
@@ -681,6 +684,7 @@ export function ModelPicker({
           }}
         >
           <ComposerOverlapBand height={overlapBandHeight} />
+          <SubagentModelsFeatureGuide style={SUBAGENT_MODELS_GUIDE_STYLE} />
           <ModelCatalogNotice providerId={providerId} />
           {errorMessage && (
             <div

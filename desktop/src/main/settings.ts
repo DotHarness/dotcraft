@@ -2,7 +2,6 @@ import { app } from 'electron'
 import { join, normalize } from 'path'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { normalizeLocale, type AppLocale } from '../shared/locales'
-import { isValidAppVersion } from '../shared/whatsNew'
 import { normalizeSshMachines, type SshMachine } from '../shared/sshMachines'
 import type { CreatedSatelliteInvite, SatelliteThreadRoute } from '../shared/satellites'
 export type { CreatedSatelliteInvite, SatelliteThreadRoute } from '../shared/satellites'
@@ -44,6 +43,7 @@ import type {
 } from '../shared/desktopSettings'
 import { normalizeLinkPreferences } from '../shared/desktopSettings'
 import { normalizeComposerTextDrafts } from '../shared/composerTextDrafts'
+import { normalizeFeatureGuides, type FeatureGuidesSettings } from '../shared/featureGuides'
 export type {
   BinarySource,
   BrowserUseApprovalMode,
@@ -151,13 +151,13 @@ export interface AppSettings extends SidebarThreadOrderSettings {
   summaryHidden?: boolean
   environmentSetupTipDismissed?: boolean
   feedbackSurveyShown?: boolean
+  featureGuides?: FeatureGuidesSettings
   chatsFolder?: string
   chatsFolderHistory?: string[]
   /** macOS-only preference controlling whether DotCraft appears in the menu bar. */
   showInMenuBar?: boolean
   cdpDebugging?: boolean
   creatorThreadIds?: string[]
-  lastSeenWhatsNewVersion?: string
   localProjectDetails?: Record<string, LocalProjectDetails>
   openTargetPreferences?: OpenTargetPreferences
   projectActionPreferences?: Record<string, ProjectActionPreferences>
@@ -386,12 +386,6 @@ export function normalizeShowInMenuBar(settings: AppSettings): boolean | undefin
   return typeof settings.showInMenuBar === 'boolean'
     ? settings.showInMenuBar
     : undefined
-}
-
-function normalizeLastSeenWhatsNewVersion(settings: AppSettings): string | undefined {
-  const raw = settings.lastSeenWhatsNewVersion
-  if (!isValidAppVersion(raw)) return undefined
-  return raw.trim()
 }
 
 export function normalizeRemoteHostsSetting(settings: AppSettings): SshMachine[] | undefined {
@@ -632,6 +626,7 @@ export function loadSettings(): AppSettings {
       raw.summaryHidden = normalizeSummaryHidden(raw)
       raw.environmentSetupTipDismissed = normalizeEnvironmentSetupTipDismissed(raw)
       raw.feedbackSurveyShown = normalizeFeedbackSurveyShown(raw)
+      raw.featureGuides = raw.featureGuides === undefined ? undefined : normalizeFeatureGuides(raw.featureGuides)
       raw.chatsFolder = normalizeChatsFolderSetting(raw.chatsFolder)
       raw.chatsFolderHistory = rememberChatsFolder(raw.chatsFolderHistory, raw.chatsFolder)
       normalizeSidebarThreadOrderSettings(raw)
@@ -647,7 +642,6 @@ export function loadSettings(): AppSettings {
       raw.interfaceZoom = normalizeInterfaceZoomSetting(raw)
       raw.translucentSidebar = normalizeTranslucentSidebarSetting(raw)
       raw.welcomeBackdrop = normalizeWelcomeBackdropSetting(raw)
-      raw.lastSeenWhatsNewVersion = normalizeLastSeenWhatsNewVersion(raw)
       raw.profile = normalizeProfileSettings(raw)
       raw.voice = normalizeVoiceSettings(raw)
       raw.pinnedThreadIdsByWorkspace = normalizePinnedThreadIdsByWorkspace(raw)
@@ -701,6 +695,7 @@ export function saveSettings(settings: AppSettings): void {
     settings.summaryHidden = normalizeSummaryHidden(settings)
     settings.environmentSetupTipDismissed = normalizeEnvironmentSetupTipDismissed(settings)
     settings.feedbackSurveyShown = normalizeFeedbackSurveyShown(settings)
+    settings.featureGuides = settings.featureGuides === undefined ? undefined : normalizeFeatureGuides(settings.featureGuides)
     settings.chatsFolder = normalizeChatsFolderSetting(settings.chatsFolder)
     settings.chatsFolderHistory = rememberChatsFolder(settings.chatsFolderHistory, settings.chatsFolder)
     normalizeSidebarThreadOrderSettings(settings)
@@ -716,7 +711,6 @@ export function saveSettings(settings: AppSettings): void {
     settings.interfaceZoom = normalizeInterfaceZoomSetting(settings)
     settings.translucentSidebar = normalizeTranslucentSidebarSetting(settings)
     settings.welcomeBackdrop = normalizeWelcomeBackdropSetting(settings)
-    settings.lastSeenWhatsNewVersion = normalizeLastSeenWhatsNewVersion(settings)
     settings.profile = normalizeProfileSettings(settings)
     settings.voice = normalizeVoiceSettings(settings)
     settings.pinnedThreadIdsByWorkspace = normalizePinnedThreadIdsByWorkspace(settings)

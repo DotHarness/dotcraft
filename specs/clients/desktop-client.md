@@ -1091,15 +1091,21 @@ tab and detail. If that detail becomes unavailable, Desktop returns to the Chann
   than duplicating the channel. Switching the active implementation stops the previous one and
   updates the setup and controls to match the selection.
 
-### 6.9 What's New
+### 6.9 Feature Guides
 
-Desktop owns a versioned What's New surface for release highlights, independent of AppServer beyond reaching the normal workspace UI.
+Desktop introduces a few signature features when they become useful, never on first launch. Each guide belongs to one moment: **entry** (the person just turned the feature on), **readiness** (their usage shows the feature would help), or **friction** (they just hit the problem it solves). Its form follows [DESIGN.md](../architecture/DESIGN.md#feature-guides).
 
-- Release text is bundled with Desktop and keyed by app version. Optional media comes from the DotHarness resources repository and is downloaded, size-checked against a per-entry budget (oversized entries are rejected), SHA-256 verified, and cached.
-- After an update, unseen highlights appear automatically once the user reaches the normal workspace UI for a ready workspace and required media is cached; never on welcome, setup, launch, or blocking error surfaces. A missing or invalid last-seen version counts as unseen. Media failure skips the automatic prompt without marking the release seen.
-- Closing a prompt with unseen releases records the latest visible version as seen.
-- Users can reopen What's New manually, which shows all bundled releases up to the running version regardless of seen state, newest expanded.
-- Missing media degrades to a stable text presentation.
+| Guide | Moment | Shows when | Settled when |
+|---|---|---|---|
+| Creator | Entry | Creator mode turns on for a thread ([§5.13](#513-composer-system-actions)) | it has shown once |
+| Subagent models | Readiness | two or more providers are set up and subagents have run from two or more chats. Shows beside the model picker the next time it opens | `SubAgent.Models` is not empty |
+| Find out why | Friction | a retried turn fails again, or turns fail in two different chats in one app session. Shows in place of the mascot's error bubble, and its action starts the same diagnosis | a diagnosis has been started |
+
+- One guide is visible at a time, only in the normal workspace UI while the window is visible and no turn of the current chat is running. A guide that cannot show when its condition fires tries again at its next trigger.
+- Readiness and friction guides never show during the app session in which feature guides were first initialized, and at most one of them shows per local day.
+- A guide shows at most twice. Its primary action settles it. Closing it any other way lets it return once, no sooner than seven days later.
+- A guide whose settling condition becomes true is settled, whether or not it has shown.
+- Settings › General › **Feature tips** turns all guides off. Guide state is stored per installation in Desktop settings and is never sent anywhere.
 
 ### 6.10 SSH Machines
 

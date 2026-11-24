@@ -1,5 +1,5 @@
 ---
-version: "0.14.0"
+version: "0.14.2"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 colors:
@@ -399,7 +399,7 @@ slides back out.
 | Detail viewers | Content-native when needed | Neutral viewer chrome |
 | Modals and dialogs | Neutral elevated surfaces | One neutral inverted primary action |
 | Setup / onboarding | Neutral product surface | Restrained brand accent is allowed |
-| Release highlights | Neutral modal surface | Media previews may contain their own colors |
+| Feature guides | Neutral card or modal surface | The media band may contain its own colors |
 
 ### Catalog pages
 
@@ -1840,6 +1840,28 @@ with the conversation.
   user reviews before posting. The line leaves when that action is pressed, when it
   is dismissed, or when the next turn starts.
 - Nothing is sent anywhere. The rating only chooses the follow-up.
+
+### Feature guides
+
+A feature guide introduces one signature feature when it becomes useful
+([Desktop §6.9](../clients/desktop-client.md#69-feature-guides)). It shows the
+feature instead of describing it, so a guide without media is not built.
+
+- Two forms. A **coachmark** is a 300px card beside the control it explains, in that
+  control's layer, never covering it. Using the card does not dismiss the control.
+  A **spotlight** is a 440px modal dialog, used when the person turns a mode on or
+  the feature has no control to stand beside.
+- Media fills the top of the card edge to edge: real product UI, captured or
+  mounted inert, on the brand gradient field in the theme's light or dark variant.
+  Coachmark media is 120 to 188px tall, spotlight media about 208px. This band is
+  the one exception to the 24px dialog inset and to neutral dialog color.
+- Close sits on the media as a 30px round translucent button. Escape closes too.
+- Below the media: a `--type-heading` title, one sentence in `--text-secondary`,
+  and, in a spotlight only, up to three short icon points. Coachmark text uses a
+  16px inset, spotlight text the dialog's 24px.
+- One primary action that does the thing the guide teaches. A coachmark may add a
+  ghost Not now. A guide never asks a question or carries a form.
+- Entrance is a 160ms fade from 0.97 scale. Reduced motion shows it in place.
 
 ### Interactive tool UI
 

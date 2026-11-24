@@ -140,7 +140,6 @@ import type {
   SkillMarketSearchRequest,
   SkillMarketSearchResult
 } from '../shared/skillMarket'
-import type { WhatsNewMediaState, WhatsNewRelease } from '../shared/whatsNew'
 import type { AppUpdateState } from '../shared/appUpdate'
 import type {
   VoiceMicrophonePermissionStatus,
@@ -225,6 +224,7 @@ import {
   type RawNotificationPayload
 } from '../shared/appServerBoundary'
 import type { UserInputAutoResolutionState } from '../shared/userInputAutoResolution'
+import type { FeatureGuidesSettings } from '../shared/featureGuides'
 
 export type UnsubscribeFn = () => void
 
@@ -371,18 +371,6 @@ let openChromeSettingsToken = 0
 let activeOpenChromeSettingsCallback: (() => void) | null = null
 ipcRenderer.on('app:open-chrome-settings', () => {
   activeOpenChromeSettingsCallback?.()
-})
-
-let openWhatsNewToken = 0
-let activeOpenWhatsNewCallback: (() => void) | null = null
-ipcRenderer.on('app:open-whats-new', () => {
-  activeOpenWhatsNewCallback?.()
-})
-
-let whatsNewMediaStateToken = 0
-let activeWhatsNewMediaStateCallback: ((state: WhatsNewMediaState) => void) | null = null
-ipcRenderer.on('app:whats-new-media-state-changed', (_event: Electron.IpcRendererEvent, state: WhatsNewMediaState) => {
-  activeWhatsNewMediaStateCallback?.(state)
 })
 
 let appUpdateStateToken = 0
@@ -733,16 +721,6 @@ const api = {
       return () => {
         if (openChromeSettingsToken === token) {
           activeOpenChromeSettingsCallback = null
-        }
-      }
-    },
-
-    onOpenWhatsNew(callback: () => void): () => void {
-      const token = ++openWhatsNewToken
-      activeOpenWhatsNewCallback = callback
-      return () => {
-        if (openWhatsNewToken === token) {
-          activeOpenWhatsNewCallback = null
         }
       }
     },
@@ -1593,6 +1571,7 @@ const api = {
       summaryHidden?: boolean
       environmentSetupTipDismissed?: boolean
       feedbackSurveyShown?: boolean
+      featureGuides?: FeatureGuidesSettings
       chatsFolder?: string
       recentsThreadSort?: SidebarThreadSortMode
       projectsThreadSort?: SidebarThreadSortMode
@@ -1608,7 +1587,6 @@ const api = {
       showInMenuBar?: boolean
       cdpDebugging?: boolean
       openTargetPreferences?: OpenTargetPreferences
-      lastSeenWhatsNewVersion?: string
       browserUse?: {
         approvalMode?: BrowserUseApprovalMode
         blockedDomains?: string[]
@@ -1686,6 +1664,7 @@ const api = {
       summaryHidden?: boolean
       environmentSetupTipDismissed?: boolean
       feedbackSurveyShown?: boolean
+      featureGuides?: FeatureGuidesSettings
       chatsFolder?: string
       recentsThreadSort?: SidebarThreadSortMode
       projectsThreadSort?: SidebarThreadSortMode
@@ -1702,7 +1681,6 @@ const api = {
       showInMenuBar?: boolean
       cdpDebugging?: boolean
       openTargetPreferences?: OpenTargetPreferences
-      lastSeenWhatsNewVersion?: string
       browserUse?: {
         approvalMode?: BrowserUseApprovalMode
         blockedDomains?: string[]
@@ -1747,27 +1725,6 @@ const api = {
       activePinnedThreadIdsChangedCallback = callback
       return () => {
         if (pinnedThreadIdsChangedToken === token) activePinnedThreadIdsChangedCallback = null
-      }
-    }
-  },
-
-  whatsNew: {
-    getReleases(): Promise<WhatsNewRelease[]> {
-      return ipcRenderer.invoke('app:whats-new-get-releases')
-    },
-    getMediaStates(releaseVersions: string[]): Promise<WhatsNewMediaState[]> {
-      return ipcRenderer.invoke('app:whats-new-get-media-states', releaseVersions)
-    },
-    prefetchMedia(releaseVersions: string[]): Promise<WhatsNewMediaState[]> {
-      return ipcRenderer.invoke('app:whats-new-prefetch-media', releaseVersions)
-    },
-    onMediaStateChanged(callback: (state: WhatsNewMediaState) => void): UnsubscribeFn {
-      const token = ++whatsNewMediaStateToken
-      activeWhatsNewMediaStateCallback = callback
-      return () => {
-        if (whatsNewMediaStateToken === token) {
-          activeWhatsNewMediaStateCallback = null
-        }
       }
     }
   },

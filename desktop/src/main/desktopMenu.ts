@@ -75,11 +75,6 @@ export function refreshDesktopMenu(services: DesktopApplicationServices): void {
       label: t('menu.help'),
       submenu: [
         {
-          label: t('menu.whatsNew'),
-          click: () => services.focusedWindow()?.mainWindow?.webContents.send('app:open-whats-new')
-        },
-        { type: 'separator' },
-        {
           label: t('menu.documentation'),
           click: () => {
             void shell.openExternal('https://github.com/DotHarness/dotcraft')
@@ -162,13 +157,6 @@ export function registerDesktopApplicationIpc(services: DesktopApplicationServic
     const item = findMenuItem(Menu.getApplicationMenu(), commandId)
     if (item?.enabled) item.click(undefined, owner, event.sender)
   })
-  ipcMain.handle('app:whats-new-get-releases', () => services.getWhatsNewCatalog().getReleases())
-  ipcMain.handle('app:whats-new-get-media-states', (_event, versions: string[]) =>
-    services.getWhatsNewMediaCache().getMediaStates(Array.isArray(versions) ? versions : [])
-  )
-  ipcMain.handle('app:whats-new-prefetch-media', (_event, versions: string[]) =>
-    services.getWhatsNewMediaCache().prefetchMedia(Array.isArray(versions) ? versions : [])
-  )
   ipcMain.handle('app:update-get-state', () => services.getAppUpdateService().getState())
   ipcMain.handle('app:update-download', () => services.getAppUpdateService().download())
   ipcMain.handle('app:update-install', () => services.getAppUpdateService().install())

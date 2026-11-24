@@ -1,0 +1,157 @@
+.media {
+  position: relative;
+  overflow: hidden;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+.capture {
+  position: absolute;
+  display: block;
+  border-radius: 12px;
+  box-shadow: 0 0 0 1px var(--glass-border), var(--shadow-level-3);
+  user-select: none;
+}
+
+.close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 1;
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--overlay-scrim);
+  color: var(--bg-primary);
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+}
+
+:global([data-theme='dark']) .close {
+  color: var(--text-primary);
+}
+
+.close:hover {
+  filter: brightness(1.25);
+}
+
+.close:focus-visible {
+  outline: 2px solid var(--border-active);
+  outline-offset: 2px;
+}
+
+.title {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--type-heading-size);
+  font-weight: var(--type-heading-weight);
+  line-height: var(--type-heading-line-height);
+}
+
+.text {
+  margin: 6px 0 0;
+  color: var(--text-secondary);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line-height);
+}
+
+.coachmark {
+  position: absolute;
+  width: 300px;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: var(--bg-secondary);
+  box-shadow: var(--shadow-level-3);
+  text-align: left;
+  animation: enter 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.coachmarkBody {
+  padding: 14px 16px 0;
+}
+
+.coachmarkFooter {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 16px;
+}
+
+:global(.dc-modal).spotlight {
+  padding-top: 0;
+  animation: enter 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+:global(.dc-modal).spotlight > :global(.dc-modal__inset):first-child {
+  padding-inline: 0;
+}
+
+.spotlightMedia {
+  position: relative;
+  margin-bottom: 20px;
+}
+
+.points {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.point {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: var(--text-secondary);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line-height);
+}
+
+.point strong {
+  color: var(--text-primary);
+  font-weight: var(--type-ui-emphasis-weight);
+}
+
+.pointIcon {
+  display: inline-grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+}
+
+.mascotStage {
+  position: absolute;
+  inset: auto auto 12px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.mascot {
+  display: grid;
+  place-items: center;
+  width: 58px;
+}
+
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .coachmark,
+  :global(.dc-modal).spotlight {
+    animation: none;
+  }
+}

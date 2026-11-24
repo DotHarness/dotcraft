@@ -16,7 +16,6 @@ import { type GitBranchListSnapshot } from '../stores/gitStore'
 
 import type { WorkspaceStatusPayload } from '../../preload/api'
 import type { WorkspaceProjectsPayload } from '../../shared/workspaceProjects'
-import { WHATS_NEW_TEST_RELEASES } from './whatsNewFixtures'
 import type { Thread, ThreadSummary } from '../types/thread'
 import { installDesktopApiMock } from './desktopApiMock'
 
@@ -138,14 +137,6 @@ vi.mock('../components/ui/ToastContainer', () => ({
   ToastContainer: () => <div data-testid="toast-container" />
 }))
 
-vi.mock('../components/whats-new/WhatsNewDialog', () => ({
-  WhatsNewDialog: ({ onClose }: { onClose: () => void }) => (
-    <div data-testid="whats-new-dialog">
-      <button type="button" onClick={onClose}>close whats new</button>
-    </div>
-  )
-}))
-
 const readyWorkspaceStatus: WorkspaceStatusPayload = {
   status: 'ready',
   workspacePath: 'C:\\sample\\workspace',
@@ -224,9 +215,6 @@ function installApi(
     onNotification?: ReturnType<typeof vi.fn>
     onServerRequest?: ReturnType<typeof vi.fn>
     onServerRequestRaw?: ReturnType<typeof vi.fn>
-    getReleases?: ReturnType<typeof vi.fn>
-    getMediaStates?: ReturnType<typeof vi.fn>
-    prefetchMedia?: ReturnType<typeof vi.fn>
     gitListBranches?: ReturnType<typeof vi.fn>
     workspaceGetStatus?: ReturnType<typeof vi.fn>
     onWorkspaceStatusChange?: ReturnType<typeof vi.fn>
@@ -238,9 +226,6 @@ function installApi(
 ): {
   settingsGet: ReturnType<typeof vi.fn>
   settingsSet: ReturnType<typeof vi.fn>
-  getReleases: ReturnType<typeof vi.fn>
-  getMediaStates: ReturnType<typeof vi.fn>
-  prefetchMedia: ReturnType<typeof vi.fn>
   appServerSendRequest: ReturnType<typeof vi.fn>
   workspaceGetStatus: ReturnType<typeof vi.fn>
   onWorkspaceStatusChange: ReturnType<typeof vi.fn>
@@ -266,9 +251,6 @@ function installApi(
   const onNotification = overrides.onNotification ?? vi.fn(() => vi.fn())
   const onServerRequest = overrides.onServerRequest ?? vi.fn(() => vi.fn())
   const onServerRequestRaw = overrides.onServerRequestRaw ?? vi.fn(() => vi.fn())
-  const getReleases = overrides.getReleases ?? vi.fn().mockResolvedValue(WHATS_NEW_TEST_RELEASES)
-  const getMediaStates = overrides.getMediaStates ?? vi.fn().mockResolvedValue([])
-  const prefetchMedia = overrides.prefetchMedia ?? vi.fn().mockResolvedValue([])
   const gitListBranches = overrides.gitListBranches ?? vi.fn().mockResolvedValue(gitSnapshot())
   const workspaceGetStatus = overrides.workspaceGetStatus ?? vi.fn(() => pending)
   const onWorkspaceStatusChange = overrides.onWorkspaceStatusChange ?? vi.fn(() => vi.fn())
@@ -317,15 +299,8 @@ function installApi(
         onMaximizedChange: vi.fn(() => vi.fn()),
         onVisibilityChanged: onWindowVisibilityChanged,
         onOpenChromeSettings: vi.fn(() => vi.fn()),
-        onOpenWhatsNew: vi.fn(() => vi.fn()),
         onOpenThread: vi.fn(() => vi.fn()),
         onOpenNewChat: vi.fn(() => vi.fn())
-      },
-      whatsNew: {
-        getReleases,
-        getMediaStates,
-        prefetchMedia,
-        onMediaStateChanged: vi.fn(() => vi.fn())
       },
       appServer: {
         sendRequest: appServerSendRequest,
@@ -389,9 +364,6 @@ function installApi(
   return {
     settingsGet,
     settingsSet,
-    getReleases,
-    getMediaStates,
-    prefetchMedia,
     appServerSendRequest: request,
     workspaceGetStatus,
     onWorkspaceStatusChange,

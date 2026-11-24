@@ -204,7 +204,6 @@ const explicitApi = {
     onMaximizedChange: unsubscribe,
     getWorkspacePath: async () => DEMO_WORKSPACE_PATH,
     onOpenChromeSettings: unsubscribe,
-    onOpenWhatsNew: unsubscribe,
     onOpenThread: unsubscribe,
     onOpenNewChat: unsubscribe
   },
@@ -362,12 +361,6 @@ const explicitApi = {
     getAppConnectionStatus: async () => ({}),
     startAppConnection: async () => ({}),
     openApp: async () => {}
-  },
-  whatsNew: {
-    getReleases: async () => [],
-    getMediaStates: async () => [],
-    prefetchMedia: async () => [],
-    onMediaStateChanged: unsubscribe
   },
   updates: {
     getState: async () => ({ status: 'idle' }),

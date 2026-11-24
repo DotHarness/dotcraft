@@ -14,12 +14,16 @@ import type { ContextMenuItem } from '../ui/ContextMenu'
 import type { ComposerMascotInteraction } from './ComposerShell'
 import type { InputPart } from '../../types/conversation'
 import type { ThreadSummary } from '../../types/thread'
+import { useFeatureGuideStore } from '../../stores/featureGuideStore'
+import { FindOutWhyFeatureGuide } from '../featureGuides/guides'
 
 const DOTCRAFT_PLUGIN_ID = 'dotcraft'
 const SUCCESS_MS = 3200
+const failedThreadsThisSession = new Set<string>()
 
 type LocalBubble =
   | { kind: 'error'; turnId: string }
+  | { kind: 'guide'; turnId: string }
   | { kind: 'success'; turnId: string }
   | { kind: 'approval' }
   | { kind: 'confirmInstall'; skill: string; context: string }
@@ -54,6 +58,8 @@ export function useComposerMascot({
   const dismissedApprovalRef = useRef<string | null>(null)
   const prevStatusRef = useRef<string | null>(null)
   const prevThreadRef = useRef<string | null>(null)
+  const retriedRef = useRef(false)
+  const guideActive = useFeatureGuideStore((s) => s.active === 'findOutWhy')
 
   useEffect(() => {
     const prevStatus = prevStatusRef.current
@@ -69,6 +75,7 @@ export function useComposerMascot({
     // Switching into (or first mounting) a thread must never auto-pop a stale outcome,
     // so its loaded last turn counts as already-seen; a pending approval still surfaces.
     if (threadChanged) {
+      retriedRef.current = false
       if (lastTurnId) handledRef.current = `${lastTurnId}:${lastTurnStatus}`
       dismissedApprovalRef.current = null
       setLocal(turnStatus === 'waitingApproval' && approvalItemId ? { kind: 'approval' } : null)
@@ -89,7 +96,7 @@ export function useComposerMascot({
 
     if (turnStatus === 'running') {
       setLocal((prev) =>
-        prev && (prev.kind === 'error' || prev.kind === 'success' || prev.kind === 'approval') ? null : prev
+        prev && (prev.kind === 'error' || prev.kind === 'guide' || prev.kind === 'success' || prev.kind === 'approval') ? null : prev
       )
       return
     }
@@ -98,7 +105,13 @@ export function useComposerMascot({
       const key = `${lastTurnId}:${lastTurnStatus}`
       if (handledRef.current !== key) {
         handledRef.current = key
-        if (lastTurnStatus === 'failed') setLocal({ kind: 'error', turnId: lastTurnId })
+        if (lastTurnStatus === 'failed') {
+          const friction = retriedRef.current || [...failedThreadsThisSession].some((id) => id !== threadId)
+          retriedRef.current = false
+          failedThreadsThisSession.add(threadId)
+          const guide = friction && useFeatureGuideStore.getState().request('findOutWhy')
+          setLocal({ kind: guide ? 'guide' : 'error', turnId: lastTurnId })
+        }
         else if (lastTurnHasContent && !hasRunningBackgroundWork(threadId)) setLocal({ kind: 'success', turnId: lastTurnId })
       }
     }
@@ -178,6 +191,7 @@ export function useComposerMascot({
 
   const runDoctor = useCallback(
     async (skill: string, context: string): Promise<void> => {
+      if (skill === 'dotcraft-error-diagnosis') useFeatureGuideStore.getState().settle('findOutWhy')
       const store = usePluginStore.getState()
       if (store.plugins.length === 0) {
         try {
@@ -194,8 +208,13 @@ export function useComposerMascot({
     [startDoctorThread]
   )
 
+  useEffect(() => {
+    if (local?.kind === 'guide' && !guideActive) setLocal(null)
+  }, [guideActive, local?.kind])
+
   const retry = useCallback(async (): Promise<void> => {
     setLocal(null)
+    retriedRef.current = true
     try {
       await reissueFailedTurn({ threadId, workspacePath })
     } catch (err) {
@@ -262,8 +281,16 @@ export function useComposerMascot({
     let expression: ComposerMascotInteraction['expression']
     let light: ComposerMascotInteraction['light']
     let bubble: ComposerMascotInteraction['bubble'] = null
+    let guide: ComposerMascotInteraction['guide']
 
     switch (local?.kind) {
+      case 'guide':
+        expression = 'operator'
+        light = 'error'
+        guide = createElement(FindOutWhyFeatureGuide, {
+          onLookIntoIt: () => void runDoctor('dotcraft-error-diagnosis', diagnoseContext())
+        })
+        break
       case 'error':
         expression = 'operator'
         light = 'error'
@@ -312,7 +339,7 @@ export function useComposerMascot({
         break
     }
 
-    if (!bubble && menuItems.length === 0 && expression === undefined && (light === undefined || light === 'default')) {
+    if (!bubble && !guide && menuItems.length === 0 && expression === undefined && (light === undefined || light === 'default')) {
       return undefined
     }
 
@@ -320,6 +347,7 @@ export function useComposerMascot({
       expression,
       light,
       bubble,
+      guide,
       menuItems
     }
   }, [

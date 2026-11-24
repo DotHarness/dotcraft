@@ -34,8 +34,6 @@ import { mergeUpdatedSettings } from './settingsMerge'
 import { createDesktopThreadTasks } from './threadTasks/threadTasksIpc'
 import { createDesktopTray, type DesktopTray } from './trayManager'
 import { refreshVoiceChatGptAvailability, shutdownVoiceService } from './voice/voiceIpc'
-import { WhatsNewCatalog } from './whatsNewCatalog'
-import { resolveWhatsNewMediaAssets, WhatsNewMediaCache } from './whatsNewMediaCache'
 import { createWindowAttentionNotifier } from './windowAttentionNotifier'
 import type { DesktopWindowRuntime } from './windows/windowRuntime'
 import { applyNativeChromeTheme, resolveInitialTheme, resolveThemeSurface } from './windowTheme'
@@ -91,8 +89,6 @@ export class DesktopApplication implements DesktopApplicationServices {
     this.broadcast(OWNED_THREADS_CHANGED_CHANNEL, records)
   })
   private readonly hubs = new Map<string, DesktopHubClient>()
-  private readonly catalog = new WhatsNewCatalog()
-  private media: WhatsNewMediaCache | null = null
   private updater: AppUpdateService | null = null
   private tray: DesktopTray | null = null
   private updateTimer: ReturnType<typeof setTimeout> | null = null
@@ -277,13 +273,6 @@ export class DesktopApplication implements DesktopApplicationServices {
   openDesktopWindow = (workspacePath?: string | null, threadId?: string | null): Promise<void> =>
     this.manager.openWorkspace(workspacePath, threadId)
   refreshAppMenu = (): void => refreshDesktopMenu(this)
-  getWhatsNewCatalog = (): WhatsNewCatalog => this.catalog
-  getWhatsNewMediaCache = (): WhatsNewMediaCache =>
-    (this.media ??= new WhatsNewMediaCache({
-      assetResolver: async (versions) =>
-        resolveWhatsNewMediaAssets(await this.catalog.getReleases(), versions),
-      onStateChanged: (state) => this.broadcast('app:whats-new-media-state-changed', state)
-    }))
   broadcastPinnedThreadIdsChanged = (payload: { workspacePath: string; threadIds: string[] }): void =>
     this.broadcast('settings:pinned-thread-ids-changed', payload)
 

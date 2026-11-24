@@ -2,6 +2,8 @@ import { useCallback, useMemo, type ReactNode } from 'react'
 import { Hammer } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { setThreadCreator, useThreadCreator } from '../../stores/creatorModeStore'
+import { useConversationStore } from '../../stores/conversationStore'
+import { useFeatureGuideStore } from '../../stores/featureGuideStore'
 import { addToast } from '../../stores/toastStore'
 import type { SlashSystemActionInfo } from './CommandSearchPopover'
 import { ComposerCreatorLabel } from './ComposerShell'
@@ -37,7 +39,10 @@ export function useComposerCreatorControls({
     keywords: ['creator', 'plugin', 'extension'],
     icon: <Hammer size={15} strokeWidth={2} aria-hidden />
   } : null, [available, creator, t])
-  const toggle = useCallback(() => onChange(!creator), [creator, onChange])
+  const toggle = useCallback(() => {
+    if (!creator && useConversationStore.getState().turnStatus === 'idle') useFeatureGuideStore.getState().request('creator')
+    onChange(!creator)
+  }, [creator, onChange])
   const pill = available && creator ? (
     <ComposerCreatorLabel
       onDisable={() => onChange(false)}

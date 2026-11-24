@@ -26,6 +26,7 @@ const SECTION_ENTRIES: SectionEntry[] = [
   { panel: 'general', key: 'settings.group.composer', keywords: 'follow up interrupt' },
   { panel: 'general', key: 'settings.general.showInMenuBar', keywords: 'tray' },
   { panel: 'general', key: 'settings.personalization.showThinkingContent', keywords: 'reasoning' },
+  { panel: 'general', key: 'settings.general.featureTips', keywords: 'guides onboarding' },
   { panel: 'general', key: 'settings.personalization.promptSuggestions' },
   { panel: 'general', key: 'settings.group.agent', keywords: 'permissions approval code mode skills' },
   { panel: 'general', key: 'settings.permissions.workspaceDefault.label', keywords: 'approval permissions full access' },

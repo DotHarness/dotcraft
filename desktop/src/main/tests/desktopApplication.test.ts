@@ -52,8 +52,6 @@ vi.mock('../trayManager', () => ({
 vi.mock('../voice/voiceIpc', () => ({
   refreshVoiceChatGptAvailability: vi.fn(), shutdownVoiceService: vi.fn()
 }))
-vi.mock('../whatsNewCatalog', () => ({ WhatsNewCatalog: class {} }))
-vi.mock('../whatsNewMediaCache', () => ({}))
 vi.mock('../windowAttentionNotifier', () => ({ createWindowAttentionNotifier: vi.fn() }))
 vi.mock('../windowTheme', () => ({}))
 vi.mock('../newThreadDeepLink', () => ({ isLocalDirectory: () => true }))

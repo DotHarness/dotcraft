@@ -39,6 +39,7 @@ export interface ComposerMascotInteraction {
   expression?: MascotExpression
   light?: MascotLight
   bubble?: ComposerMascotBubble | null
+  guide?: ReactNode
   menuItems?: ContextMenuItem[]
   hold?: 'sign'
 }
@@ -227,7 +228,7 @@ export function ComposerShell({
           focused={focused}
           dragOver={dragOver}
           bounceSignal={mascotBounceSignal}
-          interaction={mascotInteraction ? { ...mascotInteraction, bubble: mascotInteraction.bubble ? <MascotBubble {...mascotInteraction.bubble} /> : undefined } : undefined}
+          interaction={mascotInteraction ? { ...mascotInteraction, bubble: mascotInteraction.guide ?? (mascotInteraction.bubble ? <MascotBubble {...mascotInteraction.bubble} /> : undefined) } : undefined}
           renderMenu={mascotInteraction?.menuItems?.length ? (position, close) => <ContextMenu items={mascotInteraction.menuItems!} position={position} onClose={close} /> : undefined}
           renderCharacter={(character, context) => <DesktopPluginSurface name="composer.mascot" context={{ ...desktopPluginSurfaceContext, ...context }}>{mascotOutfit ? <AvatarOutfitProvider pack={mascotOutfit.pack} wear={mascotOutfit.wear}>{character}</AvatarOutfitProvider> : character}</DesktopPluginSurface>}
           reasoningEffort={mascotReasoningEffort}

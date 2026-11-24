@@ -43,7 +43,6 @@ describe('App initial workspace status bootstrap', () => {
     useUIStore.setState({
       activeMainView: 'conversation',
       pendingProjectThreadOpen: null,
-      whatsNewOpenRequestSeq: 0,
       projectsSectionCollapsed: false,
       pinnedSectionCollapsed: false,
       chatsSectionCollapsed: false
