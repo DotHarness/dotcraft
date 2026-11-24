@@ -11,6 +11,7 @@ export interface TurnPiece {
   /** The ending row that names a subagent wake in place of the generic line. */
   wakeEntry: TranscriptEntry | null
   completed: boolean
+  ended: boolean
   replied: boolean
   changes: TurnChanges | null
 }
@@ -102,7 +103,10 @@ export function joinResponses(pieces: readonly TurnPiece[], options: {
       output.push(...entries)
       return
     }
-    const changes = settled ? responseChanges(run.flatMap((piece) => piece.changes ? [piece.changes] : []), options.workspacePath) : null
+    const interrupted = last.ended && !last.completed
+    const changes = settled || interrupted
+      ? responseChanges(run.flatMap((piece) => piece.changes ? [piece.changes] : []), options.workspacePath)
+      : null
     output.push(...responseCompletion(entries, changes, settled))
   }
   for (const piece of pieces) {

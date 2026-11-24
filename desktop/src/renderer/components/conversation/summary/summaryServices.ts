@@ -1,4 +1,5 @@
 import { useDetailPanelStore, type SystemDetailTab } from '../../../stores/detailPanelStore'
+import { useUIStore } from '../../../stores/uiStore'
 import type {
   DesktopPluginProjectActionsSnapshot,
   DesktopPluginSavedProjectAction,
@@ -156,7 +157,10 @@ export const desktopSummaryServices: SummaryServices = {
     }
   },
   navigation: {
-    openDetailPanel: (tab) => useDetailPanelStore.getState().setActiveDetailTab(tab),
+    openDetailPanel: (tab) => {
+      if (tab === 'changes') useUIStore.getState().showChangesForKey(null)
+      else useDetailPanelStore.getState().setActiveDetailTab(tab)
+    },
     openFile: openActiveThreadFile,
     openExternal: openExternalUrl,
     openSkill,

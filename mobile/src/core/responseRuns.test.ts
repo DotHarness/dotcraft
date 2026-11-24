@@ -131,6 +131,28 @@ describe('responses spanning turns', () => {
     expect(transcript[2]).toMatchObject({ text: 'The build passed.', copy: true, changes: [{ turnId: 't1', added: 2, removed: 1 }] })
   })
 
+  it.each(['failed', 'cancelled'])('retains earlier successful changes when a continuation is %s', (status) => {
+    const edit = (turnId: string, path: string) => item(turnId, 'toolResult', {
+      structuredContent: { kind: 'fileChange', changes: [{ path, additions: 1, deletions: 0 }] },
+    })
+    const chat = history([
+      item('t1', 'userMessage', { text: 'Update the files' }),
+      edit('t1', 'a.ts'),
+      item('t1', 'agentMessage', { text: 'Waiting for verification.', phase: 'final' }),
+      commandEnded('t2'),
+      edit('t2', 'b.ts'),
+      item('t2', 'agentMessage', { text: 'Verification interrupted.', phase: 'final' }),
+    ], [['t1', 0, 10], ['t2', 30, 5]])
+    chat.turns[1] = { ...chat.turns[1], status }
+
+    const transcript = buildTranscript(chat, null, { hasBackgroundWork: true })
+
+    expect(transcript.filter((entry) => entry.kind === 'changes')).toMatchObject([{
+      changes: { turnId: 't1', added: 1, removed: 0, files: [{ path: 'a.ts' }] },
+    }])
+    expect(transcript.some((entry) => entry.kind === 'assistant' && entry.copy)).toBe(false)
+  })
+
   it('retains the latest response checklist across notification turns until background work ends', () => {
     const todoPlan = todoPlanOf({ todos: [{ id: 'verify', content: 'Verify', activeForm: 'Verifying', status: 'in_progress' }] })
     const presentation = { presentationId: 'core.todo', options: { operation: 'todoWrite' } }

@@ -183,7 +183,7 @@ interface UIStore extends UIState, ProjectThreadNavigationActions {
   getChangesDiffMode(threadId: string | null): ChangesDiffMode
   setChangesDiffMode(threadId: string | null, mode: ChangesDiffMode): void
   toggleChangesWordWrap(): void
-  showChangesForKey(key: string, scope?: ResponseChangesScope): void
+  showChangesForKey(key: string | null, scope?: ResponseChangesScope): void
   /** Set text to be picked up by InputComposer on its next mount. */
   setComposerPrefill(text: string): void
   consumeComposerPrefill(): string | null
