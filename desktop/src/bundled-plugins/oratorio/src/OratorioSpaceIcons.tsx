@@ -25,8 +25,8 @@ function SpaceIcon({ name, children }: { name: string; children: ReactNode }): J
 export function ConductorIcon(): JSX.Element {
   return (
     <SpaceIcon name="conductor">
-      <path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z" />
-      <path className="ora-space-icon__handoff" d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1" />
+      <path className="ora-space-icon__cue" d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z" />
+      <path className="ora-space-icon__answer" d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1" />
     </SpaceIcon>
   )
 }

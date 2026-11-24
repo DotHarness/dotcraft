@@ -628,7 +628,7 @@ The row and its hit target never move; one part of the glyph does, for 340–720
 | Plugins | The lid rises straight off the box and drops back with one settle |
 | Settings | The gear advances one tooth |
 | Oratorio (plugin) | The mark dips into one downbeat about its ring and rebounds |
-| Conductor (Oratorio space) | A second bubble slides out from behind the first |
+| Conductor (Oratorio space) | The front bubble gives a cue and the back bubble answers, each moving apart and back |
 | Board (Oratorio space) | The columns dip one after another and settle |
 
 - Every motion starts and ends on the static drawing, so leaving mid-motion
