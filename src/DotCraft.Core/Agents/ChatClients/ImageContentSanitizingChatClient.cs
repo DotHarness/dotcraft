@@ -9,7 +9,7 @@ namespace DotCraft.Agents;
 /// Keeps prepared tool-result images inside the result, or for text-only tool results describes them and attaches them in one user message after each run of tool messages.
 /// The projection depends only on the history, so a later request never changes what an earlier one sent.
 /// </summary>
-public sealed class ImageContentSanitizingChatClient(IChatClient innerClient, bool toolResultsAcceptImages = false)
+public sealed class ImageContentSanitizingChatClient(IChatClient innerClient, bool textOnlyToolResults = false)
     : DelegatingChatClient(innerClient)
 {
     public override Task<ChatResponse> GetResponseAsync(
@@ -30,6 +30,9 @@ public sealed class ImageContentSanitizingChatClient(IChatClient innerClient, bo
 
     private List<ChatMessage> SanitizeMessages(IEnumerable<ChatMessage> messages)
     {
+        if (!textOnlyToolResults)
+            return messages.Select(PrepareToolImages).ToList();
+
         var result = new List<ChatMessage>();
         List<AIContent>? runImages = null;
         foreach (var message in messages)
@@ -37,9 +40,7 @@ public sealed class ImageContentSanitizingChatClient(IChatClient innerClient, bo
             if (message.Role != ChatRole.Tool)
                 FlushRunImages(result, ref runImages);
 
-            result.Add(toolResultsAcceptImages
-                ? PrepareToolImages(message)
-                : DescribeToolImages(message, ref runImages));
+            result.Add(DescribeToolImages(message, ref runImages));
         }
 
         FlushRunImages(result, ref runImages);

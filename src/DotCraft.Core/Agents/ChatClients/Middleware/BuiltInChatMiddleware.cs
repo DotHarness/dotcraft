@@ -55,6 +55,6 @@ internal static class BuiltInChatMiddleware
         public string Name => ChatMiddlewareNames.ImageSanitizing;
 
         public IChatClient Wrap(IChatClient inner, ChatPipelineContext context) =>
-            new ImageContentSanitizingChatClient(inner, context.Host?.ToolResultsAcceptImages == true);
+            new ImageContentSanitizingChatClient(inner, context.Host?.TextOnlyToolResults == true);
     }
 }

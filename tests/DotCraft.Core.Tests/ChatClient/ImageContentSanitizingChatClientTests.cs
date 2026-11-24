@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using DotCraft.Agents;
+using DotCraft.Contributions;
 using Microsoft.Extensions.AI;
 using Xunit;
 
@@ -19,7 +20,7 @@ public sealed class ImageContentSanitizingChatClientTests
     public async Task GetStreamingResponseAsync_InvalidToolImage_AddsPlaceholderWithoutPromotingImage()
     {
         using var inner = new CapturingChatClient();
-        using var client = new ImageContentSanitizingChatClient(inner);
+        using var client = new ImageContentSanitizingChatClient(inner, textOnlyToolResults: true);
 
         _ = await CollectStreamingAsync(client.GetStreamingResponseAsync(CreateToolResultMessages(
             new DataContent(new byte[] { 1, 2, 3 }, "image/bmp"))));
@@ -39,7 +40,7 @@ public sealed class ImageContentSanitizingChatClientTests
     public async Task GetStreamingResponseAsync_RichResultShapes_NeverSerializeImageAsText(string shape)
     {
         using var inner = new CapturingChatClient();
-        using var client = new ImageContentSanitizingChatClient(inner);
+        using var client = new ImageContentSanitizingChatClient(inner, textOnlyToolResults: true);
         var contents = new List<AIContent>
         {
             new TextContent("screenshot"),
@@ -68,13 +69,29 @@ public sealed class ImageContentSanitizingChatClientTests
         Assert.Equal((1, 1), ImageFixture.PngSize(image.Data.Span));
     }
 
+    [Fact]
+    public async Task ToolImagesStayWithTheOriginalCallByDefault()
+    {
+        var inner = new CapturingChatClient();
+        using var client = new BuiltInChatMiddleware.ImageSanitizing().Wrap(
+            inner, new ChatPipelineContext());
+
+        _ = await CollectStreamingAsync(client.GetStreamingResponseAsync(CreateToolResultMessages(ScreenshotResult())));
+
+        Assert.Equal(new[] { ChatRole.User, ChatRole.Assistant, ChatRole.Tool }, inner.LastMessages.Select(m => m.Role));
+        var result = Assert.IsType<FunctionResultContent>(Assert.Single(inner.LastMessages[^1].Contents));
+        Assert.Equal("call-1", result.CallId);
+        var contents = Assert.IsAssignableFrom<IEnumerable<AIContent>>(result.Result);
+        Assert.Equal("image/png", Assert.Single(contents.OfType<DataContent>()).MediaType);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task GetStreamingResponseAsync_LaterRequest_StartsWithEarlierRequest(bool toolResultsAcceptImages)
+    public async Task GetStreamingResponseAsync_LaterRequest_StartsWithEarlierRequest(bool textOnlyToolResults)
     {
         using var inner = new CapturingChatClient();
-        using var client = new ImageContentSanitizingChatClient(inner, toolResultsAcceptImages);
+        using var client = new ImageContentSanitizingChatClient(inner, textOnlyToolResults);
         var history = new List<ChatMessage>
         {
             new(ChatRole.User, "inspect"),
@@ -100,7 +117,7 @@ public sealed class ImageContentSanitizingChatClientTests
             .SelectMany(content => content is FunctionResultContent { Result: IEnumerable<AIContent> items } ? items : [content])
             .OfType<DataContent>();
         Assert.Equal(2, images.Count());
-        if (!toolResultsAcceptImages)
+        if (textOnlyToolResults)
         {
             Assert.Equal(ChatRole.User, inner.LastMessages[4].Role);
             Assert.Equal(2, inner.LastMessages[4].Contents.OfType<DataContent>().Count());

@@ -614,8 +614,7 @@ public sealed class AgentFactory : IAsyncDisposable
                 TraceCollector = _traceCollector,
                 DeferredTools = deferredRegistry,
                 HookRunner = usesSnapshotDispatcher ? null : _hookRunner,
-                ToolResultsAcceptImages = runtime.Protocol is ModelProviderProtocols.Anthropic
-                    or ModelProviderProtocols.OpenAIResponses,
+                TextOnlyToolResults = runtime.Protocol == ModelProviderProtocols.OpenAIChatCompletions,
                 CreateFunctionInvokingClient = innerClient =>
                 {
                     var fic = new StreamingFunctionInvokingChatClient(innerClient)
