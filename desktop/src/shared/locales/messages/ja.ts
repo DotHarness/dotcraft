@@ -1240,7 +1240,7 @@ export const MESSAGES_JA = {
   'pet.item.plush-fleece.name': 'パッチワークボア',
   'pet.item.plush-fleece.feature': 'いちごミルクとクリーム色のステッチ入り着ぐるみボア',
   'settings.appearance.description': 'DotCraft の見た目をカスタマイズします。',
-  'settings.appearance.group.theme': 'テーマ',
+  'settings.appearance.group.colors': '色',
   'settings.appearance.group.font': 'フォント',
   'settings.appearance.group.diffs': '差分',
   'settings.appearance.group.motion': 'モーション',

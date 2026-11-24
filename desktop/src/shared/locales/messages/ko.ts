@@ -1240,7 +1240,7 @@ export const MESSAGES_KO = {
   'pet.item.plush-fleece.name': '패치워크 플리스',
   'pet.item.plush-fleece.feature': '딸기우유와 크림색을 사선으로 이은 봉제 인형탈 원단',
   'settings.appearance.description': 'DotCraft의 모양을 사용자 지정합니다.',
-  'settings.appearance.group.theme': '테마',
+  'settings.appearance.group.colors': '색상',
   'settings.appearance.group.font': '글꼴',
   'settings.appearance.group.diffs': '차이',
   'settings.appearance.group.motion': '모션',

@@ -1240,7 +1240,7 @@ export const MESSAGES_DE = {
   'pet.item.plush-fleece.name': 'Plüsch-Patchwork',
   'pet.item.plush-fleece.feature': 'Zweifarbiger Erdbeermilch-Creme-Fleece mit Ziernaht',
   'settings.appearance.description': 'Passe an, wie DotCraft aussieht.',
-  'settings.appearance.group.theme': 'Theme',
+  'settings.appearance.group.colors': 'Farben',
   'settings.appearance.group.font': 'Schrift',
   'settings.appearance.group.diffs': 'Diffs',
   'settings.appearance.group.motion': 'Bewegung',

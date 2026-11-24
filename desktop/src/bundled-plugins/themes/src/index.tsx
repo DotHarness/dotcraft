@@ -6,7 +6,8 @@ import { ComposerThemePicker } from './ComposerThemePicker'
 import { stringsFor, translationsOf } from './i18n'
 import { getSettings, initializeSettings, setSettings, subscribeSettings } from './settings'
 import { activeGlass, activeTheme, initializeThemeLibrary, isBackdropReady, subscribeThemeLibrary } from './themeLibrary'
-import { ThemeSettingsPage } from './ThemeSettingsPage'
+import { ThemeLibraryPage } from './ThemeLibraryPage'
+import { ThemesAppearanceGroup } from './ThemesAppearanceGroup'
 import { ThemeLayer } from './ThemeSurfaces'
 import './styles/index.css'
 
@@ -56,17 +57,11 @@ export const activate: DesktopPluginActivate = async (host) => {
 
   host.ui.replace('app.background', ThemeLayer)
   host.ui.add('composer.before', ComposerThemePicker)
+  host.ui.add('settings.appearance.theme', ThemesAppearanceGroup)
+  host.ui.wrap('settings.appearance', ThemeLibraryPage)
   host.effect(() => closeComposerPicker)
 
   return {
-    settingsPages: [
-      {
-        id: 'themes',
-        label: { default: 'Themes', translations: translationsOf('settingsLabel') },
-        icon: ThemeIcon,
-        component: ThemeSettingsPage
-      }
-    ],
     commands: [
       {
         id: 'pick',
@@ -101,7 +96,7 @@ export const activate: DesktopPluginActivate = async (host) => {
             tone: 'neutral',
             action: {
               label: strings.openSettings,
-              run: () => host.navigation.openSettingsPage('themes')
+              run: () => host.navigation.openSettingsSection('appearance')
             }
           })
         }

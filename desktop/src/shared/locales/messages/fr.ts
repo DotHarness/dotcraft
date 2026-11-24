@@ -1240,7 +1240,7 @@ export const MESSAGES_FR = {
   'pet.item.plush-fleece.name': 'Polaire bicolore',
   'pet.item.plush-fleece.feature': 'Polaire kigurumi fraise-crème en diagonale à couture apparente',
   'settings.appearance.description': 'Personnalisez l’apparence de DotCraft.',
-  'settings.appearance.group.theme': 'Thème',
+  'settings.appearance.group.colors': 'Couleurs',
   'settings.appearance.group.font': 'Police',
   'settings.appearance.group.diffs': 'Différences',
   'settings.appearance.group.motion': 'Animations',

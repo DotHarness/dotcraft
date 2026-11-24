@@ -34,6 +34,7 @@ import {
   type ThemeSeedOverrides,
   type ThemeVariant
 } from '../../../../shared/themeSeed'
+import { DesktopPluginSurface } from '../../desktopPlugins/DesktopPluginSurface'
 import { SettingsPanelShell } from '../SettingsPanelShell'
 import { SettingsGroup, SettingsRow } from '../SettingsGroup'
 import { SegmentedControl } from '../ui/SegmentedControl'
@@ -227,7 +228,7 @@ export function AppearancePanel(): JSX.Element {
 
       <AppearancePreview accent={appearance.accent ?? '#4566cc'} codeFontSize={codeSize} />
 
-      <SettingsGroup title={t('settings.appearance.group.theme')}>
+      <SettingsGroup title={t('settings.appearance.group.colors')}>
         <SettingsRow
           label={t('settings.appearance.accent.label')}
           description={t('settings.appearance.accent.hint')}
@@ -310,6 +311,11 @@ export function AppearancePanel(): JSX.Element {
           }
         />
       </SettingsGroup>
+
+      <DesktopPluginSurface
+        name="settings.appearance.theme"
+        context={{ section: 'appearance', title: t('settings.tab.appearance') }}
+      />
 
       <SettingsGroup title={t('settings.appearance.group.interface')}>
         <SettingsRow

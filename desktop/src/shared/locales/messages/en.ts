@@ -1224,7 +1224,7 @@ export const MESSAGES_EN = {
   'pet.item.plush-fleece.name': 'Plush fleece',
   'pet.item.plush-fleece.feature': 'Two-tone strawberry-milk and cream kigurumi fleece with a stitched seam',
   'settings.appearance.description': 'Customize how DotCraft looks.',
-  'settings.appearance.group.theme': 'Theme',
+  'settings.appearance.group.colors': 'Colors',
   'settings.appearance.group.font': 'Font',
   'settings.appearance.group.diffs': 'Diffs',
   'settings.appearance.group.motion': 'Motion',

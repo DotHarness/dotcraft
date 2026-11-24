@@ -1350,7 +1350,7 @@ export const MESSAGES_ZH_HANS = {
   'pet.item.plush-fleece.name': '拼色玩偶绒',
   'pet.item.plush-fleece.feature': '草莓牛奶与奶油白斜拼皮套绒面，带缝线与爱心补丁',
   'settings.appearance.description': '自定义 DotCraft 的外观。',
-  'settings.appearance.group.theme': '主题',
+  'settings.appearance.group.colors': '颜色',
   'settings.appearance.group.font': '字体',
   'settings.appearance.group.diffs': '差异',
   'settings.appearance.group.motion': '动效',

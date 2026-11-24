@@ -4,7 +4,7 @@
 | --- | --- |
 | Version | 0.15.0 |
 | Status | Living |
-| Date | 2026-11-23 |
+| Date | 2026-11-24 |
 | Parent Specs | [Plugin Architecture](plugin-architecture.md), [Tool Architecture](tools-architecture.md) |
 
 ## Overview
@@ -220,6 +220,7 @@ The Core surfaces are:
 | `conversation.empty` | The conversation area of an open thread that has no messages yet, behind the Composer. Empty by default. Receives the thread surface context and `cover()`, which hides the thread header, conversation tabs and asides, and Composer until its returned dispose runs, so the contribution has the whole conversation panel. |
 | `conversation.turn.status` | A seat inside the last visible turn, for status that belongs to the conversation's current work: above the reply's actions once the turn has a reply, otherwise directly above its working line. Empty by default. |
 | `settings.<section>` | Each built-in Settings section (`general`, `import`, `profile`, `appearance`, `archived-threads`, `voice`, `personalization`, `pet`, `usage`, `model-providers`, `browser`, `computer-use`, `connections`, `mcp`, `hooks`, `source-control`, `worktrees`). Additions append groups with the Settings section spacing, and wrappers can swap in a Settings subpage using the context `{ section, title }`. |
+| `settings.appearance.theme` | A seat in Settings › Appearance directly after its Colors group, for a group that chooses how the app looks. Empty by default. Receives the `settings.appearance` context. |
 
 `app.background`, `app.overlay`, and `app.status` share the application context. The overlay paints over the shell without consuming the single `app` wrapper. Overlay, status, and aside seats are click-through (`pointer-events: none`, inherited); a contribution opts back in on its own interactive elements.
 

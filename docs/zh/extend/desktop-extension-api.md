@@ -122,6 +122,7 @@ DotCraft 的正式 surface 覆盖 application、Composer 与当前会话。Compo
 | **`summary.sections`** | thread 摘要中的分区，位于来源之后、上下文与环境之前。 |
 | **`conversation.empty`** | 还没有消息的 thread 的会话区域。调用上下文里的 `cover()` 会隐藏 thread 标题栏和 Composer，直到调用它返回的 dispose。 |
 | **`settings.<section>`** | 内置设置分区（`general`、`import`、`profile`、`appearance`、`archived-threads`、`voice`、`personalization`、`pet`、`usage`、`model-providers`、`browser`、`computer-use`、`connections`、`mcp`、`hooks`、`source-control`、`worktrees`）。context 包含 `{ section, title }`。 |
+| **`settings.appearance.theme`** | 设置 › 外观里紧跟「颜色」组的位置，用来放决定应用外观的设置组。context 包含 `{ section, title }`。 |
 
 当区域范围过大时，可以直接定位这些 Core 控件：
 

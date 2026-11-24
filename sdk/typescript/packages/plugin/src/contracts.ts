@@ -243,6 +243,7 @@ export interface DesktopPluginSurfaceContextMap {
   readonly "settings.import": DesktopPluginSettingsSectionContext;
   readonly "settings.profile": DesktopPluginSettingsSectionContext;
   readonly "settings.appearance": DesktopPluginSettingsSectionContext;
+  readonly "settings.appearance.theme": DesktopPluginSettingsSectionContext;
   readonly "settings.archived-threads": DesktopPluginSettingsSectionContext;
   readonly "settings.voice": DesktopPluginSettingsSectionContext;
   readonly "settings.personalization": DesktopPluginSettingsSectionContext;

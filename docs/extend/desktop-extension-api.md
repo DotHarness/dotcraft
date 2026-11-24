@@ -126,6 +126,7 @@ DotCraft's formal surfaces cover the application, the Composer, and the active c
 | **`summary.sections`** | Sections inside a thread's Summary, after its sources and before its context and environment. |
 | **`conversation.empty`** | The conversation area of a thread that has no messages yet. Its context's `cover()` hides the thread header and Composer until you call the dispose it returns. |
 | **`settings.<section>`** | Built-in Settings sections (`general`, `import`, `profile`, `appearance`, `archived-threads`, `voice`, `personalization`, `pet`, `usage`, `model-providers`, `browser`, `computer-use`, `connections`, `mcp`, `hooks`, `source-control`, `worktrees`). Context carries `{ section, title }`. |
+| **`settings.appearance.theme`** | Settings › Appearance, directly after the Colors group. For a group that chooses how the app looks. Context carries `{ section, title }`. |
 
 Target these Core controls when a region is too broad:
 

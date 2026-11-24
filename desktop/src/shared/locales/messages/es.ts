@@ -1240,7 +1240,7 @@ export const MESSAGES_ES = {
   'pet.item.plush-fleece.name': 'Felpa bicolor',
   'pet.item.plush-fleece.feature': 'Vellón diagonal fresa y crema con costura pespunteada',
   'settings.appearance.description': 'Personaliza la apariencia de DotCraft.',
-  'settings.appearance.group.theme': 'Tema',
+  'settings.appearance.group.colors': 'Colores',
   'settings.appearance.group.font': 'Fuente',
   'settings.appearance.group.diffs': 'Diferencias',
   'settings.appearance.group.motion': 'Movimiento',

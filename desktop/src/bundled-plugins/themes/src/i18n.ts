@@ -5,7 +5,7 @@ const THEME_LOCALES = ['en', 'zh-Hans', 'ja', 'ko', 'es', 'fr', 'de'] as const
 type ThemeLocale = (typeof THEME_LOCALES)[number]
 
 export interface ThemeStrings {
-  readonly settingsLabel: string
+  readonly manage: string
   readonly settingsTitle: string
   readonly settingsDescription: string
   readonly enableLabel: string
@@ -53,7 +53,7 @@ export interface ThemeStrings {
 
 const CATALOG: Record<ThemeLocale, ThemeStrings> = {
   en: {
-    settingsLabel: 'Themes',
+    manage: 'Manage',
     settingsTitle: 'Themes',
     settingsDescription: 'Choose how DotCraft looks, or create your own theme.',
     enableLabel: 'Show themes',
@@ -99,7 +99,7 @@ const CATALOG: Record<ThemeLocale, ThemeStrings> = {
     openSettings: 'Open settings'
   },
   'zh-Hans': {
-    settingsLabel: '主题',
+    manage: '管理',
     settingsTitle: '主题',
     settingsDescription: '选择 DotCraft 的外观，或创作自己的主题。',
     enableLabel: '显示主题',
@@ -145,7 +145,7 @@ const CATALOG: Record<ThemeLocale, ThemeStrings> = {
     openSettings: '打开设置'
   },
   ja: {
-    settingsLabel: 'テーマ',
+    manage: '管理',
     settingsTitle: 'テーマ',
     settingsDescription: 'DotCraft の見た目を選ぶか、自分のテーマを作成します。',
     enableLabel: 'テーマを表示',
@@ -191,7 +191,7 @@ const CATALOG: Record<ThemeLocale, ThemeStrings> = {
     openSettings: '設定を開く'
   },
   ko: {
-    settingsLabel: '테마',
+    manage: '관리',
     settingsTitle: '테마',
     settingsDescription: 'DotCraft의 모습을 고르거나 나만의 테마를 만듭니다.',
     enableLabel: '테마 표시',
@@ -237,7 +237,7 @@ const CATALOG: Record<ThemeLocale, ThemeStrings> = {
     openSettings: '설정 열기'
   },
   es: {
-    settingsLabel: 'Temas',
+    manage: 'Gestionar',
     settingsTitle: 'Temas',
     settingsDescription: 'Elige el aspecto de DotCraft o crea tu propio tema.',
     enableLabel: 'Mostrar temas',
@@ -283,7 +283,7 @@ const CATALOG: Record<ThemeLocale, ThemeStrings> = {
     openSettings: 'Abrir ajustes'
   },
   fr: {
-    settingsLabel: 'Thèmes',
+    manage: 'Gérer',
     settingsTitle: 'Thèmes',
     settingsDescription: 'Choisissez l’apparence de DotCraft ou créez votre propre thème.',
     enableLabel: 'Afficher les thèmes',
@@ -329,7 +329,7 @@ const CATALOG: Record<ThemeLocale, ThemeStrings> = {
     openSettings: 'Ouvrir les réglages'
   },
   de: {
-    settingsLabel: 'Themes',
+    manage: 'Verwalten',
     settingsTitle: 'Themes',
     settingsDescription: 'Wähle das Aussehen von DotCraft oder erstelle dein eigenes Theme.',
     enableLabel: 'Themes anzeigen',
