@@ -755,13 +755,15 @@ public sealed class GitLabReadSyncTests
             client,
             $"/api/v1/items/id/{mr.ItemId}/dispatch",
             new DispatchRequest("appServer", "Prepare GitLab MR review suggestions.", null, null));
-        var failedPublish = await WaitForItemByIdAsync(client, mr.ItemId!, x => x.ReviewDrafts.Count == 1 && x.ReviewDrafts[0].Status == ReviewDraftStatus.PublishFailed);
+        var failedPublish = await WaitForItemByIdAsync(client, mr.ItemId!, x =>
+            x.ReviewDrafts.Count == 1 && x.ReviewDrafts[0].Status == ReviewDraftStatus.PublishFailed &&
+            x.SourceWrites.Any(write => write.WriteId == x.ReviewDrafts[0].SourceWriteId));
 
         var failedDraft = Assert.Single(failedPublish.ReviewDrafts);
-        Assert.Equal(ReviewDraftStatus.PublishFailed, failedDraft.Status);
         Assert.Empty(fakeGitLab.MergeRequestNotesCreated);
         Assert.Empty(fakeGitLab.MergeRequestDiscussionsCreated);
         var failedWrite = Assert.Single(failedPublish.SourceWrites, write => write.Intent == "reviewDraftPublish");
+        Assert.Equal(failedDraft.SourceWriteId, failedWrite.WriteId);
         Assert.Equal(SourceWriteStatus.Failed, failedWrite.Status);
         using (var document = JsonDocument.Parse(failedWrite.RequestJson))
         {

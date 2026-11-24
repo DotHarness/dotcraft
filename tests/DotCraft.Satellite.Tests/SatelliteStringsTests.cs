@@ -40,7 +40,7 @@ public sealed partial class SatelliteStringsTests
     }
 
     private static IReadOnlyList<string> Placeholders(string value) =>
-        [.. PlaceholderPattern().Matches(value).Select(match => match.Value).Order(StringComparer.Ordinal)];
+        PlaceholderPattern().Matches(value).Select(match => match.Value).Order(StringComparer.Ordinal).ToArray();
 
     [GeneratedRegex(@"\{\d+\}", RegexOptions.CultureInvariant)]
     private static partial Regex PlaceholderPattern();

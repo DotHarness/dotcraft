@@ -68,7 +68,7 @@ public sealed class IslandStateModelTests
             [Activity("Exec", "npm run build")]);
 
         Assert.Equal("pair_ann", model.RunningPeerId);
-        Assert.Equal(["pair_ann", "pair_priya"], model.Peers.Select(peer => peer.PeerId));
+        Assert.Equal((string[])["pair_ann", "pair_priya"], model.Peers.Select(peer => peer.PeerId));
     }
 
     [Fact]
@@ -141,9 +141,9 @@ public sealed class IslandStateModelTests
 
     private static IslandStateModel Derive(
         SatelliteTrayState state,
-        IReadOnlyList<RemoteToolPeer> peers,
-        IReadOnlyList<RemoteToolActivity>? activities = null,
-        IReadOnlyList<IslandApprovalEntry>? approvals = null) =>
+        RemoteToolPeer[] peers,
+        RemoteToolActivity[]? activities = null,
+        IslandApprovalEntry[]? approvals = null) =>
         IslandStateModel.Derive(
             new IslandInputs(state, peers, activities ?? [], approvals ?? [], Now),
             Strings);

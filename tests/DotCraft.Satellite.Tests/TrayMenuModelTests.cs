@@ -31,7 +31,7 @@ public sealed class TrayMenuModelTests
         var since = new DateTimeOffset(2026, 9, 5, 14, 32, 0, TimeSpan.Zero);
         var items = TrayMenuModel.Build(
             SatelliteTrayState.Connected,
-            [Peer(connectedSince: since)],
+            (RemoteToolPeer[])[Peer(connectedSince: since)],
             Strings);
 
         var machine = Find(items, TrayMenuCommand.Machine);
@@ -58,7 +58,7 @@ public sealed class TrayMenuModelTests
     [Fact]
     public void Build_WhenAMachineIsOffline_NamesItWithoutATimeAndBlocksDisconnect()
     {
-        var items = TrayMenuModel.Build(SatelliteTrayState.Offline, [Peer()], Strings);
+        var items = TrayMenuModel.Build(SatelliteTrayState.Offline, (RemoteToolPeer[])[Peer()], Strings);
 
         var machine = Find(items, TrayMenuCommand.Machine);
         Assert.Equal("Ann", machine.Text);

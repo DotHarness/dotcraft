@@ -69,36 +69,57 @@ public sealed partial class DynamicWorkflowServiceTests
         var (service, store, proxy) = CreateCompletionService();
         var clock = new NotificationClock();
         service.NotificationTimeProvider = clock;
-        string? statePath = null;
-        string? persisted = null;
-        proxy.NotificationHandler = (ending, _) =>
+        const string runId = "run_notification_ack";
+        var runDirectory = store.GetRunDirectory(runId);
+        var statePath = Path.Combine(runDirectory, "state.json");
+        var backupPath = Path.Combine(runDirectory, "state.backup");
+        var now = DateTimeOffset.UtcNow;
+        var completed = new DynamicWorkflowRun
+        {
+            RunId = runId,
+            AttemptId = "attempt_001",
+            Name = "completion",
+            ParentThreadId = proxy.Thread.Id,
+            ParentTurnId = "turn_parent",
+            ScriptPath = Path.Combine(runDirectory, "script.js"),
+            ScriptHash = new string('a', 64),
+            Status = DynamicWorkflowStatuses.Succeeded,
+            CreatedAt = now,
+            CompletedAt = now,
+            Result = new JsonObject { ["ok"] = true },
+            NotificationStatus = "pending"
+        };
+        await store.WriteStateAsync(completed, CancellationToken.None);
+        proxy.NotificationHandler = (_, _) =>
         {
             if (proxy.EnqueueCalls == 1)
             {
-                statePath = Path.Combine(store.GetRunDirectory(ending.TaskId), "state.json");
-                persisted = File.ReadAllText(statePath);
-                File.Delete(statePath);
+                File.Move(statePath, backupPath);
                 Directory.CreateDirectory(statePath);
             }
             return Task.FromResult<string?>("queued_once");
         };
-        await service.StartAsync();
         try
         {
-            var started = await service.StartInlineAsync(CompletionRequest("return { ok: true };"));
+            await service.StartAsync();
             var retry = await clock.NextTimer.Task.WaitAsync(TimeSpan.FromSeconds(5));
-            Assert.NotNull(statePath);
+            var firstNotification = proxy.LastEnding;
+            Assert.NotNull(firstNotification);
+            Assert.Equal(runId, firstNotification.TaskId);
             Directory.Delete(statePath);
-            await File.WriteAllTextAsync(statePath, persisted);
-            var pending = await service.GetRunAsync(started.RunId);
+            File.Move(backupPath, statePath);
+            var pending = await service.GetRunAsync(runId);
             Assert.Equal(DynamicWorkflowStatuses.Succeeded, pending?.Status);
             Assert.Equal("pending", pending?.NotificationStatus);
 
             var acknowledged = ObserveNotificationAck(service, proxy, 2);
             retry.Fire();
             await acknowledged.WaitAsync(TimeSpan.FromSeconds(5));
-            var delivered = await service.GetRunAsync(started.RunId);
+            Assert.Equal(firstNotification, proxy.LastEnding);
+            var delivered = await service.GetRunAsync(runId);
             Assert.Equal(DynamicWorkflowStatuses.Succeeded, delivered?.Status);
+            Assert.True(delivered?.Result?["ok"]?.GetValue<bool>());
+            Assert.Equal("queued", delivered?.NotificationStatus);
             Assert.Equal("queued_once", delivered?.NotificationInputId);
         }
         finally { await service.StopAsync(); }
