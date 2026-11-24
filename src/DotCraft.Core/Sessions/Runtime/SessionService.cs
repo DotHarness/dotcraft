@@ -353,8 +353,10 @@ public sealed partial class SessionService(
         string? displayName = null,
         CancellationToken ct = default,
         ThreadSource? source = null,
-        bool ephemeral = false)
-        => await ThreadCreation.CreateAsync(identity, config, historyMode, threadId, displayName, ct, source, ephemeral);
+        bool ephemeral = false,
+        IReadOnlyList<ThreadDynamicToolDeclaration>? dynamicToolDeclarations = null)
+        => await ThreadCreation.CreateAsync(identity, config, historyMode, threadId, displayName, ct, source, ephemeral,
+            ThreadDynamicToolDeclaration.Freeze(dynamicToolDeclarations));
 
     public bool IsHiddenThread(string threadId) =>
         _runtimeRegistry.TryGetThread(threadId, out var thread) && ThreadVisibility.IsHidden(thread);

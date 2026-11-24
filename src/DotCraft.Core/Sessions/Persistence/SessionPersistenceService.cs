@@ -7,6 +7,7 @@ using Microsoft.Extensions.AI;
 using Microsoft.Data.Sqlite;
 using DotCraft.GenerativeUi;
 using DotCraft.Visualizations;
+using DotCraft.Tools;
 
 namespace DotCraft.Sessions;
 
@@ -46,6 +47,10 @@ public sealed partial class SessionPersistenceService(
     internal Task CommitThreadConfigurationAsync(
         SessionThread thread, ThreadConfiguration configuration, CancellationToken ct)
         => threadStore.CommitConfigurationAsync(thread, configuration, ct);
+
+    internal Task CommitThreadDynamicToolDeclarationsAsync(
+        SessionThread thread, IReadOnlyList<ThreadDynamicToolDeclaration> declarations, CancellationToken ct)
+        => threadStore.CommitDynamicToolDeclarationsAsync(thread, declarations, ct);
 
     internal async Task ArchiveStoredThreadAsync(SessionThread thread, bool requireRollout, CancellationToken ct)
     {

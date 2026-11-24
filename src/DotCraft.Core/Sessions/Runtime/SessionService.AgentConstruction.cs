@@ -465,7 +465,8 @@ public sealed partial class SessionService
             toolContext.MemoryStores,
             toolContext.ToolLocation,
             config.CodeModeExcludedNamespaces,
-            threadRuntimeState.FileVersions);
+            threadRuntimeState.FileVersions,
+            thread.DynamicToolDeclarations);
         var toolSnapshot = await agentFactory.BuildToolSnapshotAsync(
             snapshotSources,
             planningContext,

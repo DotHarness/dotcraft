@@ -1,6 +1,7 @@
 using DotCraft.AppServer;
 using Microsoft.Extensions.AI;
 using DotCraft.Sessions;
+using DotCraft.Tools;
 using ContextUsageSnapshot = DotCraft.Sessions.Wire.ContextUsageSnapshot;
 using QueuedTurnInput = DotCraft.Sessions.QueuedTurnInput;
 using SenderContext = DotCraft.Sessions.SenderContext;
@@ -119,7 +120,8 @@ public sealed class HubTurnNotificationPolicyTests
         public Action<string, ThreadStatus, ThreadStatus>? ThreadStatusChangedForBroadcast { get; set; }
         public Action<string, SessionThreadRuntimeSignal, SessionTurn?>? ThreadRuntimeSignalForBroadcast { get; set; }
 
-        public Task<SessionThread> CreateThreadAsync(SessionIdentity identity, ThreadConfiguration? config = null, HistoryMode historyMode = HistoryMode.Server, string? threadId = null, string? displayName = null, CancellationToken ct = default, ThreadSource? source = null, bool ephemeral = false) => throw new NotImplementedException();
+        public Task<SessionThread> CreateThreadAsync(SessionIdentity identity, ThreadConfiguration? config = null, HistoryMode historyMode = HistoryMode.Server, string? threadId = null, string? displayName = null, CancellationToken ct = default, ThreadSource? source = null, bool ephemeral = false,
+            IReadOnlyList<ThreadDynamicToolDeclaration>? dynamicToolDeclarations = null) => throw new NotImplementedException();
         public Task<SessionThread> ResumeThreadAsync(string threadId, CancellationToken ct = default) => throw new NotImplementedException();
         public Task<bool> ArchiveThreadAsync(string threadId, CancellationToken ct = default) => throw new NotImplementedException();
         public Task UnarchiveThreadAsync(string threadId, CancellationToken ct = default) => throw new NotImplementedException();

@@ -148,6 +148,7 @@ internal sealed partial class ThreadHistoryProjector(
         thread.Metadata = new Dictionary<string, string>(opened.Metadata);
         thread.HistoryMode = opened.HistoryMode;
         thread.Configuration = opened.Configuration;
+        thread.DynamicToolDeclarations = opened.DynamicToolDeclarations;
         thread.ProviderHistorySchemaVersion = opened.ProviderHistorySchemaVersion;
         thread.TurnSequenceHighWatermark = Math.Max(thread.TurnSequenceHighWatermark, opened.TurnSequenceHighWatermark);
         thread.Turns = [];

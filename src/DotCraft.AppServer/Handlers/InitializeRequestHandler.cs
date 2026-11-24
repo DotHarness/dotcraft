@@ -8,7 +8,8 @@ internal sealed class InitializeRequestHandler(
     AppServerConnection connection,
     AppServerConnectionServices services,
     IReadOnlyList<IAppServerCapabilityContributor> capabilityContributors,
-    AppServerThreadWireProjector threadProjector) : IAppServerDomainHandler
+    AppServerThreadWireProjector threadProjector,
+    bool supportsDynamicTools) : IAppServerDomainHandler
 {
     public void RegisterMethods(AppServerMethodTable table)
     {
@@ -42,7 +43,7 @@ internal sealed class InitializeRequestHandler(
             SideChat = true,
             GitWorktrees = true,
             ManualCompaction = true,
-            DynamicToolRebind = services.WireDynamicToolProxy != null,
+            DynamicToolRebind = supportsDynamicTools,
             RuntimeAdditionalContext = services.WireRuntimeAdditionalContextProvider != null,
             ThreadMaintenanceInterrupt = true,
             ApprovalFlow = true,

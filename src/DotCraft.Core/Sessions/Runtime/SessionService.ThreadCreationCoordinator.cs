@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DotCraft.Agents;
+using DotCraft.Tools;
 
 namespace DotCraft.Sessions;
 
@@ -15,7 +16,8 @@ public sealed partial class SessionService
             string? displayName,
             CancellationToken ct,
             ThreadSource? source,
-            bool ephemeral)
+            bool ephemeral,
+            IReadOnlyList<ThreadDynamicToolDeclaration> dynamicToolDeclarations)
         {
             await owner.RefreshRuntimeResourcesAsync(ct).ConfigureAwait(false);
             var capturedConfig = owner.CaptureThreadConfigurationForNewThread(config);
@@ -35,6 +37,7 @@ public sealed partial class SessionService
                 LastActiveAt = DateTimeOffset.UtcNow,
                 HistoryMode = historyMode,
                 Configuration = capturedConfig,
+                DynamicToolDeclarations = dynamicToolDeclarations,
                 DisplayName = displayName,
                 Source = source ?? ThreadSource.User(),
                 Ephemeral = ephemeral,

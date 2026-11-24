@@ -8,6 +8,7 @@ using DotCraft.Runtime;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using DotCraft.Sessions;
+using DotCraft.Tools;
 using DotCraft.Tests.Dreams;
 using Contract = DotCraft.Protocol.AppServer;
 using ContextUsageSnapshot = DotCraft.Sessions.Wire.ContextUsageSnapshot;
@@ -407,7 +408,8 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
         public Action<string, ThreadStatus, ThreadStatus>? ThreadStatusChangedForBroadcast { get; set; }
         public Action<string, SessionThreadRuntimeSignal, SessionTurn?>? ThreadRuntimeSignalForBroadcast { get; set; }
 
-        public Task<SessionThread> CreateThreadAsync(SessionIdentity identity, ThreadConfiguration? config = null, HistoryMode historyMode = HistoryMode.Server, string? threadId = null, string? displayName = null, CancellationToken ct = default, ThreadSource? source = null, bool ephemeral = false)
+        public Task<SessionThread> CreateThreadAsync(SessionIdentity identity, ThreadConfiguration? config = null, HistoryMode historyMode = HistoryMode.Server, string? threadId = null, string? displayName = null, CancellationToken ct = default, ThreadSource? source = null, bool ephemeral = false,
+            IReadOnlyList<ThreadDynamicToolDeclaration>? dynamicToolDeclarations = null)
         {
             LastIdentity = identity;
             return Task.FromResult(new SessionThread { Id = "scheduled-thread" });

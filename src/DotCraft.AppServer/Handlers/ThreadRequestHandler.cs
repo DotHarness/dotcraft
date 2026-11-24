@@ -95,10 +95,9 @@ internal sealed partial class ThreadRequestHandler(
             ? ThreadSource.SpawnedFromThread(p.SpawnedFromThreadId.Trim())
             : null;
 
-        // Binding before creation lets the thread's agent be built once with this connection's
-        // tool surface, instead of being built and then rebuilt by a refresh.
         var threadId = SessionIdGenerator.NewThreadId();
-        threadBinder.BindThreadRuntimeInputs(threadId, dynamicTools, additionalContext);
+        var dynamicToolDeclarations = dynamicTools is null ? null : WireDynamicToolProxy.Describe(dynamicTools);
+        threadBinder.BindThreadRuntimeInputs(threadId, dynamicToolDeclarations, additionalContext);
         SessionThread thread;
         try
         {
@@ -110,7 +109,8 @@ internal sealed partial class ThreadRequestHandler(
                 displayName: p.DisplayName,
                 ct: ct,
                 source: spawnSource,
-                ephemeral: p.Ephemeral ?? false);
+                ephemeral: p.Ephemeral ?? false,
+                dynamicToolDeclarations: dynamicToolDeclarations);
         }
         catch
         {

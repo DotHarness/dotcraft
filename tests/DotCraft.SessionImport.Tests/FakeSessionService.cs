@@ -1,4 +1,5 @@
 using DotCraft.Sessions;
+using DotCraft.Tools;
 using DotCraft.Sessions.Wire;
 using Microsoft.Extensions.AI;
 using ContextUsageSnapshot = DotCraft.Sessions.Wire.ContextUsageSnapshot;
@@ -115,7 +116,8 @@ internal sealed class FakeSessionService : ISessionService
 
     public Action<string, SessionThreadRuntimeSignal, SessionTurn?>? ThreadRuntimeSignalForBroadcast { get; set; }
 
-    public Task<SessionThread> CreateThreadAsync(SessionIdentity identity, ThreadConfiguration? config = null, HistoryMode historyMode = HistoryMode.Server, string? threadId = null, string? displayName = null, CancellationToken ct = default, ThreadSource? source = null, bool ephemeral = false) => throw new NotSupportedException();
+    public Task<SessionThread> CreateThreadAsync(SessionIdentity identity, ThreadConfiguration? config = null, HistoryMode historyMode = HistoryMode.Server, string? threadId = null, string? displayName = null, CancellationToken ct = default, ThreadSource? source = null, bool ephemeral = false,
+            IReadOnlyList<ThreadDynamicToolDeclaration>? dynamicToolDeclarations = null) => throw new NotSupportedException();
 
 
     public Task<SessionThread> ResumeThreadAsync(string threadId, CancellationToken ct = default) => throw new NotSupportedException();

@@ -2,6 +2,7 @@ using DotCraft.Channels;
 using DotCraft.GenerativeUi;
 using DotCraft.Visualizations;
 using DotCraft.Sessions;
+using DotCraft.Tools;
 using Contract = DotCraft.Protocol.AppServer;
 using SessionThread = DotCraft.Sessions.SessionThread;
 
@@ -21,13 +22,16 @@ internal sealed class AppServerThreadBinder(
     VisualizationRuntimeRegistry? visualizationRuntimeRegistry,
     GenerativeUiRuntimeRegistry? generativeUiRuntimeRegistry)
 {
+    public bool SupportsDynamicTools =>
+        wireDynamicToolProxy != null && sessionService is IThreadDynamicToolDeclarationService;
+
     public void ValidateRuntimeInputs(
         IReadOnlyList<RuntimeDynamicToolDeclarationSpec>? dynamicTools,
         IReadOnlyDictionary<string, RuntimeAdditionalContextValue>? additionalContext)
     {
         if (!WireDynamicToolProxy.TryValidateSpecs(dynamicTools, out var dynamicToolError))
             throw AppServerErrors.InvalidParams(dynamicToolError);
-        if (dynamicTools != null && wireDynamicToolProxy == null)
+        if (dynamicTools != null && !SupportsDynamicTools)
             throw AppServerErrors.InvalidParams("dynamicTools is not supported by this AppServer host.");
         if (!WireRuntimeAdditionalContextProvider.TryValidateAdditionalContext(additionalContext, out var additionalContextError))
             throw AppServerErrors.InvalidParams(additionalContextError);
@@ -41,15 +45,15 @@ internal sealed class AppServerThreadBinder(
     /// </summary>
     public void BindThreadRuntimeInputs(
         string threadId,
-        IReadOnlyList<RuntimeDynamicToolDeclarationSpec>? dynamicTools,
+        IReadOnlyList<ThreadDynamicToolDeclaration>? toolDeclarations,
         IReadOnlyDictionary<string, RuntimeAdditionalContextValue>? additionalContext)
     {
         if (wireAcpExtensionProxy != null && connection.HasAcpExtensions)
             wireAcpExtensionProxy.BindThread(threadId, transport, connection);
         if (wireNodeReplProxy != null && connection.HasNodeRepl && (connection.HasBrowserUse || connection.HasComputerUse))
             wireNodeReplProxy.BindThread(threadId, transport, connection);
-        if (dynamicTools != null)
-            wireDynamicToolProxy?.BindThread(threadId, transport, connection, dynamicTools);
+        if (toolDeclarations is { Count: > 0 })
+            wireDynamicToolProxy?.BindThread(threadId, transport, connection, toolDeclarations);
         wireRuntimeAdditionalContextProvider?.BindThread(threadId, transport, connection, additionalContext);
     }
 
@@ -113,10 +117,22 @@ internal sealed class AppServerThreadBinder(
                 shouldRefreshAgent = true;
         }
 
-        if (dynamicTools != null && wireDynamicToolProxy != null)
+        if (dynamicTools != null && wireDynamicToolProxy is { } proxy
+            && sessionService is IThreadDynamicToolDeclarationService declarations)
         {
-            wireDynamicToolProxy.BindThread(thread.Id, transport, connection, dynamicTools);
-            shouldRefreshAgent = true;
+            var toolDeclarations = WireDynamicToolProxy.Describe(dynamicTools);
+            await declarations.UpdateThreadDynamicToolsAsync(
+                thread.Id,
+                toolDeclarations,
+                () => !connection.IsClosed && (dynamicTools.Count > 0 || proxy.OwnsThread(thread.Id, connection)),
+                () =>
+                {
+                    if (dynamicTools.Count > 0)
+                        proxy.BindThread(thread.Id, transport, connection, toolDeclarations);
+                    else
+                        proxy.UnbindThread(thread.Id);
+                },
+                ct);
         }
 
         wireRuntimeAdditionalContextProvider?.BindThread(thread.Id, transport, connection, additionalContext);

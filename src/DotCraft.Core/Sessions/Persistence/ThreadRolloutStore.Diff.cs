@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DotCraft.Tools;
 
 namespace DotCraft.Sessions;
 
@@ -182,6 +183,8 @@ internal sealed partial class ThreadRolloutStore
             return true;
         if (!JsonEquals(previous.Configuration, current.Configuration))
             return true;
+        if (!ThreadDynamicToolDeclaration.Match(previous.DynamicToolDeclarations, current.DynamicToolDeclarations))
+            return true;
         if (previous.ProviderHistorySchemaVersion != current.ProviderHistorySchemaVersion)
             return true;
         return !JsonEquals(previous.Metadata, current.Metadata);
@@ -219,6 +222,7 @@ internal sealed partial class ThreadRolloutStore
                 Metadata = new Dictionary<string, string>(thread.Metadata),
                 HistoryMode = thread.HistoryMode,
                 Configuration = thread.Configuration,
+                DynamicToolDeclarations = thread.DynamicToolDeclarations,
                 ProviderHistorySchemaVersion = thread.ProviderHistorySchemaVersion,
                 TurnSequenceHighWatermark = thread.TurnSequenceHighWatermark
             }
