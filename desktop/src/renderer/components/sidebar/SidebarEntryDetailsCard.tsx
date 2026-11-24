@@ -118,7 +118,7 @@ export function SidebarEntryDetailsCard({
       suppressNextFocusOpenRef.current = false
       return
     }
-    open()
+    if ((event.target as Element).matches(':focus-visible')) open()
   }
 
   function handleAnchorBlur(event: FocusEvent<HTMLDivElement>): void {
