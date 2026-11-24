@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Columns2, Folder, FolderOpen, Rows2 } from 'lucide-react'
+import { useShallow } from 'zustand/react/shallow'
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useThreadStore } from '../../stores/threadStore'
-import { latestTurnDiff, turnPatchTotals } from '../../stores/turnDiffs'
+import { filesForTurns, latestTurnDiff, turnPatchTotals } from '../../stores/turnDiffs'
 import { useUIStore, type ChangesDiffMode } from '../../stores/uiStore'
 import type { TurnFileChange } from '../../types/turnDiff'
 import { IconButton } from '../ui/IconButton'
@@ -21,11 +22,14 @@ const NO_ROWS: TurnFileChange[] = []
 
 export function ChangesTab({ workspacePath }: ChangesTabProps): JSX.Element {
   const t = useT()
-  const rows = useConversationStore((s) => latestTurnDiff(s.turnDiffs, s.turns)?.files ?? NO_ROWS)
+  const activeThreadId = useThreadStore((s) => s.activeThreadId)
+  const scope = useUIStore((s) => s.responseChangesScope?.threadId === activeThreadId ? s.responseChangesScope : null)
+  const rows = useConversationStore(useShallow((s) => scope
+    ? filesForTurns(s.turnDiffs, scope.turnIds)
+    : latestTurnDiff(s.turnDiffs, s.turns)?.files ?? NO_ROWS))
   const remoteWorkspace = useConversationStore((s) => s.remoteWorkspaceActive)
   const totals = useMemo(() => turnPatchTotals(rows), [rows])
   const selectedKey = useUIStore((s) => s.selectedChangeKey)
-  const activeThreadId = useThreadStore((s) => s.activeThreadId)
   const mode = useUIStore((s) => s.getChangesDiffMode(activeThreadId))
   const setMode = useUIStore((s) => s.setChangesDiffMode)
   const wordWrap = useUIStore((s) => s.changesWordWrap)
@@ -95,8 +99,6 @@ export function ChangesTab({ workspacePath }: ChangesTabProps): JSX.Element {
     setExpanded(new Set())
   }
 
-  // Explorer row click: expand the file, mark it selected, and scroll its diff
-  // section into view (re-scrolls on every click, even if already expanded).
   function handleSelectFromExplorer(key: string): void {
     setExpanded((current) => current.has(key) ? current : new Set(current).add(key))
     selectChangeKey(key)
@@ -134,7 +136,7 @@ export function ChangesTab({ workspacePath }: ChangesTabProps): JSX.Element {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       <div style={summaryHeaderStyle}>
-        <span>{t('changes.lastTurn')}</span>
+        <span>{t(scope ? 'detailPanel.tabChanges' : 'changes.lastTurn')}</span>
         <FileStats additions={totals.additions} deletions={totals.deletions} />
         <span style={{ flex: 1 }} />
         <div style={actionsClusterStyle}>

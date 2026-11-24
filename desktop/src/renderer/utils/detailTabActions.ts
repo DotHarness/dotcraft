@@ -49,7 +49,8 @@ export function performAddTabAction(action: AddTabMenuAction, ctx: AddTabActionC
   const systemTab = SYSTEM_TAB_ACTIONS[action as keyof typeof SYSTEM_TAB_ACTIONS]
   if (systemTab) {
     if (!useThreadStore.getState().activeThreadId) return
-    useDetailPanelStore.getState().setActiveDetailTab(systemTab)
+    if (systemTab === 'changes') ui.showChangesForKey(null)
+    else useDetailPanelStore.getState().setActiveDetailTab(systemTab)
     return
   }
 

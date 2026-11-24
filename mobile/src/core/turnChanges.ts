@@ -160,7 +160,7 @@ export function parseUnifiedDiff(text: string): FileChange[] {
   return chunks(text).flatMap((lines) => parseChunk(lines) ?? [])
 }
 
-function mergeByPath(files: FileChange[], workspacePath: string | null): FileChange[] {
+function mergeByPath(files: readonly FileChange[], workspacePath: string | null): FileChange[] {
   const merged = new Map<string, FileChange>()
   for (const file of files) {
     const path = displayPath(file.path, workspacePath)
@@ -180,6 +180,29 @@ function mergeByPath(files: FileChange[], workspacePath: string | null): FileCha
     )
   }
   return [...merged.values()]
+}
+
+const responseChangesCache = new WeakMap<TurnChanges, {
+  turns: readonly TurnChanges[]
+  workspacePath: string | null
+  changes: TurnChanges
+}>()
+
+export function responseChanges(turns: readonly TurnChanges[], workspacePath: string | null): TurnChanges | null {
+  const latest = turns.at(-1)
+  if (!latest || turns.length === 1) return latest ?? null
+  const cached = responseChangesCache.get(latest)
+  if (cached?.workspacePath === workspacePath && cached.turns.length === turns.length
+    && turns.every((turn, index) => turn === cached.turns[index])) return cached.changes
+  const files = mergeByPath(turns.flatMap((turn) => turn.files), workspacePath)
+  const changes = {
+    turnId: latest.turnId,
+    files,
+    added: turns.reduce((sum, turn) => sum + turn.added, 0),
+    removed: turns.reduce((sum, turn) => sum + turn.removed, 0),
+  }
+  responseChangesCache.set(latest, { turns, workspacePath, changes })
+  return changes
 }
 
 interface FileChangeEntry {

@@ -5,7 +5,7 @@ import type {
   PluginCatalogSurface,
   SelectedChannelKey
 } from './uiStore'
-import { useUIStore } from './uiStore'
+import { useUIStore, type ResponseChangesScope } from './uiStore'
 import { useThreadStore } from './threadStore'
 import { findPluginEntry, usePluginStore } from './pluginStore'
 import { useSkillsStore } from './skillsStore'
@@ -24,6 +24,7 @@ interface ConversationNavigationLocation {
   detailVisible: boolean
   activeDetailTab: ActiveDetailTab
   selectedChangeKey: string | null
+  responseChangesScope?: ResponseChangesScope
 }
 
 interface CatalogNavigationLocation {
@@ -135,7 +136,9 @@ export function captureAppNavigationLocation(): AppNavigationLocation {
       threadId: activeThreadId,
       detailVisible: useDetailPanelStore.getState().getCurrentPanel().detailPanelPreferredVisible,
       activeDetailTab: useDetailPanelStore.getState().getCurrentPanel().activeDetailTab,
-      selectedChangeKey: ui.selectedChangeKey
+      selectedChangeKey: ui.selectedChangeKey,
+      ...(ui.responseChangesScope && ui.responseChangesScope.threadId === activeThreadId
+        ? { responseChangesScope: ui.responseChangesScope } : {})
     }
   }
 
@@ -297,7 +300,7 @@ function restoreLocation(location: AppNavigationLocation): void {
     useThreadStore.getState().setActiveThreadId(location.threadId)
     useDetailPanelStore.getState().onThreadSwitched(locationDetailScopeId(location))
     ui.setActiveMainView('conversation')
-    ui.selectChangeKey(location.selectedChangeKey)
+    ui.selectChangeKey(location.selectedChangeKey, location.responseChangesScope ?? null)
     if (location.activeDetailTab.kind === 'system') {
       useDetailPanelStore.getState().setActiveDetailTab(location.activeDetailTab.id, { reveal: false })
     } else if (location.activeDetailTab.kind === 'viewer') {

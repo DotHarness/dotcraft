@@ -223,7 +223,6 @@ export function writtenFileSummaries(map: ReadonlyMap<string, TurnDiff>): Thread
   return threadFileSummaries(map).filter((file) => file.status === 'written')
 }
 
-/** Totals over every row of a turn, whatever its status; `files` counts distinct paths. */
 export function turnPatchTotals(
   rows: readonly TurnFileChange[]
 ): { additions: number; deletions: number; files: number } {
@@ -246,11 +245,6 @@ export function runningTurnFiles(state: {
   return state.turnDiffs.get(state.activeTurnId)?.files ?? NO_FILES
 }
 
-export function turnWrittenFiles(map: ReadonlyMap<string, TurnDiff>, turnId: string): TurnFileChange[] {
-  const byPath = new Map<string, TurnFileChange>()
-  for (const row of map.get(turnId)?.files ?? []) {
-    if (row.diff.status !== 'written') continue
-    byPath.set(pathKey(row.diff.filePath), row)
-  }
-  return [...byPath.values()]
+export function filesForTurns(map: ReadonlyMap<string, TurnDiff>, turnIds: readonly string[]): TurnFileChange[] {
+  return turnIds.flatMap((id) => map.get(id)?.files ?? NO_FILES)
 }

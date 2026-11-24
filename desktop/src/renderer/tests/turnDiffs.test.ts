@@ -7,8 +7,7 @@ import {
   runningTurnFiles,
   setTurnFileStatus,
   threadFileSummaries,
-  turnPatchTotals,
-  turnWrittenFiles
+  turnPatchTotals
 } from '../stores/turnDiffs'
 import type { ConversationItem, ConversationTurn } from '../types/conversation'
 import type { TurnDiff } from '../types/turnDiff'
@@ -230,13 +229,6 @@ describe('selectors', () => {
   it('totals a turn', () => {
     expect(turnPatchTotals(map.get('t1')!.files)).toEqual({ additions: 3, deletions: 1, files: 2 })
     expect(turnPatchTotals([])).toEqual({ additions: 0, deletions: 0, files: 0 })
-  })
-
-  it('lists the written files of a turn once per path', () => {
-    const next = setTurnFileStatus(map, 't1', 't1::c', 'reverted')
-
-    expect(turnWrittenFiles(next, 't1').map((row) => row.key)).toEqual(['t1::src/a.ts'])
-    expect(turnWrittenFiles(next, 't2')).toEqual([])
   })
 })
 

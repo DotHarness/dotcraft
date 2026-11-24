@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { useDetailPanelStore } from '../stores/detailPanelStore'
 import { isDetailPanelVisible } from '../stores/detailPanelPresentation'
+import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
+import { performAddTabAction } from '../utils/detailTabActions'
 
 const store = () => useDetailPanelStore.getState()
 const panel = () => store().getCurrentPanel()
@@ -10,7 +12,10 @@ beforeEach(() => {
   store().reset()
   store().onWorkspaceSwitched('/project-a')
   store().onThreadSwitched('thread-a')
-  useUIStore.setState({ responsiveLayout: 'full', activeMainView: 'conversation', selectedChangeKey: null })
+  useThreadStore.setState({ activeThreadId: 'thread-a' })
+  useUIStore.setState({
+    responsiveLayout: 'full', activeMainView: 'conversation', selectedChangeKey: null, responseChangesScope: null
+  })
 })
 
 describe('detail panel focus and closing', () => {
@@ -21,6 +26,17 @@ describe('detail panel focus and closing', () => {
     expect(isDetailPanelVisible()).toBe(true)
     expect(panel().activeDetailTab).toEqual({ kind: 'system', id: 'changes' })
     expect(useUIStore.getState().selectedChangeKey).toBe('turn-1::a')
+  })
+
+  it('reopens Changes without the previous response filter or selected file', () => {
+    const ui = useUIStore.getState()
+    ui.showChangesForKey('turn-1::a', { threadId: 'thread-a', turnIds: ['turn-1'] })
+    store().closeSystemTab('changes')
+
+    performAddTabAction('newChanges', { workspacePath: '/project-a', t: (key) => key })
+
+    expect(panel().activeDetailTab).toEqual({ kind: 'system', id: 'changes' })
+    expect(useUIStore.getState()).toMatchObject({ responseChangesScope: null, selectedChangeKey: null })
   })
 
   it('reveals system and viewer tabs and remembers the last system tab', () => {

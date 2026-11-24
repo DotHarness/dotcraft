@@ -1,4 +1,4 @@
-import { Fragment, memo, useEffect, useRef, useState, type ComponentProps, type CSSProperties, type ReactNode } from 'react'
+import { memo, useEffect, useRef, useState, type ComponentProps, type CSSProperties, type ReactNode } from 'react'
 import { Image as ImageIcon } from 'lucide-react'
 import type { ConversationItem, ConversationTurn } from '../../types/conversation'
 import { isToolLikeItemType } from '../../types/conversation'
@@ -11,11 +11,8 @@ import { isMcpAppCandidate } from '../../utils/mcpAppCandidate'
 import { AgentMessage } from './AgentMessage'
 import { TurnActivitySummary } from './TurnActivitySummary'
 import { getTaskWake, getTurnActivityState } from './turnActivityModel'
-import { TurnCompletionSummary } from './TurnCompletionSummary'
-import { TurnArtifacts } from './TurnArtifacts'
-import { TurnThreadActions } from './TurnThreadActions'
+import { ResponseCompletionContent } from './ResponseCompletionContent'
 import { TurnNextStep } from './TurnNextStep'
-import { TurnAutomations } from './TurnAutomations'
 import { isThreadActionToolItem, isWrapUpItem, parseThreadToolAction, threadTaskCardKind } from '../../utils/threadToolDisplay'
 import { TurnThreadTaskCards } from './threadTasks/TurnThreadTaskCards'
 import { ApprovalCard } from './ApprovalCard'
@@ -75,7 +72,7 @@ interface AgentResponseBlockProps {
   activeItemIdOverride?: string | null
   shellRuntimeScope?: ShellRuntimeScope
   readOnly?: boolean
-  renderTurnCompletion?: (turnId: string) => ReactNode
+  renderTurnCompletion?: (turnIds: readonly string[]) => ReactNode
   loadTurnItems?: TurnItemsExpansionLoader
   leadingTurns?: readonly ConversationTurn[]
   embedded?: { open: boolean; expanded: boolean; wakeLine: boolean }
@@ -335,14 +332,13 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
   const completesResponse = turnCompleted && lastFinalAgentMessageIndex >= 0
   const footerAgentMessageId =
     completesResponse && !embedded ? renderableItems[lastFinalAgentMessageIndex]?.id : null
-  const completionOf = (turnId: string): ReactNode =>
-    renderTurnCompletion ? renderTurnCompletion(turnId) : <TurnCompletionContent turnId={turnId} />
+  const responseTurnIds = [...leadingTurns.map((member) => member.id), turn.id]
   const turnCompletionContent = !completesResponse || embedded ? null
     : awaitingTasks ? <TurnNextStep turnId={turn.id} />
-    : leadingTurns.length === 0 ? completionOf(turn.id)
-      : <>{[...leadingTurns, turn].map((member) => <Fragment key={member.id}>{completionOf(member.id)}</Fragment>)}</>
+    : renderTurnCompletion ? renderTurnCompletion(responseTurnIds)
+    : <ResponseCompletionContent threadId={turn.threadId} turnIds={responseTurnIds} lastTurnId={turn.id} />
   const showsStatusSeat = isLastVisibleTurn && !readOnly && !embedded
-  const replyStatusSeat = showsStatusSeat && footerAgentMessageId ? <TurnStatusSeat turn={turn} running={isRunning} inReply /> : null
+  const replyStatusSeat = showsStatusSeat && footerAgentMessageId ? <TurnStatusSeat turn={turn} leadingTurns={leadingTurns} running={isRunning} inReply /> : null
   const omitsWork = turn.summary != null && turn.summary.itemCount > turn.items.length
   const collapsesIntermediate = activity.status === 'worked'
     && (lastFinalAgentMessageIndex > 0 || omitsWork || (leadingTurns.length > 0 && lastFinalAgentMessageIndex === 0))
@@ -376,7 +372,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
         threadId={turn.threadId} turnId={turn.id}
         startedAt={responseStartedAt(leadingTurns, turn.startedAt)} completedAt={activity.completedAt}
         taskWake={getTaskWake(leadingTurns[0] ?? turn)}
-        responseTurnIds={leadingTurns.length > 0 ? [...leadingTurns.map((leadingTurn) => leadingTurn.id), turn.id] : undefined}
+        responseTurnIds={leadingTurns.length > 0 ? responseTurnIds : undefined}
       >
         {(state) => {
           const own = <>
@@ -459,7 +455,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
       {turnCompletionContent && !footerAgentMessageId && turnCompletionContent}
       {turnCompleted && !completesResponse && !readOnly && !embedded && <TurnNextStep turnId={turn.id} />}
 
-      {showsStatusSeat && !footerAgentMessageId && <TurnStatusSeat turn={turn} running={isRunning} />}
+      {showsStatusSeat && !footerAgentMessageId && <TurnStatusSeat turn={turn} leadingTurns={leadingTurns} running={isRunning} />}
 
       <TurnWorkingLine
         turnId={turn.id}
@@ -534,18 +530,6 @@ function ToolRunStack({ children }: { children: ReactNode }): JSX.Element {
 function ImageGenerationEntry({ item }: { item: ConversationItem }): JSX.Element {
   const image = useGeneratedOutputImage(item)
   return <ToolEntryWithOutputs images={image ? [image] : []}><ImageGenerationStatus item={item} /></ToolEntryWithOutputs>
-}
-
-function TurnCompletionContent({ turnId }: { turnId: string }): JSX.Element {
-  return (
-    <>
-      <TurnThreadActions turnId={turnId} />
-      <TurnAutomations turnId={turnId} />
-      <TurnArtifacts turnId={turnId} />
-      <TurnCompletionSummary turnId={turnId} />
-      <TurnNextStep turnId={turnId} />
-    </>
-  )
 }
 
 const conversationFlowStyle: CSSProperties = {

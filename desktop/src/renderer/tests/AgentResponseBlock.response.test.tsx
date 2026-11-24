@@ -5,6 +5,9 @@ import { AgentResponseBlock } from '../components/conversation/AgentResponseBloc
 import { useConversationStore } from '../stores/conversationStore'
 import { useSubAgentStore } from '../stores/subAgentStore'
 import { useThreadStore } from '../stores/threadStore'
+import { useUIStore } from '../stores/uiStore'
+import { openThreadState } from '../stores/threadState'
+import { coreToolFields } from './testToolPresentation'
 import { useTurnActivityDisclosureStore } from '../stores/turnActivityDisclosureStore'
 import type { ConversationTurn } from '../types/conversation'
 import { installDesktopApiMock } from './desktopApiMock'
@@ -34,10 +37,12 @@ const woken: ConversationTurn = {
   ]
 }
 
-const completions = (turnId: string) => <span data-testid={`completion-${turnId}`} />
+const completions = (turnIds: readonly string[]) => <span data-testid={`completion-${turnIds.join('+')}`} />
 
 beforeEach(() => {
+  openThreadState(asked.threadId)
   useConversationStore.getState().reset()
+  useUIStore.setState({ responseChangesScope: null })
   useThreadStore.setState({ runtimeSnapshots: new Map() })
   useTurnActivityDisclosureStore.setState({ expanded: new Map() })
   installDesktopApiMock({
@@ -83,6 +88,39 @@ describe('AgentResponseBlock responses spanning turns', () => {
 
     expect(screen.getByTestId('agent-message-footer')).toBeInTheDocument()
     expect(screen.getByTestId('completion-turn-woken')).toBeInTheDocument()
+  })
+
+  it('opens Changes for every turn in the settled response', () => {
+    const conversation = useConversationStore.getState()
+    conversation.setWorkspacePath('/workspace')
+    conversation.onTurnDiffUpdated({ turnId: asked.id, diff: [
+      'diff --git a/a.ts b/a.ts', '--- a/a.ts', '+++ b/a.ts', '@@ -1 +1 @@', '-old', '+new', ''
+    ].join('\n') })
+    conversation.onTurnDiffUpdated({ turnId: woken.id, diff: [
+      'diff --git a/b.ts b/b.ts', '--- a/b.ts', '+++ b/b.ts', '@@ -1 +1 @@', '-old', '+new', ''
+    ].join('\n') })
+    render(<LocaleProvider><AgentResponseBlock turn={woken} leadingTurns={[asked]} /></LocaleProvider>)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Review' }))
+    expect(useUIStore.getState().responseChangesScope).toEqual({ threadId: asked.threadId, turnIds: [asked.id, woken.id] })
+  })
+
+  it('keeps the checklist through a task wake with no new TodoWrite, then hides it when the response settles', () => {
+    useThreadStore.setState({ activeThreadId: asked.threadId })
+    useConversationStore.getState().onPlanUpdated({
+      title: '', todos: [{ id: 'verify', content: 'Verify the build', status: 'in_progress' }]
+    })
+    const withChecklist: ConversationTurn = {
+      ...asked, items: [...asked.items, { id: 'todo', status: 'completed', type: 'toolCall', toolName: 'TodoWrite',
+        ...coreToolFields('TodoWrite'), success: true }]
+    }
+    useThreadStore.getState().applyRuntimeSnapshot(asked.threadId, { hasBackgroundWork: true }, { isDesktopOrigin: false })
+
+    render(<LocaleProvider><AgentResponseBlock turn={woken} leadingTurns={[withChecklist]} isLastTurn isLastVisibleTurn /></LocaleProvider>)
+
+    expect(screen.getByRole('region', { name: /To-dos/ })).toBeInTheDocument()
+    act(() => useThreadStore.getState().applyRuntimeSnapshot(asked.threadId, { hasBackgroundWork: false }, { isDesktopOrigin: false }))
+    expect(screen.queryByRole('region', { name: /To-dos/ })).not.toBeInTheDocument()
   })
 
   it('shows no completion results for an answered earlier turn while the response continues', () => {

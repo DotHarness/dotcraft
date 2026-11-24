@@ -40,7 +40,7 @@ function restoreTodoTurn(plan: ThreadPlan, items: Record<string, unknown>[], tur
 
 function LatestTurnStatus(): JSX.Element | null {
   const turn = useConversationStore((state) => state.turns.at(-1))
-  return turn ? <TurnStatusSeat turn={turn} running={turn.status === 'running'} /> : null
+  return turn ? <TurnStatusSeat turn={turn} leadingTurns={[]} running={turn.status === 'running'} /> : null
 }
 
 function renderWithLocale(node: JSX.Element): void {

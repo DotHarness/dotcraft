@@ -1,8 +1,7 @@
-import { turnWrittenFiles } from '../../../stores/turnDiffs'
 import type { ConversationItem, ConversationTurn } from '../../../types/conversation'
 import type { TurnDiff } from '../../../types/turnDiff'
 import { basename } from '../../../utils/path'
-import { toTurnArtifact } from '../turnArtifactFiles'
+import { createdTurnArtifacts } from '../turnArtifactFiles'
 
 export type TurnOutputKind = 'webPreview' | 'file' | 'image'
 
@@ -21,11 +20,8 @@ function isGeneratedImage(item: ConversationItem): boolean {
 export function deriveTurnOutputs(turn: ConversationTurn, turnDiffs: ReadonlyMap<string, TurnDiff>): TurnOutput[] {
   if (turn.status !== 'completed') return []
   const outputs: TurnOutput[] = []
-  for (const row of turnWrittenFiles(turnDiffs, turn.id)) {
-    const artifact = toTurnArtifact(row.diff)
-    if (artifact) {
-      outputs.push({ kind: artifact.kind === 'html' ? 'webPreview' : 'file', label: basename(artifact.diff.filePath) })
-    }
+  for (const artifact of createdTurnArtifacts(turnDiffs.get(turn.id)?.files ?? [], '')) {
+    outputs.push({ kind: artifact.kind === 'html' ? 'webPreview' : 'file', label: basename(artifact.diff.filePath) })
   }
   for (const item of turn.items) {
     if (isGeneratedImage(item)) outputs.push({ kind: 'image', label: '' })

@@ -8,8 +8,8 @@ import { toWorkspaceRelativePatch } from '../utils/unifiedDiff'
 export type TurnPatchOutcome = 'reverted' | 'reapplied' | 'partial' | 'failed' | 'not-git-repo'
 
 export interface TurnDiffActions {
-  revertTurn(turnId: string): Promise<TurnPatchOutcome>
-  reapplyTurn(turnId: string): Promise<TurnPatchOutcome>
+  revert(turnIds: readonly string[]): Promise<TurnPatchOutcome>
+  reapply(turnIds: readonly string[]): Promise<TurnPatchOutcome>
 }
 
 export interface TurnDiffSource {
@@ -42,10 +42,10 @@ export function useTurnDiffActions(
       return result
     }
 
-    // A later row can edit lines an earlier row of the same file wrote, so revert walks newest to oldest.
-    async function applyTurn(turnId: string, reverse: boolean): Promise<TurnPatchOutcome> {
-      const rows = source.rows(turnId)
-      const pending = (reverse ? [...rows].reverse() : rows).filter((row) => needsApply(row, reverse))
+    async function applyTurns(turnIds: readonly string[], reverse: boolean): Promise<TurnPatchOutcome> {
+      const rows = turnIds.flatMap((turnId) => source.rows(turnId))
+      if (reverse) rows.reverse()
+      const pending = rows.filter((row) => needsApply(row, reverse))
       for (const [done, row] of pending.entries()) {
         const result = await apply(row, reverse)
         if (result.ok) continue
@@ -56,8 +56,8 @@ export function useTurnDiffActions(
     }
 
     return {
-      revertTurn: (turnId) => applyTurn(turnId, true),
-      reapplyTurn: (turnId) => applyTurn(turnId, false)
+      revert: (turnIds) => applyTurns(turnIds, true),
+      reapply: (turnIds) => applyTurns(turnIds, false)
     }
   }, [workspacePath, source])
 }

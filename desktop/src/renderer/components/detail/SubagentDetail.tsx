@@ -13,7 +13,7 @@ import { useTranscriptViewport } from '../../hooks/useTranscriptViewport'
 import type { TurnDiffSource } from '../../hooks/useTurnDiffActions'
 import type { ConversationTurn } from '../../types/conversation'
 import type { ThreadConfigurationWire } from '../../types/thread'
-import type { TurnFileChange } from '../../types/turnDiff'
+import { filesForTurns } from '../../stores/turnDiffs'
 import { formatSubAgentMeta } from '../../utils/subAgentPresentation'
 import { readReasoningObject } from '../conversation/modelReasoning'
 import { attachmentImageScope, collectConversationImages, ConversationImagesContext, ImageReadScopeContext } from '../conversation/imagePreview/galleryImages'
@@ -29,7 +29,6 @@ import { Skeleton } from '../ui/Skeleton'
 import { SubagentRunningTasks } from './SubagentRunningTasks'
 import styles from './SubagentDetail.module.css'
 
-const NO_ROWS: TurnFileChange[] = []
 
 type Translate = (key: string, vars?: Record<string, string | number>) => string
 
@@ -188,7 +187,7 @@ const SubagentTurn = memo(function SubagentTurn({
   live: TranscriptLiveText | null
 }): JSX.Element {
   const renderTurnCompletion = useCallback(
-    (turnId: string) => <SubagentTurnChanges childThreadId={childThreadId} turnId={turnId} />,
+    (turnIds: readonly string[]) => <SubagentTurnChanges childThreadId={childThreadId} turnIds={turnIds} />,
     [childThreadId]
   )
   return (
@@ -205,10 +204,9 @@ const SubagentTurn = memo(function SubagentTurn({
   )
 })
 
-function SubagentTurnChanges({ childThreadId, turnId }: { childThreadId: string; turnId: string }): JSX.Element | null {
-  const rows = useSubAgentTranscriptStore((s) =>
-    s.transcripts.get(childThreadId)?.turnDiffs.get(turnId)?.files ?? NO_ROWS
-  )
+function SubagentTurnChanges({ childThreadId, turnIds }: { childThreadId: string; turnIds: readonly string[] }): JSX.Element | null {
+  const turnDiffs = useSubAgentTranscriptStore((s) => s.transcripts.get(childThreadId)?.turnDiffs)
+  const rows = useMemo(() => turnDiffs ? filesForTurns(turnDiffs, turnIds) : [], [turnDiffs, turnIds])
   const childWorkspacePath = useSubAgentTranscriptStore((s) => s.transcripts.get(childThreadId)?.workspacePath)
   const parentWorkspacePath = useConversationStore((s) => s.workspacePath)
   const source = useMemo<TurnDiffSource>(() => ({
@@ -218,7 +216,7 @@ function SubagentTurnChanges({ childThreadId, turnId }: { childThreadId: string;
   }), [childThreadId])
   return (
     <TurnChangesCard
-      turnId={turnId}
+      turnIds={turnIds}
       rows={rows}
       workspacePath={childWorkspacePath || parentWorkspacePath}
       source={source}

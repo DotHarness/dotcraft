@@ -31,9 +31,10 @@ export function progressOf(todos: readonly TurnTodo[]): { done: number; total: n
   return { done: counted.filter((todo) => todo.status === 'completed').length, total: counted.length }
 }
 
-export function showsTodoCard(plan: TurnTodoPlan, status: TurnTodoStatus): boolean {
+function showsTodoCard(plan: TurnTodoPlan, status: TurnTodoStatus, waitingOnTasks: boolean): boolean {
   const { todos, implementsPlan, updatedTodos } = plan
-  if (status === 'completed' || todos.length === 0 || !(implementsPlan || updatedTodos)) return false
+  if (todos.length === 0 || !(implementsPlan || updatedTodos)) return false
+  if (status === 'completed') return waitingOnTasks
   const unfinished = todos.some((todo) => todo.status === 'pending' || todo.status === 'in_progress')
   return unfinished || (status === 'running' && updatedTodos)
 }
@@ -45,21 +46,22 @@ export function foldedPrefix(todos: readonly TurnTodo[], visibleLimit: number): 
   return prefix >= 2 ? prefix : 0
 }
 
-export function TurnTodoCard({ threadId, turnId, status, plan }: {
+export function TurnTodoCard({ threadId, turnId, status, waitingOnTasks, plan }: {
   threadId: string
   turnId: string
   status: TurnTodoStatus
+  waitingOnTasks: boolean
   plan: TurnTodoPlan | null
 }): JSX.Element | null {
   const t = useT()
   const taskCount = useRunningTaskCount(desktopSummaryServices, threadId, false)
-  const shown = plan != null && showsTodoCard(plan, status)
+  const shown = plan != null && showsTodoCard(plan, status, waitingOnTasks)
   const showsTasks = shown && status !== 'running' && taskCount > 0
   useEffect(() => (showsTasks ? claimTurnTasks(turnId) : undefined), [showsTasks, turnId])
   if (!shown) return null
 
   const { done, total } = progressOf(plan.todos)
-  const live = status === 'running'
+  const live = status === 'running' || waitingOnTasks
   const tasksLabel = showsTasks
     ? t(taskCount === 1 ? 'conversation.runningTasks.one' : 'conversation.runningTasks.other', { count: taskCount })
     : null
@@ -77,7 +79,7 @@ function TodoChecklist({ todos, live, tasksLabel }: {
 }): JSX.Element {
   const t = useT()
   const [unfolded, setUnfolded] = useState(false)
-  const folded = unfolded ? 0 : foldedPrefix(todos, FOLD_AFTER)
+  const folded = unfolded ? 0 : Math.min(foldedPrefix(todos, FOLD_AFTER), todos.length - (tasksLabel ? 1 : 0))
   const visible = todos.slice(folded)
   const tasksAnchor = (visible.find((todo) => todo.status === 'in_progress') ?? visible.at(-1))?.id
 

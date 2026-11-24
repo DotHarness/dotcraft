@@ -1,5 +1,5 @@
 import type { ToolGroupLabel } from './toolGroups'
-import type { TodoCard } from './todoCard'
+import type { TodoCard, TodoPlan } from './todoCard'
 import type { TurnChanges } from './turnChanges'
 import type { ImageSource, UserSegment } from './userSegments'
 
@@ -102,6 +102,9 @@ export interface TranscriptOptions {
   workingAgentPaths?: ReadonlySet<string>
   stopped?: readonly string[]
   spawnedFrom?: string | null
+  hasBackgroundWork?: boolean
+  todoPlan?: TodoPlan | null
+  planInput?: string | null
 }
 
 export type TranscriptEntry =

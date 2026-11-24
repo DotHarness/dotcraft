@@ -1,4 +1,4 @@
-import type { HistoryItem, HistoryTurn } from './history'
+import { isComplete, type HistoryItem, type HistoryTurn } from './history'
 import type { PlanTodo, TranscriptEntry } from './transcriptTypes'
 
 export interface TodoItem extends PlanTodo {
@@ -41,25 +41,34 @@ function isTodoWrite(item: HistoryItem): boolean {
 }
 
 function updatedTodos(items: readonly HistoryItem[]): boolean {
-  const calls = new Set(items.filter((item) => item.type === 'toolCall' && isTodoWrite(item)).map((item) => item.payload.callId))
-  return items.some((item) => item.type === 'toolResult' && calls.has(item.payload.callId) && item.payload.success === true)
+  const calls = new Map<string, Set<string>>()
+  for (const item of items) {
+    const callId = item.payload.callId
+    if (item.type !== 'toolCall' || typeof callId !== 'string' || !isTodoWrite(item)) continue
+    const ids = calls.get(item.turnId) ?? new Set<string>()
+    ids.add(callId)
+    calls.set(item.turnId, ids)
+  }
+  return items.some((item) => item.type === 'toolResult' && item.payload.success === true
+    && typeof item.payload.callId === 'string' && calls.get(item.turnId)?.has(item.payload.callId))
 }
 
 export function todoCard(
   plan: TodoPlan | null | undefined,
   turn: HistoryTurn | undefined,
   items: readonly HistoryItem[],
-  running: boolean,
+  hasBackgroundWork: boolean,
   planInput: string | null | undefined,
 ): TodoCard | null {
-  if (!plan || plan.todos.length === 0 || !turn || turn.status === 'completed') return null
+  if (!plan || plan.todos.length === 0 || !turn || (turn.status === 'completed' && !hasBackgroundWork)) return null
   const { todos } = plan
-  const input = items.find((item) => item.type === 'userMessage' && item.payload.deliveryMode !== 'guidance')
-  const implementsPlan = !!planInput && input?.payload.clientUserMessageId === planInput
+  const implementsPlan = !!planInput && items.some((item) =>
+    item.type === 'userMessage' && item.payload.deliveryMode !== 'guidance' && item.payload.clientUserMessageId === planInput)
   const updated = updatedTodos(items)
   if (!implementsPlan && !updated) return null
+  const live = !isComplete(turn) || turn.status === 'completed'
   const unfinished = todos.some((todo) => todo.status === 'pending' || todo.status === 'in_progress')
-  return unfinished || (running && updated) ? { todos, live: running } : null
+  return unfinished || turn.status === 'completed' || (live && updated) ? { todos, live } : null
 }
 
 export function withTodoCard(lines: TranscriptEntry[], card: TodoCard | null): TranscriptEntry[] {

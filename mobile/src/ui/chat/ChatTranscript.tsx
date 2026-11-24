@@ -4,8 +4,6 @@ import { useComputerLink, useComputerSelector } from '../../app-state/SessionCon
 import type { Decision } from '../../core/decisions'
 import { shallowEqual } from '../../core/selection'
 import { computerStatus, isReachable, NO_SIGNALS, projectById, type ComputerState } from '../../core/state'
-import { isComplete } from '../../core/history'
-import { todoCard, withTodoCard } from '../../core/todoCard'
 import { createTranscriptProjector } from '../../core/transcript'
 import { createWorkingSubagentSelector } from '../../core/taskTree'
 import type { ChangesProjector } from '../../core/turnChanges'
@@ -87,6 +85,7 @@ export const ChatTranscript = memo(function ChatTranscript({
         signals: state.signals[chatKey],
         spawnedFrom: state.chats[chatKey]?.spawnedFrom ?? null,
         maintenance: state.chats[chatKey]?.runtime?.maintenanceKind,
+        hasBackgroundWork: state.chats[chatKey]?.runtime?.hasBackgroundWork === true,
         computer: state.computer,
         status: computerStatus(state),
         project: projectById(state, projectId),
@@ -109,17 +108,15 @@ export const ChatTranscript = memo(function ChatTranscript({
             stopped: slice.signals?.stopped,
             spawnedFrom: slice.spawnedFrom,
             workingAgentPaths,
+            hasBackgroundWork: slice.hasBackgroundWork,
+            todoPlan: slice.todoPlan,
+            planInput: slice.planInput,
           })
         : [],
-    [slice.history, slice.workspacePath, slice.signals?.stopped, slice.spawnedFrom, workingAgentPaths, projector],
+    [slice.history, slice.workspacePath, slice.signals?.stopped, slice.spawnedFrom, workingAgentPaths, projector,
+      slice.hasBackgroundWork, slice.todoPlan, slice.planInput],
   )
-  const card = useMemo(() => {
-    const turn = slice.history?.turns.at(-1)
-    const items = turn ? slice.history!.items.filter((item) => item.turnId === turn.id) : []
-    return todoCard(slice.todoPlan, turn, items, !!turn && !isComplete(turn), slice.planInput)
-  }, [slice.history, slice.todoPlan, slice.planInput])
-  const kept = useKeptWorkingLine(transcript, chatKey)
-  const lines = useMemo(() => withTodoCard(kept, card), [kept, card])
+  const lines = useKeptWorkingLine(transcript, chatKey)
   const shownLines = useMemo(
     () => (decision ? lines.map((entry) => (entry.kind === 'thinking' ? { ...entry, working: false } : entry)) : lines),
     [lines, decision],
