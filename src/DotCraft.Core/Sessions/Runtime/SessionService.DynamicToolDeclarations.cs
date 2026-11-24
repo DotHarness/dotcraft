@@ -35,11 +35,8 @@ public sealed partial class SessionService : IThreadDynamicToolDeclarationServic
                     }
                     else
                     {
-                        var items = CaptureRunningTurnItems(thread);
                         await persistence.CommitThreadDynamicToolDeclarationsAsync(thread, captured, commandCt).ConfigureAwait(false);
                         SetMaterializedIfCurrent(thread, materialized: true);
-                        MarkTurnItemsPersisted(items);
-                        ThreadWorkingSet.Trim(thread);
                     }
                 }
 

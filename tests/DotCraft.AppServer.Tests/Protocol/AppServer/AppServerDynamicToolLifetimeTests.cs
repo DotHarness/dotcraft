@@ -209,15 +209,15 @@ public sealed class AppServerDynamicToolLifetimeTests : IDisposable
         private readonly SessionService _sessions;
         private readonly HashSet<Client> _clients = [];
 
-        public Host(string workspace)
+        public Host(string storageRoot)
         {
-            _workspace = workspace;
-            _dataPath = Directory.CreateDirectory(Path.Combine(workspace, ".craft")).FullName;
+            _workspace = Path.GetTempPath();
+            _dataPath = Directory.CreateDirectory(Path.Combine(storageRoot, ".craft")).FullName;
             var config = AppConfigTestFactory.CreateOpenAI();
             config.Tools.DeferredLoading.Strategy = AppConfig.DeferredLoadingStrategy.Simulated;
             _monitor = new AppConfigMonitor(config);
             var contributions = new ContributionRegistry();
-            _factory = new AgentFactory(_dataPath, workspace, config, new MemoryStore(_dataPath),
+            _factory = new AgentFactory(_dataPath, _workspace, config, new MemoryStore(_dataPath),
                 new SkillsLoader(_dataPath), new AutoApproveApprovalService(), null,
                 chatClientRegistry: TestModelProviderRegistry.Create(), chatClient: _model, toolSources: [_dynamicTools],
                 toolDispatcher: new ToolDispatcher(contributions: contributions));

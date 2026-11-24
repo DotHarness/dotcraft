@@ -18,7 +18,9 @@ public sealed partial class ThreadStore
         SessionThread thread, IReadOnlyList<ThreadDynamicToolDeclaration> declarations, CancellationToken ct)
     {
         using var writeLock = await ThreadRolloutWriteGate.AcquireAsync(_botPath, thread.Id, ct);
-        var result = await SaveThreadUnderGateAsync(thread.WithDynamicToolDeclarations(declarations), ct);
+        var updated = thread.WithDynamicToolDeclarations(declarations);
+        var result = await TrackPersistedAsync(
+            thread.Id, () => _rolloutStore.AppendThreadBaselineAsync(updated, ct), thread.Turns);
         thread.DynamicToolDeclarations = declarations;
         await TryProjectHistoryAsync(thread.Id, result, CancellationToken.None);
     }

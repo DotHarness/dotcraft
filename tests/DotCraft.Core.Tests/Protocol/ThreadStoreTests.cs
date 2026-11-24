@@ -188,6 +188,31 @@ public sealed class ThreadStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task CommitDynamicToolDeclarations_AppendsBaselineWithoutSavingRunningTurnItems()
+    {
+        var thread = CreateThread();
+        AddTurnWithMessages(thread, "Take notes", "Started.");
+        var turn = Assert.Single(thread.Turns);
+        turn.Status = TurnStatus.Running;
+        turn.CompletedAt = null;
+        await _store.SaveThreadAsync(thread);
+        var path = GetCanonicalPath(thread.Id, archived: false);
+        var initialLineCount = File.ReadAllLines(path).Length;
+
+        var pendingItem = CreateForkNotice(turn, 3);
+        turn.Items.Add(pendingItem);
+        await _store.CommitDynamicToolDeclarationsAsync(thread,
+            [new(null, null, "SaveNote", "Save a note", JsonSerializer.SerializeToElement(new { type = "object" }), false, null)],
+            CancellationToken.None);
+
+        using var baseline = JsonDocument.Parse(Assert.Single(File.ReadLines(path).Skip(initialLineCount)));
+        Assert.Equal(RolloutKinds.ThreadOpened, baseline.RootElement.GetProperty("kind").GetString());
+        var loaded = Assert.IsType<SessionThread>(await _store.LoadThreadAsync(thread.Id));
+        Assert.Equal("SaveNote", Assert.Single(loaded.DynamicToolDeclarations).Name);
+        Assert.DoesNotContain(Assert.Single(loaded.Turns).Items, item => item.Id == pendingItem.Id);
+    }
+
+    [Fact]
     public async Task LoadThread_UnknownSourceSchema_FailsExplicitly()
     {
         var thread = CreateThread();
