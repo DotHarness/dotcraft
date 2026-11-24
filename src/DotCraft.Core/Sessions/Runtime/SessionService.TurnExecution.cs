@@ -1432,6 +1432,8 @@ public sealed partial class SessionService
                                         && streamingSnapshot.Registrations.TryGetValue(
                                             streamingCanonicalName,
                                             out streamingRegistration);
+                                    if (streamingRegistration?.ProjectionShape == ToolProjectionShape.DynamicLifecycle)
+                                        break;
                                     if (!resolvedSnapshotRegistration
                                         && streamingSnapshot?.Registrations.Keys.Any(
                                             name => string.Equals(
