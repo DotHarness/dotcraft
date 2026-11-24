@@ -903,7 +903,7 @@ Streams tool-argument construction for a `toolCall` item: `{ threadId, turnId, i
 - `delta` is a raw JSON text fragment, not parseable mid-stream. `toolName` and `callId` usually appear only on the first chunk. Clients merge by `itemId` in arrival order for preview only. Empty deltas are suppressed.
 - The final `item/completed` arguments are authoritative. An empty `arguments` object there means a known-empty argument set and must not replace an active preview before completion.
 - Deltas are presentation-only and may omit the namespace; the server never dispatches from a delta.
-- Deltas are emitted for non-external tools by default (built-in, module, plugin, MCP); a tool may opt out server-side. Clients must not assume which tools stream and should render a generic placeholder, not raw JSON, for tools they do not recognize.
+- Deltas are emitted for built-in, module, plugin, and MCP tools by default, unless the tool opts out. Runtime Dynamic calls follow the [DynamicToolCall lifecycle](../architecture/session-core.md#dynamictoolcall) and do not emit argument deltas. Clients must not assume which tools stream and should render a generic placeholder, not raw JSON, for tools they do not recognize.
 
 #### `item/commandExecution/outputDelta`
 

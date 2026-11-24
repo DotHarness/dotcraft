@@ -323,7 +323,7 @@ Fields: canonical `namespace`/`toolName`, `providerFlatName`, runtime `server`, 
 
 #### DynamicToolCall
 
-Fields: canonical `namespace`/`toolName`, `providerFlatName`, `callId` (distinct from `Item.id`), `arguments`, `status`, `durationMs` (terminal), `contentItems` (`text` or `image` with `mediaType`/`dataBase64`), client-only `structuredContent`, `success`, `errorCode`, `errorMessage`. A runtime Dynamic tool invocation is this single item; no paired `ToolCall`/`ToolResult` is emitted.
+Fields: canonical `namespace`/`toolName`, `providerFlatName`, `callId` (distinct from `Item.id`), `arguments`, `status`, `durationMs` (terminal), `contentItems` (`text` or `image` with `mediaType`/`dataBase64`), client-only `structuredContent`, `success`, `errorCode`, `errorMessage`. A Runtime Dynamic tool invocation is a single item. Its start carries the complete arguments (an empty object for a call with no arguments), without a streamed argument placeholder.
 
 #### ToolResult
 
