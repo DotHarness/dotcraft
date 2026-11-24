@@ -40,12 +40,13 @@
   position: relative;
   display: inline-flex;
   align-items: baseline;
+  padding-inline-start: 10px;
 }
 
 .token-hud-trend {
   position: absolute;
   top: 50%;
-  right: calc(100% + 2px);
+  inset-inline-start: 0;
   margin-top: -4px;
   color: var(--text-primary);
   opacity: 0;
