@@ -57,6 +57,27 @@ public sealed class AppServerDynamicToolLifetimeTests : IDisposable
     }
 
     [Fact]
+    public async Task SideChatWithoutDeclarations_InheritsTheToolListAndOriginalCallbackOwner()
+    {
+        await using var host = new Host(_workspace);
+        var owner = await host.ConnectAsync("dotcraft-desktop");
+        var threadId = await host.StartThreadAsync(owner);
+        var original = await host.RunTurnAsync(owner, threadId);
+        AssertInitialTools(original.Requests[0]);
+
+        var phone = await host.ConnectAsync("dotcraft-mobile");
+        var fork = await phone.RequireResultAsync(Methods.ThreadFork, new { threadId, sideChat = true, ephemeral = true });
+        var forkId = fork.GetProperty("thread").GetProperty("id").GetString()!;
+
+        var continued = await host.RunTurnAsync(phone, forkId, DiscoverDeferred(), SaveNote());
+        Assert.Equal(original.Requests[0], continued.Requests[0]);
+        Assert.Contains(continued.Requests[1], tool => tool.Name == DeferredTool);
+        Assert.True(DynamicCall(continued, SaveNoteName).GetProperty("success").GetBoolean());
+        Assert.Equal(1, owner.DynamicCalls);
+        Assert.Equal(0, phone.DynamicCalls);
+    }
+
+    [Fact]
     public async Task ColdResume_RestoresDirectAndDeferredDeclarationsWithoutAnExecutor()
     {
         string threadId;

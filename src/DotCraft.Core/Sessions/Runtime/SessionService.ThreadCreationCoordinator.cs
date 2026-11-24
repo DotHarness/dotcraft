@@ -162,6 +162,7 @@ public sealed partial class SessionService
                 LastActiveAt = now,
                 HistoryMode = source.HistoryMode,
                 Configuration = config,
+                DynamicToolDeclarations = options.Purpose is not null ? source.DynamicToolDeclarations : [],
                 DisplayName = ResolveForkDisplayName(options.DisplayName, source, forkedTurns),
                 Source = CloneThreadSourceForFork(source.Source),
                 ForkedFromId = source.Id,

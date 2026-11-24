@@ -4,7 +4,7 @@ namespace DotCraft.Sessions;
 
 public sealed partial class SessionService : IThreadDynamicToolDeclarationService
 {
-    public Task UpdateThreadDynamicToolsAsync(
+    public async Task UpdateThreadDynamicToolsAsync(
         string threadId,
         IReadOnlyList<ThreadDynamicToolDeclaration> declarations,
         Func<bool> canApply,
@@ -12,20 +12,24 @@ public sealed partial class SessionService : IThreadDynamicToolDeclarationServic
         CancellationToken ct = default)
     {
         var captured = ThreadDynamicToolDeclaration.Freeze(declarations);
-        return InvokeThreadCommandAsync(threadId, async commandCt =>
+        while (true)
         {
-            var runtime = GetInputRuntime(threadId);
-            var thread = runtime.Thread;
-            var active = thread.Turns.LastOrDefault(static turn =>
-                turn.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput);
-            if (active is not null && runtime.TryGetTurn(active.Id, out var turnRuntime)
-                && turnRuntime.Context is { } context)
-                await ObserveTurnResourcesAsync(context.Resources).ConfigureAwait(false);
-
-            using (await AcquireThreadAgentLockAsync(threadId, commandCt).ConfigureAwait(false))
+            var pending = await InvokeThreadCommandAsync<Task<TurnExecutionResources>?>(threadId, async commandCt =>
             {
+                var runtime = GetInputRuntime(threadId);
                 if (!canApply())
-                    return;
+                    return null;
+
+                var thread = runtime.Thread;
+                var active = thread.Turns.LastOrDefault(static turn =>
+                    turn.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput);
+                if (active is not null && runtime.TryGetTurn(active.Id, out var turnRuntime)
+                    && turnRuntime.Context is { Resources.IsCompleted: false } context)
+                    return context.Resources;
+
+                using var agentLock = await AcquireThreadAgentLockAsync(threadId, commandCt).ConfigureAwait(false);
+                if (!canApply())
+                    return null;
 
                 if (!ThreadDynamicToolDeclaration.Match(thread.DynamicToolDeclarations, captured))
                 {
@@ -42,7 +46,13 @@ public sealed partial class SessionService : IThreadDynamicToolDeclarationServic
 
                 updateLease();
                 runtime.MarkToolSnapshotDirty();
-            }
-        }, ct);
+                return null;
+            }, ct).ConfigureAwait(false);
+
+            if (pending is null)
+                return;
+
+            await ObserveTurnResourcesAsync(pending).WaitAsync(ct).ConfigureAwait(false);
+        }
     }
 }
