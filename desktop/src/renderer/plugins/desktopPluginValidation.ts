@@ -162,6 +162,15 @@ function validateSpaces(value: unknown, ids: Set<string>, mainViewIds: ReadonlyS
       throw new Error(`Desktop extension space '${candidate.id}' views must name this plugin's main views, each in one space.`)
     }
     for (const view of views as string[]) claimed.add(view)
+    if (candidate.guide != null) {
+      const guide = candidate.guide
+      if (!isRecord(guide) || typeof guide.media !== 'function') {
+        throw new Error(`Desktop extension space '${candidate.id}' guide requires media.`)
+      }
+      for (const field of ['title', 'body', 'action'] as const) {
+        validateLocalizedText(guide[field], `space '${candidate.id}' guide ${field}`)
+      }
+    }
     return candidate as unknown as DesktopPluginSpaceContribution
   })
 }

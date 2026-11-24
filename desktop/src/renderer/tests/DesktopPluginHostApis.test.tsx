@@ -8,6 +8,7 @@ import {
 } from '../plugins/desktopPluginHost'
 import type { PluginEntry } from '../stores/pluginStore'
 import { useConnectionStore } from '../stores/connectionStore'
+import { useFeatureGuideStore } from '../stores/featureGuideStore'
 import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
 import { useConversationStore } from '../stores/conversationStore'
 import { installDesktopApiMock } from './desktopApiMock'
@@ -82,6 +83,16 @@ beforeEach(() => {
 afterEach(() => {
   useWorkspaceProjectsStore.getState().reset()
   for (const scope of scopes.splice(0)) disposeDesktopPluginCleanupScope(scope)
+})
+
+it('withdraws pending space guides on disposal and ignores late readiness signals', () => {
+  const first = host('first')
+  const second = host('second')
+  first.ui.requestSpaceGuide('intro')
+  second.ui.requestSpaceGuide('intro')
+  disposeDesktopPluginCleanupScope(scopes[0])
+  first.ui.requestSpaceGuide('intro')
+  expect([...useFeatureGuideStore.getState().spaceRequests.values()]).toEqual([second])
 })
 
 describe('Desktop extension navigation.openExternal', () => {

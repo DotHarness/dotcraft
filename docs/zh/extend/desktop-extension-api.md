@@ -411,6 +411,8 @@ export function activate(host: DesktopPluginHost) {
 
 space 的位置包括 `views` 里列出的 main view，以及插件用该 space id 拥有的 thread（见[拥有一段对话](#拥有一段对话)）。列进 space 的 view 不再出现在侧栏的 destination 和“更多”菜单里，对它调用 `openMainView` 会打开这个 space。选中入口时回到 space 里上次打开的位置，第一次则调用 `open`。“返回”回到进入 space 之前打开的内容，需要时切换工作区。打开 space 之外的任何内容都会离开 space。
 
+要在用户用得上某个 space 时介绍它，可以给它声明 `guide`：`title`、`body` 和 `action` 使用本地化文本，`media` 组件提供不可交互的预览。插件判断时机合适时，调用 `host.ui.requestSpaceGuide("review")`。Desktop 决定何时在置顶的入口旁显示卡片。点击卡片的主按钮会打开 space。用户从任意入口进入过这个 space 后，Desktop 就不再显示它的引导。
+
 ### 给 contribution 配图标
 
 `mainViews`、`settingsPages`、`conversationViews`、`commands` 与 `messageActions` 都接受可选的 `icon`。插件特有的图形请传组件，它会收到 `size`、`strokeWidth`、`aria-hidden` 与 `style`，并通过 `currentColor` 继承周围的文字颜色：

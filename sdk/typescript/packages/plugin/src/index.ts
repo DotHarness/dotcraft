@@ -85,6 +85,7 @@ export type {
   DesktopPluginLinkedChat,
   DesktopPluginLinkedChatState,
   DesktopPluginSpaceContribution,
+  DesktopPluginSpaceGuide,
   DesktopPluginSpaceLocation,
   DesktopPluginSpaceSidebarProps,
   DesktopPluginSurfaceComponent,

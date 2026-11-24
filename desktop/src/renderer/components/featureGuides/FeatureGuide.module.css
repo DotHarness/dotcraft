@@ -127,6 +127,27 @@
   height: 20px;
 }
 
+.coachmark.anchoredSpace {
+  position: fixed;
+  position-area: right;
+  position-visibility: anchors-visible;
+  align-self: anchor-center;
+  justify-self: start;
+  z-index: 10;
+  margin: 12px;
+  max-width: calc(100% - 24px);
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
+}
+
+.spaceMedia {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
 .mascotStage {
   position: absolute;
   inset: auto auto 12px 16px;

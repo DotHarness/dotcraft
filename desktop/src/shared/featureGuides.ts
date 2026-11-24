@@ -1,13 +1,27 @@
-export const FEATURE_GUIDE_IDS = ['creator', 'subagentModels', 'findOutWhy'] as const
+const CORE_FEATURE_GUIDE_IDS = ['creator', 'subagentModels', 'findOutWhy'] as const
 
-export type FeatureGuideId = (typeof FEATURE_GUIDE_IDS)[number]
+export type CoreFeatureGuideId = (typeof CORE_FEATURE_GUIDE_IDS)[number]
+
+export type FeatureGuideId = CoreFeatureGuideId | `space:${string}`
 
 export type FeatureGuideMoment = 'entry' | 'readiness' | 'friction'
 
-export const FEATURE_GUIDE_MOMENTS: Record<FeatureGuideId, FeatureGuideMoment> = {
+const CORE_FEATURE_GUIDE_MOMENTS: Record<CoreFeatureGuideId, FeatureGuideMoment> = {
   creator: 'entry',
   subagentModels: 'readiness',
   findOutWhy: 'friction'
+}
+
+export function spaceFeatureGuideId(spaceKey: string): FeatureGuideId {
+  return `space:${spaceKey}`
+}
+
+export function featureGuideMoment(id: FeatureGuideId): FeatureGuideMoment {
+  return id.startsWith('space:') ? 'readiness' : CORE_FEATURE_GUIDE_MOMENTS[id as CoreFeatureGuideId]
+}
+
+function isFeatureGuideId(id: string): id is FeatureGuideId {
+  return (CORE_FEATURE_GUIDE_IDS as readonly string[]).includes(id) || (id.startsWith('space:') && id.length > 'space:'.length)
 }
 
 export interface FeatureGuideRecord {
@@ -33,9 +47,8 @@ export function normalizeFeatureGuides(value: unknown): FeatureGuidesSettings {
   const raw = value != null && typeof value === 'object' ? value as Record<string, unknown> : {}
   const guides: FeatureGuidesSettings['guides'] = {}
   const rawGuides = raw.guides != null && typeof raw.guides === 'object' ? raw.guides as Record<string, unknown> : {}
-  for (const id of FEATURE_GUIDE_IDS) {
-    const entry = rawGuides[id]
-    if (entry == null || typeof entry !== 'object') continue
+  for (const [id, entry] of Object.entries(rawGuides)) {
+    if (!isFeatureGuideId(id) || entry == null || typeof entry !== 'object') continue
     const record = entry as Record<string, unknown>
     guides[id] = {
       shown: typeof record.shown === 'number' && record.shown > 0 ? Math.floor(record.shown) : 0,
@@ -74,7 +87,7 @@ export function canShowFeatureGuide(
   const shown = record?.shown ?? 0
   if (shown >= MAX_SHOWINGS) return false
   if (shown > 0 && (record?.lastClosedAt == null || now - record.lastClosedAt < RETURN_AFTER_MS)) return false
-  if (FEATURE_GUIDE_MOMENTS[id] === 'entry') return true
+  if (featureGuideMoment(id) === 'entry') return true
   if (initializedThisSession) return false
   return state.lastShownAt == null || !sameLocalDay(state.lastShownAt, now)
 }
@@ -83,7 +96,7 @@ export function recordFeatureGuideShown(state: FeatureGuidesSettings, id: Featur
   const record = state.guides[id] ?? { shown: 0 }
   return {
     ...state,
-    lastShownAt: FEATURE_GUIDE_MOMENTS[id] === 'entry' ? state.lastShownAt : now,
+    lastShownAt: featureGuideMoment(id) === 'entry' ? state.lastShownAt : now,
     guides: { ...state.guides, [id]: { ...record, shown: record.shown + 1 } }
   }
 }

@@ -495,6 +495,7 @@ export interface DesktopPluginUi {
   pickColor(options: DesktopPluginColorPickerOptions): Promise<DesktopPluginColorPickerResult>;
   /** Resolves to the chosen absolute path on the Desktop machine, or `null` when cancelled. */
   pickFolder(options: DesktopPluginFolderPickerOptions): Promise<string | null>;
+  requestSpaceGuide(spaceId: string): void;
   add<Surface extends string>(
     surface: Surface,
     component: DesktopPluginSurfaceComponent<Surface>,
@@ -613,6 +614,7 @@ export interface DesktopPluginMcp {
 }
 
 export interface DesktopPluginLocalProject {
+  readonly lastOpenedAt?: string;
   readonly path: string;
   readonly name: string;
   readonly active: boolean;
@@ -832,6 +834,13 @@ export interface DesktopPluginSpaceSidebarProps extends DesktopPluginViewProps {
   readonly location: DesktopPluginSpaceLocation;
 }
 
+export interface DesktopPluginSpaceGuide {
+  readonly title: DesktopLocalizedText;
+  readonly body: DesktopLocalizedText;
+  readonly action: DesktopLocalizedText;
+  readonly media: ComponentType;
+}
+
 export interface DesktopPluginSpaceContribution {
   readonly id: string;
   readonly label: DesktopLocalizedText;
@@ -840,6 +849,7 @@ export interface DesktopPluginSpaceContribution {
   /** Ids of this plugin's main views that are reached only through the space. */
   readonly views: readonly string[];
   readonly sidebar: ComponentType<DesktopPluginSpaceSidebarProps>;
+  readonly guide?: DesktopPluginSpaceGuide;
   /** Called when the entry is selected and no location in the space was open before. */
   open(host: DesktopPluginHost): void | Promise<void>;
 }

@@ -70,6 +70,7 @@ void host.ui.pickColor({
 
 void host.ui.pickColor({ title: "Choose label color", initialColor: "#abc" });
 
+host.ui.requestSpaceGuide("conductor");
 void host.ui.pickFolder({ title: "Choose a project folder" }).then((path) => {
   const chosen: string | null = path;
   void chosen;

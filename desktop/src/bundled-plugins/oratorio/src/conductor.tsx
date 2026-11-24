@@ -1,4 +1,4 @@
-import { MascotOutfit, SidebarRow } from '@dotcraft/plugin'
+import { MascotOutfit, PersonalMascot, SidebarRow } from '@dotcraft/plugin'
 import type {
   DesktopLocalizedText,
   DesktopPluginHost,
@@ -11,7 +11,7 @@ import { OratorioBatonIcon } from './OratorioBatonIcon'
 import { CONDUCTOR_OUTFIT } from './conductorOutfit'
 import conductorInstructions from './prompts/conductor.md?raw'
 import { BoardIcon, ConductorIcon } from './OratorioSpaceIcons'
-import { useOratorioI18n } from './oratorio-i18n'
+import { oratorioLocalizedText, useOratorioI18n } from './oratorio-i18n'
 import './oratorio.css'
 
 export const ORATORIO_APP_ID = 'com.dotharness.oratorio'
@@ -79,8 +79,32 @@ export function conductorSpace(label: DesktopLocalizedText): DesktopPluginSpaceC
     order: 10,
     views: ['board'],
     sidebar: ConductorSpaceSidebar,
+    guide: {
+      title: oratorioLocalizedText('guideTitle'),
+      body: oratorioLocalizedText('introDescription'),
+      action: oratorioLocalizedText('guideAction'),
+      media: ConductorGuideMedia
+    },
     open: openConductor
   }
+}
+
+function ConductorGuideMedia(): JSX.Element {
+  return (
+    <MascotOutfit {...CONDUCTOR_OUTFIT}>
+      <PersonalMascot size={120} />
+    </MascotOutfit>
+  )
+}
+
+const GUIDE_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000
+
+export async function requestConductorGuide(host: DesktopPluginHost): Promise<void> {
+  if (host.session.busy || findConductor(host)) return
+  const projects = await host.workspaces.listLocalProjects()
+  const since = Date.now() - GUIDE_LOOKBACK_MS
+  const recent = projects.filter(({ lastOpenedAt }) => lastOpenedAt && Date.parse(lastOpenedAt) >= since)
+  if (recent.length >= 3) host.ui.requestSpaceGuide(SPACE_ID)
 }
 
 function ConductorSpaceSidebar({ host, location }: DesktopPluginSpaceSidebarProps): JSX.Element {

@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import type { DesktopLocalizedText } from '@dotcraft/plugin'
 import { oratorioHost } from './runtime'
 
 const locales = ['en', 'zh-Hans', 'ja', 'ko', 'es', 'fr', 'de'] as const
@@ -10,6 +11,8 @@ const rows = {
   board: ['Board', '看板', 'ボード', '보드', 'Tablero', 'Tableau', 'Board'],
   introTitle: ['Meet your conductor', '认识你的指挥家', '指揮者に会いましょう', '지휘자를 만나 보세요', 'Conoce a tu director', 'Voici votre chef d’orchestre', 'Lerne deinen Dirigenten kennen'],
   introDescription: ['Hand out work across all of your projects from one conversation, and hear back when it is done.', '在一个对话里把工作分派到所有项目，完成后会回来告诉你。', 'ひとつの会話からすべてのプロジェクトに作業を任せ、終わったら報告を受け取れます。', '하나의 대화에서 모든 프로젝트에 작업을 맡기고, 끝나면 결과를 전해 받으세요.', 'Reparte trabajo en todos tus proyectos desde una conversación y recibe noticias cuando esté hecho.', 'Confiez du travail à tous vos projets depuis une seule conversation, et soyez informé une fois terminé.', 'Verteile Arbeit auf alle deine Projekte aus einem Gespräch und erfahre, wenn sie erledigt ist.'],
+  guideTitle: ['Run all your projects from one chat', '在一个对话里推进所有项目', 'ひとつのチャットですべてのプロジェクトを進める', '하나의 채팅으로 모든 프로젝트 진행하기', 'Lleva todos tus proyectos desde un chat', 'Pilotez tous vos projets depuis une discussion', 'Alle Projekte aus einem Chat steuern'],
+  guideAction: ['Meet the conductor', '认识指挥家', '指揮者に会う', '지휘자 만나기', 'Conoce al director', 'Découvrir le chef d’orchestre', 'Dirigent kennenlernen'],
   introContinue: ['Continue', '继续', '続ける', '계속', 'Continuar', 'Continuer', 'Weiter'],
   introNextGreeting: ['Next greeting', '下一句', '次のあいさつ', '다음 인사', 'Siguiente saludo', 'Message suivant', 'Nächster Gruß'],
   introGreetingHello: ['Hi there!', '你好！', 'こんにちは！', '안녕하세요!', '¡Hola!', 'Bonjour !', 'Hallo!'],
@@ -192,6 +195,14 @@ const rows = {
 
 export type OratorioMessageKey = keyof typeof rows
 export type OratorioTranslate = (key: OratorioMessageKey, values?: Record<string, string | number>) => string
+
+export function oratorioLocalizedText(key: OratorioMessageKey): DesktopLocalizedText {
+  const row: Row = rows[key]
+  return {
+    default: row[0],
+    translations: Object.fromEntries(locales.slice(1).map((locale, index) => [locale, row[index + 1]]))
+  }
+}
 
 export interface OratorioI18n {
   t: OratorioTranslate

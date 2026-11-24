@@ -5,7 +5,8 @@ import {
   recordFeatureGuideClosed,
   recordFeatureGuideShown,
   recordSubagentChat,
-  settleFeatureGuide
+  settleFeatureGuide,
+  spaceFeatureGuideId
 } from './featureGuides'
 
 const DAY = 24 * 60 * 60 * 1000
@@ -44,6 +45,15 @@ describe('feature guide scheduling', () => {
   it('shows nothing when feature tips are off', () => {
     const state = normalizeFeatureGuides({ enabled: false })
     expect(canShowFeatureGuide(state, 'creator', start, false)).toBe(false)
+  })
+
+  it('treats a plugin space guide as a readiness guide that survives a settings round trip', () => {
+    const id = spaceFeatureGuideId('oratorio:conductor')
+    expect(canShowFeatureGuide(normalizeFeatureGuides({}), id, start, true)).toBe(false)
+    const shown = recordFeatureGuideShown(normalizeFeatureGuides({}), id, start)
+    expect(canShowFeatureGuide(shown, 'subagentModels', start + 60_000, false)).toBe(false)
+    const settled = normalizeFeatureGuides(JSON.parse(JSON.stringify(settleFeatureGuide(shown, id))))
+    expect(canShowFeatureGuide(settled, id, start + 30 * DAY, false)).toBe(false)
   })
 
   it('keeps distinct subagent chats through a settings round trip', () => {

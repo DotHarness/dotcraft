@@ -350,7 +350,15 @@ interface DesktopPluginSpaceContribution {
   readonly order?: number
   readonly views: readonly string[]
   readonly sidebar: ComponentType<DesktopPluginSpaceSidebarProps>
+  readonly guide?: DesktopPluginSpaceGuide
   open(host: DesktopPluginHost): void | Promise<void>
+}
+
+interface DesktopPluginSpaceGuide {
+  readonly title: DesktopLocalizedText
+  readonly body: DesktopLocalizedText
+  readonly action: DesktopLocalizedText
+  readonly media: ComponentType
 }
 
 interface DesktopPluginSpaceSidebarProps extends DesktopPluginViewProps {
@@ -362,6 +370,7 @@ interface DesktopPluginSpaceSidebarProps extends DesktopPluginViewProps {
 - A space's entry is a sidebar destination like a plugin main view, ordered with them by `order`. It is pinned by default, and the person can unpin it to More and pin it again. Selecting the entry returns to the view last open in the space. Otherwise it calls `open`, which navigates with the ordinary Host operations, so a plugin reaching an owned thread confirms it through `threads.ensureOwned` each time.
 - A main view named in a space is reached only through it: it is not a sidebar destination, a More item, or a pin, and `openMainView` on it opens the space.
 - While the active location belongs to a space, the Host replaces the sidebar with a Back row followed by the contribution's `sidebar`. The Host owns the frame, the Back row, and the sidebar's width and collapse. The contribution renders its rows with `SidebarRow`.
+- A space may declare a `guide`: a [feature guide](../clients/desktop-client.md#69-feature-guides) that introduces it. The plugin decides when its usage shows the space would help and calls `host.ui.requestSpaceGuide(spaceId)`. The Host owns everything else: the guide shows as a coachmark beside the space's pinned sidebar entry at the next pause, under the same limits as Desktop's own readiness guides, and never while the entry is in More. `media` renders inert on the guide's gradient band. The guide's action enters the space, and entering the space by any route settles the guide.
 - On entering a space, the Host records the location it left, including its workspace. Back returns there, switching workspace when an owned thread's workspace replaced it. Moving between the space's own locations keeps the record, including while a workspace switch is in progress. Opening a location outside the space leaves the space without returning, and the record is dropped. Archiving the open owned thread leaves the space as Back does.
 
 ## Runtime lifecycle
@@ -419,7 +428,7 @@ interface DesktopPluginSessionSnapshot {
 `session.workspacePath` matches the `active` entry from `workspaces.listLocalProjects()`; a Composer
 surface's `context.workspacePath` may differ. `busy` means a turn is running or waiting on user
 input. Approval state, Composer variant, and minimal chrome remain on the Composer surface context;
-`workspaces` owns workspace lists and switching.
+`workspaces` owns workspace lists and switching. Each local project includes its `lastOpenedAt` timestamp when known.
 
 `workspaces.readImageAttachment(path)` returns an image attached to the owning workspace's
 conversation as a data URL, reading through that workspace's local or remote connection. It reads

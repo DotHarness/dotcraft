@@ -69,13 +69,14 @@ export function FeatureGuideCoachmark({
   primaryLabel,
   onPrimary,
   onClose,
+  className,
   style
-}: FeatureGuideContent & { style?: CSSProperties }): JSX.Element {
+}: FeatureGuideContent & { className?: string; style?: CSSProperties }): JSX.Element {
   const t = useT()
   const titleId = useId()
   useEscape(onClose)
   return (
-    <section className={styles.coachmark} role="dialog" aria-labelledby={titleId} style={style}>
+    <section className={[styles.coachmark, className].filter(Boolean).join(' ')} role="dialog" aria-labelledby={titleId} style={style}>
       {media}
       <MediaCloseButton onClose={onClose} />
       <div className={styles.coachmarkBody}>

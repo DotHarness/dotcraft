@@ -1,4 +1,5 @@
-import type { MouseEvent as ReactMouseEvent } from 'react'
+import { useId, type MouseEvent as ReactMouseEvent } from 'react'
+import { SpaceFeatureGuide } from '../featureGuides/SpaceFeatureGuide'
 import { NewThreadButton } from '../sidebar/NewThreadButton'
 import { ThreadSearch } from '../sidebar/ThreadSearch'
 import { ThreadList } from '../sidebar/ThreadList'
@@ -10,15 +11,17 @@ import {
   SIDEBAR_NAV_ROW_OUTER
 } from '../sidebar/sidebarNavRowStyles'
 import { SidebarMoreMenu } from '../sidebar/SidebarMoreMenu'
-import { useSidebarDestinations, useUnpinContextMenu } from '../sidebar/sidebarDestinations'
+import { useSidebarDestinations, useUnpinContextMenu, type SidebarDestination } from '../sidebar/sidebarDestinations'
 
 interface SidebarProps {
+  showFeatureGuides?: boolean
   workspaceName: string
   workspacePath: string
   workspaceOpening?: boolean
 }
 
 export function Sidebar({
+  showFeatureGuides = false,
   workspaceName,
   workspacePath,
   workspaceOpening = false
@@ -49,15 +52,11 @@ export function Sidebar({
         }}
       >
         {pinned.map((destination) => (
-          <SidebarNavRow
+          <PinnedDestination
             key={destination.id}
-            label={destination.label}
-            active={destination.active}
-            onClick={destination.select}
-            onPrefetch={destination.prefetch}
+            destination={destination}
+            showFeatureGuides={showFeatureGuides}
             onContextMenu={(event) => unpinMenu.open(event, destination.id)}
-            icon={destination.icon}
-            testId={destination.testId}
           />
         ))}
         <SidebarMoreMenu destinations={more} />
@@ -75,43 +74,35 @@ export function Sidebar({
   )
 }
 
-interface SidebarNavRowProps {
-  label: string
-  active: boolean
-  onClick: () => void
-  onPrefetch?: () => void
-  onContextMenu?: (event: ReactMouseEvent) => void
-  icon: JSX.Element
-  testId?: string
-}
-
-function SidebarNavRow({
-  label,
-  active,
-  onClick,
-  onPrefetch,
-  onContextMenu,
-  icon,
-  testId
-}: SidebarNavRowProps): JSX.Element {
+function PinnedDestination({
+  destination,
+  showFeatureGuides,
+  onContextMenu
+}: {
+  destination: SidebarDestination
+  showFeatureGuides: boolean
+  onContextMenu: (event: ReactMouseEvent) => void
+}): JSX.Element {
+  const anchorName = `--dc-space-${useId()}`
+  const { label, active, select, prefetch, icon, testId, space } = destination
   return (
-    <button
-      className="dotcraft-sidebar-nav-button dotcraft-sidebar-row-radius"
-      type="button"
-      data-testid={testId}
-      data-nav-icon-host=""
-      onClick={onClick}
-      onContextMenu={onContextMenu}
-      onPointerEnter={active ? undefined : onPrefetch}
-      onFocus={active ? undefined : onPrefetch}
-      data-active={active ? 'true' : undefined}
-      style={{
-        ...SIDEBAR_NAV_ROW_OUTER,
-        ...SIDEBAR_NAV_BORDER_INACTIVE
-      }}
-    >
-      <span style={SIDEBAR_NAV_ICON_SLOT}>{icon}</span>
-      <span style={{ ...SIDEBAR_NAV_LABEL, overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
-    </button>
+    <>
+      <button
+        className="dotcraft-sidebar-nav-button dotcraft-sidebar-row-radius"
+        type="button"
+        data-testid={testId}
+        data-nav-icon-host=""
+        onClick={select}
+        onContextMenu={onContextMenu}
+        onPointerEnter={active ? undefined : prefetch}
+        onFocus={active ? undefined : prefetch}
+        data-active={active ? 'true' : undefined}
+        style={{ ...SIDEBAR_NAV_ROW_OUTER, ...SIDEBAR_NAV_BORDER_INACTIVE, anchorName: space?.guide ? anchorName : undefined }}
+      >
+        <span style={SIDEBAR_NAV_ICON_SLOT}>{icon}</span>
+        <span style={{ ...SIDEBAR_NAV_LABEL, overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+      </button>
+      {showFeatureGuides && space?.guide && <SpaceFeatureGuide space={space} anchorName={anchorName} />}
+    </>
   )
 }

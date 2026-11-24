@@ -28,6 +28,7 @@ export function installOratorioTestHost(overrides: Partial<DesktopPluginHost> = 
         })
         return () => removeToast(id)
       },
+      requestSpaceGuide() {},
       async confirm() { return true },
       add() { return () => undefined },
       wrap() { return () => undefined }
@@ -50,7 +51,7 @@ export function installOratorioTestHost(overrides: Partial<DesktopPluginHost> = 
         const payload = await window.api.workspace.getProjects()
         return payload.projects
           .filter((project) => project.kind === 'local')
-          .map((project) => ({ path: project.path, name: project.name, active: project.state === 'foreground' }))
+          .map((project) => ({ path: project.path, name: project.name, lastOpenedAt: project.lastOpenedAt, active: project.state === 'foreground' }))
       }
     },
     oratorio: {

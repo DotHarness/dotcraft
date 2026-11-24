@@ -1355,6 +1355,7 @@ export function App(): JSX.Element {
                 ? <SpaceSidebar active={activeSpace} />
                 : (
                   <Sidebar
+                    showFeatureGuides={showMainWorkspaceUi}
                     workspaceName={displayWorkspaceName}
                     workspacePath={workspaceStatus.remote?.workspaceDir?.trim() || workspacePath}
                     workspaceOpening={workspaceOpening}

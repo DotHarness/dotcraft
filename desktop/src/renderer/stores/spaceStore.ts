@@ -20,6 +20,8 @@ import { useOwnedThreadsStore } from './ownedThreadsStore'
 import { useThreadStore } from './threadStore'
 import { useUIStore, type DesktopPluginMainView } from './uiStore'
 import { useWorkspaceProjectsStore } from './workspaceProjectsStore'
+import { useFeatureGuideStore } from './featureGuideStore'
+import { spaceFeatureGuideId } from '../../shared/featureGuides'
 
 type SpaceLocation =
   | { kind: 'view'; viewKey: DesktopPluginMainView }
@@ -161,6 +163,7 @@ export function startSpaceTracking(): () => void {
         if (JSON.stringify(outside) !== JSON.stringify(state.outside)) useSpaceStore.setState({ outside })
       }
     } else {
+      if (active.space.guide) useFeatureGuideStore.getState().settle(spaceFeatureGuideId(active.space.spaceKey))
       const location: SpaceLocation = active.location.kind === 'view'
         ? { kind: 'view', viewKey: active.space.viewKeys[active.space.views.indexOf(active.location.viewId)] }
         : { kind: 'thread' }

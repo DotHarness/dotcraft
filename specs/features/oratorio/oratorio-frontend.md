@@ -123,6 +123,10 @@ so Oratorio adds one place to Desktop instead of a chat and a separate view.
   pinned by default and movable to More like any destination. It is
   Oratorio's only sidebar entry: the board is not listed as a separate
   destination.
+- **Guide.** Once the person has opened at least three local projects in the past seven days, Oratorio
+  requests the space's [guide](../../architecture/desktop-plugins.md#spaces):
+  the person's mascot holding the baton, with "Run all your projects from one
+  chat" and a Meet the conductor action.
 - **Opening.** Selecting the entry opens the space on the conductor the first
   time and on the destination last open in it afterwards. An Oratorio link to
   the board, a task or a run opens the space on the board.

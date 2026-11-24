@@ -24,6 +24,7 @@ import { useThreadStore } from '../stores/threadStore'
 import { removeToast, showToast } from '../stores/toastStore'
 import { useUIStore } from '../stores/uiStore'
 import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
+import { useFeatureGuideStore } from '../stores/featureGuideStore'
 import { openActiveThreadFile, openAutomation, openExternalUrl, openThread, revealToolCall } from '../utils/desktopNavigation'
 import { openSkill } from '../utils/openSkill'
 import { openSubAgent } from '../utils/subAgentNavigation'
@@ -53,6 +54,7 @@ import {
   selectDesktopPluginProjectEnvironment
 } from './desktopPluginProjectActions'
 import {
+  buildDesktopPluginContributionKey,
   buildDesktopPluginMainViewKey,
   buildDesktopPluginSettingsKey,
   registerDesktopPluginSurface
@@ -268,6 +270,10 @@ export function createDesktopPluginHost(
       pickFolder(options) {
         return window.api.workspace.pickFolder({ title: options.title })
       },
+      requestSpaceGuide(spaceId) {
+        if (!scope.active) return
+        useFeatureGuideStore.getState().requestSpaceGuide(buildDesktopPluginContributionKey(pluginId, spaceId), host)
+      },
       add(surface, component, options) {
         return own(cleanups, registerDesktopPluginSurface(
           pluginId,
@@ -403,6 +409,7 @@ export function createDesktopPluginHost(
           .map((project) => ({
             path: project.path,
             name: project.name,
+            lastOpenedAt: project.lastOpenedAt,
             active: project.state === 'foreground'
           }))
       },
@@ -423,6 +430,7 @@ export function createDesktopPluginHost(
       onEvent: (callback) => own(cleanups, window.api.oratorio.onEvent(callback))
     }
   }
+  own(cleanups, () => useFeatureGuideStore.getState().clearSpaceRequests(host))
   return host
 }
 

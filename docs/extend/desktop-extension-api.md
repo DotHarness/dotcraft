@@ -415,6 +415,8 @@ A row given a `threadId` shows that thread's status the way a thread row in the 
 
 A space's locations are the main views named in `views` and the threads the plugin owns with that space's id (see [Own a conversation](#own-a-conversation)). A view named in a space leaves the sidebar's destinations and More menu, and `openMainView` on it opens the space. Selecting the entry returns to the location last open in the space, or calls `open` the first time. Back returns to whatever was open before the space, switching workspace when needed, and opening anything outside the space leaves it.
 
+To introduce a space when it becomes useful, give it a `guide` with localized `title`, `body`, and `action` labels and a `media` component for a noninteractive preview. Call `host.ui.requestSpaceGuide("review")` when your plugin detects that the user could benefit from the space. Desktop decides when to show the card beside its pinned entry. The action opens the space. Once the user enters it by any route, Desktop stops showing the guide.
+
 ### Give a contribution an icon
 
 `mainViews`, `settingsPages`, `conversationViews`, `commands`, and `messageActions` take an optional `icon`. Pass a component for anything specific to the plugin. It receives `size`, `strokeWidth`, `aria-hidden`, and `style`, and inherits the surrounding text color through `currentColor`:

@@ -3,7 +3,7 @@ import { PinOff } from 'lucide-react'
 import type { DesktopPluginContributionIcon } from '@dotcraft/plugin'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { prefetchCoreMainView } from '../../core/coreMainViewRoutes'
-import { compareContribution, resolveDesktopPluginLabel, useDesktopPluginRegistry } from '../../plugins/desktopPluginRegistry'
+import { compareContribution, resolveDesktopPluginLabel, useDesktopPluginRegistry, type ActiveDesktopPluginSpace } from '../../plugins/desktopPluginRegistry'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useSidebarDestinationsStore } from '../../stores/sidebarDestinationsStore'
 import { enterSpace } from '../../stores/spaceStore'
@@ -20,6 +20,7 @@ export interface SidebarDestination {
   testId: string
   select: () => void
   prefetch?: () => void
+  space?: ActiveDesktopPluginSpace
 }
 
 const PINNED_BY_DEFAULT = new Set<string>(['agents', 'skills'])
@@ -54,7 +55,8 @@ export function useSidebarDestinations(): { pinned: SidebarDestination[]; more: 
         icon: <DesktopPluginIcon icon={space.icon} />,
         active: false,
         testId: `nav-space-${space.pluginId}-${space.id}`,
-        select: () => enterSpace(space)
+        select: () => enterSpace(space),
+        space
       }
     })),
     ...desktopMainViews.filter((entry) => !spaceViews.has(entry.viewKey)).map((entry) => ({

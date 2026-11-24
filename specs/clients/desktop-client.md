@@ -1099,6 +1099,7 @@ Desktop introduces a few signature features when they become useful, never on fi
 |---|---|---|---|
 | Creator | Entry | Creator mode turns on for a thread ([§5.13](#513-composer-system-actions)) | it has shown once |
 | Subagent models | Readiness | two or more providers are set up and subagents have run from two or more chats. Shows beside the model picker the next time it opens | `SubAgent.Models` is not empty |
+| Plugin space | Readiness | the plugin that contributes a [space](../architecture/desktop-plugins.md#spaces) requests its declared guide. Shows beside the space's pinned sidebar entry | the space has been entered |
 | Find out why | Friction | a retried turn fails again, or turns fail in two different chats in one app session. Shows in place of the mascot's error bubble, and its action starts the same diagnosis | a diagnosis has been started |
 
 - One guide is visible at a time, only in the normal workspace UI while the window is visible and no turn of the current chat is running. A guide that cannot show when its condition fires tries again at its next trigger.
