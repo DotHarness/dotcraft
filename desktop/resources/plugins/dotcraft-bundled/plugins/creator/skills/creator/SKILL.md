@@ -17,7 +17,7 @@ Load the Skill that owns the form and follow it for the content: `plugin-creator
 
 Verify a plugin as `plugin-creator` describes and fix every error. Then call `ActivatePlugin` with its id, searching for the tool if it is deferred. `ListPlugins` shows ids and state. Desktop asks the user before it installs, enables, or trusts anything. After each later change, call `ActivatePlugin` again to reload the plugin. If the user declines, stop and say what is left for them.
 
-A .NET extension under development is the exception: a successful `CSharp.Build` already makes it active, and `ActivatePlugin` cannot find it. Build again after each change instead.
+A .NET extension under development is the exception: a successful `CSharp.Build` already makes its .NET code active, and `ActivatePlugin` cannot find it. Build again after each change instead. Desktop UI in that bundle does not load from the build, so tell the user and mark the UI unverified.
 
 ## Check
 
