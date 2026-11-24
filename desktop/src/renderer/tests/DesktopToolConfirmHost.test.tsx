@@ -9,6 +9,7 @@ function setupHost() {
   let onRequest: ((request: DesktopToolConfirmRequest) => void) | null = null
   let onDismissed: ((payload: { requestId: string }) => void) | null = null
   const respond = vi.fn().mockResolvedValue(true)
+  const sendRequest = vi.fn()
 
   installDesktopApiMock({
     settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) },
@@ -27,11 +28,7 @@ function setupHost() {
       },
       respondDesktopToolConfirm: respond
     },
-    appServer: {
-      sendRequest: vi.fn().mockResolvedValue({
-        plugin: { id: 'sample', key: 'sample', displayName: 'Sample', installed: true, enabled: false, installable: false, removable: true, source: 'workspace', rootPath: '/work/.craft/plugins/sample' }
-      })
-    }
+    appServer: { sendRequest }
   })
 
   render(
@@ -51,7 +48,8 @@ function setupHost() {
         onDismissed?.({ requestId })
       })
     },
-    respond
+    respond,
+    sendRequest
   }
 }
 
@@ -104,14 +102,16 @@ describe('DesktopToolConfirmHost', () => {
     expect(respond).toHaveBeenCalledTimes(1)
   })
 
-  it('shows a plugin activation request and sends confirmed: true on Activate', async () => {
-    const { emitRequest, respond } = setupHost()
+  it('shows the plugin from the activation request and sends confirmed: true on Activate', async () => {
+    const { emitRequest, respond, sendRequest } = setupHost()
+    const plugin = { id: 'sample', key: 'sample', displayName: 'Sample', installed: true, enabled: false, installable: false, removable: true, source: 'workspace', rootPath: '/work/.craft/plugins/sample' }
 
-    emitRequest({ kind: 'pluginActivation', requestId: 'req-4', pluginId: 'sample' })
+    emitRequest({ kind: 'pluginActivation', requestId: 'req-4', plugin })
 
     fireEvent.click(await screen.findByRole('button', { name: 'Activate' }))
 
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
     expect(respond).toHaveBeenCalledWith({ requestId: 'req-4', confirmed: true })
+    expect(sendRequest).not.toHaveBeenCalled()
   })
 })

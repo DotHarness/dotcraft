@@ -15,13 +15,13 @@ Load the Skill that owns the form and follow it for the content: `plugin-creator
 
 ## Activate
 
-Run `dotcraft plugin verify` on a plugin and fix every error. Then call `ActivatePlugin` with its id, searching for the tool if it is deferred. `ListPlugins` shows ids and state. Desktop asks the user before it installs, enables, or trusts anything. After each later change, call `ActivatePlugin` again to reload the plugin. If the user declines, stop and say what is left for them.
+Run `dotcraft plugin verify` on a plugin and fix every error. Then call `ActivatePlugin` with its id, searching for the tool if it is deferred. `ListPlugins` shows ids and state. Desktop asks the user before it installs, enables, or trusts anything. After each later change, call `ActivatePlugin` again to reload the plugin, except for .NET source, which `CSharp.Build` applies. If the user declines, stop and say what is left for them.
 
 ## Check
 
 Exercise each contribution as `plugin-creator` describes, in this conversation where you can.
 
-For UI that a Desktop extension adds, look at it yourself. When the runtime context has `desktop.cdp`, attach to that endpoint with the `dotcraft-desktop-debugging` skill, open the view or run the action, and capture a screenshot. That skill needs the `dotcraft` plugin, so activate it first when the skill is missing. Without `desktop.cdp`, ask the user to turn on Settings › General › CDP debugging and restart DotCraft, or to check the UI themselves, and mark the UI unverified until then.
+For UI that a Desktop extension adds, look at it yourself. When the runtime context has `desktop.cdp`, attach to that endpoint with the `dotcraft-desktop-debugging` skill, open the view or run the action, and capture a screenshot. When that skill reports that the Playwright CLI is missing, ask the user to check the UI and mark it unverified. That skill needs the `dotcraft` plugin, so activate it first when the skill is missing. Without `desktop.cdp`, ask the user to turn on Settings › General › CDP debugging and restart DotCraft, or to check the UI themselves, and mark the UI unverified until then.
 
 When something fails, fix the source, reload with `ActivatePlugin`, and check again.
 

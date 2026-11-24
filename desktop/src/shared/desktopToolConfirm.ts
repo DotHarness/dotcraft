@@ -11,8 +11,8 @@ export interface ProjectCreationConfirmDetails {
 
 export interface PluginActivationConfirmDetails {
   kind: 'pluginActivation'
-  pluginId: string
-  marketplaceName?: string
+  /** The `plugin/view` entry resolved on the calling thread's connection, which may not be the foreground one. */
+  plugin: { id: string }
 }
 
 export type DesktopToolConfirmDetails = ProjectCreationConfirmDetails | PluginActivationConfirmDetails

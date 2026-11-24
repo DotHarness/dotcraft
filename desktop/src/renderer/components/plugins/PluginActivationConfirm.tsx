@@ -1,4 +1,4 @@
-import { useEffect, useState, type JSX } from 'react'
+import { useMemo, type JSX } from 'react'
 import type { PluginActivationConfirmDetails } from '../../../shared/desktopToolConfirm'
 import { useT } from '../../contexts/LocaleContext'
 import type { PluginEntry } from '../../stores/pluginStore'
@@ -13,27 +13,9 @@ export function PluginActivationConfirm({
   request: PluginActivationConfirmDetails
   submitting?: boolean
   onRespond: (confirmed: boolean) => void
-}): JSX.Element | null {
+}): JSX.Element {
   const t = useT()
-  const [plugin, setPlugin] = useState<PluginEntry | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    const params = { id: request.pluginId, ...(request.marketplaceName ? { marketplaceName: request.marketplaceName } : {}) }
-    window.api.appServer.sendRequest('plugin/view', params)
-      .then((result) => {
-        const entry = (result as { plugin?: PluginEntry }).plugin
-        if (cancelled) return
-        if (entry) setPlugin(normalizePlugin(entry))
-        else onRespond(false)
-      })
-      .catch(() => {
-        if (!cancelled) onRespond(false)
-      })
-    return () => { cancelled = true }
-  }, [onRespond, request.marketplaceName, request.pluginId])
-
-  if (!plugin) return null
+  const plugin = useMemo(() => normalizePlugin(request.plugin as PluginEntry), [request.plugin])
   return (
     <PluginInstallDialog
       plugin={plugin}

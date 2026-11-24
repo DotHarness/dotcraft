@@ -37,7 +37,7 @@ DotCraft.exe --remote-debugging-port=9222
 
 CDP is a startup capability: restart an instance that was opened without the flag. A debug-enabled window shows the CDP status indicator in its lower-right corner; if the indicator is absent, do not try to attach. Do not start Electron from Playwright CLI. `dev:debug` intentionally fails when port 9222 is already in use instead of choosing another instance or port.
 
-From a DotCraft source checkout, use the repository-local `playwright-cli` binary. Run it with the stable session name `dotcraft` and the explicit loopback endpoint:
+From a DotCraft source checkout, use the repository-local `playwright-cli` binary. Elsewhere, use `playwright-cli` from `PATH` in place of `npx --no-install playwright-cli`. When it is not installed, stop and report that rather than installing it. Run it with the stable session name `dotcraft` and the explicit loopback endpoint:
 
 ```powershell
 cd desktop

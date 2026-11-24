@@ -22,8 +22,9 @@ uses `npm run dev:debug` (port `9222` by default); packaged builds accept
 `--remote-debugging-port=<port>`. The CDP debugging switch in Settings › General is a persisted
 startup choice: while it is on, each later start of the Desktop process enables port `9222`
 unless its command line names a port. Changing the switch never affects the running process, so
-the switch says that it applies after a restart. A requested-port collision fails rather than scanning for
-another endpoint. Installing a renderer plugin cannot enable CDP after startup.
+the switch says that it applies after a restart. When another process already holds port `9222`, the
+switch leaves CDP off for that start and Desktop declares no endpoint. A requested-port collision fails
+rather than scanning for another endpoint. Installing a renderer plugin cannot enable CDP after startup.
 
 Tray and New Window child processes do not inherit a debugging port; each debuggable process
 requires an explicit, independent startup choice.

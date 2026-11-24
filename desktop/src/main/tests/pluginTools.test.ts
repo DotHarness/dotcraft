@@ -36,7 +36,7 @@ describe('ActivatePlugin', () => {
 
     expect(result.success).toBe(true)
     expect(confirmHost.confirm).toHaveBeenCalledWith(
-      { kind: 'pluginActivation', pluginId: 'sample', marketplaceName: 'acme' }, 'thread-1', 'turn-1')
+      { kind: 'pluginActivation', plugin: expect.objectContaining({ id: 'sample', marketplaceName: 'acme' }) }, 'thread-1', 'turn-1')
     expect(mutations().map((entry) => entry.method)).toEqual(['plugin/install', 'hooks/trustPlugin', 'plugin/setTrusted'])
   })
 
@@ -68,5 +68,14 @@ describe('ActivatePlugin', () => {
       { method: 'plugin/setEnabled', params: { id: 'sample', enabled: false } },
       { method: 'plugin/setEnabled', params: { id: 'sample', enabled: true } }
     ])
+  })
+
+  it('does not report rebuilt .NET code as reloaded', async () => {
+    const { client } = fakeClient({ id: 'sample', installed: true, enabled: true, dotnet: {}, dotnetRuntime: { trustStatus: 'trusted' } })
+
+    const result = await activatePluginTool(client, host('confirmed'), { id: 'sample' }, call)
+
+    expect(result.success).toBe(true)
+    expect(result.contentItems?.[0]).toMatchObject({ text: expect.stringContaining('CSharp.Build') })
   })
 })

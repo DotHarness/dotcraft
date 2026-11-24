@@ -11,7 +11,7 @@ export const LIST_PLUGINS_DESCRIPTION =
   'List the plugins this workspace can use: installed ones, whether they are on, and catalog entries that can be installed, with what each would run and its diagnostics. Changes nothing.'
 
 export const ACTIVATE_PLUGIN_DESCRIPTION =
-  'Make a plugin active in this workspace, or reload it after you changed its files. Desktop installs it, turns it on, and trusts its hooks and .NET code as needed, and asks the user to confirm before any of these. A plugin that is already active is reloaded without asking. Returns the steps applied and the final state.'
+  'Make a plugin active in this workspace, or reload it after you changed its files. Desktop installs it, turns it on, and trusts its hooks and .NET code as needed, and asks the user to confirm before any of these. A plugin that is already active is reloaded without asking. Its .NET code restarts unchanged, because CSharp.Build applies .NET source changes. Returns the steps applied and the final state.'
 
 export const ACTIVATE_PLUGIN_PROPERTIES = {
   id: { type: 'string', description: 'Plugin id from ListPlugins.' },
@@ -74,11 +74,7 @@ export async function activatePluginTool(
   if (!host || !threadId || !(await host.canSeeCard(threadId, call.turnId))) {
     return fail('TargetUnsupported', 'Activating a plugin requires a direct request from someone at the Desktop composer, so nothing was changed.')
   }
-  const outcome = await host.confirm({
-    kind: 'pluginActivation',
-    pluginId: plugin.id,
-    ...(marketplaceName ? { marketplaceName } : {})
-  }, threadId, call.turnId)
+  const outcome = await host.confirm({ kind: 'pluginActivation', plugin }, threadId, call.turnId)
   if (outcome !== 'confirmed') {
     return fail('PluginActivationCanceled', outcome === 'abandoned'
       ? 'Plugin activation was canceled before the user answered. Do not ask again unless they do.'
@@ -135,7 +131,9 @@ async function reload(client: AppServerRequestClient, plugin: PluginInfo): Promi
   const result = await client.sendRequest<PluginOperationResult>('plugin/setEnabled', { id: plugin.id, enabled: true })
   return await report(client, plugin.id, [], result.outcome === 'notApplied'
     ? `Reload stopped: ${diagnosticText(result.diagnostics)}`
-    : 'Reloaded the plugin so its current files take effect.')
+    : plugin.dotnet
+      ? 'Reloaded the plugin. Its .NET code restarted unchanged: CSharp.Build applies .NET source changes, and other changes to .NET files take effect after DotCraft restarts.'
+      : 'Reloaded the plugin so its current files take effect.')
 }
 
 async function report(
