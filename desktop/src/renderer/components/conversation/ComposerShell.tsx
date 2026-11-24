@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useLayoutEffect,
   useRef,
   useState,
@@ -22,6 +23,8 @@ import { useComposerOverlayLiftHost } from './composerOverlayLift'
 import { ContextMenu, type ContextMenuItem } from '../ui/ContextMenu'
 import type { ShortcutSpec } from '../ui/shortcutKeys'
 import { useDocumentThemeMode } from '../../utils/theme'
+import { useComposerEffectsMode } from '../../utils/appearance'
+import { ComposerInputEffects, ComposerTypingFeedbackContext } from './inputEffects/ComposerInputEffects'
 import { useDesktopPet } from '../desktopPet/useDesktopPet'
 import type { PetSourceSurface } from '../desktopPet/desktopPetSource'
 import { usePetStore } from '../../pet/petStore'
@@ -70,6 +73,9 @@ interface ComposerShellProps {
   footerLeading: ReactNode
   footerAction: ReactNode
   adaptiveToolbar?: boolean
+  inputEffectsVoiceOrigin?: string
+  inputEffectsSubmitRevision?: number
+  inputEffectsExitHandoffAt?: number
   belowFooter?: ReactNode
   onDragOver: DragEventHandler<HTMLDivElement>
   onDragLeave: DragEventHandler<HTMLDivElement>
@@ -112,6 +118,9 @@ export function ComposerShell({
   footerLeading,
   footerAction,
   adaptiveToolbar = false,
+  inputEffectsVoiceOrigin,
+  inputEffectsSubmitRevision = 0,
+  inputEffectsExitHandoffAt,
   belowFooter,
   onDragOver,
   onDragLeave,
@@ -130,6 +139,10 @@ export function ComposerShell({
   petSurface
 }: ComposerShellProps): JSX.Element {
   const mascotTheme = useDocumentThemeMode() === 'dark' ? 'dark' : 'light'
+  const effectsMode = useComposerEffectsMode()
+  const typingPulse = useRef<(() => void) | null>(null)
+  const notifyTyping = useCallback(() => typingPulse.current?.(), [])
+  const showInputEffects = inputEffectsVoiceOrigin !== undefined && effectsMode === 'colorful'
   const petAppearance = usePetStore((state) => state.appearance)
   const petRoot = useRef<HTMLDivElement>(null)
   const [renderedMascotAvatar, setRenderedMascotAvatar] = useState(mascotName)
@@ -277,6 +290,15 @@ export function ComposerShell({
           onDragLeave={onDragLeave}
           onDrop={onDrop}
         >
+          {showInputEffects && (
+            <ComposerInputEffects
+              key={inputEffectsVoiceOrigin}
+              origin={inputEffectsVoiceOrigin}
+              submitRevision={inputEffectsSubmitRevision}
+              exitHandoffAt={inputEffectsExitHandoffAt}
+              typingPulse={typingPulse}
+            />
+          )}
           {showMascot && !topAccessoryVisible && (
             <ComposerMascotShadow name={renderedMascotAvatar} />
           )}
@@ -307,7 +329,9 @@ export function ComposerShell({
               {attachmentStrip}
             </DesktopPluginSurface>
             <DesktopPluginSurface name="composer.input.editor" context={desktopPluginSurfaceContext}>
-              <OverlayLiftProvider value={overlayLiftApi}>{editor}</OverlayLiftProvider>
+              <ComposerTypingFeedbackContext.Provider value={showInputEffects ? notifyTyping : null}>
+                <OverlayLiftProvider value={overlayLiftApi}>{editor}</OverlayLiftProvider>
+              </ComposerTypingFeedbackContext.Provider>
             </DesktopPluginSurface>
           </DesktopPluginSurface>
 
@@ -556,6 +580,7 @@ export function ComposerSendButton({
     <button
       {...props}
       type={props.type ?? 'button'}
+      data-composer-exit-target="primary"
       onMouseEnter={(event) => {
         if (enabled) setActive(true)
         onMouseEnter?.(event)

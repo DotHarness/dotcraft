@@ -88,7 +88,7 @@ import { useResolvedProfileName } from '../../stores/agentProfileNameStore'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { Skeleton } from '../ui/Skeleton'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
-import { VoiceInputControl, VoiceInputStatus } from './VoiceInputControl'
+import { ComposerVoiceInputStatus, VoiceInputControl } from './VoiceInputControl'
 import { DesktopPluginSurface } from '../desktopPlugins/DesktopPluginSurface'
 import {
   ComposerStatusContent,
@@ -658,7 +658,7 @@ function ConversationWelcomeCore({
     })
   ), [t])
 
-  const createGoalBackedThread = useCallback(async (objective: string, draft?: Parameters<typeof buildGoalObjective>[0]): Promise<boolean> => {
+  const createGoalBackedThread = useCallback(async (objective: string, draft?: Parameters<typeof buildGoalObjective>[0], userSend = false): Promise<boolean> => {
     if (!canUseThreadGoals) {
       showGoalUnavailable()
       return false
@@ -692,6 +692,7 @@ function ConversationWelcomeCore({
         text: trimmedObjective,
         inputParts: preview.inputParts,
         sentAsGoal: true,
+        showComposerExit: userSend,
         threadName,
         configuration: welcomeThreadConfiguration as ThreadConfigurationWire
       })
@@ -767,7 +768,7 @@ function ConversationWelcomeCore({
     return false
   }, [canUseThreadGoals, createGoalBackedThread, enterGoalComposeMode, showGoalUnavailable, t])
 
-  const sendFromWelcome = useCallback(async (draftOverride?: ThreadComposerDraftInput): Promise<void> => {
+  const sendFromWelcome = useCallback(async (draftOverride?: ThreadComposerDraftInput, userSend = false): Promise<void> => {
     if (hasPendingPastedText(contextKey)) return
     const text = draftOverride?.text ?? richRef.current?.getText() ?? ''
     const segments = draftOverride?.segments ?? richRef.current?.getSegments() ?? []
@@ -791,7 +792,7 @@ function ConversationWelcomeCore({
         addToast(t('goal.toast.emptyObjective'), 'warning')
         return
       }
-      const created = await createGoalBackedThread(objective, { text, segments, files: inputFiles, images: inputImages })
+      const created = await createGoalBackedThread(objective, { text, segments, files: inputFiles, images: inputImages }, userSend)
       if (created) setGoalComposeMode(false)
       return
     }
@@ -851,6 +852,7 @@ function ConversationWelcomeCore({
         workspacePath: identityPath,
         text: preview.visibleText,
         inputParts: preview.inputParts,
+        showComposerExit: userSend,
         threadName,
         configuration: welcomeThreadConfiguration as ThreadConfigurationWire
       })
@@ -1010,7 +1012,7 @@ function ConversationWelcomeCore({
       void useVoiceStore.getState().stopRecording('send')
       return
     }
-    void sendFromWelcome()
+    void sendFromWelcome(undefined, true)
   }, [sendFromWelcome, voiceRecording])
 
   const mascotSpeed = effectiveSpeed(modelCatalog.find((model) => model.id === modelName)?.speed, speedValue) === 'standard'
@@ -1062,6 +1064,7 @@ function ConversationWelcomeCore({
               mascotOutfit={creatorControls.mascotOutfit}
               before={<DesktopPluginSurface name="composer.before" context={desktopPluginSurfaceContext} />}
               adaptiveToolbar
+              inputEffectsVoiceOrigin={voiceThreadId}
               desktopPluginSurfaceContext={desktopPluginSurfaceContext}
               dragOver={dragOver}
               dropLabel={t(dragOverThread ? 'composer.dropThread' : 'composer.dropImage')}
@@ -1212,7 +1215,7 @@ function ConversationWelcomeCore({
                       }}
                     />
                   )}
-                  voiceStatus={<VoiceInputStatus threadId={voiceThreadId} />}
+                  voiceStatus={<ComposerVoiceInputStatus threadId={voiceThreadId} />}
                   permissions={!compactVoiceFooter ? (
                     <WelcomeApprovalPolicyPicker
                       value={welcomeApprovalPolicy}

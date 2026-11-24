@@ -7,6 +7,7 @@ import { applyTheme, useDocumentThemeMode, type ThemeMode } from '../../../utils
 import {
   applyThemeSeeds,
   applyCodeFontSize,
+  applyComposerEffects,
   applyPointerCursors,
   applyReduceMotion,
   applyTranslucentSidebar,
@@ -24,6 +25,7 @@ import {
   resolveAppearanceSettings,
   uiFontPxToInterfaceZoom,
   type AppearanceSettings,
+  type ComposerEffectsMode,
   type DiffMarkerMode,
   type ReduceMotionMode
 } from '../../../../shared/appearance'
@@ -164,6 +166,12 @@ export function AppearancePanel(): JSX.Element {
     setAppearance((prev) => ({ ...prev, reduceMotion: mode }))
     applyReduceMotion(mode)
     void persist({ reduceMotion: mode })
+  }
+
+  function handleComposerEffects(mode: ComposerEffectsMode): void {
+    setAppearance((prev) => ({ ...prev, composerEffects: mode }))
+    applyComposerEffects(mode)
+    void persist({ composerEffects: mode })
   }
 
   function handleWelcomeBackdrop(on: boolean): void {
@@ -384,6 +392,21 @@ export function AppearancePanel(): JSX.Element {
                 { value: 'system', label: t('settings.appearance.reduceMotion.system') },
                 { value: 'on', label: t('settings.appearance.reduceMotion.on') },
                 { value: 'off', label: t('settings.appearance.reduceMotion.off') }
+              ]}
+            />
+          }
+        />
+        <SettingsRow
+          label={t('settings.appearance.composerEffects.label')}
+          description={t('settings.appearance.composerEffects.hint')}
+          control={
+            <SegmentedControl<ComposerEffectsMode>
+              ariaLabel={t('settings.appearance.composerEffects.label')}
+              value={appearance.composerEffects}
+              onChange={handleComposerEffects}
+              options={[
+                { value: 'colorful', label: t('settings.appearance.composerEffects.colorful') },
+                { value: 'plain', label: t('settings.appearance.composerEffects.plain') }
               ]}
             />
           }

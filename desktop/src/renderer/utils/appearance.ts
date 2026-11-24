@@ -1,7 +1,11 @@
+import { useSyncExternalStore } from 'react'
 import {
   CODE_FONT_SIZE_MAX,
   CODE_FONT_SIZE_MIN,
+  DEFAULT_APPEARANCE,
+  normalizeComposerEffects,
   type AppearanceSettings,
+  type ComposerEffectsMode,
   type ReduceMotionMode
 } from '../../shared/appearance'
 import { THEME_CHANGED_EVENT, type ThemeChangedDetail } from '../../shared/theme'
@@ -14,6 +18,7 @@ import {
 } from '../../shared/themeSeed'
 
 const CODE_SIZE_VAR = '--text-code-size'
+const COMPOSER_EFFECTS_CHANGED = 'dotcraft:composer-effects-changed'
 
 let accentOverride: string | null = null
 let seedsByVariant: Record<ThemeVariant, ThemeSeedOverrides> = EMPTY_THEME_SEEDS
@@ -104,6 +109,26 @@ export function prefersReducedMotion(): boolean {
   return configured === 'on' || (configured !== 'off' && matchMedia('(prefers-reduced-motion: reduce)').matches)
 }
 
+export function applyComposerEffects(mode: ComposerEffectsMode): void {
+  const root = document.documentElement
+  if (root.dataset.composerEffects === mode) return
+  root.dataset.composerEffects = mode
+  window.dispatchEvent(new Event(COMPOSER_EFFECTS_CHANGED))
+}
+
+function subscribeComposerEffects(listener: () => void): () => void {
+  window.addEventListener(COMPOSER_EFFECTS_CHANGED, listener)
+  return () => window.removeEventListener(COMPOSER_EFFECTS_CHANGED, listener)
+}
+
+function readComposerEffects(): ComposerEffectsMode {
+  return normalizeComposerEffects(document.documentElement.dataset.composerEffects)
+}
+
+export function useComposerEffectsMode(): ComposerEffectsMode {
+  return useSyncExternalStore(subscribeComposerEffects, readComposerEffects, () => DEFAULT_APPEARANCE.composerEffects)
+}
+
 /**
  * Reflect the pointer-cursor preference as `data-pointer-cursors` (`true`/`false`). An explicit
  * value (not removal) lets the off state authoritatively force the native arrow over the
@@ -131,6 +156,7 @@ export function applyAppearanceDom(appearance: AppearanceSettings): void {
   applyThemeSeeds(appearance.accent, appearance.themeSeeds)
   applyCodeFontSize(appearance.codeFontSize)
   applyReduceMotion(appearance.reduceMotion)
+  applyComposerEffects(appearance.composerEffects)
   applyPointerCursors(appearance.pointerCursors)
   applyTranslucentSidebar(appearance.translucentSidebar)
   applyWelcomeBackdrop(appearance.welcomeBackdrop)

@@ -10,6 +10,8 @@ import {
 /** How code diffs are rendered: tinted line backgrounds, or +/- gutter markers with colored text. */
 export type DiffMarkerMode = 'color' | 'sign'
 
+export type ComposerEffectsMode = 'colorful' | 'plain'
+
 /** Motion preference: follow the OS, force-reduce, or always animate. */
 export type ReduceMotionMode = 'system' | 'on' | 'off'
 
@@ -27,6 +29,7 @@ export interface AppearanceSettings {
   codeFontSize: number | null
   diffMarkers: DiffMarkerMode
   reduceMotion: ReduceMotionMode
+  composerEffects: ComposerEffectsMode
   pointerCursors: boolean
   /** Whole-interface zoom factor (1 = 100%). Applied via the renderer zoom, not a CSS var. */
   interfaceZoom: number
@@ -61,6 +64,7 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
   codeFontSize: null,
   diffMarkers: 'color',
   reduceMotion: 'system',
+  composerEffects: 'colorful',
   pointerCursors: true,
   interfaceZoom: DEFAULT_INTERFACE_ZOOM,
   translucentSidebar: true,
@@ -83,6 +87,10 @@ export function normalizeDiffMarkers(raw: unknown): DiffMarkerMode {
 
 export function normalizeReduceMotion(raw: unknown): ReduceMotionMode {
   return raw === 'on' || raw === 'off' ? raw : 'system'
+}
+
+export function normalizeComposerEffects(raw: unknown): ComposerEffectsMode {
+  return raw === 'plain' ? 'plain' : DEFAULT_APPEARANCE.composerEffects
 }
 
 export function normalizePointerCursors(raw: unknown): boolean {
@@ -116,6 +124,7 @@ export function resolveAppearanceSettings(raw: {
   codeFontSize?: unknown
   diffMarkers?: unknown
   reduceMotion?: unknown
+  composerEffects?: unknown
   pointerCursors?: unknown
   interfaceZoom?: unknown
   translucentSidebar?: unknown
@@ -129,6 +138,7 @@ export function resolveAppearanceSettings(raw: {
     codeFontSize: normalizeCodeFontSize(source.codeFontSize),
     diffMarkers: normalizeDiffMarkers(source.diffMarkers),
     reduceMotion: normalizeReduceMotion(source.reduceMotion),
+    composerEffects: normalizeComposerEffects(source.composerEffects),
     pointerCursors: normalizePointerCursors(source.pointerCursors),
     interfaceZoom: normalizeInterfaceZoom(source.interfaceZoom),
     translucentSidebar: normalizeTranslucentSidebar(source.translucentSidebar),

@@ -91,7 +91,7 @@ import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
 import { useChoiceDialog, useConfirmDialog } from '../ui/ConfirmDialog'
 import { ConversationColumn } from './ConversationColumn'
 import { resolveComposerMascotEffectState } from './composerMascotEffectState'
-import { VoiceInputControl, VoiceInputStatus } from './VoiceInputControl'
+import { ComposerVoiceInputStatus, VoiceInputControl } from './VoiceInputControl'
 import { useComposerProvider } from './useComposerProvider'
 import { registerComposerVoiceTarget } from '../../voice/composerDraftBridge'
 import { isVoiceProcessingForThread, shouldUseCompactVoiceFooter, useVoiceStore } from '../../voice/voiceStore'
@@ -159,6 +159,7 @@ interface InputComposerProps {
   focusRequest?: number
   /** Discards voice work when this pre-thread Composer unmounts. */
   transientVoiceOrigin?: boolean
+  inputEffectsExitHandoffAt?: number
   dockPadding?: CSSProperties['padding']
 }
 
@@ -227,6 +228,7 @@ function InputComposerCore({
   runtime,
   focusRequest,
   transientVoiceOrigin = false,
+  inputEffectsExitHandoffAt,
   dockPadding = composerDockStyle.padding,
   desktopPluginSurfaceContext
 }: InputComposerCoreProps): JSX.Element {
@@ -255,6 +257,7 @@ function InputComposerCore({
   const [contentRevision, setContentRevision] = useState(0)
   const [historyCursor, setHistoryCursor] = useState<number | null>(null)
   const [mascotBounce, setMascotBounce] = useState(0)
+  const [inputEffectsSubmitRevision, setInputEffectsSubmitRevision] = useState(0)
   const richRef = useRef<RichInputAreaHandle>(null)
   const [hydratedThreadId, setHydratedThreadId] = useState<string | null>(null)
   const [appliedPrefillRequestId, setAppliedPrefillRequestId] = useState<number | null>(null)
@@ -934,7 +937,7 @@ function InputComposerCore({
     window.setTimeout(() => richRef.current?.focus(), 0)
   }, [canUseThreadGoals, showGoalUnavailable])
 
-  const sendGoalFromComposer = useCallback(async (draftOverride?: ThreadComposerDraftInput): Promise<void> => {
+  const sendGoalFromComposer = useCallback(async (draftOverride?: ThreadComposerDraftInput, userSend = false): Promise<void> => {
     const text = draftOverride?.text ?? richRef.current?.getText() ?? ''
     const segments = draftOverride?.segments ?? richRef.current?.getSegments() ?? []
     const inputFiles = draftOverride?.files ?? files
@@ -949,6 +952,7 @@ function InputComposerCore({
     let submission: ComposerDraftSnapshot = { ...captureComposerDraft(), ...draftOverride, text, segments, files: inputFiles, images: inputImages }
     const target = captureComposerAttachmentTarget(threadId)
     try {
+      if (userSend) setInputEffectsSubmitRevision((revision) => revision + 1)
       clearComposerForSubmission()
       const prepared = await prepareComposerAttachments({ threadId, workspacePath, files: inputFiles, images: inputImages, target })
       submission = { ...submission, files: prepared.files, images: prepared.images }
@@ -1041,10 +1045,10 @@ function InputComposerCore({
     [attachDroppedFiles, remoteWorkspace, threadReferences]
   )
 
-  const sendMessage = useCallback(async (draftOverride?: ThreadComposerDraftInput, options?: ComposerSubmitOptions) => {
+  const sendMessage = useCallback(async (draftOverride?: ThreadComposerDraftInput, options?: ComposerSubmitOptions, userSend = false) => {
     if (hasPendingPastedText(threadId)) return
     if (!isAgentBuilder && goalComposeMode && canUseThreadGoals) {
-      await sendGoalFromComposer(draftOverride)
+      await sendGoalFromComposer(draftOverride, userSend)
       return
     }
     const text = draftOverride?.text ?? richRef.current?.getText() ?? ''
@@ -1106,6 +1110,7 @@ function InputComposerCore({
       sendInFlightRef.current = true
       const submission = submissionSnapshot()
       try {
+        if (userSend) setInputEffectsSubmitRevision((revision) => revision + 1)
         clearComposerForSubmission()
         const prepared = await prepareComposerAttachments({ threadId, workspacePath, files: inputFiles, images: inputImages, contexts: inputContexts, target })
         const modelSettings = await captureTurnSettings?.()
@@ -1207,6 +1212,7 @@ function InputComposerCore({
         if (choice === 'cancel') return
         if (choice === 'alternate') await clearPausedQueue()
       }
+      if (userSend) setInputEffectsSubmitRevision((revision) => revision + 1)
       clearComposerForSubmission()
       if (!isSideChat && target.remote) {
         const prepared = await prepareComposerAttachments({ threadId, workspacePath, images: inputImages, files: inputFiles, contexts: inputContexts, target })
@@ -1518,7 +1524,7 @@ function InputComposerCore({
       void useVoiceStore.getState().stopRecording('send')
       return
     }
-    void sendMessage(undefined, options)
+    void sendMessage(undefined, options, true)
   }, [isBusyForInput, sendMessage, voiceRecording])
   useEffect(() => registerComposerSend(threadId, () => { void sendMessage() }), [threadId, sendMessage])
 
@@ -1638,6 +1644,9 @@ function InputComposerCore({
           </>
         )}
         adaptiveToolbar
+        inputEffectsVoiceOrigin={threadId}
+        inputEffectsSubmitRevision={inputEffectsSubmitRevision}
+        inputEffectsExitHandoffAt={inputEffectsExitHandoffAt}
         desktopPluginSurfaceContext={desktopPluginSurfaceContext}
         dragOver={dragOver}
         dropLabel={t(dragOverThread ? 'composer.dropThread' : 'composer.dropImage')}
@@ -1820,7 +1829,7 @@ function InputComposerCore({
                 }}
               />
             )}
-            voiceStatus={<VoiceInputStatus threadId={threadId} />}
+            voiceStatus={<ComposerVoiceInputStatus threadId={threadId} />}
             permissions={!compactVoiceFooter && !minimalChrome ? (
               <ApprovalPolicyPicker threadId={threadId} disabled={isWaitingInput} />
             ) : null}
@@ -1919,7 +1928,7 @@ function InputComposerCore({
             submit={!isWaitingApproval && !isWaitingInput ? (
               isBusyForInput ? (
                 canSend ? (
-                  <ComposerSubmitButton mode={queuedEditing.isEditingQueuedInput ? 'queue' : followUpMode} onClick={sendMessage} />
+                  <ComposerSubmitButton mode={queuedEditing.isEditingQueuedInput ? 'queue' : followUpMode} onClick={submitOrStopVoice} />
                 ) : (
                   <ComposerSubmitButton
                     mode={stopping ? 'stopping' : 'stop'}

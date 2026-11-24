@@ -14,6 +14,7 @@ import {
   normalizeAccentHex,
   normalizeCodeFontSize,
   normalizeInterfaceZoom,
+  type ComposerEffectsMode,
   type DiffMarkerMode,
   type ReduceMotionMode
 } from '../shared/appearance'
@@ -139,6 +140,7 @@ export interface AppSettings extends SidebarThreadOrderSettings {
   codeFontSize?: number
   diffMarkers?: DiffMarkerMode
   reduceMotion?: ReduceMotionMode
+  composerEffects?: ComposerEffectsMode
   pointerCursors?: boolean
   interfaceZoom?: number
   translucentSidebar?: boolean
@@ -314,6 +316,10 @@ function normalizeDiffMarkersSetting(settings: AppSettings): DiffMarkerMode | un
 
 function normalizeReduceMotionSetting(settings: AppSettings): ReduceMotionMode | undefined {
   return settings.reduceMotion === 'on' || settings.reduceMotion === 'off' ? settings.reduceMotion : undefined
+}
+
+function normalizeComposerEffectsSetting(settings: AppSettings): ComposerEffectsMode | undefined {
+  return settings.composerEffects === 'plain' ? 'plain' : undefined
 }
 
 function normalizePointerCursorsSetting(settings: AppSettings): boolean | undefined {
@@ -638,6 +644,7 @@ export function loadSettings(): AppSettings {
       raw.codeFontSize = normalizeCodeFontSizeSetting(raw)
       raw.diffMarkers = normalizeDiffMarkersSetting(raw)
       raw.reduceMotion = normalizeReduceMotionSetting(raw)
+      raw.composerEffects = normalizeComposerEffectsSetting(raw)
       raw.pointerCursors = normalizePointerCursorsSetting(raw)
       raw.interfaceZoom = normalizeInterfaceZoomSetting(raw)
       raw.translucentSidebar = normalizeTranslucentSidebarSetting(raw)
@@ -707,6 +714,7 @@ export function saveSettings(settings: AppSettings): void {
     settings.codeFontSize = normalizeCodeFontSizeSetting(settings)
     settings.diffMarkers = normalizeDiffMarkersSetting(settings)
     settings.reduceMotion = normalizeReduceMotionSetting(settings)
+    settings.composerEffects = normalizeComposerEffectsSetting(settings)
     settings.pointerCursors = normalizePointerCursorsSetting(settings)
     settings.interfaceZoom = normalizeInterfaceZoomSetting(settings)
     settings.translucentSidebar = normalizeTranslucentSidebarSetting(settings)

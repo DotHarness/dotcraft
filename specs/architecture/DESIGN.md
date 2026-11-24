@@ -1335,8 +1335,26 @@ and state already say.
 - Voice duration and its microphone/stop button form one non-shrinking, centred
   group with an 8px gap. The duration keeps a 32px minimum width, tabular
   numerals, right alignment, and no wrapping, independent of toolbar gaps. The
-  waveform takes the remaining width; the primary action stays outside the group.
-  Voice buttons are 32px standard and 28px compact.
+  primary action stays outside the group. Voice buttons are 32px standard and
+  28px compact.
+- Appearance › Composer effects controls feedback on conversation and welcome
+  Composers regardless of Agent, Plan, or Creator mode. Colorful is the default.
+  It draws a low, theme-aware particle ribbon inside the bottom edge of the card.
+  Committed typing briefly sends ripples across it. Paste, draft restoration,
+  and uncommitted input-method text do not trigger it.
+- While the Composer's microphone is recording, its live level drives the
+  ribbon instead of typing, and the toolbar does not show a second waveform.
+- On Send or normal completion of a recording, the ribbon breaks into sparse
+  colored trails. They sweep along the card's bottom edge, then rise to the
+  center of the Send or Stop control and disappear. The first Send does not
+  delay opening the new conversation. Sending a recording plays the sweep once,
+  not when transcription delivers the message. Cancellation fades without a
+  sweep, and transcription does not pulse. Effects do not change editor or
+  control layout, take focus, or intercept input. Reduced motion keeps the
+  feedback still.
+- Plain disables the particle ribbon and shows the neutral bar waveform across
+  the remaining toolbar width while recording. Both choices keep the same
+  timer, stop, send, and transcription controls and behavior.
 - Footer mode pills (Plan, Creator, Goal, a custom agent) are frameless 24px pills with an
   8px inset on both sides. At rest they show their mode icon; on hover or focus
   they take the hover fill and the icon becomes a circled clear mark. The

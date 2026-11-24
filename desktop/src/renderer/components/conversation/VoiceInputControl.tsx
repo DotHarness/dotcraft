@@ -11,6 +11,7 @@ import { Mic, RotateCcw, Square } from 'lucide-react'
 import type { MessageKey } from '../../../shared/locales'
 import { canTranscribeWithChatGpt, hasVoiceTranscriptionRoute, type VoiceErrorCode } from '../../../shared/voice'
 import { useT } from '../../contexts/LocaleContext'
+import { useComposerEffectsMode } from '../../utils/appearance'
 import { sessionForThread, useVoiceStore } from '../../voice/voiceStore'
 import { isBlockedMicrophonePermission } from '../../voice/microphoneAccess'
 import { ActionTooltip } from '../ui/ActionTooltip'
@@ -22,6 +23,10 @@ interface VoiceInputControlProps {
   threadId: string
   enableShortcut?: boolean
   compact?: boolean
+}
+
+export function ComposerVoiceInputStatus({ threadId }: VoiceInputControlProps): JSX.Element | null {
+  return useComposerEffectsMode() === 'plain' ? <VoiceInputStatus threadId={threadId} /> : null
 }
 
 export function VoiceInputStatus({ threadId }: VoiceInputControlProps): JSX.Element | null {
@@ -268,6 +273,7 @@ export function VoiceInputControl({ threadId, enableShortcut = true, compact = f
             }}
             className={`dc-composer-icon-control ${styles.control}`}
             data-compact={compact || undefined}
+            data-composer-exit-target="voice"
           >
             {view.kind === 'recording' || view.kind === 'processing'
               ? <Square size={11} fill="currentColor" strokeWidth={0} aria-hidden className={styles.square} />
