@@ -276,6 +276,9 @@ internal sealed class StreamRetryingChatClient(
     {
         foreach (var usage in update.Contents.OfType<UsageContent>())
         {
+            if (TokenUsageRequestTiming.IsAttached(usage))
+                continue;
+
             TokenUsageRequestTiming.Attach(
                 usage,
                 new TokenUsageRequestTiming(

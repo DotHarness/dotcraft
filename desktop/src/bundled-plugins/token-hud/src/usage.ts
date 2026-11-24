@@ -78,14 +78,13 @@ export function startUsageFeed(host: DesktopPluginHost): () => void {
     })
   }
 
-  const showThroughput = (): void => {
+  const showThroughput = (finished = false): void => {
     const tokensPerSecond = meter.tokensPerSecond()
-    const latestRequestTokensPerSecond = meter.latestRequestTokensPerSecond()
-    const firstTokenLatencyMs = meter.firstTokenLatencyMs()
     update({
-      ...(firstTokenLatencyMs === null ? {} : { firstTokenLatencyMs }),
-      ...(tokensPerSecond === null ? {} : { tokensPerSecond, waitingForSample: false }),
-      ...(latestRequestTokensPerSecond === null ? {} : { latestRequestTokensPerSecond })
+      tokensPerSecond,
+      firstTokenLatencyMs: meter.firstTokenLatencyMs(),
+      latestRequestTokensPerSecond: meter.latestRequestTokensPerSecond(),
+      ...(finished || tokensPerSecond !== null ? { waitingForSample: false } : {})
     })
   }
 
@@ -159,7 +158,7 @@ export function startUsageFeed(host: DesktopPluginHost): () => void {
     if (params.turn.threadId !== threadId) return
     if (activeTurnId !== null && params.turn.id !== activeTurnId) return
     activeTurnId = null
-    update({ waitingForSample: false })
+    showThroughput(true)
     scheduleThreadUsage(0)
   }
   const stopCompleted = host.appServer.onNotification('turn/completed', finishTurn)

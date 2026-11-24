@@ -21,6 +21,15 @@ describe('ThroughputMeter', () => {
     expect(meter.firstTokenLatencyMs()).toBe(800)
   })
 
+  it('discards a timing sample when later output is not covered', () => {
+    const meter = new ThroughputMeter()
+    meter.usage({ llmCall: 1, outputTokens: 100, timing: { firstOutputLatencyMs: 800, generationMs: 2_000 } })
+    meter.usage({ llmCall: 1, outputTokens: 50, timing: null })
+
+    expect(meter.tokensPerSecond()).toBeNull()
+    expect(meter.firstTokenLatencyMs()).toBeNull()
+  })
+
   it('weights requests by generation time and averages first-output latency per request', () => {
     const meter = new ThroughputMeter()
     meter.startTurn()

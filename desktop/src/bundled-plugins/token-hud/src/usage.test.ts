@@ -152,7 +152,7 @@ describe('Token HUD usage', () => {
     stop()
   })
 
-  it('keeps the last throughput across task changes until a new turn sample replaces it', async () => {
+  it('keeps old timing only until the new turn reports usage or ends', async () => {
     vi.useFakeTimers()
     const notifications = new Map<string, (params: any) => void>()
     let sessionListener: ((session: {
@@ -208,9 +208,13 @@ describe('Token HUD usage', () => {
     notifications.get('turn/started')?.({ turn: { id: 'turn-2', threadId: 'thread-2' } })
     expect(getUsage().tokensPerSecond).toBe(30)
     notifications.get('item/usage/delta')?.({
+      threadId: 'thread-2', turnId: 'turn-2', turnLlmCalls: 1, outputTokens: 120
+    })
+    expect(getUsage()).toMatchObject({ tokensPerSecond: null, firstTokenLatencyMs: null })
+    notifications.get('item/usage/delta')?.({
       threadId: 'thread-2',
       turnId: 'turn-2',
-      turnLlmCalls: 1,
+      turnLlmCalls: 2,
       outputTokens: 20,
       requestTiming: { firstOutputLatencyMs: 2_000, generationMs: 1_000 }
     })
@@ -220,6 +224,15 @@ describe('Token HUD usage', () => {
 
     notifications.get('turn/completed')?.({ turn: { id: 'turn-2', threadId: 'thread-2' } })
     expect(getUsage().tokensPerSecond).toBe(20)
+
+    notifications.get('turn/started')?.({ turn: { id: 'turn-3', threadId: 'thread-2' } })
+    notifications.get('turn/failed')?.({ turn: { id: 'turn-3', threadId: 'thread-2' } })
+    expect(getUsage()).toMatchObject({
+      tokensPerSecond: null,
+      latestRequestTokensPerSecond: null,
+      firstTokenLatencyMs: null,
+      waitingForSample: false
+    })
     stop()
   })
 

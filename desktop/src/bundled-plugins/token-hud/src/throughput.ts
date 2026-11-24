@@ -28,7 +28,7 @@ export class ThroughputMeter {
     const last = this.requests.at(-1)
     if (last !== undefined && sample.llmCall !== null && last.llmCall === sample.llmCall) {
       last.outputTokens += sample.outputTokens
-      last.timing = sample.timing ?? last.timing
+      if (sample.timing !== null || sample.outputTokens > 0) last.timing = sample.timing
       return
     }
     this.requests.push({ ...sample })

@@ -23,6 +23,24 @@ public sealed class StreamRetryingChatClientRequestTimingTests
         Assert.Equal(new TokenUsageRequestTiming(800, 4_000), timing);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ProviderTimingTakesPrecedenceEvenWhenUnavailable(bool hasMeasurement)
+    {
+        var clock = new ManualTimeProvider();
+        var usage = Usage();
+        var timing = hasMeasurement ? new TokenUsageRequestTiming(3_216, 3_490) : null;
+        TokenUsageRequestTiming.Attach(Assert.IsType<UsageContent>(Assert.Single(usage.Contents)), timing);
+        var inner = new ScriptedChatClient(clock, null,
+        [
+            [(800, Text("hello")), (10, usage)]
+        ]);
+        var client = new StreamRetryingChatClient(inner, new StreamRetryOptions(0, TimeSpan.FromSeconds(30)), clock);
+
+        Assert.Equal(timing, await ReadTimingAsync(client));
+    }
+
     [Fact]
     public async Task OutputStartClassifierSkipsRequestAcknowledgements()
     {
