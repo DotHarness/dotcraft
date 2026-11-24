@@ -388,7 +388,7 @@ The wire declaration is a tagged union:
 The Thread retains its persisted declarations across disconnect, unload, and restart. The connection owns only the callback lease. Disconnect does not remove permitted declarations from the model's direct or deferred tools.
 
 - Omitted declarations change neither the declarations nor the callback owner.
-- An empty array from the current owner clears the declarations and callback lease.
+- An empty array clears the declarations and callback lease only when sent by the current owner, including on retry. An empty array from any other connection is ignored and does not prevent resume from succeeding.
 - A non-empty array from an authorized connection replaces the declarations and acquires a callback lease. Rebinding identical declarations changes only the lease.
 
 Declaration changes take effect on future Turns only after a successful durable write. A running Turn retains its snapshot and never redirects a call to a replacement lease.
