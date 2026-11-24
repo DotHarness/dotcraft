@@ -1274,7 +1274,7 @@ export const MESSAGES_ES = {
   'settings.appearance.reduceMotion.on': 'Activado',
   'settings.appearance.reduceMotion.off': 'Desactivado',
   'settings.appearance.composerEffects.label': 'Efectos del editor',
-  'settings.appearance.composerEffects.hint': 'Respuesta visual al escribir o dictar.',
+  'settings.appearance.composerEffects.hint': 'Respuesta visual al dictar.',
   'settings.appearance.composerEffects.colorful': 'Colorido',
   'settings.appearance.composerEffects.plain': 'Sencillo',
   'settings.appearance.welcomeBackdrop.label': 'Fondo de bienvenida',

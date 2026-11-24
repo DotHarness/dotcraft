@@ -121,10 +121,6 @@ export function ConversationPanel({
   const activeEffectiveWorkspacePath =
     activeThread?.effectiveWorkspacePath?.trim() || threadStateWorkspacePath
   const creating = !activeThread && !isAgentBuilder ? pendingThreadCreation : null
-  const inputEffectsExitHandoffAt = pendingThreadCreation?.showComposerExit
-    && (creating != null || (activeThread != null && activeThread.id === pendingThreadCreation.threadId))
-    ? pendingThreadCreation.createdAt
-    : undefined
   const creatingThread: Thread | null = creating
     ? {
         id: creating.requestId,
@@ -401,7 +397,6 @@ export function ConversationPanel({
       ) : (
         <InputComposer
           threadId={thread.id}
-          inputEffectsExitHandoffAt={inputEffectsExitHandoffAt}
           submitOverride={creating ? parkWhileCreating : worktreeCreation ? waitForWorktree : openingThread || interactionLoading ? waitForThread : undefined}
           placeholder={worktreeCreation ? t('worktreeCreation.composerPlaceholder') : undefined}
           workspacePath={threadStateWorkspacePath}

@@ -1384,7 +1384,7 @@ export const MESSAGES_ZH_HANS = {
   'settings.appearance.reduceMotion.on': '开启',
   'settings.appearance.reduceMotion.off': '关闭',
   'settings.appearance.composerEffects.label': '输入框动效',
-  'settings.appearance.composerEffects.hint': '打字和语音输入时的视觉反馈。',
+  'settings.appearance.composerEffects.hint': '语音输入时的视觉反馈。',
   'settings.appearance.composerEffects.colorful': '炫彩',
   'settings.appearance.composerEffects.plain': '普通',
   'settings.appearance.welcomeBackdrop.label': '欢迎页背景',

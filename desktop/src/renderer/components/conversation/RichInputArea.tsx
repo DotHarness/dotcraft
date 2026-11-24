@@ -1,13 +1,10 @@
 import {
   forwardRef,
   useCallback,
-  useContext,
   useEffect,
   useImperativeHandle,
   useRef,
   useState,
-  type CompositionEvent as ReactCompositionEvent,
-  type FormEvent,
   type ForwardedRef,
   type KeyboardEvent as ReactKeyboardEvent
 } from 'react'
@@ -27,7 +24,6 @@ import type { ComposerDraftSegment } from '../../types/composerDraft'
 import { usePetEditorBridge } from '../desktopPet/editorBridge'
 import { useRichInputSelectionReferences } from './useRichInputSelectionReferences'
 import { useSkillRefIcons } from './useSkillRefIcons'
-import { ComposerTypingFeedbackContext } from './inputEffects/ComposerInputEffects'
 
 const MAX_ROWS = 8
 const MAX_TEXT_LEN = 100_000
@@ -356,7 +352,6 @@ export const RichInputArea = forwardRef(function RichInputArea(
   ref: ForwardedRef<RichInputAreaHandle>
 ) {
     const editorRef = useRef<HTMLDivElement>(null)
-    const notifyTyping = useContext(ComposerTypingFeedbackContext)
     const lastSelectionRangeRef = useRef<SelectionRange | null>(null)
     const commandQueryRangeRef = useRef<SelectionRange | null>(null)
     const compositionActiveRef = useRef(false)
@@ -906,12 +901,7 @@ export const RichInputArea = forwardRef(function RichInputArea(
       onSkillQuery?.(null)
     }, [onAtQuery, onSkillQuery, onSlashQuery])
 
-    const onInput = useCallback((event?: FormEvent<HTMLDivElement>): void => {
-      const input = event?.nativeEvent as InputEvent | undefined
-      if (notifyTyping && input?.inputType === 'insertText' && input.data && !input.isComposing
-        && !compositionActiveRef.current && !compositionJustEndedRef.current) {
-        notifyTyping()
-      }
+    const onInput = useCallback((): void => {
       syncEmpty()
       adjustHeight()
       syncCommandQuery()
@@ -928,7 +918,7 @@ export const RichInputArea = forwardRef(function RichInputArea(
         captureSelectionRange()
         onContentChange?.()
       }
-    }, [adjustHeight, captureSelectionRange, emitTriggerQueries, notifyTyping, onContentChange, syncCommandQuery, syncEmpty])
+    }, [adjustHeight, captureSelectionRange, emitTriggerQueries, onContentChange, syncCommandQuery, syncEmpty])
 
     const captureSelectionAndSyncCommandQuery = useCallback((): void => {
       captureSelectionRange()
@@ -1038,8 +1028,7 @@ export const RichInputArea = forwardRef(function RichInputArea(
       compositionJustEndedRef.current = false
     }, [clearCompositionJustEndedTimer])
 
-    const onCompositionEnd = useCallback((event: ReactCompositionEvent<HTMLDivElement>): void => {
-      if (compositionActiveRef.current && event.data) notifyTyping?.()
+    const onCompositionEnd = useCallback((): void => {
       compositionActiveRef.current = false
       compositionJustEndedRef.current = true
       clearCompositionJustEndedTimer()
@@ -1047,7 +1036,7 @@ export const RichInputArea = forwardRef(function RichInputArea(
         compositionJustEndedRef.current = false
         compositionResetTimerRef.current = null
       }, 0)
-    }, [clearCompositionJustEndedTimer, notifyTyping])
+    }, [clearCompositionJustEndedTimer])
 
     const insertClipboardSegmentsAtCaret = useCallback(
       (segments: ComposerDraftSegment[]): void => {

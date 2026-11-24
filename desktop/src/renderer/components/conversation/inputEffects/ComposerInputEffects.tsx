@@ -1,19 +1,8 @@
-import { createContext, useEffect, useRef, type RefObject } from 'react'
+import { useEffect, useRef } from 'react'
 import { getDocumentThemeMode } from '../../../utils/theme'
-import { isVoiceProcessingForThread, useVoiceStore } from '../../../voice/voiceStore'
-import {
-  drawRibbon, drawRibbonExit, typingWaves, TYPING_MS, VISIBLE_ENERGY, type Keystroke, type RibbonExitPoint
-} from './drawComposerParticleRibbon'
+import { useVoiceStore } from '../../../voice/voiceStore'
+import { drawRibbon, drawRibbonExit, VISIBLE_ENERGY, type RibbonExitPoint } from './drawComposerParticleRibbon'
 import styles from './ComposerParticleRibbon.module.css'
-
-export const ComposerTypingFeedbackContext = createContext<(() => void) | null>(null)
-
-interface ComposerInputEffectsProps {
-  origin: string
-  submitRevision: number
-  exitHandoffAt?: number
-  typingPulse: RefObject<(() => void) | null>
-}
 
 const RIBBON_EXIT_MS = 700
 type ExitSlot = 'primary' | 'voice'
@@ -39,13 +28,9 @@ function findExitTarget(canvas: HTMLCanvasElement, slot: ExitSlot, width: number
 function mountRibbon(canvas: HTMLCanvasElement, origin: string) {
   const motionQuery = window.matchMedia?.('(prefers-reduced-motion: reduce)')
   let frame: number | null = null
-  let clearTimer: number | undefined
   let context: CanvasRenderingContext2D | null | undefined
   let previousFrame = 0
-  let strokes: Keystroke[] = []
-  let direction = -1
   let exit: { slot: ExitSlot; startedAt?: number; energy: number; time: number } | undefined
-  let resumedHandoffAt: number | undefined
   const voice = { energy: 0, time: 0 }
 
   function isReduced() {
@@ -57,11 +42,9 @@ function mountRibbon(canvas: HTMLCanvasElement, origin: string) {
     if (frame == null) frame = window.requestAnimationFrame(render)
   }
 
-  function sweepExit(slot: ExitSlot, startedAt?: number) {
-    strokes = []
+  function sweepExit(slot: ExitSlot) {
     exit = isReduced() ? undefined : {
       slot,
-      startedAt,
       energy: Math.max(voice.energy, 0.57),
       time: voice.time
     }
@@ -84,7 +67,6 @@ function mountRibbon(canvas: HTMLCanvasElement, origin: string) {
     if (reduced || (!microphone && voice.energy <= VISIBLE_ENERGY)) voice.time = 0
     else if (microphone) voice.time += dt / 1000
 
-    strokes = strokes.filter(({ at }) => now - at < TYPING_MS)
     // A delayed frame must not consume the exit before it can be drawn.
     const exitProgress = exit ? (now - (exit.startedAt ??= now)) / RIBBON_EXIT_MS : 0
     if (reduced || exitProgress >= 1) exit = undefined
@@ -108,23 +90,13 @@ function mountRibbon(canvas: HTMLCanvasElement, origin: string) {
           const target = findExitTarget(canvas, exit.slot, width, height)
           drawRibbonExit(context, width, height, exitProgress, exit, target, theme)
         } else {
-          drawRibbon(context, width, height, voice, typingWaves(reduced ? strokes.slice(-1) : strokes, now, reduced), theme)
+          drawRibbon(context, width, height, voice, theme)
         }
       }
     }
 
-    window.clearTimeout(clearTimer)
-    if (!reduced && (microphone || voice.energy > VISIBLE_ENERGY || exit || strokes.length > 0)) {
-      requestFrame()
-    } else if (reduced && strokes.length > 0) {
-      const last = strokes[strokes.length - 1]
-      clearTimer = window.setTimeout(requestFrame, Math.max(1, last.at + TYPING_MS - now + 1))
-    } else previousFrame = 0
-  }
-
-  function hasActiveVoice() {
-    const { recording, snapshot, finalizing } = useVoiceStore.getState()
-    return recording?.threadId === origin || isVoiceProcessingForThread(snapshot, finalizing?.threadId, origin)
+    if (!reduced && (microphone || voice.energy > VISIBLE_ENERGY || exit)) requestFrame()
+    else previousFrame = 0
   }
 
   const unsubscribe = useVoiceStore.subscribe((next, previous) => {
@@ -132,7 +104,6 @@ function mountRibbon(canvas: HTMLCanvasElement, origin: string) {
     const recording = next.recording?.threadId === origin
     if (recording === wasRecording) return
     if (recording) {
-      strokes = []
       exit = undefined
     } else if (next.finalizing?.threadId === origin && previous.finalizing !== next.finalizing) {
       sweepExit(next.finalizing.intent === 'send' ? 'primary' : 'voice')
@@ -150,57 +121,20 @@ function mountRibbon(canvas: HTMLCanvasElement, origin: string) {
   motionQuery?.addEventListener('change', wakeForLayout)
   wakeForLayout()
 
-  return {
-    type() {
-      if (hasActiveVoice()) return
-      direction = -direction
-      strokes = [...strokes.slice(-4), { at: performance.now(), direction }]
-      requestFrame()
-    },
-    submit() {
-      if (!hasActiveVoice()) sweepExit('primary')
-    },
-    resumeHandoff(timestamp: number) {
-      const elapsed = Date.now() - timestamp
-      if (!(elapsed >= 0 && elapsed < RIBBON_EXIT_MS) || timestamp === resumedHandoffAt || hasActiveVoice()) return
-      resumedHandoffAt = timestamp
-      sweepExit('primary', performance.now() - elapsed)
-    },
-    dispose() {
-      unsubscribe()
-      resize?.disconnect()
-      appearance.disconnect()
-      motionQuery?.removeEventListener('change', wakeForLayout)
-      if (frame != null) window.cancelAnimationFrame(frame)
-      window.clearTimeout(clearTimer)
-    }
+  return () => {
+    unsubscribe()
+    resize?.disconnect()
+    appearance.disconnect()
+    motionQuery?.removeEventListener('change', wakeForLayout)
+    if (frame != null) window.cancelAnimationFrame(frame)
   }
 }
 
-export function ComposerInputEffects({ origin, submitRevision, exitHandoffAt, typingPulse }: ComposerInputEffectsProps) {
+export function ComposerInputEffects({ origin }: { origin: string }) {
   const canvas = useRef<HTMLCanvasElement>(null)
-  const engine = useRef<ReturnType<typeof mountRibbon> | null>(null)
-  const previousSubmit = useRef(submitRevision)
   useEffect(() => {
-    if (!canvas.current) return
-    const ribbon = mountRibbon(canvas.current, origin)
-    engine.current = ribbon
-    typingPulse.current = ribbon.type
-    return () => {
-      engine.current = null
-      typingPulse.current = null
-      ribbon.dispose()
-    }
-  }, [origin, typingPulse])
-
-  useEffect(() => {
-    if (previousSubmit.current !== submitRevision) engine.current?.submit()
-    previousSubmit.current = submitRevision
-  }, [submitRevision])
-
-  useEffect(() => {
-    if (exitHandoffAt !== undefined) engine.current?.resumeHandoff(exitHandoffAt)
-  }, [exitHandoffAt, origin])
+    if (canvas.current) return mountRibbon(canvas.current, origin)
+  }, [origin])
 
   return <canvas ref={canvas} className={styles.ribbon} aria-hidden />
 }

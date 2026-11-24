@@ -1274,7 +1274,7 @@ export const MESSAGES_KO = {
   'settings.appearance.reduceMotion.on': '켜기',
   'settings.appearance.reduceMotion.off': '끄기',
   'settings.appearance.composerEffects.label': '입력창 효과',
-  'settings.appearance.composerEffects.hint': '타이핑하거나 음성으로 입력할 때 표시되는 시각 효과입니다.',
+  'settings.appearance.composerEffects.hint': '음성으로 입력할 때 표시되는 시각 효과입니다.',
   'settings.appearance.composerEffects.colorful': '컬러풀',
   'settings.appearance.composerEffects.plain': '기본',
   'settings.appearance.welcomeBackdrop.label': '시작 화면 배경',

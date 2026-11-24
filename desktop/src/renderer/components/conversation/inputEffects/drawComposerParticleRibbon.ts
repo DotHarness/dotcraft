@@ -2,18 +2,6 @@ import type { ThemeVariant } from '../../../../shared/themeSeed'
 
 export const VISIBLE_ENERGY = 0.017
 
-export interface Keystroke {
-  at: number
-  direction: number
-}
-
-interface TypingWave {
-  head: number
-  echo: number
-  strength: number
-}
-
-export const TYPING_MS = 690
 const COLUMN_STEP = 3.7
 const ROW_STEP = 3.1
 const PALETTE = {
@@ -43,31 +31,6 @@ function lobe(distance: number, width: number): number {
   return Math.exp(-(distance * distance) / (width * width))
 }
 
-export function typingWaves(strokes: Keystroke[], now: number, reduced: boolean): TypingWave[] {
-  return strokes.map(({ at, direction }) => {
-    const age = Math.max(0, now - at)
-    const progress = Math.min(1, age / TYPING_MS)
-    return {
-      head: 0.49 + (reduced ? 0.10 : direction * (0.045 + progress * 0.36)),
-      echo: 0.49 - (reduced ? 0.14 : direction * (0.025 + progress * 0.23)),
-      strength: reduced ? 0.65 : Math.min(1, 0.35 + age / 42) * (1 - progress) ** 1.35,
-    }
-  })
-}
-
-function layeredTyping(waves: TypingWave[], x: number, rear: boolean): number {
-  let peak = 0
-  let sum = 0
-  for (const wave of waves) {
-    const activity = wave.strength * (rear
-      ? 0.58 * lobe(x - wave.echo, 0.15) + 0.56 * lobe(x - wave.head + 0.065, 0.12)
-      : 0.98 * lobe(x - wave.head, 0.11) + 0.38 * lobe(x - wave.echo, 0.13))
-    peak = Math.max(peak, activity)
-    sum += activity
-  }
-  return peak + 0.23 * (sum - peak)
-}
-
 function bloom(
   context: CanvasRenderingContext2D,
   x: number,
@@ -93,23 +56,17 @@ export function drawRibbon(
   context: CanvasRenderingContext2D,
   width: number,
   height: number,
-  voice: { energy: number; time: number },
-  waves: TypingWave[],
+  { energy, time: t }: { energy: number; time: number },
   theme: ThemeVariant
 ) {
-  const isVoice = voice.energy > VISIBLE_ENERGY
-  const strongest = waves.reduce<TypingWave | undefined>((best, current) =>
-    !best || current.strength > best.strength ? current : best, undefined)
-  const energy = isVoice ? voice.energy : strongest?.strength ?? 0
   if (energy <= VISIBLE_ENERGY) return
 
   const span = width * 0.86
   const columns = Math.max(2, Math.floor(span / COLUMN_STEP))
   const start = (width - span) / 2
   const bottom = height - 0.6
-  const t = voice.time
-  const high = isVoice ? 0.51 + 0.18 * Math.sin(t * 1.5) : strongest?.head ?? 0.5
-  const low = isVoice ? 0.64 + 0.17 * Math.cos(t * 1.85 + 0.8) : strongest?.echo ?? 0.4
+  const high = 0.51 + 0.18 * Math.sin(t * 1.5)
+  const low = 0.64 + 0.17 * Math.cos(t * 1.85 + 0.8)
   const light = theme === 'light'
 
   bloom(context, start + high * span, bottom - 3, span * 0.28, 26, colorAt(high, theme), energy * (light ? 0.17 : 0.43))
@@ -118,17 +75,13 @@ export function drawRibbon(
   for (let column = 0; column <= columns; column++) {
     const x = column / columns
     const fade = Math.sin(Math.PI * x) ** 0.95
-    const primary = isVoice
-      ? energy * (0.12 + 0.86 * lobe(x - high, 0.20) + 0.43 * lobe(x - low + 0.13, 0.095))
-      : layeredTyping(waves, x, false)
-    const secondary = isVoice
-      ? energy * (0.12 + 0.91 * lobe(x - low, 0.22))
-      : layeredTyping(waves, x, true)
+    const primary = energy * (0.12 + 0.86 * lobe(x - high, 0.20) + 0.43 * lobe(x - low + 0.13, 0.095))
+    const secondary = energy * (0.12 + 0.91 * lobe(x - low, 0.22))
     const baseX = start + x * span
 
     for (const rear of [true, false]) {
       const activity = Math.tanh((rear ? secondary : primary) * 1.25)
-      const drift = isVoice ? t * (rear ? 5.2 : -3.8) : high * (rear ? 21 : -14)
+      const drift = t * (rear ? 5.2 : -3.8)
       const ripple = 0.84 + 0.16 * Math.sin(x * (rear ? 23 : 32) - drift)
       const crest = fade * (2.2 + activity * ripple * (rear ? 48 : 42))
       const ridge = Math.floor(crest / ROW_STEP)
@@ -137,7 +90,7 @@ export function drawRibbon(
         const depth = row * ROW_STEP / Math.max(crest, 1)
         const texture = Math.sin(column * 25.13 + row * 17.7 + Number(rear) * 4.2)
         const size = (rear ? 1.25 : 1.75) * (1 - depth * 0.28)
-        const shear = Math.sin(x * 9 + (isVoice ? t * 2.8 : high * 7)) * row * (rear ? 0.92 : -0.47)
+        const shear = Math.sin(x * 9 + t * 2.8) * row * (rear ? 0.92 : -0.47)
         const edgeFade = Math.min(1, (crest - row * ROW_STEP + 0.8) / ROW_STEP)
         context.globalAlpha = Math.min(1, (0.78 + texture * 0.2) * fade
           * (0.20 * energy + 1.22 * activity) * (rear ? 0.70 : 1) * (1 - depth * 0.33)) * edgeFade
@@ -197,7 +150,7 @@ export function drawRibbonExit(
     drawRibbon(context, width, height, {
       energy: voice.energy * remainingRibbon ** 1.45,
       time: voice.time
-    }, [], theme)
+    }, theme)
   }
 
   const tailScale = Math.min(1.2, Math.max(0.66, width / 540))

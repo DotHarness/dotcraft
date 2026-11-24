@@ -1274,7 +1274,7 @@ export const MESSAGES_FR = {
   'settings.appearance.reduceMotion.on': 'Activé',
   'settings.appearance.reduceMotion.off': 'Désactivé',
   'settings.appearance.composerEffects.label': 'Effets de la zone de saisie',
-  'settings.appearance.composerEffects.hint': 'Retour visuel à la frappe ou à la dictée.',
+  'settings.appearance.composerEffects.hint': 'Retour visuel pendant la dictée.',
   'settings.appearance.composerEffects.colorful': 'Colorés',
   'settings.appearance.composerEffects.plain': 'Simples',
   'settings.appearance.welcomeBackdrop.label': 'Arrière-plan d’accueil',

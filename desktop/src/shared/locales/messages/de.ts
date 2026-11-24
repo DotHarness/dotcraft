@@ -1274,7 +1274,7 @@ export const MESSAGES_DE = {
   'settings.appearance.reduceMotion.on': 'Ein',
   'settings.appearance.reduceMotion.off': 'Aus',
   'settings.appearance.composerEffects.label': 'Effekte im Eingabefeld',
-  'settings.appearance.composerEffects.hint': 'Visuelle Rückmeldung beim Tippen oder Diktieren.',
+  'settings.appearance.composerEffects.hint': 'Visuelle Rückmeldung beim Diktieren.',
   'settings.appearance.composerEffects.colorful': 'Bunt',
   'settings.appearance.composerEffects.plain': 'Schlicht',
   'settings.appearance.welcomeBackdrop.label': 'Begrüßungshintergrund',

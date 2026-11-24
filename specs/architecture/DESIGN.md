@@ -1337,21 +1337,17 @@ and state already say.
   numerals, right alignment, and no wrapping, independent of toolbar gaps. The
   primary action stays outside the group. Voice buttons are 32px standard and
   28px compact.
-- Appearance › Composer effects controls feedback on conversation and welcome
-  Composers regardless of Agent, Plan, or Creator mode. Colorful is the default.
-  It draws a low, theme-aware particle ribbon inside the bottom edge of the card.
-  Committed typing briefly sends ripples across it. Paste, draft restoration,
-  and uncommitted input-method text do not trigger it.
-- While the Composer's microphone is recording, its live level drives the
-  ribbon instead of typing, and the toolbar does not show a second waveform.
-- On Send or normal completion of a recording, the ribbon breaks into sparse
-  colored trails. They sweep along the card's bottom edge, then rise to the
-  center of the Send or Stop control and disappear. The first Send does not
-  delay opening the new conversation. Sending a recording plays the sweep once,
-  not when transcription delivers the message. Cancellation fades without a
-  sweep, and transcription does not pulse. Effects do not change editor or
-  control layout, take focus, or intercept input. Reduced motion keeps the
-  feedback still.
+- Appearance › Composer effects controls voice input feedback on conversation
+  and welcome Composers regardless of Agent, Plan, or Creator mode. Colorful is
+  the default. While recording, the microphone level drives a low, theme-aware
+  particle ribbon inside the bottom edge of the card instead of a toolbar
+  waveform.
+- When the user sends or stops an active recording, the ribbon breaks into
+  sparse colored trails. They sweep along the card's bottom edge, then rise to
+  the center of the Send or Stop control and disappear. Cancellation fades
+  without a sweep. Text editing, transcription, and sending without an active
+  recording do not trigger effects. Effects do not change layout, take focus,
+  or intercept input. Reduced motion keeps the feedback still.
 - Plain disables the particle ribbon and shows the neutral bar waveform across
   the remaining toolbar width while recording. Both choices keep the same
   timer, stop, send, and transcription controls and behavior.

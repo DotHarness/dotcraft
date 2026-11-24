@@ -658,7 +658,7 @@ function ConversationWelcomeCore({
     })
   ), [t])
 
-  const createGoalBackedThread = useCallback(async (objective: string, draft?: Parameters<typeof buildGoalObjective>[0], userSend = false): Promise<boolean> => {
+  const createGoalBackedThread = useCallback(async (objective: string, draft?: Parameters<typeof buildGoalObjective>[0]): Promise<boolean> => {
     if (!canUseThreadGoals) {
       showGoalUnavailable()
       return false
@@ -692,7 +692,6 @@ function ConversationWelcomeCore({
         text: trimmedObjective,
         inputParts: preview.inputParts,
         sentAsGoal: true,
-        showComposerExit: userSend,
         threadName,
         configuration: welcomeThreadConfiguration as ThreadConfigurationWire
       })
@@ -768,7 +767,7 @@ function ConversationWelcomeCore({
     return false
   }, [canUseThreadGoals, createGoalBackedThread, enterGoalComposeMode, showGoalUnavailable, t])
 
-  const sendFromWelcome = useCallback(async (draftOverride?: ThreadComposerDraftInput, userSend = false): Promise<void> => {
+  const sendFromWelcome = useCallback(async (draftOverride?: ThreadComposerDraftInput): Promise<void> => {
     if (hasPendingPastedText(contextKey)) return
     const text = draftOverride?.text ?? richRef.current?.getText() ?? ''
     const segments = draftOverride?.segments ?? richRef.current?.getSegments() ?? []
@@ -792,7 +791,7 @@ function ConversationWelcomeCore({
         addToast(t('goal.toast.emptyObjective'), 'warning')
         return
       }
-      const created = await createGoalBackedThread(objective, { text, segments, files: inputFiles, images: inputImages }, userSend)
+      const created = await createGoalBackedThread(objective, { text, segments, files: inputFiles, images: inputImages })
       if (created) setGoalComposeMode(false)
       return
     }
@@ -852,7 +851,6 @@ function ConversationWelcomeCore({
         workspacePath: identityPath,
         text: preview.visibleText,
         inputParts: preview.inputParts,
-        showComposerExit: userSend,
         threadName,
         configuration: welcomeThreadConfiguration as ThreadConfigurationWire
       })
@@ -1012,7 +1010,7 @@ function ConversationWelcomeCore({
       void useVoiceStore.getState().stopRecording('send')
       return
     }
-    void sendFromWelcome(undefined, true)
+    void sendFromWelcome()
   }, [sendFromWelcome, voiceRecording])
 
   const mascotSpeed = effectiveSpeed(modelCatalog.find((model) => model.id === modelName)?.speed, speedValue) === 'standard'

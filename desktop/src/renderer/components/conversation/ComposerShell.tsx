@@ -1,5 +1,4 @@
 import {
-  useCallback,
   useLayoutEffect,
   useRef,
   useState,
@@ -24,7 +23,7 @@ import { ContextMenu, type ContextMenuItem } from '../ui/ContextMenu'
 import type { ShortcutSpec } from '../ui/shortcutKeys'
 import { useDocumentThemeMode } from '../../utils/theme'
 import { useComposerEffectsMode } from '../../utils/appearance'
-import { ComposerInputEffects, ComposerTypingFeedbackContext } from './inputEffects/ComposerInputEffects'
+import { ComposerInputEffects } from './inputEffects/ComposerInputEffects'
 import { useDesktopPet } from '../desktopPet/useDesktopPet'
 import type { PetSourceSurface } from '../desktopPet/desktopPetSource'
 import { usePetStore } from '../../pet/petStore'
@@ -74,8 +73,6 @@ interface ComposerShellProps {
   footerAction: ReactNode
   adaptiveToolbar?: boolean
   inputEffectsVoiceOrigin?: string
-  inputEffectsSubmitRevision?: number
-  inputEffectsExitHandoffAt?: number
   belowFooter?: ReactNode
   onDragOver: DragEventHandler<HTMLDivElement>
   onDragLeave: DragEventHandler<HTMLDivElement>
@@ -119,8 +116,6 @@ export function ComposerShell({
   footerAction,
   adaptiveToolbar = false,
   inputEffectsVoiceOrigin,
-  inputEffectsSubmitRevision = 0,
-  inputEffectsExitHandoffAt,
   belowFooter,
   onDragOver,
   onDragLeave,
@@ -140,8 +135,6 @@ export function ComposerShell({
 }: ComposerShellProps): JSX.Element {
   const mascotTheme = useDocumentThemeMode() === 'dark' ? 'dark' : 'light'
   const effectsMode = useComposerEffectsMode()
-  const typingPulse = useRef<(() => void) | null>(null)
-  const notifyTyping = useCallback(() => typingPulse.current?.(), [])
   const showInputEffects = inputEffectsVoiceOrigin !== undefined && effectsMode === 'colorful'
   const petAppearance = usePetStore((state) => state.appearance)
   const petRoot = useRef<HTMLDivElement>(null)
@@ -291,13 +284,7 @@ export function ComposerShell({
           onDrop={onDrop}
         >
           {showInputEffects && (
-            <ComposerInputEffects
-              key={inputEffectsVoiceOrigin}
-              origin={inputEffectsVoiceOrigin}
-              submitRevision={inputEffectsSubmitRevision}
-              exitHandoffAt={inputEffectsExitHandoffAt}
-              typingPulse={typingPulse}
-            />
+            <ComposerInputEffects key={inputEffectsVoiceOrigin} origin={inputEffectsVoiceOrigin} />
           )}
           {showMascot && !topAccessoryVisible && (
             <ComposerMascotShadow name={renderedMascotAvatar} />
@@ -329,9 +316,7 @@ export function ComposerShell({
               {attachmentStrip}
             </DesktopPluginSurface>
             <DesktopPluginSurface name="composer.input.editor" context={desktopPluginSurfaceContext}>
-              <ComposerTypingFeedbackContext.Provider value={showInputEffects ? notifyTyping : null}>
-                <OverlayLiftProvider value={overlayLiftApi}>{editor}</OverlayLiftProvider>
-              </ComposerTypingFeedbackContext.Provider>
+              <OverlayLiftProvider value={overlayLiftApi}>{editor}</OverlayLiftProvider>
             </DesktopPluginSurface>
           </DesktopPluginSurface>
 

@@ -1258,7 +1258,7 @@ export const MESSAGES_EN = {
   'settings.appearance.reduceMotion.on': 'On',
   'settings.appearance.reduceMotion.off': 'Off',
   'settings.appearance.composerEffects.label': 'Composer effects',
-  'settings.appearance.composerEffects.hint': 'Visual feedback when typing or dictating.',
+  'settings.appearance.composerEffects.hint': 'Visual feedback during voice input.',
   'settings.appearance.composerEffects.colorful': 'Colorful',
   'settings.appearance.composerEffects.plain': 'Plain',
   'settings.appearance.welcomeBackdrop.label': 'Welcome backdrop',

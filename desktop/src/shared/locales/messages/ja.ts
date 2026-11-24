@@ -1274,7 +1274,7 @@ export const MESSAGES_JA = {
   'settings.appearance.reduceMotion.on': 'オン',
   'settings.appearance.reduceMotion.off': 'オフ',
   'settings.appearance.composerEffects.label': '入力欄のエフェクト',
-  'settings.appearance.composerEffects.hint': '文字入力や音声入力に反応する視覚効果です。',
+  'settings.appearance.composerEffects.hint': '音声入力に反応する視覚効果です。',
   'settings.appearance.composerEffects.colorful': 'カラフル',
   'settings.appearance.composerEffects.plain': 'シンプル',
   'settings.appearance.welcomeBackdrop.label': 'ようこそ画面の背景',

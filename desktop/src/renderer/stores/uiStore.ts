@@ -99,7 +99,6 @@ export interface PendingThreadCreation {
   text: string
   inputParts: InputPart[]
   sentAsGoal?: boolean
-  showComposerExit?: boolean
   threadName: string
   configuration: ThreadConfigurationWire
   threadId?: string
