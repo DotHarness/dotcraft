@@ -3,11 +3,16 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createDesktopTray, shouldShowDesktopTray } from '../trayManager'
 import { showHubNotification } from '../trayNotifications'
 import type { DesktopHubClient, HubEvent } from '../desktopHub'
+import { resolveDefaultChatWorkspacePath } from '../defaultChatWorkspace'
+import type { TrayRecentThread } from '../trayRecentThreads'
 
 const fake = vi.hoisted(() => ({
   trays: [] as unknown[],
   notifications: [] as unknown[],
   menus: [] as unknown[],
+  threads: [] as TrayRecentThread[],
+  updateInlineLabels: vi.fn(),
+  nextCommandId: 0,
   failTray: false
 }))
 vi.mock('electron', async () => {
@@ -18,6 +23,12 @@ vi.mock('electron', async () => {
       buildFromTemplate: (items: unknown[]) => {
         fake.menus.push(items)
         return items
+      }
+    },
+    MenuItem: class {
+      commandId = ++fake.nextCommandId
+      constructor(options: object) {
+        Object.assign(this, options)
       }
     },
     nativeImage: {
@@ -47,11 +58,11 @@ vi.mock('electron', async () => {
     }
   }
 })
-vi.mock('../trayRecentThreads', () => ({
-  DIRECT_RECENT_THREAD_COUNT: 5,
-  RECENT_THREAD_TITLE_MAX_LENGTH: 40,
+vi.mock('../trayInlineLabels', () => ({ createTrayInlineLabels: () => fake.updateInlineLabels }))
+vi.mock('../trayRecentThreads', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../trayRecentThreads')>(),
   TrayRecentThreadCatalog: class {
-    refresh = vi.fn(async () => [])
+    refresh = vi.fn(async () => fake.threads)
     dispose = vi.fn()
   }
 }))
@@ -60,6 +71,9 @@ afterEach(() => {
   fake.trays.length = 0
   fake.menus.length = 0
   fake.notifications.length = 0
+  fake.threads = []
+  fake.updateInlineLabels.mockClear()
+  fake.nextCommandId = 0
   fake.failTray = false
 })
 
@@ -101,6 +115,54 @@ describe('application-owned tray', () => {
     } finally {
       tray.dispose()
     }
+  })
+
+  it('opens recent chats from the tray and tracks their current menu commands', async () => {
+    const chatPath = resolveDefaultChatWorkspacePath()
+    fake.threads = Array.from({ length: 4 }, (_, index) => ({
+      id: `thread-${index}`,
+      displayName: `Conversation ${index}`,
+      lastActiveAt: '',
+      workspacePath: index === 3 ? chatPath : '/one',
+      workspaceName: 'one'
+    }))
+    const hub = {
+      listAppServers: vi.fn(async () => []),
+      listSatellites: vi.fn(async () => []),
+      subscribeEvents: vi.fn(async () => {})
+    } as unknown as DesktopHubClient
+    const openWindow = vi.fn(async () => {})
+    const tray = createDesktopTray({
+      getSettings: () => ({ locale: 'en' }),
+      getHubClient: () => hub,
+      openWindow,
+      newWindow: vi.fn(),
+      isWorkspaceFocused: () => false,
+      isViewingThread: () => false,
+      exit: vi.fn(async () => {})
+    })
+    type Item = { label: string; sublabel: string; commandId: number; click(): void; submenu?: Item[] }
+    try {
+      await tray.refresh()
+      const menu = fake.menus.at(-1) as Item[]
+      const direct = menu.filter((item) => item.sublabel)
+      const [overflow] = menu.find((item) => item.label === 'More')!.submenu!
+      const commands = [...direct, overflow].map((item) => item.commandId)
+      expect(commands).toHaveLength(4)
+      expect(fake.updateInlineLabels).toHaveBeenLastCalledWith(commands)
+      direct[0].click()
+      overflow.click()
+      expect(openWindow.mock.calls).toEqual([['/one', 'thread-0'], [chatPath, 'thread-3']])
+
+      fake.threads = fake.threads.slice(-1)
+      await tray.refresh()
+      const replacement = (fake.menus.at(-1) as Item[]).find((item) => item.sublabel)!
+      expect(commands).not.toContain(replacement.commandId)
+      expect(fake.updateInlineLabels).toHaveBeenLastCalledWith([replacement.commandId])
+    } finally {
+      tray.dispose()
+    }
+    expect(fake.updateInlineLabels).toHaveBeenLastCalledWith([])
   })
 
   it('contains a native Tray construction failure instead of rejecting application startup', async () => {

@@ -170,7 +170,7 @@ jobs:
       run: npm ci
       working-directory: desktop
 
-    - name: Build browser focus module
+    - name: Build Windows x64 native modules
       if: matrix.runtime_id == 'win-x64'
       run: npm run build:native
       working-directory: desktop

@@ -1,4 +1,4 @@
-import { app, Menu, nativeImage, shell, Tray, type MenuItemConstructorOptions } from 'electron'
+import { app, Menu, MenuItem, nativeImage, shell, Tray, type MenuItemConstructorOptions } from 'electron'
 import { basename, join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { normalizeLocale, translate, type AppLocale } from '../shared/locales'
@@ -14,6 +14,7 @@ import {
   type TrayRecentThread
 } from './trayRecentThreads'
 import { showHubNotification, type HubNotificationPayload } from './trayNotifications'
+import { createTrayInlineLabels } from './trayInlineLabels'
 
 export interface DesktopTrayHost {
   getSettings(): AppSettings
@@ -57,9 +58,9 @@ function recentItem(
   thread: TrayRecentThread,
   locale: AppLocale,
   host: DesktopTrayHost
-): MenuItemConstructorOptions {
+): MenuItem {
   const title = Array.from(thread.displayName || translate(locale, 'sidebar.newConversation'))
-  return {
+  return new MenuItem({
     label:
       title.length <= RECENT_THREAD_TITLE_MAX_LENGTH
         ? title.join('')
@@ -73,7 +74,7 @@ function recentItem(
     click: () => {
       void host.openWindow(thread.workspacePath, thread.id)
     }
-  }
+  })
 }
 
 function serverItem(
@@ -129,6 +130,7 @@ export function createDesktopTray(host: DesktopTrayHost): DesktopTray {
   let events: AbortController | null = null
   let timer: ReturnType<typeof setInterval> | null = null
   const recent = new TrayRecentThreadCatalog()
+  const updateInlineLabels = createTrayInlineLabels()
   const openNotification = (payload: HubNotificationPayload): void => {
     if (payload.actionUrl) {
       const link = parseWorkspaceOpenDeepLink(payload.actionUrl)
@@ -143,21 +145,20 @@ export function createDesktopTray(host: DesktopTrayHost): DesktopTray {
   const destroyTray = (): void => {
     tray?.destroy()
     tray = null
+    updateInlineLabels([])
   }
   const buildMenu = (servers: HubAppServerResponse[], threads: TrayRecentThread[], online: number): void => {
     if (!tray || disposed) return
     const locale = normalizeLocale(host.getSettings().locale)
     const t = (key: string): string => translate(locale, key)
-    const items: MenuItemConstructorOptions[] = []
-    if (threads.length) {
-      items.push(
-        { label: t('tray.recent'), enabled: false },
-        ...threads.slice(0, DIRECT_RECENT_THREAD_COUNT).map((thread) => recentItem(thread, locale, host))
-      )
-      if (threads.length > DIRECT_RECENT_THREAD_COUNT)
+    const recentItems = threads.map((thread) => recentItem(thread, locale, host))
+    const items: (MenuItemConstructorOptions | MenuItem)[] = []
+    if (recentItems.length) {
+      items.push({ label: t('tray.recent'), enabled: false }, ...recentItems.slice(0, DIRECT_RECENT_THREAD_COUNT))
+      if (recentItems.length > DIRECT_RECENT_THREAD_COUNT)
         items.push({
           label: t('tray.more'),
-          submenu: threads.slice(DIRECT_RECENT_THREAD_COUNT).map((thread) => recentItem(thread, locale, host))
+          submenu: Menu.buildFromTemplate(recentItems.slice(DIRECT_RECENT_THREAD_COUNT))
         })
       items.push({ type: 'separator' })
     }
@@ -190,8 +191,10 @@ export function createDesktopTray(host: DesktopTrayHost): DesktopTray {
         }
       }
     )
+    const menu = Menu.buildFromTemplate(items)
+    updateInlineLabels(recentItems.filter((item) => item.sublabel).map((item) => item.commandId))
     tray.setToolTip(t('tray.hub'))
-    tray.setContextMenu(Menu.buildFromTemplate(items))
+    tray.setContextMenu(menu)
   }
   const subscribe = (): void => {
     if (disposed || events) return

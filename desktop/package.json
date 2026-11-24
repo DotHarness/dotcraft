@@ -13,7 +13,7 @@
   "main": "./out/main/index.js",
   "scripts": {
     "ensure:electron": "node scripts/ensure-electron.mjs",
-    "build:native": "node scripts/build-browser-focus.mjs",
+    "build:native": "node scripts/build-native.mjs",
     "test:browser-focus": "node scripts/test-browser-focus.mjs",
     "prepare:bundled-plugins": "node scripts/build-bundled-plugins.mjs",
     "dev": "npm run ensure:electron && npm run build:native && npm run prepare:bundled-plugins && electron-vite dev",
@@ -175,9 +175,9 @@
     ],
     "extraResources": [
       {
-        "from": "resources/native",
+        "from": "native/build/${os}-${arch}",
         "to": "native",
-        "filter": ["browser-focus.node", "browser-focus-LICENSES.txt"]
+        "filter": ["browser-focus.node", "tray-inline.node", "native-LICENSES.txt"]
       },
       {
         "from": "resources/icon.png",

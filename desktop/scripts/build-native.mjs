@@ -1,29 +1,36 @@
 import { spawnSync } from 'node:child_process'
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const desktop = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const source = path.join(desktop, 'native', 'browser-focus')
-const output = path.join(desktop, 'resources', 'native', 'browser-focus.node')
-const license = path.join(desktop, 'resources', 'native', 'browser-focus-LICENSES.txt')
+const native = path.join(desktop, 'native')
+const vendor = path.join(native, 'browser-focus', 'vendor')
+const build = path.join(native, 'build')
+const staged = path.join(build, 'win-x64')
+const resources = path.join(desktop, 'resources', 'native')
+const modules = [
+  ['browser-focus', path.join(native, 'browser-focus', 'focus-hook.cpp')],
+  ['tray-inline', path.join(native, 'tray-inline', 'tray-inline.cpp')]
+]
+const license = 'native-LICENSES.txt'
+const artifacts = [...modules.map(([name]) => `${name}.node`), license]
 const [platform = process.platform, arch = process.arch] = process.argv.slice(2)
 
 if (platform !== 'win32' || arch !== 'x64') {
-  await rm(output, { force: true })
-  await rm(license, { force: true })
-  console.log(`[browser-focus] No native module for ${platform}-${arch}.`)
+  await Promise.all(artifacts.map(file => rm(path.join(resources, file), { force: true })))
+  console.log(`[native] No Electron add-ons for ${platform}-${arch}.`)
   process.exit(0)
 }
 if (process.platform !== 'win32' || process.arch !== 'x64') {
-  throw new Error('The Windows x64 browser focus module must be built on Windows x64.')
+  throw new Error('The Windows x64 Electron add-ons must be built on Windows x64.')
 }
 
 const require = createRequire(import.meta.url)
 const { version } = require('electron/package.json')
 if (version !== '42.0.1') {
-  throw new Error(`Browser focus isolation requires Electron 42.0.1, found ${version}.`)
+  throw new Error(`The native Electron add-ons require Electron 42.0.1, found ${version}.`)
 }
 
 const vswhere = path.join(process.env['ProgramFiles(x86)'], 'Microsoft Visual Studio', 'Installer', 'vswhere.exe')
@@ -36,11 +43,11 @@ if (visualStudio.error || visualStudio.status !== 0 || !visualStudio.stdout.trim
   throw new Error('Install Visual Studio Build Tools with Desktop development with C++.')
 }
 
-const build = path.join(source, 'build')
-await mkdir(build, { recursive: true })
-await mkdir(path.dirname(output), { recursive: true })
+await mkdir(staged, { recursive: true })
+await mkdir(resources, { recursive: true })
 const devCommand = path.join(visualStudio.stdout.trim(), 'Common7', 'Tools', 'VsDevCmd.bat')
-const minhook = path.join(source, 'vendor', 'minhook')
+const minhook = path.join(vendor, 'minhook')
+const nodeHeaders = path.join(vendor, 'node')
 const quote = value => `"${value}"`
 const cSources = ['buffer.c', 'hook.c', 'trampoline.c', 'hde/hde64.c']
   .map(file => quote(path.join(minhook, 'src', file))).join(' ')
@@ -52,19 +59,23 @@ await writeFile(script, [
   'if errorlevel 1 exit /b 1',
   `cl /nologo /c /O2 /MT /W3 /I${quote(path.join(minhook, 'include'))} ${cSources}`,
   'if errorlevel 1 exit /b 1',
-  `cl /nologo /LD /std:c++20 /EHsc /O2 /MT /W4 /I${quote(path.join(source, 'vendor', 'node'))} ${quote(path.join(source, 'focus-hook.cpp'))} ${objects} /link /OUT:${quote(output)} /IMPLIB:browser-focus.lib /INCREMENTAL:NO /Brepro`,
-  'exit /b %errorlevel%'
+  ...modules.flatMap(([name, source]) => [
+    `cl /nologo /LD /std:c++20 /EHsc /O2 /MT /W4 /I${quote(path.join(minhook, 'include'))} /I${quote(nodeHeaders)} ${quote(source)} ${objects} /link /OUT:${quote(path.join(staged, `${name}.node`))} /IMPLIB:${name}.lib /INCREMENTAL:NO /Brepro`,
+    'if errorlevel 1 exit /b 1'
+  ]),
+  'exit /b 0'
 ].join('\r\n'))
 
 const result = spawnSync(process.env.ComSpec, ['/d', '/c', `call ${quote(script)}`], {
   cwd: build, stdio: 'inherit', windowsVerbatimArguments: true
 })
 if (result.error) throw result.error
-if (result.status !== 0) throw new Error(`Browser focus build failed (${result.status}).`)
+if (result.status !== 0) throw new Error(`Native Electron build failed (${result.status}).`)
 
 const licenses = await Promise.all([
   readFile(path.join(minhook, 'LICENSE.txt'), 'utf8'),
-  readFile(path.join(source, 'vendor', 'node', 'LICENSE'), 'utf8')
+  readFile(path.join(nodeHeaders, 'LICENSE'), 'utf8')
 ])
-await writeFile(license, licenses.join('\n\n'))
-console.log(`[browser-focus] Built ${output}`)
+await writeFile(path.join(staged, license), licenses.join('\n\n'))
+await Promise.all(artifacts.map(file => copyFile(path.join(staged, file), path.join(resources, file))))
+console.log(`[native] Built ${modules.map(([name]) => name).join(', ')} for ${platform}-${arch}.`)

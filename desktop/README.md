@@ -33,11 +33,11 @@ Use `npm run dev:debug` only when attaching Playwright to Desktop through CDP.
 | `npm run typecheck` | Check the main, preload, and renderer TypeScript projects |
 | `npm test` | Run the Vitest unit tests |
 | `npm run build` | Build the production Electron bundles |
-| `npm run build:native` | Build the Windows x64 browser focus module |
+| `npm run build:native` | Build the Windows x64 browser focus and tray add-ons |
 | `npm run test:browser-focus` | Verify browser input and composition isolation in a separate Electron process |
 | `npm run pack` | Create an unpacked application |
 | `npm run dist` | Create platform installers |
 
 Installer artifacts are written to `desktop/dist/`.
 
-Windows x64 development and packaging build the browser focus module automatically. Its native bindings target the pinned Electron version. An Electron upgrade requires updating the bindings and rerunning the native tests.
+Windows x64 development and packaging build the native add-ons automatically. Their bindings target the pinned Electron version. An Electron upgrade requires updating the bindings and rerunning native verification.
