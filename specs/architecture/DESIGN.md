@@ -1049,10 +1049,12 @@ Ordinary text-only field selects may widen toward the left when opened so the
 longest option is readable without a tooltip. The trigger finishes its width
 transition before the menu appears, so option text never reflows while visible;
 the width is capped to the viewport and extreme labels wrap. Rich options with
-icons or descriptions, and frameless toolbar selects, keep a fixed width. Reduced
-motion skips the staged animation. A rich menu may set a minimum width so each
-description stays on one line, opening past its trigger; one at the trailing edge
-of a settings row keeps its right edge on the trigger's.
+icons or descriptions, and frameless toolbar selects, keep their width when opened.
+A settings select whose options have short labels sizes its trigger to the selected
+label instead of a fixed width. Reduced motion skips the staged animation. A rich
+menu may set a minimum width so each description stays on one line, opening past
+its trigger; one at the trailing edge of a settings row keeps its right edge on the
+trigger's.
 
 ### Tooltips
 

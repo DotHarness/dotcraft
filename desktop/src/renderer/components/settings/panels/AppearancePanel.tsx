@@ -430,10 +430,15 @@ export function AppearancePanel(): JSX.Element {
               id="settings-composer-typing"
               value={appearance.composerTyping}
               disabled={appearance.composerEffects === 'plain'}
+              ariaLabel={t('settings.appearance.composerTyping.label')}
+              style={{ width: 'max-content' }}
+              menuMinWidth={300}
+              menuAlign="end"
               onValueChange={handleComposerTyping}
               options={COMPOSER_TYPING_EFFECTS.map((effect) => ({
                 value: effect,
-                label: t(`settings.appearance.composerTyping.${effect}`)
+                label: t(`settings.appearance.composerTyping.${effect}.label`),
+                description: t(`settings.appearance.composerTyping.${effect}.description`)
               }))}
             />
           }
