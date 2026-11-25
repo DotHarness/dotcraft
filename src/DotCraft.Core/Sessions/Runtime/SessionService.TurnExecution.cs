@@ -1332,7 +1332,7 @@ public sealed partial class SessionService
                         });
                     using var promptCacheWarmingScope = PromptCacheWarmingScope.Begin();
                     var interruptOnSteer = InstantInterruptEnabled
-                        && agent.ChatClient.GetService<ModelSteeringPolicy>()?.Mode is not ModelSteeringMode.AtNextBoundary;
+                        && agent.SteeringMode is ModelSteeringMode.Immediate;
                     using var guidanceScope = TurnGuidanceRuntimeScope.Set(new TurnGuidanceRuntimeContext
                     {
                         ThreadId = threadId,

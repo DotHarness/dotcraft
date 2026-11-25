@@ -90,9 +90,10 @@ hosts may explicitly compose built-in backends.
 
 A backend chat client may expose a host-owned `ModelSteeringPolicy` through its typed service
 lookup. `AtNextBoundary` delivers a requested immediate steer as ordinary steering. `Immediate`
-or no policy preserves the host's default interruption behavior. The host reads the current
-Turn's client policy before enabling immediate steering. The backend does not acquire queue
-ownership or intercept explicit cancellation.
+or no policy preserves the host's default interruption behavior. The host reads the policy from
+the selected backend chat client when it builds the Agent, before applying middleware. The resolved
+mode stays fixed for that Agent. The backend does not acquire queue ownership or intercept explicit
+cancellation.
 
 Backends are stateless toward the host. Each sampling request carries the complete model-visible
 conversation, including system instructions and tool declarations, through the standard chat client.

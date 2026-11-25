@@ -38,11 +38,16 @@ public sealed class ChatClientAgent
         ChatClient = chatClient ?? throw new ArgumentNullException(nameof(chatClient));
         ArgumentNullException.ThrowIfNull(options);
         _options = options.Clone();
+        SteeringMode = _options.SteeringMode
+            ?? ChatClient.GetService<ModelSteeringPolicy>()?.Mode
+            ?? ModelSteeringMode.Immediate;
         _contextProviders = (_options.AIContextProviders?.ToList() ?? []).AsReadOnly();
         Metadata = new AgentMetadata(chatClient.GetService<ChatClientMetadata>()?.ProviderName);
     }
 
     public IChatClient ChatClient { get; }
+
+    public ModelSteeringMode SteeringMode { get; }
 
     public string? Id => _options.Id;
 
