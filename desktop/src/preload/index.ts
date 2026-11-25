@@ -1606,6 +1606,7 @@ const api = {
       collapsedProjectIds?: string[]
       sidebarDestinationPins?: Record<string, boolean>
       showInMenuBar?: boolean
+      autoInstallUpdates?: boolean
       cdpDebugging?: boolean
       openTargetPreferences?: OpenTargetPreferences
       browserUse?: {
@@ -1702,6 +1703,7 @@ const api = {
       collapsedProjectIds?: string[]
       sidebarDestinationPins?: Record<string, boolean>
       showInMenuBar?: boolean
+      autoInstallUpdates?: boolean
       cdpDebugging?: boolean
       openTargetPreferences?: OpenTargetPreferences
       browserUse?: {

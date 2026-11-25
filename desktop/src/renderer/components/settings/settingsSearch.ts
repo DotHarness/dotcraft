@@ -25,6 +25,7 @@ const SECTION_ENTRIES: SectionEntry[] = [
   { panel: 'general', key: 'settings.notifications.title' },
   { panel: 'general', key: 'settings.group.composer', keywords: 'follow up interrupt' },
   { panel: 'general', key: 'settings.general.showInMenuBar', keywords: 'tray' },
+  { panel: 'general', key: 'settings.general.autoInstallUpdates', keywords: 'update upgrade version' },
   { panel: 'general', key: 'settings.personalization.showThinkingContent', keywords: 'reasoning' },
   { panel: 'general', key: 'settings.general.featureTips', keywords: 'guides onboarding' },
   { panel: 'general', key: 'settings.personalization.promptSuggestions' },

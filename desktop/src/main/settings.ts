@@ -161,6 +161,7 @@ export interface AppSettings extends SidebarThreadOrderSettings {
   chatsFolderHistory?: string[]
   /** macOS-only preference controlling whether DotCraft appears in the menu bar. */
   showInMenuBar?: boolean
+  autoInstallUpdates?: boolean
   cdpDebugging?: boolean
   creatorThreadIds?: string[]
   localProjectDetails?: Record<string, LocalProjectDetails>

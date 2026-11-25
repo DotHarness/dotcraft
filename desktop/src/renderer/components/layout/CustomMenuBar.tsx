@@ -1,13 +1,11 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react'
-import { Download, Minus, Square, X } from 'lucide-react'
-import { Spinner } from '../ui/Spinner'
+import { Minus, Square, X } from 'lucide-react'
 
 import { TITLE_BAR_OVERLAY_HEIGHT } from '../../../shared/titleBarOverlay'
 import type { AppUpdateState } from '../../../shared/appUpdate'
-import { useT } from '../../contexts/LocaleContext'
 import { useWindowMaximized } from '../../hooks/useWindowMaximized'
-import { IconButton } from '../ui/IconButton'
 import { AppUpdateDialog } from '../update/AppUpdateDialog'
+import { isTitleBarUpdateVisible, TitleBarUpdateButton } from '../update/TitleBarUpdateButton'
 import { AppNavigationControls } from './AppNavigationControls'
 import { ApplicationMenuBar } from './ApplicationMenuBar'
 import { SidebarToggleButton } from './SidebarToggleButton'
@@ -17,7 +15,6 @@ const dragRegion: CSSProperties = { WebkitAppRegion: 'drag' }
 const noDrag: CSSProperties = { WebkitAppRegion: 'no-drag' }
 
 export function CustomMenuBar(): JSX.Element {
-  const t = useT()
   const isWindows = window.api.platform === 'win32'
   const [collapsedMenus, setCollapsedMenus] = useState(false)
   const barRef = useRef<HTMLDivElement>(null)
@@ -35,15 +32,6 @@ export function CustomMenuBar(): JSX.Element {
     event.preventDefault()
     void window.api.window.toggleMaximize()
   }, [])
-
-  const updateButtonVisible = Boolean(updateState.update) && (
-    updateState.status === 'available' ||
-    updateState.status === 'downloading' ||
-    updateState.status === 'downloaded' ||
-    updateState.status === 'preparing' ||
-    updateState.status === 'error'
-  )
-  const updateLabel = getUpdateTooltipLabel(updateState, t)
 
   useEffect(() => {
     let disposed = false
@@ -102,25 +90,8 @@ export function CustomMenuBar(): JSX.Element {
 
         <AppNavigationControls />
 
-        {updateButtonVisible && (
-          <IconButton
-          size={28}
-          label={updateLabel}
-          tooltipLabel={updateLabel}
-          tooltipPlacement="bottom"
-          onClick={() => setUpdateDialogOpen(true)}
-          style={updateButtonStyle(updateState.status)}
-          icon={(
-            <>
-              {updateState.status === 'downloading' || updateState.status === 'preparing'
-                ? <Spinner size={16} />
-                : <Download size={16} aria-hidden="true" />}
-              {(updateState.status === 'downloaded' || updateState.status === 'error') && (
-                <span style={updateBadgeStyle} aria-hidden="true" />
-              )}
-            </>
-          )}
-          />
+        {isTitleBarUpdateVisible(updateState) && (
+          <TitleBarUpdateButton state={updateState} onOpen={() => setUpdateDialogOpen(true)} />
         )}
       </div>
 
@@ -181,17 +152,6 @@ function RestoreWindowIcon(): JSX.Element {
   )
 }
 
-function getUpdateTooltipLabel(
-  state: AppUpdateState,
-  t: (key: string, vars?: Record<string, string | number>) => string
-): string {
-  if (state.status === 'downloading') return t('update.downloadingTooltip')
-  if (state.status === 'downloaded') return t('update.downloadedTooltip')
-  if (state.status === 'preparing') return t('update.preparing')
-  if (state.status === 'error') return t('update.failedTooltip')
-  return t('update.availableTooltip')
-}
-
 function isInteractiveTitleBarTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false
   return target.closest('button,a,input,textarea,select,[role="button"]') !== null
@@ -245,24 +205,4 @@ const topBarIconButtonStyle: CSSProperties = {
   background: 'transparent',
   cursor: 'default',
   transition: 'background-color 100ms ease, color 100ms ease'
-}
-
-function updateButtonStyle(status: AppUpdateState['status']): CSSProperties {
-  const active = status === 'downloaded' || status === 'error'
-  return {
-    ...noDrag,
-    position: 'relative',
-    color: active ? 'var(--accent)' : undefined
-  }
-}
-
-const updateBadgeStyle: CSSProperties = {
-  position: 'absolute',
-  top: 4,
-  right: 4,
-  width: 7,
-  height: 7,
-  borderRadius: 999,
-  background: 'var(--accent)',
-  boxShadow: '0 0 0 2px color-mix(in srgb, var(--text-primary) 8%, transparent)'
 }

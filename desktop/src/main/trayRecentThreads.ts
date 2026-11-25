@@ -82,7 +82,7 @@ function parseRecentThread(
   }
 }
 
-function appServerEndpoint(server: HubAppServerResponse): string {
+export function appServerEndpoint(server: HubAppServerResponse): string {
   const state = server.state.trim().toLowerCase()
   if (state !== 'running' && state !== 'healthy' && state !== 'ready') return ''
   return stringField(
@@ -90,11 +90,11 @@ function appServerEndpoint(server: HubAppServerResponse): string {
   )
 }
 
-function workspacePathOf(server: HubAppServerResponse): string {
+export function workspacePathOf(server: HubAppServerResponse): string {
   return stringField(server.canonicalWorkspacePath) || stringField(server.workspacePath)
 }
 
-function recentThreadIdentity(workspacePath: string): Record<string, unknown> {
+export function recentThreadIdentity(workspacePath: string): Record<string, unknown> {
   return {
     channelName: 'dotcraft-desktop',
     userId: 'local',

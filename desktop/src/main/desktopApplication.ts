@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { normalizeNewTaskPromptMode } from '../shared/threadTasks'
 import { resolveBinaryLocation } from './AppServerManager'
 import { AppUpdateService } from './appUpdate'
+import { isIdleForAutomaticUpdate } from './appUpdateIdle'
 import { browserUseManager } from './browserUseManager'
 import { disposeComputerUse, setComputerUseRuntimeHost } from './computerUse/runtime'
 import type { DesktopApplicationServices } from './desktopApplicationServices'
@@ -236,6 +237,7 @@ export class DesktopApplication implements DesktopApplicationServices {
     }
     if (draftOnly) return
     if (partial.voice !== undefined) refreshVoiceChatGptAvailability()
+    if (partial.autoInstallUpdates !== undefined) this.updater?.refreshAutoInstall()
     if (!this.lifecycle.isStopping) void this.tray?.refresh()
     this.refreshAppMenu()
   }
@@ -279,6 +281,10 @@ export class DesktopApplication implements DesktopApplicationServices {
   getAppUpdateService = (): AppUpdateService =>
     (this.updater ??= new AppUpdateService({
       onStateChanged: (state) => this.broadcast('app:update-state-changed', state),
+      isAutoInstallEnabled: () => this.settings.autoInstallUpdates !== false,
+      isIdleForAutoInstall: () => isIdleForAutomaticUpdate({
+        listAppServers: () => this.createHubClient(this.settings).listAppServers()
+      }),
       beforeInstall: async () => {
         const runtimeExecutable =
           resolveDesktopBinarySource(this.settings) === 'bundled'

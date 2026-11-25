@@ -29,4 +29,5 @@ export interface AppUpdateState {
   progress?: AppUpdateProgress
   error?: string
   retryAction?: 'download' | 'install'
+  autoInstall?: boolean
 }

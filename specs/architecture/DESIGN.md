@@ -1,5 +1,5 @@
 ---
-version: "0.14.2"
+version: "0.14.3"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 colors:
@@ -164,6 +164,15 @@ another switches to it, and the arrow keys move between them. Choosing a command
 returns focus to where it was before the menu opened. Linux uses custom caption controls;
 macOS keeps its native traffic lights. While the sidebar is collapsed, macOS shows
 a 36px title strip with the sidebar toggle after the traffic lights.
+
+The update control follows the navigation controls and appears only while an
+update is in progress or waiting. Until the update is ready, it is a 28px icon
+button in the chrome's ink: the download icon when an update is found, a spinner
+while it downloads or prepares, and the download icon with a 6px `--error` dot
+after a failure. Once the update is ready to install, the control
+becomes a 22px inverted pill (`--text-primary` fill, `--bg-primary` label) reading
+**Update**, the same treatment as the update dialog's primary action, because only
+then is there something for the user to do. It never uses `--accent`.
 
 ## Color
 

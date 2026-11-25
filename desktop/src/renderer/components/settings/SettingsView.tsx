@@ -97,6 +97,7 @@ import { NewTaskBehaviorRow } from './panels/NewTaskBehaviorRow'
 import { DefaultOpenTargetRow } from './panels/DefaultOpenTargetRow'
 import { ChatsFolderRow } from './panels/ChatsFolderRow'
 import { FeatureTipsRow } from './panels/FeatureTipsRow'
+import { AutoInstallUpdatesRow } from './panels/AutoInstallUpdatesRow'
 import { NotificationsSettingsGroup } from './panels/NotificationsSettingsGroup'
 import { useComposerPreferencesStore } from '../../stores/composerPreferencesStore'
 import { UsagePanel } from './panels/UsagePanel'
@@ -1469,6 +1470,8 @@ export function SettingsView({
                   />
 
                   <FeatureTipsRow />
+
+                  <AutoInstallUpdatesRow />
 
                   {isMac && (
                     <SettingsRow

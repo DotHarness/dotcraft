@@ -6,6 +6,7 @@ import { createAppUpdateExitWatchdog, type AppUpdateExitWatchdog } from './appUp
 import { PreparedNsisUpdater } from './preparedNsisUpdater'
 
 const CHECK_INTERVAL_MS = 15 * 60_000
+const AUTO_INSTALL_INTERVAL_MS = 60_000
 const RELEASE_TAG_URL = 'https://github.com/DotHarness/dotcraft/releases/tag/v'
 
 export type AppUpdater = Pick<
@@ -20,6 +21,9 @@ export interface AppUpdateServiceOptions {
   onInstallFailed?: (error: Error) => Promise<void> | void
   createExitWatchdog?: () => AppUpdateExitWatchdog
   onStateChanged?: (state: AppUpdateState) => void
+  isAutoInstallEnabled?: () => boolean
+  isIdleForAutoInstall?: () => Promise<boolean>
+  autoInstallIntervalMs?: number
 }
 
 interface InstallAttempt {
@@ -35,6 +39,9 @@ export class AppUpdateService {
   private downloadedUpdate: AppUpdateInfo | null = null
   private installAttempt: InstallAttempt | null = null
   private exitWatchdog: AppUpdateExitWatchdog | null = null
+  private autoInstallTimer: NodeJS.Timeout | null = null
+  private autoInstallChecking = false
+  private autoInstalledVersion: string | null = null
 
   constructor(private readonly options: AppUpdateServiceOptions = {}) {
     const currentVersion = options.currentVersion ?? app.getVersion()
@@ -69,6 +76,23 @@ export class AppUpdateService {
     return this.getState()
   }
 
+  refreshAutoInstall(): void {
+    const pending = this.isAutoInstallPending()
+    if (this.state.status === 'downloaded' && Boolean(this.state.autoInstall) !== pending)
+      this.setState({ status: 'downloaded', update: this.downloadedUpdate ?? undefined, autoInstall: pending })
+    if (!pending) {
+      this.stopAutoInstall()
+      return
+    }
+    if (this.autoInstallTimer) return
+    this.autoInstallTimer = setInterval(
+      () => void this.tryAutoInstall(),
+      this.options.autoInstallIntervalMs ?? AUTO_INSTALL_INTERVAL_MS
+    )
+    this.autoInstallTimer.unref()
+    void this.tryAutoInstall()
+  }
+
   install(): Promise<void> {
     if (this.installAttempt) return this.installAttempt.promise
     if (!this.updater || !this.downloadedUpdate) return Promise.resolve()
@@ -89,6 +113,7 @@ export class AppUpdateService {
       }).catch((error: unknown) => this.failInstall(error, attempt))
     }
     this.installAttempt = attempt
+    this.stopAutoInstall()
     this.setState({ status: 'preparing', update: this.downloadedUpdate })
     return attempt.promise
   }
@@ -112,6 +137,35 @@ export class AppUpdateService {
       })
     })
     return attempt.failure
+  }
+
+  private isAutoInstallPending(): boolean {
+    return Boolean(
+      this.downloadedUpdate && !this.installAttempt &&
+      this.state.status === 'downloaded' &&
+      this.autoInstalledVersion !== this.downloadedUpdate.latestVersion &&
+      this.options.isIdleForAutoInstall && this.options.isAutoInstallEnabled?.()
+    )
+  }
+
+  private async tryAutoInstall(): Promise<void> {
+    if (this.autoInstallChecking || !this.isAutoInstallPending()) return
+    this.autoInstallChecking = true
+    let idle = false
+    try {
+      idle = await this.options.isIdleForAutoInstall!().catch(() => false)
+    } finally {
+      this.autoInstallChecking = false
+    }
+    if (!idle || !this.isAutoInstallPending()) return
+    this.autoInstalledVersion = this.downloadedUpdate!.latestVersion
+    console.info('[desktop-update] installing update automatically while idle', { version: this.autoInstalledVersion })
+    await this.install()
+  }
+
+  private stopAutoInstall(): void {
+    if (this.autoInstallTimer) clearInterval(this.autoInstallTimer)
+    this.autoInstallTimer = null
   }
 
   private isBusy(): boolean {
@@ -148,7 +202,9 @@ export class AppUpdateService {
     })
     updater.on('update-downloaded', (info: UpdateInfo) => {
       this.downloadedUpdate = toUpdateInfo(info)
-      if (!this.installAttempt) this.setState({ status: 'downloaded', update: this.downloadedUpdate })
+      if (this.installAttempt) return
+      this.setState({ status: 'downloaded', update: this.downloadedUpdate })
+      this.refreshAutoInstall()
     })
     updater.on('error', (error: Error) => {
       if (this.installAttempt?.accepted) {

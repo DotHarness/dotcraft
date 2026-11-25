@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.14.2 |
+| **Version** | 0.14.3 |
 | **Status** | Living |
 | **Date** | 2026-11-25 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
@@ -140,6 +140,10 @@ Windows packaged updates have one application-owned coordinator. Preparation pre
 Preparation requests shutdown only of the bundled Hub belonging to this installation. Hub owns admission closure, cancellation of incomplete starts, stream termination, and managed-process cleanup. A shutdown acknowledgement or removed discovery record is not proof of process exit. Normal cleanup has a deadline; after it, only a captured, identity-verified process belonging to this installation may be forcibly terminated, followed by exit confirmation. Remote servers, custom/PATH runtimes, unrelated installations and arbitrary same-named processes are not targets. OS ownership locks are never removed from a live owner.
 
 The update UI reports preparation, prevents duplicate installation, and preserves the downloaded update on failure. The application stays alive to report preparation or installer-launch errors. Current-process forced exit is armed only after installer acceptance. The installer retains its final running-process and file-replacement checks; Desktop does not duplicate a general OS process scanner. Normal window close remains client-only.
+
+**Automatic updates** is an application setting, on by default and shown only where packaged updates are supported. While it is on, a downloaded update installs without asking once the machine is idle. Idle means two things. No thread on any local AppServer of the bundled Hub has an active Turn, a pending approval or input request, or background work from subagents or Workflows, because installation stops that Hub and every AppServer it runs. And the user is away from DotCraft: no Desktop window has focus, or the system has had no input for ten minutes, so the application never restarts under someone who is typing. Background terminals do not block installation, since a long-running server would otherwise defer it indefinitely, and the update ends them with the Hub. Remote and SSH projects are not consulted, because installation does not stop them.
+
+Desktop evaluates idleness when the download completes and every minute while the update waits, and starts preparation directly after a reading that finds the machine idle, since a Turn can start at any moment. Each downloaded version gets one automatic attempt. A failed attempt leaves the manual retry state and is not retried automatically. With the setting off, Desktop still downloads in the background and installs only when the user asks. Either way the application relaunches with its windows after installation.
 
 ### 3.7 Projects Rail, Thread Navigation, and Secondary Connections
 

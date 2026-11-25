@@ -282,7 +282,8 @@ describe('SettingsView', () => {
         pickFolder: vi.fn(),
         viewer: { browserUse: { clearCookies: vi.fn() } }
       },
-      shell: { openExternal: vi.fn() }
+      shell: { openExternal: vi.fn() },
+      updates: { getState: vi.fn().mockResolvedValue({ status: 'unsupported', currentVersion: '0.0.0' }) }
     })
 
     useConnectionStore.getState().reset()

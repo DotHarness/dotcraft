@@ -190,4 +190,60 @@ describe('AppUpdateService', () => {
     expect((await unsupported.checkForUpdates()).status).toBe('unsupported')
   })
 
+  it('installs a downloaded update automatically once idle, and only once per version', async () => {
+    vi.useFakeTimers()
+    try {
+      const updater = new FakeUpdater()
+      let idle = false
+      const isIdleForAutoInstall = vi.fn(async () => idle)
+      const beforeInstall = vi.fn(async () => { throw new Error('busy hub') })
+      const { service } = createService(updater, {
+        isAutoInstallEnabled: () => true,
+        isIdleForAutoInstall,
+        autoInstallIntervalMs: 1_000,
+        beforeInstall
+      })
+
+      updater.emit('update-downloaded', { version: '0.7.4' })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(service.getState()).toMatchObject({ status: 'downloaded', autoInstall: true })
+      expect(beforeInstall).not.toHaveBeenCalled()
+
+      idle = true
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(beforeInstall).toHaveBeenCalledOnce()
+      expect(service.getState()).toMatchObject({ status: 'error', retryAction: 'install' })
+
+      await vi.advanceTimersByTimeAsync(5_000)
+      expect(beforeInstall).toHaveBeenCalledOnce()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('leaves a downloaded update for the user while automatic updates are off', async () => {
+    vi.useFakeTimers()
+    try {
+      const updater = new FakeUpdater()
+      let enabled = false
+      const isIdleForAutoInstall = vi.fn(async () => true)
+      const { service } = createService(updater, {
+        isAutoInstallEnabled: () => enabled,
+        isIdleForAutoInstall,
+        autoInstallIntervalMs: 1_000
+      })
+
+      updater.emit('update-downloaded', { version: '0.7.4' })
+      await vi.advanceTimersByTimeAsync(3_000)
+      expect(isIdleForAutoInstall).not.toHaveBeenCalled()
+      expect(service.getState().autoInstall).toBeFalsy()
+
+      enabled = true
+      service.refreshAutoInstall()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(updater.quitAndInstall).toHaveBeenCalledWith(true, true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })

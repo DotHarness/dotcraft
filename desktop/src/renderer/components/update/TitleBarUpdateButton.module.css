@@ -1,0 +1,44 @@
+.icon {
+  position: relative;
+}
+
+.errorDot {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--error);
+  box-shadow: 0 0 0 2px var(--shell-chrome-tone);
+}
+
+.pill {
+  display: inline-flex;
+  height: 22px;
+  align-items: center;
+  gap: 5px;
+  margin: 0 3px;
+  padding: 0 9px 0 7px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--text-primary);
+  color: var(--bg-primary);
+  font-family: inherit;
+  font-size: var(--type-secondary-size);
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: default;
+  transition: background-color 100ms ease;
+  -webkit-app-region: no-drag;
+}
+
+.pill:hover {
+  background: color-mix(in srgb, var(--text-primary) 86%, var(--bg-primary));
+}
+
+.pill:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
