@@ -19,11 +19,11 @@
   flex: 0 0 auto;
 }
 
-.tooltipAnchorMerged {
+:global(.dc-action-tooltip-anchor).tooltipAnchorMerged {
   display: flex;
   flex: 0 1 auto;
   min-width: 0;
-  max-width: 100%;
+  max-width: min(240px, 100%);
 }
 
 .pill[data-merged='true'] {
