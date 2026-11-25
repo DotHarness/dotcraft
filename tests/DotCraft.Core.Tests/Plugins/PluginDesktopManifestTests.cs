@@ -226,6 +226,26 @@ public sealed class PluginDesktopManifestTests : IDisposable
         Assert.Equal(fixture.GetProperty("expectedRevision").GetString(), Revision(pluginRoot));
     }
 
+    [Fact]
+    public void Revision_ChangesWhenAnInstallSwapsInSameSizeOutputWithTheSameWriteTime()
+    {
+        var pluginRoot = PluginRoot(Guid.NewGuid().ToString("N"));
+        var staged = PluginRoot(Guid.NewGuid().ToString("N"));
+        var settledUtc = DateTime.UtcNow.AddHours(-1);
+        foreach (var (root, value) in new[] { (pluginRoot, 1), (staged, 2) })
+        {
+            WriteOutput(root, "index.mjs", $"export function activate() {{ return {{ v: {value} }}; }}");
+            WriteManifest(root, "./desktop/dist/index.mjs");
+            File.SetLastWriteTimeUtc(Path.Combine(root, "desktop", "dist", "index.mjs"), settledUtc);
+        }
+        var installed = Revision(pluginRoot);
+
+        Directory.Move(pluginRoot, pluginRoot + ".old");
+        Directory.Move(staged, pluginRoot);
+
+        Assert.NotEqual(installed, Revision(pluginRoot));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_root))

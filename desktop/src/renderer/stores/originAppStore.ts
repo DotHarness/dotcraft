@@ -8,69 +8,98 @@ export interface OriginApp {
   icon?: string | null
 }
 
+export interface OriginAppConnection {
+  connectionKey: string
+  connectionId: string | null
+}
+
 interface OriginAppStore {
-  byChannel: Record<string, OriginApp>
-  loaded: boolean
-  ensure(): void
-  refresh(): Promise<void>
+  byScope: Record<string, Record<string, OriginApp>>
+  ensure(connection: OriginAppConnection): void
+  refresh(connectionKey: string | null): Promise<void>
   reset(): void
 }
 
-let inFlight: Promise<void> | null = null
+const connections = new Map<string, OriginAppConnection>()
+const inFlight = new Map<string, number>()
 let generation = 0
+let stopListening: (() => void) | null = null
+
+function scopeOf(connection: OriginAppConnection): string {
+  return `${connection.connectionKey}\u0000${connection.connectionId ?? ''}`
+}
 
 export const useOriginAppStore = create<OriginAppStore>((set, get) => {
-  const fetchOriginApps = async (requested: number): Promise<void> => {
+  const load = async (connection: OriginAppConnection): Promise<void> => {
+    const scope = scopeOf(connection)
+    const requested = ++generation
+    inFlight.set(scope, requested)
     try {
-      const result = await window.api.appServer.sendRequest('app/list', {
-        includeCatalog: false,
-        includeDisabled: false
-      }) as { apps?: AppInfo[] }
-      if (requested !== generation) return
+      const result = await window.api.appServer.sendConnectionRequest(
+        connection.connectionKey,
+        'app/list',
+        { includeCatalog: false, includeDisabled: false },
+        undefined,
+        connection.connectionId ? { connectionId: connection.connectionId } : undefined
+      ) as { apps?: AppInfo[] } | null
+      if (inFlight.get(scope) !== requested) return
       const byChannel: Record<string, OriginApp> = {}
-      for (const app of result.apps ?? []) {
+      for (const app of result?.apps ?? []) {
         const channel = app.originChannel?.trim().toLowerCase()
         if (channel && !byChannel[channel]) {
           byChannel[channel] = { appId: app.appId, displayName: app.displayName, icon: app.icon }
         }
       }
-      set({ byChannel, loaded: true })
+      set((state) => {
+        const byScope: Record<string, Record<string, OriginApp>> = {}
+        for (const [key, catalog] of Object.entries(state.byScope)) {
+          if (connections.get(key)?.connectionKey !== connection.connectionKey) byScope[key] = catalog
+          else if (key !== scope) connections.delete(key)
+        }
+        byScope[scope] = byChannel
+        return { byScope }
+      })
+      connections.set(scope, connection)
     } catch {
-      // Rows keep the generic channel badge until the next load.
+    } finally {
+      if (inFlight.get(scope) === requested) inFlight.delete(scope)
     }
   }
 
-  const load = (): Promise<void> => {
-    const request: Promise<void> = fetchOriginApps(++generation).finally(() => {
-      if (inFlight === request) inFlight = null
-    })
-    inFlight = request
-    return request
-  }
-
   return {
-    byChannel: {},
-    loaded: false,
+    byScope: {},
 
-    ensure() {
-      if (!get().loaded && !inFlight) void load()
+    ensure(connection) {
+      stopListening ??= window.api.appServer.onNotificationRaw((payload) => {
+        if (!payload.foreground && payload.method === 'app/list/updated') void get().refresh(payload.connectionKey ?? null)
+      })
+      const scope = scopeOf(connection)
+      if (!(scope in get().byScope) && !inFlight.has(scope)) void load(connection)
     },
 
-    refresh: load,
+    async refresh(connectionKey) {
+      if (!connectionKey) return
+      await Promise.all([...connections.entries()]
+        .filter(([scope, connection]) => connection.connectionKey === connectionKey && scope in get().byScope)
+        .map(([, connection]) => load(connection)))
+    },
 
     reset() {
-      generation += 1
-      inFlight = null
-      set({ byChannel: {}, loaded: false })
+      stopListening?.()
+      stopListening = null
+      connections.clear()
+      inFlight.clear()
+      set({ byScope: {} })
     }
   }
 })
 
-export function useOriginApp(originChannel: string | null): OriginApp | null {
+export function useOriginApp(originChannel: string | null, connection: OriginAppConnection | null): OriginApp | null {
   const key = originChannel?.trim().toLowerCase() ?? ''
-  const app = useOriginAppStore((state) => (key ? state.byChannel[key] ?? null : null))
+  const scope = connection ? scopeOf(connection) : ''
+  const app = useOriginAppStore((state) => (key && scope ? state.byScope[scope]?.[key] ?? null : null))
   useEffect(() => {
-    if (key) useOriginAppStore.getState().ensure()
-  }, [key])
+    if (key && connection) useOriginAppStore.getState().ensure(connection)
+  }, [key, scope])
   return app
 }

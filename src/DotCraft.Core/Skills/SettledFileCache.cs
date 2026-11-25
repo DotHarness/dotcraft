@@ -27,4 +27,6 @@ internal sealed class SettledFileCache<T>(Func<string, T> read)
             _entries[path] = (length, writeUtc, value);
         return value;
     }
+
+    public void Clear() => _entries.Clear();
 }

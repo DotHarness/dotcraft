@@ -68,7 +68,14 @@ export function ReadonlyThreadRow({
   const showUnreadDot = !running && !waiting && !subAgent && isThreadUnread(thread)
   const [onScreen, setOnScreen] = useState(false)
   const scheduledTasks = useSecondaryThreadScheduledTasks(thread, project, subAgent)
-  const origin = useThreadOriginBadge({ thread, isSubAgent: subAgent, t })
+  const origin = useThreadOriginBadge({
+    thread,
+    isSubAgent: subAgent,
+    connection: project.connectionKey
+      ? { connectionKey: project.connectionKey, connectionId: project.connectionId ?? null }
+      : null,
+    t
+  })
   const threadDetails = useThreadEntryDetails({
     thread: { ...thread, displayName },
     project,

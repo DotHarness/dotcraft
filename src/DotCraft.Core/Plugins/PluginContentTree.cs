@@ -29,6 +29,9 @@ public static class PluginContentTree
     {
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         Span<byte> header = stackalloc byte[21];
+        // Installs swap in a freshly created tree, which may keep every file's size and write time.
+        BinaryPrimitives.WriteInt64LittleEndian(header[..8], Directory.GetCreationTimeUtc(sourceRoot).Ticks);
+        hash.AppendData(header[..8]);
         var latestWriteUtc = DateTime.MinValue;
         foreach (var entry in Enumerate(sourceRoot))
         {

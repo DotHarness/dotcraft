@@ -320,6 +320,34 @@ public sealed class SkillsLoaderTests : IDisposable
         Assert.NotEqual(firstIcon, loader.GetSkillInterface("settled")!.IconSmallDataUrl);
     }
 
+    [Fact]
+    public void RefreshDescriptors_ReturnsReplacedSkillFilesThatKeptSizeAndWriteTime()
+    {
+        var loader = new SkillsLoader(_tempRoot);
+        var skillDir = Path.Combine(loader.WorkspaceSkillsPath, "replaced");
+        Directory.CreateDirectory(Path.Combine(skillDir, "assets"));
+        Directory.CreateDirectory(Path.Combine(skillDir, "agents"));
+        var skillFile = Path.Combine(skillDir, "SKILL.md");
+        var iconFile = Path.Combine(skillDir, "assets", "icon.svg");
+        File.WriteAllText(skillFile, "---\nname: replaced\ndescription: first\n---\nBody");
+        File.WriteAllText(iconFile, "<svg id=\"a\"/>");
+        WriteInterface(skillDir, "./assets/icon.svg");
+        var settledUtc = DateTime.UtcNow.AddHours(-1);
+        foreach (var file in Directory.EnumerateFiles(skillDir, "*", SearchOption.AllDirectories))
+            File.SetLastWriteTimeUtc(file, settledUtc);
+        Assert.Equal("first", loader.GetSkillMetadata("replaced")!["description"]);
+        var firstIcon = loader.GetSkillInterface("replaced")!.IconSmallDataUrl;
+
+        File.WriteAllText(skillFile, "---\nname: replaced\ndescription: later\n---\nBody");
+        File.WriteAllText(iconFile, "<svg id=\"b\"/>");
+        File.SetLastWriteTimeUtc(skillFile, settledUtc);
+        File.SetLastWriteTimeUtc(iconFile, settledUtc);
+        loader.RefreshDescriptors();
+
+        Assert.Equal("later", loader.GetSkillMetadata("replaced")!["description"]);
+        Assert.NotEqual(firstIcon, loader.GetSkillInterface("replaced")!.IconSmallDataUrl);
+    }
+
     public void Dispose()
     {
         try

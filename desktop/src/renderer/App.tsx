@@ -499,7 +499,6 @@ export function App(): JSX.Element {
     workspaceStatusHydratedRef.current = true
     if (previousPath !== path) {
       useGitStore.getState().reset()
-      useOriginAppStore.getState().reset()
     }
     workspacePathRef.current = path
     protocolWorkspacePathRef.current = protocolPath
@@ -908,7 +907,7 @@ export function App(): JSX.Element {
           }
 
           case 'app/list/updated':
-            if (useOriginAppStore.getState().loaded) void useOriginAppStore.getState().refresh()
+            void useOriginAppStore.getState().refresh(useConnectionStore.getState().connectionKey)
             useAppBindingStore.getState().handleNotification(method, p)
             break
           case 'app/connection/changed':

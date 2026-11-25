@@ -112,7 +112,14 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
     ? null
     : thread.effectiveWorkspacePath?.trim() || thread.workspacePath?.trim() || null
   const scheduledTasks = useForegroundThreadScheduledTasks(thread, isSubAgent)
-  const origin = useThreadOriginBadge({ thread, isSubAgent, t })
+  const originConnectionKey = useConnectionStore((s) => s.status === 'connected' ? s.connectionKey : null)
+  const originConnectionId = useConnectionStore((s) => s.connectionId)
+  const origin = useThreadOriginBadge({
+    thread,
+    isSubAgent,
+    connection: originConnectionKey ? { connectionKey: originConnectionKey, connectionId: originConnectionId } : null,
+    t
+  })
   const threadDetails = useThreadEntryDetails({
     thread: { ...thread, displayName },
     project,

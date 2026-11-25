@@ -5,7 +5,7 @@ import type { AutomationDefinition } from '../../types/automation'
 import type { ThreadSummary } from '../../types/thread'
 import { normalizeGitPathKey } from '../../stores/gitStore'
 import { useGitHeadStore } from '../../stores/gitHeadStore'
-import { useOriginApp } from '../../stores/originAppStore'
+import { useOriginApp, type OriginAppConnection } from '../../stores/originAppStore'
 import { useBranchPullRequest, useForgeRefStore, useOriginBranchPullRequest } from '../../stores/forgeRefStore'
 import type { ForgePullSummary } from '../../../shared/forgeReferences'
 import { importedThreadSourceLabel } from '../../utils/sessionImport'
@@ -18,10 +18,12 @@ import { ThreadScheduledTaskRows } from './ThreadScheduledTask'
 export function useThreadOriginBadge({
   thread,
   isSubAgent,
+  connection,
   t
 }: {
   thread: ThreadSummary
   isSubAgent: boolean
+  connection: OriginAppConnection | null
   t: (key: string, vars?: Record<string, string>) => string
 }): ReactNode {
   const presentation = thread.originPresentation
@@ -29,7 +31,7 @@ export function useThreadOriginBadge({
     !isSubAgent &&
     thread.originChannel.length > 0 &&
     thread.originChannel.toLowerCase() !== 'dotcraft-desktop'
-  const originApp = useOriginApp(external && !presentation ? thread.originChannel : null)
+  const originApp = useOriginApp(external && !presentation ? thread.originChannel : null, connection)
   if (isSubAgent || !(presentation || external)) return null
 
   if (presentation) {

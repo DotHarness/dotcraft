@@ -140,8 +140,9 @@ public static class MessageTokenEstimator
         {
             if (sizeHint > _buffer.Length)
             {
-                ArrayPool<byte>.Shared.Return(_buffer);
+                var previous = _buffer;
                 _buffer = ArrayPool<byte>.Shared.Rent(sizeHint);
+                ArrayPool<byte>.Shared.Return(previous);
             }
 
             return _buffer;

@@ -137,7 +137,13 @@ public sealed partial class SkillsLoader
     }
 
     /// <summary>Reports that skills changed on disk, so catalogs read before this call are stale.</summary>
-    public void RefreshDescriptors() => MarkChanged();
+    public void RefreshDescriptors()
+    {
+        MetadataCache.Clear();
+        InterfaceManifestCache.Clear();
+        IconDataUrlCache.Clear();
+        MarkChanged();
+    }
 
     /// <summary>
     /// List all discovered skills.
