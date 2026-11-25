@@ -4,7 +4,7 @@
 |-------|-------|
 | **Version** | 0.14.0 |
 | **Status** | Draft |
-| **Date** | 2026-11-22 |
+| **Date** | 2026-11-25 |
 | **Related Specs** | [Agent Profiles](agent-profiles.md), [Desktop DESIGN.md](../architecture/DESIGN.md) |
 
 Purpose: define the shared `@dotcraft/avatar` system: the equipment slots an avatar exposes, the item
@@ -262,9 +262,14 @@ parts that the story moves.
   item to look at it from each side. The parts lock back together in one beat that flashes the
   light and dips the body, the holding arm presents the finished item overhead, and both arms lower
   before the loop repeats.
+- While the parts are open, sparks circle the inner light and arcs crackle between the pieces. On
+  the present, the finished item leaves the raised hand to hover above the antenna, radiating rays
+  with the sparks still circling it, then settles back into the hand before the arms lower.
 - The item marks the parts the story moves with `data-craft-part`: `top`, `left`, and `right` for
-  the pieces that separate, `core` for the inner light, and `burst` for the lock flash. Parts it
-  does not mark stay still, so a simpler item still plays the arm story.
+  the pieces that separate, `core` for the inner light, `burst` for the lock flash, `arc` and
+  `orbit` for the open-core energy, `rays` for the overhead glow, and `lift` for the group that
+  rises above the head. Parts it does not mark stay still, so a simpler item still plays the arm
+  story.
 - Raised arms use the wave's hinge and stay between 70° and 118°. The wrist keeps the item upright
   apart from its deliberate turns, and an arm rises or lowers within 240 ms.
 - The other working-story rules apply, and the item's own ambient beats pause while the story plays
@@ -395,8 +400,16 @@ When both gates pass, the item is added to the bag, both counters reset, `found`
 records the item, and the record persists so a restart continues where it left off. Customization
 off pauses both counters. Timing, odds, and progress are neither settings nor shown in settings.
 
-The find is announced with a single replaceable toast showing the item, its rarity, and an action
-that wears it.
+A find arrives as a gift on the composer mascot. A small box in the item's rarity color pops above
+the mascot's head, hovers, and drops onto the composer edge beside the mascot's left foot, where
+unopened gifts wait. The newest three show and a count marks the rest. Epic and legendary boxes
+glow and wiggle now and then.
+
+- Opening a gift reveals the item above the mascot with its name, rarity, and actions to keep it or
+  wear it, and the mascot cheers.
+- The item is already in the bag when the gift appears. Unopened gifts live only in the running
+  window, so restarting the app drops them without losing anything.
+- When no composer mascot is mounted, the find is announced with the replaceable toast instead.
 
 ### 11.4 Bag and Exchange
 
@@ -406,7 +419,7 @@ that wears it.
   A worn copy is never a spare, and legendary items cannot be traded up. The person picks the items
   from the rarity's spares, one copy per selection, or lets a fill action pick duplicates first, and
   may remove any before trading. When a trade spends the last copy of a worn item, it comes off.
-- A trade's result is announced the way a find is: the same toast with the item, its rarity, and an
-  action that wears it.
+- A trade's result is announced with a replaceable toast showing the item, its rarity, and an action
+  that wears it.
 - Hovering or focusing any item, in the bag, the spares, or the tray, shows its full name, rarity,
   slot, and feature.

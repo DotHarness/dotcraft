@@ -9,7 +9,7 @@ import { useComposerMotion } from './useComposerMotion.js'
 import { MASCOT_SIZE, MASCOT_SCALE, MASCOT_HIDDEN_RATIO, MASCOT_RAISE, MASCOT_SLEEP_AFTER_MS, MASCOT_WAVE_DURATION_MS, MASCOT_WAVE_SETTLE_MS, MASCOT_SPARKLES } from './constants.js'
 import { useMascotActiveIdle } from './useMascotActiveIdle.js'
 import type { ComposerMascotProps, ComposerMascotContext, MascotExpression, MascotLight } from './types.js'
-export function ComposerMascot({ name, catalog, appearance, appearanceOf, motion = 'system', theme = 'dark', focused = false, dragOver = false, bounceSignal = 0, interaction, reasoningEffort = 'off', speed = 'standard', anchorOffset = 0, anchorPushSignal = 0, handoff = false, renderCharacter, renderMenu, onNameRendered }: ComposerMascotProps) {
+export function ComposerMascot({ name, catalog, appearance, appearanceOf, motion = 'system', theme = 'dark', focused = false, dragOver = false, bounceSignal = 0, interaction, reasoningEffort = 'off', speed = 'standard', anchorOffset = 0, anchorPushSignal = 0, handoff = false, beside, listening = false, catchSignal = 0, celebrateSignal = 0, outfitSignal = 0, renderCharacter, renderMenu, onNameRendered }: ComposerMascotProps) {
   const activeCatalog = useAvatarCatalog(catalog)
   const resolveAppearance = useCallback((target: string) => (appearanceOf ? appearanceOf(target) : deriveAppearance(target, activeCatalog.registry)), [appearanceOf, activeCatalog.registry])
   const reduced = !useComposerMotion(motion)
@@ -29,6 +29,8 @@ export function ComposerMascot({ name, catalog, appearance, appearanceOf, motion
   const [nodding, setNodding] = useState(false)
   const [landing, setLanding] = useState(false)
   const [pushLift, setPushLift] = useState(false)
+  const [catching, setCatching] = useState(false)
+  const [suiting, setSuiting] = useState(false)
   const rootRef = useRef<HTMLDivElement | null>(null)
   const clearGestureRef = useRef<() => void>(() => {})
 
@@ -205,6 +207,29 @@ export function ComposerMascot({ name, catalog, appearance, appearanceOf, motion
     if (!reduced) setLaunching(true)
   }, [bounceSignal])
 
+  const prevCatchRef = useRef(catchSignal)
+  useEffect(() => {
+    if (catchSignal === prevCatchRef.current) return
+    prevCatchRef.current = catchSignal
+    if (!reduced) setCatching(true)
+  }, [catchSignal])
+
+  const prevCelebrateRef = useRef(celebrateSignal)
+  useEffect(() => {
+    if (celebrateSignal === prevCelebrateRef.current) return
+    prevCelebrateRef.current = celebrateSignal
+    if (reduced) return
+    setCheering(true)
+    setSparkling(true)
+  }, [celebrateSignal])
+
+  const prevOutfitRef = useRef(outfitSignal)
+  useEffect(() => {
+    if (outfitSignal === prevOutfitRef.current) return
+    prevOutfitRef.current = outfitSignal
+    if (!reduced) setSuiting(true)
+  }, [outfitSignal])
+
   const prevLightRef = useRef(light)
   useEffect(() => {
     const prev = prevLightRef.current
@@ -281,6 +306,12 @@ export function ComposerMascot({ name, catalog, appearance, appearanceOf, motion
       case 'composer-mascot-push-lift':
         setPushLift(false)
         break
+      case 'composer-mascot-catch':
+        setCatching(false)
+        break
+      case 'composer-mascot-suit':
+        setSuiting(false)
+        break
     }
   }
 
@@ -290,7 +321,11 @@ export function ComposerMascot({ name, catalog, appearance, appearanceOf, motion
       ? 'translateY(2px) rotate(-3deg) scale(0.98)'
       : 'scale(1)'
 
-  const shotClass = cheering
+  const shotClass = suiting
+    ? 'composer-mascot-suit'
+    : catching
+      ? 'composer-mascot-catch'
+      : cheering
     ? 'composer-mascot-cheer'
     : shaking
       ? 'composer-mascot-shake'
@@ -331,7 +366,7 @@ export function ComposerMascot({ name, catalog, appearance, appearanceOf, motion
   return (
     <div
 
-      aria-hidden={interaction ? undefined : true}
+      aria-hidden={interaction || beside != null ? undefined : true}
       data-composer-mascot-motion={reduced ? 'off' : 'on'}
       data-composer-avatar-pose={semanticAvatarPose}
       ref={rootRef}
@@ -341,6 +376,7 @@ export function ComposerMascot({ name, catalog, appearance, appearanceOf, motion
       data-mascot-effort={reasoningEffort}
       data-mascot-speed={speed}
       data-mascot-profile-transition={profileTransition ? 'active' : 'idle'}
+      data-mascot-listening={listening && !reduced ? 'true' : undefined}
       {...idle.attributes}
       data-mascot-anchor-offset={anchorOffset}
       onAnimationEnd={onAnimationEnd}
@@ -368,8 +404,10 @@ export function ComposerMascot({ name, catalog, appearance, appearanceOf, motion
           {bubble}
         </div>
       )}
+      {beside != null && <div className="composer-mascot-beside">{beside}</div>}
       <div
         key={profileTransitionRevision}
+        aria-hidden={interaction ? undefined : true}
         className="composer-mascot-motion composer-mascot-stage"
         style={{
           '--mascot-idle-stage-scale': MASCOT_SCALE,
@@ -429,6 +467,11 @@ export function ComposerMascot({ name, catalog, appearance, appearanceOf, motion
             <span>z</span>
           </div>
         )}
+        {listening && !reduced && (
+          <div aria-hidden className="composer-mascot-listen"><i /><i /></div>
+        )}
+        {catching && <div aria-hidden className="composer-mascot-absorb" />}
+        {suiting && <div aria-hidden className="composer-mascot-suit-ring"><i /><i /><i /><i /><i /><i /></div>}
         {sparkling && (
           <div aria-hidden className="composer-mascot-sparkles">
             {MASCOT_SPARKLES.map((s, i) => (

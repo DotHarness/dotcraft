@@ -1348,6 +1348,11 @@ and state already say.
   without a sweep. Text editing, transcription, and sending without an active
   recording do not trigger effects. Effects do not change layout, take focus,
   or intercept input. Reduced motion keeps the feedback still.
+- With Colorful effects, the Composer mascot listens while recording: it leans
+  toward the input with the voice level and sound arcs pulse beside its face.
+  When the trails reach Send or Stop, a short stream of the ribbon's colors
+  rises from that control into the mascot, which gulps it with a squash and a
+  ring that closes on its screen.
 - Plain disables the particle ribbon and shows the neutral bar waveform across
   the remaining toolbar width while recording. Both choices keep the same
   timer, stop, send, and transcription controls and behavior.
@@ -1359,6 +1364,11 @@ and state already say.
 - A Creator thread's mascot holds the plugin core and wears the HUD visor over
   the person's own appearance, and works by crafting the core instead of typing.
   Both items are drawn as a few large planes so they read at composer size.
+- Turning Creator on or off by hand plays a suit-up in place: the mascot
+  crouches and spins edge-on under a light beam, the outfit swaps at that
+  edge-on moment, and a hex ring and sparks burst as the core's pieces fly
+  together and the visor drops (or fly apart and lift off). Loading a thread or
+  switching threads swaps the outfit without it.
 - Line comments and annotations each ride one attachment pill above the input:
   hairline border on the elevated surface, tertiary icon, and the count as a medium
   label, with a remove control revealed on hover or focus. Hovering or clicking

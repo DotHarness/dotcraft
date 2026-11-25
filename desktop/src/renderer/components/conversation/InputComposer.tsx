@@ -1631,6 +1631,7 @@ function InputComposerCore({
         <ConversationColumn>
       <ComposerShell
         mascotOutfit={creatorControls.mascotOutfit}
+        mascotOutfitSignal={creatorControls.mascotOutfitSignal}
         before={(
           <>
             <DesktopPluginSurface name="composer.before" context={desktopPluginSurfaceContext} />

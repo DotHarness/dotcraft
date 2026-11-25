@@ -106,7 +106,7 @@ export function applyReduceMotion(mode: ReduceMotionMode): void {
 
 export function prefersReducedMotion(): boolean {
   const configured = document.documentElement.dataset.reduceMotion
-  return configured === 'on' || (configured !== 'off' && matchMedia('(prefers-reduced-motion: reduce)').matches)
+  return configured === 'on' || (configured !== 'off' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true)
 }
 
 export function applyComposerEffects(mode: ComposerEffectsMode): void {

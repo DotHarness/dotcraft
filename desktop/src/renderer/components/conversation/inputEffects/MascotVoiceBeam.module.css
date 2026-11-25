@@ -1,0 +1,12 @@
+.dot {
+  position: absolute;
+  left: -3px;
+  top: -3px;
+  z-index: 4;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--beam-color);
+  box-shadow: 0 0 6px 2px color-mix(in srgb, var(--beam-color) 70%, transparent);
+  pointer-events: none;
+}

@@ -873,6 +873,8 @@ export const MESSAGES_FR = {
   'pet.exchange.title': "Échangé contre {{item}}",
   'pet.find.title': "Nouvelle trouvaille : {{item}}",
   'pet.find.wear': "Le porter",
+  'pet.gift.keep': "Garder",
+  'pet.gift.open': "Ouvrir le cadeau",
   'pet.item.baseball-cap.name': "Casquette",
   'pet.item.baseball-cap.feature': "Calotte arrondie et courte visière tournée vers la droite",
   'pet.item.bucket-hat.name': "Bob",

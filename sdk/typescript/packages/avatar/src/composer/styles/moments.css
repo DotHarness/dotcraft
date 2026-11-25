@@ -1,0 +1,199 @@
+.composer-mascot-beside {
+  position: absolute;
+  right: calc(100% - 4px);
+  bottom: 1px;
+  z-index: 3;
+  display: flex;
+  align-items: flex-end;
+  pointer-events: none;
+}
+
+[data-mascot-listening='true'] .composer-mascot-character-stage {
+  transform-origin: bottom center;
+  translate: 0 calc(var(--mascot-voice-level, 0) * -2.5px);
+  rotate: calc(var(--mascot-voice-level, 0) * -5deg);
+  transition: translate 90ms linear, rotate 160ms ease-out;
+}
+
+.composer-mascot-listen {
+  --mascot-listen-color: color-mix(in oklab, var(--mascot-energy-accent) 55%, var(--dca-theme-ink));
+  position: absolute;
+  left: -8px;
+  top: 28%;
+  width: 18px;
+  height: 22px;
+  pointer-events: none;
+  opacity: calc(0.3 + var(--mascot-voice-level, 0) * 0.9);
+  transition: opacity 90ms linear;
+}
+
+.composer-mascot-listen i {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  width: 14px;
+  height: 20px;
+  margin-top: -10px;
+  border: 2.5px solid transparent;
+  border-left-color: var(--mascot-listen-color);
+  border-radius: 50%;
+  opacity: 0;
+  animation: composer-mascot-listen-wave 1.2s ease-out infinite;
+}
+
+.composer-mascot-listen i:nth-child(2) {
+  animation-delay: 0.6s;
+}
+
+@keyframes composer-mascot-listen-wave {
+  0% { opacity: 0; transform: translateX(2px) scale(0.55); }
+  30% { opacity: 1; }
+  100% { opacity: 0; transform: translateX(-9px) scale(1.3); }
+}
+
+@keyframes composer-mascot-catch {
+  0% { transform: translateY(0) scale(1, 1); }
+  20% { transform: translateY(2px) scale(1.12, 0.86); }
+  44% { transform: translateY(-10px) scale(0.93, 1.09); }
+  66% { transform: translateY(0) scale(1.05, 0.95); }
+  82% { transform: translateY(-2px) scale(0.99, 1.02); }
+  100% { transform: translateY(0) scale(1, 1); }
+}
+
+.composer-mascot-catch {
+  animation: composer-mascot-catch 640ms cubic-bezier(0.3, 0.8, 0.4, 1);
+  transform-origin: bottom center;
+}
+
+.composer-mascot-absorb {
+  position: absolute;
+  left: 50%;
+  top: 58%;
+  width: 40px;
+  height: 40px;
+  margin: -20px 0 0 -20px;
+  pointer-events: none;
+}
+
+.composer-mascot-absorb::before,
+.composer-mascot-absorb::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+}
+
+.composer-mascot-absorb::before {
+  background: conic-gradient(#747aff, #44b2ff, #51f9d5, #9c86fa, #ff68cf, #747aff);
+  mask: radial-gradient(circle, transparent 52%, #000 56%, #000 66%, transparent 70%);
+  animation: composer-mascot-absorb-ring 640ms cubic-bezier(0.5, 0, 0.75, 0.4) forwards;
+}
+
+.composer-mascot-absorb::after {
+  background: radial-gradient(circle, #fff 0, color-mix(in srgb, #51f9d5 70%, transparent) 26%, transparent 56%);
+  opacity: 0;
+  animation: composer-mascot-absorb-flash 640ms ease-out forwards;
+}
+
+@keyframes composer-mascot-absorb-ring {
+  0% { opacity: 0; transform: scale(1.9) rotate(0); }
+  20% { opacity: 1; }
+  52% { opacity: 1; transform: scale(0.3) rotate(160deg); }
+  60%, 100% { opacity: 0; transform: scale(0.2) rotate(180deg); }
+}
+
+@keyframes composer-mascot-absorb-flash {
+  0%, 46% { opacity: 0; transform: scale(0.3); }
+  58% { opacity: 1; transform: scale(0.9); }
+  100% { opacity: 0; transform: scale(1.4); }
+}
+
+@keyframes composer-mascot-suit {
+  0% { transform: translateY(0) scale(1, 1); }
+  14% { transform: translateY(2px) scale(1.14, 0.82); }
+  34% { transform: translateY(-15px) scale(0.06, 1.12); }
+  52% { transform: translateY(-17px) scale(1, 1.04); }
+  70% { transform: translateY(0) scale(1.12, 0.88); }
+  84% { transform: translateY(-3px) scale(0.98, 1.03); }
+  100% { transform: translateY(0) scale(1, 1); }
+}
+
+.composer-mascot-suit {
+  animation: composer-mascot-suit 960ms cubic-bezier(0.3, 0.7, 0.4, 1);
+  transform-origin: bottom center;
+}
+
+.composer-mascot-suit-ring {
+  --mascot-suit-accent: var(--mascot-outfit-accent, var(--mascot-energy-accent));
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.composer-mascot-suit-ring::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 4px;
+  width: 30px;
+  height: 92px;
+  margin-left: -15px;
+  background: linear-gradient(to top, transparent, color-mix(in srgb, var(--mascot-suit-accent) 65%, transparent) 40%, color-mix(in srgb, #fff 80%, var(--mascot-suit-accent)) 70%, transparent);
+  border-radius: 15px;
+  transform-origin: bottom center;
+  opacity: 0;
+  animation: composer-mascot-suit-beam 960ms ease-out forwards;
+}
+
+.composer-mascot-suit-ring::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  width: 64px;
+  height: 64px;
+  margin: -32px 0 0 -32px;
+  background: var(--mascot-suit-accent);
+  clip-path: polygon(50% 0, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%, 50% 0, 50% 9%, 15% 29.5%, 15% 70.5%, 50% 91%, 85% 70.5%, 85% 29.5%, 50% 9%);
+  opacity: 0;
+  animation: composer-mascot-suit-hex 960ms cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
+}
+
+.composer-mascot-suit-ring i {
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  background: var(--mascot-suit-accent);
+  clip-path: polygon(50% 0, 64% 36%, 100% 50%, 64% 64%, 50% 100%, 36% 64%, 0 50%, 36% 36%);
+  opacity: 0;
+  animation: composer-mascot-suit-spark 620ms ease-out 330ms forwards;
+}
+
+.composer-mascot-suit-ring i:nth-child(1) { --dx: -30px; --dy: -22px; }
+.composer-mascot-suit-ring i:nth-child(2) { --dx: 30px; --dy: -24px; }
+.composer-mascot-suit-ring i:nth-child(3) { --dx: -36px; --dy: 4px; }
+.composer-mascot-suit-ring i:nth-child(4) { --dx: 36px; --dy: 2px; }
+.composer-mascot-suit-ring i:nth-child(5) { --dx: -6px; --dy: -40px; }
+.composer-mascot-suit-ring i:nth-child(6) { --dx: 10px; --dy: -38px; background: #fff; }
+
+@keyframes composer-mascot-suit-beam {
+  0%, 12% { opacity: 0; transform: scaleY(0.1); }
+  30% { opacity: 1; transform: scaleY(1); }
+  48% { opacity: 0.8; transform: scale(0.5, 1); }
+  64%, 100% { opacity: 0; transform: scale(0.1, 1.1); }
+}
+
+@keyframes composer-mascot-suit-hex {
+  0%, 30% { opacity: 0; transform: scale(0.2) rotate(-30deg); }
+  38% { opacity: 1; }
+  76%, 100% { opacity: 0; transform: scale(1.5) rotate(0); }
+}
+
+@keyframes composer-mascot-suit-spark {
+  0% { opacity: 0; transform: translate(0, 0) scale(0.3) rotate(0); }
+  20% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(1) rotate(180deg); }
+}

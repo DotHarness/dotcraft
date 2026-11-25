@@ -873,6 +873,8 @@ export const MESSAGES_JA = {
   'pet.exchange.title': "交換で入手：{{item}}",
   'pet.find.title': "新しい発見：{{item}}",
   'pet.find.wear': "着ける",
+  'pet.gift.keep': "受け取る",
+  'pet.gift.open': "プレゼントを開ける",
   'pet.item.baseball-cap.name': "キャップ",
   'pet.item.baseball-cap.feature': "丸いクラウンと右向きの短いつば",
   'pet.item.bucket-hat.name': "バケットハット",

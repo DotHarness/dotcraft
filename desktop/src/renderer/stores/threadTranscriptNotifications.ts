@@ -5,7 +5,7 @@ import { resolveParkedApproval } from './threadInteractiveRequests'
 import { useSubAgentStore, isSubAgentChildClosed } from './subAgentStore'
 import { useBoardStore } from './boardStore'
 import { usePetStore } from '../pet/petStore'
-import { showFindToast } from '../pet/findToast'
+import { presentFind } from '../pet/giftStore'
 import { addToast } from './toastStore'
 import { serverFallbackText } from '../utils/appServerErrorText'
 import { normalizeRemoteFileTransferProgress } from '../utils/remoteToolHostDisplay'
@@ -249,7 +249,7 @@ export function applyThreadTranscriptNotification(
       const output = (p.outputTokens as number) ?? 0
       if (context.foreground) {
         const petFind = usePetStore.getState().advance(0, input + output)
-        if (petFind) showFindToast(petFind)
+        if (petFind) presentFind(petFind)
       }
       const tid = (p.threadId as string | undefined) ?? ''
       const conversation = conversationFor(tid)

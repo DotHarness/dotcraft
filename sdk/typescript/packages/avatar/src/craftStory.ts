@@ -1,6 +1,7 @@
 export type CraftStoryChannel =
   | 'armL' | 'wrist' | 'armR' | 'body' | 'eyes' | 'light' | 'glow'
   | 'partTop' | 'partLeft' | 'partRight' | 'core' | 'burst' | 'burstScale'
+  | 'arc' | 'orbit' | 'orbitTurn' | 'rays' | 'raysTurn' | 'lift'
 
 export const CRAFT_STORY_CHANNELS: Record<CraftStoryChannel, { selector: string; property: 'transform' | 'opacity' }> = {
   armL: { selector: '.dca-part-arm-l-w, .dca-part-arm-l-b, .dca-part-arm-l', property: 'transform' },
@@ -16,6 +17,12 @@ export const CRAFT_STORY_CHANNELS: Record<CraftStoryChannel, { selector: string;
   core: { selector: '[data-craft-part="core"]', property: 'opacity' },
   burst: { selector: '[data-craft-part="burst"]', property: 'opacity' },
   burstScale: { selector: '[data-craft-part="burst"]', property: 'transform' },
+  arc: { selector: '[data-craft-part="arc"]', property: 'opacity' },
+  orbit: { selector: '[data-craft-part="orbit"]', property: 'opacity' },
+  orbitTurn: { selector: '[data-craft-part="orbit"]', property: 'transform' },
+  rays: { selector: '[data-craft-part="rays"]', property: 'opacity' },
+  raysTurn: { selector: '[data-craft-part="rays"]', property: 'transform' },
+  lift: { selector: '[data-craft-part="lift"]', property: 'transform' },
 }
 
 const RISE_MS = 240
@@ -98,13 +105,31 @@ at('eyes', LOWER + RISE_MS, look(0, 0)); at('eyes', CRAFT_STORY_DURATION, look(0
 ;[[0, 1], [600, 1.04], [INSPECT_END, 1], [LOCK + 120, 1.14], [LOCK + 600, 1.04], [LOWER, 1.02], [CRAFT_STORY_DURATION, 1]]
   .forEach(([time, value]) => at('light', time!, 'scale(' + value + ')'))
 
+// Turning channels unwind while hidden so the loop closes.
+at('orbit', 0, '0'); at('orbit', PART_AT, '0'); at('orbit', PART_AT + 320, '1'); at('orbit', LOCK - 120, '1'); at('orbit', LOCK + 80, '0')
+at('orbit', PRESENT, '0'); at('orbit', PRESENT + RISE_MS + 160, '1'); at('orbit', LOWER - 120, '1'); at('orbit', LOWER + 80, '0'); at('orbit', CRAFT_STORY_DURATION, '0')
+const spin = (turn: number) => 'rotate(' + turn * 360 + 'deg)'
+at('orbitTurn', 0, spin(0)); at('orbitTurn', PART_AT, spin(0)); at('orbitTurn', LOCK + 80, spin(3))
+at('orbitTurn', PRESENT, spin(3)); at('orbitTurn', LOWER + 80, spin(5)); at('orbitTurn', CRAFT_STORY_DURATION, spin(0))
+at('arc', 0, '0'); at('arc', PART_AT + 200, '0')
+for (let time = PART_AT + 320, lit = true; time < LOCK - 120; time += 170, lit = !lit) at('arc', time, lit ? '1' : '0.15')
+at('arc', LOCK - 60, '0'); at('arc', CRAFT_STORY_DURATION, '0')
+at('rays', 0, '0'); at('rays', LOCK + 60, '0'); at('rays', LOCK + 160, '0.7'); at('rays', LOCK + 520, '0')
+at('rays', PRESENT, '0'); at('rays', PRESENT + RISE_MS + 200, '1'); at('rays', LOWER - 160, '1'); at('rays', LOWER + 60, '0'); at('rays', CRAFT_STORY_DURATION, '0')
+at('raysTurn', 0, spin(0)); at('raysTurn', LOCK, spin(0)); at('raysTurn', LOWER + 60, spin(1 / 3)); at('raysTurn', CRAFT_STORY_DURATION, spin(0))
+const CROWN = 'translate(300px, -390px)'
+at('lift', 0, look(0, 0)); at('lift', PRESENT + RISE_MS, look(0, 0)); at('lift', PRESENT + RISE_MS + 420, CROWN)
+at('lift', LOWER - 260, CROWN); at('lift', LOWER + 40, look(0, 0)); at('lift', CRAFT_STORY_DURATION, look(0, 0))
+
 const SINE = 'cubic-bezier(0.45, 0, 0.55, 1)'
 const SNAP = 'cubic-bezier(0.55, 0, 0.35, 1)'
+const LINEAR = 'linear'
 const SNAP_CHANNELS = new Set<CraftStoryChannel>(['armL', 'wrist', 'armR', 'partTop', 'partLeft', 'partRight'])
+const LINEAR_CHANNELS = new Set<CraftStoryChannel>(['arc', 'raysTurn'])
 
 export function craftStoryKeyframes(channel: CraftStoryChannel): Keyframe[] {
   const property = CRAFT_STORY_CHANNELS[channel].property
-  const easing = SNAP_CHANNELS.has(channel) ? SNAP : SINE
+  const easing = SNAP_CHANNELS.has(channel) ? SNAP : LINEAR_CHANNELS.has(channel) ? LINEAR : SINE
   return keys[channel]
     .map((key, index) => ({ key, index }))
     .sort((a, b) => a.key[0] - b.key[0] || a.index - b.index)

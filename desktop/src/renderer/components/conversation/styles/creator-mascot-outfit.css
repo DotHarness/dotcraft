@@ -14,3 +14,29 @@
 .dca-robot[data-effects='live'][data-held-state='holding']:not([data-pose='working']) .creator-fx-core { animation: creator-fx-core 8s ease-in-out infinite; }
 .dca-robot[data-effects='live'][data-held-state='holding']:not([data-pose='working']) .creator-fx-burst { animation: creator-fx-burst 8s ease-out infinite; }
 .dca-robot[data-effects='live'][data-held-state='holding'][data-hand='creator:plugin-core']:not([data-pose='working']) .creator-fx-visor-eyes { animation: creator-fx-visor-flash 8s ease-in-out infinite; }
+
+.composer-mascot-outfit { display: contents; }
+@keyframes creator-suit-top { 0% { opacity: 0; transform: translate(0, -260px) rotate(-40deg); } 60% { opacity: 1; transform: translate(0, 18px); } 100% { opacity: 1; transform: none; } }
+@keyframes creator-suit-left { 0% { opacity: 0; transform: translate(-260px, 150px) rotate(30deg); } 60% { opacity: 1; transform: translate(14px, -8px); } 100% { opacity: 1; transform: none; } }
+@keyframes creator-suit-right { 0% { opacity: 0; transform: translate(260px, 150px) rotate(-30deg); } 60% { opacity: 1; transform: translate(-14px, -8px); } 100% { opacity: 1; transform: none; } }
+@keyframes creator-suit-flash { 0%, 50% { opacity: 0; } 62% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes creator-suit-burst { 0%, 52% { opacity: 0; transform: scale(.4); } 60% { opacity: 1; transform: scale(.6); } 100% { opacity: 0; transform: scale(2); } }
+@keyframes creator-suit-visor { 0% { opacity: 0; transform: translateY(-300px); } 55% { opacity: 1; transform: translateY(16px); } 75% { transform: translateY(-6px); } 100% { opacity: 1; transform: none; } }
+@keyframes creator-suit-eyes { 0%, 55% { opacity: 0; } 65% { opacity: 1; fill: #ffd65c; stroke: #ffd65c; } 100% { opacity: 1; } }
+@keyframes creator-unsuit-top { to { opacity: 0; transform: translate(0, -240px) rotate(40deg); } }
+@keyframes creator-unsuit-left { to { opacity: 0; transform: translate(-240px, 140px) rotate(-30deg); } }
+@keyframes creator-unsuit-right { to { opacity: 0; transform: translate(240px, 140px) rotate(30deg); } }
+@keyframes creator-unsuit-visor { to { opacity: 0; transform: translateY(-300px); } }
+/* The suit-up outranks the item's ambient beats for its short run, so it needs !important against their selectors. */
+[data-mascot-outfit-phase='in'] [data-craft-part='top'] { animation: creator-suit-top 560ms cubic-bezier(.2, .8, .3, 1) both !important; }
+[data-mascot-outfit-phase='in'] [data-craft-part='left'] { animation: creator-suit-left 560ms cubic-bezier(.2, .8, .3, 1) 40ms both !important; }
+[data-mascot-outfit-phase='in'] [data-craft-part='right'] { animation: creator-suit-right 560ms cubic-bezier(.2, .8, .3, 1) 80ms both !important; }
+[data-mascot-outfit-phase='in'] [data-craft-part='core'],
+[data-mascot-outfit-phase='in'] [data-craft-part='rays'] { animation: creator-suit-flash 620ms ease-out both !important; }
+[data-mascot-outfit-phase='in'] [data-craft-part='burst'] { animation: creator-suit-burst 620ms ease-out both !important; }
+[data-mascot-outfit-phase='in'] [data-faceplate='creator:hud-visor'] { animation: creator-suit-visor 520ms cubic-bezier(.3, .8, .3, 1) both; }
+[data-mascot-outfit-phase='in'] .creator-fx-visor-eyes { animation: creator-suit-eyes 620ms ease-out both !important; }
+[data-mascot-outfit-phase='out'] [data-craft-part='top'] { animation: creator-unsuit-top 300ms ease-in both !important; }
+[data-mascot-outfit-phase='out'] [data-craft-part='left'] { animation: creator-unsuit-left 300ms ease-in both !important; }
+[data-mascot-outfit-phase='out'] [data-craft-part='right'] { animation: creator-unsuit-right 300ms ease-in both !important; }
+[data-mascot-outfit-phase='out'] [data-faceplate='creator:hud-visor'] { animation: creator-unsuit-visor 300ms ease-in both; }

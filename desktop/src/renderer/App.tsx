@@ -21,7 +21,7 @@ import { useSidebarSectionsStore } from './stores/sidebarSectionsStore'
 import { useSidebarDestinationsStore } from './stores/sidebarDestinationsStore'
 import { hydrateSummaryPinned } from './components/conversation/summary/view'
 import { PET_CLOCK_MS, usePetStore } from './pet/petStore'
-import { showFindToast } from './pet/findToast'
+import { presentFind } from './pet/giftStore'
 import { useDetailPanelStore } from './stores/detailPanelStore'
 import { useWindowMaximized } from './hooks/useWindowMaximized'
 import { useUserInputAutoResolutionBridge } from './hooks/useUserInputAutoResolutionBridge'
@@ -665,7 +665,7 @@ export function App(): JSX.Element {
   useEffect(() => {
     const clock = window.setInterval(() => {
       const found = usePetStore.getState().advance(PET_CLOCK_MS, 0)
-      if (found) showFindToast(found)
+      if (found) presentFind(found)
     }, PET_CLOCK_MS)
     return () => window.clearInterval(clock)
   }, [])

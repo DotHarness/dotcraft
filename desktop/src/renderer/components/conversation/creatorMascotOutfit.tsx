@@ -19,11 +19,27 @@ const CX = -8
 const CY = -118
 const SIZE = 104
 
+const around = (count: number, phase = 0) => Array.from({ length: count }, (_, index) => (index / count + phase) * Math.PI * 2)
+const RAYS = around(8).map((angle, index) => {
+  const reach = index % 2 ? 250 : 340
+  const side = (offset: number) => `${CX + Math.cos(angle + offset) * 120} ${CY + Math.sin(angle + offset) * 120}`
+  return `M${side(-0.16)}L${CX + Math.cos(angle) * reach} ${CY + Math.sin(angle) * reach}L${side(0.16)}Z`
+})
+const SPARKS = around(3, -0.25).map(angle => [CX + Math.cos(angle) * 196, CY + Math.sin(angle) * 196] as const)
+const BOLTS = [-Math.PI / 2, Math.PI * 0.83, Math.PI * 0.17].map(angle => {
+  const point = (distance: number, swing: number) => `${CX + Math.cos(angle) * distance - Math.sin(angle) * swing} ${CY + Math.sin(angle) * distance + Math.cos(angle) * swing}`
+  return `M${point(70, 0)}L${point(120, 26)}L${point(150, -22)}L${point(205, 14)}`
+})
+
 function PluginCore() {
   const f = faces(CX, CY, SIZE)
-  return <g transform="translate(233 645)" strokeLinejoin="round">
+  return <g transform="translate(233 645)" strokeLinejoin="round"><g data-craft-part="lift">
     <g className="creator-fx-hover">
       <Glow blur={30} className="creator-fx-halo"><path d={faces(CX, CY, SIZE * 1.12).outline} fill="#7d9cff" /></Glow>
+      <g data-craft-part="rays" opacity="0" style={{ transformOrigin: `${CX}px ${CY}px` }}>
+        {RAYS.map(d => <path key={d} d={d} fill={CYAN} opacity=".6" />)}
+        {RAYS.map(d => <path key={d} d={d} fill={CYAN_CORE} opacity=".8" transform={`translate(${CX} ${CY}) scale(.7) translate(${-CX} ${-CY})`} />)}
+      </g>
       <path d={f.outline} fill="#0b1430" stroke="#fff" strokeWidth="24" />
       <g data-craft-part="core" className="creator-fx-core" opacity="0">
         <Glow blur={22}><path d={faces(CX, CY, SIZE * 0.8).outline} fill={CYAN} /></Glow>
@@ -35,12 +51,23 @@ function PluginCore() {
         <path d={f.top} fill="#a9bdff" />
         <ellipse cx={CX} cy={CY - SIZE / 2} rx="22" ry="12" fill={GOLD} />
       </g>
+      <g data-craft-part="arc" opacity="0" fill="none" strokeLinecap="round">
+        {BOLTS.map(d => <path key={d} d={d} stroke={CYAN} strokeWidth="34" opacity=".45" />)}
+        {BOLTS.map(d => <path key={d} d={d} stroke={CYAN_CORE} strokeWidth="14" />)}
+      </g>
+      <g data-craft-part="orbit" opacity="0" style={{ transformOrigin: `${CX}px ${CY}px` }}>
+        {SPARKS.map(([x, y], index) => <g key={index}>
+          <circle cx={x} cy={y} r="66" fill={index ? CYAN : GOLD} opacity=".35" />
+          <path d={`M${x} ${y - 56}l17 39 39 17-39 17-17 39-17-39-39-17 39-17Z`} fill={index ? CYAN_CORE : '#fff3c4'} stroke="#fff" strokeWidth="6" />
+        </g>)}
+      </g>
     </g>
     <g data-craft-part="burst" className="creator-fx-burst" opacity="0" style={{ transformOrigin: `${CX}px ${CY}px` }}>
       <circle cx={CX} cy={CY} r="150" fill="none" stroke={CYAN_CORE} strokeWidth="14" />
+      <circle cx={CX} cy={CY} r="104" fill="none" stroke={CYAN} strokeWidth="24" opacity=".7" />
       {[[0, -1], [1, 0], [0, 1], [-1, 0]].map(([x, y]) => <path key={`${x}${y}`} d={`M${CX + x * 196} ${CY + y * 196 - 26}l9 17 17 9-17 9-9 17-9-17-17-9 17-9Z`} fill={GOLD} stroke="#fff" strokeWidth="6" />)}
     </g>
-  </g>
+  </g></g>
 }
 
 function ids(prefix: string) {
@@ -101,4 +128,4 @@ const CREATOR_PACK: AvatarComponentPack = {
 
 const CREATOR_OUTFIT_WEAR = { hand: 'creator:plugin-core', face: 'creator:hud-visor' } as unknown as AvatarOutfitWear
 
-export const CREATOR_MASCOT_OUTFIT = { pack: CREATOR_PACK, wear: CREATOR_OUTFIT_WEAR } as const
+export const CREATOR_MASCOT_OUTFIT = { pack: CREATOR_PACK, wear: CREATOR_OUTFIT_WEAR, accent: CYAN } as const

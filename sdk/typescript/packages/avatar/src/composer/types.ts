@@ -29,6 +29,11 @@ export interface ComposerMascotProps {
   anchorOffset?: number
   anchorPushSignal?: number
   handoff?: boolean
+  beside?: ReactNode
+  listening?: boolean
+  catchSignal?: number
+  celebrateSignal?: number
+  outfitSignal?: number
   renderCharacter?: (character: ReactNode, context: ComposerMascotContext) => ReactNode
   renderMenu?: (position: { x: number; y: number }, close: () => void) => ReactNode
   onNameRendered?: (name: string | undefined) => void

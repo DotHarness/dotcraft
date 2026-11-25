@@ -1064,6 +1064,7 @@ function ConversationWelcomeCore({
           <div className="welcome-composer-dock">
             <ComposerShell
               mascotOutfit={creatorControls.mascotOutfit}
+              mascotOutfitSignal={creatorControls.mascotOutfitSignal}
               before={<DesktopPluginSurface name="composer.before" context={desktopPluginSurfaceContext} />}
               adaptiveToolbar
               inputEffectsVoiceOrigin={voiceThreadId}

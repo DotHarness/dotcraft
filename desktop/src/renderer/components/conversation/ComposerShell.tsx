@@ -28,6 +28,10 @@ import { useDesktopPet } from '../desktopPet/useDesktopPet'
 import type { PetSourceSurface } from '../desktopPet/desktopPetSource'
 import { usePetStore } from '../../pet/petStore'
 import { useAdaptiveComposerToolbar } from './useAdaptiveComposerToolbar'
+import { useMascotOutfitTransition } from './useMascotOutfitTransition'
+import { useMascotVoiceLink } from './inputEffects/useMascotVoiceLink'
+import { ComposerGiftStack } from './mascotGifts/ComposerGiftStack'
+import { useGiftStore } from '../../pet/giftStore'
 import css from './ComposerShell.module.css'
 
 export interface ComposerMascotBubble {
@@ -86,7 +90,8 @@ interface ComposerShellProps {
   mascotReasoningEffort?: ComposerMascotReasoningEffort
   mascotSpeed?: ComposerMascotSpeed
   mascotName?: string
-  mascotOutfit?: Omit<ComponentProps<typeof AvatarOutfitProvider>, 'children'>
+  mascotOutfit?: Omit<ComponentProps<typeof AvatarOutfitProvider>, 'children'> & { accent?: string }
+  mascotOutfitSignal?: number
   mascotHandoff?: boolean
   /** How the desktop pet treats this composer; defaults to chat when it can chat, else decision. */
   petSurface?: PetSourceSurface
@@ -130,6 +135,7 @@ export function ComposerShell({
   mascotSpeed = 'standard',
   mascotName,
   mascotOutfit,
+  mascotOutfitSignal = 0,
   mascotHandoff = false,
   petSurface
 }: ComposerShellProps): JSX.Element {
@@ -144,6 +150,11 @@ export function ComposerShell({
     threadId: desktopPluginSurfaceContext.threadId,
     mascotName: renderedMascotAvatar ?? ''
   })
+  const outfit = useMascotOutfitTransition(mascotOutfit, mascotOutfitSignal)
+  const outfitAccent = useRef<string | undefined>(undefined)
+  if (mascotOutfit?.accent) outfitAccent.current = mascotOutfit.accent
+  const voiceLink = useMascotVoiceLink(petRoot, inputEffectsVoiceOrigin, showMascot && showInputEffects)
+  const giftOpenRevision = useGiftStore((state) => state.openRevision)
   const { toolbarRef, hidden } = useAdaptiveComposerToolbar(adaptiveToolbar, [footerLeading, footerAction])
   const [topAccessoryHeight, setTopAccessoryHeight] = useState(0)
   const [topAccessoryPushSignal, setTopAccessoryPushSignal] = useState(0)
@@ -224,6 +235,7 @@ export function ComposerShell({
         gap: 0,
         opacity,
         isolation: 'isolate',
+        ['--mascot-outfit-accent' as string]: outfitAccent.current,
         // Lets menus and tooltips that open upward cover the conversation's floating controls.
         zIndex: 20
       }}
@@ -236,7 +248,7 @@ export function ComposerShell({
           bounceSignal={mascotBounceSignal}
           interaction={mascotInteraction ? { ...mascotInteraction, bubble: mascotInteraction.guide ?? (mascotInteraction.bubble ? <MascotBubble {...mascotInteraction.bubble} /> : undefined) } : undefined}
           renderMenu={mascotInteraction?.menuItems?.length ? (position, close) => <ContextMenu items={mascotInteraction.menuItems!} position={position} onClose={close} /> : undefined}
-          renderCharacter={(character, context) => <DesktopPluginSurface name="composer.mascot" context={{ ...desktopPluginSurfaceContext, ...context }}>{mascotOutfit ? <AvatarOutfitProvider pack={mascotOutfit.pack} wear={mascotOutfit.wear}>{character}</AvatarOutfitProvider> : character}</DesktopPluginSurface>}
+          renderCharacter={(character, context) => <DesktopPluginSurface name="composer.mascot" context={{ ...desktopPluginSurfaceContext, ...context }}><div className="composer-mascot-outfit" data-mascot-outfit-phase={outfit.phase ?? undefined}>{outfit.outfit ? <AvatarOutfitProvider pack={outfit.outfit.pack} wear={outfit.outfit.wear}>{character}</AvatarOutfitProvider> : character}</div></DesktopPluginSurface>}
           reasoningEffort={mascotReasoningEffort}
           speed={mascotSpeed}
           name={mascotName}
@@ -245,6 +257,11 @@ export function ComposerShell({
           anchorOffset={Math.max(topAccessoryHeight, overlayLift, beforeHeight)}
           anchorPushSignal={topAccessoryPushSignal}
           handoff={mascotHandoff}
+          beside={<ComposerGiftStack />}
+          listening={voiceLink.listening}
+          catchSignal={voiceLink.catchSignal}
+          celebrateSignal={giftOpenRevision}
+          outfitSignal={outfit.spin}
         />
       )}
       {topAccessoryVisible && (

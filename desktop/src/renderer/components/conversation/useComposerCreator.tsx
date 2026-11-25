@@ -1,4 +1,4 @@
-import { useCallback, useMemo, type ReactNode } from 'react'
+import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import { Hammer } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { setThreadCreator, useThreadCreator } from '../../stores/creatorModeStore'
@@ -21,6 +21,7 @@ interface ComposerCreatorControls {
   pill: ReactNode
   toggle: () => void
   mascotOutfit: typeof CREATOR_MASCOT_OUTFIT | undefined
+  mascotOutfitSignal: number
 }
 
 export function useComposerCreatorControls({
@@ -33,6 +34,11 @@ export function useComposerCreatorControls({
   onChange: (creator: boolean) => void
 }): ComposerCreatorControls {
   const t = useT()
+  const [mascotOutfitSignal, setMascotOutfitSignal] = useState(0)
+  const change = useCallback((next: boolean): void => {
+    setMascotOutfitSignal((value) => value + 1)
+    onChange(next)
+  }, [onChange])
   const action = useMemo((): SlashSystemActionInfo | null => available ? {
     id: CREATOR_SYSTEM_ACTION_ID,
     label: t('composer.system.creator'),
@@ -42,17 +48,17 @@ export function useComposerCreatorControls({
   } : null, [available, creator, t])
   const toggle = useCallback(() => {
     if (!creator && useConversationStore.getState().turnStatus === 'idle') useFeatureGuideStore.getState().request('creator')
-    onChange(!creator)
-  }, [creator, onChange])
+    change(!creator)
+  }, [creator, change])
   const pill = available && creator ? (
     <ComposerCreatorLabel
-      onDisable={() => onChange(false)}
+      onDisable={() => change(false)}
       label={t('composer.system.creator')}
       title={t('composer.creatorPill.title')}
       ariaLabel={t('composer.system.creator.disable')}
     />
   ) : null
-  return { action, pill, toggle, mascotOutfit: available && creator ? CREATOR_MASCOT_OUTFIT : undefined }
+  return { action, pill, toggle, mascotOutfit: available && creator ? CREATOR_MASCOT_OUTFIT : undefined, mascotOutfitSignal }
 }
 
 export function useThreadComposerCreator(threadId: string, available: boolean): ComposerCreatorControls {

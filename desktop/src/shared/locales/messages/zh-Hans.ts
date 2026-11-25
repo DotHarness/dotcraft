@@ -983,6 +983,8 @@ export const MESSAGES_ZH_HANS = {
   'pet.exchange.title': "合成获得：{{item}}",
   'pet.find.title': "新发现：{{item}}",
   'pet.find.wear': "穿上",
+  'pet.gift.keep': "收下",
+  'pet.gift.open': "打开礼物",
   'pet.item.baseball-cap.name': "棒球帽",
   'pet.item.baseball-cap.feature': "圆顶帽身，短帽檐朝右",
   'pet.item.bucket-hat.name': "渔夫帽",

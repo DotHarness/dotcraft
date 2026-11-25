@@ -873,6 +873,8 @@ export const MESSAGES_KO = {
   'pet.exchange.title': "교환으로 획득: {{item}}",
   'pet.find.title': "새 발견: {{item}}",
   'pet.find.wear': "착용",
+  'pet.gift.keep': "보관하기",
+  'pet.gift.open': "선물 열기",
   'pet.item.baseball-cap.name': "야구 모자",
   'pet.item.baseball-cap.feature': "둥근 크라운에 오른쪽으로 난 짧은 챙",
   'pet.item.bucket-hat.name': "버킷햇",

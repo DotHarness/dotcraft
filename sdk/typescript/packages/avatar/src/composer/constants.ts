@@ -88,3 +88,7 @@ export function prefersReducedMotion(): boolean {
 export function mascotNameKey(name?: string): string {
   return name?.trim().normalize('NFC') ?? ''
 }
+
+/** The suit-up spin is edge-on at this point, so a host swaps the outfit here. */
+export const MASCOT_OUTFIT_SWAP_MS = 330
+export const MASCOT_OUTFIT_DURATION_MS = 960
