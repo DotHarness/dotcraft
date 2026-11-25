@@ -148,4 +148,18 @@ describe('BrowserWindow lifecycle ownership', () => {
       warn.mockRestore()
     }
   })
+
+  it('passes initial nativeTheme dark state and forwards updates to the renderer', () => {
+    mocks.theme.shouldUseDarkColors = true
+    const { make } = fixture()
+    const context = make('/workspace')
+    const win = context.mainWindow!
+    const args = (mocks.windows[0].options as { webPreferences: { additionalArguments: string[] } }).webPreferences
+      .additionalArguments
+    expect(args).toContain('--dotcraft-native-dark=true')
+
+    mocks.theme.shouldUseDarkColors = false
+    mocks.theme.emit('updated')
+    expect(win.webContents.send).toHaveBeenCalledWith('window:native-theme-updated', false)
+  })
 })

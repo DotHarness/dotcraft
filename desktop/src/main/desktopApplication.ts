@@ -216,6 +216,7 @@ export class DesktopApplication implements DesktopApplicationServices {
       })
     }
     const draftOnly = Object.keys(partial).length === 1 && partial.composerTextDrafts !== undefined
+    if (!draftOnly && partial.theme !== undefined) applyNativeThemeSource(nativeTheme, this.settings)
     for (const window of this.windows.values()) {
       const update =
         window === owner
@@ -234,7 +235,6 @@ export class DesktopApplication implements DesktopApplicationServices {
       if (!draftOnly) window.emitWorkspaceProjects()
     }
     if (draftOnly) return
-    if (partial.theme !== undefined) applyNativeThemeSource(nativeTheme, this.settings)
     if (partial.voice !== undefined) refreshVoiceChatGptAvailability()
     if (!this.lifecycle.isStopping) void this.tray?.refresh()
     this.refreshAppMenu()

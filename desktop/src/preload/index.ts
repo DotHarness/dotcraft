@@ -240,6 +240,12 @@ function readAppliedTheme(): 'dark' | 'light' {
   return arg?.slice('--dotcraft-applied-theme='.length) === 'dark' ? 'dark' : 'light'
 }
 
+function readInitialNativePrefersDark(): boolean | undefined {
+  const arg = process.argv.find((value) => value.startsWith('--dotcraft-native-dark='))
+  if (!arg) return undefined
+  return arg.slice('--dotcraft-native-dark='.length) === 'true'
+}
+
 function readInitialLocale(): AppLocale {
   const arg = process.argv.find((value) => value.startsWith('--dotcraft-initial-locale='))
   const raw = arg?.slice('--dotcraft-initial-locale='.length)
@@ -263,6 +269,7 @@ function readInitialAppearance(): InitialAppearance {
 
 const initialTheme = readInitialTheme()
 const initialAppliedTheme = readAppliedTheme()
+const initialNativePrefersDark = readInitialNativePrefersDark()
 const initialLocale = readInitialLocale()
 const initialAppearance = readInitialAppearance()
 const initialCdpDebuggingEnabled = process.argv.includes(INITIAL_CDP_DEBUGGING_ARG)
@@ -422,6 +429,11 @@ ipcRenderer.on('window:maximized-change', (_event: Electron.IpcRendererEvent, ma
   maximizedChangeDispatcher.dispatch(maximized)
 })
 
+const nativeThemeUpdatedDispatcher = new TokenMulticastDispatcher<boolean>()
+ipcRenderer.on('window:native-theme-updated', (_event: Electron.IpcRendererEvent, prefersDark: boolean) => {
+  nativeThemeUpdatedDispatcher.dispatch(prefersDark)
+})
+
 let visibilityChangeToken = 0
 let activeVisibilityChangeCallback: ((state: WindowVisibilityState) => void) | null = null
 ipcRenderer.on('window:visibility-changed', (_event: Electron.IpcRendererEvent, state: WindowVisibilityState) => {
@@ -446,6 +458,8 @@ const api = {
   platform: process.platform as 'darwin' | 'win32' | 'linux',
 
   initialTheme,
+
+  initialNativePrefersDark,
 
   initialAppearance,
 
@@ -700,6 +714,10 @@ const api = {
 
     onMaximizedChange(callback: (maximized: boolean) => void): () => void {
       return maximizedChangeDispatcher.subscribe(callback)
+    },
+
+    onNativeThemeUpdated(callback: (prefersDark: boolean) => void): () => void {
+      return nativeThemeUpdatedDispatcher.subscribe(callback)
     },
 
     onVisibilityChanged(callback: (state: WindowVisibilityState) => void): () => void {

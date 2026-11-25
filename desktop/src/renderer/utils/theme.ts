@@ -15,14 +15,30 @@ export function resolveTheme(raw: unknown): ThemeMode {
   return resolveThemeMode(raw)
 }
 
+let currentMode: ThemeMode = 'light'
+let nativePrefersDark: boolean | null = null
+let installedNativeApi: unknown = null
+let unsubscribeNativeTheme: (() => void) | null = null
+let osThemeListenerInstalled = false
+
+function getNativeThemeApi(): {
+  initial: boolean
+  subscribe: (callback: (prefersDark: boolean) => void) => () => void
+} | null {
+  if (typeof window === 'undefined') return null
+  const api = window.api
+  if (!api || typeof api.initialNativePrefersDark !== 'boolean') return null
+  const subscribe = api.window?.onNativeThemeUpdated
+  if (typeof subscribe !== 'function') return null
+  return { initial: api.initialNativePrefersDark, subscribe }
+}
+
 function systemPrefersDark(): boolean {
+  if (nativePrefersDark !== null) return nativePrefersDark
   return typeof window !== 'undefined' && typeof window.matchMedia === 'function'
     ? window.matchMedia('(prefers-color-scheme: dark)').matches
     : false
 }
-
-let currentMode: ThemeMode = 'light'
-let osThemeListenerInstalled = false
 
 function applyResolved(applied: ResolvedTheme, syncTitleBarOverlay: boolean): void {
   document.documentElement.setAttribute('data-theme', applied)
@@ -40,12 +56,33 @@ function applyResolved(applied: ResolvedTheme, syncTitleBarOverlay: boolean): vo
   }
 }
 
-/** Re-apply the resolved theme whenever the OS appearance changes while in `system` mode. */
+/** Prefers Electron's nativeTheme over matchMedia so CDP media emulation cannot override system mode. */
 function ensureOsThemeListener(): void {
+  const native = getNativeThemeApi()
+  if (native) {
+    if (installedNativeApi === window.api) return
+    unsubscribeNativeTheme?.()
+    installedNativeApi = window.api
+    nativePrefersDark = native.initial
+    unsubscribeNativeTheme = native.subscribe((prefersDark) => {
+      nativePrefersDark = prefersDark
+      if (currentMode === 'system') {
+        applyResolved(resolveAppliedTheme('system', prefersDark), true)
+      }
+    })
+    return
+  }
+  if (unsubscribeNativeTheme) {
+    unsubscribeNativeTheme()
+    unsubscribeNativeTheme = null
+    installedNativeApi = null
+    nativePrefersDark = null
+  }
   if (osThemeListenerInstalled) return
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
   const mql = window.matchMedia('(prefers-color-scheme: dark)')
   const handler = (): void => {
+    if (installedNativeApi !== null) return
     if (currentMode === 'system') {
       applyResolved(resolveAppliedTheme('system', mql.matches), true)
     }

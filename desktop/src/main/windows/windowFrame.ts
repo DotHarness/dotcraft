@@ -33,7 +33,8 @@ export function createWindow(
   const packagedIcon = join(process.resourcesPath, 'icon.png')
   const developmentIcon = join(__dirname, '../../resources/icon.png')
   const iconPath = process.platform === 'darwin' ? null : app.isPackaged ? packagedIcon : developmentIcon
-  const initialTheme = resolveInitialTheme(ctx.settings, nativeTheme.shouldUseDarkColors)
+  const initialNativeDark = nativeTheme.shouldUseDarkColors
+  const initialTheme = resolveInitialTheme(ctx.settings, initialNativeDark)
   const initialThemeMode = resolveThemeMode(ctx.settings.theme)
   const initialSurface = resolveThemeSurface(ctx.settings, initialTheme)
   const windowBackdrop = resolveWindowBackdropOptions(initialTheme, process.platform, initialSurface)
@@ -76,6 +77,7 @@ export function createWindow(
       additionalArguments: [
         `--dotcraft-initial-theme=${initialThemeMode}`,
         `--dotcraft-applied-theme=${initialTheme}`,
+        `--dotcraft-native-dark=${initialNativeDark ? 'true' : 'false'}`,
         `--dotcraft-appearance=${encodeURIComponent(JSON.stringify(initialAppearance))}`,
         `--dotcraft-initial-locale=${initialLocale}`,
         ...(cdpDebuggingEnabled ? [INITIAL_CDP_DEBUGGING_ARG] : []),
@@ -97,8 +99,12 @@ export function createWindow(
 
   const updateTheme = (): void => {
     if (win.isDestroyed()) return
-    const theme = resolveInitialTheme(ctx.settings, nativeTheme.shouldUseDarkColors)
+    const prefersDark = nativeTheme.shouldUseDarkColors
+    const theme = resolveInitialTheme(ctx.settings, prefersDark)
     applyWindowBackdropTheme(win, theme, process.platform, resolveThemeSurface(ctx.settings, theme))
+    if (!win.webContents.isDestroyed()) {
+      win.webContents.send('window:native-theme-updated', prefersDark)
+    }
   }
   nativeTheme.on('updated', updateTheme)
   ctx.disposers.push(() => nativeTheme.removeListener('updated', updateTheme))
