@@ -22,8 +22,9 @@ import { useComposerOverlayLiftHost } from './composerOverlayLift'
 import { ContextMenu, type ContextMenuItem } from '../ui/ContextMenu'
 import type { ShortcutSpec } from '../ui/shortcutKeys'
 import { useDocumentThemeMode } from '../../utils/theme'
-import { useComposerEffectsMode } from '../../utils/appearance'
+import { useComposerEffectsMode, useComposerTypingEffect } from '../../utils/appearance'
 import { ComposerInputEffects } from './inputEffects/ComposerInputEffects'
+import { ComposerTypingEffects } from './inputEffects/ComposerTypingEffects'
 import { useDesktopPet } from '../desktopPet/useDesktopPet'
 import type { PetSourceSurface } from '../desktopPet/desktopPetSource'
 import { usePetStore } from '../../pet/petStore'
@@ -142,6 +143,7 @@ export function ComposerShell({
   const mascotTheme = useDocumentThemeMode() === 'dark' ? 'dark' : 'light'
   const effectsMode = useComposerEffectsMode()
   const showInputEffects = inputEffectsVoiceOrigin !== undefined && effectsMode === 'colorful'
+  const typingEffect = useComposerTypingEffect()
   const petAppearance = usePetStore((state) => state.appearance)
   const petRoot = useRef<HTMLDivElement>(null)
   const [renderedMascotAvatar, setRenderedMascotAvatar] = useState(mascotName)
@@ -302,6 +304,9 @@ export function ComposerShell({
         >
           {showInputEffects && (
             <ComposerInputEffects key={inputEffectsVoiceOrigin} origin={inputEffectsVoiceOrigin} />
+          )}
+          {showInputEffects && typingEffect !== 'off' && (
+            <ComposerTypingEffects origin={inputEffectsVoiceOrigin} effect={typingEffect} />
           )}
           {showMascot && !topAccessoryVisible && (
             <ComposerMascotShadow name={renderedMascotAvatar} />

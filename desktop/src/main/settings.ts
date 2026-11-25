@@ -13,8 +13,10 @@ import {
   DEFAULT_INTERFACE_ZOOM,
   normalizeAccentHex,
   normalizeCodeFontSize,
+  normalizeComposerTyping,
   normalizeInterfaceZoom,
   type ComposerEffectsMode,
+  type ComposerTypingEffect,
   type DiffMarkerMode,
   type ReduceMotionMode
 } from '../shared/appearance'
@@ -141,6 +143,7 @@ export interface AppSettings extends SidebarThreadOrderSettings {
   diffMarkers?: DiffMarkerMode
   reduceMotion?: ReduceMotionMode
   composerEffects?: ComposerEffectsMode
+  composerTyping?: ComposerTypingEffect
   pointerCursors?: boolean
   interfaceZoom?: number
   translucentSidebar?: boolean
@@ -320,6 +323,11 @@ function normalizeReduceMotionSetting(settings: AppSettings): ReduceMotionMode |
 
 function normalizeComposerEffectsSetting(settings: AppSettings): ComposerEffectsMode | undefined {
   return settings.composerEffects === 'plain' ? 'plain' : undefined
+}
+
+function normalizeComposerTypingSetting(settings: AppSettings): ComposerTypingEffect | undefined {
+  const effect = normalizeComposerTyping(settings.composerTyping)
+  return effect === 'rhythm' ? undefined : effect
 }
 
 function normalizePointerCursorsSetting(settings: AppSettings): boolean | undefined {
@@ -645,6 +653,7 @@ export function loadSettings(): AppSettings {
       raw.diffMarkers = normalizeDiffMarkersSetting(raw)
       raw.reduceMotion = normalizeReduceMotionSetting(raw)
       raw.composerEffects = normalizeComposerEffectsSetting(raw)
+      raw.composerTyping = normalizeComposerTypingSetting(raw)
       raw.pointerCursors = normalizePointerCursorsSetting(raw)
       raw.interfaceZoom = normalizeInterfaceZoomSetting(raw)
       raw.translucentSidebar = normalizeTranslucentSidebarSetting(raw)
@@ -715,6 +724,7 @@ export function saveSettings(settings: AppSettings): void {
     settings.diffMarkers = normalizeDiffMarkersSetting(settings)
     settings.reduceMotion = normalizeReduceMotionSetting(settings)
     settings.composerEffects = normalizeComposerEffectsSetting(settings)
+    settings.composerTyping = normalizeComposerTypingSetting(settings)
     settings.pointerCursors = normalizePointerCursorsSetting(settings)
     settings.interfaceZoom = normalizeInterfaceZoomSetting(settings)
     settings.translucentSidebar = normalizeTranslucentSidebarSetting(settings)

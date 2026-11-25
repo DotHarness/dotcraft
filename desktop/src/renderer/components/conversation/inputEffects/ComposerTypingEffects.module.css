@@ -1,0 +1,8 @@
+.layer {
+  position: absolute;
+  z-index: -1;
+  inset: -40px -12px -6px;
+  width: calc(100% + 24px);
+  height: calc(100% + 46px);
+  pointer-events: none;
+}

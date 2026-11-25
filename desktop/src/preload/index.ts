@@ -19,7 +19,7 @@ import { creatorModePreload } from './creatorMode'
 import { themes } from './themes'
 import type { ClientRequestMethods } from '@dotcraft/sdk/contracts'
 import { resolveThemeMode, type ThemeMode } from '../shared/theme'
-import type { ComposerEffectsMode } from '../shared/appearance'
+import type { ComposerEffectsMode, ComposerTypingEffect } from '../shared/appearance'
 import { readInitialWorkspaceStatusFromArgv } from '../shared/initialWorkspaceStatus'
 import { INITIAL_CDP_DEBUGGING_ARG } from '../shared/initialCdpDebugging'
 import { localeToHtmlLang, normalizeLocale, type AppLocale } from '../shared/locales'
@@ -1576,6 +1576,7 @@ const api = {
       diffMarkers?: 'color' | 'sign'
       reduceMotion?: 'system' | 'on' | 'off'
       composerEffects?: ComposerEffectsMode
+      composerTyping?: ComposerTypingEffect
       pointerCursors?: boolean
       interfaceZoom?: number
       translucentSidebar?: boolean
@@ -1670,6 +1671,7 @@ const api = {
       diffMarkers?: 'color' | 'sign'
       reduceMotion?: 'system' | 'on' | 'off'
       composerEffects?: ComposerEffectsMode
+      composerTyping?: ComposerTypingEffect
       pointerCursors?: boolean
       interfaceZoom?: number
       translucentSidebar?: boolean

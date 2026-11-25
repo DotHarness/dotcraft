@@ -1337,17 +1337,27 @@ and state already say.
   numerals, right alignment, and no wrapping, independent of toolbar gaps. The
   primary action stays outside the group. Voice buttons are 32px standard and
   28px compact.
-- Appearance › Composer effects controls voice input feedback on conversation
-  and welcome Composers regardless of Agent, Plan, or Creator mode. Colorful is
-  the default. While recording, the microphone level drives a low, theme-aware
+- Appearance › Composer effects controls typing and voice input feedback on
+  conversation and welcome Composers regardless of Agent, Plan, or Creator mode.
+  Colorful is the default. While recording, the microphone level drives a low, theme-aware
   particle ribbon inside the bottom edge of the card instead of a toolbar
   waveform.
 - When the user sends or stops an active recording, the ribbon breaks into
   sparse colored trails. They sweep along the card's bottom edge, then rise to
   the center of the Send or Stop control and disappear. Cancellation fades
-  without a sweep. Text editing, transcription, and sending without an active
+  without a sweep. Transcription, deletion, and sending without an active
   recording do not trigger effects. Effects do not change layout, take focus,
   or intercept input. Reduced motion keeps the feedback still.
+- With Colorful effects, Appearance › Typing effects answers committed typing
+  with the ribbon's square dots and colors, drawn inside the card under the
+  text so a new character always reads. Each keystroke steps the color along
+  the palette. Rhythm is the default and layers by key, word, and sentence: a
+  keystroke raises a short crest in a dot wake under the line, a finished word
+  blooms in dots beneath it, and a sentence ends with a small spray of square
+  sparks above the caret. Bloom, Sparks, Resolve (dots settle under each new
+  character), and Wake each play one layer alone, and Off turns typing effects
+  off. Paste, uncommitted input-method text, and typing while recording do not
+  trigger them.
 - With Colorful effects, the Composer mascot listens while recording: it leans
   toward the input with the voice level and sound arcs pulse beside its face.
   When the trails reach Send or Stop, a short stream of the ribbon's colors

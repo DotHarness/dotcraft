@@ -23,7 +23,7 @@ const COLORS = {
   light: Array.from({ length: 101 }, (_, index) => interpolateColor(index / 100, 'light')),
 }
 
-function colorAt(x: number, theme: ThemeVariant): string {
+export function colorAt(x: number, theme: ThemeVariant): string {
   return COLORS[theme][Math.round(Math.max(0, Math.min(x, 1)) * 100)]
 }
 

@@ -12,6 +12,9 @@ export type DiffMarkerMode = 'color' | 'sign'
 
 export type ComposerEffectsMode = 'colorful' | 'plain'
 
+export const COMPOSER_TYPING_EFFECTS = ['rhythm', 'bloom', 'sparks', 'resolve', 'wake', 'off'] as const
+export type ComposerTypingEffect = (typeof COMPOSER_TYPING_EFFECTS)[number]
+
 /** Motion preference: follow the OS, force-reduce, or always animate. */
 export type ReduceMotionMode = 'system' | 'on' | 'off'
 
@@ -30,6 +33,7 @@ export interface AppearanceSettings {
   diffMarkers: DiffMarkerMode
   reduceMotion: ReduceMotionMode
   composerEffects: ComposerEffectsMode
+  composerTyping: ComposerTypingEffect
   pointerCursors: boolean
   /** Whole-interface zoom factor (1 = 100%). Applied via the renderer zoom, not a CSS var. */
   interfaceZoom: number
@@ -65,6 +69,7 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
   diffMarkers: 'color',
   reduceMotion: 'system',
   composerEffects: 'colorful',
+  composerTyping: 'rhythm',
   pointerCursors: true,
   interfaceZoom: DEFAULT_INTERFACE_ZOOM,
   translucentSidebar: true,
@@ -91,6 +96,10 @@ export function normalizeReduceMotion(raw: unknown): ReduceMotionMode {
 
 export function normalizeComposerEffects(raw: unknown): ComposerEffectsMode {
   return raw === 'plain' ? 'plain' : DEFAULT_APPEARANCE.composerEffects
+}
+
+export function normalizeComposerTyping(raw: unknown): ComposerTypingEffect {
+  return COMPOSER_TYPING_EFFECTS.find((effect) => effect === raw) ?? DEFAULT_APPEARANCE.composerTyping
 }
 
 export function normalizePointerCursors(raw: unknown): boolean {
@@ -125,6 +134,7 @@ export function resolveAppearanceSettings(raw: {
   diffMarkers?: unknown
   reduceMotion?: unknown
   composerEffects?: unknown
+  composerTyping?: unknown
   pointerCursors?: unknown
   interfaceZoom?: unknown
   translucentSidebar?: unknown
@@ -139,6 +149,7 @@ export function resolveAppearanceSettings(raw: {
     diffMarkers: normalizeDiffMarkers(source.diffMarkers),
     reduceMotion: normalizeReduceMotion(source.reduceMotion),
     composerEffects: normalizeComposerEffects(source.composerEffects),
+    composerTyping: normalizeComposerTyping(source.composerTyping),
     pointerCursors: normalizePointerCursors(source.pointerCursors),
     interfaceZoom: normalizeInterfaceZoom(source.interfaceZoom),
     translucentSidebar: normalizeTranslucentSidebar(source.translucentSidebar),

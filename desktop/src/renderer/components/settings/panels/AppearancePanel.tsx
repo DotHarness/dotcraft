@@ -8,6 +8,7 @@ import {
   applyThemeSeeds,
   applyCodeFontSize,
   applyComposerEffects,
+  applyComposerTyping,
   applyPointerCursors,
   applyReduceMotion,
   applyTranslucentSidebar,
@@ -25,7 +26,9 @@ import {
   resolveAppearanceSettings,
   uiFontPxToInterfaceZoom,
   type AppearanceSettings,
+  COMPOSER_TYPING_EFFECTS,
   type ComposerEffectsMode,
+  type ComposerTypingEffect,
   type DiffMarkerMode,
   type ReduceMotionMode
 } from '../../../../shared/appearance'
@@ -40,6 +43,7 @@ import { DesktopPluginSurface } from '../../desktopPlugins/DesktopPluginSurface'
 import { SettingsPanelShell } from '../SettingsPanelShell'
 import { SettingsGroup, SettingsRow } from '../SettingsGroup'
 import { SegmentedControl } from '../ui/SegmentedControl'
+import { SettingsSelect } from '../ui/SettingsSelect'
 import { PillSwitch } from '../../ui/PillSwitch'
 import { IconButton } from '../../ui/IconButton'
 import { AppearancePreview } from './AppearancePreview'
@@ -172,6 +176,12 @@ export function AppearancePanel(): JSX.Element {
     setAppearance((prev) => ({ ...prev, composerEffects: mode }))
     applyComposerEffects(mode)
     void persist({ composerEffects: mode })
+  }
+
+  function handleComposerTyping(effect: ComposerTypingEffect): void {
+    setAppearance((prev) => ({ ...prev, composerTyping: effect }))
+    applyComposerTyping(effect)
+    void persist({ composerTyping: effect })
   }
 
   function handleWelcomeBackdrop(on: boolean): void {
@@ -408,6 +418,23 @@ export function AppearancePanel(): JSX.Element {
                 { value: 'colorful', label: t('settings.appearance.composerEffects.colorful') },
                 { value: 'plain', label: t('settings.appearance.composerEffects.plain') }
               ]}
+            />
+          }
+        />
+        <SettingsRow
+          label={t('settings.appearance.composerTyping.label')}
+          description={t('settings.appearance.composerTyping.hint')}
+          htmlFor="settings-composer-typing"
+          control={
+            <SettingsSelect<ComposerTypingEffect>
+              id="settings-composer-typing"
+              value={appearance.composerTyping}
+              disabled={appearance.composerEffects === 'plain'}
+              onValueChange={handleComposerTyping}
+              options={COMPOSER_TYPING_EFFECTS.map((effect) => ({
+                value: effect,
+                label: t(`settings.appearance.composerTyping.${effect}`)
+              }))}
             />
           }
         />

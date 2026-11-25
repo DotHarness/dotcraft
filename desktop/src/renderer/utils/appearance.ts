@@ -4,8 +4,10 @@ import {
   CODE_FONT_SIZE_MIN,
   DEFAULT_APPEARANCE,
   normalizeComposerEffects,
+  normalizeComposerTyping,
   type AppearanceSettings,
   type ComposerEffectsMode,
+  type ComposerTypingEffect,
   type ReduceMotionMode
 } from '../../shared/appearance'
 import { THEME_CHANGED_EVENT, type ThemeChangedDetail } from '../../shared/theme'
@@ -129,6 +131,21 @@ export function useComposerEffectsMode(): ComposerEffectsMode {
   return useSyncExternalStore(subscribeComposerEffects, readComposerEffects, () => DEFAULT_APPEARANCE.composerEffects)
 }
 
+export function applyComposerTyping(effect: ComposerTypingEffect): void {
+  const root = document.documentElement
+  if (root.dataset.composerTyping === effect) return
+  root.dataset.composerTyping = effect
+  window.dispatchEvent(new Event(COMPOSER_EFFECTS_CHANGED))
+}
+
+function readComposerTyping(): ComposerTypingEffect {
+  return normalizeComposerTyping(document.documentElement.dataset.composerTyping)
+}
+
+export function useComposerTypingEffect(): ComposerTypingEffect {
+  return useSyncExternalStore(subscribeComposerEffects, readComposerTyping, () => DEFAULT_APPEARANCE.composerTyping)
+}
+
 /**
  * Reflect the pointer-cursor preference as `data-pointer-cursors` (`true`/`false`). An explicit
  * value (not removal) lets the off state authoritatively force the native arrow over the
@@ -157,6 +174,7 @@ export function applyAppearanceDom(appearance: AppearanceSettings): void {
   applyCodeFontSize(appearance.codeFontSize)
   applyReduceMotion(appearance.reduceMotion)
   applyComposerEffects(appearance.composerEffects)
+  applyComposerTyping(appearance.composerTyping)
   applyPointerCursors(appearance.pointerCursors)
   applyTranslucentSidebar(appearance.translucentSidebar)
   applyWelcomeBackdrop(appearance.welcomeBackdrop)
