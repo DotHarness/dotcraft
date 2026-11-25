@@ -37,6 +37,9 @@ public sealed class ChatClientAgentOptions
     /// <summary>Identifies the model allowed to replay private history and attributed to new assistant output.</summary>
     public ProviderMessageOrigin? MessageOrigin { get; set; }
 
+    /// <summary>When null, the Agent takes its steering mode from the supplied chat client at construction.</summary>
+    public ModelSteeringMode? SteeringMode { get; set; }
+
     /// <summary>Gets or sets the ordered context providers.</summary>
     public IEnumerable<AIContextProvider>? AIContextProviders { get; set; }
 
@@ -49,6 +52,7 @@ public sealed class ChatClientAgentOptions
             Description = Description,
             ChatOptions = ChatOptions?.Clone(),
             MessageOrigin = MessageOrigin,
+            SteeringMode = SteeringMode,
             AIContextProviders = AIContextProviders?.ToList()
         };
 }

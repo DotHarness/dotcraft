@@ -644,6 +644,7 @@ public sealed class AgentFactory : IAsyncDisposable
         var baseChatClient = ctx.ChatClient
             ?? _chatClientOverride
             ?? _chatClientRegistry.GetChatClient(runtime);
+        var steeringMode = baseChatClient.GetService<ModelSteeringPolicy>()?.Mode ?? ModelSteeringMode.Immediate;
         var chatClientBuilder = new ChatClientBuilder(baseChatClient);
         ProviderChatClientAdapters.UseProviderAdapters(
             chatClientBuilder,
@@ -745,6 +746,7 @@ public sealed class AgentFactory : IAsyncDisposable
             {
                 Name = "DotCraft",
                 MessageOrigin = new ProviderMessageOrigin(runtime.ProviderId, runtime.Protocol, runtime.Model),
+                SteeringMode = steeringMode,
                 ChatOptions = chatOptions,
                 AIContextProviders = contextProviders
             });

@@ -6,6 +6,7 @@ using DotCraft.Tests.Security.ShellCommands;
 using DotCraft.Configuration;
 using DotCraft.Context;
 using DotCraft.Context.Compaction;
+using DotCraft.Contributions;
 using DotCraft.Memory;
 using DotCraft.Mcp;
 using DotCraft.Persistence;
@@ -144,7 +145,8 @@ public abstract class SessionServiceRuntimeSignalTestBase : IDisposable
         IApprovalService? approvalService = null,
         IToolDispatcher? toolDispatcher = null,
         PlanStore? planStore = null,
-        string? workspacePath = null)
+        string? workspacePath = null,
+        IContributionView? contributions = null)
     {
         var config = AppConfigTestFactory.CreateOpenAI();
         configureConfig?.Invoke(config);
@@ -159,15 +161,32 @@ public abstract class SessionServiceRuntimeSignalTestBase : IDisposable
             } }));
         var memory = new MemoryStore(_tempDir);
         var skills = new SkillsLoader(_tempDir);
+        var registry = TestModelProviderRegistry.Create();
+        var workspace = workspacePath ?? _tempDir;
+        var approval = approvalService ?? new SessionScopedApprovalService(new AutoApproveApprovalService());
+        var runtimeContext = contributions is null ? null : new AgentRuntimeContext
+        {
+            Config = config,
+            ChatClient = chatClientFactory,
+            ChatClientRegistry = registry,
+            WorkspacePath = workspace,
+            BotPath = _tempDir,
+            MemoryStore = memory,
+            SkillsLoader = skills,
+            ContextPageManager = new ContextPageManager(),
+            ApprovalService = approval,
+            Contributions = contributions
+        };
         return new AgentFactory(
             dotcraftPath: _tempDir,
-            workspacePath: workspacePath ?? _tempDir,
+            workspacePath: workspace,
             config: config,
             memoryStore: memory,
             skillsLoader: skills,
-            approvalService: approvalService ?? new SessionScopedApprovalService(new AutoApproveApprovalService()),
+            approvalService: approval,
             blacklist: null,
-            chatClientRegistry: TestModelProviderRegistry.Create(),
+            runtimeContext: runtimeContext,
+            chatClientRegistry: registry,
             chatClient: chatClientFactory,
             toolDispatcher: toolDispatcher,
             toolSources: toolProviders ?? Array.Empty<IToolSource>(),
@@ -980,7 +999,8 @@ public abstract class SessionServiceRuntimeSignalTestBase : IDisposable
     }
 
     protected sealed class HistoryBoundaryClient(
-        Func<int, IReadOnlyList<ChatMessage>, CancellationToken, Task<AIContent>> respond) : IChatClient
+        Func<int, IReadOnlyList<ChatMessage>, CancellationToken, Task<AIContent>> respond,
+        ModelSteeringPolicy? steeringPolicy = null) : IChatClient
     {
         public int Calls { get; private set; }
         public static FunctionCallContent Tool() => new("time-call", "clock__CurrentTime",
@@ -993,7 +1013,8 @@ public abstract class SessionServiceRuntimeSignalTestBase : IDisposable
         }
         public Task<ChatResponse> GetResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+        public object? GetService(Type serviceType, object? serviceKey = null) =>
+            serviceKey is null && serviceType == typeof(ModelSteeringPolicy) ? steeringPolicy : null;
         public void Dispose() { }
     }
 

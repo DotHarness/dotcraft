@@ -1,5 +1,7 @@
 using System.Text.Json;
 using DotCraft.Agents;
+using DotCraft.Context;
+using DotCraft.Contributions;
 using DotCraft.Hooks;
 using DotCraft.Sessions;
 using Microsoft.Extensions.AI;
@@ -337,6 +339,55 @@ public sealed class SessionServiceRunningInputHistoryTests : SessionServiceRunti
     }
 
     [Fact]
+    public async Task RunningInput_BackendDefersSteerThroughMiddlewareUntilAfterTheToolRound()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var started = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var requests = new List<IReadOnlyList<ChatMessage>>();
+        using var model = new HistoryBoundaryClient(async (call, messages, ct) =>
+        {
+            requests.Add(messages);
+            if (call > 1)
+                return new TextContent("done");
+            started.SetResult(StreamingGuidanceRuntimeScope.Current?.WaitForInstantInterruptAsync is not null);
+            await release.Task.WaitAsync(ct);
+            return new FunctionCallContent("get-me", "mcp__code_host_apps__get_me", new Dictionary<string, object?>());
+        }, steeringPolicy: new(ModelSteeringMode.AtNextBoundary));
+
+        var contributions = new ContributionRegistry();
+        ChatMiddlewareCatalog.RegisterBuiltIns(contributions);
+        SystemPromptSectionCatalog.RegisterBuiltIns(contributions);
+        AgentContextSourceCatalog.RegisterBuiltIns(contributions);
+        var middleware = new RequestsOnlyMiddleware();
+        using var registration = contributions.Add<IChatMiddleware>(middleware, new ContributionOptions(Order: 400));
+        await using var factory = CreateAgentFactory(
+            model,
+            toolProviders: [new NamespacedMcpToolSource()],
+            configureConfig: config => config.InstantInterruptEnabled = true,
+            contributions: contributions);
+        var service = new SessionService(factory, null, new SessionPersistenceService(new ThreadStore(_tempDir)), new SessionGate());
+        var thread = await service.CreateThreadAsync(MakeIdentity());
+        await service.RefreshThreadAgentAsync(thread.Id);
+
+        var run = DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("start")], ct: timeout.Token));
+        var interruptArmed = await started.Task.WaitAsync(timeout.Token);
+        var turn = Assert.Single(thread.Turns);
+        await service.SteerTurnAsync(thread.Id, turn.Id, [new TextContent("ordinary steer")], ct: timeout.Token);
+        release.SetResult();
+        await run.WaitAsync(timeout.Token);
+
+        Assert.True(middleware.Calls > 0);
+        Assert.False(interruptArmed);
+        Assert.Equal(TurnStatus.Completed, turn.Status);
+        Assert.Equal(2, requests.Count);
+        Assert.Contains(requests[1], message => message.Contents.Any(content => content is FunctionResultContent));
+        Assert.Single(requests[1], message => message.Role == ChatRole.User && message.Text == "ordinary steer");
+        Assert.Single(turn.Items, item => item.AsUserMessage is { DeliveryMode: "guidance", Text: "ordinary steer" });
+        Assert.Empty(thread.QueuedInputs);
+    }
+
+    [Fact]
     public async Task RunningInput_BlockedSteerDoesNotStopALaterSteerFromPreempting()
     {
         var requests = new List<IReadOnlyList<ChatMessage>>();
@@ -426,6 +477,36 @@ public sealed class SessionServiceRunningInputHistoryTests : SessionServiceRunti
         Assert.Contains(requests[1], message => message.Text.Contains("late steer", StringComparison.Ordinal));
         Assert.Contains(thread.Turns[0].Items, item =>
             item.AsUserMessage is { DeliveryMode: "guidance", Text: "late steer" });
+    }
+
+    private sealed class RequestsOnlyMiddleware : IChatMiddleware
+    {
+        public string Name => "requests-only";
+        public int Calls { get; private set; }
+
+        public IChatClient Wrap(IChatClient inner, ChatPipelineContext context) =>
+            new RequestsOnlyChatClient(inner, () => Calls++);
+    }
+
+    private sealed class RequestsOnlyChatClient(IChatClient inner, Action onRequest) : IChatClient
+    {
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default)
+        {
+            onRequest();
+            return inner.GetResponseAsync(messages, options, cancellationToken);
+        }
+
+        public IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default)
+        {
+            onRequest();
+            return inner.GetStreamingResponseAsync(messages, options, cancellationToken);
+        }
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose() => inner.Dispose();
     }
 
     private SessionService CreatePromptHookService(AgentFactory factory, IChatClient model, string command) =>

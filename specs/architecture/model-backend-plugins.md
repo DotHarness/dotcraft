@@ -2,8 +2,9 @@
 
 | Field | Value |
 |---|---|
+| Version | 0.14.2 |
 | Status | Living |
-| Date | 2026-10-25 |
+| Date | 2026-11-25 |
 
 ## Identity and ownership
 
@@ -54,9 +55,9 @@ tool calls and consume the resulting tool messages.
 ## Generation lifetime
 
 Factories, clients, authentication, model runtime resolvers and model catalogs cross the generation boundary only through
-host-owned adapters. Async calls and streaming enumeration hold the gate throughout. Capability
-lookup is limited to model catalogs, model runtime resolution, authentication and usage; arbitrary plugin service objects and
-raw private SDK values cannot escape through `GetService` or response metadata.
+host-owned adapters. Async calls and streaming enumeration hold the gate throughout. Provider capability
+lookup is limited to model catalogs, model runtime resolution, authentication and usage. Chat client
+services and response metadata return only host-owned values.
 
 Revocation removes routes before signalling generation stopping. Login, refresh and inference receive
 the stopping cancellation token. Admitted work drains before provider-owned resources are disposed.
@@ -86,6 +87,13 @@ usable model exists. Standalone ModelService hosts reject local plugin-backend c
 hosts may explicitly compose built-in backends.
 
 ## Requests and conversation state
+
+A backend chat client may expose a host-owned `ModelSteeringPolicy` through its typed service
+lookup. `AtNextBoundary` delivers a requested immediate steer as ordinary steering. `Immediate`
+or no policy preserves the host's default interruption behavior. The host reads the policy from
+the selected backend chat client when it builds the Agent, before applying middleware. The resolved
+mode stays fixed for that Agent. The backend does not acquire queue ownership or intercept explicit
+cancellation.
 
 Backends are stateless toward the host. Each sampling request carries the complete model-visible
 conversation, including system instructions and tool declarations, through the standard chat client.

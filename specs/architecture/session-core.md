@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.13.2 |
+| **Version** | 0.14.2 |
 | **Status** | Living |
-| **Date** | 2026-11-21 |
+| **Date** | 2026-11-25 |
 
 Purpose: Define the **server-managed** session model (Thread / Turn / Item), including lifecycle, persistence, event semantics, approval semantics, and adapter boundaries.
 
@@ -830,6 +830,8 @@ Running input enters the loop at one pre-sampling drain point:
 - The request snapshot used for context estimates and reactive compaction is taken from the final request after the drain.
 
 With instant interrupt enabled (the default), pending user guidance also preempts the current model request at any point while it streams, including during reasoning or assistant text, and while the loop waits before a stream-failure reissue. Only `guidancePending` user input for the Turn triggers preemption — not SubAgent follow-up tasks, task notifications, goal steering, mailbox, world state, or queued input. Preemption cancels only the provider request, does not consume the retry budget, and reissues after the same preparation and drain as a tool round. A request preempted before any effective output (assistant text, reasoning, or a tool call) discards its partial updates and any provider-native output recorded for it. A request preempted after effective output ends like a stream failure that is reissued: its partial output stays in the transcript and neutral model history, and its complete tool calls run before the reissue. The provider adapter excludes non-replayable content from the reissued request. The same guidance also yields a `CodeMode` call waiting on its cell; see [Code Mode](../features/code-mode.md#44-yielding-and-codemodewait). With the option off, guidance never preempts.
+
+Before enabling preemption for a Turn, Session Core asks the selected model backend how to handle an immediate steer. If the backend chooses ordinary steering, guidance remains queued until an ordinary admission boundary. No provider request is cancelled, and the preference does not apply to an explicit stop. See [Model backend plugins](model-backend-plugins.md#requests-and-conversation-state).
 
 Session Core persists the model-history prefix containing an input before consuming its queue entry or confirming communication delivery. Each admitted input has one identity record linking input id, Item id, and Turn id in model-message metadata; restart reconciliation uses it to complete interrupted delivery confirmation. Provider message ids are a separate identity domain. A history write failure stops execution and leaves delivery unconfirmed.
 
