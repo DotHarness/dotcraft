@@ -1331,6 +1331,8 @@ public sealed partial class SessionService
                                 TryCompactBeforeSamplingAsync(history, null, options, compactCt)
                         });
                     using var promptCacheWarmingScope = PromptCacheWarmingScope.Begin();
+                    var interruptOnSteer = InstantInterruptEnabled
+                        && agent.ChatClient.GetService<ModelSteeringPolicy>()?.Mode is not ModelSteeringMode.AtNextBoundary;
                     using var guidanceScope = TurnGuidanceRuntimeScope.Set(new TurnGuidanceRuntimeContext
                     {
                         ThreadId = threadId,
@@ -1349,7 +1351,7 @@ public sealed partial class SessionService
                                 worldStateCt),
                             drainCt),
                         HasPendingGuidanceAsync = pendingCt => HasPendingGuidanceAsync(thread, turn.Id, pendingCt),
-                        WaitForInstantInterruptAsync = InstantInterruptEnabled ? WaitForInstantInterruptAsync : null,
+                        WaitForInstantInterruptAsync = interruptOnSteer ? WaitForInstantInterruptAsync : null,
                         OnToolHandlerFinishedAsync = async (toolName, callId, toolCt) =>
                             await AccountGoalToolCompletionAsync(turnKey, toolName, callId, toolCt)
                     });

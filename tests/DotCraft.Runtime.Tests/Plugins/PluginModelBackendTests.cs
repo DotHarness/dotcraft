@@ -28,7 +28,7 @@ public sealed class PluginModelBackendTests
         Assert.Equal("plugin", (await client.GetResponseAsync([])).Text);
         Assert.Equal("model", Assert.Single((await ModelProviderCatalog.FetchAsync(config, resolver, "demo")).Models).Id);
         await Assert.ThrowsAsync<PluginContributionException>(() => client.GetResponseAsync([], new ChatOptions { ModelId = "raw" }));
-        var runtime = clients.ResolveMainRuntime(config, "demo", "model");
+        Assert.Equal(ModelSteeringMode.AtNextBoundary, client.GetService<ModelSteeringPolicy>()?.Mode);
 
         await using var authentication = new ProviderAuthenticationCoordinator(resolver);
         var waiting = new TaskCompletionSource<ProviderLoginState>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -269,7 +269,8 @@ public sealed class PluginModelBackendTests
                 yield return new ChatResponseUpdate(ChatRole.Assistant, "ready");
                 await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
             }
-            public object? GetService(Type type, object? key = null) => null;
+            public object? GetService(Type type, object? key = null) =>
+                key is null && type == typeof(ModelSteeringPolicy) ? new ModelSteeringPolicy(ModelSteeringMode.AtNextBoundary) : null;
             public void Dispose() { }
             private static int _flakyAttempts;
             private sealed class PrivateValue { }

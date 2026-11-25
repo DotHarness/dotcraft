@@ -337,6 +337,43 @@ public sealed class SessionServiceRunningInputHistoryTests : SessionServiceRunti
     }
 
     [Fact]
+    public async Task RunningInput_BackendDefersSteerUntilAfterTheToolRound()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var started = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var requests = new List<IReadOnlyList<ChatMessage>>();
+        using var model = new HistoryBoundaryClient(async (call, messages, ct) =>
+        {
+            requests.Add(messages);
+            if (call > 1)
+                return new TextContent("done");
+            started.SetResult(StreamingGuidanceRuntimeScope.Current?.WaitForInstantInterruptAsync is not null);
+            await release.Task.WaitAsync(ct);
+            return HistoryBoundaryClient.Tool();
+        }, steeringPolicy: new(ModelSteeringMode.AtNextBoundary));
+        await using var factory = CreateAgentFactory(model, configureConfig: config => config.InstantInterruptEnabled = true);
+        var service = CreateService(factory, model, useStreamingFunctionInvoker: true);
+        var thread = await service.CreateThreadAsync(MakeIdentity());
+        await service.RefreshThreadAgentAsync(thread.Id);
+
+        var run = DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("start")], ct: timeout.Token));
+        var interruptArmed = await started.Task.WaitAsync(timeout.Token);
+        var turn = Assert.Single(thread.Turns);
+        await service.SteerTurnAsync(thread.Id, turn.Id, [new TextContent("ordinary steer")], ct: timeout.Token);
+        release.SetResult();
+        await run.WaitAsync(timeout.Token);
+
+        Assert.False(interruptArmed);
+        Assert.Equal(TurnStatus.Completed, turn.Status);
+        Assert.Equal(2, requests.Count);
+        Assert.Contains(requests[1], message => message.Contents.Any(content => content is FunctionResultContent));
+        Assert.Single(requests[1], message => message.Role == ChatRole.User && message.Text == "ordinary steer");
+        Assert.Single(turn.Items, item => item.AsUserMessage is { DeliveryMode: "guidance", Text: "ordinary steer" });
+        Assert.Empty(thread.QueuedInputs);
+    }
+
+    [Fact]
     public async Task RunningInput_BlockedSteerDoesNotStopALaterSteerFromPreempting()
     {
         var requests = new List<IReadOnlyList<ChatMessage>>();

@@ -16,6 +16,15 @@ public sealed record ModelBackendDescriptor(
     public string? Description { get; init; }
 }
 
+public enum ModelSteeringMode
+{
+    Immediate,
+    AtNextBoundary
+}
+
+/// <summary>Controls how the host applies immediate steering to the active backend chat client.</summary>
+public sealed record ModelSteeringPolicy(ModelSteeringMode Mode);
+
 public interface IModelBackend
 {
     ModelBackendDescriptor Descriptor { get; }

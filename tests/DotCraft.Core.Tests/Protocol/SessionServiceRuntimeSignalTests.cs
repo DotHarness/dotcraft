@@ -980,7 +980,8 @@ public abstract class SessionServiceRuntimeSignalTestBase : IDisposable
     }
 
     protected sealed class HistoryBoundaryClient(
-        Func<int, IReadOnlyList<ChatMessage>, CancellationToken, Task<AIContent>> respond) : IChatClient
+        Func<int, IReadOnlyList<ChatMessage>, CancellationToken, Task<AIContent>> respond,
+        ModelSteeringPolicy? steeringPolicy = null) : IChatClient
     {
         public int Calls { get; private set; }
         public static FunctionCallContent Tool() => new("time-call", "clock__CurrentTime",
@@ -993,7 +994,8 @@ public abstract class SessionServiceRuntimeSignalTestBase : IDisposable
         }
         public Task<ChatResponse> GetResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+        public object? GetService(Type serviceType, object? serviceKey = null) =>
+            serviceKey is null && serviceType == typeof(ModelSteeringPolicy) ? steeringPolicy : null;
         public void Dispose() { }
     }
 
