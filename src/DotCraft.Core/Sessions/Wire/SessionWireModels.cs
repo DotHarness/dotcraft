@@ -252,22 +252,6 @@ public sealed record SessionWireThread
     public ThreadGoalSnapshot? Goal { get; init; }
 
     /// <summary>
-    /// Lightweight app binding summaries for this thread. Full descriptor and audit details are exposed by app/* methods.
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public List<ThreadAppBindingSummarySnapshot>? AppBindings { get; init; }
-
-    /// <summary>
-    /// Server-resolved origin-app branding when <see cref="OriginChannel"/> matches an installed app's
-    /// declared origin channel. Mirrors <c>ThreadSummary.OriginApp</c> so threads delivered via
-    /// <c>thread/started</c>, <c>thread/updated</c>, <c>thread/fork</c>, and <c>thread/read</c> carry the
-    /// same origin badge as <c>thread/list</c> (without it, event-delivered threads fall back to the
-    /// generic channel icon).
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ThreadOriginAppSnapshot? OriginApp { get; init; }
-
-    /// <summary>
     /// Source-neutral origin presentation resolved by an in-process provider.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

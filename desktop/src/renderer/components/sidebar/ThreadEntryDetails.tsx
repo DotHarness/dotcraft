@@ -5,6 +5,7 @@ import type { AutomationDefinition } from '../../types/automation'
 import type { ThreadSummary } from '../../types/thread'
 import { normalizeGitPathKey } from '../../stores/gitStore'
 import { useGitHeadStore } from '../../stores/gitHeadStore'
+import { useOriginApp } from '../../stores/originAppStore'
 import { useBranchPullRequest, useForgeRefStore, useOriginBranchPullRequest } from '../../stores/forgeRefStore'
 import type { ForgePullSummary } from '../../../shared/forgeReferences'
 import { importedThreadSourceLabel } from '../../utils/sessionImport'
@@ -14,7 +15,7 @@ import { ThreadPullRequestRow } from './ThreadPullRequest'
 import { ThreadScheduledTaskRows } from './ThreadScheduledTask'
 
 /** Threads started from Desktop itself carry no badge. */
-export function threadOriginBadge({
+export function useThreadOriginBadge({
   thread,
   isSubAgent,
   t
@@ -24,13 +25,12 @@ export function threadOriginBadge({
   t: (key: string, vars?: Record<string, string>) => string
 }): ReactNode {
   const presentation = thread.originPresentation
-  const visible =
+  const external =
     !isSubAgent &&
-    (Boolean(presentation || thread.originApp) || (
-      thread.originChannel.length > 0 &&
-      thread.originChannel.toLowerCase() !== 'dotcraft-desktop'
-    ))
-  if (!visible) return null
+    thread.originChannel.length > 0 &&
+    thread.originChannel.toLowerCase() !== 'dotcraft-desktop'
+  const originApp = useOriginApp(external && !presentation ? thread.originChannel : null)
+  if (isSubAgent || !(presentation || external)) return null
 
   if (presentation) {
     return (
@@ -45,17 +45,13 @@ export function threadOriginBadge({
       />
     )
   }
-  if (thread.originApp) {
+  if (originApp) {
     return (
       <ChannelIconBadge
         channelName={thread.originChannel}
-        iconSrc={thread.originApp.icon ?? undefined}
-        label={thread.originApp.displayName}
-        tooltip={
-          thread.originApp.memberId
-            ? t('threadEntry.originMember', { name: thread.originApp.displayName })
-            : t('threadEntry.originApp', { app: thread.originApp.displayName })
-        }
+        iconSrc={originApp.icon ?? undefined}
+        label={originApp.displayName}
+        tooltip={t('threadEntry.originApp', { app: originApp.displayName })}
         size={14}
 
         muted

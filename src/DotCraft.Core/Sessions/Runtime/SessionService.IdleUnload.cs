@@ -35,6 +35,7 @@ public sealed partial class SessionService
             if (!removed)
                 continue;
             persistence.ReleaseResidentHistory(runtime.Thread.Id);
+            agentFactory.RemoteToolHostClient?.ForgetThread(runtime.Thread.Id);
             await runtime.DisposeAsync().ConfigureAwait(false);
             unloaded++;
         }

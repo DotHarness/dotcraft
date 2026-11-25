@@ -297,6 +297,29 @@ public sealed class SkillsLoaderTests : IDisposable
         Assert.Equal(["allowed"], names);
     }
 
+    [Fact]
+    public void SettledSkillFiles_RewrittenWithSameSizeReturnNewMetadataAndIcon()
+    {
+        var loader = new SkillsLoader(_tempRoot);
+        var skillDir = Path.Combine(loader.WorkspaceSkillsPath, "settled");
+        Directory.CreateDirectory(Path.Combine(skillDir, "assets"));
+        Directory.CreateDirectory(Path.Combine(skillDir, "agents"));
+        File.WriteAllText(Path.Combine(skillDir, "SKILL.md"), "---\nname: settled\ndescription: first\n---\nBody");
+        File.WriteAllText(Path.Combine(skillDir, "assets", "icon.svg"), "<svg id=\"a\"/>");
+        WriteInterface(skillDir, "./assets/icon.svg");
+        var settledUtc = DateTime.UtcNow.AddHours(-1);
+        foreach (var file in Directory.EnumerateFiles(skillDir, "*", SearchOption.AllDirectories))
+            File.SetLastWriteTimeUtc(file, settledUtc);
+        Assert.Equal("first", loader.GetSkillMetadata("settled")!["description"]);
+        var firstIcon = loader.GetSkillInterface("settled")!.IconSmallDataUrl;
+
+        File.WriteAllText(Path.Combine(skillDir, "SKILL.md"), "---\nname: settled\ndescription: later\n---\nBody");
+        File.WriteAllText(Path.Combine(skillDir, "assets", "icon.svg"), "<svg id=\"b\"/>");
+
+        Assert.Equal("later", loader.GetSkillMetadata("settled")!["description"]);
+        Assert.NotEqual(firstIcon, loader.GetSkillInterface("settled")!.IconSmallDataUrl);
+    }
+
     public void Dispose()
     {
         try

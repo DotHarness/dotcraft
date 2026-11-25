@@ -1,5 +1,4 @@
 import type { QueuedTurnInput } from './conversation'
-import type { ChannelTarget } from '../stores/appBindingStore'
 
 export type ThreadStatus = 'active' | 'archived'
 
@@ -63,31 +62,6 @@ export interface ThreadSourceWire {
   subAgent?: SubAgentThreadSourceWire | null
 }
 
-export interface ThreadAppBindingSummaryWire {
-  threadId: string
-  bindingId: string
-  appId: string
-  bindingKind?: string | null
-  displayName?: string | null
-  icon?: string | null
-  state: string
-  channelTarget?: ChannelTarget | null
-  managed?: boolean
-  requiresExternalConnection?: boolean
-  authorityRevision?: number
-  approvedCapabilityRevision?: number
-  candidateCapabilityRevision?: number | null
-  failureReason?: string | null
-}
-
-export interface ThreadOriginApp {
-  appId: string
-  displayName: string
-  icon?: string | null
-  /** Set when displayName/icon carry a matched origin member (per-member origin) rather than the app. */
-  memberId?: string | null
-}
-
 export interface ThreadOriginPresentation {
   sourceId: string
   displayName: string
@@ -141,8 +115,6 @@ export interface ThreadSummary {
   runtime?: ThreadRuntimeSnapshot
   goal?: ThreadGoal | null
   readState?: ThreadReadState
-  appBindings?: ThreadAppBindingSummaryWire[]
-  originApp?: ThreadOriginApp | null
   originPresentation?: ThreadOriginPresentation | null
 }
 

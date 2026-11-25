@@ -26,7 +26,7 @@ import { isThreadUnread, updateThreadReadState } from '../../utils/threadReadSta
 import { useWorkspaceProjectsStore } from '../../stores/workspaceProjectsStore'
 import { sameWorkspaceProjectKey } from '../../../shared/workspaceProjectKey'
 import { SidebarEntryDetailsCard } from './SidebarEntryDetailsCard'
-import { threadOriginBadge, useThreadEntryDetails, workspacePathName } from './ThreadEntryDetails'
+import { useThreadEntryDetails, useThreadOriginBadge, workspacePathName } from './ThreadEntryDetails'
 import { ThreadPullRequestGlyph } from './ThreadPullRequest'
 import { hasThreadScheduledTask, ThreadScheduledTaskGlyph, useForegroundThreadScheduledTasks } from './ThreadScheduledTask'
 import { ThreadRowTitle } from './ThreadRowTitle'
@@ -112,12 +112,13 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
     ? null
     : thread.effectiveWorkspacePath?.trim() || thread.workspacePath?.trim() || null
   const scheduledTasks = useForegroundThreadScheduledTasks(thread, isSubAgent)
+  const origin = useThreadOriginBadge({ thread, isSubAgent, t })
   const threadDetails = useThreadEntryDetails({
     thread: { ...thread, displayName },
     project,
     projectName,
     relativeTime,
-    origin: threadOriginBadge({ thread, isSubAgent, t }),
+    origin,
     scheduledTasks: scheduledTasks.automations,
     scheduledTasksInteractive: true,
     onScreen

@@ -8,7 +8,6 @@ using SessionItem = DotCraft.Sessions.SessionItem;
 using SessionTurn = DotCraft.Sessions.SessionTurn;
 using McpToolCallPayload = DotCraft.Sessions.McpToolCallPayload;
 using ThreadConfiguration = DotCraft.Sessions.ThreadConfiguration;
-using ThreadOriginAppSnapshot = DotCraft.Sessions.ThreadOriginAppSnapshot;
 using UserInputRequestPayload = DotCraft.Sessions.UserInputRequestPayload;
 using Xunit;
 
@@ -195,12 +194,12 @@ public sealed class AppServerEventDispatcherDisconnectTests
                 enricherInput = wire;
                 return wire with
                 {
-                    OriginApp = new ThreadOriginAppSnapshot
+                    OriginPresentation = new ThreadOriginPresentationSnapshot
                     {
-                        AppId = "com.example.workflow",
+                        SourceId = "com.example.workflow",
                         DisplayName = "Worker",
                         Icon = "data:image/svg+xml;base64,SENTINEL_WORKER",
-                        MemberId = "worker"
+                        SubjectId = "worker"
                     }
                 };
             });

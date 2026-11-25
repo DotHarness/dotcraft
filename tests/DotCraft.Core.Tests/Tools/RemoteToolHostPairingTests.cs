@@ -1,4 +1,5 @@
 using System.Net;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using DotCraft.RemoteTools;
@@ -149,6 +150,31 @@ public sealed class RemoteToolHostPairingTests
             await client.ListAsync("thread"));
 
         Assert.Equal(RemoteToolErrorCodes.HubUnavailable, error.Code);
+    }
+
+    [Fact]
+    public async Task Client_ForgetThread_ReleasesTheSnapshotOfAnUnroutedThread()
+    {
+        using var home = new TemporaryDirectory();
+        using var scope = new HubEnvironmentScope(null, null);
+        using var directory = new HubRemoteToolHostDirectory(new HubEndpointProvider(home.Path));
+        await using var client = new RemoteToolHostClient(directory);
+        var snapshot = PublishSnapshot(client, "thread");
+
+        client.ForgetThread("thread");
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+
+        Assert.False(snapshot.IsAlive);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static WeakReference PublishSnapshot(RemoteToolHostClient client, string threadId)
+    {
+        var snapshot = new EffectiveToolSnapshotBuilder().Build([], 1);
+        client.UpdateRemoteToolSnapshot(threadId, snapshot, "agent");
+        return new WeakReference(snapshot);
     }
 
     [Fact]

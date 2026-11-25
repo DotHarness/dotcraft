@@ -4,19 +4,6 @@
   "title": "SessionThread",
   "type": "object",
   "properties": {
-    "appBindings": {
-      "anyOf": [
-        {
-          "type": "array",
-          "items": {
-            "$ref": "./ThreadAppBindingSummary.schema.json"
-          }
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
     "channelContext": {
       "anyOf": [
         {
@@ -115,16 +102,6 @@
       "additionalProperties": {
         "type": "string"
       }
-    },
-    "originApp": {
-      "anyOf": [
-        {
-          "$ref": "./ThreadOriginApp.schema.json"
-        },
-        {
-          "type": "null"
-        }
-      ]
     },
     "originChannel": {
       "type": "string"

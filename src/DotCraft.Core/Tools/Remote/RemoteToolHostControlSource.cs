@@ -29,10 +29,11 @@ internal sealed class RemoteToolHostControlSource(IRemoteToolHostClient client, 
         ];
     }
 
-    public async ValueTask ReleaseThreadAsync(string threadId, CancellationToken cancellationToken = default) =>
-        _ = await client
-            .DisconnectAsync(threadId, cancellationToken, RemoteToolRouteInitiator.System)
-            .ConfigureAwait(false);
+    public async ValueTask ReleaseThreadAsync(string threadId, CancellationToken cancellationToken = default)
+    {
+        await client.DisconnectAsync(threadId, cancellationToken, RemoteToolRouteInitiator.System).ConfigureAwait(false);
+        client.ForgetThread(threadId);
+    }
 
     public bool TryForkThreadBinding(string parentThreadId, string childThreadId) =>
         client.TryForkRoute(parentThreadId, childThreadId);

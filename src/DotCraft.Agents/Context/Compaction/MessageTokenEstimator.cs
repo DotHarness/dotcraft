@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -107,17 +108,44 @@ public static class MessageTokenEstimator
         if (messageCount < 0 || messageCount > messages.Count)
             throw new ArgumentOutOfRangeException(nameof(messageCount));
 
-        using var sha = SHA256.Create();
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        using var sink = new HashingBufferWriter(hash);
+        using var writer = new Utf8JsonWriter(sink);
         for (var i = 0; i < messageCount; i++)
         {
-            var canonical = CanonicalizeMessage(messages[i]);
-            var bytes = JsonSerializer.SerializeToUtf8Bytes(canonical);
-            sha.TransformBlock(bytes, 0, bytes.Length, null, 0);
-            sha.TransformBlock([0], 0, 1, null, 0);
+            JsonSerializer.Serialize(writer, CanonicalizeMessage(messages[i]));
+            writer.Flush();
+            writer.Reset();
+            hash.AppendData(MessageSeparator);
         }
 
-        sha.TransformFinalBlock([], 0, 0);
-        return Convert.ToHexString(sha.Hash!).ToLowerInvariant();
+        return Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
+    }
+
+    private static readonly byte[] MessageSeparator = [0];
+
+    private sealed class HashingBufferWriter(IncrementalHash hash) : IBufferWriter<byte>, IDisposable
+    {
+        private byte[] _buffer = ArrayPool<byte>.Shared.Rent(16 * 1024);
+
+        public void Advance(int count) => hash.AppendData(_buffer, 0, count);
+
+        public Memory<byte> GetMemory(int sizeHint = 0) => EnsureCapacity(sizeHint);
+
+        public Span<byte> GetSpan(int sizeHint = 0) => EnsureCapacity(sizeHint);
+
+        public void Dispose() => ArrayPool<byte>.Shared.Return(_buffer);
+
+        private byte[] EnsureCapacity(int sizeHint)
+        {
+            if (sizeHint > _buffer.Length)
+            {
+                ArrayPool<byte>.Shared.Return(_buffer);
+                _buffer = ArrayPool<byte>.Shared.Rent(sizeHint);
+            }
+
+            return _buffer;
+        }
     }
 
     /// <summary>

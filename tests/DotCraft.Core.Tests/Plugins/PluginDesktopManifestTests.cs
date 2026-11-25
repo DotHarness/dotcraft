@@ -170,6 +170,24 @@ public sealed class PluginDesktopManifestTests : IDisposable
     }
 
     [Fact]
+    public void Revision_TracksSettledOutputRewrittenWithSameSize()
+    {
+        var pluginRoot = PluginRoot("settled");
+        WriteOutput(pluginRoot, "index.mjs", "export function activate() { return {}; }");
+        WriteOutput(pluginRoot, "assets/icon.txt", "icon-one");
+        WriteManifest(pluginRoot, "./desktop/dist/index.mjs");
+        var settledUtc = DateTime.UtcNow.AddHours(-1);
+        foreach (var file in Directory.EnumerateFiles(Path.Combine(pluginRoot, "desktop", "dist"), "*", SearchOption.AllDirectories))
+            File.SetLastWriteTimeUtc(file, settledUtc);
+        var initial = Revision(pluginRoot);
+        Assert.Equal(initial, Revision(pluginRoot));
+
+        WriteOutput(pluginRoot, "assets/icon.txt", "icon-two");
+
+        Assert.NotEqual(initial, Revision(pluginRoot));
+    }
+
+    [Fact]
     public void Revision_UsesOrdinalTreeOrderInsteadOfCreationOrder()
     {
         var first = PluginRoot("first-order");

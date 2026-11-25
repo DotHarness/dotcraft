@@ -286,20 +286,20 @@ internal sealed class AnthropicPromptCachingChatClient : DelegatingChatClient
 
     private static string? ComputeSystemHash(IReadOnlyList<ChatMessage> messages)
     {
-        var canonical = new StringBuilder();
+        using var hasher = new AnthropicPromptCacheCanonicalHasher();
+        var hasSystemMessage = false;
         foreach (var message in messages)
         {
             if (message.Role != ChatRole.System)
                 continue;
 
-            AppendMessageBoundary(canonical, message);
+            hasSystemMessage = true;
+            hasher.AppendMessageBoundary(message);
             foreach (var content in message.Contents)
-                AppendContent(canonical, content);
+                hasher.AppendContent(content);
         }
 
-        return canonical.Length == 0
-            ? null
-            : ComputeHash(canonical);
+        return hasSystemMessage ? hasher.CurrentHash() : null;
     }
 
     private static string? ComputeToolSchemaHash(ChatOptions? options)
@@ -320,7 +320,7 @@ internal sealed class AnthropicPromptCachingChatClient : DelegatingChatClient
             Effort = ProviderReasoningOptions.Resolve(options)?.ToToken(),
             Output = reasoning.Output.ToString()
         });
-        return ComputeHash(new StringBuilder(canonical));
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical)));
     }
 
     private void ApplyCacheControl(
@@ -364,19 +364,19 @@ internal sealed class AnthropicPromptCachingChatClient : DelegatingChatClient
         IReadOnlyList<ChatMessage> messages)
     {
         var candidates = new List<CachePointCandidate>();
-        var canonical = new StringBuilder();
+        using var hasher = new AnthropicPromptCacheCanonicalHasher();
         var sequence = 0;
 
         for (var messageIndex = 0; messageIndex < messages.Count; messageIndex++)
         {
             var message = messages[messageIndex];
             var cacheableRole = IsCacheableRole(message);
-            AppendMessageBoundary(canonical, message);
+            hasher.AppendMessageBoundary(message);
 
             for (var contentIndex = 0; contentIndex < message.Contents.Count; contentIndex++)
             {
                 var content = message.Contents[contentIndex];
-                AppendContent(canonical, content);
+                hasher.AppendContent(content);
 
                 if (cacheableRole && TryGetCachePointContentKind(content, out var contentKind))
                 {
@@ -385,7 +385,7 @@ internal sealed class AnthropicPromptCachingChatClient : DelegatingChatClient
                         contentIndex,
                         message.Role,
                         sequence++,
-                        ComputeHash(canonical),
+                        hasher.CurrentHash(),
                         contentKind));
                 }
             }
@@ -423,89 +423,6 @@ internal sealed class AnthropicPromptCachingChatClient : DelegatingChatClient
 
         contentKind = string.Empty;
         return false;
-    }
-
-    private static void AppendMessageBoundary(StringBuilder builder, ChatMessage message)
-    {
-        builder.Append("\nmessage:");
-        builder.Append(message.Role.Value);
-        builder.Append(':');
-        builder.Append(message.AuthorName ?? string.Empty);
-    }
-
-    private static void AppendContent(StringBuilder builder, AIContent content)
-    {
-        builder.Append("\ncontent:");
-        builder.Append(content.GetType().FullName);
-        builder.Append(':');
-
-        switch (content)
-        {
-            case TextContent text:
-                AppendString(builder, text.Text);
-                break;
-            case FunctionCallContent call:
-                AppendString(builder, call.CallId);
-                AppendString(builder, call.Name);
-                AppendCanonicalObject(builder, call.Arguments);
-                break;
-            case FunctionResultContent result:
-                AppendString(builder, result.CallId);
-                if (TryGetToolResultWireText(result, out var toolResultText))
-                    AppendString(builder, toolResultText);
-                else
-                    AppendCanonicalObject(builder, result.Result);
-                if (result.Exception != null)
-                    AppendString(builder, result.Exception.GetType().FullName + ":" + result.Exception.Message);
-                break;
-            case DataContent data:
-                AppendString(builder, data.MediaType);
-                builder.Append(data.Data.Length);
-                break;
-            default:
-                AppendString(builder, content.ToString());
-                break;
-        }
-    }
-
-    private static void AppendString(StringBuilder builder, string? value)
-    {
-        value ??= string.Empty;
-        builder.Append(value.Length);
-        builder.Append(':');
-        builder.Append(value);
-        builder.Append(';');
-    }
-
-    private static void AppendCanonicalObject(StringBuilder builder, object? value)
-    {
-        if (value == null)
-        {
-            builder.Append("null;");
-            return;
-        }
-
-        if (value is string text)
-        {
-            AppendString(builder, text);
-            return;
-        }
-
-        try
-        {
-            builder.Append(JsonSerializer.Serialize(value));
-            builder.Append(';');
-        }
-        catch (NotSupportedException)
-        {
-            AppendString(builder, value.ToString());
-        }
-    }
-
-    private static string ComputeHash(StringBuilder canonical)
-    {
-        var bytes = Encoding.UTF8.GetBytes(canonical.ToString());
-        return Convert.ToHexString(SHA256.HashData(bytes));
     }
 
     private bool TryCreateCachedTextMessage(
@@ -602,7 +519,7 @@ internal sealed class AnthropicPromptCachingChatClient : DelegatingChatClient
         return true;
     }
 
-    private static bool TryGetToolResultWireText(FunctionResultContent result, out string text)
+    internal static bool TryGetToolResultWireText(FunctionResultContent result, out string text)
     {
         if (result.Result is string value)
         {

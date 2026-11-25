@@ -2,7 +2,6 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
-using DotCraft.AppBinding;
 using Contract = DotCraft.Protocol.AppServer;
 using DotCraft.AppServer;
 using DotCraft.Sessions;
@@ -11,12 +10,9 @@ using QueuedTurnInput = DotCraft.Sessions.QueuedTurnInput;
 using AgentMessagePayload = DotCraft.Sessions.AgentMessagePayload;
 using ContextUsageSnapshot = DotCraft.Sessions.Wire.ContextUsageSnapshot;
 using SenderContext = DotCraft.Sessions.SenderContext;
-using ChannelBoundBy = DotCraft.AppBinding.ChannelBoundBy;
-using ChannelTarget = DotCraft.AppBinding.ChannelTarget;
 using SubAgentThreadSource = DotCraft.Sessions.SubAgentThreadSource;
 using ThreadConfiguration = DotCraft.Sessions.ThreadConfiguration;
 using ThreadGoalSnapshot = DotCraft.Sessions.ThreadGoalSnapshot;
-using ThreadOriginAppSnapshot = DotCraft.Sessions.ThreadOriginAppSnapshot;
 using ThreadOriginPresentationSnapshot = DotCraft.Sessions.ThreadOriginPresentationSnapshot;
 using ThreadSource = DotCraft.Sessions.ThreadSource;
 using ThreadWorktreeDirtyHandoffInfo = DotCraft.Sessions.ThreadWorktreeDirtyHandoffInfo;
@@ -221,48 +217,6 @@ public sealed class SessionContractParityTests
                 TimeUsedSeconds = 3,
                 CreatedAt = 1,
                 UpdatedAt = 2
-            },
-            AppBindings =
-            [
-                new ThreadAppBindingSummarySnapshot
-                {
-                    BindingRequestId = "request_001",
-                    ThreadId = "thread_001",
-                    BindingId = "binding_001",
-                    AppId = "app_001",
-                    DisplayName = "Fixture App",
-                    Icon = "fixture-icon",
-                    State = "active",
-                    Managed = true,
-                    RequiresExternalConnection = true,
-                    ChannelTarget = new ChannelTarget
-                    {
-                        ChannelName = "telegram",
-                        AccountId = "account_001",
-                        ConversationKind = "group",
-                        ConversationId = "group_001",
-                        DeliveryTarget = "chat_001",
-                        DisplayName = "Fixture chat",
-                        BoundBy = new ChannelBoundBy
-                        {
-                            PlatformUserId = "user_001",
-                            DisplayName = "Ada"
-                        }
-                    },
-                    AuthorityRevision = 2,
-                    ApprovedCapabilityRevision = 3,
-                    CandidateCapabilityRevision = 4,
-                    ApprovedTools = [],
-                    PendingChanges = [],
-                    FailureReason = "fixture"
-                }
-            ],
-            OriginApp = new ThreadOriginAppSnapshot
-            {
-                AppId = "app_001",
-                DisplayName = "Fixture App",
-                Icon = "fixture-icon",
-                MemberId = "member_001"
             },
             OriginPresentation = new ThreadOriginPresentationSnapshot
             {

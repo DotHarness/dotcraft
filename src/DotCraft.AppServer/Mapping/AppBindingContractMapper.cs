@@ -14,6 +14,7 @@ internal static class AppBindingContractMapper
         Description = value.Description,
         Category = OmitIfNull(value.Category),
         Icon = OmitIfNull(value.Icon),
+        OriginChannel = OmitIfNull(value.OriginChannel),
         PluginId = value.PluginId,
         Installed = value.Installed,
         Enabled = value.Enabled,

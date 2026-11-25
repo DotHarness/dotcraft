@@ -2218,6 +2218,16 @@
         "nativeApp": {
           "$ref": "#/$defs/AppNativeApplication"
         },
+        "originChannel": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "pluginId": {
           "type": "string"
         },
@@ -14290,19 +14300,6 @@
       "title": "SessionThread",
       "type": "object",
       "properties": {
-        "appBindings": {
-          "anyOf": [
-            {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/ThreadAppBindingSummary"
-              }
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
         "channelContext": {
           "anyOf": [
             {
@@ -14401,16 +14398,6 @@
           "additionalProperties": {
             "type": "string"
           }
-        },
-        "originApp": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ThreadOriginApp"
-            },
-            {
-              "type": "null"
-            }
-          ]
         },
         "originChannel": {
           "type": "string"
@@ -18386,43 +18373,6 @@
         "thread"
       ]
     },
-    "ThreadOriginApp": {
-      "title": "ThreadOriginApp",
-      "type": "object",
-      "properties": {
-        "appId": {
-          "type": "string"
-        },
-        "displayName": {
-          "type": "string"
-        },
-        "icon": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "memberId": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "additionalProperties": true,
-      "required": [
-        "appId",
-        "displayName"
-      ]
-    },
     "ThreadOriginPresentation": {
       "title": "ThreadOriginPresentation",
       "type": "object",
@@ -19677,19 +19627,6 @@
       "title": "ThreadSummary",
       "type": "object",
       "properties": {
-        "appBindings": {
-          "anyOf": [
-            {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/ThreadAppBindingSummary"
-              }
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
         "channelContext": {
           "anyOf": [
             {
@@ -19775,16 +19712,6 @@
               "additionalProperties": {
                 "type": "string"
               }
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "originApp": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ThreadOriginApp"
             },
             {
               "type": "null"

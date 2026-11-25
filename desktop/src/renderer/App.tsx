@@ -44,6 +44,7 @@ import { useSkillsStore } from './stores/skillsStore'
 import { usePluginStore } from './stores/pluginStore'
 import { useHooksStore } from './stores/hooksStore'
 import { useAppBindingStore } from './stores/appBindingStore'
+import { useOriginAppStore } from './stores/originAppStore'
 import { useThreadRouteStore } from './stores/threadRouteStore'
 import { useGitStore } from './stores/gitStore'
 import { useWorkspaceReadinessTiming } from './hooks/useWorkspaceReadinessTiming'
@@ -498,6 +499,7 @@ export function App(): JSX.Element {
     workspaceStatusHydratedRef.current = true
     if (previousPath !== path) {
       useGitStore.getState().reset()
+      useOriginAppStore.getState().reset()
     }
     workspacePathRef.current = path
     protocolWorkspacePathRef.current = protocolPath
@@ -906,6 +908,9 @@ export function App(): JSX.Element {
           }
 
           case 'app/list/updated':
+            if (useOriginAppStore.getState().loaded) void useOriginAppStore.getState().refresh()
+            useAppBindingStore.getState().handleNotification(method, p)
+            break
           case 'app/connection/changed':
           case 'thread/appBindings/changed': {
             useAppBindingStore.getState().handleNotification(method, p)

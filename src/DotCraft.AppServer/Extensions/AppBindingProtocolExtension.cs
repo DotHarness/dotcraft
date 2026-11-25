@@ -568,6 +568,7 @@ public sealed class AppBindingProtocolExtension : IAppServerContractExtension
         Description = entry.Descriptor.Description,
         Category = entry.Descriptor.Category,
         Icon = entry.Descriptor.Icon,
+        OriginChannel = entry.Descriptor.OriginChannel,
         PluginId = entry.Plugin.Manifest.Id,
         Installed = entry.Plugin.Installed,
         Enabled = entry.Plugin.Enabled,
