@@ -132,12 +132,9 @@ public sealed class AppServerRequestHandler(
             sessionService,
             connection,
             services.AppConfigMonitor,
-            WorkspaceConfig,
-            services.SkillsLoader,
             services.PlanStore,
             services.AppBindingService,
             services.ThreadOriginPresentationProviders,
-            services.BuiltInPluginSourceRoots,
             services.WorkspaceCraftPath);
 
     private AppServerMethodTable? _domainMethods;

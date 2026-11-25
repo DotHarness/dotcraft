@@ -838,6 +838,10 @@ public sealed class AppInfo : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<AppNativeApplication> NativeApp { get; init; }
 
+    [JsonPropertyName("originChannel")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> OriginChannel { get; init; }
+
     [JsonPropertyName("pluginId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> PluginId { get; init; }

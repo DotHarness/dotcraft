@@ -170,6 +170,24 @@ public sealed class PluginDesktopManifestTests : IDisposable
     }
 
     [Fact]
+    public void Revision_TracksSettledOutputRewrittenWithSameSize()
+    {
+        var pluginRoot = PluginRoot("settled");
+        WriteOutput(pluginRoot, "index.mjs", "export function activate() { return {}; }");
+        WriteOutput(pluginRoot, "assets/icon.txt", "icon-one");
+        WriteManifest(pluginRoot, "./desktop/dist/index.mjs");
+        var settledUtc = DateTime.UtcNow.AddHours(-1);
+        foreach (var file in Directory.EnumerateFiles(Path.Combine(pluginRoot, "desktop", "dist"), "*", SearchOption.AllDirectories))
+            File.SetLastWriteTimeUtc(file, settledUtc);
+        var initial = Revision(pluginRoot);
+        Assert.Equal(initial, Revision(pluginRoot));
+
+        WriteOutput(pluginRoot, "assets/icon.txt", "icon-two");
+
+        Assert.NotEqual(initial, Revision(pluginRoot));
+    }
+
+    [Fact]
     public void Revision_UsesOrdinalTreeOrderInsteadOfCreationOrder()
     {
         var first = PluginRoot("first-order");
@@ -206,6 +224,26 @@ public sealed class PluginDesktopManifestTests : IDisposable
         WriteManifest(pluginRoot, fixture.GetProperty("entry").GetString()!, stylesJson);
 
         Assert.Equal(fixture.GetProperty("expectedRevision").GetString(), Revision(pluginRoot));
+    }
+
+    [Fact]
+    public void Revision_ChangesWhenAnInstallSwapsInSameSizeOutputWithTheSameWriteTime()
+    {
+        var pluginRoot = PluginRoot(Guid.NewGuid().ToString("N"));
+        var staged = PluginRoot(Guid.NewGuid().ToString("N"));
+        var settledUtc = DateTime.UtcNow.AddHours(-1);
+        foreach (var (root, value) in new[] { (pluginRoot, 1), (staged, 2) })
+        {
+            WriteOutput(root, "index.mjs", $"export function activate() {{ return {{ v: {value} }}; }}");
+            WriteManifest(root, "./desktop/dist/index.mjs");
+            File.SetLastWriteTimeUtc(Path.Combine(root, "desktop", "dist", "index.mjs"), settledUtc);
+        }
+        var installed = Revision(pluginRoot);
+
+        Directory.Move(pluginRoot, pluginRoot + ".old");
+        Directory.Move(staged, pluginRoot);
+
+        Assert.NotEqual(installed, Revision(pluginRoot));
     }
 
     public void Dispose()

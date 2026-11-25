@@ -242,10 +242,9 @@ internal sealed partial class ThreadRequestHandler(
             : null;
 
         var data = new List<Contract.ThreadSummary>();
-        var catalogByWorkspace = new Dictionary<string, AppCatalogSnapshot?>(StringComparer.Ordinal);
         foreach (var summary in page)
         {
-            await threadProjector.EnrichSummaryAsync(summary, catalogByWorkspace, ct);
+            await threadProjector.EnrichSummaryAsync(summary, ct);
             data.Add(ThreadContractMapper.ToContract(summary));
         }
 

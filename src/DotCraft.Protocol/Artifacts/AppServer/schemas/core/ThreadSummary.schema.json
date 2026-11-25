@@ -4,19 +4,6 @@
   "title": "ThreadSummary",
   "type": "object",
   "properties": {
-    "appBindings": {
-      "anyOf": [
-        {
-          "type": "array",
-          "items": {
-            "$ref": "./ThreadAppBindingSummary.schema.json"
-          }
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
     "channelContext": {
       "anyOf": [
         {
@@ -102,16 +89,6 @@
           "additionalProperties": {
             "type": "string"
           }
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
-    "originApp": {
-      "anyOf": [
-        {
-          "$ref": "./ThreadOriginApp.schema.json"
         },
         {
           "type": "null"

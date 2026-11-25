@@ -25,6 +25,40 @@ public static class PluginContentTree
         Func<string, bool>? includeEntry = null) =>
         Process(sourceRoot, destinationRoot, prefix, includeEntry);
 
+    public static ContentTreeMetadata ReadMetadata(string sourceRoot)
+    {
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        Span<byte> header = stackalloc byte[21];
+        // Installs swap in a freshly created tree, which may keep every file's size and write time.
+        BinaryPrimitives.WriteInt64LittleEndian(header[..8], Directory.GetCreationTimeUtc(sourceRoot).Ticks);
+        hash.AppendData(header[..8]);
+        var latestWriteUtc = DateTime.MinValue;
+        foreach (var entry in Enumerate(sourceRoot))
+        {
+            var pathBytes = Encoding.UTF8.GetBytes(entry.RelativePath.Replace('\\', '/'));
+            long length = 0;
+            long writeTicks = 0;
+            if (!entry.IsDirectory)
+            {
+                var info = new FileInfo(entry.SourcePath);
+                length = info.Length;
+                var writeUtc = info.LastWriteTimeUtc;
+                writeTicks = writeUtc.Ticks;
+                if (writeUtc > latestWriteUtc)
+                    latestWriteUtc = writeUtc;
+            }
+
+            header[0] = entry.IsDirectory ? (byte)0 : (byte)1;
+            BinaryPrimitives.WriteInt32LittleEndian(header[1..5], pathBytes.Length);
+            BinaryPrimitives.WriteInt64LittleEndian(header[5..13], length);
+            BinaryPrimitives.WriteInt64LittleEndian(header[13..21], writeTicks);
+            hash.AppendData(header);
+            hash.AppendData(pathBytes);
+        }
+
+        return new ContentTreeMetadata(Convert.ToHexString(hash.GetHashAndReset()), latestWriteUtc);
+    }
+
     private static string Process(
         string sourceRoot,
         string? destinationRoot,
@@ -173,3 +207,5 @@ public static class PluginContentTree
 
     private sealed record TreeEntry(string SourcePath, string RelativePath, bool IsDirectory);
 }
+
+public readonly record struct ContentTreeMetadata(string Signature, DateTime LatestWriteUtc);

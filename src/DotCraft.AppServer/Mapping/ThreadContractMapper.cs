@@ -31,8 +31,6 @@ internal static class ThreadContractMapper
         TurnCount = value.TurnCount,
         Runtime = value.Runtime is null ? null : ToContract(value.Runtime),
         Goal = value.Goal is null ? null : ToContract(value.Goal),
-        AppBindings = value.AppBindings?.Select(ToContract).ToArray(),
-        OriginApp = value.OriginApp is null ? null : ToContract(value.OriginApp),
         OriginPresentation = value.OriginPresentation is null ? null : ToContract(value.OriginPresentation),
         Metadata = value.Metadata,
         Turns = null
@@ -142,14 +140,6 @@ internal static class ThreadContractMapper
                     : default
             })
             .ToArray()
-    };
-
-    public static Contract.ThreadOriginApp ToContract(Domain.ThreadOriginAppSnapshot value) => new()
-    {
-        AppId = value.AppId,
-        DisplayName = value.DisplayName,
-        Icon = value.Icon,
-        MemberId = value.MemberId
     };
 
     public static Contract.ThreadOriginPresentation ToContract(

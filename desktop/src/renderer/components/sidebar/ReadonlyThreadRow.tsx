@@ -15,7 +15,7 @@ import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
 import { IconButton } from '../ui/IconButton'
 import { Spinner } from '../ui/Spinner'
 import { PinIcon } from './ThreadEntry'
-import { threadOriginBadge, useThreadEntryDetails } from './ThreadEntryDetails'
+import { useThreadEntryDetails, useThreadOriginBadge } from './ThreadEntryDetails'
 import { ThreadRowLayout } from './ThreadRowLayout'
 import { SidebarEntryDetailsCard } from './SidebarEntryDetailsCard'
 import { isRemoteProject, projectIdentity } from './projectThreads'
@@ -68,12 +68,20 @@ export function ReadonlyThreadRow({
   const showUnreadDot = !running && !waiting && !subAgent && isThreadUnread(thread)
   const [onScreen, setOnScreen] = useState(false)
   const scheduledTasks = useSecondaryThreadScheduledTasks(thread, project, subAgent)
+  const origin = useThreadOriginBadge({
+    thread,
+    isSubAgent: subAgent,
+    connection: project.connectionKey
+      ? { connectionKey: project.connectionKey, connectionId: project.connectionId ?? null }
+      : null,
+    t
+  })
   const threadDetails = useThreadEntryDetails({
     thread: { ...thread, displayName },
     project,
     projectName: project.name || project.path,
     relativeTime,
-    origin: threadOriginBadge({ thread, isSubAgent: subAgent, t }),
+    origin,
     scheduledTasks: scheduledTasks.automations,
     onScreen
   })

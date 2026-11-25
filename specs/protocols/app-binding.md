@@ -210,6 +210,8 @@ App-principal methods:
 - `app/binding/request/get`, `app/binding/activate`, `app/binding/rebind`, `app/bindings/list`;
 - `app/surface/publish`.
 
+`app/list` entries carry the descriptor's `originChannel` when the app declares one. A client attributes a thread to the app whose `originChannel` matches the thread's `originChannel` case-insensitively.
+
 Trusted clients may call `app/surface/resolve`. It is not available to app or channel principals.
 
 Channel-principal methods are the channel binding methods in Section 7 plus `app/threadInput/enqueue` where the External Channel Adapter protocol permits it.

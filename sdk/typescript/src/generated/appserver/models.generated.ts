@@ -617,6 +617,7 @@ export interface AppInfo {
   installed?: boolean;
   managed?: boolean;
   nativeApp?: AppNativeApplication;
+  originChannel?: string | null;
   pluginId?: string;
   releasePage?: string | null;
   requiresExternalConnection?: boolean;
@@ -3625,7 +3626,6 @@ export interface SessionPlanTodo {
 }
 
 export interface SessionThread {
-  appBindings?: ThreadAppBindingSummary[] | null;
   channelContext?: string | null;
   configuration?: ThreadConfiguration | null;
   contextUsage?: ContextUsageSnapshot | null;
@@ -3641,7 +3641,6 @@ export interface SessionThread {
   id: string;
   lastActiveAt: string;
   metadata: Record<string, string>;
-  originApp?: ThreadOriginApp | null;
   originChannel: string;
   originPresentation?: ThreadOriginPresentation | null;
   parentThreadId?: string | null;
@@ -4576,14 +4575,6 @@ export interface ThreadNotification {
   [key: string]: unknown;
 }
 
-export interface ThreadOriginApp {
-  appId: string;
-  displayName: string;
-  icon?: string | null;
-  memberId?: string | null;
-  [key: string]: unknown;
-}
-
 export interface ThreadOriginPresentation {
   displayName: string;
   icon?: string | null;
@@ -4875,7 +4866,6 @@ export interface ThreadStatusChangedNotification {
 }
 
 export interface ThreadSummary {
-  appBindings?: ThreadAppBindingSummary[] | null;
   channelContext?: string | null;
   createdAt?: string | null;
   displayName?: string | null;
@@ -4886,7 +4876,6 @@ export interface ThreadSummary {
   id: string;
   lastActiveAt?: string | null;
   metadata?: Record<string, string> | null;
-  originApp?: ThreadOriginApp | null;
   originChannel?: string | null;
   originPresentation?: ThreadOriginPresentation | null;
   runtime?: ThreadRuntimeState | null;

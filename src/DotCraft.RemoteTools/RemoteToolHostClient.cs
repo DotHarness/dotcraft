@@ -50,6 +50,16 @@ internal sealed partial class RemoteToolHostClient : IRemoteToolHostClient, IRem
         }
     }
 
+    public void ForgetThread(string threadId)
+    {
+        lock (_stateGate)
+        {
+            if (_routes.ContainsKey(threadId)) return;
+            _snapshots.Remove(threadId);
+            _activeTurns.Remove(threadId);
+        }
+    }
+
     public async ValueTask PrepareTurnAsync(string threadId, EffectiveToolSnapshot snapshot, string mode,
         CancellationToken cancellationToken = default)
     {

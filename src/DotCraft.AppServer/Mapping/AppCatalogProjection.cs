@@ -13,6 +13,7 @@ internal sealed class AppCatalogProjection
     public string Description { get; set; } = string.Empty;
     public string? Category { get; set; }
     public string? Icon { get; set; }
+    public string? OriginChannel { get; set; }
     public string PluginId { get; set; } = string.Empty;
     public bool Installed { get; set; }
     public bool Enabled { get; set; }

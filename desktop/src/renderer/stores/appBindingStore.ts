@@ -59,6 +59,7 @@ export interface AppInfo {
   description: string
   category?: string | null
   icon?: string | null
+  originChannel?: string | null
   pluginId: string
   installed: boolean
   enabled: boolean

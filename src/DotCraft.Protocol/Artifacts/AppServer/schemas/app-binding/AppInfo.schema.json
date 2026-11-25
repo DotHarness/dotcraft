@@ -96,6 +96,16 @@
     "nativeApp": {
       "$ref": "./AppNativeApplication.schema.json"
     },
+    "originChannel": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "pluginId": {
       "type": "string"
     },

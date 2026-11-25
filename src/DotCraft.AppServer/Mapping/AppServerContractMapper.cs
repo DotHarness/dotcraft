@@ -58,8 +58,6 @@ public static class AppServerContractMapper
         Runtime = ToContract(value.Runtime),
         QueuedInputs = TurnContractMapper.ToContract(value.QueuedInputs),
         Goal = value.Goal is null ? null : ThreadContractMapper.ToContract(value.Goal),
-        AppBindings = value.AppBindings?.Select(ThreadContractMapper.ToContract).ToArray(),
-        OriginApp = value.OriginApp is null ? null : ThreadContractMapper.ToContract(value.OriginApp),
         OriginPresentation = value.OriginPresentation is null ? null : ThreadContractMapper.ToContract(value.OriginPresentation),
         Turns = value.Turns?.Select(turn => ToContract(turn)).ToArray(),
         Plan = value.Plan is null ? null : ThreadContractMapper.ToContract(value.Plan),

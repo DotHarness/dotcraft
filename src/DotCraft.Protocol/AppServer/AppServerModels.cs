@@ -1167,14 +1167,6 @@ public sealed class SessionThread : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ThreadGoal? Goal { get; init; }
 
-    [JsonPropertyName("appBindings")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public IReadOnlyList<ThreadAppBindingSummary>? AppBindings { get; init; }
-
-    [JsonPropertyName("originApp")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ThreadOriginApp? OriginApp { get; init; }
-
     [JsonPropertyName("originPresentation")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ThreadOriginPresentation? OriginPresentation { get; init; }
@@ -1246,24 +1238,6 @@ public sealed class SubAgentThreadSource : ExtensibleJsonObject
     [JsonPropertyName("agentRole")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? AgentRole { get; init; }
-}
-
-/// <summary>Resolved App Binding origin branding for a thread.</summary>
-public sealed class ThreadOriginApp : ExtensibleJsonObject
-{
-    [JsonPropertyName("appId")]
-    public required string AppId { get; init; }
-
-    [JsonPropertyName("displayName")]
-    public required string DisplayName { get; init; }
-
-    [JsonPropertyName("icon")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? Icon { get; init; }
-
-    [JsonPropertyName("memberId")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? MemberId { get; init; }
 }
 
 /// <summary>Source-neutral origin presentation for a thread.</summary>
@@ -1392,14 +1366,6 @@ public sealed class ThreadSummary : ExtensibleJsonObject
     [JsonPropertyName("goal")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ThreadGoal? Goal { get; init; }
-
-    [JsonPropertyName("appBindings")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public IReadOnlyList<ThreadAppBindingSummary>? AppBindings { get; init; }
-
-    [JsonPropertyName("originApp")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ThreadOriginApp? OriginApp { get; init; }
 
     [JsonPropertyName("originPresentation")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

@@ -3019,6 +3019,13 @@
           "const": null
         },
         {
+          "name": "originChannel",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "pluginId",
           "type": "string",
           "required": false,
@@ -17999,13 +18006,6 @@
       "additionalProperties": true,
       "fields": [
         {
-          "name": "appBindings",
-          "type": "array<app-binding.ThreadAppBindingSummary>",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
           "name": "channelContext",
           "type": "string",
           "required": false,
@@ -18108,13 +18108,6 @@
           "type": "map<string>",
           "required": true,
           "nullable": false,
-          "const": null
-        },
-        {
-          "name": "originApp",
-          "type": "core.ThreadOriginApp",
-          "required": false,
-          "nullable": true,
           "const": null
         },
         {
@@ -22712,45 +22705,6 @@
       "variants": []
     },
     {
-      "id": "core.ThreadOriginApp",
-      "name": "ThreadOriginApp",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/ThreadOriginApp.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "appId",
-          "type": "string",
-          "required": true,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "displayName",
-          "type": "string",
-          "required": true,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "icon",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "memberId",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
       "id": "core.ThreadOriginPresentation",
       "name": "ThreadOriginPresentation",
       "module": "core",
@@ -24128,13 +24082,6 @@
       "additionalProperties": true,
       "fields": [
         {
-          "name": "appBindings",
-          "type": "array<app-binding.ThreadAppBindingSummary>",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
           "name": "channelContext",
           "type": "string",
           "required": false,
@@ -24200,13 +24147,6 @@
         {
           "name": "metadata",
           "type": "map<string>",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "originApp",
-          "type": "core.ThreadOriginApp",
           "required": false,
           "nullable": true,
           "const": null

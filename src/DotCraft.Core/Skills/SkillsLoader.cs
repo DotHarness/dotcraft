@@ -13,6 +13,11 @@ public sealed partial class SkillsLoader
 {
     private const int MaxIconBytes = 512 * 1024;
 
+    private static readonly SettledFileCache<Dictionary<string, string>?> MetadataCache = new(ReadSkillMetadata);
+    private static readonly SettledFileCache<Dictionary<string, string>> InterfaceManifestCache =
+        new(path => ParseOpenAiInterfaceManifest(File.ReadAllText(path, Encoding.UTF8)));
+    private static readonly SettledFileCache<string?> IconDataUrlCache = new(ReadIconDataUrl);
+
     private HashSet<string> _disabledSkills = new(StringComparer.OrdinalIgnoreCase);
 
     private IReadOnlyList<PluginSkillSource> _pluginSkillSources = [];
@@ -132,7 +137,13 @@ public sealed partial class SkillsLoader
     }
 
     /// <summary>Reports that skills changed on disk, so catalogs read before this call are stale.</summary>
-    public void RefreshDescriptors() => MarkChanged();
+    public void RefreshDescriptors()
+    {
+        MetadataCache.Clear();
+        InterfaceManifestCache.Clear();
+        IconDataUrlCache.Clear();
+        MarkChanged();
+    }
 
     /// <summary>
     /// List all discovered skills.
@@ -307,7 +318,7 @@ public sealed partial class SkillsLoader
         Dictionary<string, string> values;
         try
         {
-            values = ParseOpenAiInterfaceManifest(File.ReadAllText(manifestPath, Encoding.UTF8));
+            values = InterfaceManifestCache.Get(manifestPath);
         }
         catch
         {
@@ -391,7 +402,12 @@ public sealed partial class SkillsLoader
     /// <summary>
     /// Reads frontmatter metadata from a specific <c>SKILL.md</c> file.
     /// </summary>
-    public static Dictionary<string, string>? GetSkillMetadataFromFile(string skillFile)
+    public static Dictionary<string, string>? GetSkillMetadataFromFile(string skillFile) =>
+        MetadataCache.Get(skillFile) is { } metadata
+            ? new Dictionary<string, string>(metadata, StringComparer.OrdinalIgnoreCase)
+            : null;
+
+    private static Dictionary<string, string>? ReadSkillMetadata(string skillFile)
     {
         var content = File.ReadAllText(skillFile, Encoding.UTF8);
         if (content == null || !content.StartsWith("---"))
@@ -560,28 +576,33 @@ public sealed partial class SkillsLoader
             if (!File.Exists(fullPath))
                 return null;
 
-            var mimeType = Path.GetExtension(fullPath).ToLowerInvariant() switch
-            {
-                ".svg" => "image/svg+xml",
-                ".png" => "image/png",
-                ".jpg" or ".jpeg" => "image/jpeg",
-                ".webp" => "image/webp",
-                _ => null
-            };
-            if (mimeType == null)
-                return null;
-
-            var info = new FileInfo(fullPath);
-            if (info.Length <= 0 || info.Length > MaxIconBytes)
-                return null;
-
-            var bytes = File.ReadAllBytes(fullPath);
-            return $"data:{mimeType};base64,{Convert.ToBase64String(bytes)}";
+            return IconDataUrlCache.Get(fullPath);
         }
         catch
         {
             return null;
         }
+    }
+
+    private static string? ReadIconDataUrl(string fullPath)
+    {
+        var mimeType = Path.GetExtension(fullPath).ToLowerInvariant() switch
+        {
+            ".svg" => "image/svg+xml",
+            ".png" => "image/png",
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".webp" => "image/webp",
+            _ => null
+        };
+        if (mimeType == null)
+            return null;
+
+        var info = new FileInfo(fullPath);
+        if (info.Length <= 0 || info.Length > MaxIconBytes)
+            return null;
+
+        var bytes = File.ReadAllBytes(fullPath);
+        return $"data:{mimeType};base64,{Convert.ToBase64String(bytes)}";
     }
 
     private static bool IsPathInsideDirectory(string path, string directory)

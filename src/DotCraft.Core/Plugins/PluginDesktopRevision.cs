@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Collections.Concurrent;
 using System.Text;
 
 namespace DotCraft.Plugins;
@@ -6,6 +7,11 @@ namespace DotCraft.Plugins;
 internal static class PluginDesktopRevision
 {
     private static readonly byte[] Domain = "DotCraft.PluginDesktopRevision\0v1\0"u8.ToArray();
+
+    // Files written this close to hashing may change again without a visible size or timestamp change.
+    private static readonly TimeSpan SettledWriteAge = TimeSpan.FromSeconds(2);
+    private static readonly ConcurrentDictionary<string, (string Signature, string Revision)> SettledRevisions =
+        new(StringComparer.Ordinal);
 
     internal static string Copy(string pluginRoot, string destination, string entry, IReadOnlyList<string> styles) =>
         PluginContentTree.CopyAndFingerprint(Path.Combine(pluginRoot, "desktop", "dist"), destination, BuildPrefix(entry, styles));
@@ -15,8 +21,18 @@ internal static class PluginDesktopRevision
         string entry,
         IReadOnlyList<string> styles)
     {
-        var outputRoot = Path.Combine(pluginRoot, "desktop", "dist");
-        return PluginContentTree.Fingerprint(outputRoot, BuildPrefix(entry, styles));
+        var outputRoot = Path.GetFullPath(Path.Combine(pluginRoot, "desktop", "dist"));
+        var prefix = BuildPrefix(entry, styles);
+        var key = outputRoot + "\0" + Convert.ToHexString(prefix);
+        var startedUtc = DateTime.UtcNow;
+        var metadata = PluginContentTree.ReadMetadata(outputRoot);
+        if (SettledRevisions.TryGetValue(key, out var settled) && settled.Signature == metadata.Signature)
+            return settled.Revision;
+
+        var revision = PluginContentTree.Fingerprint(outputRoot, prefix);
+        if (metadata.LatestWriteUtc < startedUtc - SettledWriteAge)
+            SettledRevisions[key] = (metadata.Signature, revision);
+        return revision;
     }
 
     private static byte[] BuildPrefix(string entry, IReadOnlyList<string> styles)

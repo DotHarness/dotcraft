@@ -97,17 +97,29 @@ public sealed class AppBindingProtocolTests : IDisposable
         using (var enabled = await ReadSuccessResponseAsync(harness.Transport))
             AssertHandoff(enabled.RootElement.GetProperty("result"), "bind");
 
-        await harness.ExecuteRequestAsync(harness.BuildRequest(
-            DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadRead,
-            new { threadId = thread.Id }));
-        using var read = await ReadSuccessResponseAsync(harness.Transport);
-        var binding = Assert.Single(read.RootElement
+        await harness.ExecuteRequestAsync(harness.BuildRequest("thread/appBindings/list", new { threadId = thread.Id }));
+        using var listed = await ReadSuccessResponseAsync(harness.Transport);
+        var binding = Assert.Single(listed.RootElement
             .GetProperty("result")
-            .GetProperty("thread")
-            .GetProperty("appBindings")
+            .GetProperty("bindings")
             .EnumerateArray());
         Assert.Equal("com.example.handoff", binding.GetProperty("appId").GetString());
         Assert.False(Directory.Exists(Path.Combine(_root, ".craft")));
+    }
+
+    [Fact]
+    public async Task AppList_PublishesDeclaredOriginChannel()
+    {
+        WriteHandoffAppPlugin();
+        using var harness = CreateHarness();
+        await harness.InitializeAsync();
+
+        await harness.ExecuteRequestAsync(harness.BuildRequest("app/list", new { }));
+        using var response = await ReadSuccessResponseAsync(harness.Transport);
+
+        var app = response.RootElement.GetProperty("result").GetProperty("apps").EnumerateArray()
+            .Single(candidate => candidate.GetProperty("appId").GetString() == "com.example.handoff");
+        Assert.Equal("handofftest", app.GetProperty("originChannel").GetString());
     }
 
     [Fact]
@@ -366,6 +378,7 @@ public sealed class AppBindingProtocolTests : IDisposable
               "displayName": "Handoff Test",
               "developerName": "DotCraft",
               "description": "Tests App Binding handoffs.",
+              "originChannel": "handofftest",
               "nativeApplication": {
                 "displayName": "Handoff Test",
                 "protocol": "handofftest"

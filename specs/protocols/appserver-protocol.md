@@ -242,7 +242,7 @@ Thread methods correspond to `ISessionService` thread lifecycle operations in [S
 
 `thread/start` and `thread/fork` return `{ thread, instructionSources }`; `thread/resume` additionally returns required `currentState` and its requested `initialTurnsPage` (Section 4.2). `instructionSources` is the required ordered array of absolute logical paths used by the thread's stable `AGENTS.md` snapshot (`[]` when no file contributes). Thread notifications and worktree lifecycle results do not carry it.
 
-The `Thread` object carries lineage (`forkedFromId`), `ephemeral`, `worktree`, `gitInfo` (branch and credential-free `originUrl` last observed at a Turn start, [Session Core §4.1.1.6](../architecture/session-core.md#4116-git-context); `null` when unknown, omitted from summaries), `cwd`, `runtimeWorkspaceRoots`, and `effectiveWorkspacePath`. `cwd`/`effectiveWorkspacePath` is the root clients use for relative file, shell, Git, and editor surfaces; `runtimeWorkspaceRoots` is the full set of runtime content boundaries. Optional header state includes `queuedInputs`, `runtime`, `plan`, `contextUsage`, and `originApp` (see [Section 4.4](#44-threadread) and [Section 4.3](#43-threadlist)).
+The `Thread` object carries lineage (`forkedFromId`), `ephemeral`, `worktree`, `gitInfo` (branch and credential-free `originUrl` last observed at a Turn start, [Session Core §4.1.1.6](../architecture/session-core.md#4116-git-context); `null` when unknown, omitted from summaries), `cwd`, `runtimeWorkspaceRoots`, and `effectiveWorkspacePath`. `cwd`/`effectiveWorkspacePath` is the root clients use for relative file, shell, Git, and editor surfaces; `runtimeWorkspaceRoots` is the full set of runtime content boundaries. Optional header state includes `queuedInputs`, `runtime`, `plan`, and `contextUsage` (see [Section 4.4](#44-threadread)). Threads carry no app attribution: clients that brand an origin match `originChannel` against `app/list` entries ([App Binding §8](app-binding.md#8-public-methods-and-notifications)).
 
 ### 4.1 `thread/start`
 
@@ -406,7 +406,6 @@ List threads matching an identity.
 
 - `runtime`: optional best-effort, process-local snapshot with the shape of `thread/status/changed`, for hydrating activity indicators after reconnect. Clients continue to consume `thread/status/changed` as the source of truth and treat omission as unknown, not idle.
 - `readStates`: a map from each read-receipt-eligible thread id on the returned page to its `ThreadReadState` ([4.19](#419-threadreadstateupdate)). Omitted when receipts are unavailable; an id without an entry has no receipt.
-- `originApp` (`appId`, `displayName`, optional `icon`, optional `memberId`): set when the summary's `originChannel` matches an installed App Binding app's declared origin channel. When the app declares origin members and `channelContext` matches one, the branding is the member's and `memberId` is set. Clients fall back to the generic origin badge when absent. The same attribution is attached to full Thread objects from `thread/read`, `thread/started`, `thread/updated`, `thread/resumed`, and `thread/rollback`.
 
 ### 4.3.1 `channel/list`
 

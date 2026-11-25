@@ -36,7 +36,6 @@ internal sealed partial class ThreadRequestHandler
         var candidates = (ascending ? threads.OrderBy(sortKey) : threads.OrderByDescending(sortKey)).ToList();
 
         var matches = new List<Contract.ThreadSearchMatch>();
-        var catalogByWorkspace = new Dictionary<string, AppCatalogSnapshot?>(StringComparer.Ordinal);
         string? nextCursor = null;
         for (var position = offset; position < candidates.Count; position++)
         {
@@ -50,7 +49,7 @@ internal sealed partial class ThreadRequestHandler
                 break;
             }
 
-            await threadProjector.EnrichSummaryAsync(summary, catalogByWorkspace, ct);
+            await threadProjector.EnrichSummaryAsync(summary, ct);
             matches.Add(new Contract.ThreadSearchMatch
             {
                 Thread = ThreadContractMapper.ToContract(summary),

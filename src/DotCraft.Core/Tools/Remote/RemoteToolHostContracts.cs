@@ -140,6 +140,9 @@ public interface IRemoteToolHostClient
     /// <summary>Publishes one thread's final tool snapshot without performing network work.</summary>
     void UpdateRemoteToolSnapshot(string threadId, EffectiveToolSnapshot snapshot, string mode);
 
+    /// <summary>Drops the snapshot and Turn state cached for a thread that has no route.</summary>
+    void ForgetThread(string threadId) { }
+
     /// <summary>Prepares the captured snapshot before the next Turn samples on an existing route.</summary>
     ValueTask PrepareTurnAsync(string threadId, EffectiveToolSnapshot snapshot, string mode,
         CancellationToken cancellationToken = default);
