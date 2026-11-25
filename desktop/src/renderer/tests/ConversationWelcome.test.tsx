@@ -322,6 +322,7 @@ describe('ConversationWelcome composer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
 
     await waitFor(() => expect(getRendererTestState().pendingWelcomeTurn).toMatchObject({ threadId: 'thread-welcome' }))
+    expect(getRendererTestState().pendingThreadCreation).toMatchObject({ creator: true })
     expect(setCreatorThread).toHaveBeenCalledWith('thread-welcome', true)
   })
 

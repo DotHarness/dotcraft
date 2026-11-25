@@ -5,6 +5,7 @@ import { setThreadCreator, useThreadCreator } from '../../stores/creatorModeStor
 import { useConversationStore } from '../../stores/conversationStore'
 import { useFeatureGuideStore } from '../../stores/featureGuideStore'
 import { addToast } from '../../stores/toastStore'
+import { useUIStore } from '../../stores/uiStore'
 import type { SlashSystemActionInfo } from './CommandSearchPopover'
 import { ComposerCreatorLabel } from './ComposerShell'
 import { CREATOR_MASCOT_OUTFIT } from './creatorMascotOutfit'
@@ -56,13 +57,20 @@ export function useComposerCreatorControls({
 
 export function useThreadComposerCreator(threadId: string, available: boolean): ComposerCreatorControls {
   const t = useT()
-  const creator = useThreadCreator(threadId)
+  const pendingCreator = useUIStore((s) => (
+    s.pendingThreadCreation?.requestId === threadId
+      ? s.pendingThreadCreation.creator === true
+      : null
+  ))
+  const threadCreator = useThreadCreator(threadId)
+  const creator = pendingCreator ?? threadCreator
   const onChange = useCallback((next: boolean): void => {
+    if (pendingCreator !== null) return
     void setThreadCreator(threadId, next).catch((err: unknown) => {
       addToast(t('composer.creator.changeFailed', {
         error: err instanceof Error ? err.message : String(err)
       }), 'error')
     })
-  }, [threadId, t])
+  }, [pendingCreator, threadId, t])
   return useComposerCreatorControls({ available: available && threadId.length > 0, creator, onChange })
 }

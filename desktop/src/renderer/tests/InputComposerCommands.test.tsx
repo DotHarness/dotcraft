@@ -131,6 +131,7 @@ describe('InputComposer commands and references', () => {
       activeDetailTab: 'changes',
       selectedChangeKey: null,
       composerPrefill: null,
+      pendingThreadCreation: null,
       pendingWelcomeTurn: null,
       _pendingWelcomeTimer: null
     })
@@ -374,6 +375,29 @@ describe('InputComposer commands and references', () => {
 
     await waitFor(() => expect(setCreatorThread).toHaveBeenCalledWith('thread-1', true))
     expect(appServerSendRequest).not.toHaveBeenCalledWith('turn/start', expect.anything())
+  })
+
+  it('keeps Creator outfit and pill active while a Creator thread is being created', () => {
+    const setCreatorThread = vi.spyOn(window.api.workspace, 'setCreatorThread')
+    useConnectionStore.setState({ status: 'connected', capabilities: {} })
+    setRendererTestState({
+      pendingThreadCreation: {
+        requestId: 'pending-creator-req',
+        createdAt: Date.now(),
+        workspacePath: 'X:\\fixtures\\workspace',
+        text: 'Build a plugin',
+        inputParts: [{ type: 'text', text: 'Build a plugin' }],
+        creator: true,
+        threadName: 'Build a plugin',
+        configuration: { mode: 'agent' }
+      }
+    })
+    renderWithLocale(<InputComposer threadId="pending-creator-req" workspacePath="X:\\fixtures\\workspace" />)
+
+    expect(document.querySelector('[data-faceplate="creator:hud-visor"]')).toBeInTheDocument()
+    const disableButton = screen.getByRole('button', { name: 'Turn off Creator' })
+    fireEvent.click(disableButton)
+    expect(setCreatorThread).not.toHaveBeenCalled()
   })
 
   it('preserves compact usage and replaces history cursors when the post-compact header omits usage', async () => {

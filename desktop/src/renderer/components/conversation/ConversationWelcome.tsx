@@ -692,6 +692,7 @@ function ConversationWelcomeCore({
         text: trimmedObjective,
         inputParts: preview.inputParts,
         sentAsGoal: true,
+        ...(welcomeCreator ? { creator: true } : {}),
         threadName,
         configuration: welcomeThreadConfiguration as ThreadConfigurationWire
       })
@@ -748,6 +749,7 @@ function ConversationWelcomeCore({
     showGoalUnavailable,
     startWelcomeThread,
     welcomeAppIds,
+    welcomeCreator,
     welcomeThreadConfiguration,
     welcomeThreadName,
     t
@@ -851,6 +853,7 @@ function ConversationWelcomeCore({
         workspacePath: identityPath,
         text: preview.visibleText,
         inputParts: preview.inputParts,
+        ...(welcomeCreator ? { creator: true } : {}),
         threadName,
         configuration: welcomeThreadConfiguration as ThreadConfigurationWire
       })
@@ -892,6 +895,7 @@ function ConversationWelcomeCore({
     openOrDetachCreatedThread,
     startWelcomeThread,
     welcomeAppIds,
+    welcomeCreator,
     welcomeThreadConfiguration,
     welcomeThreadName,
     modelLoading,
