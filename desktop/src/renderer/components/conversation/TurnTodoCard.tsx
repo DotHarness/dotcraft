@@ -1,5 +1,5 @@
-import { ChevronRight, Circle, CircleCheck, CircleDot, CircleX } from 'lucide-react'
-import { useEffect, useState, type JSX } from 'react'
+import { Circle, CircleCheck, CircleDot, CircleX } from 'lucide-react'
+import { useEffect, type JSX } from 'react'
 import { useT } from '../../contexts/LocaleContext'
 import { useRunningTaskCount } from './summary/store'
 import { desktopSummaryServices } from './summary/summaryServices'
@@ -23,7 +23,7 @@ export interface TurnTodoPlan {
 
 export type TurnTodoStatus = 'running' | 'completed' | 'failed' | 'cancelled'
 
-const FOLD_AFTER = 6
+const WINDOW_SIZE = 12
 const ICON = { size: 15, strokeWidth: 1.8, 'aria-hidden': true } as const
 
 export function progressOf(todos: readonly TurnTodo[]): { done: number; total: number } {
@@ -39,11 +39,21 @@ function showsTodoCard(plan: TurnTodoPlan, status: TurnTodoStatus, waitingOnTask
   return unfinished || (status === 'running' && updatedTodos)
 }
 
-export function foldedPrefix(todos: readonly TurnTodo[], visibleLimit: number): number {
-  if (todos.length <= visibleLimit) return 0
-  const firstOpen = todos.findIndex((todo) => todo.status === 'pending' || todo.status === 'in_progress')
-  const prefix = firstOpen < 0 ? todos.length : firstOpen
-  return prefix >= 2 ? prefix : 0
+export function todoWindow(todos: readonly TurnTodo[], size = WINDOW_SIZE): {
+  visible: readonly TurnTodo[]
+  hiddenBefore: number
+  openAfter: number
+} {
+  const active = todos.findIndex((todo) => todo.status === 'in_progress')
+  const current = active >= 0 ? active : todos.findIndex((todo) => todo.status !== 'completed')
+  const anchor = current >= 0 ? current : todos.length
+  const start = Math.max(0, Math.min(anchor - 1, todos.length - size))
+  const after = todos.slice(start + size)
+  return {
+    visible: todos.slice(start, start + size),
+    hiddenBefore: start,
+    openAfter: after.filter((todo) => todo.status !== 'completed').length
+  }
 }
 
 export function TurnTodoCard({ threadId, turnId, status, waitingOnTasks, plan }: {
@@ -78,19 +88,14 @@ function TodoChecklist({ todos, live, tasksLabel }: {
   tasksLabel: string | null
 }): JSX.Element {
   const t = useT()
-  const [unfolded, setUnfolded] = useState(false)
-  const folded = unfolded ? 0 : Math.min(foldedPrefix(todos, FOLD_AFTER), todos.length - (tasksLabel ? 1 : 0))
-  const visible = todos.slice(folded)
+  const { visible, hiddenBefore, openAfter } = todoWindow(todos)
   const tasksAnchor = (visible.find((todo) => todo.status === 'in_progress') ?? visible.at(-1))?.id
 
   return (
     <ul className={styles.checklist}>
-      {folded > 0 ? (
-        <li>
-          <button type="button" className={styles.fold} onClick={() => setUnfolded(true)}>
-            <span className={styles.mark} data-status="completed"><ChevronRight {...ICON} /></span>
-            <span className={styles.text}>{t('conversation.todo.foldedDone', { count: folded })}</span>
-          </button>
+      {hiddenBefore > 0 ? (
+        <li className={styles.windowNote}>
+          {t(hiddenBefore === 1 ? 'conversation.todo.earlierSteps.one' : 'conversation.todo.earlierSteps.other', { count: hiddenBefore })}
         </li>
       ) : null}
       {visible.map((todo) => (
@@ -103,6 +108,11 @@ function TodoChecklist({ todos, live, tasksLabel }: {
           ) : null}
         </li>
       ))}
+      {openAfter > 0 ? (
+        <li className={styles.windowNote}>
+          {t(openAfter === 1 ? 'conversation.todo.moreToGo.one' : 'conversation.todo.moreToGo.other', { count: openAfter })}
+        </li>
+      ) : null}
     </ul>
   )
 }

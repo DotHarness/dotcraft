@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import { LocaleProvider } from '../contexts/LocaleContext'
-import { TurnTodoCard, type TurnTodoPlan, type TurnTodoStatus } from '../components/conversation/TurnTodoCard'
+import { todoWindow, TurnTodoCard, type TurnTodo, type TurnTodoPlan, type TurnTodoStatus } from '../components/conversation/TurnTodoCard'
 import { useTurnTasksClaimed } from '../components/conversation/turnTaskClaims'
 import { useSummaryView, setPopoverOpen } from '../components/conversation/summary/view'
 
@@ -81,9 +81,9 @@ it('takes the running task count from the working line while it shows it', () =>
   expect(screen.queryByRole('button')).not.toBeInTheDocument()
 })
 
-it('keeps the background tasks button reachable when every step is complete and the list folds', () => {
+it('keeps the background tasks button reachable when every step of a long list is complete', () => {
   taskCount.value = 1
-  const { rerender } = render(card('completed', { ...PLAN, todos: Array.from({ length: 7 }, (_, i) => ({
+  const { rerender } = render(card('completed', { ...PLAN, todos: Array.from({ length: 14 }, (_, i) => ({
     id: String(i), content: `Step ${i + 1}`, status: 'completed'
   })) }, true))
   fireEvent.click(screen.getByRole('button', { name: '1 running task' }))
@@ -97,4 +97,33 @@ it('leaves the running task count to the working line while the turn runs', () =
   render(card('running', { ...PLAN, updatedTodos: true }))
   expect(screen.getByRole('status', { name: 'Claimed' })).toHaveTextContent('false')
   expect(screen.queryByRole('button', { name: '1 running task' })).not.toBeInTheDocument()
+})
+
+function steps(done: number, total: number): TurnTodo[] {
+  return Array.from({ length: total }, (_, i) => ({
+    id: String(i),
+    content: `Step ${i + 1}`,
+    status: i < done ? 'completed' : i === done ? 'in_progress' : 'pending'
+  }))
+}
+
+it('shows every step of a list that fits the window', () => {
+  expect(todoWindow(steps(5, 7))).toMatchObject({ hiddenBefore: 0, openAfter: 0 })
+  expect(todoWindow(steps(5, 7)).visible).toHaveLength(7)
+})
+
+it('slides a long list so one finished step stays above the current one', () => {
+  const early = todoWindow(steps(3, 16))
+  expect(early).toMatchObject({ hiddenBefore: 2, openAfter: 2 })
+  expect(early.visible[0]?.content).toBe('Step 3')
+
+  expect(todoWindow(steps(10, 16))).toMatchObject({ hiddenBefore: 4, openAfter: 0 })
+  expect(todoWindow(steps(16, 16))).toMatchObject({ hiddenBefore: 4, openAfter: 0 })
+})
+
+it('counts the steps outside the window as plain text', () => {
+  render(card('running', { ...PLAN, todos: steps(3, 16) }))
+  expect(screen.getByText('2 earlier steps')).toBeInTheDocument()
+  expect(screen.getByText('2 more to go')).toBeInTheDocument()
+  expect(screen.queryByRole('button')).not.toBeInTheDocument()
 })
