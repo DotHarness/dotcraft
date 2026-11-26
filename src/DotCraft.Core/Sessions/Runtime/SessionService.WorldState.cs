@@ -77,9 +77,24 @@ public sealed partial class SessionService
                     carrier,
                     WorldStateComposer.ItemKind(fragment.SectionId),
                     fragment.Text))
-            .ToArray();
+            .ToList();
+        if (!forceFull && BuildStaleTaskListReminder(thread, history, carrier) is { } staleList)
+            items.Add(staleList);
 
         return new WorldStateTurnUpdate(items, render, full);
+    }
+
+    private ChatMessage? BuildStaleTaskListReminder(
+        SessionThread thread,
+        IReadOnlyList<ChatMessage> history,
+        ThreadContextCarrier carrier)
+    {
+        if (!TaskListReminders.IsStale(history)
+            || agentFactory.PlanStore?.LoadStructuredPlan(thread.Id) is not { } plan
+            || !TaskListReminders.IsOpen(plan))
+            return null;
+
+        return ThreadContextItems.Create(carrier, TaskListReminders.StaleKind, TaskListReminders.Stale(plan));
     }
 
     private void CommitWorldStateUpdate(
@@ -141,7 +156,7 @@ public sealed partial class SessionService
         string? sessionStartHookContext,
         CancellationToken ct)
     {
-        var hasActivePlan = agentFactory.PlanStore?.StructuredPlanExists(thread.Id) == true;
+        var hasActivePlan = agentFactory.PlanStore?.HasActivePlan(thread.Id) == true;
         var goal = GoalsEnabled
             ? await persistence.GetThreadGoalAsync(thread.Id, ct).ConfigureAwait(false)
             : null;

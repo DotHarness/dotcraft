@@ -13,7 +13,8 @@ internal static class CompactionHistoryPreparation
     internal static bool IsContext(ChatMessage message) =>
         AgentInstructionsHistory.IsInstructions(message)
         || WorldStateComposer.SectionIdFromItemKind(ThreadContextItems.GetKind(message)) != null
-        || ThreadContextItems.IsKind(message, ThreadContextItems.SubAgentRoleKind);
+        || ThreadContextItems.IsKind(message, ThreadContextItems.SubAgentRoleKind)
+        || TaskListReminders.IsItem(message);
 
     internal static IReadOnlyList<ChatMessage> Replacement(
         IReadOnlyList<ChatMessage> tail, IProviderHistoryRewritePolicy? policy)

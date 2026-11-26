@@ -198,6 +198,7 @@ function todoSummary(todo: Record<string, unknown> | undefined): string | null {
 }
 
 function formatTodoLabel(args: ToolArgs, locale: AppLocale): string {
+  if (!Array.isArray(args?.todos)) return translate(locale, 'toolCall.todo.updated')
   const todos = asObjectArray(args?.todos)
   const started = todos.find((todo) => normalizeStatus(todo.status) === 'in_progress')
   if (started) {

@@ -71,40 +71,79 @@ public sealed class PlanTools(
     [Description("""
         Create and update a task list for the current session. The list is rendered to the user as your working plan.
 
-        - Each todo has `content`, `status`, and `activeForm` (present-tense label shown while in progress).
-        - Send the full list each call. It replaces the previous one.
-        - Keep one item `in_progress` at a time and mark it `completed` when done.
+        - Whole list: `todos`, every step in order, each with `content`, `status`, and `activeForm` (present-tense label shown while in progress). It replaces the previous list.
+        - `scope` is required with `todos` and says what this request is to the session: `first_task` (nothing finished here yet). After that, `new_task` (unrelated work: it builds on nothing done, found, or decided here) or `continuation` (everything else, including the next iteration and acting on what you just investigated or suggested). When unsure, use `continuation`.
+        - Next step: `{"advance": true}` completes the in-progress step and starts the next pending one. Out of order: `{"done": [2], "start": 4}` (1-based).
+        - Plan changed, including right after the user sends a new instruction mid-task: send `todos` again, the whole new list, so the list never shows an abandoned plan.
+        - Keep exactly one step `in_progress` while working.
         """)]
     [Tool]
     [ToolPresentation("core.todo", Operation = "todoWrite")]
     public async Task<ToolExecutionResult> TodoWrite(
-        [Description("The complete task list in order, each with its description and status.")]
-        List<TodoWriteInput> todos)
+        [Description("The whole task list in order. Replaces the previous list.")]
+        List<TodoWriteInput>? todos = null,
+        [Description("Required with todos: first_task, continuation, or new_task. Omit on advance, done, or start updates.")]
+        TodoWriteScope? scope = null,
+        [Description("Complete the in-progress step and start the next pending one.")]
+        bool? advance = null,
+        [Description("1-based step numbers to mark completed.")]
+        List<int>? done = null,
+        [Description("1-based step number to mark in progress.")]
+        int? start = null)
     {
         var sessionId = sessionIdProvider();
         if (string.IsNullOrEmpty(sessionId))
             return ToolExecutionResult.Failed(new ToolError(ToolErrorCodes.Unavailable, "No active session."));
 
-        var emptyIndex = todos.FindIndex(static todo => string.IsNullOrWhiteSpace(todo.Content));
-        if (emptyIndex >= 0)
-            return ToolExecutionResult.Failed(new ToolError(ToolErrorCodes.InputInvalid, $"todos[{emptyIndex}].content is required."));
-
-        var now = DateTimeOffset.UtcNow;
+        var update = new TodoListUpdate(advance == true, done ?? [], start);
         var existing = await planStore.LoadStructuredPlanAsync(sessionId);
-        var plan = new StructuredPlan
+        var now = DateTimeOffset.UtcNow;
+        StructuredPlan plan;
+        string result;
+        if (todos is not null)
         {
-            Title = existing?.Title ?? "",
-            Overview = existing?.Overview ?? "",
-            Content = existing?.Content ?? "",
-            Todos = CreateTodos(todos.Select(static todo => (todo.Content, ToStatus(todo.Status), todo.ActiveForm))),
-            CreatedAt = existing?.CreatedAt ?? now,
-            UpdatedAt = now
-        };
+            if (scope is not { } requestScope)
+                return Invalid("todos also needs scope: first_task, continuation, or new_task. Send the same todos again with it.");
+            if (todos.Count == 0)
+                return Invalid("todos needs at least one step.");
+            var emptyIndex = todos.FindIndex(static todo => string.IsNullOrWhiteSpace(todo.Content));
+            if (emptyIndex >= 0)
+                return Invalid($"todos[{emptyIndex}].content is required.");
+
+            var keepsPlan = requestScope != TodoWriteScope.NewTask;
+            plan = new StructuredPlan
+            {
+                Title = keepsPlan ? existing?.Title ?? "" : "",
+                Overview = keepsPlan ? existing?.Overview ?? "" : "",
+                Content = keepsPlan ? existing?.Content ?? "" : "",
+                Todos = CreateTodos(todos.Select(static todo => (todo.Content, ToStatus(todo.Status), todo.ActiveForm))),
+                CreatedAt = existing?.CreatedAt ?? now,
+                UpdatedAt = now
+            };
+            result = TodoListUpdate.DescribeReplacement(plan.Todos, update.IsEmpty);
+        }
+        else
+        {
+            if (update.IsEmpty)
+                return Invalid("Pass todos with scope for the whole list, advance: true, or done and start positions.");
+            if (existing is not { Todos.Count: > 0 })
+                return Invalid("There is no task list yet. Send the whole list with todos and scope.");
+            if (update.HasInvalidPosition(existing.Todos.Count))
+                return Invalid($"Nothing changed: done and start take step numbers from 1 to {existing.Todos.Count}. Send the update again with numbers that name a step, or the whole list with todos and scope if the plan changed.");
+
+            plan = existing;
+            update.Apply(plan.Todos);
+            plan.UpdatedAt = now;
+            result = $"Task list updated: {TodoListUpdate.DescribeProgress(plan.Todos)}.";
+        }
 
         await planStore.SaveStructuredPlanAsync(sessionId, plan);
         onPlanUpdated?.Invoke(sessionId, plan);
-        return ToolExecutionResult.Succeeded("Plan updated");
+        return ToolExecutionResult.Succeeded(result);
     }
+
+    private static ToolExecutionResult Invalid(string message) =>
+        ToolExecutionResult.Failed(new ToolError(ToolErrorCodes.InputInvalid, message));
 
     private static List<PlanTodo> CreateTodos(IEnumerable<(string Content, string Status, string? ActiveForm)> todos) =>
         [.. todos.Select(static (todo, index) => new PlanTodo
@@ -123,6 +162,16 @@ public sealed class PlanTools(
         PlanTodoInputStatus.Completed => PlanTodoStatus.Completed,
         _ => throw new ArgumentOutOfRangeException(nameof(status), status, null)
     };
+}
+
+public enum TodoWriteScope
+{
+    [JsonStringEnumMemberName("first_task")]
+    FirstTask,
+    [JsonStringEnumMemberName("continuation")]
+    Continuation,
+    [JsonStringEnumMemberName("new_task")]
+    NewTask
 }
 
 /// <summary>Status accepted by plan todo tools.</summary>

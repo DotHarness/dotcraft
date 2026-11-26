@@ -8,7 +8,7 @@ Write these sections in order, as compact bullets focused on the continuation:
 2. Key Decisions and Assumptions: design choices, protocol or API expectations, and tradeoffs already settled.
 3. Important Files and Code Areas: files read, edited, or planned, with why each matters.
 4. Errors, Failures, and Fixes: only issues that affect the next step or explain the current state.
-5. Current State: what is complete, what is partially done, and what remains.
+5. Current State: what is complete, what is partially done, and what remains, including every unfinished step of the task list.
 6. Next Step: the most direct continuation aligned with the latest user request.
 </summary>
 

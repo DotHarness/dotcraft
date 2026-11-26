@@ -53,10 +53,13 @@ public sealed class PlanStore
         Saved?.Invoke(sessionId, plan);
     }
 
-    public Task<StructuredPlan?> LoadStructuredPlanAsync(string sessionId)
+    public Task<StructuredPlan?> LoadStructuredPlanAsync(string sessionId) =>
+        Task.FromResult(LoadStructuredPlan(sessionId));
+
+    public StructuredPlan? LoadStructuredPlan(string sessionId)
     {
         if (string.IsNullOrWhiteSpace(sessionId))
-            return Task.FromResult<StructuredPlan?>(null);
+            return null;
 
         using var connection = _stateRuntime.OpenConnection();
         using var command = connection.CreateCommand();
@@ -64,17 +67,22 @@ public sealed class PlanStore
         command.Parameters.AddWithValue("$thread_id", sessionId);
         var json = command.ExecuteScalar() as string;
         if (string.IsNullOrWhiteSpace(json))
-            return Task.FromResult<StructuredPlan?>(null);
+            return null;
 
         try
         {
-            return Task.FromResult(JsonSerializer.Deserialize<StructuredPlan>(json, ReadOptions));
+            return JsonSerializer.Deserialize<StructuredPlan>(json, ReadOptions);
         }
         catch
         {
-            return Task.FromResult<StructuredPlan?>(null);
+            return null;
         }
     }
+
+    /// <summary>A saved to-do list without a title or body is not a plan.</summary>
+    public bool HasActivePlan(string sessionId) =>
+        LoadStructuredPlan(sessionId) is { } plan
+        && (!string.IsNullOrWhiteSpace(plan.Title) || !string.IsNullOrWhiteSpace(plan.Content));
 
     public bool StructuredPlanExists(string sessionId)
     {

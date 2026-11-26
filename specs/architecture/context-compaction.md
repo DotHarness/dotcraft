@@ -167,8 +167,9 @@ reasoning.
 Context compaction is a short-term context-window optimization, not long-term memory.
 
 - The summary is a handoff for the next model-visible history. It preserves only the current task,
-  key decisions, important files read or changed, critical errors and fixes, constraints, and
-  concrete next steps.
+  key decisions, important files read or changed, critical errors and fixes, constraints, the
+  unfinished steps of the task list, and concrete next steps. A Turn that is still working through
+  its task list also restores the list itself ([Session Core §12.3.2](session-core.md#1232-task-list-reminders)).
 - Summary prompts target a bounded output budget. They do not request a chronological analysis of
   every message, a separate `<analysis>` drafting block (one returned anyway is stripped), a list of
   all user messages, or full code snippets; a minimal excerpt is allowed only when exact text is

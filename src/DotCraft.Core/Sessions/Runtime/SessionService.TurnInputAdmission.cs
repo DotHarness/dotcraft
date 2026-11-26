@@ -176,6 +176,8 @@ public sealed partial class SessionService
                 items.Add(item);
                 inputs.Add(new TurnModelHistory.StagedInput(message, item.Id, [guidance.Input.Id]));
                 messages.Add(message);
+                if (guidance.Input.TriggerKind is null)
+                    messages.Add(new ChatMessage(ChatRole.User, TaskListReminders.MidTurnInput));
                 if (ExtractHookContext(guidance.Hook) is { } hookContext)
                 {
                     messages.Add(new ChatMessage(ChatRole.User, StreamingFunctionInvokingChatClient.BuildHookFeedbackReminder(

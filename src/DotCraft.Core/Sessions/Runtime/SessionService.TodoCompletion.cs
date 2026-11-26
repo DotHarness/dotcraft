@@ -7,15 +7,12 @@ public sealed partial class SessionService
 {
     private async Task CheckOffTurnTodosAsync(string threadId, SessionTurn turn)
     {
-        var lastWrite = turn.Items
-            .Where(static item => item.Payload is ToolResultPayload
+        if (!turn.Items.Any(static item => item.Payload is ToolResultPayload
             {
                 Namespace: null,
                 ToolName: "TodoWrite",
                 Success: true
-            })
-            .Max(static item => item.CompletedAt);
-        if (lastWrite is null)
+            }))
             return;
 
         var lastWrapUp = turn.Items
@@ -30,11 +27,9 @@ public sealed partial class SessionService
             && blocked.TryGetValue<bool>(out var isBlocked) && isBlocked)
             return;
 
-        var completeAll = lastWrapUp?.CompletedAt > lastWrite;
-
         try
         {
-            await agentFactory.CheckOffTodosAsync(threadId, completeAll);
+            await agentFactory.CheckOffTodosAsync(threadId);
         }
         catch (Exception ex)
         {
