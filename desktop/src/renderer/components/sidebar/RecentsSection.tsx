@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { SquarePen } from 'lucide-react'
 import type { SidebarThreadSortMode } from '../../../shared/sidebarThreadOrder'
+import { sameWorkspaceProjectKey } from '../../../shared/workspaceProjectKey'
 import type { WorkspaceProjectSummary } from '../../../shared/workspaceProjects'
 import { useT } from '../../contexts/LocaleContext'
 import { useUIStore } from '../../stores/uiStore'
@@ -92,7 +93,10 @@ export function RecentsSection({
   }
 
   return (
-    <SidebarSectionDropTarget kind="thread">
+    <SidebarSectionDropTarget
+      kind="thread"
+      acceptsThread={(projectKey) => showProjects || sameWorkspaceProjectKey(projectKey, chatKey)}
+    >
       <SidebarSectionHeader
         label={t('recentsRail.title')}
         toggleLabel={t('projectsRail.toggleSection', { section: t('recentsRail.title') })}

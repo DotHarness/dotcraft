@@ -4,12 +4,20 @@
   border-radius: var(--sidebar-row-radius);
 }
 
+.dc-sidebar-section-drop-target--project {
+  margin-bottom: 0;
+}
+
 .dc-sidebar-section-drop-target[data-drop-active] {
   background: var(--sidebar-control-hover);
 }
 
 .dc-sidebar-section-drop-target[data-drop-active] > * {
   pointer-events: none;
+}
+
+.dc-sidebar-section-drop-target[data-drop-active] .dc-sidebar-section-drop-target {
+  pointer-events: auto;
 }
 
 .dc-sidebar-section-source[data-section-dragging] {

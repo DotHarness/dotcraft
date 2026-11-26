@@ -2,7 +2,7 @@ import { useMemo, type HTMLAttributes, type ReactNode } from 'react'
 import { create } from 'zustand'
 import type { ThreadDropPlacement } from './threadOrdering'
 import { ThreadRowPlacementContext } from './threadRowSelection'
-import { useSidebarSectionDragStore } from './sections/sidebarSectionDrag'
+import { clearSidebarSectionDrag, useSidebarSectionDragStore } from './sections/sidebarSectionDrag'
 
 const THREAD_REORDER_MIME = 'application/x-dotcraft-thread-reorder'
 
@@ -15,6 +15,12 @@ const useThreadReorderStore = create<ThreadReorderState>(() => ({ source: null, 
 
 export function clearThreadReorder(): void {
   useThreadReorderStore.setState({ source: null, target: null })
+}
+
+export function clearThreadReorderTarget(): void {
+  if (useThreadReorderStore.getState().target != null) {
+    useThreadReorderStore.setState({ target: null })
+  }
 }
 
 export interface ReorderItem {
@@ -61,7 +67,11 @@ export function useReorderItem(
       onDragOver: (event) => {
         if (!acceptsDrop()) return
         event.preventDefault()
+        event.stopPropagation()
         event.dataTransfer.dropEffect = 'move'
+        if (useSidebarSectionDragStore.getState().target != null) {
+          useSidebarSectionDragStore.setState({ target: null })
+        }
         const rect = event.currentTarget.getBoundingClientRect()
         const next: ThreadDropPlacement = event.clientY < rect.top + rect.height / 2 ? 'before' : 'after'
         const { target } = useThreadReorderStore.getState()
@@ -79,8 +89,10 @@ export function useReorderItem(
       onDrop: (event) => {
         if (!acceptsDrop()) return
         event.preventDefault()
+        event.stopPropagation()
         const { source, target } = useThreadReorderStore.getState()
         clearThreadReorder()
+        clearSidebarSectionDrag()
         if (source && target?.threadId === itemId) onMove(source.threadId, itemId, target.placement)
       }
     }

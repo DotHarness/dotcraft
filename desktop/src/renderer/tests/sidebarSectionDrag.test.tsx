@@ -8,6 +8,7 @@ import { clearSidebarSectionDrag, useSidebarSectionDrag } from '../components/si
 import { ThreadList } from '../components/sidebar/ThreadList'
 import { ThreadListRow } from '../components/sidebar/ThreadListRow'
 import { useSidebarSectionsStore } from '../stores/sidebarSectionsStore'
+import { useSidebarThreadOrderStore } from '../stores/sidebarThreadOrderStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useUIStore } from '../stores/uiStore'
 import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
@@ -57,10 +58,35 @@ async function drop(element: Element, dataTransfer: DataTransfer) {
   })
 }
 
+function projectSummary(path: string, threadIds: string[], options?: { foreground?: boolean; kind?: 'project' | 'chat' }) {
+  return {
+    path,
+    name: path,
+    kind: options?.kind,
+    state: options?.foreground ? 'foreground' as const : 'secondary' as const,
+    running: true,
+    loaded: true,
+    threadListLoaded: true,
+    threadCount: threadIds.length,
+    pinned: false,
+    pinnedThreadIds: [],
+    threads: threadIds.map((id) => ({
+      id,
+      displayName: id,
+      status: 'active' as const,
+      originChannel: 'dotcraft-desktop',
+      createdAt: '2026-11-11T00:00:00Z',
+      lastActiveAt: '2026-11-11T00:00:00Z'
+    }))
+  }
+}
+
 beforeEach(() => {
   set.mockClear()
   installDesktopApiMock({ settings: { set } })
   useSidebarSectionsStore.getState().hydrate({})
+  useSidebarThreadOrderStore.getState().hydrate({})
+  useUIStore.setState({ projectsSectionCollapsed: false, pinnedSectionCollapsed: false, chatsSectionCollapsed: false })
   clearSidebarSectionDrag()
 })
 
@@ -136,15 +162,7 @@ describe('sidebar section dragging', () => {
   })
 
   it('reorders projects and chats within a section and pauses reordering while searching', async () => {
-    const summary = (path: string, threadIds: string[]) => ({
-      path, name: path, state: path === '/workspace/a' ? 'foreground' as const : 'secondary' as const,
-      running: true, loaded: true, threadCount: threadIds.length, pinned: false, pinnedThreadIds: [],
-      threads: threadIds.map((id) => ({
-        id, displayName: id, status: 'active' as const, originChannel: 'dotcraft-desktop',
-        createdAt: '2026-11-11T00:00:00Z', lastActiveAt: '2026-11-11T00:00:00Z'
-      }))
-    })
-    const projects = [summary('/workspace/a', ['a-1']), summary('/workspace/b', [])]
+    const projects = [projectSummary('/workspace/a', ['a-1'], { foreground: true }), projectSummary('/workspace/b', [])]
     const sectionChat: SidebarSectionItem = { kind: 'thread', projectKey: '/workspace/a', threadId: 'a-1' }
     const sectionProject: SidebarSectionItem = { kind: 'project', projectKey: '/workspace/b' }
     useThreadStore.getState().reset()
@@ -163,5 +181,99 @@ describe('sidebar section dragging', () => {
 
     act(() => { useThreadStore.getState().setSearchQuery('a-1') })
     expect(screen.getByText('a-1').closest('.dc-thread-list-row')?.getAttribute('draggable')).toBeNull()
+  })
+
+  it('restores a sectioned workspace thread when dropped on its own project even inside the same section', async () => {
+    const projectB = projectSummary('/workspace/b', ['b-1', 'b-2'], { foreground: true })
+    const sectionThread: SidebarSectionItem = { kind: 'thread', projectKey: '/workspace/b', threadId: 'b-1' }
+    const sectionProject: SidebarSectionItem = { kind: 'project', projectKey: '/workspace/b' }
+    useThreadStore.getState().reset()
+    useThreadStore.getState().setThreadList(projectB.threads, '/workspace/b')
+    useWorkspaceProjectsStore.getState().setPayload({ foregroundWorkspacePath: '/workspace/b', secondaryLimit: 8, projects: [projectB] })
+    useSidebarThreadOrderStore.getState().setProjectsCollapsed(['/workspace/b'], true)
+    const work = useSidebarSectionsStore.getState().createSection('Work', { items: [sectionProject, sectionThread] })
+    render(<LocaleProvider loadSettings={false}><ThreadList /></LocaleProvider>)
+    const dataTransfer = transfer()
+
+    fireEvent.dragStart(screen.getByText('b-1'), { dataTransfer })
+    await drop(screen.getByText('/workspace/b'), dataTransfer)
+
+    expect(useSidebarSectionsStore.getState().sections.find((entry) => entry.id === work)?.items).toEqual([sectionProject])
+    expect(useSidebarThreadOrderStore.getState().collapsedProjectIds).not.toContain('/workspace/b')
+  })
+
+  it('restores an ordinary project thread when dropped on Projects and expands collapsed targets', async () => {
+    const projectA = projectSummary('/workspace/a', ['a-1'], { foreground: true })
+    const sectionThread: SidebarSectionItem = { kind: 'thread', projectKey: '/workspace/a', threadId: 'a-1' }
+    useThreadStore.getState().reset()
+    useThreadStore.getState().setThreadList(projectA.threads, '/workspace/a')
+    useWorkspaceProjectsStore.getState().setPayload({ foregroundWorkspacePath: '/workspace/a', secondaryLimit: 8, projects: [projectA] })
+    useUIStore.setState({ projectsSectionCollapsed: true })
+    useSidebarThreadOrderStore.getState().setProjectsCollapsed(['/workspace/a'], true)
+    const work = useSidebarSectionsStore.getState().createSection('Work', { items: [sectionThread] })
+    render(<LocaleProvider loadSettings={false}><ThreadList /></LocaleProvider>)
+    const dataTransfer = transfer()
+
+    fireEvent.dragStart(screen.getByText('a-1'), { dataTransfer })
+    await drop(screen.getByText('Projects'), dataTransfer)
+
+    expect(useSidebarSectionsStore.getState().sections.find((entry) => entry.id === work)?.items).toEqual([])
+    expect(useUIStore.getState().projectsSectionCollapsed).toBe(false)
+    expect(useSidebarThreadOrderStore.getState().collapsedProjectIds).not.toContain('/workspace/a')
+  })
+
+  it('keeps a project thread inside its project when dragged or reordered inside a custom section', async () => {
+    const projectA = projectSummary('/workspace/a', ['a-1', 'a-2'], { foreground: true })
+    const sectionProject: SidebarSectionItem = { kind: 'project', projectKey: '/workspace/a' }
+    useThreadStore.getState().reset()
+    useThreadStore.getState().setThreadList(projectA.threads, '/workspace/a')
+    useWorkspaceProjectsStore.getState().setPayload({ foregroundWorkspacePath: '/workspace/a', secondaryLimit: 8, projects: [projectA] })
+    const work = useSidebarSectionsStore.getState().createSection('Work', { items: [sectionProject] })
+    render(<LocaleProvider loadSettings={false}><ThreadList /></LocaleProvider>)
+    const dataTransfer = transfer()
+
+    fireEvent.dragStart(screen.getByText('a-1'), { dataTransfer })
+    await drop(screen.getByText('/workspace/a'), dataTransfer)
+    expect(useSidebarSectionsStore.getState().sections.find((entry) => entry.id === work)?.items).toEqual([sectionProject])
+
+    act(() => { useSidebarThreadOrderStore.getState().setProjectsSort('manual', { '/workspace/a': ['a-1', 'a-2'] }) })
+    fireEvent.dragStart(screen.getByText('a-1'), { dataTransfer })
+    await drop(screen.getByText('a-2').closest('.dc-thread-list-row')!, dataTransfer)
+    expect(useSidebarSectionsStore.getState().sections.find((entry) => entry.id === work)?.items).toEqual([sectionProject])
+    expect(useSidebarThreadOrderStore.getState().projectOrders['/workspace/a']).toEqual(['a-2', 'a-1'])
+  })
+
+  it('restricts Recents drop restoration to chat threads unless Recents shows project chats', async () => {
+    const projectA = projectSummary('/workspace/a', ['a-1'], { foreground: true })
+    const chatWorkspace = projectSummary('/workspace/chats', ['chat-1'], { kind: 'chat' })
+    const projectThread: SidebarSectionItem = { kind: 'thread', projectKey: '/workspace/a', threadId: 'a-1' }
+    const generalChat: SidebarSectionItem = { kind: 'thread', projectKey: '/workspace/chats', threadId: 'chat-1' }
+    useThreadStore.getState().reset()
+    useThreadStore.getState().setThreadList(projectA.threads, '/workspace/a')
+    useWorkspaceProjectsStore.getState().setPayload({
+      foregroundWorkspacePath: '/workspace/a',
+      secondaryLimit: 8,
+      chat: chatWorkspace,
+      projects: [projectA]
+    })
+    useUIStore.setState({ chatsSectionCollapsed: true })
+    const work = useSidebarSectionsStore.getState().createSection('Work', { items: [projectThread, generalChat] })
+    render(<LocaleProvider loadSettings={false}><ThreadList /></LocaleProvider>)
+    const dataTransfer = transfer()
+
+    fireEvent.dragStart(screen.getByText('a-1'), { dataTransfer })
+    await drop(screen.getByText('Recents'), dataTransfer)
+    expect(useSidebarSectionsStore.getState().sections.find((entry) => entry.id === work)?.items).toEqual([projectThread, generalChat])
+    expect(useUIStore.getState().chatsSectionCollapsed).toBe(true)
+
+    fireEvent.dragStart(screen.getByText('chat-1'), { dataTransfer })
+    await drop(screen.getByText('Recents'), dataTransfer)
+    expect(useSidebarSectionsStore.getState().sections.find((entry) => entry.id === work)?.items).toEqual([projectThread])
+    expect(useUIStore.getState().chatsSectionCollapsed).toBe(false)
+
+    act(() => { useSidebarThreadOrderStore.getState().setRecentsShowProjects(true) })
+    fireEvent.dragStart(screen.getByText('a-1'), { dataTransfer })
+    await drop(screen.getByText('Recents'), dataTransfer)
+    expect(useSidebarSectionsStore.getState().sections.find((entry) => entry.id === work)?.items).toEqual([])
   })
 })

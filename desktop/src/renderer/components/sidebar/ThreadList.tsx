@@ -425,6 +425,8 @@ export function ThreadList({
           key={projectKey}
           listId={slot?.listId ?? (project.pinned ? 'projects:pinned' : 'projects:ordinary')}
           projectKey={slot?.itemKey ?? orderKey}
+          workspaceKey={projectKey}
+          onRestoreThread={() => setProjectsCollapsed([orderKey], false)}
           reorderable={slot ? !searching : projectSort === 'manual' && !searching}
           onMove={slot?.onMove ?? moveProject}
           header={<ProjectHeader
@@ -572,7 +574,18 @@ export function ThreadList({
           )
         })}
         {showProjects && (
-          <SidebarSectionDropTarget kind="project">
+          <SidebarSectionDropTarget
+            kind="project"
+            acceptsThread={(projectKey) =>
+              ordinaryProjects.some((project) => sameWorkspaceProjectKey(projectIdentity(project), projectKey))
+            }
+            onRestore={(projectKey) => {
+              const match = ordinaryProjects.find((project) =>
+                sameWorkspaceProjectKey(projectIdentity(project), projectKey)
+              )
+              if (match) setProjectsCollapsed([projectOrderIdentity(match)], false)
+            }}
+          >
             <ProjectsSectionHeader
               collapsed={projectsSectionCollapsed}
               onToggle={() => setProjectsSectionCollapsed(!projectsSectionCollapsed)}
@@ -652,6 +665,8 @@ export function ThreadList({
 function ProjectListItem({
   listId,
   projectKey,
+  workspaceKey,
+  onRestoreThread,
   reorderable,
   onMove,
   header,
@@ -659,6 +674,8 @@ function ProjectListItem({
 }: {
   listId: string
   projectKey: string
+  workspaceKey: string
+  onRestoreThread: () => void
   reorderable: boolean
   onMove: (movedKey: string, targetKey: string, placement: ThreadDropPlacement) => void
   header: ReactNode
@@ -673,8 +690,10 @@ function ProjectListItem({
       style={{ marginBottom: '6px' }}
       {...targetProps}
     >
-      <div {...sourceProps}>{header}</div>
-      {children}
+      <SidebarSectionDropTarget projectKey={workspaceKey} onRestore={onRestoreThread}>
+        <div {...sourceProps}>{header}</div>
+        {children}
+      </SidebarSectionDropTarget>
     </div>
   )
 }
