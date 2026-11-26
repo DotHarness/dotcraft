@@ -669,8 +669,11 @@ The slash surface lists Desktop-owned system actions, extension actions, and Ski
 
 - **Init** appears only when command management is available and the workspace `command/list` result contains `/init` (AppServer omits it when root `AGENTS.md` or `AGENTS.override.md` exists; Desktop never inspects these files). Selecting it, or submitting `/init`, calls `command/execute` and starts a normal turn with the returned `expandedPrompt`. Command availability reloads after each turn ends.
 - **Reload skills** appears only when command management is available, the composer has a thread, and the workspace `command/list` result contains `/reload-skills`. Selecting it, or submitting `/reload-skills`, calls `command/execute` with that command, reports the result, and refreshes the skills list; it never starts an agent turn.
-- **Plan mode** is always shown and toggles mode through the same path as its keyboard shortcut, calling `thread/mode/set`. On Welcome it updates the pending mode without starting a thread.
+- **Plan**, **Creator**, **Custom**, and **Goal** are mode actions. Each is named by its footer pill and keeps one fixed description of what the mode does. Only the footer pill shows that a mode is on.
+- **Plan** is shown unless the thread runs a custom agent, and toggles mode through the same path as its keyboard shortcut, calling `thread/mode/set`. On Welcome it updates the pending mode without starting a thread.
 - **Creator** is always shown and toggles Creator mode for the composer's thread, or the pending mode on Welcome.
+- **Custom** opens the agent picker. While a custom agent is on, the picker highlights it and offers a row that clears it.
+- **Goal** enters goal composing. Selecting it while composing exits. When the thread already has a goal, it opens the goal panel instead, because clearing a goal is destructive.
 - **Compact** appears only when `capabilities.manualCompaction = true`, the thread has a turn, and no turn is running or awaiting approval. It calls `thread/compact/start` with a long client-side wait; a client timeout does not imply server failure.
 - Direct `/plan`, `/agent`, `/creator`, `/compact`, and `/reload-skills` are handled locally and never start an agent turn; `/compact` reports unavailability when its conditions are not met.
 

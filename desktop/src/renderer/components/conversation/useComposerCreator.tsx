@@ -42,10 +42,10 @@ export function useComposerCreatorControls({
   const action = useMemo((): SlashSystemActionInfo | null => available ? {
     id: CREATOR_SYSTEM_ACTION_ID,
     label: t('composer.system.creator'),
-    description: creator ? t('composer.system.creator.disable') : t('composer.system.creator.enable'),
+    description: t('composer.system.creator.description'),
     keywords: ['creator', 'plugin', 'extension'],
     icon: <Hammer size={15} strokeWidth={2} aria-hidden />
-  } : null, [available, creator, t])
+  } : null, [available, t])
   const toggle = useCallback(() => {
     if (!creator && useConversationStore.getState().turnStatus === 'idle') useFeatureGuideStore.getState().request('creator')
     change(!creator)

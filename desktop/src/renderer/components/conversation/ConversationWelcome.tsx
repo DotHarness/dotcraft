@@ -303,10 +303,8 @@ function ConversationWelcomeCore({
       if (!selectedProfileId) {
         actions.push({
           id: 'planMode',
-          label: t('composer.system.plan'),
-          description: welcomeMode === 'agent'
-            ? t('composer.system.plan.enable')
-            : t('composer.system.plan.disable'),
+          label: t('composer.mode.plan'),
+          description: t('composer.system.plan.description'),
           keywords: ['plan', 'agent', '计划'],
           icon: <ListChecks size={15} strokeWidth={2} aria-hidden />
         })
@@ -315,7 +313,7 @@ function ConversationWelcomeCore({
       if (canUseAgentProfiles) {
         actions.push({
           id: 'profile',
-          label: t('composer.system.profile'),
+          label: t('composer.mode.custom'),
           description: t('composer.system.profile.description'),
           keywords: ['profile', 'agent', 'custom'],
           icon: <Bot size={15} strokeWidth={2} aria-hidden />
@@ -332,7 +330,7 @@ function ConversationWelcomeCore({
       }
       return actions
     },
-    [canUseAgentProfiles, canUseCommandPicker, canUseThreadGoals, creatorControls.action, initAvailable, selectedProfileId, t, welcomeMode]
+    [canUseAgentProfiles, canUseCommandPicker, canUseThreadGoals, creatorControls.action, initAvailable, selectedProfileId, t]
   )
   useEffect(() => {
     if (!canUseAppBinding || !isConnected) return
@@ -961,8 +959,9 @@ function ConversationWelcomeCore({
       return
     }
     if (actionId !== 'goal') return
-    enterGoalComposeMode()
-  }, [creatorControls, enterGoalComposeMode, sendFromWelcome, toggleWelcomeMode])
+    if (goalComposeMode) setGoalComposeMode(false)
+    else enterGoalComposeMode()
+  }, [creatorControls, enterGoalComposeMode, goalComposeMode, sendFromWelcome, toggleWelcomeMode])
 
   const onDragOver = useCallback((e: React.DragEvent): void => {
     e.preventDefault()
@@ -1106,6 +1105,10 @@ function ConversationWelcomeCore({
                       activeProfileId={selectedProfileId ?? undefined}
                       onPick={(profileId) => {
                         setSelectedProfileId(profileId)
+                        setProfilePickerOpen(false)
+                      }}
+                      onClear={() => {
+                        setSelectedProfileId(null)
                         setProfilePickerOpen(false)
                       }}
                       onDismiss={() => {

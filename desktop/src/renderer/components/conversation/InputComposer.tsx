@@ -397,10 +397,8 @@ function InputComposerCore({
       if (!hasProfile) {
         actions.push({
           id: 'planMode',
-          label: t('composer.system.plan'),
-          description: threadMode === 'agent'
-            ? t('composer.system.plan.enable')
-            : t('composer.system.plan.disable'),
+          label: t('composer.mode.plan'),
+          description: t('composer.system.plan.description'),
           keywords: ['plan', 'agent'],
           icon: <ListChecks size={15} strokeWidth={2} aria-hidden />
         })
@@ -409,7 +407,7 @@ function InputComposerCore({
       if (canUseAgentProfiles) {
         actions.push({
           id: 'profile',
-          label: t('composer.system.profile'),
+          label: t('composer.mode.custom'),
           description: t('composer.system.profile.description'),
           keywords: ['profile', 'agent', 'custom'],
           icon: <Bot size={15} strokeWidth={2} aria-hidden />
@@ -454,7 +452,7 @@ function InputComposerCore({
       actions.push(...channelBindingCommands.actions)
       return actions
     },
-    [canCompactCurrentThread, canOpenSideChat, canUseAgentProfiles, canUseCommandPicker, canUseSystemActions, canUseThreadGoals, creatorControls.action, hasProfile, initAvailable, reloadSkillsAvailable, threadId, channelBindingCommands.actions, t, threadMode]
+    [canCompactCurrentThread, canOpenSideChat, canUseAgentProfiles, canUseCommandPicker, canUseSystemActions, canUseThreadGoals, creatorControls.action, hasProfile, initAvailable, reloadSkillsAvailable, threadId, channelBindingCommands.actions, t]
   )
 
   useEffect(() => {
@@ -1604,13 +1602,15 @@ function InputComposerCore({
       return
     }
     if (actionId !== 'goal') return
-    if (currentGoal) {
+    if (goalComposeMode) {
+      setGoalComposeMode(false)
+    } else if (currentGoal) {
       setGoalPopoverOpen(true)
       void ensureCurrentGoal().catch(() => {})
     } else {
       enterGoalComposeMode()
     }
-  }, [currentGoal, enterGoalComposeMode, ensureCurrentGoal, compactCurrentThread, creatorControls, reloadSkills, sendMessage, channelBindingCommands, toggleMode, t, threadId])
+  }, [currentGoal, enterGoalComposeMode, ensureCurrentGoal, goalComposeMode, compactCurrentThread, creatorControls, reloadSkills, sendMessage, channelBindingCommands, toggleMode, t, threadId])
 
   const onSelectSkill = useCallback((skillName: string): void => {
     richRef.current?.insertSkillTag(skillName)
@@ -1705,6 +1705,10 @@ function InputComposerCore({
                 activeProfileId={activeProfileId}
                 onPick={(profileId) => {
                   void applyProfile(profileId)
+                }}
+                onClear={() => {
+                  setProfilePickerOpen(false)
+                  void clearProfile()
                 }}
                 onDismiss={() => {
                   setProfilePickerOpen(false)

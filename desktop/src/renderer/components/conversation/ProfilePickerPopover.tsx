@@ -1,6 +1,6 @@
 import { useEffect, useState, type CSSProperties, type JSX } from 'react'
 import { createPortal } from 'react-dom'
-import { X } from 'lucide-react'
+import { Ban, X } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { RobotAvatar } from '../agents/RobotAvatar'
 import { localizeAgentProfile } from '../../utils/builtInAgentProfiles'
@@ -19,11 +19,12 @@ interface ProfilePickerPopoverProps {
   visible: boolean
   activeProfileId?: string
   onPick: (profileId: string) => void
+  onClear: () => void
   onDismiss: () => void
 }
 
 /** The caller decides whether the selected Profile applies at thread creation or to an existing thread. */
-export function ProfilePickerPopover({ visible, activeProfileId, onPick, onDismiss }: ProfilePickerPopoverProps): JSX.Element | null {
+export function ProfilePickerPopover({ visible, activeProfileId, onPick, onClear, onDismiss }: ProfilePickerPopoverProps): JSX.Element | null {
   const t = useT()
   const [profiles, setProfiles] = useState<ProfileEntry[]>([])
   const [loading, setLoading] = useState(false)
@@ -72,6 +73,23 @@ export function ProfilePickerPopover({ visible, activeProfileId, onPick, onDismi
           <IconButton size={24} radius={6} icon={<X size={14} aria-hidden />} label={t('common.close')} onClick={onDismiss} />
         </div>
         <div style={BODY_STYLE}>
+          {activeProfileId && (
+            <button
+              type="button"
+              style={itemStyle(false, hoveredId === CLEAR_ROW_ID)}
+              onClick={onClear}
+              onMouseEnter={() => setHoveredId(CLEAR_ROW_ID)}
+              onMouseLeave={() => setHoveredId((prev) => (prev === CLEAR_ROW_ID ? null : prev))}
+            >
+              <span style={CLEAR_ICON_STYLE} aria-hidden>
+                <Ban size={16} strokeWidth={1.8} />
+              </span>
+              <span style={COPY_STYLE}>
+                <span style={NAME_STYLE}>{t('composer.profile.none')}</span>
+                <span style={DESC_STYLE}>{t('composer.profile.none.description')}</span>
+              </span>
+            </button>
+          )}
           {loading ? (
             <div style={STATE_STYLE}>{t('composer.profile.loading')}</div>
           ) : error ? (
@@ -104,6 +122,8 @@ export function ProfilePickerPopover({ visible, activeProfileId, onPick, onDismi
     document.body
   )
 }
+
+const CLEAR_ROW_ID = ''
 
 const SCRIM_STYLE: CSSProperties = {
   position: 'fixed',
@@ -180,6 +200,16 @@ function itemStyle(active: boolean, hovered: boolean): CSSProperties {
 const AVATAR_STYLE: CSSProperties = {
   flex: '0 0 auto',
   display: 'inline-flex'
+}
+
+const CLEAR_ICON_STYLE: CSSProperties = {
+  flex: '0 0 auto',
+  width: 30,
+  height: 30,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  color: 'var(--text-secondary)'
 }
 
 const COPY_STYLE: CSSProperties = {
