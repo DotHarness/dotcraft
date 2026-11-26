@@ -630,8 +630,8 @@ on its own, keeps the mark in `--text-primary`, and uses the bulb's yellow as it
 only colour; reduced motion keeps only the bulb.
 
 When the conversation, or the workspace default, runs on a plugin model backend or a
-subscription sign-in, the header pairs the wordmark with that backend: a `1px x 14px`
-`--text-tertiary` rule, then the backend's icon fitted by its visible shape to the
+subscription sign-in, the header pairs the wordmark with that backend: a `14px` rule one
+device pixel wide in 28% `--text-primary`, then the backend's icon fitted by its visible shape to the
 mark's `18px x 14px` ink, with its name in a tooltip. API-key providers show nothing.
 Gaining a backend plays one link-up (the rule grows, the icon slides in, the bulb
 pops); switching between backends only cross-fades. Below `150px` of header the

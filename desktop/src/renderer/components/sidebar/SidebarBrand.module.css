@@ -62,7 +62,25 @@
   flex-shrink: 0;
   width: 1px;
   height: 14px;
-  background: var(--text-tertiary);
+  background: color-mix(in srgb, var(--text-primary) 28%, transparent);
+}
+
+@media (min-resolution: 1.25dppx) {
+  .rule {
+    width: 0.8px;
+  }
+}
+
+@media (min-resolution: 1.5dppx) {
+  .rule {
+    width: calc(2px / 3);
+  }
+}
+
+@media (min-resolution: 2dppx) {
+  .rule {
+    width: 0.5px;
+  }
 }
 
 .partnerMark {
