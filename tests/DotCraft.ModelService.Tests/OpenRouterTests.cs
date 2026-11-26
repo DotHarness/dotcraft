@@ -145,8 +145,15 @@ public sealed class OpenRouterTests
     private sealed class Access(EffectiveModelRuntime runtime, OpenRouterProvider backend) : IModelServiceAccess
     {
         public ValueTask<ModelServiceCaller?> AuthenticateAsync(HttpContext context, CancellationToken cancellationToken) => ValueTask.FromResult<ModelServiceCaller?>(new("worker"));
-        public Task<IReadOnlyList<ModelServiceProvider>> GetProvidersAsync(ModelServiceCaller caller, CancellationToken ct) => Task.FromResult<IReadOnlyList<ModelServiceProvider>>([
-            new(new("router", "OpenRouter", "auto", runtime.EndPoint, "apiKey", false, false, new(true), BackendId: "openrouter"), runtime, Backend: backend)]);
+        private readonly ModelServiceProvider _provider = new(
+            new("router", "OpenRouter", "auto", runtime.EndPoint, "apiKey", false, false, new(true), BackendId: "openrouter"),
+            runtime, Backend: backend);
+
+        public Task<IReadOnlyList<ModelServiceProvider>> GetProvidersAsync(ModelServiceCaller caller, CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<ModelServiceProvider>>([_provider]);
+
+        public Task<ModelServiceProvider?> GetProviderAsync(ModelServiceCaller caller, string providerId, CancellationToken ct) =>
+            Task.FromResult<ModelServiceProvider?>(providerId == _provider.Description.Id ? _provider : null);
         public ValueTask<IDisposable?> BeginRequestAsync(ModelServiceCaller caller, ModelServiceRequestContext request, CancellationToken ct) => ValueTask.FromResult<IDisposable?>(null);
     }
 }

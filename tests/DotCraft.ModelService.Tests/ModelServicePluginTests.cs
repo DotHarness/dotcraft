@@ -110,6 +110,9 @@ public sealed class ModelServicePluginTests : IDisposable
         Assert.NotEqual(PluginRuntimeMutationOutcome.NotApplied, (await runtime.RevokeTrustAsync(PluginId, ct)).Outcome);
         await upstream.StreamCancelled.Task.WaitAsync(ct);
         Assert.Empty((await remote.GetCatalogAsync(ct)).Providers);
+        using var unavailable = await SendAsync(client, "first-model", ct);
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, unavailable.StatusCode);
+        Assert.Equal("backend_unavailable", Assert.Single(unavailable.Headers.GetValues(ModelServiceProtocol.ErrorHeader)));
         await service.StopAsync(ct);
         Assert.False(_toolProjected.Task.IsCompleted);
     }
@@ -202,8 +205,16 @@ public sealed class ModelServicePluginTests : IDisposable
 
         public Task<IReadOnlyList<ModelServiceProvider>> GetProvidersAsync(ModelServiceCaller caller, CancellationToken ct) =>
             Task.FromResult<IReadOnlyList<ModelServiceProvider>>(
-                ModelServiceProvider.ResolveBackend(ModelProviderResolver.ResolveProvider(config, "gateway"), resolver) is { } provider
-                    ? [provider] : []);
+                ResolveGateway() is { } provider ? [provider] : []);
+
+        public Task<ModelServiceProvider?> GetProviderAsync(ModelServiceCaller caller, string providerId, CancellationToken ct) =>
+            Task.FromResult<ModelServiceProvider?>(providerId == "gateway" && config.Providers.ContainsKey(providerId)
+                ? ResolveGateway() ?? throw new ModelServiceException("backend_unavailable", "The requested backend is unavailable.",
+                    StatusCodes.Status503ServiceUnavailable)
+                : null);
+
+        private ModelServiceProvider? ResolveGateway() =>
+            ModelServiceProvider.ResolveBackend(ModelProviderResolver.ResolveProvider(config, "gateway"), resolver);
 
         public ValueTask<IDisposable?> BeginRequestAsync(ModelServiceCaller caller, ModelServiceRequestContext request, CancellationToken ct) =>
             ValueTask.FromResult<IDisposable?>(null);

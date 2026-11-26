@@ -70,6 +70,9 @@ provider resolution, credential storage, and usage recording. Hosts can register
 directly, including [OpenRouter](openrouter.md), without enabling plugins. An embedded host carries
 the stopping signal of the resolved backend generation for the complete HTTP request.
 
+An embedding host resolves each inference request against its configured providers and caller
+grants, independently of its catalog of available providers.
+
 A host may opt into the shared [trusted .NET plugin runtime](dotnet-extensions.md) without starting
 an Agent Session. It uses installed bundles, the same manifest and contribution contracts, and
 explicit discovery and trust inputs. The official service scopes plugin enablement, trust, settings,

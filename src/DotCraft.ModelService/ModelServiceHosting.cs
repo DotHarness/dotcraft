@@ -41,9 +41,8 @@ public interface IModelServiceAccess
 {
     ValueTask<ModelServiceCaller?> AuthenticateAsync(HttpContext context, CancellationToken cancellationToken);
     Task<IReadOnlyList<ModelServiceProvider>> GetProvidersAsync(ModelServiceCaller caller, CancellationToken cancellationToken);
-    async Task<ModelServiceProvider?> GetProviderAsync(ModelServiceCaller caller, string providerId, CancellationToken cancellationToken) =>
-        (await GetProvidersAsync(caller, cancellationToken).ConfigureAwait(false))
-        .FirstOrDefault(provider => provider.Description.Id == providerId);
+    /// <summary>Returns null only for unknown or forbidden providers. Throws <see cref="ModelServiceException"/> with status 503 if an allowed provider is unavailable.</summary>
+    Task<ModelServiceProvider?> GetProviderAsync(ModelServiceCaller caller, string providerId, CancellationToken cancellationToken);
     ValueTask<IDisposable?> BeginRequestAsync(ModelServiceCaller caller, ModelServiceRequestContext request, CancellationToken cancellationToken);
 }
 
