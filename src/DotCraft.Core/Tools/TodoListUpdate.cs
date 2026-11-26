@@ -2,7 +2,6 @@ using DotCraft.Memory;
 
 namespace DotCraft.Tools;
 
-/// <summary>Applies an incremental TodoWrite update and describes the resulting list.</summary>
 internal sealed record TodoListUpdate(bool Advance, IReadOnlyList<int> Done, int? Start)
 {
     public bool IsEmpty => !Advance && Done.Count == 0 && Start is null;

@@ -164,7 +164,6 @@ public sealed class PlanTools(
     };
 }
 
-/// <summary>What a whole-list TodoWrite call is to the session.</summary>
 public enum TodoWriteScope
 {
     [JsonStringEnumMemberName("first_task")]

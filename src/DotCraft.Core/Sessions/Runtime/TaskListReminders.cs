@@ -3,7 +3,6 @@ using Microsoft.Extensions.AI;
 
 namespace DotCraft.Sessions;
 
-/// <summary>Model-only reminders that keep an unfinished TodoWrite list current.</summary>
 internal static class TaskListReminders
 {
     public const string StaleKind = "task_list_reminder";
