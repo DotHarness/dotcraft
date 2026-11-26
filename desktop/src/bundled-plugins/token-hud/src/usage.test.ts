@@ -152,7 +152,7 @@ describe('Token HUD usage', () => {
     stop()
   })
 
-  it('restores timing and compares new readings within the same workspace thread', async () => {
+  it('restores HUD metrics and compares speed within the same workspace thread', async () => {
     vi.useFakeTimers()
     const notifications = new Map<string, (params: any) => void>()
     let sessionListener: ((session: {
@@ -161,6 +161,7 @@ describe('Token HUD usage', () => {
       mode: string
       busy: boolean
     }) => void) | null = null
+    const request = vi.fn().mockResolvedValue({ inputTokens: 0, cachedInputTokens: 0 })
     const host = {
       session: {
         workspacePath: '/workspace/example',
@@ -173,11 +174,7 @@ describe('Token HUD usage', () => {
         }
       },
       appServer: {
-        request: vi.fn().mockResolvedValue({
-          totalTokens: 3_500_000,
-          totalInputTokens: 2_000_000,
-          cacheHitRate: 0.8162
-        }),
+        request,
         onNotification: (method: string, listener: (params: any) => void) => {
           notifications.set(method, listener)
           return () => notifications.delete(method)
@@ -199,28 +196,45 @@ describe('Token HUD usage', () => {
     }
 
     const stop = startUsageFeed(host)
-    await vi.runAllTicks()
     turnEvent('turn/started', 'thread-1', 'turn-1')
     sample('thread-1', 'turn-1', 30, 1_000)
+    notifications.get('thread/tokenUsage/updated')?.({
+      threadId: 'thread-1',
+      tokenUsage: { total: { inputTokens: 100, cachedInputTokens: 90 } }
+    })
 
+    request.mockResolvedValueOnce({ threadId: 'thread-2', inputTokens: 100, cachedInputTokens: 0 })
     select('thread-2', true)
-    expect(getUsage()).toMatchObject({ tokensPerSecond: null, firstTokenLatencyMs: null, waitingForSample: true })
+    expect(getUsage()).toMatchObject({
+      tokensPerSecond: null, firstTokenLatencyMs: null, cacheHitRate: null, waitingForSample: true
+    })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(getUsage().cacheHitRate).toBe(0)
     turnEvent('turn/started', 'thread-2', 'turn-1')
     sample('thread-2', 'turn-1', 20, 2_000)
     expect(getUsage()).toMatchObject({ tokensPerSecond: 20, firstTokenLatencyMs: 2_000, speedComparison: null })
     turnEvent('turn/completed', 'thread-2', 'turn-1')
 
     select('thread-1', true)
-    expect(getUsage()).toMatchObject({ tokensPerSecond: 30, firstTokenLatencyMs: 1_000, speedComparison: null })
+    expect(getUsage()).toMatchObject({
+      tokensPerSecond: 30, firstTokenLatencyMs: 1_000, cacheHitRate: 0.9, speedComparison: null
+    })
     turnEvent('turn/completed', 'thread-1', 'turn-1')
     turnEvent('turn/started', 'thread-1', 'turn-2')
     sample('thread-1', 'turn-2', 40, 1_500)
     expect(getUsage()).toMatchObject({ tokensPerSecond: 40, speedComparison: { previous: 30, next: 40 } })
 
     select('thread-1', false, '/workspace/other')
-    expect(getUsage()).toMatchObject({ tokensPerSecond: null, firstTokenLatencyMs: null, speedComparison: null })
+    expect(getUsage()).toMatchObject({
+      tokensPerSecond: null, firstTokenLatencyMs: null, cacheHitRate: null, speedComparison: null
+    })
+    request.mockResolvedValueOnce({ threadId: 'thread-1', inputTokens: 100, cachedInputTokens: 50 })
     select('thread-1')
-    expect(getUsage()).toMatchObject({ tokensPerSecond: 40, firstTokenLatencyMs: 1_500, speedComparison: null })
+    expect(getUsage()).toMatchObject({
+      tokensPerSecond: 40, firstTokenLatencyMs: 1_500, cacheHitRate: 0.9, speedComparison: null
+    })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(getUsage().cacheHitRate).toBe(0.9)
 
     turnEvent('turn/started', 'thread-1', 'turn-3')
     sample('thread-1', 'turn-3', 120)
@@ -228,7 +242,9 @@ describe('Token HUD usage', () => {
     turnEvent('turn/completed', 'thread-1', 'turn-3')
 
     select('thread-2')
-    expect(getUsage()).toMatchObject({ tokensPerSecond: 20, firstTokenLatencyMs: 2_000, speedComparison: null })
+    expect(getUsage()).toMatchObject({
+      tokensPerSecond: 20, firstTokenLatencyMs: 2_000, cacheHitRate: 0, speedComparison: null
+    })
     select('thread-1')
     expect(getUsage()).toMatchObject({ tokensPerSecond: null, firstTokenLatencyMs: null, speedComparison: null })
     turnEvent('turn/started', 'thread-1', 'turn-4')

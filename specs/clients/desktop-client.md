@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.14.3 |
+| **Version** | 0.14.4 |
 | **Status** | Living |
-| **Date** | 2026-11-25 |
+| **Date** | 2026-11-26 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
 | **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Hub Architecture](../architecture/hub-architecture.md), [Device Gateway](../protocols/device-gateway.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Goal Design](../features/goal.md), [Session Import](../features/session-import.md), [Desktop DESIGN.md](../architecture/DESIGN.md) |
 
@@ -241,7 +241,7 @@ A client that displays multiple workspaces routes each notification with the wor
 | `item/completed` | The final item replaces any in-progress representation. A trusted presentation descriptor may select a local renderer, and an eligible terminal `mcpToolCall` may advertise a live MCP Apps View; generic fallback remains available. |
 | `item/usage/delta` | Context usage indicators refresh; deltas accumulate for the active turn and are reconciled by `turn/completed.tokenUsage`. |
 
-- The Token HUD uses available request timing for speed and first-token latency. The window remembers recent timing readouts per workspace and thread. Reopening a thread restores its own readout only, and threads without a readout show no number. A previous readout for the same thread may remain while awaiting the first usage sample, but it clears when the active turn has no applicable timing or ends without a sample. Missing timing does not hide token or cache usage.
+- The Token HUD uses available request timing for speed and first-token latency. The window remembers recent timing readouts per workspace and thread. Reopening a thread restores its own readout only, and threads without a readout show no number. A previous readout for the same thread may remain while awaiting the first usage sample, but it clears when the active turn has no applicable timing or ends without a sample. Missing timing does not hide token or cache usage. The window also restores the thread’s last known cache hit rate when reopened. Live usage takes precedence over completed-turn statistics, and missing usage does not clear a known rate. A thread with input tokens but no cache hits shows 0%.
 - The working line's title comes from the turn's latest reasoning that yields one: its latest heading line (a line that is entirely bold or a Markdown heading), or without one, the first line of its latest paragraph whose first line is complete. A new reasoning block keeps the previous title until it yields its own; with none yet the title is a localized Thinking label. A changing title replaces its text in place; the label fades only as it appears or hides. When thinking content is shown, each reasoning is a static Thought row from the moment it starts, expandable to its text as it streams, and reasoning between tool calls is listed in order inside the tool group without splitting it; only the working line shows that reasoning is in progress.
 - Remote Tool Host transfers render as a tool row naming the item, direction, machine, and state, with the source and destination route, live byte and file progress, and final counts. Failure preserves the last progress and reason. Historical results without totals show known statistics only and never borrow the current route. Raw JSON is not rendered.
 

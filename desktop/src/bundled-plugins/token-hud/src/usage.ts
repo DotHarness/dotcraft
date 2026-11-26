@@ -7,11 +7,13 @@ interface TimingReadout {
   readonly firstTokenLatencyMs: number | null
 }
 
-interface ThreadTiming {
+interface ThreadMetrics {
   readonly meter: ThroughputMeter
   turnId: string | null
-  readout: TimingReadout
+  timingReadout: TimingReadout
   lastRequestSpeed: number | null
+  liveCacheHitRate: number | null
+  completedCacheHitRate: number | null
 }
 
 export interface UsageState extends TimingReadout {
@@ -35,11 +37,6 @@ export interface ThreadUsageSnapshot {
   readonly totalTokens: number
   readonly costUsd: number | null
   readonly groups: readonly ThreadUsageGroup[]
-}
-
-interface CacheUsage {
-  readonly inputTokens: number
-  readonly cachedInputTokens: number
 }
 
 const EMPTY_TIMING: TimingReadout = {
@@ -84,58 +81,52 @@ export function startUsageFeed(host: DesktopPluginHost): () => void {
   let threadId = host.session.threadId
   let workspacePath = host.session.workspacePath
   let activeTurnId: string | null = null
-  let liveCacheUsageSeen = false
-  const timingByThread = new Map<string, ThreadTiming>()
+  const metricsByThread = new Map<string, ThreadMetrics>()
   const scopeForThread = (): string | null =>
     workspacePath && threadId ? JSON.stringify([workspacePath, threadId]) : null
 
-  const selectTiming = (scope: string | null): ThreadTiming => {
-    const cached = scope === null ? undefined : timingByThread.get(scope)
-    const timing = cached ?? {
+  const selectMetrics = (scope: string | null): ThreadMetrics => {
+    const cached = scope === null ? undefined : metricsByThread.get(scope)
+    const metrics = cached ?? {
       meter: new ThroughputMeter(),
       turnId: null,
-      readout: EMPTY_TIMING,
-      lastRequestSpeed: null
+      timingReadout: EMPTY_TIMING,
+      lastRequestSpeed: null,
+      liveCacheHitRate: null,
+      completedCacheHitRate: null
     }
     if (scope !== null) {
-      timingByThread.delete(scope)
-      timingByThread.set(scope, timing)
-      if (timingByThread.size > MAX_CACHED_THREADS) {
-        const oldest = timingByThread.keys().next()
-        if (!oldest.done) timingByThread.delete(oldest.value)
+      metricsByThread.delete(scope)
+      metricsByThread.set(scope, metrics)
+      if (metricsByThread.size > MAX_CACHED_THREADS) {
+        const oldest = metricsByThread.keys().next()
+        if (!oldest.done) metricsByThread.delete(oldest.value)
       }
     }
-    return timing
+    return metrics
   }
 
-  let timing = selectTiming(scopeForThread())
+  let metrics = selectMetrics(scopeForThread())
+  const cacheHitRate = (): number | null => metrics.liveCacheHitRate ?? metrics.completedCacheHitRate
   const setMeterTurn = (turnId?: string | null): void => {
-    if (turnId == null || timing.turnId === turnId) return
-    timing.turnId = turnId
-    timing.meter.startTurn()
-  }
-
-  const showCacheHitRate = (usage: CacheUsage | null): void => {
-    update({
-      cacheHitRate: usage !== null && usage.inputTokens > 0
-        ? Math.min(1, usage.cachedInputTokens / usage.inputTokens)
-        : null
-    })
+    if (turnId == null || metrics.turnId === turnId) return
+    metrics.turnId = turnId
+    metrics.meter.startTurn()
   }
 
   const showThroughput = (finished = false): void => {
-    const tokensPerSecond = timing.meter.tokensPerSecond()
-    timing.readout = { tokensPerSecond, firstTokenLatencyMs: timing.meter.firstTokenLatencyMs() }
+    const tokensPerSecond = metrics.meter.tokensPerSecond()
+    metrics.timingReadout = { tokensPerSecond, firstTokenLatencyMs: metrics.meter.firstTokenLatencyMs() }
 
-    const speed = timing.meter.latestRequestTokensPerSecond()
+    const speed = metrics.meter.latestRequestTokensPerSecond()
     let speedComparison = speed === null ? null : current.speedComparison
-    if (speed !== null && speed !== timing.lastRequestSpeed) {
-      speedComparison = timing.lastRequestSpeed === null ? null : { previous: timing.lastRequestSpeed, next: speed }
-      timing.lastRequestSpeed = speed
+    if (speed !== null && speed !== metrics.lastRequestSpeed) {
+      speedComparison = metrics.lastRequestSpeed === null ? null : { previous: metrics.lastRequestSpeed, next: speed }
+      metrics.lastRequestSpeed = speed
     }
 
     update({
-      ...timing.readout,
+      ...metrics.timingReadout,
       speedComparison,
       ...(finished || tokensPerSecond !== null ? { waitingForSample: false } : {})
     })
@@ -148,8 +139,8 @@ export function startUsageFeed(host: DesktopPluginHost): () => void {
     try {
       const result = await host.appServer.request('usage/thread', { workspacePath: requestedWorkspacePath, threadId: requestedThreadId })
       if (disposed || threadId !== requestedThreadId || workspacePath !== requestedWorkspacePath) return
-      update({ threadUsage: toThreadUsage(result) })
-      if (!liveCacheUsageSeen) showCacheHitRate(toCacheUsage(result))
+      metrics.completedCacheHitRate = toCacheHitRate(result) ?? metrics.completedCacheHitRate
+      update({ threadUsage: toThreadUsage(result), cacheHitRate: cacheHitRate() })
     } catch {
       return
     }
@@ -171,16 +162,15 @@ export function startUsageFeed(host: DesktopPluginHost): () => void {
     threadId = session.threadId
     workspacePath = session.workspacePath
     activeTurnId = null
-    liveCacheUsageSeen = false
     const timingScope = scopeForThread()
-    timing = selectTiming(timingScope)
+    metrics = selectMetrics(timingScope)
     update({
-      ...timing.readout,
+      ...metrics.timingReadout,
       threadUsage: null,
-      cacheHitRate: null,
+      cacheHitRate: cacheHitRate(),
       speedComparison: null,
       timingScope,
-      waitingForSample: session.busy && timing.readout.tokensPerSecond === null
+      waitingForSample: session.busy && metrics.timingReadout.tokensPerSecond === null
     })
     void refreshThreadUsage()
   })
@@ -199,7 +189,7 @@ export function startUsageFeed(host: DesktopPluginHost): () => void {
   const stopDelta = host.appServer.onNotification('item/usage/delta', (params) => {
     if (!inActiveTurn(params)) return
     setMeterTurn(params.turnId)
-    timing.meter.usage({
+    metrics.meter.usage({
       llmCall: positiveNumber(params.turnLlmCalls),
       outputTokens: positiveNumber(params.outputTokens) ?? 0,
       timing: toRequestTiming(params.requestTiming)
@@ -209,10 +199,10 @@ export function startUsageFeed(host: DesktopPluginHost): () => void {
 
   const stopTokenUsage = host.appServer.onNotification('thread/tokenUsage/updated', (params) => {
     if (params.threadId !== threadId) return
-    const usage = toCacheUsage(params.tokenUsage?.total)
-    if (usage === null) return
-    liveCacheUsageSeen = true
-    showCacheHitRate(usage)
+    const rate = toCacheHitRate(params.tokenUsage?.total)
+    if (rate === null) return
+    metrics.liveCacheHitRate = rate
+    update({ cacheHitRate: rate })
   })
 
   const finishTurn = (params: { turn: { id: string, threadId: string } }): void => {
@@ -259,14 +249,11 @@ function textOrNull(value: unknown): string | null {
   return typeof value === 'string' && value.trim() !== '' ? value : null
 }
 
-function toCacheUsage(value: unknown): CacheUsage | null {
+function toCacheHitRate(value: unknown): number | null {
   const usage = value as { inputTokens?: unknown; cachedInputTokens?: unknown } | null
-  const inputTokens = numberOrNull(usage?.inputTokens)
+  const inputTokens = positiveNumber(usage?.inputTokens)
   if (inputTokens === null) return null
-  return {
-    inputTokens,
-    cachedInputTokens: numberOrNull(usage?.cachedInputTokens) ?? 0
-  }
+  return Math.min(1, (numberOrNull(usage?.cachedInputTokens) ?? 0) / inputTokens)
 }
 
 function toThreadUsage(result: unknown): ThreadUsageSnapshot | null {
