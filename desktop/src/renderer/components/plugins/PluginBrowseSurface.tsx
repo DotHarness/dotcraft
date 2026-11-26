@@ -191,7 +191,7 @@ export function PluginBrowseSurface({
         {loading && <SkeletonCatalogGrid ariaLabel={t('plugins.loading')} />}
         {error && <p style={{ ...emptyText, color: 'var(--error)' }} role="alert">{error}</p>}
         <PluginDiagnosticsBanner diagnostics={diagnostics} column={catalogStyles.browseColumn} />
-        {sections.map((section) => (
+        {!loading && sections.map((section) => (
           <section key={section.key} style={{ marginBottom: '34px' }}>
             {section.marketplace ? (
               <MarketplaceSectionHeader

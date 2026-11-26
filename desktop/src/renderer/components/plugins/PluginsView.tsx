@@ -62,8 +62,11 @@ interface PluginSkillPreview {
 export function PluginsView(): JSX.Element {
   const t = useT()
   const confirm = useConfirmDialog()
+  const connectionStatus = useConnectionStore((s) => s.status)
   const capabilities = useConnectionStore((s) => s.capabilities)
-  const pluginManagement = capabilities?.pluginManagement === true
+  const connecting = connectionStatus === 'connecting'
+  const pluginManagementCapability = capabilities?.pluginManagement === true
+  const pluginManagement = pluginManagementCapability || connecting
   const pluginMarketplaces = capabilities?.pluginMarketplaces === true
   const remoteWorkspaceActive = useConversationStore((s) => s.remoteWorkspaceActive)
   const foregroundWorkspacePath = useWorkspaceProjectsStore((s) => s.foregroundWorkspacePath)
@@ -80,6 +83,7 @@ export function PluginsView(): JSX.Element {
     marketplaces,
     diagnostics,
     loading,
+    catalogStatus,
     error,
     fetchPlugins,
     selectedPlugin,
@@ -127,8 +131,8 @@ export function PluginsView(): JSX.Element {
   const [pluginSkillPreview, setPluginSkillPreview] = useState<PluginSkillPreview | null>(null)
 
   useEffect(() => {
-    if (pluginManagement) void fetchPlugins()
-  }, [fetchPlugins, pluginManagement])
+    if (pluginManagementCapability) void fetchPlugins()
+  }, [fetchPlugins, pluginManagementCapability])
 
   useEffect(() => {
     if (mode === 'manage') void fetchSkills()
@@ -180,7 +184,7 @@ export function PluginsView(): JSX.Element {
   )
   const visibleDiagnostics = useMemo(() => filterVisibleDiagnostics(diagnostics), [diagnostics])
   const marketplaceNotices = useMemo(() => buildMarketplaceNotices(visibleDiagnostics, t), [visibleDiagnostics, t])
-  const initialPluginLoading = loading && plugins.length === 0
+  const initialPluginLoading = (loading || connecting || (pluginManagementCapability && catalogStatus === 'pending')) && plugins.length === 0
   const selectedSkill = selectedSkillName
     ? skills.find((skill) => skill.name === selectedSkillName) ?? null
     : null

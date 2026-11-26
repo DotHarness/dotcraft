@@ -28,7 +28,6 @@ function resetWorkspaceScopedRendererState(preserveLocalPlugins = false): void {
   useMcpStore.getState().reset()
   usePluginStore.getState().resetForWorkspaceChange()
   useAutomationsStore.setState({ automations: [], runs: {}, presets: [], selectedAutomationId: null, loading: false, error: null })
-  useUIStore.setState({ activeMainView: 'conversation' })
   useUIStore.getState().setPendingWelcomeTurn(null)
   useThreadRouteStore.getState().setPendingRoute(null)
 }

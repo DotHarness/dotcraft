@@ -300,3 +300,44 @@ describe('Desktop extension mcp.callTool', () => {
     expect(server.calls('mcpServer/tool/call')).toHaveLength(1)
   })
 })
+
+describe('Desktop extension appServer.request workspace alignment', () => {
+  it('waits until the foreground connection matches the selected workspace during warm and cold switches', async () => {
+    const sendRequestRaw = vi.fn(async (_method: string, _params?: unknown, _timeout?: unknown, options?: { connectionId?: string }) => ({
+      connectionId: options?.connectionId ?? null
+    }))
+    installDesktopApiMock({ appServer: { sendRequestRaw } })
+    useWorkspaceProjectsStore.setState({ foregroundWorkspacePath: '/a', foregroundProjectId: '/a' })
+    useConnectionStore.getState().setStatus({ status: 'connected', connectionKey: '/a', connectionId: 'conn-a' })
+
+    const api = host('memory-studio').appServer
+    useWorkspaceProjectsStore.setState({ foregroundWorkspacePath: '/b', foregroundProjectId: '/b' })
+    const request = api.request('memory/listStores' as never, {} as never)
+    expect(sendRequestRaw).not.toHaveBeenCalled()
+
+    useConnectionStore.getState().setStatus({ status: 'connecting' })
+    expect(sendRequestRaw).not.toHaveBeenCalled()
+
+    useConnectionStore.getState().setStatus({ status: 'connected', connectionKey: '/b', connectionId: 'conn-b' })
+    await expect(request).resolves.toEqual({ connectionId: 'conn-b' })
+    expect(sendRequestRaw).toHaveBeenCalledWith('memory/listStores', {}, undefined, { connectionId: 'conn-b' })
+  })
+
+  it('rejects a waiting request if another workspace switch supersedes it or the plugin deactivates', async () => {
+    const sendRequestRaw = vi.fn(async () => ({}))
+    installDesktopApiMock({ appServer: { sendRequestRaw } })
+    useWorkspaceProjectsStore.setState({ foregroundWorkspacePath: '/a', foregroundProjectId: '/a' })
+    useConnectionStore.getState().setStatus({ status: 'connected', connectionKey: '/a', connectionId: 'conn-a' })
+
+    const api = host('memory-studio').appServer
+    useWorkspaceProjectsStore.setState({ foregroundWorkspacePath: '/b', foregroundProjectId: '/b' })
+    const superseded = api.request('memory/listStores' as never, {} as never)
+    useWorkspaceProjectsStore.setState({ foregroundWorkspacePath: '/c', foregroundProjectId: '/c' })
+    await expect(superseded).rejects.toThrow('Workspace changed')
+
+    const disposed = api.request('memory/listStores' as never, {} as never)
+    disposeDesktopPluginCleanupScope(scopes[0])
+    await expect(disposed).rejects.toThrow('Plugin deactivated')
+    expect(sendRequestRaw).not.toHaveBeenCalled()
+  })
+})

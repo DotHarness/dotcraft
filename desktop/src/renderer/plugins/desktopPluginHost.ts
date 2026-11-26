@@ -19,6 +19,8 @@ import { requestColorPickerDialog } from '../components/ui/ColorPickerDialog'
 import { loadLocalImageDataUrl } from '../components/conversation/imagePreview/galleryImages'
 import { stageChatDraft, stageSkillRequestInChat } from '../components/conversation/skillRequestDraft'
 import { requestConfirmDialog } from '../components/ui/ConfirmDialog'
+import { normalizeWorkspaceProjectKey } from '../../shared/workspaceProjectKey'
+import { useConnectionStore } from '../stores/connectionStore'
 import type { PluginEntry } from '../stores/pluginStore'
 import { useThreadStore } from '../stores/threadStore'
 import { removeToast, showToast } from '../stores/toastStore'
@@ -77,6 +79,68 @@ import {
 export interface DesktopPluginCleanupScope {
   active: boolean
   cleanups: Set<() => void>
+}
+
+function foregroundWorkspaceKey(): string {
+  const { foregroundProjectId, foregroundWorkspacePath } = useWorkspaceProjectsStore.getState()
+  return normalizeWorkspaceProjectKey(foregroundProjectId || foregroundWorkspacePath)
+}
+
+function connectionMatchesWorkspace(
+  conn: ReturnType<typeof useConnectionStore.getState>,
+  targetKey: string
+): boolean {
+  return !conn.connectionKey || normalizeWorkspaceProjectKey(conn.connectionKey) === targetKey
+}
+
+function waitForForegroundAppServerConnection(
+  scope: DesktopPluginCleanupScope,
+  own: <T extends () => void>(collection: Set<T>, cleanup: T) => T,
+  targetKey: string,
+  timeoutMs?: number
+): Promise<string | undefined> {
+  const current = useConnectionStore.getState()
+  if (current.connectionEpoch === 0 || !targetKey) return Promise.resolve(current.connectionId ?? undefined)
+  if (current.status === 'connected' && connectionMatchesWorkspace(current, targetKey)) {
+    return Promise.resolve(current.connectionId ?? undefined)
+  }
+  if (current.status !== 'connected' && current.status !== 'connecting') {
+    return Promise.resolve(undefined)
+  }
+  if (!scope.active) return Promise.reject(new Error('Plugin deactivated before the workspace connected.'))
+
+  return new Promise<string | undefined>((resolve, reject) => {
+    let settled = false
+    const finish = (outcome: () => void): void => {
+      if (settled) return
+      settled = true
+      if (timer != null) clearTimeout(timer)
+      stopConnection()
+      stopProjects()
+      scope.cleanups.delete(disposeEntry)
+      outcome()
+    }
+    const evaluate = (): void => {
+      if (foregroundWorkspaceKey() !== targetKey) {
+        finish(() => reject(new Error('Workspace changed before the request could be sent.')))
+        return
+      }
+      const conn = useConnectionStore.getState()
+      if (conn.status === 'connected') {
+        if (connectionMatchesWorkspace(conn, targetKey)) finish(() => resolve(conn.connectionId ?? undefined))
+      } else if (conn.status !== 'connecting') {
+        finish(() => resolve(undefined))
+      }
+    }
+    const stopConnection = useConnectionStore.subscribe(evaluate)
+    const stopProjects = useWorkspaceProjectsStore.subscribe(evaluate)
+    const disposeEntry = own(scope.cleanups, () => {
+      finish(() => reject(new Error('Plugin deactivated before the workspace connected.')))
+    })
+    const timer = timeoutMs != null && timeoutMs > 0
+      ? setTimeout(() => finish(() => reject(new Error('Timed out waiting for workspace connection.'))), timeoutMs)
+      : null
+  })
 }
 
 export function createDesktopPluginHost(
@@ -325,13 +389,16 @@ export function createDesktopPluginHost(
       }
     },
     appServer: {
-      request<M extends keyof ClientRequestMethods>(
+      async request<M extends keyof ClientRequestMethods>(
         method: M,
         params: ClientRequestMethods[M]['params'],
         timeoutMs?: number
       ): Promise<ClientRequestMethods[M]['result']> {
-        return window.api.appServer.sendRequestRaw(method, params, timeoutMs) as
-          Promise<ClientRequestMethods[M]['result']>
+        const connectionId = await waitForForegroundAppServerConnection(scope, own, foregroundWorkspaceKey(), timeoutMs)
+        const response = connectionId
+          ? window.api.appServer.sendRequestRaw(method, params, timeoutMs, { connectionId })
+          : window.api.appServer.sendRequestRaw(method, params, timeoutMs)
+        return response as Promise<ClientRequestMethods[M]['result']>
       },
       onNotification<M extends keyof ServerNotificationMethods>(
         method: M,

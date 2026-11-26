@@ -340,4 +340,36 @@ describe('foreground warm navigation', () => {
     expect(sendConnectionRequest.mock.calls.some(([, method]) => method === 'thread/resume')).toBe(true)
     expect(screen.getByRole('log')).toHaveTextContent('Answer thread-b')
   })
+
+  it('keeps the active view when switching workspaces without a pending thread open', async () => {
+    const { view } = await warmB()
+    act(() => { useUIStore.getState().setActiveMainView('skills') })
+
+    await act(async () => {
+      useConnectionStore.getState().setStatus({ status: 'connecting' })
+      view.rerender(<View path="/b" />)
+    })
+    expect(useUIStore.getState().activeMainView).toBe('skills')
+
+    await act(async () => {
+      connect('/b', '/b-2')
+      view.rerender(<View path="/b" />)
+    })
+    expect(useUIStore.getState().activeMainView).toBe('skills')
+    expect(useThreadStore.getState().activeThreadId).toBeNull()
+  })
+
+  it('switches from Plugins to conversation when opening a thread in another workspace', async () => {
+    const { view } = await warmB()
+    act(() => { useUIStore.getState().setActiveMainView('skills') })
+
+    await act(async () => {
+      pending('/b', b.id)
+      connect('/b')
+      view.rerender(<View path="/b" />)
+    })
+
+    expect(useUIStore.getState().activeMainView).toBe('conversation')
+    expect(useThreadStore.getState().activeThreadId).toBe(b.id)
+  })
 })
