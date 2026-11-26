@@ -28,7 +28,8 @@ export function handleBrowserEvent(
         loading: true,
         crashed: false,
         blockedMessage: undefined,
-        downloadMessage: undefined
+        downloadMessage: undefined,
+        errorMessage: undefined
       })
       return
     case 'did-stop-loading':
@@ -41,6 +42,7 @@ export function handleBrowserEvent(
       state.updateBrowserTab(threadId, event.tabId, {
         ...(event.url ? { currentUrl: event.url } : {}),
         blockedMessage: undefined,
+        errorMessage: undefined,
         loading: false
       })
       return

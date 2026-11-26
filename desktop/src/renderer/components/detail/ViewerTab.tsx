@@ -77,7 +77,7 @@ export function ViewerTab({ tabId }: ViewerTabProps): JSX.Element {
     return <CenteredNotice message={t('viewer.missingFile')} />
   }
 
-  if (tab.errorMessage) {
+  if (tab.errorMessage && tab.kind !== 'browser') {
     return <CenteredNotice message={tab.errorMessage} />
   }
 

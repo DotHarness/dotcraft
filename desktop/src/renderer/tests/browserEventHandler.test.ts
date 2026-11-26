@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import { getRendererTestState, setRendererTestState } from './panelTestState'
-// @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { handleBrowserEvent } from '../utils/browserEventHandler'
 import { useDetailPanelStore } from '../stores/detailPanelStore'
@@ -185,5 +184,21 @@ describe('handleBrowserEvent', () => {
 
     expect(store().getThreadState(THREAD_A).tabs).toHaveLength(1)
     expect(createBrowser).not.toHaveBeenCalled()
+  })
+
+  it('clears browser load errorMessage on subsequent load start or navigation', () => {
+    openBrowserTab(THREAD_A, 'tab-err', 'http://localhost:5173/')
+
+    handle({ type: 'did-fail-load', tabId: 'tab-err', message: 'ERR_CONNECTION_REFUSED' })
+    expect(store().getThreadState(THREAD_A).tabs[0]?.errorMessage).toBe('ERR_CONNECTION_REFUSED')
+
+    handle({ type: 'did-start-loading', tabId: 'tab-err' })
+    expect(store().getThreadState(THREAD_A).tabs[0]?.errorMessage).toBeUndefined()
+
+    handle({ type: 'did-fail-load', tabId: 'tab-err', message: 'ERR_FAILED' })
+    expect(store().getThreadState(THREAD_A).tabs[0]?.errorMessage).toBe('ERR_FAILED')
+
+    handle({ type: 'did-navigate', tabId: 'tab-err', url: 'http://localhost:5173/ready' })
+    expect(store().getThreadState(THREAD_A).tabs[0]?.errorMessage).toBeUndefined()
   })
 })

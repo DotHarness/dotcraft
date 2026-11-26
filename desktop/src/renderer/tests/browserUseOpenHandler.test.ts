@@ -94,7 +94,9 @@ describe('handleBrowserUseOpen', () => {
     await act(async () => handleBrowserUseOpen({
       projectKey, threadId: 'thread-a', tabId, initialUrl: 'http://localhost:3000/', focusMode: 'first-open'
     }))
-    expect(setVisible).toHaveBeenLastCalledWith({ tabId, visible: true })
+    expect(getRendererTestState().detailPanelVisible).toBe(true)
+    expect(getRendererTestState().activeDetailTab).toEqual({ kind: 'viewer', id: tabId })
+    expect(setVisible).not.toHaveBeenCalledWith({ tabId, visible: true })
     act(() => useDetailPanelStore.getState().setDetailPanelVisible(false))
     rerender({ threadId: 'thread-b' })
     expect(setVisible).toHaveBeenLastCalledWith({ tabId, visible: false })
@@ -107,13 +109,13 @@ describe('handleBrowserUseOpen', () => {
     expect(getRendererTestState().detailPanelVisible).toBe(false)
 
     rerender({ threadId: 'thread-a' })
+    expect(getRendererTestState().detailPanelVisible).toBe(true)
     expect(getRendererTestState().activeDetailTab).toEqual({ kind: 'viewer', id: tabId })
-    expect(setVisible).toHaveBeenLastCalledWith({ tabId, visible: true })
 
     act(() => handleBrowserEvent({
       projectKey, threadId: 'thread-a', tabId, type: 'request-hide'
     }, { workspacePath, locale: 'en' }))
-    expect(setVisible).toHaveBeenLastCalledWith({ tabId, visible: false })
+    expect(getRendererTestState().detailPanelVisible).toBe(false)
     expect(getRendererTestState().tabs.map(tab => tab.id)).toEqual([tabId])
   })
 

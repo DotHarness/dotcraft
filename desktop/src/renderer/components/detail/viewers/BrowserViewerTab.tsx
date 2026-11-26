@@ -3,6 +3,7 @@ import { Globe } from 'lucide-react'
 import { useT } from '../../../contexts/LocaleContext'
 import { useDetailPanelStore } from '../../../stores/detailPanelStore'
 import { useDetailPanelPresentation } from '../../../stores/detailPanelPresentation'
+import { useTransientOverlayStore } from '../../../stores/transientOverlayStore'
 import { useUIStore } from '../../../stores/uiStore'
 import { BrowserFeedbackControls, BrowserFindBar } from './BrowserFeedbackControls'
 import { BrowserPageFeedback } from './BrowserPageFeedback'
@@ -46,6 +47,8 @@ export function BrowserViewerTab({ tabId }: BrowserViewerTabProps): JSX.Element 
   const scope = useDetailPanelStore((s) => s.getCurrentScope())
   const updateBrowserTab = useDetailPanelStore((s) => s.updateBrowserTab)
   const activeMainView = useUIStore((s) => s.activeMainView)
+  const quickOpen = useUIStore((s) => s.quickOpenVisible)
+  const blocked = useTransientOverlayStore((s) => s.nativeViewBlockerCount > 0)
   const { activeDetailTab, detailPanelVisible } = useDetailPanelPresentation()
 
   const [readyTab, setReadyTab] = useState<string | null>(null)
@@ -58,6 +61,8 @@ export function BrowserViewerTab({ tabId }: BrowserViewerTabProps): JSX.Element 
   const isActiveBrowserSurface = existsTab &&
     activeMainView === 'conversation' &&
     detailPanelVisible &&
+    !quickOpen &&
+    !blocked &&
     activeDetailTab.kind === 'viewer' &&
     activeDetailTab.id === tabId
   const pageVisible = isActiveBrowserSurface && !isBlank && !serverCoversPage && readyTab === tabId
@@ -99,16 +104,6 @@ export function BrowserViewerTab({ tabId }: BrowserViewerTabProps): JSX.Element 
     return () => { disposed = true }
   }, [currentThreadId, existsTab, tabId, updateBrowserTab, workspacePath, scope?.projectKey, restore, t, feedback.initialize])
 
-  useEffect(() => {
-    if (!existsTab) return
-    const visible = pageVisible
-    if (visible) void window.api.workspace.viewer.browser.setActive({ tabId })
-    void window.api.workspace.viewer.browser.setVisible({ tabId, visible })
-    return () => {
-      void window.api.workspace.viewer.browser.setVisible({ tabId, visible: false })
-    }
-  }, [existsTab, tabId, pageVisible])
-
   const pushBounds = useCallback(() => {
     if (!pageVisible) return
     if (!bodyRef.current) return
@@ -124,6 +119,19 @@ export function BrowserViewerTab({ tabId }: BrowserViewerTabProps): JSX.Element 
       height: Math.round(rect.height)
     })
   }, [pageVisible, tabId])
+
+  useEffect(() => {
+    if (!existsTab) return
+    const visible = pageVisible
+    if (visible) {
+      pushBounds()
+      void window.api.workspace.viewer.browser.setActive({ tabId })
+    }
+    void window.api.workspace.viewer.browser.setVisible({ tabId, visible })
+    return () => {
+      void window.api.workspace.viewer.browser.setVisible({ tabId, visible: false })
+    }
+  }, [existsTab, tabId, pageVisible, pushBounds])
 
   const scheduleBounds = useCallback(() => {
     if (!pageVisible) return () => {}
@@ -193,7 +201,7 @@ export function BrowserViewerTab({ tabId }: BrowserViewerTabProps): JSX.Element 
         onStop={() => window.api.workspace.viewer.browser.stop({ tabId })}
         onNavigate={(url) => { void window.api.workspace.viewer.browser.navigate({ tabId, url }) }}
         onOpenExternal={() => window.api.workspace.viewer.browser.openExternal({ tabId })}
-        onAddressDismiss={() => { void window.api.workspace.viewer.browser.setActive({ tabId }) }}
+        onAddressDismiss={() => { if (pageVisible) void window.api.workspace.viewer.browser.setActive({ tabId }) }}
         annotate={<BrowserPageFeedback tabId={tabId} threadId={currentThreadId} body={bodyRef} disabled={isBlank} run={feedback.run} />}
         controls={(
           <>

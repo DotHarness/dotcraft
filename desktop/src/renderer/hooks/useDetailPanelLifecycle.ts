@@ -1,21 +1,14 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import { useDetailPanelStore } from '../stores/detailPanelStore'
-import { useDetailPanelPresentation } from '../stores/detailPanelPresentation'
 import { startDetailPanelPersistence } from '../stores/detailPanelPersistence'
 import { useUIStore } from '../stores/uiStore'
-import { useTransientOverlayStore } from '../stores/transientOverlayStore'
 import { presentPendingBrowserUseTab } from '../utils/browserUseOpenHandler'
 
 export function useDetailPanelLifecycle(params: { projectKey: string; workspacePath: string; browserWorkspacePath: string; threadId: string | null; selectionProjectKey: string | null; welcomeScopeId: string }) {
   const { projectKey, workspacePath, browserWorkspacePath, welcomeScopeId } = params
   const threadId = params.selectionProjectKey === projectKey ? params.threadId : null
   const persistence = useRef<ReturnType<typeof startDetailPanelPersistence> | null>(null)
-  const panel = useDetailPanelPresentation()
   const activeMainView = useUIStore(state => state.activeMainView)
-  const quickOpen = useUIStore(state => state.quickOpenVisible)
-  const blocked = useTransientOverlayStore(state => state.nativeViewBlockerCount > 0)
-  const lastVisibility = useRef(new Map<string, boolean>())
-  const lastActive = useRef<string | null>(null)
   useLayoutEffect(() => {
     const store = useDetailPanelStore.getState()
     const outgoing = store.getCurrentScope()
@@ -72,27 +65,4 @@ export function useDetailPanelLifecycle(params: { projectKey: string; workspaceP
     const scope = useDetailPanelStore.getState().getCurrentScope()
     if (scope?.projectKey && browserWorkspacePath) void persistence.current?.hydrate(scope)
   }, [projectKey, browserWorkspacePath, threadId, welcomeScopeId])
-  useEffect(() => {
-    const current = useDetailPanelStore.getState().getCurrentPanel()
-    const desired = new Map<string, boolean>()
-    const hidden = quickOpen || blocked || activeMainView !== 'conversation' || !panel.detailPanelVisible
-    let active: string | null = null
-    for (const tab of current.tabs) {
-      if (tab.kind !== 'browser') continue
-      const visible = !hidden && panel.activeDetailTab.kind === 'viewer' && panel.activeDetailTab.id === tab.id
-      desired.set(tab.id, visible)
-      if (visible) active = tab.id
-    }
-    for (const [tabId, visible] of desired) {
-      if (lastVisibility.current.get(tabId) !== visible) void window.api.workspace.viewer.browser.setVisible({
-        tabId,
-        visible
-      })
-    }
-    lastVisibility.current = desired
-    if (active && active !== lastActive.current) void window.api.workspace.viewer.browser.setActive({
-      tabId: active
-    })
-    lastActive.current = active
-  }, [panel.activeDetailTab, panel.detailPanelVisible, panel.tabs, activeMainView, quickOpen, blocked, projectKey, threadId])
 }
