@@ -7,29 +7,5 @@
   min-height: 36px;
   padding: 6px 4px 2px var(--sidebar-rail-content-inset);
   box-sizing: border-box;
-}
-
-.brand {
-  display: inline-flex;
-  min-width: 0;
-  align-items: center;
-  gap: var(--sidebar-leading-gap);
-  color: var(--text-primary);
-  user-select: none;
-}
-
-.mark {
-  display: flex;
-  width: var(--sidebar-leading-slot-width);
-  flex-shrink: 0;
-  justify-content: center;
-}
-
-.wordmark {
-  overflow: hidden;
-  font-size: var(--type-heading-size);
-  font-weight: 650;
-  line-height: 24px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  container: sidebar-header / inline-size;
 }

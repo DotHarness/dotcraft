@@ -618,9 +618,24 @@ swaps the number and shows the chevron without travel or fade.
 
 The expanded sidebar opens with one header row: the DotCraft mark and wordmark on
 the leading edge and a search icon button on the trailing edge. The wordmark is
-brand, not a control, so it never answers hover or press. Search is a sidebar
+brand, not a control: it takes no focus, cursor, or hover state. Search is a sidebar
 icon button whose tooltip names `Mod+K`, and the shortcut opens the same dialog.
 The peeking sidebar shows the same header.
+
+Pressing the mark or wordmark plays a hidden beat, escalating with presses less
+than 0.9s apart: a hop with the antenna bulb lit (1–2), the bulb popping up (3–4),
+the bulb glowing with sparks while the prompt cursor blinks and the wordmark
+ripples (5–9), and one spin (10, which restarts the count). The brand never moves
+on its own, keeps the mark in `--text-primary`, and uses the bulb's yellow as its
+only colour; reduced motion keeps only the bulb.
+
+When the conversation, or the workspace default, runs on a plugin model backend or a
+subscription sign-in, the header pairs the wordmark with that backend: a `1px x 14px`
+`--text-tertiary` rule, then the backend's icon fitted by its visible shape to the
+mark's `18px x 14px` ink, with its name in a tooltip. API-key providers show nothing.
+Gaining a backend plays one link-up (the rule grows, the icon slides in, the bulb
+pops); switching between backends only cross-fades. Below `150px` of header the
+pairing hides.
 
 ### Sidebar selection
 
