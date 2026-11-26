@@ -150,7 +150,7 @@ public sealed class SessionServiceRunningInputHistoryTests : SessionServiceRunti
             var users = messages.Where(message => message.Role == ChatRole.User).Select(message => message.Text).ToList();
             var first = users.FindIndex(text => text.Contains("first steer", StringComparison.Ordinal));
             var second = users.FindIndex(text => text.Contains("second steer", StringComparison.Ordinal));
-            Assert.True(first >= 0 && second == first + 1);
+            Assert.True(first >= 0 && second == first + 2);
             return new TextContent("done");
         });
         await using var factory = CreateAgentFactory(model, configureConfig: config => config.InstantInterruptEnabled = false);
@@ -161,6 +161,7 @@ public sealed class SessionServiceRunningInputHistoryTests : SessionServiceRunti
         await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("start")]));
 
         Assert.Equal(2, model.Calls);
+        Assert.Equal(TurnStatus.Completed, thread.Turns[0].Status);
         var guidance = thread.Turns[0].Items
             .Select(item => item.AsUserMessage)
             .Where(message => message?.DeliveryMode == "guidance")
@@ -278,9 +279,9 @@ public sealed class SessionServiceRunningInputHistoryTests : SessionServiceRunti
                 return HistoryBoundaryClient.Tool();
             }
             var steer = Array.FindIndex(messages.ToArray(), message => message.Text.Contains("steer with context", StringComparison.Ordinal));
-            Assert.True(steer >= 0 && steer + 1 < messages.Count);
-            Assert.Equal(ChatRole.User, messages[steer + 1].Role);
-            Assert.Contains("STEER_HOOK_CONTEXT", messages[steer + 1].Text, StringComparison.Ordinal);
+            Assert.True(steer >= 0 && steer + 2 < messages.Count);
+            Assert.Equal(ChatRole.User, messages[steer + 2].Role);
+            Assert.Contains("STEER_HOOK_CONTEXT", messages[steer + 2].Text, StringComparison.Ordinal);
             return new TextContent("done");
         });
         await using var factory = CreateAgentFactory(model);
@@ -291,6 +292,7 @@ public sealed class SessionServiceRunningInputHistoryTests : SessionServiceRunti
         await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("start")]));
 
         Assert.Equal(2, model.Calls);
+        Assert.Equal(TurnStatus.Completed, thread.Turns[0].Status);
         Assert.Single(thread.Turns[0].Items, item => item.AsUserMessage?.DeliveryMode == "guidance");
     }
 

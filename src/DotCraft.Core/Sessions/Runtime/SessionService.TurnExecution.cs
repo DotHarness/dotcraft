@@ -568,7 +568,8 @@ public sealed partial class SessionService
                         var isProviderNative = result.Replacement is CompactionReplacement.ProviderNative;
                         var compactionContext = await BuildCompactionContextAsync(
                             thread, turn.Id, modelVisibleHistory, turnRuntime?.ToolLocation?.Current ?? turnContext.Workspace, compactionCt,
-                            phase == CompactionPhase.PreTurn ? null : sessionStartHookContext, turnContext.Channel?.Surface, modelRuntime);
+                            phase == CompactionPhase.PreTurn ? null : sessionStartHookContext, turnContext.Channel?.Surface, modelRuntime,
+                            turnContinues: phase != CompactionPhase.PostTurn);
                         var coveredTurnId = phase == CompactionPhase.PreTurn
                             ? ResolveNewestTerminalTurn(thread)?.Id ?? turn.Id
                             : turn.Id;

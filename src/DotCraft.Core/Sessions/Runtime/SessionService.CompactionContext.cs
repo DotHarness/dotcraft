@@ -18,7 +18,8 @@ public sealed partial class SessionService
         CancellationToken ct,
         string? sessionStartHookContext = null,
         ClientSurface? clientSurface = null,
-        EffectiveModelRuntime? modelRuntime = null)
+        EffectiveModelRuntime? modelRuntime = null,
+        bool turnContinues = true)
     {
         ReleaseStableContextPages(thread.Id);
         var modeName = _runtimeRegistry.TryGetRuntime(thread.Id, out var runtime)
@@ -54,7 +55,7 @@ public sealed partial class SessionService
         if (thread.Source.SubAgent != null
             && previous.LastOrDefault(message => ThreadContextItems.IsKind(message, clientContextKind)) is { } inherited)
             items.Add(inherited.Clone());
-        if (BuildCompactionTaskListReminder(thread, turnId, carrier) is { } taskList)
+        if (turnContinues && BuildCompactionTaskListReminder(thread, turnId, carrier) is { } taskList)
             items.Add(taskList);
         return update with { Items = items };
     }
