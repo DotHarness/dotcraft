@@ -453,14 +453,6 @@ public sealed class AppServerPluginMutationConcurrencyTests : IDisposable
     private sealed class BlockingPluginRuntimeCoordinator(PluginRuntimeSnapshot snapshot)
         : IDotNetExtensionRuntimeCoordinator
     {
-        public IReadOnlySet<string> HostSharedAssemblies { get; } = new HashSet<string>();
-
-        public Task<DotNetExtensionBuildApplyResult> ApplyBuildAsync(
-            string pluginId,
-            DotNetExtensionBuild build,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
         private readonly object _sync = new();
         private readonly TaskCompletionSource<bool> _releaseTrust =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -562,14 +554,6 @@ public sealed class AppServerPluginMutationConcurrencyTests : IDisposable
 
     private sealed class RecoveringPluginRuntimeCoordinator : IDotNetExtensionRuntimeCoordinator
     {
-        public IReadOnlySet<string> HostSharedAssemblies { get; } = new HashSet<string>();
-
-        public Task<DotNetExtensionBuildApplyResult> ApplyBuildAsync(
-            string pluginId,
-            DotNetExtensionBuild build,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
         public PluginRuntimeSnapshot Snapshot { get; private set; } = new(
             10,
             [new DotNetExtensionRuntimeInfo(

@@ -4,7 +4,6 @@ using Microsoft.Extensions.Logging;
 
 namespace DotCraft.Runtime;
 
-/// <summary>The generation half of the runtime manager: one activation transaction and one teardown.</summary>
 internal sealed partial class DotNetExtensionRuntimeManager
 {
     private async Task ActivateNodeAsync(PluginRuntimeNode node, CancellationToken cancellationToken)
@@ -18,8 +17,6 @@ internal sealed partial class DotNetExtensionRuntimeManager
             return;
         }
 
-        // The last gate before any loader work: nothing below runs for a bundle whose preflight
-        // failed or whose bytes the user has not confirmed.
         var admissionBlockers = PreflightBlockers(node.Snapshot).Concat(TrustBlockers(node)).ToArray();
         if (admissionBlockers.Length > 0)
         {
@@ -125,8 +122,7 @@ internal sealed partial class DotNetExtensionRuntimeManager
         }
         catch (TimeoutException)
         {
-            // Commit and timeout are one linearized race. If commit already won, the activation is
-            // accepted, otherwise the callback can finish only into rollback.
+            // A timeout cannot roll back an activation that won the commit race.
             if (!commitGate.TryCancel())
             {
                 attempt = await activation.ConfigureAwait(false);
@@ -175,9 +171,8 @@ internal sealed partial class DotNetExtensionRuntimeManager
             node.Generation = attempt.Generation;
             node.State = DotNetExtensionRuntimeState.Active;
             node.Blockers = [];
-            // Describe before publishing so the projection carries the generation's Tools without
-            // waiting for a thread to plan.
-            await DescribeToolsAsync(CancellationToken.None).ConfigureAwait(false);
+            if (_toolSource.IsValueCreated)
+                await DescribeToolsAsync(_toolSource.Value, CancellationToken.None).ConfigureAwait(false);
             PublishSnapshot();
             var generation = attempt.Generation;
             generation.StartWork(message => _ = HandleWorkFailureAsync(
@@ -239,8 +234,6 @@ internal sealed partial class DotNetExtensionRuntimeManager
         node.Blockers = [];
         PublishSnapshot();
 
-        // Revoke before drain: BeginCleanup revokes every contribution handle before its first await,
-        // so routing stops when this call is made, not when it completes.
         var teardown = generation.BeginCleanup();
         node.PendingTeardown = teardown;
         node.PendingTeardownCompletedState = completedState;
@@ -368,8 +361,6 @@ internal sealed partial class DotNetExtensionRuntimeManager
         }
     }
 
-    /// <summary>Records a remnant's teardown errors and either releases or watches it.</summary>
-    /// <returns><see langword="true"/> when nothing is left to reclaim.</returns>
     private bool ReclaimOrTrack(PluginRuntimeNode node, PluginGenerationRemnant remnant)
     {
         foreach (var error in remnant.CleanupErrors)
@@ -393,7 +384,6 @@ internal sealed partial class DotNetExtensionRuntimeManager
         return true;
     }
 
-    /// <summary>Deletes a collected generation's shadow copy, or hands it on to be retried.</summary>
     private void ReleaseGenerationCopy(string shadowCopyPath)
     {
         if (!_bundleStore.ReleaseGeneration(shadowCopyPath))
@@ -414,7 +404,6 @@ internal sealed partial class DotNetExtensionRuntimeManager
         }
     }
 
-    /// <summary>Releases a collected generation and settles the node still waiting on it.</summary>
     private void SettleReclaimed(PluginGenerationRemnant remnant)
     {
         ReleaseGenerationCopy(remnant.ShadowCopyPath);
@@ -431,7 +420,6 @@ internal sealed partial class DotNetExtensionRuntimeManager
         node.State = node.ReclaimCompletedState;
     }
 
-    /// <summary>Tears down whatever an abandoned activation attempt ends up owning.</summary>
     private static async Task<PluginGenerationRemnant> AbandonedActivationAsync(
         Task<PluginActivationAttempt> activation,
         string pluginId,

@@ -9,7 +9,8 @@ using Microsoft.Extensions.AI;
 namespace DotCraft.Agents;
 
 public sealed partial class OpenRouterProvider : IModelProvider, IProviderModelRuntimeResolver,
-    IModelCatalogProvider, IProviderAuthenticator, IProviderUsageReader, IProviderAccessTokenReader, IProviderRoutingCatalog
+    IModelCatalogProvider, IProviderAuthenticator, IProviderUsageReader, IProviderAccessTokenReader, IProviderRoutingCatalog,
+    IProviderNativeHttpRouter, IProviderCachedModelCatalog
 {
     private readonly ModelBackendContext _context;
     private readonly HttpClient _http;
@@ -62,9 +63,6 @@ public sealed partial class OpenRouterProvider : IModelProvider, IProviderModelR
         if (string.IsNullOrWhiteSpace(runtime.Model)) return resolved;
         var model = FindModel(snapshot, runtime.Model);
         var protocol = OpenRouterModelCatalog.SelectProtocol(model, configured);
-        var capacity = runtime.ConfiguredMaxOutputTokens;
-        var maxOutput = capacity is > 0 && model.MaxOutputTokens is > 0 ? Math.Min(capacity.Value, model.MaxOutputTokens.Value)
-            : capacity ?? model.MaxOutputTokens;
         var adaptation = runtime.IsRemote
             ? runtime.RemoteModels![model.Id]
             : _adaptations.GetOrAdd((model.Id, protocol, snapshot.Revision), _ => new ProviderRequestAdaptation(false, false,
@@ -74,6 +72,10 @@ public sealed partial class OpenRouterProvider : IModelProvider, IProviderModelR
                             ? null : Path.Combine(runtime.ProviderStateDirectory, ModelThinkingAdapterCatalog.FileName),
                         useAdaptiveFallback: true)
                     : null, null, model, protocol));
+        var capacity = runtime.ConfiguredMaxOutputTokens;
+        var modelLimit = adaptation.MaxOutputTokens ?? model.MaxOutputTokens;
+        var maxOutput = capacity is > 0 && modelLimit is > 0 ? Math.Min(capacity.Value, modelLimit.Value)
+            : capacity ?? modelLimit;
         return resolved with
         {
             Protocol = protocol, EndPoint = protocol == "anthropic" ? _root[..^3] : _root,
@@ -149,6 +151,27 @@ public sealed partial class OpenRouterProvider : IModelProvider, IProviderModelR
     }
 
     public ModelCatalogResult ReadCatalog() => Result(true);
+
+    public JsonElement? GetRemoteRoutingPreferences() => _routing.IsEmpty
+        ? null : JsonSerializer.SerializeToElement(_routing, OpenRouterJson.Options);
+
+    public ProviderHttpRoute ResolveRoute(EffectiveModelRuntime runtime)
+    {
+        var resolved = ResolveRuntime(runtime);
+        return new ProviderHttpRoute(resolved.Protocol, resolved.EndPoint, resolved.Model);
+    }
+
+    public async Task<IReadOnlyDictionary<string, string>> AuthenticateAsync(
+        EffectiveModelRuntime runtime, CancellationToken cancellationToken)
+    {
+        var key = runtime.AuthMethod == OpenRouterBackend.OAuth
+            ? (await _context.Credentials.ReadAsync(cancellationToken).ConfigureAwait(false))
+                ?.Deserialize<OpenRouterCredential>(OpenRouterJson.Options)?.Key
+            : runtime.ApiKey;
+        if (string.IsNullOrWhiteSpace(key))
+            throw new ProviderAuthenticationException("OpenRouterAuthenticationRequired", "An OpenRouter credential is required.");
+        return new Dictionary<string, string> { ["Authorization"] = $"Bearer {key}" };
+    }
 
     private ModelCatalogResult Result(bool success, ModelCatalogErrorCode code = ModelCatalogErrorCode.None,
         string? error = null, string? notice = null)

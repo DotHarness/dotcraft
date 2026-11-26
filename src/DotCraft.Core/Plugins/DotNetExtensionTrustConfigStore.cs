@@ -6,7 +6,6 @@ using DotCraft.Configuration;
 
 namespace DotCraft.Plugins;
 
-/// <summary>Persists fingerprint grants in a dedicated machine-local authority file.</summary>
 internal sealed class DotNetExtensionTrustConfigStore : IDotNetExtensionTrustStore, IDotNetExtensionTrustChangeSource
 {
     private const string AuthorityFileName = "dotnet-extension-trust.json";
@@ -31,7 +30,6 @@ internal sealed class DotNetExtensionTrustConfigStore : IDotNetExtensionTrustSto
 
     public event EventHandler? Changed;
 
-    /// <summary>Creates a store beside the configured global file, or none when persistence is unavailable.</summary>
     public static DotNetExtensionTrustConfigStore? ForConfig(AppConfig config) =>
         string.IsNullOrWhiteSpace(config.GlobalConfigPath)
             ? null
@@ -43,7 +41,6 @@ internal sealed class DotNetExtensionTrustConfigStore : IDotNetExtensionTrustSto
             ?? throw new ArgumentException("The global config path has no parent directory.", nameof(globalConfigPath)),
             AuthorityFileName);
 
-    /// <inheritdoc />
     public IReadOnlyDictionary<string, IReadOnlySet<string>> Read()
     {
         var result = new Dictionary<string, IReadOnlySet<string>>(StringComparer.OrdinalIgnoreCase);
@@ -68,31 +65,11 @@ internal sealed class DotNetExtensionTrustConfigStore : IDotNetExtensionTrustSto
         return result;
     }
 
-    /// <inheritdoc />
     public void SetTrusted(string pluginId, string fingerprint, bool isTrusted)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fingerprint);
-        using var mutex = new Mutex(initiallyOwned: false, _writeMutexName);
-        var acquired = false;
-        var saved = false;
-        try
+        Update(root =>
         {
-            try
-            {
-                acquired = mutex.WaitOne(WriteLockTimeout);
-            }
-            catch (AbandonedMutexException)
-            {
-                acquired = true;
-            }
-
-            if (!acquired)
-            {
-                throw new PluginTrustPersistenceException(
-                    "The plugin trust authority is busy; no trust change was written.");
-            }
-
-            var root = LoadRootForWrite();
             root[AtomicConfigDocument.Key(root, VersionKey) ?? VersionKey] = 1;
             var grantsKey = AtomicConfigDocument.Key(root, GrantsKey) ?? GrantsKey;
             if (root[grantsKey] is not JsonObject grants)
@@ -126,12 +103,50 @@ internal sealed class DotNetExtensionTrustConfigStore : IDotNetExtensionTrustSto
                         .ToArray());
             }
 
-            WriteAtomic(root);
-            saved = true;
-        }
-        catch (PluginTrustPersistenceException)
+            return true;
+        });
+    }
+
+    public bool RevokeAll(string pluginId) => Update(root =>
+    {
+        if (AtomicConfigDocument.Value(root, GrantsKey) is not JsonObject grants)
+            return false;
+
+        var keys = grants.Select(entry => entry.Key)
+            .Where(key => string.Equals(key, pluginId, StringComparison.OrdinalIgnoreCase)).ToArray();
+        foreach (var key in keys)
+            grants.Remove(key);
+        return keys.Length > 0;
+    });
+
+    private bool Update(Func<JsonObject, bool> update)
+    {
+        using var mutex = new Mutex(initiallyOwned: false, _writeMutexName);
+        var acquired = false;
+        var saved = false;
+        try
         {
-            throw;
+            try
+            {
+                acquired = mutex.WaitOne(WriteLockTimeout);
+            }
+            catch (AbandonedMutexException)
+            {
+                acquired = true;
+            }
+
+            if (!acquired)
+            {
+                throw new PluginTrustPersistenceException(
+                    "The plugin trust authority is busy; no trust change was written.");
+            }
+
+            var root = LoadRootForWrite();
+            if (update(root))
+            {
+                WriteAtomic(root);
+                saved = true;
+            }
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
@@ -147,6 +162,7 @@ internal sealed class DotNetExtensionTrustConfigStore : IDotNetExtensionTrustSto
 
         if (saved)
             _changeHub.Publish();
+        return saved;
     }
 
     private JsonObject LoadRootForWrite()

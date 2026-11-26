@@ -2,7 +2,6 @@ using DotCraft.Plugins;
 
 namespace DotCraft.Runtime;
 
-/// <summary>The dependency half of the runtime manager: activation ordering, teardown ordering, and blockers.</summary>
 internal sealed partial class DotNetExtensionRuntimeManager
 {
     private async Task HandleWorkFailureAsync(string pluginId, string generationId, string message)
@@ -59,7 +58,8 @@ internal sealed partial class DotNetExtensionRuntimeManager
             }
 
             stack.Add(pluginId);
-            if (node.PendingActivation != null || node.PendingTeardown != null)
+            if (node.PendingActivation != null || node.PendingTeardown != null
+                || (node.Generation != null && node.State == DotNetExtensionRuntimeState.Deactivating))
             {
                 if (node.Enabled && retryFaulted.Contains(pluginId))
                     node.RetryAfterPendingTeardown = true;
@@ -181,7 +181,6 @@ internal sealed partial class DotNetExtensionRuntimeManager
         return true;
     }
 
-    /// <summary>Continues dependency-ordered stops after an earlier generation finishes cleanup.</summary>
     private async Task ResumePendingStopClosuresAsync()
     {
         var shouldReplan = false;
@@ -232,7 +231,6 @@ internal sealed partial class DotNetExtensionRuntimeManager
         return result;
     }
 
-    /// <summary>Returns one plugin together with the reverse closure of its consumers.</summary>
     private HashSet<string> ReplanIdsFor(string selectedPluginId)
     {
         var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { selectedPluginId };
@@ -290,7 +288,6 @@ internal sealed partial class DotNetExtensionRuntimeManager
         return DependencyUnsatisfied(providerId, requiredVersion, observed.Manifest.Version, "unavailable");
     }
 
-    /// <summary>The one blocker for "the declared provider is not active", told apart by <c>reason</c>.</summary>
     private static PluginRuntimeBlocker DependencyUnsatisfied(
         string providerId,
         string requiredVersion,

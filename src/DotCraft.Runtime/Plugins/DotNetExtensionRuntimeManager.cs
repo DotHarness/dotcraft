@@ -8,13 +8,14 @@ using Microsoft.Extensions.Logging;
 
 namespace DotCraft.Runtime;
 
-/// <summary>Owns the accepted .NET bundle snapshots of one workspace and their collectible generations.</summary>
 internal sealed partial class DotNetExtensionRuntimeManager :
     IHostedService,
     IAsyncDisposable,
-    IDotNetExtensionRuntimeCoordinator
+    IDotNetExtensionRuntimeCoordinator,
+    IDotNetExtensionBuildPublisher
 {
-    private readonly PluginDiscoveryService _discovery;
+    private readonly Func<PluginDiscoveryResult> _discover;
+    private readonly Lazy<DotNetExtensionToolSource> _toolSource;
     private readonly AppConfig _config;
     private readonly DotCraftPaths _paths;
     private readonly PluginConfigStore _pluginConfigStore;
@@ -38,7 +39,7 @@ internal sealed partial class DotNetExtensionRuntimeManager :
     private readonly bool _executionOnly;
 
     internal DotNetExtensionRuntimeManager(
-        PluginDiscoveryService discovery,
+        Func<PluginDiscoveryResult> discover,
         AppConfig config,
         DotCraftPaths paths,
         IServiceProvider services,
@@ -50,7 +51,7 @@ internal sealed partial class DotNetExtensionRuntimeManager :
         bool executionOnly = false,
         bool installedExecution = false)
     {
-        _discovery = discovery;
+        _discover = discover;
         _config = config;
         _paths = paths;
         _pluginConfigStore = pluginConfigStore ?? new PluginConfigStore(paths);
@@ -68,25 +69,20 @@ internal sealed partial class DotNetExtensionRuntimeManager :
             executionOnly && !installedExecution ? Path.Combine(paths.Data.RootPath, "plugins") : null);
         _reclaim = new PluginReclaimPoller(_options, ReclaimAsync, _bundleStore.DeleteGeneration, logger);
         CallGates = new PluginCallGateRegistry();
-        ToolSource = new DotNetExtensionToolSource(contributions, CallGates, ExportAsync);
+        _toolSource = new(() => new DotNetExtensionToolSource(contributions, CallGates, ExportAsync));
         _trust.Changed += OnTrustChanged;
     }
 
-    /// <summary>Gets the lookup a Host-side Tool proxy enters a live generation through.</summary>
     public PluginCallGateRegistry CallGates { get; }
 
-    /// <summary>Gets the aggregate Tool source that projects every active plugin's Tools.</summary>
-    public DotNetExtensionToolSource ToolSource { get; }
+    public DotNetExtensionToolSource ToolSource => _toolSource.Value;
 
     public IReadOnlySet<string> HostSharedAssemblies => _options.HostSharedAssemblies;
 
-    /// <summary>Gets the latest Host-owned immutable runtime projection.</summary>
     public PluginRuntimeSnapshot Snapshot => Volatile.Read(ref _snapshot);
 
-    /// <inheritdoc />
     public event EventHandler<PluginRuntimeSnapshotChangedEventArgs>? SnapshotChanged;
 
-    /// <inheritdoc />
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         ThrowIfDisposed();
@@ -97,10 +93,7 @@ internal sealed partial class DotNetExtensionRuntimeManager :
                 return;
 
             _started = true;
-            var discovery = _discovery.DiscoverAll(
-                _config,
-                _paths.WorkspacePath,
-                _paths.Data.RootPath);
+            var discovery = DiscoverCurrent();
             foreach (var plugin in discovery.Plugins)
                 _effectivePlugins[plugin.Manifest.Id] = plugin;
             foreach (var plugin in discovery.Plugins
@@ -120,8 +113,6 @@ internal sealed partial class DotNetExtensionRuntimeManager :
         }
     }
 
-    /// <summary>Changes process-local enablement and converges the selected runtime.</summary>
-    /// <param name="cancellationToken">Cancels waiting for the transition, not the transition.</param>
     public async Task SetEnabledAsync(
         string pluginId,
         bool enabled,
@@ -154,15 +145,13 @@ internal sealed partial class DotNetExtensionRuntimeManager :
         }
     }
 
-    /// <inheritdoc />
     public async Task StopAsync(CancellationToken cancellationToken)
     {
         await _mutationLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             _stopping = true;
-            // A mutation may leave teardown pending, but shutdown cannot dispose a provider or the
-            // Host while an admitted consumer can still call it. The process owns the hard deadline.
+            // Shutdown must drain live calls even if a mutation left teardown pending.
             foreach (var node in StopOrder(_nodes.Values))
             {
                 while (!await StopNodeAsync(node, DotNetExtensionRuntimeState.Stopped, cancellationToken)
@@ -184,12 +173,12 @@ internal sealed partial class DotNetExtensionRuntimeManager :
         }
     }
 
-    /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
         if (_disposed)
             return;
         _trust.Changed -= OnTrustChanged;
+        _trust.Dispose();
         _disposed = true;
         try
         {

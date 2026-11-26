@@ -189,4 +189,6 @@ app.MapDotCraftModelService();
 await app.RunAsync();
 ```
 
+If you implement `IModelServiceAccess`, resolve inference requests in `GetProviderAsync` using your configured providers and caller grants rather than the available-provider catalog. Return `null` for an unknown or forbidden provider. Throw `ModelServiceException` with status `503` and code `backend_unavailable` when an allowed provider cannot serve inference.
+
 Service registration creates no workspace, Session, or tools. Implement `IModelServiceObserver` to receive completion, normalized usage, and nullable decimal `ModelServiceCall.CostUsd` for each HTTP call. The amount uses provider-reported USD when available, including zero, and otherwise estimates from the built-in model catalog with OpenAI service-tier pricing. A missing amount means the call could not be priced. Observer failures do not change model responses. For database subscriptions, bind one `OpenAIAuthManager` per credential identity and implement `IOpenAITokenStore`, including atomic `TryReplace` for rotation.

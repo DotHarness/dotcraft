@@ -7,7 +7,9 @@ import {
   createProviderDraft,
   providerConnectionMode,
   providerDraftFromInfo,
-  providerFieldsFromDraft
+  providerFieldsFromDraft,
+  providerProblem,
+  providerUsable
 } from '../components/settings/providers/providerDraft'
 import {
   BUILT_IN_BACKENDS,
@@ -31,6 +33,18 @@ const preset = (id: ProviderPresetId) => findProviderPreset(presets, id)!
 function saved(overrides: Partial<ProviderInfoWire>): ProviderInfoWire {
   return { id: 'p', displayName: 'P', protocol: 'openai-responses', hasApiKey: true, endPoint: '', ...overrides }
 }
+
+describe('provider availability', () => {
+  it('lets users select a service-managed native provider until authentication fails', () => {
+    const provider = saved({ managedBy: 'modelService', hasApiKey: false })
+    expect(providerUsable(provider)).toBe(true)
+    expect(providerProblem(provider, null, t)).toBeNull()
+
+    const signedOut = { ...provider, isAuthenticated: false }
+    expect(providerUsable(signedOut)).toBe(false)
+    expect(providerProblem(signedOut, null, t)).not.toBeNull()
+  })
+})
 
 describe('provider presets', () => {
   it('maps saved providers to the preset that describes them', () => {

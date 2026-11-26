@@ -53,18 +53,26 @@ internal sealed partial class DotNetExtensionRuntimeManager
                     continue;
 
                 var affected = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var revoked = new List<(string PluginId, PluginRuntimeNode Node)>();
+                var withdrawn = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 foreach (var pluginId in pluginIds)
                 {
                     if (!_nodes.TryGetValue(pluginId, out var node))
                         continue;
 
-                    affected.UnionWith(ReplanIdsFor(pluginId));
+                    var closure = ReplanIdsFor(pluginId);
+                    affected.UnionWith(closure);
                     if (!HasExecutionQualification(node)
                         && (node.Generation != null || node.PendingActivation != null))
                     {
-                        await StopClosureAsync(pluginId, node, CancellationToken.None).ConfigureAwait(false);
+                        revoked.Add((pluginId, node));
+                        withdrawn.UnionWith(closure);
                     }
                 }
+
+                WithdrawTrustRevokedRoutes(withdrawn);
+                foreach (var (pluginId, node) in revoked)
+                    await StopClosureAsync(pluginId, node, CancellationToken.None).ConfigureAwait(false);
 
                 await ReplanAllAsync(affected, CancellationToken.None).ConfigureAwait(false);
                 PublishSnapshot();
@@ -79,6 +87,23 @@ internal sealed partial class DotNetExtensionRuntimeManager
             finally
             {
                 _mutationLock.Release();
+            }
+        }
+    }
+
+    private void WithdrawTrustRevokedRoutes(IReadOnlySet<string> affected)
+    {
+        using var batch = _contributions.BeginBatch();
+        foreach (var pluginId in affected)
+        {
+            if (!_nodes.TryGetValue(pluginId, out var node) || node.Generation is not { } generation)
+                continue;
+
+            generation.WithdrawRouting();
+            if (node.State == DotNetExtensionRuntimeState.Active)
+            {
+                node.State = DotNetExtensionRuntimeState.Deactivating;
+                node.Blockers = [];
             }
         }
     }

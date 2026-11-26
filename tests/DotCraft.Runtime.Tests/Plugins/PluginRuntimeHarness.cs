@@ -89,8 +89,9 @@ internal sealed class PluginRuntimeHarness : IDisposable
             UserDataPath = Path.Combine(Root, "user-data")
         };
         var paths = DotCraftPathResolver.Resolve(options);
-        return new DotNetExtensionRuntimeManager(
-            new PluginDiscoveryService(paths, builtInPluginSourceRoots),
+        var discovery = new PluginDiscoveryService(paths, builtInPluginSourceRoots);
+        var manager = new DotNetExtensionRuntimeManager(
+            () => discovery.DiscoverAll(Config, paths.WorkspacePath, paths.Data.RootPath),
             Config,
             paths,
             Services,
@@ -107,6 +108,8 @@ internal sealed class PluginRuntimeHarness : IDisposable
             trustStore: trustStoreAvailable && string.IsNullOrWhiteSpace(Config.GlobalConfigPath)
                 ? _trustStore
                 : null);
+        _ = manager.ToolSource;
+        return manager;
     }
 
     private sealed class CollectingLogger<TCategory>(List<string> lines) : ILogger<TCategory>

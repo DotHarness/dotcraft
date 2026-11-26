@@ -41,24 +41,44 @@ internal sealed class PluginModelBackendSourceAdapter : IModelBackendSource
         public ModelBackendDescriptor Descriptor { get; }
         public CancellationToken Stopping => _invocation.Stopping;
 
-        public IModelProvider CreateProvider(ModelBackendContext context) =>
-            _invocation.Invoke(() => new ProviderAdapter(_target.Value.CreateProvider(context), _invocation));
+        public IModelProvider CreateProvider(ModelBackendContext context)
+        {
+            try
+            {
+                return _invocation.Invoke(() =>
+                {
+                    var provider = _target.Value.CreateProvider(context);
+                    var providerScope = _invocation.CreateScope();
+                    try { return new ProviderAdapter(provider, providerScope, Descriptor.Id); }
+                    catch
+                    {
+                        providerScope.Retire();
+                        throw;
+                    }
+                });
+            }
+            catch (PluginContributionUnavailableException) { throw new ModelBackendUnavailableException(Descriptor.Id); }
+        }
     }
 
-    private sealed class ProviderAdapter : IModelProvider
+    private sealed class ProviderAdapter : IModelProvider, IRetirableModelProvider
     {
         private readonly PluginTarget<IModelProvider> _target;
         private readonly PluginInvocation _invocation;
+        private readonly string _backendId;
         private readonly ConcurrentDictionary<Type, Lazy<object?>> _capabilities = new();
 
-        public ProviderAdapter(IModelProvider target, PluginInvocation invocation)
+        public ProviderAdapter(IModelProvider target, PluginInvocation invocation, string backendId)
         {
             _target = invocation.Capture(target, ownsTarget: true);
             _invocation = invocation;
+            _backendId = backendId;
             Protocols = invocation.Snapshot(() => target.Protocols);
         }
 
         public IReadOnlyCollection<string> Protocols { get; }
+
+        public void Retire() => _invocation.Retire();
 
         public IChatClient CreateChatClient(EffectiveModelRuntime runtime) =>
             _invocation.Invoke(() => new PluginChatClient(_target.Value.CreateChatClient(runtime), _invocation));
@@ -68,11 +88,15 @@ internal sealed class PluginModelBackendSourceAdapter : IModelBackendSource
             if (serviceKey is not null) return null;
             if (serviceType == typeof(IModelProvider)) return this;
             if (!PluginProviderCapabilities.Supports(serviceType)) return null;
-            return _capabilities.GetOrAdd(serviceType, type => new Lazy<object?>(() => _invocation.Invoke(() =>
+            try
             {
-                var capability = _target.Value.GetService(type);
-                return capability is null ? null : PluginProviderCapabilities.Adapt(capability, type, _invocation);
-            }))).Value;
+                return _capabilities.GetOrAdd(serviceType, type => new Lazy<object?>(() => _invocation.Invoke(() =>
+                {
+                    var capability = _target.Value.GetService(type);
+                    return capability is null ? null : PluginProviderCapabilities.Adapt(capability, type, _invocation, _backendId);
+                }))).Value;
+            }
+            catch (PluginContributionUnavailableException) { throw new ModelBackendUnavailableException(_backendId); }
         }
     }
 }

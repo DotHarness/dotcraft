@@ -6,13 +6,14 @@ using Microsoft.Extensions.Logging;
 
 namespace DotCraft.Runtime;
 
-/// <summary>The immutable, monotonically revised view of the runtime that clients reconcile against.</summary>
 internal sealed partial class DotNetExtensionRuntimeManager
 {
     internal const int MaxDiagnosticsPerPlugin = 32;
+    private IReadOnlyList<PluginDiagnostic> _discoveryDiagnostics = [];
 
     private void PublishSnapshot()
     {
+        var toolSource = _toolSource.IsValueCreated ? _toolSource.Value : null;
         var plugins = _nodes.Values
             .OrderBy(static node => node.Snapshot.Manifest.Id, StringComparer.Ordinal)
             .Select(node =>
@@ -28,8 +29,8 @@ internal sealed partial class DotNetExtensionRuntimeManager
                     {
                         Parameters = CloneParameters(blocker.Parameters)
                     }).ToArray(),
-                    node.State == DotNetExtensionRuntimeState.Active && node.GenerationId != null
-                        ? ToolSource.DescribeTools(pluginId, node.GenerationId)
+                    toolSource is not null && node.State == DotNetExtensionRuntimeState.Active && node.GenerationId != null
+                        ? toolSource.DescribeTools(pluginId, node.GenerationId)
                         : [],
                     leaked,
                     leaked >= _options.LeakedGenerationRestartThreshold,
@@ -40,7 +41,8 @@ internal sealed partial class DotNetExtensionRuntimeManager
             .ToArray();
         var diagnostics = _nodes.Values
             .SelectMany(static node => node.Diagnostics)
-            .Concat(ToolSource.Diagnostics)
+            .Concat(toolSource?.Diagnostics ?? [])
+            .Concat(_discoveryDiagnostics)
             .Select(static diagnostic => diagnostic with
             {
                 Parameters = CloneParameters(diagnostic.Parameters)
@@ -184,12 +186,12 @@ internal sealed partial class DotNetExtensionRuntimeManager
             catalogAvailability);
     }
 
-    /// <summary>Runs one projection pass so <see cref="DotNetExtensionToolSource.DescribeTools"/> reflects the live generations.</summary>
-    private async Task DescribeToolsAsync(CancellationToken cancellationToken)
+    /// <summary>Primes the tool projection before publishing a snapshot for a new generation.</summary>
+    private async Task DescribeToolsAsync(DotNetExtensionToolSource toolSource, CancellationToken cancellationToken)
     {
         try
         {
-            await ToolSource.GetRegistrationsAsync(DescribePlanningContext(), cancellationToken)
+            await toolSource.GetRegistrationsAsync(DescribePlanningContext(), cancellationToken)
                 .ConfigureAwait(false);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
@@ -198,7 +200,6 @@ internal sealed partial class DotNetExtensionRuntimeManager
         }
     }
 
-    /// <summary>The Host-owned planning inputs a description pass runs under: an internal helper thread, not a user one.</summary>
     private ToolPlanningContext DescribePlanningContext() =>
         new(
             threadId: "plugin-runtime",
@@ -211,8 +212,6 @@ internal sealed partial class DotNetExtensionRuntimeManager
             revision: _contributions.GetRevision<IToolSource>(),
             threadKind: ToolPlanningThreadKind.Internal);
 
-    /// <summary>Records an activation attempt that produced no generation, as both a log line and a node
-    /// diagnostic the snapshot carries to the client.</summary>
     private void ReportFailedActivation(PluginRuntimeNode node, string? generationId)
     {
         if (node.Blockers.Count == 0)
@@ -291,7 +290,6 @@ internal sealed partial class DotNetExtensionRuntimeManager
             ? value.ValueKind == JsonValueKind.String ? value.GetString() : value.GetRawText()
             : null;
 
-    /// <summary>Returns the preflight findings that make a bundle inadmissible for activation.</summary>
     private static PluginRuntimeBlocker[] PreflightBlockers(PluginAcceptedSnapshot snapshot) =>
         snapshot.PreflightDiagnostics
             .Where(static diagnostic => diagnostic.Severity == PluginDiagnosticSeverity.Error)

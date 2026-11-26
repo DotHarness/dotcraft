@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| **Version** | 0.11.1 |
+| **Version** | 0.12.0 |
 | **Status** | Living |
-| **Date** | 2026-11-13 |
+| **Date** | 2026-11-26 |
 
 This specification defines trusted, in-process .NET extensions. The shared plugin manifest,
 discovery, installation, and content contributions remain owned by
@@ -32,10 +32,13 @@ The following invariants are normative:
 4. No long-lived host object calls a raw collectible-ALC object. The runtime registers host-owned,
    contract-specific adapters; factory results and async streams remain behind the same gate.
    Plugin tools use the stricter projection in §8.
-5. Deactivation is ordered: revoke routing, reject new calls, signal `Stopping`, drain admitted calls
+5. Hosts supply their installed bundle sources and trust authority. The installed-plugin runtime
+   uses one activation, contribution registration, and teardown flow. Hosts compose the consumers
+   they need. Only a host that consumes tools projects plugin tools.
+6. Deactivation is ordered: revoke routing, reject new calls, signal `Stopping`, drain admitted calls
    and tracked work, dispose plugin-owned objects, then request ALC unload.
-6. Routing revocation is deterministic. Memory reclamation is observable but best-effort.
-7. Plugin code is fully trusted. The generation boundary is a lifecycle and type-identity
+7. Routing revocation is deterministic. Memory reclamation is observable but best-effort.
+8. Plugin code is fully trusted. The generation boundary is a lifecycle and type-identity
    mechanism, not a security sandbox.
 
 ## 2. Trust
@@ -53,8 +56,9 @@ installation, enablement, and trust as separate decisions:
   fingerprint. Clients do not choose the fingerprint. Grant adds that exact pair; revoke removes
   only that exact pair, leaving other grants for the same plugin id intact.
 - Changed .NET execution bytes or manifest contract require a grant for the new fingerprint without
-  erasing earlier grants. Revoking the active fingerprint's grant stops the active generation and
-  its dependants.
+  erasing earlier grants. When the runtime observes revocation of an active fingerprint, it
+  withdraws the affected generations' external routes and signals work admitted through those
+  routes to stop before waiting on dependent cleanup.
 - A grant that cannot be persisted is not applied and activates nothing.
 - Workspace configuration cannot grant .NET trust.
 - Discovery, installation, and metadata preflight do not execute plugin code. Enabling an
@@ -359,7 +363,8 @@ reactivation, dependent teardown, or shutdown.
 
 ### 7.5 Dependencies and typed exports
 
-Providers activate before consumers; consumers stop before providers. Dependency versions follow
+Providers activate before consumers. Consumers finish teardown before their providers, including
+when their external routes have already been withdrawn. Dependency versions follow
 the compatibility-line rule of the shared manifest. Missing, disabled, blocked, too-old, or
 incompatible-line providers block the consumer. Cycles and API assembly-name conflicts are deterministic blockers.
 
@@ -376,9 +381,9 @@ generation.
 ### 7.6 Agent authoring build
 
 Agent authoring is an optional capability owned by `DotCraft.CSharp` and registered by the host with
-`AddDotCraftCSharp`. Without it, installed .NET extensions load and run normally, and the `CSharp`
-tools are absent. The authoring capability compiles and inspects; publication, admission, and
-activation of each successful build belong to the Runtime and follow the rules below.
+`AddDotCraftCSharp`. Installed bundles do not require authoring. The authoring capability compiles and
+inspects. It consumes a host-registered build publisher, separate from installed plugin management,
+to publish, admit, and activate each successful build under the rules below.
 
 The built-in `$plugin-creator` is the authoring entry point. It creates .NET extension projects under
 the workspace data root:
@@ -471,6 +476,5 @@ AppServer projects plugin state; it does not own another plugin runtime.
 - managed-code sandboxing, signatures, publisher identity, or capability permissions;
 - runtime NuGet restore, third-party package resolution, or dependency version-range solving;
 - root DI mutation, dynamic module loading, Session Core or persistence replacement;
-- independent ModelService deployment of backend plugins;
 - overlapping generations, automatic rollback, Native AOT, or bundle filesystem watching;
 - guaranteed ALC collection.

@@ -41,8 +41,11 @@ public sealed class RemoteProviderManagementTests : IDisposable
         Assert.Null(AtomicConfigDocument.Value(AtomicConfigDocument.Read(config.GlobalConfigPath!), "Providers"));
     }
 
-    [Fact]
-    public async Task ProviderListProjectsServiceOwnershipAndAuthenticationWithoutLocalKeys()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(null)]
+    public async Task ProviderListProjectsServiceOwnershipAndAuthenticationWithoutLocalKeys(bool? authenticated)
     {
         using var harness = new CoreAppServerTestHarness(workspaceCraftPath: _root);
         var config = harness.Monitor.Current;
@@ -53,7 +56,7 @@ public sealed class RemoteProviderManagementTests : IDisposable
         {
             Protocol = ModelProviderProtocols.OpenAIResponses,
             EndPoint = "https://upstream.example/v1",
-            RemoteAuthentication = new ProviderAuthenticationStatus(true)
+            RemoteAuthentication = authenticated is { } ready ? new ProviderAuthenticationStatus(ready) : null
         };
         await harness.InitializeAsync();
         await harness.ExecuteRequestAsync(harness.BuildRequest("provider/list", new { }));
@@ -61,7 +64,10 @@ public sealed class RemoteProviderManagementTests : IDisposable
         var result = response.RootElement.GetProperty("result");
         Assert.Equal("modelService", result.GetProperty("managedBy").GetString());
         var provider = Assert.Single(result.GetProperty("providers").EnumerateArray());
-        Assert.True(provider.GetProperty("isAuthenticated").GetBoolean());
+        if (authenticated is { } expected)
+            Assert.Equal(expected, provider.GetProperty("isAuthenticated").GetBoolean());
+        else
+            Assert.False(provider.TryGetProperty("isAuthenticated", out _));
         Assert.False(provider.GetProperty("hasApiKey").GetBoolean());
         Assert.Equal("modelService", provider.GetProperty("managedBy").GetString());
     }

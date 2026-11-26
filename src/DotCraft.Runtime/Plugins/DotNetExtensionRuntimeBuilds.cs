@@ -149,12 +149,15 @@ internal sealed partial class DotNetExtensionRuntimeManager
     private DotNetExtensionBuildApplyResult AuthoringResult(
         PluginRuntimeMutationOutcome outcome,
         string pluginId,
-        IReadOnlyList<PluginDiagnostic> diagnostics) =>
-        new(
+        IReadOnlyList<PluginDiagnostic> diagnostics)
+    {
+        var snapshot = Snapshot;
+        return new(
             outcome,
-            Snapshot.Plugins.FirstOrDefault(plugin =>
-                PluginIds.EqualsCanonical(plugin.PluginId, pluginId)),
-            diagnostics);
+            snapshot.Plugins.FirstOrDefault(plugin => PluginIds.EqualsCanonical(plugin.PluginId, pluginId)),
+            [.. diagnostics, .. snapshot.Diagnostics.Where(diagnostic =>
+                diagnostic.PluginId is not null && PluginIds.EqualsCanonical(diagnostic.PluginId, pluginId))]);
+    }
 
     private static void PublishAuthoringBundle(string stagedRoot, string destination)
     {
@@ -185,7 +188,7 @@ internal sealed partial class DotNetExtensionRuntimeManager
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
             {
-                // Publication already committed; a stale backup does not change the authoritative root.
+                // Backup deletion is best-effort after the new bundle is published.
             }
         }
     }

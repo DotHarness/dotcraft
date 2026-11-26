@@ -189,4 +189,6 @@ app.MapDotCraftModelService();
 await app.RunAsync();
 ```
 
+自行实现 `IModelServiceAccess` 时，在 `GetProviderAsync` 中根据提供商配置和调用方授权查找推理目标，不要根据可用提供商目录判断。提供商未配置或调用方无权使用时，返回 `null`。已授权的提供商无法提供推理时，抛出状态为 `503`、错误码为 `backend_unavailable` 的 `ModelServiceException`。
+
 服务注册不创建工作区、Session 或工具。通过 `IModelServiceObserver` 接收每次 HTTP 调用的完成状态、规范化用量和可空 decimal 金额 `ModelServiceCall.CostUsd`。有上游美元金额时优先采用，包括明确的零，否则按内置模型目录及 OpenAI 服务档位估值。金额缺失表示该调用无法定价。回调失败不改变模型响应。数据库存储的订阅为每个凭据身份绑定一个 `OpenAIAuthManager`，实现 `IOpenAITokenStore`，其中 `TryReplace` 需要原子写入轮换后的令牌。

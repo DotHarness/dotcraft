@@ -475,12 +475,18 @@ public sealed class ModelServiceTransportTests
         public ValueTask<ModelServiceCaller?> AuthenticateAsync(HttpContext context, CancellationToken cancellationToken) =>
             ValueTask.FromResult(!Revoked && context.Request.Headers.Authorization == "Bearer caller-secret" ? new ModelServiceCaller("stack-a") : null);
         public Task<IReadOnlyList<ModelServiceProvider>> GetProvidersAsync(ModelServiceCaller caller, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<ModelServiceProvider>>([
-                Provider ?? new(new RemoteModelProvider("primary", "Primary", Protocol,
-                    Endpoint, AuthMethod, true, true, new ProviderAuthenticationStatus(true)),
-                    new EffectiveModelRuntime("primary", "", Protocol, "Primary", "upstream-secret",
-                        Endpoint, 30, null, ModelProviderCapabilities.ForProtocol(Protocol), AuthMethod: AuthMethod))
-            ]);
+            Task.FromResult<IReadOnlyList<ModelServiceProvider>>([ConfiguredProvider()]);
+
+        public Task<ModelServiceProvider?> GetProviderAsync(ModelServiceCaller caller, string providerId, CancellationToken cancellationToken)
+        {
+            var provider = ConfiguredProvider();
+            return Task.FromResult<ModelServiceProvider?>(providerId == provider.Description.Id ? provider : null);
+        }
+
+        private ModelServiceProvider ConfiguredProvider() => Provider ?? new(
+            new RemoteModelProvider("primary", "Primary", Protocol, Endpoint, AuthMethod, true, true, new ProviderAuthenticationStatus(true)),
+            new EffectiveModelRuntime("primary", "", Protocol, "Primary", "upstream-secret",
+                Endpoint, 30, null, ModelProviderCapabilities.ForProtocol(Protocol), AuthMethod: AuthMethod));
         public ValueTask<IDisposable?> BeginRequestAsync(ModelServiceCaller caller, ModelServiceRequestContext request, CancellationToken cancellationToken) => ValueTask.FromResult<IDisposable?>(null);
         public ValueTask OnCompletedAsync(ModelServiceCall call, CancellationToken cancellationToken)
         {

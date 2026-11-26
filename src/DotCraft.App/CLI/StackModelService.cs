@@ -38,7 +38,7 @@ internal static class StackModelService
         var catalog = await transport.GetCatalogAsync(timeout.Token).ConfigureAwait(false);
         var provider = catalog.Providers.SingleOrDefault(item => item.Id == providerId)
             ?? throw new InvalidOperationException("The selected provider is not available to this model service client.");
-        if (!provider.Authentication.IsAuthenticated)
+        if (provider.Authentication is { IsAuthenticated: false })
             throw new InvalidOperationException("The selected provider requires authentication at the model service.");
         if (model is null || provider.Models?.ContainsKey(model) != true)
             throw new InvalidOperationException("The selected model is not available from the model service.");

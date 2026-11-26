@@ -25,12 +25,18 @@ public static class ModelProviderCatalog
     {
         ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(providerRegistry);
-        config.RuntimeResolver = providerRegistry;
-
         EffectiveModelRuntime runtime;
         try
         {
-            runtime = providerRegistry.Normalize(ModelProviderResolver.ResolveProvider(config, providerId));
+            runtime = ModelProviderResolver.ResolveProvider(config, providerId);
+            if (runtime.IsRemote && runtime.BackendId is not null)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                return RemoteHttpModelProvider.ReadCatalog(runtime);
+            }
+
+            config.RuntimeResolver = providerRegistry;
+            runtime = providerRegistry.Normalize(runtime);
             if (runtime.IsChatGptOAuth && !runtime.IsRemote)
             {
                 var identity = providerRegistry.Resolve(runtime).GetService(typeof(IProviderRuntimeIdentityResolver))

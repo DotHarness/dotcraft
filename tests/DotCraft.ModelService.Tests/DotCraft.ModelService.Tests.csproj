@@ -8,8 +8,10 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="10.0.10" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.3.0" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+    <Compile Include="../DotCraft.Runtime.Tests/Plugins/DotNetExtensionTestBundle.cs" Link="DotNetExtensionTestBundle.cs" />
     <ProjectReference Include="../../src/DotCraft.ModelService/DotCraft.ModelService.csproj" />
     <ProjectReference Include="../../src/DotCraft.Agents.Remote/DotCraft.Agents.Remote.csproj" />
     <ProjectReference Include="../../src/DotCraft.Agents.OpenAI/DotCraft.Agents.OpenAI.csproj" />

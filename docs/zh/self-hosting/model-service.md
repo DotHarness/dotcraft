@@ -56,6 +56,8 @@ docker compose up -d model-service
 
 默认端口为 `8090`。跨不可信网络连接时，在反向代理上配置 HTTPS。
 
+如果插件支持模型服务，将它安装到 `state/plugins`，并按插件说明配置提供商。启动服务或运行需要该插件的命令时，为插件及其必需依赖分别传入 `--plugin <id>`。启动前，用同一个状态目录和相同的插件参数运行 `plugin trust <id>`。受信任的插件以服务进程的权限运行。
+
 ## 使用 OpenRouter
 
 在 `state/config.json` 中添加 OpenRouter 提供商，并将其环境变量传入容器：

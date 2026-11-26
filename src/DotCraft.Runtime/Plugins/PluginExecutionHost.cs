@@ -24,7 +24,8 @@ public sealed class PluginExecutionHost(
 
     /// <summary>Loads one installed directory for this host's lifetime; prepared bundles require a separate host.</summary>
     public Task LoadInstalledAsync(string directory, CancellationToken cancellationToken = default) =>
-        Runtime(installed: true).LoadInstalledExecutionAsync(directory, cancellationToken);
+        Runtime(installed: true).LoadInstalledExecutionAsync(
+            state => new PluginDiscoveryService().DiscoverDirectory(directory, state), cancellationToken);
 
     public Task PrepareAsync(IReadOnlyList<RemotePluginBundleFiles> bundles, CancellationToken cancellationToken = default) =>
         Runtime().PrepareExecutionAsync(bundles, cancellationToken);
@@ -56,8 +57,10 @@ public sealed class PluginExecutionHost(
                 return _runtime;
             }
             _installed = installed;
-            return _runtime = new DotNetExtensionRuntimeManager(new PluginDiscoveryService(), config ?? new AppConfig(), paths,
+            var runtime = new DotNetExtensionRuntimeManager(static () => new([], []), config ?? new AppConfig(), paths,
                 services, _contributions, executionOnly: true, installedExecution: installed);
+            _ = runtime.ToolSource;
+            return _runtime = runtime;
         }
     }
 

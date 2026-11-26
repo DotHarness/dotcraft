@@ -56,6 +56,8 @@ docker compose up -d model-service
 
 The default port is `8090`. Use HTTPS at your reverse proxy when connecting across an untrusted network.
 
+If a plugin supports Model Service, install it under `state/plugins` and follow its provider setup instructions. Pass `--plugin <id>` for the plugin and each required dependency when starting the service or running commands that use the plugin. Run `plugin trust <id>` with the same state and plugin flags before starting the service. Trust grants the plugin the service process's permissions.
+
 ## Use OpenRouter
 
 Add an OpenRouter provider to `state/config.json`, passing its environment variable into the container:

@@ -250,10 +250,11 @@ DotCraft discovers plugin roots in priority order:
 5. Configured plugin registry snapshots.
 
 Explicit roots may be one plugin root or a container of plugin roots. Missing roots are skipped
-with diagnostics. Roots 1 to 3 hold installed plugins. When several of them contain the same plugin
-id, the higher-priority root wins and lower-priority duplicates are skipped with diagnostics. The
-plugin id is the runtime identity that skills, workflows, MCP and LSP runtime names, hooks,
-settings, trust, and plugin data key on, so at most one plugin per id is installed and contributes.
+with diagnostics. Discovery compares directory paths case-insensitively on Windows and ordinally on
+other platforms. Roots 1 to 3 hold installed plugins. Plugin IDs are case-insensitive. When several
+roots contain the same plugin ID, the higher-priority root wins and duplicates are skipped with
+diagnostics. The plugin ID is the runtime identity for skills, workflows, MCP and LSP runtime names,
+hooks, settings, trust, and plugin data. At most one plugin per ID is installed and contributes.
 
 ### 2.7 Plugin keys
 

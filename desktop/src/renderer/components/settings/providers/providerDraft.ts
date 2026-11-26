@@ -178,7 +178,7 @@ export function isStoredApiKey(draft: Pick<ProviderDraft, 'apiKey'>): boolean {
 
 export function providerUsable(provider: ProviderInfoWire): boolean {
   if (provider.isAuthenticated !== undefined) return provider.isAuthenticated === true
-  if (provider.backendId) return true
+  if (provider.managedBy === 'modelService' || provider.backendId) return true
   return provider.hasApiKey
 }
 
@@ -194,7 +194,7 @@ export function providerProblem(
     return provider.isAuthenticated === false ? t('settings.llm.providerNotSignedIn') : null
   }
   if (provider.managedBy === 'modelService') {
-    return provider.isAuthenticated ? null : t('settings.llm.serviceAuthenticationRequired')
+    return provider.isAuthenticated === false ? t('settings.llm.serviceAuthenticationRequired') : null
   }
   if (provider.authMethod === CHATGPT_METHOD) {
     return provider.isAuthenticated === true ? null : t('settings.llm.providerChatGptNotSignedIn')

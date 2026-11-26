@@ -1,8 +1,9 @@
 using DotCraft.Contributions;
+using Microsoft.Extensions.Logging;
 
 namespace DotCraft.Runtime;
 
-/// <summary>Stages plugin registrations and keeps raw plugin ownership outside the kernel registry.</summary>
+/// <summary>Only host-owned adapters reach the contribution registry.</summary>
 internal sealed class PluginContributionRegistrar : IContributionRegistrar
 {
     private readonly object _gate = new();
@@ -21,12 +22,13 @@ internal sealed class PluginContributionRegistrar : IContributionRegistrar
         PluginCallGate callGate,
         object generationOwnedEntry,
         bool toolsOnly = false,
-        CancellationToken stopping = default)
+        CancellationToken stopping = default,
+        ILogger? logger = null)
     {
         _registry = registry;
         _toolsOnly = toolsOnly;
         _inner = registry.CreateRegistrar(origin);
-        _invocation = new PluginInvocation(origin.Name!, origin.Generation!, callGate, stopping);
+        _invocation = new PluginInvocation(origin.Name!, origin.Generation!, callGate, stopping, logger);
         _generationOwnedEntry = generationOwnedEntry ?? throw new ArgumentNullException(nameof(generationOwnedEntry));
     }
 
@@ -79,7 +81,6 @@ internal sealed class PluginContributionRegistrar : IContributionRegistrar
         return registration;
     }
 
-    /// <summary>Publishes every successfully prepared activation registration as one change batch.</summary>
     public void Commit()
     {
         Registration[] registrations;
@@ -110,7 +111,7 @@ internal sealed class PluginContributionRegistrar : IContributionRegistrar
         }
     }
 
-    /// <summary>Removes every route without disposing a raw plugin target.</summary>
+    /// <summary>Revocation leaves targets alive until admitted calls and tracked workers have drained.</summary>
     public void Revoke()
     {
         Registration[] registrations;
@@ -129,7 +130,6 @@ internal sealed class PluginContributionRegistrar : IContributionRegistrar
         _inner.Dispose();
     }
 
-    /// <summary>Disposes raw plugin targets after every admitted callback and tracked worker has stopped.</summary>
     public async Task<IReadOnlyList<string>> DisposeTargetsAsync()
     {
         Registration[] registrations;

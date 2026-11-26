@@ -1,3 +1,4 @@
+using DotCraft.Configuration;
 using DotCraft.Plugins;
 
 namespace DotCraft.Runtime;
@@ -21,7 +22,8 @@ internal sealed partial class DotNetExtensionRuntimeManager
                 PluginDiagnostic.Error(blocker.Code, blocker.Message, plugin.PluginId,
                     parameters: blocker.Parameters)))));
 
-    internal async Task LoadInstalledExecutionAsync(string directory, CancellationToken cancellationToken)
+    internal async Task LoadInstalledExecutionAsync(
+        Func<AppConfig, PluginDiscoveryResult> discover, CancellationToken cancellationToken)
     {
         if (!_executionOnly) throw new InvalidOperationException("This runtime does not accept execution bundles.");
         await _mutationLock.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -30,7 +32,7 @@ internal sealed partial class DotNetExtensionRuntimeManager
             ThrowIfDisposed();
             if (_started) return;
             _started = true;
-            var discovery = _discovery.DiscoverDirectory(directory, _config);
+            var discovery = discover(_config);
             var diagnostics = discovery.Diagnostics.ToList();
             foreach (var plugin in discovery.Plugins)
             {

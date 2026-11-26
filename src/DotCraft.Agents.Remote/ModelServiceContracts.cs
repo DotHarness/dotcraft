@@ -1,3 +1,4 @@
+using System.Text.Json;
 using DotCraft.Configuration;
 
 namespace DotCraft.Agents.Remote;
@@ -12,13 +13,13 @@ public sealed record RemoteModelProvider(
     string AuthMethod,
     bool SupportsImageGeneration,
     bool SupportsFreeformTools,
-    ProviderAuthenticationStatus Authentication,
+    ProviderAuthenticationStatus? Authentication,
     int? MaxOutputTokens = null,
     int NetworkTimeoutSeconds = 300,
     IReadOnlyDictionary<string, ProviderRequestAdaptation>? Models = null,
     string? WebSearchBackend = null,
     string? BackendId = null,
-    string BackendSettingsJson = "{}",
+    JsonElement? OpenRouterRouting = null,
     ModelCatalogResult? CatalogState = null,
     ProviderUsageSnapshot? Usage = null);
 

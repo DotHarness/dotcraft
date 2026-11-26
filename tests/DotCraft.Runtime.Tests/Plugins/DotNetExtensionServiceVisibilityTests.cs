@@ -48,6 +48,7 @@ public sealed class DotNetExtensionServiceVisibilityTests : IDisposable
                         typeof(IHostApplicationLifetime),
                         typeof(IHostLifetime),
                         typeof(IDotNetExtensionRuntimeCoordinator),
+                        typeof(IDotNetExtensionBuildPublisher),
                         typeof(IContributionView),
                         typeof(IEnumerable<IContributionView>)
                     ];
@@ -82,6 +83,7 @@ public sealed class DotNetExtensionServiceVisibilityTests : IDisposable
             (typeof(IHostApplicationLifetime), hidden),
             (typeof(IHostLifetime), hidden),
             (typeof(IDotNetExtensionRuntimeCoordinator), hidden),
+            (typeof(IDotNetExtensionBuildPublisher), hidden),
             (typeof(IContributionView), _harness.Registry),
             (typeof(IEnumerable<IContributionView>), new IContributionView[] { _harness.Registry }));
         await using var manager = _harness.CreateManager();

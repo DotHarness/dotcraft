@@ -49,6 +49,47 @@ public sealed class ModelBackendTests : IDisposable
     }
 
     [Fact]
+    public async Task BackendLookupUsesTheCurrentCredentialRevisionAfterNormalization()
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var resumeLookup = new ManualResetEventSlim();
+        var lookupPaused = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var readsUntilPause = 0;
+        _contributions.Add<IModelBackendSource>(new Source(new Backend("alpha")
+        {
+            OnReadDescriptor = () =>
+            {
+                if (Interlocked.Decrement(ref readsUntilPause) != 0)
+                    return;
+                lookupPaused.TrySetResult();
+                resumeLookup.Wait(deadline.Token);
+            }
+        }));
+        var resolver = Resolver();
+        var runtime = ModelProviderResolver.ResolveProvider(Config(("a", "alpha")), "a");
+        var previous = resolver.ResolveBackend(runtime);
+
+        // Pause on the descriptor read in cache selection, after finding and normalizing the backend.
+        Interlocked.Exchange(ref readsUntilPause, 3);
+        var pending = Task.Run(() => resolver.ResolveBackend(runtime));
+        try
+        {
+            await lookupPaused.Task.WaitAsync(deadline.Token);
+            resolver.InvalidateAuthentication(runtime);
+        }
+        finally
+        {
+            resumeLookup.Set();
+        }
+
+        var resolved = await pending.WaitAsync(deadline.Token);
+        var current = resolver.ResolveBackend(runtime);
+        Assert.NotSame(previous.Provider, resolved.Provider);
+        Assert.Same(current.Provider, resolved.Provider);
+        Assert.Equal(current.Runtime.BackendGeneration, resolved.Runtime.BackendGeneration);
+    }
+
+    [Fact]
     public async Task LoginPromptsAreCorrelatedAndCredentialsAreInstanceScoped()
     {
         _contributions.Add<IModelBackendSource>(new Source(new Backend("alpha")));
@@ -290,9 +331,17 @@ public sealed class ModelBackendTests : IDisposable
         public Func<EffectiveModelRuntime, EffectiveModelRuntime>? RuntimeResolver { get; init; }
         public Func<string, IProviderLoginInteraction, CancellationToken, Task<ProviderAuthenticationStatus>>? LoginHandler { get; init; }
         public string? Description { get; init; }
-        public ModelBackendDescriptor Descriptor => new(id, id, Protocols[0], Protocols,
-            [new("oauth", "Sign in", "oauth")], new ModelProviderCapabilities())
-        { Description = Description };
+        public Action? OnReadDescriptor { get; init; }
+        public ModelBackendDescriptor Descriptor
+        {
+            get
+            {
+                OnReadDescriptor?.Invoke();
+                return new(id, id, Protocols[0], Protocols,
+                    [new("oauth", "Sign in", "oauth")], new ModelProviderCapabilities())
+                { Description = Description };
+            }
+        }
         public IModelProvider CreateProvider(ModelBackendContext context) => new Provider(this, id, context.Credentials);
     }
 
