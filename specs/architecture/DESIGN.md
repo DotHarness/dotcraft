@@ -436,11 +436,10 @@ slides back out.
   and takes the remaining width; trailing row actions sit in a reserved slot and
   appear on hover or focus without shifting columns. As the page narrows, the
   least important columns hide first.
-- Group titles name scope (installed by the user versus provided by the
-  workspace); the band and the hero never carry workspace scope. A workspace
-  group names the foreground workspace as a
-  [switchable name](#headings-that-name-a-selection), in the Chat workspace too,
-  and stays in the unfiltered view with one empty line when it has no items.
+- Group titles name scope; the band and the hero never carry workspace scope.
+  Everything usable in the foreground workspace, whether installed for the user
+  or for the workspace, forms one group that names the workspace as a
+  [switchable name](#headings-that-name-a-selection), in the Chat workspace too.
 - A collection read by its descriptions, such as memories, uses cards instead of
   rows: an auto-fill grid of `260px` minimum columns at `12px` gaps, each card a
   borderless `12px` `--bg-secondary` box (`--bg-tertiary` on hover) holding a

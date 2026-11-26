@@ -92,9 +92,7 @@ export function buildSections(
   t: ReturnType<typeof useT>,
   marketplaces: MarketplaceEntry[],
   marketplaceNotices: ReadonlyMap<string, string>,
-  workspaceName: string,
-  machineName: string | null,
-  showEmptyWorkspace: boolean
+  workspaceName: string
 ): PluginSection[] {
   // Grouping by marketplace answers only "where did this come from": no
   // installed-state group, though the category filter still narrows each group.
@@ -121,25 +119,17 @@ export function buildSections(
     return plugins.length > 0 ? [{ key: categoryFilter, title: categoryLabel(categoryFilter, t), plugins }] : []
   }
 
-  const fromWorkspace = plugins.filter((plugin) => plugin.installed && pluginInstallScope(plugin) === 'workspace')
-  const installed = plugins.filter((plugin) => plugin.installed && pluginInstallScope(plugin) === 'user')
-  const seen = new Set([...installed, ...fromWorkspace].map((plugin) => plugin.id))
+  const installed = [
+    ...plugins.filter((plugin) => plugin.installed && pluginInstallScope(plugin) === 'user'),
+    ...plugins.filter((plugin) => plugin.installed && pluginInstallScope(plugin) === 'workspace')
+  ]
+  const seen = new Set(installed.map((plugin) => plugin.id))
   const sections: PluginSection[] = []
   if (installed.length > 0) {
     sections.push({
       key: 'installed',
-      title: machineName
-        ? t('plugins.section.installedOnMachine', { machine: machineName })
-        : t('plugins.section.installed'),
-      plugins: installed
-    })
-  }
-  if (fromWorkspace.length > 0 || showEmptyWorkspace) {
-    sections.push({
-      key: 'workspace',
       title: t('plugins.section.installedInWorkspace', { name: workspaceName }),
-      plugins: fromWorkspace,
-      notice: fromWorkspace.length === 0 ? t('plugins.section.workspaceEmpty') : undefined,
+      plugins: installed,
       workspace: true
     })
   }
