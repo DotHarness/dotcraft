@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { MascotOutfit, PersonalMascot } from '@dotcraft/plugin'
 import type { DesktopPluginSurfaceProps } from '@dotcraft/plugin'
+import { CLEF } from './clef'
 import { findConductor } from './conductor'
 import { CONDUCTOR_OUTFIT } from './conductorOutfit'
 import kickoffPrompt from './prompts/kickoff.md?raw'
@@ -11,7 +12,6 @@ const KICKOFF_PROMPT = kickoffPrompt.trimEnd()
 
 const GREETINGS: readonly OratorioMessageKey[] = ['introGreetingHello', 'introGreetingAsk', 'introGreetingChat', 'introGreetingBoard', 'introGreetingReport']
 const MASCOT_SIZE = 112
-const CLEF = 'C 40 150, 30 120, 50 105 C 70 90, 95 105, 90 128 C 85 150, 45 160, 32 130 C 20 100, 60 70, 78 50 C 92 34, 92 10, 78 12 C 62 14, 58 40, 64 70 L 78 175 C 80 190, 66 200, 56 192 C 48 186, 52 174, 62 176'
 const SCALE = 0.9
 // Where the baton tip sits in the mascot's box, from the avatar's rig geometry.
 const TIP = { x: 0.007, y: 0.39 }

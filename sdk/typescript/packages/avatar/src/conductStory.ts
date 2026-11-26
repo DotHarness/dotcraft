@@ -1,4 +1,6 @@
-export type ConductStoryChannel = 'armL' | 'wrist' | 'armR' | 'body' | 'eyes' | 'light' | 'glow'
+export type ConductStoryChannel =
+  | 'armL' | 'wrist' | 'armR' | 'body' | 'eyes' | 'light' | 'glow'
+  | 'tipGlow' | 'tipGlowScale' | 'clef' | 'clefRise'
 
 export const CONDUCT_STORY_CHANNELS: Record<ConductStoryChannel, { selector: string; property: 'transform' | 'opacity' }> = {
   armL: { selector: '.dca-part-arm-l-w, .dca-part-arm-l-b, .dca-part-arm-l', property: 'transform' },
@@ -8,6 +10,10 @@ export const CONDUCT_STORY_CHANNELS: Record<ConductStoryChannel, { selector: str
   eyes: { selector: '.dca-face-motion', property: 'transform' },
   light: { selector: '.dca-part-light, .dca-part-glow', property: 'transform' },
   glow: { selector: '.dca-part-glow', property: 'opacity' },
+  tipGlow: { selector: '[data-conduct-part="glow"]', property: 'opacity' },
+  tipGlowScale: { selector: '[data-conduct-part="glow"]', property: 'transform' },
+  clef: { selector: '[data-conduct-part="clef"]', property: 'opacity' },
+  clefRise: { selector: '[data-conduct-part="clef"]', property: 'transform' },
 }
 
 const BEAT_MS = 600
@@ -93,6 +99,23 @@ at('eyes', CONDUCT_STORY_DURATION, look(0, 0))
   .forEach(([time, value]) => at('glow', time!, String(value)))
 ;[[0, 1], [900, 1.06], [2400, 1], [CRESCENDO, 1], [FERMATA, 1.12], [LOWER, 1.04], [CONDUCT_STORY_DURATION, 1]]
   .forEach(([time, value]) => at('light', time!, 'scale(' + value + ')'))
+
+;[[0, 0, 1], [PHRASE - RISE_MS, 0, 0.9], [PHRASE + BEAT_MS, 0.45, 1], [CRESCENDO, 0.5, 1.05], [CRESCENDO + BAR_MS, 0.75, 1.25],
+  [FERMATA, 0.85, 1.3], [FERMATA + 400, 1, 1.5], [LOWER - 500, 1, 1.5], [LOWER + 200, 0, 1], [CONDUCT_STORY_DURATION, 0, 1]]
+  .forEach(([time, opacity, scale]) => {
+    at('tipGlow', time!, String(opacity))
+    at('tipGlowScale', time!, 'scale(' + scale + ')')
+  })
+
+const CLEF_IN = FERMATA + 80
+const CLEF_SHOWN = CLEF_IN + 520
+const CLEF_OUT = LOWER - 480
+const CLEF_GONE = LOWER - 40
+;[[0, 0], [CLEF_IN, 0], [CLEF_SHOWN, 1], [CLEF_OUT, 1], [CLEF_GONE, 0], [CONDUCT_STORY_DURATION, 0]]
+  .forEach(([time, value]) => at('clef', time!, String(value)))
+// The rise resets while the clef is hidden.
+;[[0, 40], [CLEF_IN, 40], [CLEF_SHOWN, 0], [CLEF_GONE, -12], [CONDUCT_STORY_DURATION, 40]]
+  .forEach(([time, y]) => at('clefRise', time!, 'translate(0px, ' + y + 'px)'))
 
 const SINE = 'cubic-bezier(0.45, 0, 0.55, 1)'
 const ICTUS = 'cubic-bezier(0.55, 0, 0.35, 1)'

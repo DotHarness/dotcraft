@@ -249,6 +249,12 @@ conducting story instead, with no laptop.
   other arm cues, the item holds high for a fermata, and both arms lower before the loop repeats.
 - Raised arms use the wave's hinge, so the shoulder end stays inside the body. The holding arm stays
   between 60° and 117° while raised, and an arm rises or lowers within 240 ms.
+- The item may mark parts the story lights with `data-conduct-part`. `glow` is a light at the tip:
+  soft through the quiet phrase, brighter and larger through the crescendo, full for the fermata,
+  and gone as the arms lower. It follows the phrase and never pulses on single beats. `clef` is a
+  figure that fades in above the held tip once per loop during the fermata, rising slightly, and
+  fades before the arms lower. Marked parts are hidden at rest, and an item that marks none plays
+  only the arm story.
 - The other working-story rules apply: one continuous seamless timeline, the operator expression,
   a 160 ms blend on leaving the pose, and no outer host loop.
 
