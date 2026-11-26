@@ -8,7 +8,7 @@ const pillStyle: CSSProperties = {
   gap: '6px',
   height: '28px',
   minWidth: 0,
-  maxWidth: 'min(240px, 100%)',
+  maxWidth: '240px',
   padding: '0 8px',
   border: 'none',
   borderRadius: '999px',

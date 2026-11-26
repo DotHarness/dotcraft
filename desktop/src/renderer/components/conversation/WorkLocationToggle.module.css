@@ -4,7 +4,7 @@
   gap: 6px;
   height: 28px;
   min-width: 0;
-  max-width: min(240px, 100%);
+  max-width: 240px;
   flex: 0 0 auto;
   padding: 0 8px;
   border: none;
@@ -23,7 +23,7 @@
   display: flex;
   flex: 0 1 auto;
   min-width: 0;
-  max-width: min(240px, 100%);
+  max-width: 240px;
 }
 
 .pill[data-merged='true'] {

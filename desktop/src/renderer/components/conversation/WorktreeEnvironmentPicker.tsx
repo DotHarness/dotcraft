@@ -45,7 +45,7 @@ export function WorktreeEnvironmentPicker({
   }
 
   return (
-    <div style={{ position: 'relative' }}>
+    <div className={css.pillWrap}>
       <WorkspaceFooterPill
         aria-label={`${t('worktreeEnvironment.label')}: ${label}`}
         disabled={busy || result == null}
