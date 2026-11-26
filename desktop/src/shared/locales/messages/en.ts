@@ -4874,6 +4874,8 @@ export const MESSAGES_EN = {
   'summary.chats.needsYou': 'Needs you',
   'summary.chats.inProgress': 'In progress',
   'summary.chats.done': 'Done',
+  'summary.chats.unfollow': 'Stop following',
+  'summary.chats.unfollowFailed': 'Unable to stop following the chat',
   'summary.toggle': 'Toggle summary',
   'summary.togglePinned': 'Toggle pinned summary',
   'summary.changes': 'Changes',

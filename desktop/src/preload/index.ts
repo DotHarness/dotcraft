@@ -1451,6 +1451,9 @@ const api = {
     linkedChats(threadId: string): Promise<LinkedChatSummary[]> {
       return ipcRenderer.invoke('threadTasks:linked-chats', threadId)
     },
+    unfollowLinkedChat(params: { threadId: string; childThreadId: string; projectId: string }): Promise<ThreadTaskActionResult> {
+      return ipcRenderer.invoke('threadTasks:unfollow-linked-chat', params)
+    },
     onLinkedChatsChanged(listener: () => void): UnsubscribeFn {
       const wrapped = (): void => listener()
       ipcRenderer.on(LINKED_CHATS_CHANGED_CHANNEL, wrapped)

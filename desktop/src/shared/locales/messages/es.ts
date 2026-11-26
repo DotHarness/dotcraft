@@ -4830,6 +4830,8 @@ export const MESSAGES_ES = {
   'summary.chats.needsYou': 'Te necesita',
   'summary.chats.inProgress': 'En curso',
   'summary.chats.done': 'Hecho',
+  'summary.chats.unfollow': 'Dejar de seguir',
+  'summary.chats.unfollowFailed': 'No se pudo dejar de seguir el chat',
   'summary.toggle': 'Mostrar u ocultar el resumen',
   'summary.togglePinned': 'Fijar o soltar el resumen',
   'summary.changes': 'Cambios',

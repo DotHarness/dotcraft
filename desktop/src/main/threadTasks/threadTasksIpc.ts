@@ -72,7 +72,7 @@ export function registerThreadTasksIpc(host: ThreadTasksIpcHost, ipc: WindowIpcM
 
   ipc.handle('threadTasks:linked-chats', (_event, value: unknown): LinkedChatSummary[] => {
     const threadId = requireString(value, 'threadId')
-    return (host.tasks.linkedChats?.listForThread(threadId) ?? []).map(({ child, status, waitingFor, createdAt }) => ({
+    return (host.tasks.linkedChats?.listForThread(threadId) ?? []).map(({ child, status, waitingFor, followed, createdAt }) => ({
       threadId: child.threadId,
       projectId: child.projectId,
       projectName: child.projectName,
@@ -80,8 +80,22 @@ export function registerThreadTasksIpc(host: ThreadTasksIpcHost, ipc: WindowIpcM
       title: child.title,
       status,
       ...(waitingFor ? { waitingFor } : {}),
+      ...(followed ? { followed } : {}),
       createdAt
     }))
+  })
+
+  ipc.handle('threadTasks:unfollow-linked-chat', (_event, params: unknown): ThreadTaskActionResult => {
+    const record = isRecord(params) ? params : {}
+    const threadId = requireString(record.threadId, 'threadId')
+    const childThreadId = requireString(record.childThreadId, 'childThreadId')
+    const projectId = requireString(record.projectId, 'projectId')
+    const connection = host.getConnection(threadId)
+    const linkedChats = host.tasks.linkedChats
+    if (!connection || !linkedChats) return { ok: false, error: NOT_CONNECTED }
+    const link = linkedChats.find(callingThread(connection, threadId), childThreadId, projectId)
+    if (!link) return { ok: true }
+    return linkedChats.unfollow(link) ? { ok: true } : { ok: false, error: 'Only followed chats can be unfollowed.' }
   })
 
   ipc.handle('threadTasks:owned-list', (): OwnedThreadRecord[] => host.ownedThreads.list())

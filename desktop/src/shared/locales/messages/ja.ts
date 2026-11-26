@@ -4829,6 +4829,8 @@ export const MESSAGES_JA = {
   'summary.chats.needsYou': '対応が必要',
   'summary.chats.inProgress': '進行中',
   'summary.chats.done': '完了',
+  'summary.chats.unfollow': 'フォローを解除',
+  'summary.chats.unfollowFailed': 'チャットのフォローを解除できません',
   'summary.toggle': 'サマリーを切り替え',
   'summary.togglePinned': 'サマリーの固定を切り替え',
   'summary.changes': '変更点',

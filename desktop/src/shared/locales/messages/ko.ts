@@ -4829,6 +4829,8 @@ export const MESSAGES_KO = {
   'summary.chats.needsYou': '확인 필요',
   'summary.chats.inProgress': '진행 중',
   'summary.chats.done': '완료',
+  'summary.chats.unfollow': '팔로우 해제',
+  'summary.chats.unfollowFailed': '채팅 팔로우를 해제할 수 없습니다',
   'summary.toggle': '요약 전환',
   'summary.togglePinned': '고정 요약 전환',
   'summary.changes': '변경 사항',

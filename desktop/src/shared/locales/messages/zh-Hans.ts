@@ -4855,6 +4855,8 @@ export const MESSAGES_ZH_HANS = {
   'summary.chats.needsYou': '等你处理',
   'summary.chats.inProgress': '进行中',
   'summary.chats.done': '已完成',
+  'summary.chats.unfollow': '取消跟进',
+  'summary.chats.unfollowFailed': '无法取消跟进该对话',
   'summary.toggle': '切换摘要',
   'summary.togglePinned': '切换固定摘要',
   'summary.changes': '更改',

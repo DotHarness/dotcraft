@@ -229,7 +229,7 @@
 .conversation-summary-row__inline {
   flex: 0 0 auto;
   max-width: 88px;
-  margin-left: -4px;
+  margin-left: auto;
   color: var(--text-dimmed);
   font-size: var(--type-secondary-size);
   line-height: var(--type-secondary-line-height);
@@ -245,6 +245,10 @@
   font-size: var(--type-secondary-size);
   line-height: var(--type-secondary-line-height);
   font-variant-numeric: tabular-nums;
+}
+
+.conversation-summary-row__inline + .conversation-summary-row__meta {
+  margin-left: 0;
 }
 
 .conversation-summary-row__added {
@@ -266,13 +270,18 @@
   position: relative;
 }
 
-.conversation-summary-row-item > .conversation-summary-row:not(:has(.conversation-summary-row__meta)) {
+.conversation-summary-row-item > .conversation-summary-row:not(:has(.conversation-summary-row__meta, .conversation-summary-row__inline)) {
   padding-right: 38px;
 }
 
 .conversation-summary-row-item .conversation-summary-row__meta {
   min-width: 20px;
   justify-content: flex-end;
+  transition: opacity 100ms ease;
+}
+
+.conversation-summary-row-item > .conversation-summary-row:not(:has(.conversation-summary-row__meta)) .conversation-summary-row__inline {
+  min-width: 20px;
   transition: opacity 100ms ease;
 }
 
@@ -291,7 +300,10 @@
 
 .conversation-summary-row-item:hover .conversation-summary-row__meta,
 .conversation-summary-row-item:has(.conversation-summary-row__trailing :focus-visible) .conversation-summary-row__meta,
-.conversation-summary-row-item:has([aria-busy='true']) .conversation-summary-row__meta {
+.conversation-summary-row-item:has([aria-busy='true']) .conversation-summary-row__meta,
+.conversation-summary-row-item:hover > .conversation-summary-row:not(:has(.conversation-summary-row__meta)) .conversation-summary-row__inline,
+.conversation-summary-row-item:has(.conversation-summary-row__trailing :focus-visible) > .conversation-summary-row:not(:has(.conversation-summary-row__meta)) .conversation-summary-row__inline,
+.conversation-summary-row-item:has([aria-busy='true']) > .conversation-summary-row:not(:has(.conversation-summary-row__meta)) .conversation-summary-row__inline {
   opacity: 0;
 }
 

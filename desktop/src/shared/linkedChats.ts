@@ -10,5 +10,6 @@ export interface LinkedChatSummary {
   title: string
   status: LinkedChatStatus
   waitingFor?: LinkedChatWait
+  followed?: true
   createdAt: string
 }

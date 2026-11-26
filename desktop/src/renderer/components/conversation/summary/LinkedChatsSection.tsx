@@ -1,8 +1,12 @@
-import { MessageSquare } from 'lucide-react'
+import { useState, type JSX } from 'react'
+import { MessageSquare, Unlink } from 'lucide-react'
 import { useT } from '../../../contexts/LocaleContext'
-import { useLinkedChats } from '../../../stores/linkedChatsStore'
+import { unfollowLinkedChat, useLinkedChats } from '../../../stores/linkedChatsStore'
 import type { LinkedChatStatus, LinkedChatSummary } from '../../../../shared/linkedChats'
 import { openThread } from '../../sidebar/projectConnectionActions'
+import { IconButton } from '../../ui/IconButton'
+import { Spinner } from '../../ui/Spinner'
+import type { SummaryServices } from './summaryServices'
 import { GLYPH, Row, Section } from './SummaryRows'
 
 const GROUPS = [
@@ -16,17 +20,39 @@ const OUTCOME = {
   stopped: 'threadActionCard.status.stopped'
 } as const
 
-export function LinkedChatsSection({ threadId }: { threadId: string }): JSX.Element {
+const ACTION_GLYPH = { size: 14, strokeWidth: 1.75 } as const
+
+export function LinkedChatsSection({ services, threadId }: { services: SummaryServices; threadId: string }): JSX.Element {
   const t = useT()
   const chats = useLinkedChats(threadId)
+  const [unfollowing, setUnfollowing] = useState<string | null>(null)
   const sorted = [...chats].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  const unfollow = async (chat: LinkedChatSummary): Promise<void> => {
+    if (unfollowing) return
+    setUnfollowing(chat.threadId)
+    try {
+      await unfollowLinkedChat(threadId, chat)
+    } catch {
+      services.ui.showError(t('summary.chats.unfollowFailed'))
+    } finally {
+      setUnfollowing(null)
+    }
+  }
   return (
     <>
       {GROUPS.map((group) => {
         const rows = sorted.filter((chat) => (group.statuses as readonly LinkedChatStatus[]).includes(chat.status))
         return rows.length ? (
           <Section key={group.title} title={t(group.title)}>
-            {rows.map((chat) => <ChatRow key={chat.threadId} chat={chat} />)}
+            {rows.map((chat) => (
+              <ChatRow
+                key={`${chat.projectId}:${chat.threadId}`}
+                chat={chat}
+                busy={unfollowing === chat.threadId}
+                disabled={unfollowing !== null}
+                onUnfollow={() => void unfollow(chat)}
+              />
+            ))}
           </Section>
         ) : null
       })}
@@ -34,9 +60,15 @@ export function LinkedChatsSection({ threadId }: { threadId: string }): JSX.Elem
   )
 }
 
-function ChatRow({ chat }: { chat: LinkedChatSummary }): JSX.Element {
+function ChatRow({ chat, busy, disabled, onUnfollow }: {
+  chat: LinkedChatSummary
+  busy: boolean
+  disabled: boolean
+  onUnfollow: () => void
+}): JSX.Element {
   const t = useT()
   const outcome = chat.status === 'failed' || chat.status === 'stopped' ? t(OUTCOME[chat.status]) : undefined
+  const label = t('summary.chats.unfollow')
   return (
     <Row
       leading={<MessageSquare {...GLYPH} />}
@@ -45,6 +77,17 @@ function ChatRow({ chat }: { chat: LinkedChatSummary }): JSX.Element {
       meta={outcome}
       title={`${chat.title} · ${chat.projectName}`}
       onClick={() => void openThread(chat.threadId, chat.projectId)}
+      trailing={chat.followed ? (
+        <IconButton
+          size={24}
+          icon={busy ? <Spinner size={14} /> : <Unlink {...ACTION_GLYPH} />}
+          label={label}
+          tooltipLabel={label}
+          disabled={disabled}
+          aria-busy={busy || undefined}
+          onClick={onUnfollow}
+        />
+      ) : undefined}
     />
   )
 }

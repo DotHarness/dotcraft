@@ -30,6 +30,14 @@ export function loadLinkedChats(parentThreadId: string): Promise<readonly Linked
   }, () => useLinkedChatsStore.getState().byParent[parentThreadId] ?? EMPTY)
 }
 
+export async function unfollowLinkedChat(parentThreadId: string, chat: Pick<LinkedChatSummary, 'threadId' | 'projectId'>): Promise<void> {
+  const result = await window.api.threadTasks.unfollowLinkedChat({ threadId: parentThreadId, childThreadId: chat.threadId, projectId: chat.projectId })
+  if (!result.ok) throw new Error(result.error)
+  const chats = useLinkedChatsStore.getState().byParent[parentThreadId] ?? EMPTY
+  useLinkedChatsStore.getState().setLinkedChats(parentThreadId,
+    chats.filter((candidate) => candidate.threadId !== chat.threadId || candidate.projectId !== chat.projectId))
+}
+
 export function trackLinkedChats(parentThreadId: string): () => void {
   tracked.set(parentThreadId, (tracked.get(parentThreadId) ?? 0) + 1)
   if (tracked.get(parentThreadId) === 1) void loadLinkedChats(parentThreadId)

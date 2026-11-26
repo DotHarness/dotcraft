@@ -4830,6 +4830,8 @@ export const MESSAGES_FR = {
   'summary.chats.needsYou': 'Action requise',
   'summary.chats.inProgress': 'En cours',
   'summary.chats.done': 'Terminé',
+  'summary.chats.unfollow': 'Ne plus suivre',
+  'summary.chats.unfollowFailed': 'Impossible de ne plus suivre la discussion',
   'summary.toggle': 'Afficher ou masquer le résumé',
   'summary.togglePinned': 'Épingler ou détacher le résumé',
   'summary.changes': 'Changements',

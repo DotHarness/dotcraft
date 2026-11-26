@@ -125,7 +125,7 @@ export function SummaryPanel({
     return (
       <div className="conversation-summary" data-variant={variant}>
         {header}
-        <LinkedChatsSection threadId={threadId} />
+        <LinkedChatsSection services={services} threadId={threadId} />
         {state?.ready ? (
           <BackgroundTasksSection
             services={services}
@@ -167,7 +167,7 @@ export function SummaryPanel({
         </Section>
       ) : null}
 
-      <LinkedChatsSection threadId={threadId} />
+      <LinkedChatsSection services={services} threadId={threadId} />
 
       <ServersSection threadId={threadId} />
 

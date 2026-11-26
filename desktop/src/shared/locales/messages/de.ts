@@ -4829,6 +4829,8 @@ export const MESSAGES_DE = {
   'summary.chats.needsYou': 'Wartet auf Sie',
   'summary.chats.inProgress': 'In Arbeit',
   'summary.chats.done': 'Erledigt',
+  'summary.chats.unfollow': 'Nicht mehr folgen',
+  'summary.chats.unfollowFailed': 'Dem Chat konnte nicht mehr entfolgt werden',
   'summary.toggle': 'Übersicht ein- oder ausblenden',
   'summary.togglePinned': 'Übersicht anheften oder lösen',
   'summary.changes': 'Änderungen',
