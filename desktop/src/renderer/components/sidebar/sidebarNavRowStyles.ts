@@ -1,11 +1,6 @@
 import type { CSSProperties } from 'react'
 
-/**
- * Shared row height for the sidebar "button" rows — New chat, the nav
- * destinations (Channels/Automations/Skills), Settings, and project headers — so
- * they all line up. Thread rows are intentionally a little taller (content rows).
- */
-export const SIDEBAR_ROW_MIN_HEIGHT = '30px'
+export const SIDEBAR_ROW_MIN_HEIGHT = 'var(--sidebar-row-min-height)'
 
 /**
  * Shared horizontal origin for expanded-sidebar section labels, project icon

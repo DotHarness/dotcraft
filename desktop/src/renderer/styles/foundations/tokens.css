@@ -232,6 +232,7 @@
   --identity-mark-radius-hero: calc(var(--identity-mark-radius-hero-base) * var(--corner-radius-scale));
   --identity-mark-hero-border: color-mix(in srgb, var(--text-primary) 8%, transparent);
   --sidebar-control-radius: var(--control-radius-md);
+  --sidebar-row-min-height: 30px;
   --sidebar-row-radius: 10px;
   --sidebar-rail-content-inset: 16px;
   --sidebar-leading-slot-width: 18px;
