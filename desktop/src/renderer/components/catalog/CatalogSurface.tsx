@@ -727,7 +727,8 @@ const sectionHeaderTitle: CSSProperties = {
   ...sectionTitleType,
   margin: 0,
   minWidth: 0,
-  overflow: 'hidden',
+  overflow: 'clip',
+  overflowClipMargin: '6px',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap'
 }
