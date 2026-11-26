@@ -52,8 +52,16 @@ public sealed class FileModelServiceAccess : IModelServiceAccess, IDisposable
     {
         cancellationToken.ThrowIfCancellationRequested();
         var client = (ModelServiceClient)caller.State!;
-        return Task.FromResult(client.Providers.Contains(providerId, StringComparer.Ordinal)
-            ? Resolve(ReadConfiguration(_stateDirectory), providerId) : null);
+        if (!client.Providers.Contains(providerId, StringComparer.Ordinal))
+            return Task.FromResult<ModelServiceProvider?>(null);
+
+        var config = ReadConfiguration(_stateDirectory);
+        var provider = Resolve(config, providerId);
+        if (provider is null && config.Providers.ContainsKey(providerId))
+            throw new ModelServiceException("backend_unavailable", "The requested backend is unavailable.",
+                StatusCodes.Status503ServiceUnavailable);
+
+        return Task.FromResult(provider);
     }
 
     private ModelServiceProvider? Resolve(AppConfig config, string id)

@@ -34,9 +34,28 @@ public sealed class ScopedPluginDiscoveryTests : IDisposable
             diagnostic.Code == "PluginNotFound" && diagnostic.PluginId == "ambient-plugin");
     }
 
-    private static void WritePlugin(string directory, string id)
+    [Fact]
+    public void CaseDistinctBundlePathsDoNotHideAnAllowedPlugin()
     {
-        var plugin = Path.Combine(directory, id);
+        if (OperatingSystem.IsWindows())
+            return;
+
+        var first = Path.Combine(_root, "Bundle");
+        var second = Path.Combine(_root, "bundle");
+        WritePlugin(_root, "unlisted-plugin", "Bundle");
+        if (Directory.Exists(second))
+            return;
+
+        WritePlugin(_root, "fixture-plugin", "bundle");
+        var result = new PluginDiscoveryService().DiscoverDirectories([first, second], new AppConfig(),
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "fixture-plugin" });
+
+        Assert.Equal("fixture-plugin", Assert.Single(result.Plugins).Manifest.Id);
+    }
+
+    private static void WritePlugin(string directory, string id, string? directoryName = null)
+    {
+        var plugin = Path.Combine(directory, directoryName ?? id);
         var manifestDirectory = Directory.CreateDirectory(Path.Combine(plugin, ".craft-plugin"));
         Directory.CreateDirectory(Path.Combine(plugin, "skills", "example"));
         File.WriteAllText(Path.Combine(plugin, "skills", "example", "SKILL.md"),

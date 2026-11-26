@@ -49,7 +49,8 @@ One runtime resolver serves chat, subagents, summaries, maintenance, cache warmi
 catalogs, authentication and usage. Backend generation and instance configuration
 participate in cache identity. Authentication changes invalidate affected identities. A replaced
 plugin provider stops admitting new calls and releases its resources after its admitted calls
-drain, without unloading the generation or interrupting other providers.
+drain, without unloading the generation or interrupting other providers. Cleanup failures are
+logged without blocking replacement.
 
 The host applies its normal retry policy to backend requests. The host remains responsible for tool policy, approval and execution. Backends emit standard model
 tool calls and consume the resulting tool messages.

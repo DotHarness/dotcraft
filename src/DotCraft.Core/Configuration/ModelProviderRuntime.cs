@@ -70,7 +70,7 @@ public static partial class ModelProviderResolver
             return false;
         if (provider.RemoteAuthentication != null)
             return provider.RemoteAuthentication.IsAuthenticated;
-        if (!string.IsNullOrWhiteSpace(provider.BackendId))
+        if (config.ModelService is not null || !string.IsNullOrWhiteSpace(provider.BackendId))
             return true;
         return ModelProviderAuthMethods.Normalize(provider.AuthMethod ?? ModelProviderAuthMethods.ApiKey) == ModelProviderAuthMethods.ChatGptOAuth
             || !string.IsNullOrWhiteSpace(provider.ApiKey);

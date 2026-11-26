@@ -40,7 +40,16 @@ internal sealed class ModelServiceProxy(
         var caller = await AuthenticateAsync(context).ConfigureAwait(false);
         if (caller is null)
             return;
-        var provider = await access.GetProviderAsync(caller, providerId, cancellationToken).ConfigureAwait(false);
+        ModelServiceProvider? provider;
+        try
+        {
+            provider = await access.GetProviderAsync(caller, providerId, cancellationToken).ConfigureAwait(false);
+        }
+        catch (ModelServiceException ex)
+        {
+            await ErrorAsync(context, (int)ex.StatusCode!, ex.Code, ex.Message);
+            return;
+        }
         if (provider is null)
         {
             await ErrorAsync(context, 403, "provider_forbidden", "This client cannot use the requested provider.");

@@ -244,7 +244,8 @@ public sealed class PluginDiscoveryService(
         IEnumerable<(string Path, PluginDiscoverySourceKind SourceKind)> roots, List<PluginDiagnostic> diagnostics)
     {
         var candidates = new List<PluginCandidate>();
-        var candidateRoots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var pathComparer = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+        var candidateRoots = new HashSet<string>(pathComparer);
         foreach (var (root, sourceKind) in roots)
         {
             var fullRoot = Path.GetFullPath(root);

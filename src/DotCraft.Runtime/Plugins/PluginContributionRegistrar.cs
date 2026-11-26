@@ -1,4 +1,5 @@
 using DotCraft.Contributions;
+using Microsoft.Extensions.Logging;
 
 namespace DotCraft.Runtime;
 
@@ -21,12 +22,13 @@ internal sealed class PluginContributionRegistrar : IContributionRegistrar
         PluginCallGate callGate,
         object generationOwnedEntry,
         bool toolsOnly = false,
-        CancellationToken stopping = default)
+        CancellationToken stopping = default,
+        ILogger? logger = null)
     {
         _registry = registry;
         _toolsOnly = toolsOnly;
         _inner = registry.CreateRegistrar(origin);
-        _invocation = new PluginInvocation(origin.Name!, origin.Generation!, callGate, stopping);
+        _invocation = new PluginInvocation(origin.Name!, origin.Generation!, callGate, stopping, logger);
         _generationOwnedEntry = generationOwnedEntry ?? throw new ArgumentNullException(nameof(generationOwnedEntry));
     }
 

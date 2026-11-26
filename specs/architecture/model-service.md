@@ -22,8 +22,10 @@ It includes metadata for explicitly selectable models that are hidden from the p
 visibility applies to model listing, not runtime lookup by model ID.
 
 The caller authenticates separately from the upstream provider. Each caller has a stable identity
-and an allowed provider set. The service selects the upstream address from its configuration and
-accepts only supported model operations. Caller authorization, cookies, and hop-by-hop headers
+and an allowed provider set. A provider that is not configured or not allowed returns
+`403 provider_forbidden`. A configured, allowed provider that cannot be resolved for inference
+returns `503 backend_unavailable`. The service selects the upstream address from its configuration
+and accepts only supported model operations. Caller authorization, cookies, and hop-by-hop headers
 never become upstream authentication. The service cannot execute workspace tools.
 
 Provider descriptions contain protocol, authentication method, non-secret routing and model

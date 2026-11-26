@@ -85,8 +85,10 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
         var entry = Find(runtime.BackendId);
         var normalized = NormalizePluginBase(runtime, entry);
         if (string.IsNullOrWhiteSpace(normalized.Model))
-            return normalized;
-        return NormalizePluginModel(normalized, entry.Contribution.Backend.Descriptor, ResolvePlugin(normalized, entry));
+            return normalized with { BackendGeneration = PluginGenerationKey(normalized, entry) };
+
+        var (configured, provider) = ResolvePlugin(normalized, entry);
+        return NormalizePluginModel(configured, entry.Contribution.Backend.Descriptor, provider);
     }
 
     /// <summary>Resolves a hosted backend and its stopping token from the same generation.</summary>
@@ -100,8 +102,7 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
         var entry = Find(runtime.BackendId);
         var backend = entry.Contribution.Backend;
         var stopping = backend.Stopping;
-        var configured = NormalizePluginBase(runtime, entry);
-        var provider = ResolvePlugin(configured, entry);
+        var (configured, provider) = ResolvePlugin(NormalizePluginBase(runtime, entry), entry);
         return (NormalizePluginModel(configured, backend.Descriptor, provider), provider, stopping);
     }
 
@@ -139,7 +140,7 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
         if (runtime.IsRemote)
             throw new ModelBackendUnavailableException(runtime.BackendId);
         var entry = Find(runtime.BackendId);
-        return ResolvePlugin(NormalizePluginBase(runtime, entry), entry);
+        return ResolvePlugin(NormalizePluginBase(runtime, entry), entry).Provider;
     }
 
     private static bool IsGenericRemoteBackend(EffectiveModelRuntime runtime) =>
@@ -171,31 +172,29 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
             ConfiguredProtocol = string.IsNullOrWhiteSpace(runtime.ConfiguredProtocol) ? protocol : configured,
             ConfiguredEndPoint = runtime.ConfiguredEndPoint ?? runtime.EndPoint,
             AuthMethod = method,
-            Capabilities = descriptor.Capabilities,
-            BackendGeneration = PluginGenerationKey(runtime, entry)
+            Capabilities = descriptor.Capabilities
         };
     }
 
     private string PluginGenerationKey(EffectiveModelRuntime runtime, ContributionEntry<IModelBackendSource> entry) =>
         entry.Id.Value + ":" + _authenticationRevisions.GetValueOrDefault(InstanceKey(runtime));
 
-    private IModelProvider ResolvePlugin(EffectiveModelRuntime baseRuntime, ContributionEntry<IModelBackendSource> entry)
+    private (EffectiveModelRuntime Runtime, IModelProvider Provider) ResolvePlugin(
+        EffectiveModelRuntime baseRuntime, ContributionEntry<IModelBackendSource> entry)
     {
         var backend = entry.Contribution.Backend;
         var backendId = backend.Descriptor.Id;
-        var key = baseRuntime with
-        {
-            Model = string.Empty,
-            ModelMetadata = null,
-            RequestAdaptation = null,
-            MaxOutputTokens = baseRuntime.ConfiguredMaxOutputTokens,
-            Capabilities = backend.Descriptor.Capabilities
-        };
         ModelProviderCacheEntry cached;
         lock (_providerCacheGate)
         {
-            if (key.BackendGeneration != PluginGenerationKey(key, entry))
-                throw new ModelBackendUnavailableException(backendId);
+            baseRuntime = baseRuntime with { BackendGeneration = PluginGenerationKey(baseRuntime, entry) };
+            var key = baseRuntime with
+            {
+                Model = string.Empty,
+                ModelMetadata = null,
+                RequestAdaptation = null,
+                MaxOutputTokens = baseRuntime.ConfiguredMaxOutputTokens
+            };
             if (!_providers.TryGetValue(key, out cached!))
             {
                 if (!contributions.ResolveEntries<IModelBackendSource>().Any(active => active.Id == entry.Id))
@@ -205,7 +204,7 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
                 _providers.Add(key, cached);
             }
         }
-        return cached.Value;
+        return (baseRuntime, cached.Value);
     }
 
     private EffectiveModelRuntime ApplyPluginResolvedRuntime(

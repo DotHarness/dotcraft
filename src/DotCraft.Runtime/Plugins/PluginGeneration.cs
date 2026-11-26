@@ -3,6 +3,8 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using DotCraft.Contributions;
 using DotCraft.Plugins;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace DotCraft.Runtime;
 
@@ -161,7 +163,8 @@ internal sealed class PluginGeneration
                 calls,
                 entry,
                 host.ToolsOnly,
-                routeStopping.Token);
+                routeStopping.Token,
+                host.Services.GetService<ILogger<DotNetExtensionRuntimeManager>>());
             exports = new PluginServiceExportRegistry(
                 snapshot.Manifest.Id,
                 new HashSet<Assembly>(exportedApis.Values, ReferenceEqualityComparer.Instance));

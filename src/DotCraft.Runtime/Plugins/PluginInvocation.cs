@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+
 namespace DotCraft.Runtime;
 
 internal sealed class PluginInvocation : IPluginTarget
@@ -6,19 +8,22 @@ internal sealed class PluginInvocation : IPluginTarget
     private readonly List<IPluginTarget> _targets = [];
     private readonly PluginCallGate _gate;
     private readonly PluginInvocation? _parent;
+    private readonly ILogger? _logger;
     private bool _targetsDetached;
     private int _retiring;
 
-    public PluginInvocation(string pluginId, string generationId, PluginCallGate gate, CancellationToken stopping = default)
+    public PluginInvocation(string pluginId, string generationId, PluginCallGate gate, CancellationToken stopping = default,
+        ILogger? logger = null)
     {
         PluginId = pluginId;
         GenerationId = generationId;
         _gate = gate;
         Stopping = stopping;
+        _logger = logger;
     }
 
     private PluginInvocation(PluginInvocation parent)
-        : this(parent.PluginId, parent.GenerationId, new PluginCallGate(), parent.Stopping)
+        : this(parent.PluginId, parent.GenerationId, new PluginCallGate(), parent.Stopping, parent._logger)
     {
         _parent = parent;
     }
@@ -66,9 +71,12 @@ internal sealed class PluginInvocation : IPluginTarget
         using (parentLease)
         {
             await drained.ConfigureAwait(false);
-            await DisposeCapturedTargetsAsync().ConfigureAwait(false);
+            var errors = await DisposeCapturedTargetsAsync().ConfigureAwait(false);
             lock (parent._targetsGate)
                 parent._targets.Remove(this);
+            foreach (var error in errors)
+                _logger?.LogWarning("{Code}: Retired provider cleanup failed for .NET plugin {PluginId} generation {GenerationId}: {Error}",
+                    PluginActivationBlockers.CleanupFailed, PluginId, GenerationId, error);
         }
     }
 

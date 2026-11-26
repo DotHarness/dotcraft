@@ -3,6 +3,7 @@ using System.Text.Json;
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Runtime;
+using Microsoft.Extensions.Logging;
 using Xunit;
 using static DotCraft.Tests.Runtime.Plugins.DotNetExtensionTestBundle;
 
@@ -96,6 +97,71 @@ public sealed class RoutedProviderRetirementTests
         Assert.Equal(1, disposals["first"]);
         Assert.Equal(1, disposals["second"]);
         Assert.Equal(1, disposals["other"]);
+    }
+
+    [Fact]
+    public async Task RetirementLogsCleanupFailureWithoutPreventingReplacement()
+    {
+        using var harness = new PluginGenerationHarness();
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        var ct = deadline.Token;
+        var logger = new CleanupLogger();
+        var disposeAttempts = 0;
+        Action<string> dispose = credential =>
+        {
+            if (credential != "first")
+                return;
+            Interlocked.Increment(ref disposeAttempts);
+            throw new InvalidOperationException("Fixture disposal failed.");
+        };
+        harness.Services = CreateServiceProvider(
+            (typeof(Func<string, Task>), (Func<string, Task>)(_ => Task.CompletedTask)),
+            (typeof(Action<string>), dispose),
+            (typeof(ILogger<DotNetExtensionRuntimeManager>), logger));
+        WritePlugin(harness.PluginRoot("routed-fixture"), "routed-fixture", "RoutedFixture.Plugin", Source);
+        var generation = Assert.IsType<PluginGeneration>((await harness.ActivateAsync("routed-fixture", cancellationToken: ct)).Generation);
+        using var resolver = new ModelBackendResolver(new ModelProviderRegistry([]), harness.Registry, harness.Root);
+        var config = new AppConfig { Providers = new() { ["route"] = new() { BackendId = "routed-fixture" } } };
+        var runtime = ModelProviderResolver.ResolveProvider(config, "route") with { Model = "fixture-model" };
+        var credential = new ProviderCredentialStore(harness.Root, "routed-fixture", "route");
+
+        try
+        {
+            await SetCredentialAsync(credential, "first", ct);
+            _ = ResolveRouter(resolver, runtime);
+
+            await SetCredentialAsync(credential, "second", ct);
+            resolver.InvalidateAuthentication(runtime);
+            var replacement = ResolveRouter(resolver, runtime);
+            var warning = await logger.Warning.Task.WaitAsync(ct);
+            Assert.Contains("routed-fixture", warning);
+            Assert.DoesNotContain("Fixture disposal failed.", warning);
+            Assert.Equal("second", (await replacement.AuthenticateAsync(runtime, ct))["x-fixture-key"]);
+        }
+        finally
+        {
+            await generation.BeginCleanup().WaitAsync(TimeSpan.FromSeconds(15));
+        }
+
+        Assert.Equal(1, disposeAttempts);
+    }
+
+    private sealed class CleanupLogger : ILogger<DotNetExtensionRuntimeManager>
+    {
+        public TaskCompletionSource<string> Warning { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => logLevel == LogLevel.Warning;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (!IsEnabled(logLevel))
+                return;
+            var message = formatter(state, exception);
+            if (message.Contains(PluginActivationBlockers.CleanupFailed, StringComparison.Ordinal))
+                Warning.TrySetResult(message);
+        }
     }
 
     private static IProviderNativeHttpRouter ResolveRouter(ModelBackendResolver resolver, EffectiveModelRuntime runtime) =>

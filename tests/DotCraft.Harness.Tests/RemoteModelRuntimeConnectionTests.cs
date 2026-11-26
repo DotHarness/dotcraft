@@ -27,6 +27,22 @@ public sealed class RemoteModelRuntimeConnectionTests
         Assert.Empty(runtime.ApiKey);
     }
 
+    [Theory]
+    [InlineData(null, true)]
+    [InlineData(false, false)]
+    public void ServiceManagedNativeProviderBlocksOnlyReportedAuthenticationFailure(bool? authenticated, bool usable)
+    {
+        const string providerId = "remote-provider";
+        var config = new AppConfig { ModelService = new() { Endpoint = "https://service.test", Token = "caller" } };
+        RemoteModelConfiguration.Apply(config, new ModelServiceCatalog("caller", [
+            new RemoteModelProvider(providerId, "Remote provider", ModelProviderProtocols.OpenAIResponses,
+                "https://provider.invalid/v1", ModelProviderAuthMethods.ApiKey, false, false,
+                authenticated is { } reported ? new ProviderAuthenticationStatus(reported) : null)
+        ]));
+
+        Assert.Equal(usable, ModelProviderResolver.IsProviderUsable(config, providerId));
+    }
+
     [Fact]
     public void RemoteChatGptCatalogSuppliesTheWorkersContextBudget()
     {
