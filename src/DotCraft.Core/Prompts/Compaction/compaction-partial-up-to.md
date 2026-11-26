@@ -9,7 +9,7 @@ Write these sections in order, as compact bullets covering what the preserved re
 2. Key Decisions and Assumptions: design choices, protocol or API expectations, and tradeoffs already settled.
 3. Important Files and Code Areas: files read, edited, or planned, with why each matters.
 4. Errors, Failures, and Fixes: only issues that affect later work or explain the current state.
-5. Work Completed: what the summarized prefix finished.
+5. Work Completed: what the summarized prefix finished, and which task list steps it left unfinished.
 6. Context for Preserved Recent Messages: what the recent messages assume from earlier context.
 </summary>
 

@@ -31,29 +31,19 @@ public sealed partial class SessionServiceRuntimeSignalTests
         Assert.Equal([PlanTodoStatus.Completed, PlanTodoStatus.Completed], plan.Todos.Select(todo => todo.Status));
     }
 
-    [Theory]
-    [InlineData("none", false)]
-    [InlineData("before_write", false)]
-    [InlineData("failed", false)]
-    [InlineData("after_write", true)]
-    public async Task CompletedTurn_ChecksOffPendingTasksOnlyAfterSuccessfulWrapUpOfTheLatestWrite(
-        string wrapUp, bool completesAll)
+    [Fact]
+    public async Task CompletedTurn_LeavesUnfinishedEarlierTasksOpenAfterWrapUp()
     {
-        var write = WriteTodos(
-            ("Read the code", PlanTodoStatus.Completed),
-            ("Run tests", PlanTodoStatus.Pending),
-            ("Change it", PlanTodoStatus.InProgress));
-        var wrap = WrapUp();
-        using var chatClient = new TodoWriteChatClient(wrapUp switch
-        {
-            "none" => [write],
-            "before_write" => [wrap, write],
-            _ => [write, wrap]
-        });
+        using var chatClient = new TodoWriteChatClient(
+            WriteTodos(
+                ("Read the code", PlanTodoStatus.Completed),
+                ("Run tests", PlanTodoStatus.Pending),
+                ("Change it", PlanTodoStatus.InProgress)),
+            WrapUp());
         var planStore = new PlanStore(_tempDir);
         var recorder = new ToolInvocationRecorderRouter();
         await using var agentFactory = CreateAgentFactory(
-            chatClient, [new WrapUpToolSource(wrapUp != "failed")],
+            chatClient, [new WrapUpToolSource()],
             toolDispatcher: new ToolDispatcher(recorder: recorder), planStore: planStore);
         var service = CreateService(agentFactory, chatClient, useStreamingFunctionInvoker: true);
         recorder.Bind(service);
@@ -64,51 +54,9 @@ public sealed partial class SessionServiceRuntimeSignalTests
             .WaitAsync(TimeSpan.FromSeconds(10));
 
         var plan = await planStore.LoadStructuredPlanAsync(thread.Id);
-        Assert.NotNull(plan);
         Assert.Equal(
-            completesAll
-                ? [PlanTodoStatus.Completed, PlanTodoStatus.Completed, PlanTodoStatus.Completed]
-                : [PlanTodoStatus.Completed, PlanTodoStatus.Pending, PlanTodoStatus.InProgress],
-            plan.Todos.Select(todo => todo.Status));
-    }
-
-    [Fact]
-    public async Task CompletedTurn_ChecksOffTasksWhenAnEarlierStartedWrapUpCompletesAfterTheWrite()
-    {
-        var writeCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        using var chatClient = new TodoWriteChatClient(
-            WrapUp(),
-            WriteTodos(("Run tests", PlanTodoStatus.Pending), ("Change it", PlanTodoStatus.InProgress)))
-        {
-            Parallel = true
-        };
-        var planStore = new PlanStore(_tempDir);
-        var recorder = new ToolInvocationRecorderRouter();
-        await using var agentFactory = CreateAgentFactory(
-            chatClient, [new WrapUpToolSource(true, ct => writeCompleted.Task.WaitAsync(ct))],
-            toolDispatcher: new ToolDispatcher(recorder: recorder), planStore: planStore);
-        var service = CreateService(agentFactory, chatClient, useStreamingFunctionInvoker: true);
-        recorder.Bind(service);
-        var thread = await service.CreateThreadAsync(MakeIdentity());
-        await service.RefreshThreadAgentAsync(thread.Id);
-
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        await foreach (var evt in service.SubmitInputAsync(thread.Id, [new TextContent("do the work")], ct: timeout.Token))
-        {
-            if (evt.EventType == SessionEventType.ItemCompleted
-                && evt.ItemPayload?.Payload is ToolResultPayload { ToolName: "TodoWrite", Success: true })
-                writeCompleted.TrySetResult();
-        }
-
-        var updated = await service.GetThreadAsync(thread.Id, timeout.Token);
-        var turn = Assert.Single(updated.Turns);
-        Assert.Equal(TurnStatus.Completed, turn.Status);
-        var wrap = Assert.Single(turn.Items, item => item.Payload is DynamicToolCallPayload { ToolName: "WrapUp" });
-        var write = Assert.Single(turn.Items, item => item.Payload is ToolResultPayload { ToolName: "TodoWrite" });
-        Assert.True(turn.Items.IndexOf(wrap) < turn.Items.IndexOf(write));
-        Assert.True(wrap.CompletedAt > write.CompletedAt);
-        var plan = await planStore.LoadStructuredPlanAsync(thread.Id);
-        Assert.Equal([PlanTodoStatus.Completed, PlanTodoStatus.Completed], plan!.Todos.Select(todo => todo.Status));
+            [PlanTodoStatus.Completed, PlanTodoStatus.Pending, PlanTodoStatus.InProgress],
+            plan!.Todos.Select(todo => todo.Status));
     }
 
     [Theory]
@@ -124,7 +72,7 @@ public sealed partial class SessionServiceRuntimeSignalTests
         var planStore = new PlanStore(_tempDir);
         var recorder = new ToolInvocationRecorderRouter();
         await using var agentFactory = CreateAgentFactory(
-            chatClient, [new WrapUpToolSource(true)],
+            chatClient, [new WrapUpToolSource()],
             toolDispatcher: new ToolDispatcher(recorder: recorder), planStore: planStore);
         var service = CreateService(agentFactory, chatClient, useStreamingFunctionInvoker: true);
         recorder.Bind(service);
@@ -220,6 +168,7 @@ public sealed partial class SessionServiceRuntimeSignalTests
     private static FunctionCallContent WriteTodos(params (string Content, string Status)[] todos) =>
         new("call-todos", "TodoWrite", new Dictionary<string, object?>
         {
+            ["scope"] = "first_task",
             ["todos"] = todos.Select(todo => new Dictionary<string, object?>
             {
                 ["content"] = todo.Content,
@@ -231,7 +180,6 @@ public sealed partial class SessionServiceRuntimeSignalTests
     {
         private int _requestCount;
 
-        public bool Parallel { get; init; }
         public Func<CancellationToken, Task>? BeforeReply { get; init; }
 
         public Task<ChatResponse> GetResponseAsync(
@@ -247,9 +195,9 @@ public sealed partial class SessionServiceRuntimeSignalTests
         {
             await Task.Yield();
             var index = Interlocked.Increment(ref _requestCount) - 1;
-            if (Parallel ? index == 0 : index < calls.Length)
+            if (index < calls.Length)
             {
-                yield return new ChatResponseUpdate(ChatRole.Assistant, Parallel ? [.. calls] : [calls[index]]);
+                yield return new ChatResponseUpdate(ChatRole.Assistant, [calls[index]]);
                 yield break;
             }
 
@@ -265,7 +213,7 @@ public sealed partial class SessionServiceRuntimeSignalTests
         }
     }
 
-    private sealed class WrapUpToolSource(bool success, Func<CancellationToken, Task>? beforeResult = null) : IToolSource
+    private sealed class WrapUpToolSource : IToolSource
     {
         public static readonly ToolName Name = new("desktop_conversation", "WrapUp");
 
@@ -280,24 +228,17 @@ public sealed partial class SessionServiceRuntimeSignalTests
                 definitionId, Name, "Summarize the turn.", JsonSerializer.SerializeToElement(new { type = "object" }),
                 provenance: new ToolProvenance(ToolSourceKind.RuntimeDynamic, SourceId, "thread"));
             var binding = new ToolRuntimeBinding(new RuntimeBindingId(SourceId), definitionId,
-                new WrapUpRuntime(success, beforeResult), ToolBindingLeases.AlwaysAvailable, SourceId, context.Revision);
+                new WrapUpRuntime(), ToolBindingLeases.AlwaysAvailable, SourceId, context.Revision);
             return ValueTask.FromResult<IReadOnlyList<ToolRegistration>>(
                 [new ToolRegistration(definition, binding, ToolProjectionShape.DynamicLifecycle,
                     ToolExposure.Direct, ToolInvocationAudience.Model)]);
         }
     }
 
-    private sealed class WrapUpRuntime(bool success, Func<CancellationToken, Task>? beforeResult) : IToolRuntime
+    private sealed class WrapUpRuntime : IToolRuntime
     {
-        public async ValueTask<ToolExecutionResult> InvokeAsync(
-            ToolInvocationContext context, JsonObject arguments, CancellationToken cancellationToken = default)
-        {
-            if (beforeResult is not null)
-                await beforeResult(cancellationToken);
-
-            return success
-                ? ToolExecutionResult.Succeeded("Wrapped up.")
-                : ToolExecutionResult.Failed(new ToolError(ToolErrorCodes.InputInvalid, "Wrap up was rejected."));
-        }
+        public ValueTask<ToolExecutionResult> InvokeAsync(
+            ToolInvocationContext context, JsonObject arguments, CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(ToolExecutionResult.Succeeded("Wrapped up."));
     }
 }

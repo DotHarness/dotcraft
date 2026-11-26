@@ -167,6 +167,7 @@ Current writers:
 | SubAgent model choices | The default SubAgent models and `SpawnAgent` model overrides, through the `subagent_models` world-state section ([SubAgents §5](../features/subagents.md#5-context-and-fork-modes)). |
 | Persistent state | Other state that persists across turns, through its own world-state section. |
 | Turn interruption | A `turn_aborted` event at the end of an intentionally interrupted turn or active-turn fork snapshot. |
+| Task list | Stale-list and post-compaction reminders of an unfinished `TodoWrite` list ([Session Core §12.3.2](session-core.md#1232-task-list-reminders)). |
 
 Rules:
 

@@ -40,6 +40,9 @@ public sealed class PlanTodo
     [JsonPropertyName("activeForm")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? ActiveForm { get; set; }
+
+    [JsonIgnore]
+    public bool IsOpen => Status is PlanTodoStatus.Pending or PlanTodoStatus.InProgress;
 }
 
 public static class PlanTodoPriority

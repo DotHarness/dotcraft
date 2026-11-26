@@ -173,30 +173,117 @@ public sealed class PlanToolsTests
             _ = await tools.TodoWrite([
                 new TodoWriteInput { Content = "Add metrics", Status = PlanTodoInputStatus.Completed },
                 new TodoWriteInput { Content = "Expose cache hit rate", Status = PlanTodoInputStatus.InProgress, ActiveForm = "Exposing cache hit rate" }
-            ]);
+            ], TodoWriteScope.Continuation);
 
             var plan = await store.LoadStructuredPlanAsync(sessionId);
             Assert.NotNull(plan);
             Assert.Equal("Cache plan", plan.Title);
+            Assert.True(store.HasActivePlan(sessionId));
             Assert.Equal(
                 [("todo-1", "Add metrics", PlanTodoStatus.Completed, (string?)null),
                     ("todo-2", "Expose cache hit rate", PlanTodoStatus.InProgress, "Exposing cache hit rate")],
                 plan.Todos.Select(static todo => (todo.Id, todo.Content, todo.Status, todo.ActiveForm)));
-            var rejected = await tools.TodoWrite([new TodoWriteInput { Content = " ", Status = PlanTodoInputStatus.Pending }]);
+
+            var rejected = await tools.TodoWrite([new TodoWriteInput { Content = " ", Status = PlanTodoInputStatus.Pending }], TodoWriteScope.Continuation);
             Assert.False(rejected.Success);
             Assert.Equal(ToolErrorCodes.InputInvalid, rejected.Error?.Code);
+            var unscoped = await tools.TodoWrite([new TodoWriteInput { Content = "Next", Status = PlanTodoInputStatus.Pending }]);
+            Assert.False(unscoped.Success);
+            Assert.Equal(2, (await store.LoadStructuredPlanAsync(sessionId))!.Todos.Count);
         }
         finally
         {
-            SqliteConnection.ClearAllPools();
-            try
-            {
-                if (Directory.Exists(tempDir))
-                    Directory.Delete(tempDir, recursive: true);
-            }
-            catch
-            {
-            }
+            DeleteTempDir(tempDir);
+        }
+    }
+
+    [Fact]
+    public async Task TodoWrite_ForNewWorkDetachesTheListFromThePlan()
+    {
+        var tempDir = await CreateThreadDirAsync();
+        try
+        {
+            var store = new PlanStore(tempDir);
+            var tools = new PlanTools(store, () => "thread_001");
+            await tools.CreatePlan("# Cache plan", [new PlanTodoInput { Content = "Add metrics" }]);
+
+            _ = await tools.TodoWrite([new TodoWriteInput { Content = "Fix the menu", Status = PlanTodoInputStatus.InProgress }], TodoWriteScope.NewTask);
+
+            var plan = await store.LoadStructuredPlanAsync("thread_001");
+            Assert.Equal(("", "Fix the menu"), (plan!.Title, Assert.Single(plan.Todos).Content));
+            Assert.False(store.HasActivePlan("thread_001"));
+        }
+        finally
+        {
+            DeleteTempDir(tempDir);
+        }
+    }
+
+    [Fact]
+    public async Task TodoWrite_AdvancesTheStoredListByPosition()
+    {
+        var tempDir = await CreateThreadDirAsync();
+        try
+        {
+            var store = new PlanStore(tempDir);
+            var tools = new PlanTools(store, () => "thread_001");
+            Assert.False((await tools.TodoWrite(advance: true)).Success);
+            _ = await tools.TodoWrite([
+                new TodoWriteInput { Content = "Read", Status = PlanTodoInputStatus.InProgress },
+                new TodoWriteInput { Content = "Change", Status = PlanTodoInputStatus.Pending },
+                new TodoWriteInput { Content = "Test", Status = PlanTodoInputStatus.Pending },
+                new TodoWriteInput { Content = "Ship", Status = PlanTodoInputStatus.Pending }
+            ], TodoWriteScope.FirstTask);
+
+            var advanced = await tools.TodoWrite(advance: true);
+            Assert.True(advanced.Success);
+            Assert.Equal([PlanTodoStatus.Completed, PlanTodoStatus.InProgress, PlanTodoStatus.Pending, PlanTodoStatus.Pending], await StatusesAsync());
+
+            Assert.True((await tools.TodoWrite(done: [2, 3], start: 4)).Success);
+            Assert.Equal([PlanTodoStatus.Completed, PlanTodoStatus.Completed, PlanTodoStatus.Completed, PlanTodoStatus.InProgress], await StatusesAsync());
+
+            var outOfRange = await tools.TodoWrite(done: [5]);
+            Assert.False(outOfRange.Success);
+            Assert.Equal(ToolErrorCodes.InputInvalid, outOfRange.Error?.Code);
+            Assert.Equal(PlanTodoStatus.InProgress, (await StatusesAsync())[3]);
+        }
+        finally
+        {
+            DeleteTempDir(tempDir);
+        }
+
+        async Task<string[]> StatusesAsync() =>
+            [.. (await new PlanStore(tempDir).LoadStructuredPlanAsync("thread_001"))!.Todos.Select(static todo => todo.Status)];
+    }
+
+    private static async Task<string> CreateThreadDirAsync()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"plan_tools_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        await new ThreadStore(tempDir).SaveThreadAsync(new SessionThread
+        {
+            Id = "thread_001",
+            WorkspacePath = tempDir,
+            UserId = "user",
+            OriginChannel = "test",
+            Status = ThreadStatus.Active,
+            HistoryMode = HistoryMode.Server,
+            CreatedAt = DateTimeOffset.UtcNow,
+            LastActiveAt = DateTimeOffset.UtcNow
+        });
+        return tempDir;
+    }
+
+    private static void DeleteTempDir(string tempDir)
+    {
+        SqliteConnection.ClearAllPools();
+        try
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, recursive: true);
+        }
+        catch
+        {
         }
     }
 

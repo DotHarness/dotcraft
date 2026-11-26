@@ -34,7 +34,7 @@ public sealed partial class SessionService
         var update = BuildWorldStateUpdate(
             thread, turnId, workspace.Cwd, workspace, previous, carrier,
             GetOrCreateModeManager(thread.Id, mode),
-            agentFactory.PlanStore?.StructuredPlanExists(thread.Id) == true,
+            agentFactory.PlanStore?.HasActivePlan(thread.Id) == true,
             goal, sessionStartHookContext, clientSurface, forceFull: true);
         var items = update.Items.ToList();
         var hookContextKind = WorldStateComposer.ItemKind(SessionStartHookSection.SectionId);
@@ -54,7 +54,32 @@ public sealed partial class SessionService
         if (thread.Source.SubAgent != null
             && previous.LastOrDefault(message => ThreadContextItems.IsKind(message, clientContextKind)) is { } inherited)
             items.Add(inherited.Clone());
+        if (BuildCompactionTaskListReminder(thread, turnId, carrier) is { } taskList)
+            items.Add(taskList);
         return update with { Items = items };
+    }
+
+    private ChatMessage? BuildCompactionTaskListReminder(SessionThread thread, string turnId, ThreadContextCarrier carrier)
+    {
+        if (thread.Turns.LastOrDefault(turn => turn.Id == turnId) is not { Status: TurnStatus.Running } turn)
+            return null;
+
+        var lastWrite = turn.Items
+            .Where(static item => item.Payload is ToolResultPayload { Namespace: null, ToolName: "TodoWrite", Success: true })
+            .Max(static item => item.CompletedAt);
+        if (lastWrite is null
+            || turn.Items.Any(item => item.CompletedAt > lastWrite && item.Payload is DynamicToolCallPayload
+            {
+                Namespace: "desktop_conversation",
+                ToolName: "WrapUp",
+                Success: true
+            }))
+            return null;
+
+        var plan = agentFactory.PlanStore?.LoadStructuredPlan(thread.Id);
+        return TaskListReminders.IsOpen(plan)
+            ? ThreadContextItems.Create(carrier, TaskListReminders.CompactionKind, TaskListReminders.AfterCompaction(plan!))
+            : null;
     }
 
     private static List<ChatMessage> RestoreCompactedHistory(

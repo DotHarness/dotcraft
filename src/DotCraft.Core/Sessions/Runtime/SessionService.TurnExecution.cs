@@ -927,7 +927,7 @@ public sealed partial class SessionService
                     ? AgentMode.Plan
                     : AgentMode.Agent;
                 var runtimeModeManager = GetOrCreateModeManager(threadId, turnMode);
-                var hasActivePlan = agentFactory.PlanStore?.StructuredPlanExists(threadId) == true;
+                var hasActivePlan = agentFactory.PlanStore?.HasActivePlan(threadId) == true;
                 ThreadGoal? threadGoalForContext = null;
                 if (GoalsEnabled)
                 {
