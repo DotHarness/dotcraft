@@ -1,4 +1,3 @@
-using System.ClientModel.Primitives;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Configuration;
@@ -46,7 +45,7 @@ internal static class ChatGptResponsesCompactRequestBuilder
                              ?? throw new InvalidDataException(
                                  "provider_compaction_invalid_request: Native history must serialize as a JSON array.");
 
-        var request = ResponsesToolSearchMapper.CreateResponseRequest(
+        var request = ResponsesToolSearchMapper.MapResponseRequest(
             model.Trim(),
             neutralHistory,
             options,
@@ -54,10 +53,9 @@ internal static class ChatGptResponsesCompactRequestBuilder
             canonicalItemIdentity: OpenAIResponsesItemIdentityDiagnostics.FromInput(canonicalInput),
             rawRepresentationClient: rawRepresentationClient,
             supportsFreeformTools: supportsFreeformTools);
-        var ordinaryBody = ModelReaderWriter.Write(request.Options);
         var wireBody = useResponsesLite
-            ? OpenAIResponsesLiteRequestMapper.BuildWireBody(ordinaryBody, installationId, options)
-            : ordinaryBody;
+            ? OpenAIResponsesLiteRequestMapper.BuildWireBody(request.SdkBody, installationId, options)
+            : request.SdkBody;
         var compact = JsonSerializer.Deserialize<ChatGptResponsesCompactRequest>(
                           wireBody.ToMemory().Span,
                           ChatGptResponsesCompactJson.Options)

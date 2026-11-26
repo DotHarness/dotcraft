@@ -184,6 +184,4 @@ internal static partial class ResponsesToolSearchMapper
         TryGetProperty(element, name, out var value) && value.ValueKind == JsonValueKind.String
             ? value.GetString()
             : null;
-
-    private sealed record PromptCacheKeyResolution(string? Value, string? Source);
 }

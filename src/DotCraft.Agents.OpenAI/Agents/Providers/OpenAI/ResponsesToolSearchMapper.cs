@@ -73,6 +73,18 @@ internal static partial class ResponsesToolSearchMapper
         CreateResponseOptions Options,
         PromptCacheRequestShapeSnapshot Shape);
 
+    internal sealed record MappedResponseRequest(
+        CreateResponseOptions Options,
+        BinaryData SdkBody,
+        JsonArray Input,
+        JsonArray Tools,
+        OpenAIResponsesItemIdentityDiagnostics ItemIdentity,
+        PromptCacheKeyResolution PromptCacheKey,
+        string? Instructions,
+        bool IncludeReasoning);
+
+    internal sealed record PromptCacheKeyResolution(string? Value, string? Source);
+
     internal sealed record BuildInputResult(
         JsonArray Input,
         OpenAIResponsesItemIdentityDiagnostics ItemIdentity);
@@ -115,7 +127,7 @@ internal static partial class ResponsesToolSearchMapper
         IEnumerable<ChatMessage> chatMessages,
         ChatOptions? options,
         bool includeReasoning = true) =>
-        CreateResponseRequest(model, chatMessages, options, includeReasoning).Options;
+        MapResponseRequest(model, chatMessages, options, includeReasoning).Options;
 
     internal static OpenAIResponsesRequest CreateResponseRequest(
         string model,
@@ -123,6 +135,22 @@ internal static partial class ResponsesToolSearchMapper
         ChatOptions? options,
         bool includeReasoning = true,
         bool removesUnsupportedOAuthResponsesFields = false,
+        JsonArray? canonicalInput = null,
+        OpenAIResponsesItemIdentityDiagnostics? canonicalItemIdentity = null,
+        IChatClient? rawRepresentationClient = null,
+        bool supportsFreeformTools = true)
+    {
+        var mapped = MapResponseRequest(model, chatMessages, options, includeReasoning,
+            canonicalInput, canonicalItemIdentity, rawRepresentationClient, supportsFreeformTools);
+        return new OpenAIResponsesRequest(mapped.Options,
+            CreatePromptCacheRequestShapeSnapshot(mapped, options, removesUnsupportedOAuthResponsesFields));
+    }
+
+    internal static MappedResponseRequest MapResponseRequest(
+        string model,
+        IEnumerable<ChatMessage> chatMessages,
+        ChatOptions? options,
+        bool includeReasoning = true,
         JsonArray? canonicalInput = null,
         OpenAIResponsesItemIdentityDiagnostics? canonicalItemIdentity = null,
         IChatClient? rawRepresentationClient = null,
@@ -176,50 +204,30 @@ internal static partial class ResponsesToolSearchMapper
         if (options?.TopP is { } topP)
             responseOptions.TopP ??= topP;
         ApplyResponseFormat(responseOptions, options);
-        ResponseReasoningOptions? reasoningOptions = null;
         if (includeReasoning)
         {
-            // Always emit include=reasoning.encrypted_content so reasoning items round-trip across
-            // turns when store=false. ChatGPT also expects a reasoning object even when no effort
-            // or summary preference is configured.
-            // IncludedProperties serializes to $.include on its own; do not also Patch.Set the
-            // same path or the wire body ends up with duplicate keys that downstream JSON parsers
-            // (e.g. JsonNode.Parse in the ChatGPT metadata pipeline policy) reject.
+            // Stateless requests need encrypted reasoning for replay. Patching include as well would emit duplicate keys.
             if (!responseOptions.IncludedProperties.Contains(IncludedResponseProperty.ReasoningEncryptedContent))
                 responseOptions.IncludedProperties.Add(IncludedResponseProperty.ReasoningEncryptedContent);
-            reasoningOptions = CreateReasoningOptions(options);
-            responseOptions.ReasoningOptions ??= reasoningOptions;
+            responseOptions.ReasoningOptions ??= CreateReasoningOptions(options);
         }
 
 #pragma warning disable SCME0001
         responseOptions.Patch.Set(
             "$.input"u8,
-            BinaryData.FromString(input.ToJsonString(JsonOptions)));
+            BinaryData.FromBytes(JsonSerializer.SerializeToUtf8Bytes(input, JsonOptions)));
         responseOptions.Patch.Set(
             "$.tools"u8,
-            BinaryData.FromString(tools.ToJsonString(JsonOptions)));
+            BinaryData.FromBytes(JsonSerializer.SerializeToUtf8Bytes(tools, JsonOptions)));
 #pragma warning restore SCME0001
 
         var promptCacheKey = ResolvePromptCacheKeyWithSource(options);
         if (!string.IsNullOrWhiteSpace(promptCacheKey.Value))
             PatchResponsePromptCacheKey(responseOptions, promptCacheKey.Value!);
 
-        OpenAIResponsesRequestOptions.Freeze(responseOptions);
-
-        return new OpenAIResponsesRequest(
-            responseOptions,
-            CreatePromptCacheRequestShapeSnapshot(
-                responseOptions.Model ?? model,
-                promptCacheKey,
-                instructions,
-                input,
-                itemIdentity,
-                tools,
-                includeReasoning,
-                responseOptions.ReasoningOptions,
-                responseOptions,
-                options,
-                removesUnsupportedOAuthResponsesFields));
+        var sdkBody = OpenAIResponsesRequestOptions.Freeze(responseOptions);
+        return new MappedResponseRequest(
+            responseOptions, sdkBody, input, tools, itemIdentity, promptCacheKey, instructions, includeReasoning);
     }
 
     private static void ApplyToolChoice(
