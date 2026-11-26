@@ -7,6 +7,7 @@
 
 .gift {
   position: relative;
+  inset-block-start: 3px;
   display: grid;
   place-items: center;
   width: 22px;
