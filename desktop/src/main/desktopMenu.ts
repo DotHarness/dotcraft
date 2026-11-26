@@ -77,7 +77,7 @@ export function refreshDesktopMenu(services: DesktopApplicationServices): void {
         {
           label: t('menu.documentation'),
           click: () => {
-            void shell.openExternal('https://github.com/DotHarness/dotcraft')
+            void shell.openExternal('https://www.dotcraft.net/')
           }
         },
         ...(services.getAppUpdateService().getState().status === 'unsupported'
