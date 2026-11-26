@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.14.0 |
+| **Version** | 0.15.0 |
 | **Status** | Draft |
-| **Date** | 2026-11-20 |
+| **Date** | 2026-11-26 |
 | **Related Specs** | [Memory](memory.md), [Dreams](dreams.md), [Desktop Extensions](../architecture/desktop-plugins.md) |
 
 Purpose: Define **Memory Studio**, a bundled Desktop plugin where the user browses and edits memory and tailors the [memory policy](memory.md#10-memory-policy). Memory Studio is presentation and editing only. It holds no memory or policy of its own: memory stays in the stores, and the policy stays in configuration, so the agent behaves the same in every client whether or not the plugin is enabled.
@@ -24,7 +24,7 @@ The main view follows Desktop's catalog pages. Memory and Dreams share one hero 
 
 ## 2. Entries
 
-The Memory view lists the stores from `memory/listStores` and the memory files in each, with search over name, description, and body, and filters by store, type, and age. Each row shows the name, the type as a quiet label, the description, and the last-modified date. A memory not modified for more than 30 days is marked as possibly stale with a warning indicator beside its date.
+The Memory view lists the stores from `memory/listStores` and the memory files in each, with search over name, description, and body, and filters by store, type, and age. The workspace store is titled by the foreground workspace's name, as in "dotcraft memory", and that name switches the workspace in place. Memories show as cards: the type and the last-modified date on the first line, then the name and up to two lines of description. A memory not modified for more than 30 days is marked as possibly stale with a warning indicator beside its date.
 
 Opening an entry shows it as a page: `name` is the page title and `description` its subtitle, both edited in place. Under them, the type is a tag that opens a menu of the effective policy's types, plus the entry's current type when the policy does not declare it. The body is Markdown. An existing entry opens with the body rendered directly on the page, without a frame or fill. One icon button, or a double-click on the body, switches to the source in a framed field that grows with its content, and Escape returns to the preview. A new entry opens in the source. The page's actions sit in its top bar, so switching between preview and source never moves them. **Delete** is in a more-actions menu. Save and Cancel appear only once the draft differs from what was loaded, and Cancel restores it. A new entry always shows them, and its Cancel closes the page. Naming rules appear only when the name breaks them.
 

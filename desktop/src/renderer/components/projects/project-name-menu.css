@@ -1,0 +1,45 @@
+.project-name-menu {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: baseline;
+}
+
+.project-name-menu-trigger {
+  display: inline;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+  text-decoration-line: underline;
+  text-decoration-style: dotted;
+  text-decoration-thickness: 1px;
+  text-decoration-color: var(--text-tertiary);
+  text-underline-offset: 4px;
+  transition: color 120ms ease, text-decoration-color 120ms ease;
+}
+
+.project-name-menu-trigger:hover,
+.project-name-menu-trigger[aria-expanded='true'] {
+  color: var(--text-secondary);
+  text-decoration-color: var(--text-secondary);
+}
+
+.project-name-menu-trigger:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: 3px;
+}
+
+.project-name-menu-popover {
+  font-size: var(--type-secondary-size);
+  font-weight: 400;
+  letter-spacing: normal;
+  line-height: var(--type-secondary-line-height);
+  text-align: left;
+}

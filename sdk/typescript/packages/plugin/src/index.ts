@@ -167,6 +167,7 @@ export type {
   SettingsRowProps,
   SidebarRowProps,
   MascotOutfitProps,
+  WorkspaceNameProps,
   SummaryRowProps,
   SummarySectionProps,
   TextareaProps,
@@ -212,3 +213,4 @@ export const SummarySection = ui.SummarySection;
 export const SummaryRow = ui.SummaryRow;
 export const SidebarRow = ui.SidebarRow;
 export const MascotOutfit = ui.MascotOutfit;
+export const WorkspaceName = ui.WorkspaceName;

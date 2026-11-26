@@ -11,6 +11,7 @@ export const messages: Record<MessageKey, string> = {
   'unsupported.entries': 'このサーバーはメモリの閲覧に対応していません。',
   'unsupported.dreams': 'このサーバーでは夢が実行されていません。',
   'store.workspace': 'ワークスペースのメモリ',
+  'store.workspaceNamed': '{{name}} のメモリ',
   'store.personal': '個人メモリ',
   'store.readOnly': '{{name}}（読み取り専用）',
   'entries.search': 'メモリを検索',

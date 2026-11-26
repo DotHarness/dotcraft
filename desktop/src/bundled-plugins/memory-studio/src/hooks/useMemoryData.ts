@@ -1,6 +1,7 @@
 import type { DesktopPluginHost } from '@dotcraft/plugin'
 import type { DreamsRunState } from '@dotcraft/sdk/contracts'
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { comparablePath } from '../data/hostPath'
 import { appServerFs, type MemoryFs } from '../data/memoryFs'
 import { errorMessage, isUnsupported } from '../data/rpc'
 import { listStores, loadStore, type StoreContents } from '../data/stores'
@@ -81,4 +82,21 @@ export function usePolicyState(host: DesktopPluginHost): Loaded<PolicyState> {
   const { reload } = loaded
   useEffect(() => onConfigRegions(host, (region) => region.startsWith('memory') || region.startsWith('dreams'), reload), [host, reload])
   return loaded
+}
+
+export function useWorkspaceName(host: DesktopPluginHost): string | null {
+  const workspacePath = useWorkspacePath(host)
+  const [name, setName] = useState<string | null>(null)
+  useEffect(() => {
+    setName(null)
+    if (!workspacePath) return
+    let live = true
+    const key = comparablePath(workspacePath, null)
+    host.workspaces.listLocalProjects().then(
+      (projects) => { if (live) setName(projects.find((project) => comparablePath(project.path, null) === key)?.name ?? null) },
+      () => undefined
+    )
+    return () => { live = false }
+  }, [host, workspacePath])
+  return name
 }

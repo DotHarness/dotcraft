@@ -337,7 +337,8 @@ export interface CatalogPageProps {
 }
 
 export interface CatalogSectionProps {
-  readonly title: string;
+  /** May hold a `WorkspaceName`. */
+  readonly title: ReactNode;
   /** Shown at the end of the title row while the pointer is over it or focus is inside. */
   readonly actions?: ReactNode;
   readonly children: ReactNode;
@@ -357,6 +358,9 @@ export interface SummaryRowProps {
   /** Makes the row a button. */
   readonly onClick?: () => void;
 }
+
+/** The foreground workspace's name, underlined; it opens the project menu and switches the workspace without leaving the view. */
+export type WorkspaceNameProps = Record<string, never>;
 
 export interface MascotOutfitProps {
   readonly pack: AvatarComponentPack;
@@ -449,4 +453,5 @@ export interface DesktopPluginUiComponents {
   readonly SummaryRow: ComponentType<SummaryRowProps>;
   readonly SidebarRow: ComponentType<SidebarRowProps>;
   readonly MascotOutfit: ComponentType<MascotOutfitProps>;
+  readonly WorkspaceName: ComponentType<WorkspaceNameProps>;
 }

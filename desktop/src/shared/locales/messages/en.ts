@@ -2514,6 +2514,7 @@ export const MESSAGES_EN = {
   'plugins.section.installed': 'Installed globally',
   'plugins.section.installedOnMachine': 'Installed globally on {{machine}}',
   'plugins.section.installedInWorkspace': 'Installed in {{name}}',
+  'plugins.section.workspaceEmpty': 'Nothing is installed only for this project.',
   'plugins.diagnostics.title': 'Needs attention',
   'plugins.diagnostics.sourceMissing': 'The folder for marketplace "{{name}}" was deleted or moved.',
   'plugins.diagnostics.snapshotMissing': 'Marketplace "{{name}}" has not been fetched yet. Refresh it to install its plugins.',

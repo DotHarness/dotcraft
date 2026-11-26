@@ -2469,6 +2469,7 @@ export const MESSAGES_ZH_HANS = {
   'plugins.section.installed': '已全局安装',
   'plugins.section.installedOnMachine': '已在 {{machine}} 全局安装',
   'plugins.section.installedInWorkspace': '已安装到 {{name}}',
+  'plugins.section.workspaceEmpty': '还没有只装在这个项目里的插件。',
   'plugins.diagnostics.title': '需要处理',
   'plugins.diagnostics.sourceMissing': '插件市场“{{name}}”的文件夹已被删除或移动。',
   'plugins.diagnostics.snapshotMissing': '插件市场“{{name}}”尚未拉取，刷新后才能安装其中的插件。',

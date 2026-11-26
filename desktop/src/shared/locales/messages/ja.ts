@@ -3050,6 +3050,7 @@ export const MESSAGES_JA = {
   'plugins.section.installed': 'グローバルにインストール済み',
   'plugins.section.installedOnMachine': '{{machine}} にグローバルにインストール済み',
   'plugins.section.installedInWorkspace': '{{name}} にインストール済み',
+  'plugins.section.workspaceEmpty': 'このプロジェクトだけにインストールされたプラグインはありません。',
   'plugins.tab.plugins': 'プラグイン',
   'plugins.tab.skills': 'スキル',
   'skills.manage.searchPlaceholder': 'インストールされているスキルを検索する',

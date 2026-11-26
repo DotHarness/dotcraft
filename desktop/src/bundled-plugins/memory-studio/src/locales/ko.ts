@@ -11,6 +11,7 @@ export const messages: Record<MessageKey, string> = {
   'unsupported.entries': '이 서버는 메모리 탐색을 지원하지 않습니다.',
   'unsupported.dreams': '이 서버에서는 꿈이 실행되지 않습니다.',
   'store.workspace': '워크스페이스 메모리',
+  'store.workspaceNamed': '{{name}} 메모리',
   'store.personal': '개인 메모리',
   'store.readOnly': '{{name}}(읽기 전용)',
   'entries.search': '메모리 검색',

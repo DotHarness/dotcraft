@@ -11,6 +11,7 @@ export const messages: Record<MessageKey, string> = {
   'unsupported.entries': 'Dieser Server unterstützt das Durchsuchen von Erinnerungen nicht.',
   'unsupported.dreams': 'Dieser Server führt keine Träume aus.',
   'store.workspace': 'Erinnerung des Arbeitsbereichs',
+  'store.workspaceNamed': 'Erinnerungen in {{name}}',
   'store.personal': 'Persönliche Erinnerungen',
   'store.readOnly': '{{name}} (schreibgeschützt)',
   'entries.search': 'Erinnerungen durchsuchen',

@@ -11,6 +11,7 @@ export const messages: Record<MessageKey, string> = {
   'unsupported.entries': '此服务器不支持浏览记忆。',
   'unsupported.dreams': '此服务器未运行梦境。',
   'store.workspace': '工作区记忆',
+  'store.workspaceNamed': '{{name}} 的记忆',
   'store.personal': '个人记忆',
   'store.readOnly': '{{name}}（只读）',
   'entries.search': '搜索记忆',

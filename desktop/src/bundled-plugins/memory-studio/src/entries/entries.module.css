@@ -9,114 +9,110 @@
   color: var(--warning-text);
 }
 
-.rows {
+.cards {
   display: grid;
-  gap: 4px;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.row {
+.cardItem {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  min-width: 0;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   width: 100%;
-  min-height: 58px;
-  padding: 8px;
+  min-width: 0;
+  padding: 12px 14px 14px;
   border: 0;
-  border-radius: 8px;
-  background: transparent;
+  border-radius: 12px;
+  background: var(--bg-secondary);
   color: inherit;
   font: inherit;
   text-align: left;
   cursor: pointer;
+  transition: background-color 120ms ease;
 }
 
-.row:hover {
-  background: var(--bg-hover);
+.card:hover {
+  background: var(--bg-tertiary);
 }
 
-.row:focus-visible {
+.card:focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: -2px;
+  outline-offset: 2px;
 }
 
-.mark {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 8px;
-  background: var(--bg-secondary);
-  color: var(--text-secondary);
-}
-
-.text {
-  display: grid;
-  flex: 1;
-  gap: 2px;
-  min-width: 0;
-}
-
-.titleLine {
+.cardHead {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
   min-width: 0;
+  margin-bottom: 2px;
 }
 
-.name {
+.typeChip {
   min-width: 0;
+  max-width: 70%;
+  padding: 1px 8px;
   overflow: hidden;
-  color: var(--text-primary);
-  font-size: var(--type-ui-size);
-  line-height: var(--type-ui-line-height);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.description {
-  overflow: hidden;
+  border-radius: 999px;
+  background: var(--bg-hover);
   color: var(--text-secondary);
-  font-size: var(--type-secondary-size);
-  line-height: var(--type-secondary-line-height);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.typeLabel {
-  flex: none;
-  max-width: 160px;
-  overflow: hidden;
-  color: var(--text-dimmed);
   font-size: var(--type-hint-size);
   line-height: var(--type-hint-line-height);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* A fixed column, so dates and stale marks line up from row to row. */
-.meta {
-  display: grid;
-  flex: none;
-  grid-template-columns: 14px 104px;
-  column-gap: 6px;
-  align-items: center;
+.typeChip[data-untyped] {
+  background: transparent;
   color: var(--text-dimmed);
-  font-size: var(--type-secondary-size);
 }
 
-.indicatorSlot {
-  display: flex;
-}
-
-.date {
-  overflow: hidden;
+.cardDate {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-dimmed);
+  font-size: var(--type-hint-size);
+  line-height: var(--type-hint-line-height);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.cardDate[data-stale] {
+  color: var(--warning-text);
+}
+
+.cardName {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: var(--type-ui-size);
+  font-weight: 600;
+  line-height: var(--type-ui-line-height);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.cardDescription {
+  display: -webkit-box;
+  min-height: calc(2 * var(--type-secondary-line-height));
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-line-height);
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .editor {
@@ -249,14 +245,4 @@ button.previewEmpty:hover {
   line-height: var(--type-secondary-prose-line-height);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-}
-
-@media (max-width: 640px) {
-  .meta {
-    grid-template-columns: 14px;
-  }
-
-  .date {
-    display: none;
-  }
 }

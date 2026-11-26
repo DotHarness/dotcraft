@@ -1,5 +1,5 @@
-import { CatalogSection, IconButton, Menu } from '@dotcraft/plugin'
-import { FileText, MoreHorizontal } from 'lucide-react'
+import { CatalogSection, IconButton, Menu, WorkspaceName } from '@dotcraft/plugin'
+import { MoreHorizontal } from 'lucide-react'
 import type { JSX } from 'react'
 import { useLocale, useT } from '../i18n'
 import { INDEX_MAX_BYTES, INDEX_MAX_LINES, type IndexUsage } from '../data/memoryIndex'
@@ -30,12 +30,23 @@ export function filterEntries(contents: StoreContents, filters: EntryFilters, de
   })
 }
 
-export function useStoreLabel(): (store: MemoryStore) => string {
+export function useStoreLabel(workspaceName: string | null = null): (store: MemoryStore) => string {
   const t = useT()
-  return (store) => store.kind === 'workspace' ? t('store.workspace') : store.kind === 'personal' ? t('store.personal') : store.displayName
+  return (store) => {
+    if (store.kind === 'workspace') return workspaceName ? t('store.workspaceNamed', { name: workspaceName }) : t('store.workspace')
+    return store.kind === 'personal' ? t('store.personal') : store.displayName
+  }
 }
 
-function EntryRow({ entry, declared, now, onOpen }: {
+function WorkspaceTitle(): JSX.Element {
+  const t = useT()
+  const template = t('store.workspaceNamed')
+  const at = template.indexOf('{{name}}')
+  if (at < 0) return <>{t('store.workspace')}</>
+  return <>{template.slice(0, at)}<WorkspaceName />{template.slice(at + '{{name}}'.length)}</>
+}
+
+function EntryCard({ entry, declared, now, onOpen }: {
   entry: MemoryEntry
   declared: boolean
   now: number
@@ -45,22 +56,19 @@ function EntryRow({ entry, declared, now, onOpen }: {
   const locale = useLocale()
   const stale = isStale(entry, now)
   return (
-    <li>
-      <button type="button" className={styles.row} onClick={onOpen}>
-        <span className={styles.mark} aria-hidden="true"><FileText size={18} strokeWidth={1.75} /></span>
-        <span className={styles.text}>
-          <span className={styles.titleLine}>
-            <span className={styles.name}>{entry.name}</span>
-            <span className={styles.typeLabel} title={declared ? undefined : t('entries.undeclaredType')}>
-              {entry.type && declared ? entry.type : t('entries.untyped')}
-            </span>
+    <li className={styles.cardItem}>
+      <button type="button" className={styles.card} onClick={onOpen}>
+        <span className={styles.cardHead}>
+          <span className={styles.typeChip} data-untyped={entry.type && declared ? undefined : true} title={declared ? undefined : t('entries.undeclaredType')}>
+            {entry.type && declared ? entry.type : t('entries.untyped')}
           </span>
-          <span className={styles.description}>{entry.description || entry.fileName}</span>
+          <span className={styles.cardDate} data-stale={stale ? true : undefined} title={stale ? t('entries.stale') : undefined}>
+            {stale ? <StatusIndicator tone="warning" label={t('entries.stale')} /> : null}
+            {formatDate(locale, entry.modifiedAtMs)}
+          </span>
         </span>
-        <span className={styles.meta} title={stale ? `${t('entries.stale')} · ${t('filter.stale')}` : undefined}>
-          <span className={styles.indicatorSlot}>{stale ? <StatusIndicator tone="warning" label={t('entries.stale')} /> : null}</span>
-          <span className={styles.date}>{formatDate(locale, entry.modifiedAtMs)}</span>
-        </span>
+        <span className={styles.cardName}>{entry.name}</span>
+        <span className={styles.cardDescription}>{entry.description || entry.fileName}</span>
       </button>
     </li>
   )
@@ -103,7 +111,9 @@ export function EntriesTab({ stores, filters, declaredTypes, onOpen, clearing, o
       {shown.map((contents) => {
         const entries = filterEntries(contents, filters, declaredTypes, now)
         if (filtering && entries.length === 0) return null
-        const title = contents.store.writable ? label(contents.store) : t('store.readOnly', { name: label(contents.store) })
+        const title = !contents.store.writable
+          ? t('store.readOnly', { name: label(contents.store) })
+          : contents.store.kind === 'workspace' ? <WorkspaceTitle /> : label(contents.store)
         return (
           <CatalogSection
             key={contents.store.key}
@@ -116,9 +126,9 @@ export function EntriesTab({ stores, filters, declaredTypes, onOpen, clearing, o
           >
             <IndexLoadNotice usage={contents.usage} />
             {entries.length > 0 ? (
-              <ul className={styles.rows}>
+              <ul className={styles.cards}>
                 {entries.map((entry) => (
-                  <EntryRow
+                  <EntryCard
                     key={entry.fileName}
                     entry={entry}
                     declared={declaredTypes.has(entry.type)}

@@ -23,6 +23,7 @@ import { SettingsGroup, SettingsRow } from '../components/settings/SettingsGroup
 import { SettingsPanelShell } from '../components/settings/SettingsPanelShell'
 import { RobotAvatar } from '../components/agents/RobotAvatar'
 import { CatalogSection, CatalogToolbarIconButton } from '../components/catalog/CatalogSurface'
+import { ForegroundWorkspaceName } from '../components/projects/ProjectNameMenu'
 import { DesktopPluginCatalogPage } from '../components/desktopPlugins/DesktopPluginCatalogPage'
 import { DesktopPluginInlineDiff } from '../components/desktopPlugins/DesktopPluginInlineDiff'
 import { DesktopPluginMarkdown } from '../components/desktopPlugins/DesktopPluginMarkdown'
@@ -67,6 +68,7 @@ installDesktopPluginRuntime({
     CatalogToolbarButton: CatalogToolbarIconButton,
     CatalogSection,
     SummarySection: DesktopPluginSummarySection,
-    SummaryRow: DesktopPluginSummaryRow
+    SummaryRow: DesktopPluginSummaryRow,
+    WorkspaceName: ForegroundWorkspaceName
   }
 })

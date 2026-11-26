@@ -3052,6 +3052,7 @@ export const MESSAGES_KO = {
   'plugins.section.installed': '전역으로 설치됨',
   'plugins.section.installedOnMachine': '{{machine}}에 전역으로 설치됨',
   'plugins.section.installedInWorkspace': '{{name}}에 설치됨',
+  'plugins.section.workspaceEmpty': '이 프로젝트에만 설치된 플러그인이 없습니다.',
   'plugins.tab.plugins': '플러그인',
   'plugins.tab.skills': '스킬',
   'skills.manage.searchPlaceholder': '설치된 스킬 검색',

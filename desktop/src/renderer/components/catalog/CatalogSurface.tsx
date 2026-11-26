@@ -373,7 +373,7 @@ export function CatalogChip({ label, active = false }: { label: string; active?:
   return <span style={active ? styles.chipActive : styles.chip}>{label}</span>
 }
 
-export function CatalogSection({ title, actions, children }: { title: string; actions?: ReactNode; children: ReactNode }): JSX.Element {
+export function CatalogSection({ title, actions, children }: { title: ReactNode; actions?: ReactNode; children: ReactNode }): JSX.Element {
   return (
     <section style={{ marginBottom: '34px' }}>
       {actions ? (

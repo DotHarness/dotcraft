@@ -21,6 +21,7 @@ import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
 import { MoreActionsButton } from '../ui/MoreActionsButton'
 import { SkeletonCatalogGrid } from '../ui/Skeleton'
 import { SplitButton, type SplitButtonItem } from '../ui/SplitButton'
+import { ForegroundWorkspaceName, titleWithName } from '../projects/ProjectNameMenu'
 import { AddMarketplaceDialog } from './AddMarketplaceDialog'
 import { PluginCatalogItem } from './PluginCatalogItem'
 import { PluginDiagnosticsBanner } from './PluginDiagnosticsBanner'
@@ -198,6 +199,10 @@ export function PluginBrowseSurface({
                 onRefresh={() => onRefreshMarketplace(section.marketplace!)}
                 onRemove={() => onRemoveMarketplace(section.marketplace!)}
               />
+            ) : section.workspace ? (
+              <h2 style={sectionTitle}>
+                {titleWithName(t('plugins.section.installedInWorkspace'), <ForegroundWorkspaceName />)}
+              </h2>
             ) : (
               <h2 style={sectionTitle}>{section.title}</h2>
             )}

@@ -1,5 +1,5 @@
 ---
-version: "0.14.3"
+version: "0.15.0"
 name: "DotCraft Desktop"
 description: "Quiet operational desktop UI for repeated agent work."
 colors:
@@ -437,7 +437,15 @@ slides back out.
   appear on hover or focus without shifting columns. As the page narrows, the
   least important columns hide first.
 - Group titles name scope (installed by the user versus provided by the
-  workspace); the band and the hero never carry workspace scope.
+  workspace); the band and the hero never carry workspace scope. A workspace
+  group names the foreground workspace as a
+  [switchable name](#headings-that-name-a-selection), in the Chat workspace too,
+  and stays in the unfiltered view with one empty line when it has no items.
+- A collection read by its descriptions, such as memories, uses cards instead of
+  rows: an auto-fill grid of `260px` minimum columns at `12px` gaps, each card a
+  borderless `12px` `--bg-secondary` box (`--bg-tertiary` on hover) holding a
+  quiet type pill and date on its first line, a `600` `--type-ui` name, and a
+  `--type-secondary` description clamped to two reserved lines.
 - An item from a user-added source carries a small origin mark after its name, in
   secondary text, centered on the name's cap height, with a tooltip naming the
   source. Host-provided and user-owned items carry no mark.
@@ -1284,8 +1292,9 @@ stays frameless while focused; the caret and selection communicate editing.
 
 ### Headings that name a selection
 
-An entry heading may name the place the next action runs and let that name be
-changed in place, rather than repeating the choice in a control beside it:
+An entry heading or a group title may name the place the next action runs, or
+the place a group belongs to, and let that name be changed in place, rather than
+repeating the choice in a control beside it:
 
 - the name keeps the heading's family, size, weight, colour, and spacing, and
   gains no pill, chevron, border, or background;
@@ -1294,8 +1303,9 @@ changed in place, rather than repeating the choice in a control beside it:
   `--text-secondary`;
 - punctuation stays outside the underline in every locale;
 - the heading and any control offering the same choice open the same menu;
-- the menu opens above the heading, away from the input below, and flips only when
-  there is no room;
+- an entry heading's menu opens above it, away from the input below; a group
+  title's menu opens below it. Either flips only when there is no room;
+- changing a workspace from a group title keeps the current view;
 - with nothing to name, the heading drops the clause and the control beside the
   input asks for the choice. The heading never names a place that does not exist.
 

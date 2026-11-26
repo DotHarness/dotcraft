@@ -4,7 +4,7 @@
 | --- | --- |
 | Version | 0.15.0 |
 | Status | Living |
-| Date | 2026-11-24 |
+| Date | 2026-11-26 |
 | Parent Specs | [Plugin Architecture](plugin-architecture.md), [Tool Architecture](tools-architecture.md) |
 
 ## Overview
@@ -112,7 +112,8 @@ names are stable independently of internal component props.
 A plugin main view that browses or manages a collection uses the Host catalog frame:
 
 - `CatalogPage` takes `{ title, tabs?, breadcrumb?, actions?, search?, filters?, children }` and renders the top band with `actions`, a pinned header with `title` and a search row, and a scrolling body centred on the catalog column. `search` is `{ value, placeholder, onValueChange }`. `filters` is `{ ariaLabel, groups }`, each group `{ label, icon?, value, options, onValueChange }` with options `{ value, label }`; the first option is the unfiltered choice. `tabs` is `{ value, items, onValueChange }` with items `{ value, label }`. It fills the band's navigation slot with the same top-bar tabs Desktop uses to switch Plugins and Skills. `breadcrumb` is `{ parentLabel, currentLabel, onBack, trail? }`, with `trail` segments `{ label, onClick }` for the pages between, outermost first. It takes the navigation slot instead of `tabs` for a page reached from another, like Plugins › Manage. `titleEditor` and `descriptionEditor`, each `{ value, placeholder, ariaLabel, onValueChange, invalid?, readOnly? }`, make the hero title and a one-line subtitle under it editable in place, frameless, for a page that edits one record. `meta` holds controls centred under them, such as the record's tags.
-- `CatalogSection` titles one body group with `{ title, actions?, children }`. `actions` sit at the end of the title row and appear while the pointer is over it, focus is inside them, or their menu is open.
+- `CatalogSection` titles one body group with `{ title, actions?, children }`. `title` is text or text holding a `WorkspaceName`. `actions` sit at the end of the title row and appear while the pointer is over it, focus is inside them, or their menu is open.
+- `WorkspaceName` (no props) renders the foreground workspace's name as a switchable name: it opens the Host project menu and switches the workspace without leaving the view. A group of workspace-scoped items puts it in its title.
 - `CatalogToolbarButton` is an icon-only band action, `{ icon, label, onClick }`, whose label is also its tooltip.
 - `SplitButton` is a principal action with alternatives: `{ label, onClick, items, menuLabel, icon?, variant?, disabled?, ariaLabel? }`, where `variant` is `primary` or `secondary` and `items` follow `Menu` items.
 

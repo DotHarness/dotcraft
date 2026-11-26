@@ -24,6 +24,7 @@ export interface PluginSection {
   marketplace?: MarketplaceEntry
   /** Why the section is empty, when it is empty for a reason worth reading. */
   notice?: string
+  workspace?: true
 }
 
 const FIXED_PLUGIN_CATEGORIES = [
@@ -92,7 +93,8 @@ export function buildSections(
   marketplaces: MarketplaceEntry[],
   marketplaceNotices: ReadonlyMap<string, string>,
   workspaceName: string,
-  machineName: string | null
+  machineName: string | null,
+  showEmptyWorkspace: boolean
 ): PluginSection[] {
   // Grouping by marketplace answers only "where did this come from": no
   // installed-state group, though the category filter still narrows each group.
@@ -132,11 +134,13 @@ export function buildSections(
       plugins: installed
     })
   }
-  if (fromWorkspace.length > 0) {
+  if (fromWorkspace.length > 0 || showEmptyWorkspace) {
     sections.push({
       key: 'workspace',
       title: t('plugins.section.installedInWorkspace', { name: workspaceName }),
-      plugins: fromWorkspace
+      plugins: fromWorkspace,
+      notice: fromWorkspace.length === 0 ? t('plugins.section.workspaceEmpty') : undefined,
+      workspace: true
     })
   }
 

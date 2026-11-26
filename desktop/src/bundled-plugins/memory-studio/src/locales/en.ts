@@ -9,6 +9,7 @@ export const messages = {
   'unsupported.entries': 'This server doesn’t support browsing memory.',
   'unsupported.dreams': 'This server doesn’t run Dreams.',
   'store.workspace': 'Workspace memory',
+  'store.workspaceNamed': '{{name}} memory',
   'store.personal': 'Personal memory',
   'store.readOnly': '{{name}} (read-only)',
   'entries.search': 'Search memories',

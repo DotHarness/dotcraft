@@ -6,6 +6,7 @@ import * as JsxRuntime from 'react/jsx-runtime'
 
 import { RobotAvatar } from '../components/agents/RobotAvatar'
 import { CatalogSection, CatalogToolbarIconButton } from '../components/catalog/CatalogSurface'
+import { ForegroundWorkspaceName } from '../components/projects/ProjectNameMenu'
 import { DesktopPluginCatalogPage } from '../components/desktopPlugins/DesktopPluginCatalogPage'
 import { DesktopPluginInlineDiff } from '../components/desktopPlugins/DesktopPluginInlineDiff'
 import { DesktopPluginMarkdown } from '../components/desktopPlugins/DesktopPluginMarkdown'
@@ -86,6 +87,7 @@ export function startDesktopPluginRuntime(): () => void {
       SummaryRow: DesktopPluginSummaryRow,
       SidebarRow: DesktopPluginSidebarRow,
       MascotOutfit: AvatarOutfitProvider,
+      WorkspaceName: ForegroundWorkspaceName,
       PluginSurface: DesktopPluginSurface
     }
   })

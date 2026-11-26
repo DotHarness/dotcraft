@@ -187,8 +187,11 @@ export function PluginsView(): JSX.Element {
   const selectedSkillBody = skillContent != null ? stripYamlFrontmatter(skillContent) : ''
   const categoryOptions = useMemo(() => buildCategoryOptions(catalogPlugins, t), [catalogPlugins, t])
   const sections = useMemo(
-    () => buildSections(browsePlugins, categoryFilter, publisherFilter, t, marketplaces, marketplaceNotices, workspaceName, machineName),
-    [browsePlugins, categoryFilter, machineName, marketplaceNotices, marketplaces, publisherFilter, t, workspaceName]
+    () => buildSections(
+      browsePlugins, categoryFilter, publisherFilter, t, marketplaces, marketplaceNotices, workspaceName, machineName,
+      browseQuery.trim() === '' && catalogPlugins.length > 0
+    ),
+    [browsePlugins, browseQuery, catalogPlugins.length, categoryFilter, machineName, marketplaceNotices, marketplaces, publisherFilter, t, workspaceName]
   )
   // The dialog owns installed/app state for its own session and takes the live trust state from
   // the store, so completing the trust step advances the dialog without reopening it.

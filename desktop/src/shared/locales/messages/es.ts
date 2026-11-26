@@ -3050,6 +3050,7 @@ export const MESSAGES_ES = {
   'plugins.section.installed': 'Instalados globalmente',
   'plugins.section.installedOnMachine': 'Instalados globalmente en {{machine}}',
   'plugins.section.installedInWorkspace': 'Instalados en {{name}}',
+  'plugins.section.workspaceEmpty': 'No hay plugins instalados solo para este proyecto.',
   'plugins.tab.plugins': 'Complementos',
   'plugins.tab.skills': 'Habilidades',
   'skills.manage.searchPlaceholder': 'Buscar habilidades instaladas',

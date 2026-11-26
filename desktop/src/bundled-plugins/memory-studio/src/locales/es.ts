@@ -11,6 +11,7 @@ export const messages: Record<MessageKey, string> = {
   'unsupported.entries': 'Este servidor no permite explorar la memoria.',
   'unsupported.dreams': 'Este servidor no ejecuta Sueños.',
   'store.workspace': 'Memoria del espacio de trabajo',
+  'store.workspaceNamed': 'Memoria de {{name}}',
   'store.personal': 'Memoria personal',
   'store.readOnly': '{{name}} (solo lectura)',
   'entries.search': 'Buscar memorias',

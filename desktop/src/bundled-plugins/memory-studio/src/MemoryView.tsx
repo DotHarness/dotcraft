@@ -9,7 +9,7 @@ import { memoryName } from './data/memoryFile'
 import { clearStore, PERSONAL_STORE_ID, type MemoryStore } from './data/stores'
 import { ALL, EntriesTab, UNTYPED, useStoreLabel, type AgeFilter, type EntryFilters } from './entries/EntriesTab'
 import { EntryEditor, type EntryTarget } from './entries/EntryEditor'
-import { useDreamRuns, useMemoryFs, usePolicyState, useStores, type Loaded } from './hooks/useMemoryData'
+import { useDreamRuns, useMemoryFs, usePolicyState, useStores, useWorkspaceName, type Loaded } from './hooks/useMemoryData'
 import { useT } from './i18n'
 import { Notice } from './shared/ui'
 import { takeOpenRequest, usePendingOpenRequest, type OpenRequest } from './state/openRequests'
@@ -30,16 +30,20 @@ export function resolveRequestStore(stores: readonly MemoryStore[], request: Ext
     ?? stores.find((store) => store.kind === 'workspace')
 }
 
-function LoadState<T>({ loaded, unsupported, children }: { loaded: Loaded<T>; unsupported: string; children: (value: T) => JSX.Element }): JSX.Element {
+function LoadState<T>({ loaded, unsupported, cards = false, children }: { loaded: Loaded<T>; unsupported: string; cards?: boolean; children: (value: T) => JSX.Element }): JSX.Element {
   if (loaded.status === 'unsupported') return <Notice>{unsupported}</Notice>
   if (loaded.status === 'error') return <Notice tone="error">{loaded.error}</Notice>
-  if (loaded.value == null) return <div className={styles.stack}><Skeleton height={58} /><Skeleton height={58} /><Skeleton height={58} /></div>
+  if (loaded.value == null) {
+    return cards
+      ? <div className={styles.cardSkeletons}>{[0, 1, 2, 3].map((index) => <Skeleton key={index} height={112} radius={12} />)}</div>
+      : <div className={styles.stack}><Skeleton height={58} /><Skeleton height={58} /><Skeleton height={58} /></div>
+  }
   return children(loaded.value)
 }
 
 export function MemoryView({ host }: DesktopPluginViewProps): JSX.Element {
   const t = useT()
-  const label = useStoreLabel()
+  const label = useStoreLabel(useWorkspaceName(host))
   const fs = useMemoryFs(host)
   const stores = useStores(host)
   const policy = usePolicyState(host)
@@ -245,7 +249,7 @@ export function MemoryView({ host }: DesktopPluginViewProps): JSX.Element {
       )
     }
     return (
-      <LoadState loaded={stores} unsupported={t('unsupported.entries')}>
+      <LoadState loaded={stores} unsupported={t('unsupported.entries')} cards>
         {(contents) => (
           <EntriesTab
             stores={contents}
