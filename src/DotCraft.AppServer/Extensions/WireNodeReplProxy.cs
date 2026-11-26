@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
+using DotCraft.Contributions;
 using DotCraft.Security;
+using DotCraft.Sessions;
 using DotCraft.Tools;
 using DotCraft.Tracing;
 using DotCraft.Utilities;
@@ -10,9 +12,10 @@ namespace DotCraft.AppServer;
 /// <summary>
 /// Routes agent-side Node REPL calls to the Desktop client bound to the current thread.
 /// </summary>
-public sealed class WireNodeReplProxy : INodeReplProxy, IThreadForkToolBindingSource
+public sealed class WireNodeReplProxy : INodeReplProxy, IThreadForkToolBindingSource, IThreadLifecycleObserver, ITurnLifecycleContributor
 {
     private readonly ConcurrentDictionary<string, NodeReplThreadBinding> _byThread = new();
+    private readonly ConcurrentDictionary<string, bool> _activeSessions = new();
     private readonly ConcurrentDictionary<string, InFlightEvaluation> _inFlight = new();
 
     /// <inheritdoc />
@@ -59,15 +62,52 @@ public sealed class WireNodeReplProxy : INodeReplProxy, IThreadForkToolBindingSo
     {
         foreach (var kv in _byThread.ToArray())
         {
-            if (ReferenceEquals(kv.Value.Transport, transport))
-                _byThread.TryRemove(kv);
+            if (ReferenceEquals(kv.Value.Transport, transport) && _byThread.TryRemove(kv))
+                _activeSessions.TryRemove(kv.Key, out _);
         }
     }
 
     /// <summary>
     /// Removes a single thread binding.
     /// </summary>
-    public void UnbindThread(string threadId) => _byThread.TryRemove(threadId, out _);
+    public void UnbindThread(string threadId)
+    {
+        _byThread.TryRemove(threadId, out _);
+        _activeSessions.TryRemove(threadId, out _);
+    }
+
+    public async Task DisposeThreadSessionAsync(
+        string threadId,
+        bool isSubagent = false,
+        CancellationToken ct = default)
+    {
+        var wasActive = _activeSessions.TryRemove(threadId, out var wasSubagent);
+        if (!_byThread.TryRemove(threadId, out var binding) || binding.Connection.IsClosed)
+            return;
+
+        var effectiveSubagent = wasSubagent || isSubagent;
+        if (!wasActive && !effectiveSubagent)
+            return;
+
+        await SendTurnEndedAsync(binding, threadId, turnId: null, effectiveSubagent, disposeSession: true, ct);
+    }
+
+    public async Task OnTurnEndedAsync(TurnLifecycleContext context, CancellationToken cancellationToken = default)
+    {
+        if (!_activeSessions.TryGetValue(context.ThreadId, out var isSubagent))
+            return;
+
+        if (isSubagent)
+            _activeSessions.TryRemove(context.ThreadId, out _);
+
+        if (!_byThread.TryGetValue(context.ThreadId, out var binding) || binding.Connection.IsClosed)
+            return;
+
+        await SendTurnEndedAsync(binding, context.ThreadId, context.TurnId, isSubagent, disposeSession: isSubagent, cancellationToken);
+    }
+
+    public Task OnThreadDeletingAsync(SessionThread thread, CancellationToken cancellationToken = default) =>
+        DisposeThreadSessionAsync(thread.Id, thread.Source.SubAgent is not null, cancellationToken);
 
     /// <inheritdoc />
     public bool IsComputerUseAvailable
@@ -137,6 +177,8 @@ public sealed class WireNodeReplProxy : INodeReplProxy, IThreadForkToolBindingSo
         var sessionId = string.IsNullOrWhiteSpace(metadata?.SessionId) ? threadId : metadata!.SessionId;
         var turnId = string.IsNullOrWhiteSpace(metadata?.TurnId) ? null : metadata!.TurnId;
         var protocolVersion = metadata?.ProtocolVersion > 0 ? metadata.ProtocolVersion : 1;
+        var isSubagent = metadata?.IsSubagent == true;
+        _activeSessions.AddOrUpdate(threadId, isSubagent, (_, existing) => existing || isSubagent);
         try
         {
             var request = new Contract.NodeReplEvaluateParams
@@ -155,6 +197,7 @@ public sealed class WireNodeReplProxy : INodeReplProxy, IThreadForkToolBindingSo
                         ? default
                         : new Protocol.Optional<string?>(turnId),
                     EvaluationId = evaluationId,
+                    IsSubagent = isSubagent ? new Protocol.Optional<bool>(true) : default
                 },
                 Code = code,
                 TimeoutMs = safeTimeout * 1000
@@ -214,6 +257,32 @@ public sealed class WireNodeReplProxy : INodeReplProxy, IThreadForkToolBindingSo
 
     private static string? ResolveCurrentThreadId()
         => TracingChatClient.CurrentSessionKey ?? TracingChatClient.GetActiveSessionKey();
+
+    private static async Task SendTurnEndedAsync(
+        NodeReplThreadBinding binding,
+        string threadId,
+        string? turnId,
+        bool isSubagent,
+        bool disposeSession,
+        CancellationToken ct)
+    {
+        try
+        {
+            await binding.Transport.NotifyContractAsync(
+                Contract.AppServerRpc.ExtNodeReplTurnEnded,
+                new Contract.NodeReplTurnEndedParams
+                {
+                    ThreadId = threadId,
+                    TurnId = turnId is null ? default : new Protocol.Optional<string?>(turnId),
+                    IsSubagent = isSubagent ? new Protocol.Optional<bool>(true) : default,
+                    DisposeSession = disposeSession ? new Protocol.Optional<bool>(true) : default
+                },
+                ct).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is IOException or ObjectDisposedException or OperationCanceledException or InvalidOperationException)
+        {
+        }
+    }
 
     private static void SendCancelRequest(
         NodeReplThreadBinding binding,

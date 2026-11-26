@@ -120,3 +120,83 @@ it('delivers multiple live pages, releases client handles and reclaims them with
   expect(destroy).toHaveBeenCalledTimes(1)
   expect(send.mock.calls.some(([channel]) => channel === 'viewer:browser:close')).toBe(false)
 }, 30000)
+
+it('isolates subagent tabs from renderer, rejects visibility, and closes marked tabs on turn end', async () => {
+  const pages = new Map<string, Electron.WebContents>()
+  const createPage = () => Object.assign(new EventEmitter(), {
+    isDestroyed: () => false, getURL: () => 'about:blank', getTitle: () => 'Subagent page',
+    isLoading: () => false, reload: vi.fn(),
+    debugger: {
+      isAttached: () => false, attach: vi.fn(), detach: vi.fn(),
+      on: vi.fn(), off: vi.fn(), sendCommand: vi.fn(async () => ({}))
+    }
+  }) as unknown as Electron.WebContents
+  const createAutomationTab = vi.fn(async (_win: unknown, params: { tabId: string; temporary?: boolean }) => {
+    pages.set(params.tabId, createPage())
+  })
+  const destroy = vi.fn((_win: unknown, tabId: string) => { pages.delete(tabId) })
+  const send = vi.fn()
+  const owner = {
+    isDestroyed: () => false, getTitle: () => 'workspace',
+    webContents: { id: 2, isDestroyed: () => false, send }
+  } as unknown as Electron.BrowserWindow
+  const host = {
+    createAutomationTab,
+    getTabWebContents: (_win: unknown, tabId: string) => pages.get(tabId) ?? null,
+    ensureTabWebContents: async (_win: unknown, tabId: string) => pages.get(tabId)!,
+    listAutomationTargetTabs: () => [...pages.keys()].map((tabId) => ({ tabId, currentUrl: 'about:blank', title: 'Subagent page', loading: false })),
+    loadAutomationUrl: vi.fn(async () => {}),
+    destroyTab: destroy,
+    setAutomationState: vi.fn(),
+    setViewport: vi.fn(),
+    setCaptureSurface: vi.fn(),
+    getLayoutSize: () => ({ width: 1280, height: 720 }),
+    isVisible: () => false,
+    requestVisibility: vi.fn(),
+    moveMouse: vi.fn(async () => {}),
+    snapshotState: (_win: unknown, tabId: string) => ({ tabId, currentUrl: 'about:blank', title: 'Subagent page', loading: false })
+  }
+  manager = new BrowserUseManager(host as never)
+  repl = new NodeReplManager(manager, workerFixture.fork)
+  const turnId = 'sub-turn-1'
+  const evaluate = async (code: string) => {
+    const result = await repl.evaluate(owner, {
+      threadId: 'sub-thread',
+      turnId,
+      browserSession: { sessionId: 'sub-thread', threadId: 'sub-thread', turnId, isSubagent: true },
+      code
+    })
+    expect(result.error).toBeUndefined()
+    return result.resultText ? JSON.parse(result.resultText) : undefined
+  }
+
+  const outcome = await evaluate(`
+    const { setupBrowserRuntime } = await import(dotcraft.browserClientPath);
+    const agent = await setupBrowserRuntime();
+    const browser = await agent.browsers.get('iab');
+    const first = await browser.tabs.new();
+    await first.markDeliverable();
+    const second = await browser.tabs.new();
+    await second.markHandoff();
+    const listCount = (await browser.tabs.list()).length;
+    let visibilityBlocked = false;
+    try {
+      const visibility = await browser.capabilities.get('visibility');
+      await visibility.setVisible(true);
+    } catch {
+      visibilityBlocked = true;
+    }
+    JSON.stringify({ listCount, visibilityBlocked });
+  `)
+
+  expect(outcome).toEqual({ listCount: 2, visibilityBlocked: true })
+  expect(createAutomationTab).toHaveBeenCalledTimes(2)
+  for (const call of createAutomationTab.mock.calls) expect(call[1].temporary).toBe(true)
+  expect(send.mock.calls.some(([channel]) => channel === 'viewer:browser:open')).toBe(false)
+  expect(pages.size).toBe(2)
+
+  manager.handleTurnNotification('turn/completed', { threadId: 'sub-thread', turn: { id: turnId } })
+  expect(destroy).toHaveBeenCalledTimes(2)
+  expect(pages.size).toBe(0)
+  expect(send.mock.calls.some(([channel]) => channel === 'viewer:browser:close')).toBe(false)
+}, 30000)

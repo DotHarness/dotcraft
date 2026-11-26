@@ -1,6 +1,7 @@
 using System.Text.Json;
 using DotCraft.Tracing;
 using DotCraft.AppServer;
+using DotCraft.Contributions;
 using DotCraft.Security;
 using DotCraft.Security.ShellCommands;
 using DotCraft.Sessions.Wire;
@@ -19,6 +20,7 @@ public sealed class WireNodeReplProxyTests
         public string? LastMethod { get; private set; }
         public JsonElement? LastParams { get; private set; }
         public List<(string Method, JsonElement Params)> Calls { get; } = [];
+        public List<(string Method, JsonElement Params)> Notifications { get; } = [];
         public bool BlockEvaluate { get; set; }
         public Task CancelSeen => _cancelSeen.Task;
 
@@ -27,7 +29,16 @@ public sealed class WireNodeReplProxyTests
         public Task<AppServerIncomingMessage?> ReadMessageAsync(CancellationToken ct = default) =>
             Task.FromResult<AppServerIncomingMessage?>(null);
 
-        public Task WriteMessageAsync(object message, CancellationToken ct = default) => Task.CompletedTask;
+        public Task WriteMessageAsync(object message, CancellationToken ct = default)
+        {
+            var json = JsonSerializer.SerializeToElement(message, SessionWireJsonOptions.Default);
+            if (json.TryGetProperty("method", out var methodProp) && methodProp.GetString() is { } method)
+            {
+                var p = json.TryGetProperty("params", out var paramsProp) ? paramsProp.Clone() : default;
+                Notifications.Add((method, p));
+            }
+            return Task.CompletedTask;
+        }
 
         public Task<AppServerPendingClientRequest> StartClientRequestAsync(
             string method,
@@ -232,6 +243,62 @@ public sealed class WireNodeReplProxyTests
             await pending;
             await Assert.ThrowsAsync<KeyNotFoundException>(() =>
                 proxy.RequestApprovalAsync(connection, "thread-d", evaluationId, request));
+        }
+        finally
+        {
+            TracingChatClient.CurrentSessionKey = prev;
+        }
+    }
+
+    [Fact]
+    public async Task SubagentEvaluation_ForwardsFlagAndNotifiesTurnEndedAndDispose()
+    {
+        var prev = TracingChatClient.CurrentSessionKey;
+        try
+        {
+            var proxy = new WireNodeReplProxy();
+            var transport = new StubTransport();
+            var connection = new AppServerConnection();
+            connection.TryMarkInitialized(
+                new ClientConnectionInfo { Name = "desktop", Version = "1" },
+                new ClientConnectionCapabilities
+                {
+                    NodeRepl = new NodeReplClientCapability { Backend = "desktop-node" },
+                    BrowserUse = new BrowserUseClientCapability { Backend = "desktop-iab", ProtocolVersion = 2 }
+                });
+            proxy.BindThread("thread-parent", transport, connection);
+            Assert.True(((IThreadForkToolBindingSource)proxy).TryForkThreadBinding("thread-parent", "thread-child"));
+
+            await proxy.EvaluateAsync(
+                "1 + 1",
+                5,
+                metadata: new NodeReplEvaluationMetadata
+                {
+                    ThreadId = "thread-child",
+                    SessionId = "thread-child",
+                    TurnId = "turn-child-1",
+                    ProtocolVersion = 1,
+                    IsSubagent = true
+                });
+
+            Assert.True(transport.LastParams.HasValue);
+            Assert.True(transport.LastParams.Value.GetProperty("browserSession").GetProperty("isSubagent").GetBoolean());
+
+            await proxy.OnTurnEndedAsync(new TurnLifecycleContext("thread-parent", "turn-unused"));
+            Assert.Empty(transport.Notifications);
+
+            await proxy.OnTurnEndedAsync(new TurnLifecycleContext("thread-child", "turn-child-1"));
+            var ended = Assert.Single(transport.Notifications);
+            Assert.Equal(DotCraft.Protocol.AppServer.AppServerMethodNames.ExtNodeReplTurnEnded, ended.Method);
+            Assert.Equal("thread-child", ended.Params.GetProperty("threadId").GetString());
+            Assert.Equal("turn-child-1", ended.Params.GetProperty("turnId").GetString());
+            Assert.True(ended.Params.GetProperty("isSubagent").GetBoolean());
+            Assert.True(ended.Params.GetProperty("disposeSession").GetBoolean());
+
+            await proxy.DisposeThreadSessionAsync("thread-child", isSubagent: true);
+            Assert.Equal(2, transport.Notifications.Count);
+            Assert.True(transport.Notifications[1].Params.GetProperty("disposeSession").GetBoolean());
+            Assert.Null(await proxy.EvaluateAsync("1 + 1", 5, metadata: new NodeReplEvaluationMetadata { ThreadId = "thread-child" }));
         }
         finally
         {

@@ -24,6 +24,10 @@ public interface INodeReplProxy
         CancellationToken ct = default,
         NodeReplEvaluationMetadata? metadata = null);
 
+    Task DisposeThreadSessionAsync(
+        string threadId,
+        bool isSubagent = false,
+        CancellationToken ct = default) => Task.CompletedTask;
 }
 
 /// <summary>
@@ -50,6 +54,8 @@ public sealed class NodeReplEvaluationMetadata
     /// Browser session metadata version. Current value is 1.
     /// </summary>
     public int ProtocolVersion { get; set; } = 1;
+
+    public bool IsSubagent { get; set; }
 }
 
 public sealed class NodeReplEvaluation

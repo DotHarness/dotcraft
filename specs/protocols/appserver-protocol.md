@@ -1287,7 +1287,7 @@ Browser and computer-use tools run through a **server → client** Node REPL bac
 
 #### `ext/nodeRepl/evaluate`
 
-**Direction**: server → client (request). **Params**: `threadId`, optional `turnId`, `evaluationId` (for cancellation and late-result suppression), `code` (JavaScript evaluated in the thread's persistent REPL), optional `timeoutMs` (client may clamp), and optional `browserSession` (`protocolVersion` 1, `sessionId` — the browser isolation key, normally the thread id — plus `threadId`, `turnId`, and `evaluationId` for backends that receive only the session object).
+**Direction**: server → client (request). **Params**: `threadId`, optional `turnId`, `evaluationId` (for cancellation and late-result suppression), `code` (JavaScript evaluated in the thread's persistent REPL), optional `timeoutMs` (client may clamp), and optional `browserSession` (`protocolVersion` 1, `sessionId` — the browser isolation key, normally the thread id — plus `threadId`, `turnId`, `evaluationId`, and optional `isSubagent` when the calling thread is a SubAgent).
 
 **Result**: optional `text`, `resultText` (serialized final expression), `images` (`mediaType`, `dataBase64`), `logs`, `error` (user-readable), and `surface` (`computer` when the evaluation called `dotcraft.computer`).
 
@@ -1296,6 +1296,12 @@ The client should return before `timeoutMs`, using shorter internal timeouts for
 #### `ext/nodeRepl/cancel`
 
 **Direction**: server → client (request). **Params**: `threadId`, `evaluationId`. **Result**: `{ ok }` — `false` when no matching evaluation is in flight. Best-effort: the client aborts pending browser operations, rebuilds the REPL context if needed, and ignores late results.
+
+#### `ext/nodeRepl/turnEnded`
+
+**Direction**: server → client (notification). **Params**: `threadId`, optional `turnId`, optional `isSubagent`, optional `disposeSession`.
+
+Sent on the bound connection when a turn that used Node REPL reaches a terminal state, or when a bound thread or SubAgent closes or is deleted. Clients run normal turn cleanup idempotently. When `disposeSession` (or `isSubagent`) is `true`, the client unconditionally closes agent-created tabs, clears automation control state, and disposes that thread's browser and Node REPL runtime.
 
 #### `ext/nodeRepl/requestApproval`
 

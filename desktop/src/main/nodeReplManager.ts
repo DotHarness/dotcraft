@@ -35,6 +35,7 @@ export interface BrowserSessionMetadata {
   turnId?: string
   evaluationId: string
   backendId?: string
+  isSubagent?: boolean
 }
 
 export interface NodeReplEvaluateResult {
@@ -147,7 +148,8 @@ function normalizeBrowserSession(params: NodeReplEvaluateParams, evaluationId: s
     threadId: stringField(raw.threadId) ?? params.threadId,
     turnId,
     evaluationId,
-    backendId: stringField(raw.backendId)
+    backendId: stringField(raw.backendId),
+    ...(raw.isSubagent === true ? { isSubagent: true } : {})
   }
 }
 

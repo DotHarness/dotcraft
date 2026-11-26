@@ -9,6 +9,7 @@ export interface ServerNotificationMethods {
   "automation/run/updated": { params: Models.AutomationRunUpdatedNotification; result: Models.RpcEmpty };
   "automation/updated": { params: Models.AutomationUpdatedNotification; result: Models.RpcEmpty };
   "config/changed": { params: Models.ConfigChangedParams; result: Models.RpcEmpty };
+  "ext/nodeRepl/turnEnded": { params: Models.NodeReplTurnEndedParams; result: Models.RpcEmpty };
   "fs/changed": { params: Models.FsChangedNotification; result: Models.RpcEmpty };
   "generativeUi/state/updated": { params: Models.GenerativeUiStateUpdatedNotification; result: Models.RpcEmpty };
   "import/completed": { params: Models.ImportCompletedNotification; result: Models.RpcEmpty };

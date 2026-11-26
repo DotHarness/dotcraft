@@ -291,4 +291,34 @@ describe('source-bound Node REPL routing', () => {
     await expect(second.evaluate()).rejects.toThrow('another workspace or window')
     expect(runtime.evaluate).toHaveBeenCalledOnce()
   })
+
+  it('disposes subagent browser tabs on ext/nodeRepl/turnEnded and on client disposal', async () => {
+    const { a, request } = fixture()
+    await request(a, 'ext/nodeRepl/evaluate', {
+      threadId: 'sub-1',
+      turnId: 'turn-sub-1',
+      evaluationId: 'eval-sub-1',
+      code: '42',
+      browserSession: { sessionId: 'sub-1', threadId: 'sub-1', turnId: 'turn-sub-1', isSubagent: true }
+    })
+
+    handleWorkspaceNodeReplNotification(a, 'ext/nodeRepl/turnEnded', {
+      threadId: 'sub-1',
+      turnId: 'turn-sub-1',
+      isSubagent: true,
+      disposeSession: true
+    })
+    expect(runtime.reset).toHaveBeenLastCalledWith('sub-1', { preserveBrowserTabs: false })
+    expect(a.client.releaseBrowserTurn).toHaveBeenCalledWith('sub-1', 'turn-sub-1')
+
+    await request(a, 'ext/nodeRepl/evaluate', {
+      threadId: 'sub-2',
+      turnId: 'turn-sub-2',
+      evaluationId: 'eval-sub-2',
+      code: '42',
+      browserSession: { sessionId: 'sub-2', threadId: 'sub-2', turnId: 'turn-sub-2', isSubagent: true }
+    })
+    a.client.emit('disposed')
+    expect(runtime.reset).toHaveBeenLastCalledWith('sub-2', { preserveBrowserTabs: false })
+  })
 })

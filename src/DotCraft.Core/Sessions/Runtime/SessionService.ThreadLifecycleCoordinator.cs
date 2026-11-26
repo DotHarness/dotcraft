@@ -63,7 +63,13 @@ public sealed partial class SessionService
                 if (!IsSubAgentThread(root))
                     throw new InvalidOperationException($"Thread '{childThreadId}' is not a SubAgent child thread.");
 
+                var subtree = await CollectSubAgentSubtreeIdsAsync(root.Id, includeClosed: true, commandCt);
                 await ArchiveTreeAsync(root, loaded, commandCt);
+                if (owner.AgentFactory.RuntimeContext.NodeReplProxy is { } nodeReplProxy)
+                {
+                    foreach (var id in subtree)
+                        await nodeReplProxy.DisposeThreadSessionAsync(id, isSubagent: true, commandCt);
+                }
             }, ct);
 
         private async Task ArchiveTreeAsync(SessionThread root, bool loaded, CancellationToken ct)

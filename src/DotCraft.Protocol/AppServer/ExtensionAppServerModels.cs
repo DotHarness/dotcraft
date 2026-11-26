@@ -1461,8 +1461,39 @@ public sealed class NodeReplBrowserSessionParams : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> ThreadId { get; init; }
 
+    [JsonPropertyName("isSubagent")]
+    [JsonPropertyOrder(5)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool> IsSubagent { get; init; }
+
     [JsonPropertyName("turnId")]
     [JsonPropertyOrder(3)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> TurnId { get; init; }
+
+}
+
+[ContractModule("node-repl")]
+public sealed class NodeReplTurnEndedParams : ExtensibleJsonObject
+{
+    [JsonPropertyName("disposeSession")]
+    [JsonPropertyOrder(3)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool> DisposeSession { get; init; }
+
+    [JsonPropertyName("isSubagent")]
+    [JsonPropertyOrder(2)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool> IsSubagent { get; init; }
+
+    [JsonPropertyName("threadId")]
+    [JsonPropertyOrder(0)]
+    [JsonRequired]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    public string? ThreadId { get; init; }
+
+    [JsonPropertyName("turnId")]
+    [JsonPropertyOrder(1)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> TurnId { get; init; }
 

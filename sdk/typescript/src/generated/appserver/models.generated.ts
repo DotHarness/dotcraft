@@ -2664,6 +2664,7 @@ export interface ModelSpeedCapability {
 
 export interface NodeReplBrowserSessionParams {
   evaluationId?: string;
+  isSubagent?: boolean;
   protocolVersion?: number;
   sessionId?: string;
   threadId?: string;
@@ -2720,6 +2721,14 @@ export interface NodeReplRequestApprovalParams {
 
 export interface NodeReplRequestApprovalResult {
   approved: boolean;
+  [key: string]: unknown;
+}
+
+export interface NodeReplTurnEndedParams {
+  disposeSession?: boolean;
+  isSubagent?: boolean;
+  threadId: string | null;
+  turnId?: string | null;
   [key: string]: unknown;
 }
 

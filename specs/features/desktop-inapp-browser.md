@@ -70,8 +70,9 @@ Desktop identifies the embedded backend to AppServer as `desktop-iab`:
 Rules:
 
 - `browserUse.backend` is the AppServer-visible backend id; inside Node REPL the backend id is `iab`.
-- `browserSession.sessionId` is the isolation key and normally equals the thread id. `turnId` is forwarded when known.
+- `browserSession.sessionId` is the isolation key and normally equals the thread id. `turnId` is forwarded when known, and `isSubagent: true` marks SubAgent threads.
 - `evaluationId` changes for every Node REPL evaluation and drives command cancellation and late-result suppression.
+- When a turn that used Node REPL ends or a bound SubAgent closes, AppServer sends `ext/nodeRepl/turnEnded` on the bound connection so cleanup does not depend solely on thread observation subscriptions.
 - The backend `getInfo` result includes `metadata.dotcraftSessionId` equal to the active `browserSession.sessionId`, so the browser client selects the current session's backend.
 - Missing `sessionId` or `evaluationId` fails backend commands with `SessionMetadataMissing`.
 - Unknown `browserUse` capability fields are optional and forward-compatible.
@@ -176,6 +177,7 @@ Rules:
 - At finalization, agent-created tabs close and claimed tabs release by default. Release removes agent registrations, debugger connections, listeners, and page caches without destroying or reloading the page, which stays discoverable for re-acquisition.
 - Stale or guessed tab ids are rejected with `TabStale` or `InvalidArgument`.
 - Only a turn that used browser commands triggers automatic cleanup on completion, failure, or cancellation; evaluation completion does not. `tab.markDeliverable()` releases the page from agent management at cleanup, leaving it a user page. `tab.markHandoff()` keeps a temporary page under agent management until the next browser-using turn. The latest mark wins and is consumed at cleanup.
+- SubAgent sessions are isolated and disposable: `visibility` is omitted from `getInfo` capabilities and `browser_visibility_set` fails with `UnsupportedApi`, agent-created SubAgent tabs are not exposed to the conversation viewer panel, and when a SubAgent turn ends, closes, or disconnects, Desktop unconditionally closes all agent-created tabs, clears automation state, and disposes the SubAgent's browser and Node REPL runtime regardless of `markDeliverable()` or `markHandoff()` marks.
 - `browser.tabs.finalize({ keep: [{ tab, status: "deliverable"|"handoff" }] })` performs early cleanup and writes equivalent marks. Keep entries must be typed when typed finalize is advertised.
 - Temporary inspection tabs are closed with `tab.close()` or by finalization. `browser.tabs.content({ urls })` is preferred for read-only fetches; its temporary pages are hidden: they never appear in the tab strip, steal focus, or affect first-tab focus.
 - Visible automation tabs appear in the viewer when exposed and disappear when closed by `tab.close()`, finalize, reset, or cleanup.

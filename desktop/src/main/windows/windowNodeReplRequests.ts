@@ -11,6 +11,7 @@ interface ThreadBinding {
   owner: BrowserWindow
   sessionId: string
   turnId?: string
+  isSubagent?: boolean
   evaluations: Set<string>
 }
 
@@ -35,20 +36,47 @@ export function releaseWorkspaceNodeReplBindings(entry: WorkspaceConnectionEntry
     if (binding.entry !== entry) continue
     if (binding.turnId) computerUseManager.handleTurnEnded(threadId, binding.turnId)
     bindings.delete(threadId)
-    nodeReplManager.reset(threadId, { preserveBrowserTabs: true })
+    nodeReplManager.reset(threadId, { preserveBrowserTabs: !binding.isSubagent })
   }
 }
 
 export function handleWorkspaceNodeReplNotification(entry: WorkspaceConnectionEntry, method: string, params: unknown): void {
-  if (method !== 'thread/deleted' || !params || typeof params !== 'object') return
-  const threadId = (params as { threadId?: unknown }).threadId
-  if (typeof threadId !== 'string') return
+  if (!params || typeof params !== 'object') return
+  if (method === 'thread/deleted') {
+    const threadId = (params as { threadId?: unknown }).threadId
+    if (typeof threadId !== 'string') return
+    const binding = bindings.get(threadId)
+    if (binding?.entry !== entry) return
+    if (binding.turnId) computerUseManager.handleTurnEnded(threadId, binding.turnId)
+    bindings.delete(threadId)
+    nodeReplManager.reset(threadId)
+    if (binding.turnId) void entry.client.releaseBrowserTurn(threadId, binding.turnId).catch(console.warn)
+    return
+  }
+  if (method !== 'ext/nodeRepl/turnEnded') return
+  const payload = params as {
+    threadId?: unknown
+    turnId?: unknown
+    isSubagent?: unknown
+    disposeSession?: unknown
+  }
+  if (typeof payload.threadId !== 'string' || !payload.threadId.trim()) return
+  const threadId = payload.threadId
   const binding = bindings.get(threadId)
-  if (binding?.entry !== entry) return
-  if (binding.turnId) computerUseManager.handleTurnEnded(threadId, binding.turnId)
-  bindings.delete(threadId)
-  nodeReplManager.reset(threadId)
-  if (binding.turnId) void entry.client.releaseBrowserTurn(threadId, binding.turnId).catch(console.warn)
+  if (binding && binding.entry !== entry) return
+  const turnId = typeof payload.turnId === 'string' && payload.turnId.trim() ? payload.turnId : binding?.turnId
+  const shouldDispose = payload.disposeSession === true || payload.isSubagent === true || binding?.isSubagent === true
+  if (shouldDispose) {
+    if (turnId) computerUseManager.handleTurnEnded(threadId, turnId)
+    bindings.delete(threadId)
+    nodeReplManager.reset(threadId, { preserveBrowserTabs: false })
+    if (turnId) void entry.client.releaseBrowserTurn(threadId, turnId).catch(console.warn)
+    return
+  }
+  if (!binding || !turnId) return
+  computerUseManager.handleTurnEnded(threadId, turnId)
+  browserUseManagers.handleTurnNotification('turn/completed', { threadId, turnId }, entry.localWorkspacePath ?? entry.workspacePath)
+  void entry.client.releaseBrowserTurn(threadId, turnId).catch(console.warn)
 }
 
 function bindThread(entry: WorkspaceConnectionEntry, owner: BrowserWindow, threadId: string, sessionId: string): ThreadBinding {
@@ -68,6 +96,11 @@ function bindThread(entry: WorkspaceConnectionEntry, owner: BrowserWindow, threa
       const binding = bindings.get(threadId)
       if (binding?.entry !== entry || binding.turnId !== turnId) return
       computerUseManager.handleTurnEnded(threadId, turnId)
+      if (binding.isSubagent) {
+        bindings.delete(threadId)
+        nodeReplManager.reset(threadId, { preserveBrowserTabs: false })
+        return
+      }
       browserUseManagers.handleTurnNotification('turn/completed', { threadId, turnId }, entry.localWorkspacePath ?? entry.workspacePath)
     })
     entry.client.on('close', () => releaseWorkspaceNodeReplBindings(entry))
@@ -108,6 +141,7 @@ export async function handleWorkspaceNodeReplRequest(
   const owner = ctx.mainWindow!
   const sessionId = typeof p.browserSession?.sessionId === 'string' ? p.browserSession.sessionId : threadId
   const binding = bindThread(entry, owner, threadId, sessionId)
+  if (p.browserSession?.isSubagent === true) binding.isSubagent = true
   const evaluationId = p.evaluationId || randomUUID()
   if (binding.evaluations.has(evaluationId)) throw new Error('Node REPL evaluation is already in flight.')
   binding.evaluations.add(evaluationId)

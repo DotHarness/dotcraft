@@ -179,6 +179,32 @@ public sealed class NodeReplToolProviderTests
         Assert.Equal(timeoutSeconds, proxy.LastTimeoutSeconds);
     }
 
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public async Task Dispatch_ForwardsSubagentFlagFromTurnServices(bool isTopLevel, bool expectedSubagent)
+    {
+        var proxy = new FakeNodeReplProxy(true);
+        var fixture = CreateSource(proxy);
+        var snapshot = await new EffectiveToolSnapshotBuilder().BuildAsync([fixture.Source], fixture.Planning);
+        var definition = Assert.Single(snapshot.ModelVisibleDefinitions);
+
+        var result = await new ToolDispatcher().DispatchProviderFlatCallAsync(
+            snapshot,
+            snapshot.ProviderFlatNames[definition.Name],
+            new System.Text.Json.Nodes.JsonObject { ["code"] = "1 + 1" },
+            new ToolInvocationRequest(
+                "thread_sub",
+                "turn_001",
+                "subagent-flag-test",
+                ToolInvocationAudience.Model,
+                TurnServices: new TurnToolServices { IsTopLevelThread = isTopLevel }));
+
+        Assert.True(result.Success);
+        Assert.NotNull(proxy.LastMetadata);
+        Assert.Equal(expectedSubagent, proxy.LastMetadata!.IsSubagent);
+    }
+
     private static SourceFixture CreateSource(
         INodeReplProxy proxy,
         IReadOnlyList<string>? pluginIds = null)

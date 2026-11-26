@@ -133,6 +133,7 @@ interface BrowserUseTabRuntime {
   keptStatus?: BrowserFinalizeKeepStatus
   closed?: boolean
   exposedToRenderer?: boolean
+  presentedInRenderer?: boolean
   cdpAttached?: boolean
   targetSessions: Map<string, string>
   frames: BrowserFrameSessions
@@ -178,6 +179,7 @@ interface BrowserSessionMetadata {
   turnId?: string
   evaluationId?: string
   backendId?: string
+  isSubagent?: boolean
 }
 
 interface BrowserUseOperationTrace {
@@ -229,6 +231,7 @@ interface BrowserUseThreadRuntime {
   operationHistory: BrowserUseOperationTrace[]
   pendingViewport?: ViewportSize
   browserVisible: boolean
+  isSubagent: boolean
 }
 
 interface BrowserUseOperationTimeouts {
@@ -376,12 +379,14 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     runtime.activeOperation = undefined
     runtime.activeEvaluationId = params.evaluationId
     runtime.activeAbortSignal = params.signal
+    if (params.browserSession?.isSubagent === true) runtime.isSubagent = true
     runtime.browserSession = {
       ...(params.browserSession ?? {}),
       sessionId: params.browserSession?.sessionId ?? params.threadId,
       turnId: params.browserSession?.turnId ?? params.evaluationId,
       evaluationId: params.browserSession?.evaluationId ?? params.evaluationId,
-      backendId: this.profile.id
+      backendId: this.profile.id,
+      ...(runtime.isSubagent ? { isSubagent: true } : {})
     }
     const sessionId = runtime.browserSession.sessionId
     if (sessionId) this.runtimesBySessionId.set(sessionId, runtime)
@@ -429,6 +434,9 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     if (workspacePath && runtime.workspacePath && workspacePath !== runtime.workspacePath) return
     if (!turn.terminal) {
       runtime.lifecycle.beginTurn(turn.turnId)
+    } else if (runtime.isSubagent) {
+      runtime.pendingViewport = undefined
+      this.reset(runtime.threadId, { preserveTabs: false })
     } else {
       runtime.pendingViewport = undefined
       runtime.lifecycle.finishTurn(turn.turnId, runtime.tabs.values(), this.lifecycleEffects(runtime))
@@ -493,7 +501,8 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       recentUserBackendTabIds: new Set<number>(),
       pendingBackendCommands: new Map<unknown, BrowserUseBackendPendingCommand>(),
       operationHistory: [],
-      browserVisible: false
+      browserVisible: false,
+      isSubagent: false
     }
 
     const display = async (imageLike: unknown): Promise<void> => {
@@ -818,7 +827,9 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       supportsTypedFinalize: true,
       maxBrowserResultBytes: BROWSER_USE_MAX_RESULT_BYTES,
       capabilities: {
-        browser: this.profile.browserCapabilities.map((capability) => ({ ...capability })),
+        browser: this.profile.browserCapabilities
+          .filter((capability) => !runtime.isSubagent || capability.id !== 'visibility')
+          .map((capability) => ({ ...capability })),
         tab: this.profile.tabCapabilities.map((capability) => ({ ...capability })),
         docs: {
           supported: [
@@ -1425,6 +1436,9 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     runtime: BrowserUseThreadRuntime,
     params: Record<string, unknown>
   ): Record<string, unknown> {
+    if (runtime.isSubagent) {
+      throw BrowserUseBackendError.unsupportedApi('In-app browser visibility is not supported in a subagent thread.')
+    }
     if (typeof params.visible !== 'boolean') {
       throw BrowserUseBackendError.invalidArgument('browser_visibility_set requires visible.')
     }
@@ -1615,7 +1629,8 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     options: BrowserUseCreateTabOptions = {}
   ): Promise<BrowserUseTabRuntime> {
     const exposeToRenderer = options.exposeToRenderer !== false
-    const visible = options.visible ?? runtime.browserVisible
+    const presentInRenderer = exposeToRenderer && !runtime.isSubagent
+    const visible = presentInRenderer ? (options.visible ?? runtime.browserVisible) : false
     const normalizedInitial = initialUrl ? normalizeBrowserUseUrl(initialUrl) : null
     if (initialUrl && !normalizedInitial) throw new Error(`Invalid browser URL: ${initialUrl}`)
     const id = `browser-${sanitizeThreadId(runtime.threadId)}-${randomUUID()}`
@@ -1631,14 +1646,15 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       initialUrl: 'about:blank',
       sessionUrl: normalizedInitial ?? 'about:blank',
       allowFileScheme: true,
-      ...(options.purpose === 'temporary-content' ? { temporary: true } : {}),
+      ...(options.purpose === 'temporary-content' || runtime.isSubagent ? { temporary: true } : {}),
       ...(runtime.sessionName ? { sessionName: runtime.sessionName } : {})
     })
 
     const tab = this.registerTab(owner, runtime, id, false)
     tab.exposedToRenderer = exposeToRenderer
+    tab.presentedInRenderer = presentInRenderer
 
-    if (exposeToRenderer) {
+    if (presentInRenderer) {
       const focusMode = visible && !runtime.hasFocusedFirstTab ? 'first-open' : 'none'
       if (focusMode === 'first-open') runtime.hasFocusedFirstTab = true
       this.emitOpen(owner, {
@@ -2305,8 +2321,11 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
   ): BrowserUseTabRuntime {
     const existing = runtime.tabs.get(id)
     if (existing) {
-      if (userOwned) existing.userOwned = true
-      if (userOwned) existing.exposedToRenderer = true
+      if (userOwned) {
+        existing.userOwned = true
+        existing.exposedToRenderer = true
+        existing.presentedInRenderer = true
+      }
       return existing
     }
     const wc = this.viewerHost.getTabWebContents(owner, id)
@@ -2318,6 +2337,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
       clipboardItems: [],
       userOwned,
       exposedToRenderer: userOwned,
+      presentedInRenderer: userOwned,
       targetSessions: new Map(),
       frames: new BrowserFrameSessions()
     }
@@ -2406,7 +2426,7 @@ export class BrowserUseManager implements BrowserUseBackendRequestHandler {
     if (tab.closed) return
     this.markAutomation(tab, 'close')
     const runtime = this.getRuntimeForTab(tab)
-    const shouldNotifyRenderer = tab.exposedToRenderer === true
+    const shouldNotifyRenderer = tab.presentedInRenderer === true
     this.detachDebugger(tab)
     this.forgetBackendTab(runtime, tab)
     this.viewerHost.destroyTab(tab.owner, tab.id)

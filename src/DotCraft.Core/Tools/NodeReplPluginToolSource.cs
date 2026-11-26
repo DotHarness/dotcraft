@@ -148,7 +148,8 @@ public sealed class NodeReplPluginToolSource(
                     ThreadId = context.Invocation.ThreadId,
                     SessionId = context.Invocation.ThreadId,
                     TurnId = context.Invocation.TurnId,
-                    ProtocolVersion = 1
+                    ProtocolVersion = 1,
+                    IsSubagent = context.Invocation.TurnServices is { IsTopLevelThread: false }
                 });
             if (result is null)
             {

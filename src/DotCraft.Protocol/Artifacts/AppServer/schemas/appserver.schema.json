@@ -10511,6 +10511,9 @@
         "evaluationId": {
           "type": "string"
         },
+        "isSubagent": {
+          "type": "boolean"
+        },
         "protocolVersion": {
           "type": "integer"
         },
@@ -10706,6 +10709,42 @@
       "additionalProperties": true,
       "required": [
         "approved"
+      ]
+    },
+    "NodeReplTurnEndedParams": {
+      "title": "NodeReplTurnEndedParams",
+      "type": "object",
+      "properties": {
+        "disposeSession": {
+          "type": "boolean"
+        },
+        "isSubagent": {
+          "type": "boolean"
+        },
+        "threadId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "turnId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "threadId"
       ]
     },
     "PerforceConnection": {

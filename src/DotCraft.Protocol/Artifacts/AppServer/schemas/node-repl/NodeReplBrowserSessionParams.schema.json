@@ -7,6 +7,9 @@
     "evaluationId": {
       "type": "string"
     },
+    "isSubagent": {
+      "type": "boolean"
+    },
     "protocolVersion": {
       "type": "integer"
     },

@@ -89,6 +89,8 @@ public static partial class AppServerRpc
 
     public static readonly RpcRequest<NodeReplRequestApprovalParams, NodeReplRequestApprovalResult> ExtNodeReplRequestApproval = new("ext/nodeRepl/requestApproval", RpcDirection.ClientToServer, "1", "specs/protocols/appserver-protocol.md", module: "node-repl", scope: "connection", capability: "nodeRepl", errors: CommonErrors);
 
+    public static readonly RpcNotification<NodeReplTurnEndedParams> ExtNodeReplTurnEnded = new("ext/nodeRepl/turnEnded", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", module: "node-repl", scope: "connection", capability: "nodeRepl");
+
     public static readonly RpcNotification<ThreadAppBindingsChangedNotification> ThreadAppBindingsChanged = new("thread/appBindings/changed", RpcDirection.ServerToClient, "1", "specs/protocols/app-binding.md", module: "app-binding", scope: "thread", capability: "appBindingVersion:1");
 
     public static readonly RpcRequest<ThreadAppBindingConfirmCapabilitiesParams, AppBinding> ThreadAppBindingConfirmCapabilities = new("thread/appBindings/confirmCapabilities", RpcDirection.ClientToServer, "1", "specs/protocols/app-binding.md", module: "app-binding", scope: "thread", capability: "appBindingVersion:1", errors: CommonErrors);

@@ -13,7 +13,8 @@ tab.goto(url), back(), forward(), reload(), close(), title(), and url() navigate
 - Call tab.markDeliverable() on a tab that should stay open as a user-facing result.
 - Call tab.markHandoff() only when work continues in a later turn.
 - Marks are turn-scoped and the latest mark for a tab wins. Mark a tab again in a later turn if it must survive that turn too.
-- browser.tabs.finalize({ keep: [{ tab, status: "deliverable" | "handoff" }] }) applies the same marks and cleans up early. Close intermediate pages with tab.close() once they are no longer needed.`
+- Do not mark research, search, source, intermediate, duplicate, blank, error, or routine navigation tabs. Once you have extracted what you need, let automatic turn cleanup close them.
+- browser.tabs.finalize({ keep: [{ tab, status: "deliverable" | "handoff" }] }) applies the same marks and cleans up early.`
   },
   {
     name: 'observation', mode: 'included', supported: 'playwrightCommonSubset',
@@ -61,8 +62,7 @@ tab.cua.scroll({ x, y, scrollY: 700 }) scrolls by scrollY at the viewport point 
 - Keep browser work in the background by default.
 - Show the browser when the request is primarily to put a page in front of the user or let them watch, such as opening a page for them, showing the current tab, or keeping the browser visible while testing.
 - Do not show it when navigation is only a means to answer a question or verify behavior. Localhost targets and ordinary navigation do not by themselves require visibility.
-- To show it: const visibility = await browser.capabilities.get("visibility"); await visibility.set(true); visibility.get() reports the state and visibility.set(false) hides it.
-- Visibility does not keep a page open. When the page itself is the result, call tab.markDeliverable() before navigating.`
+- To show it: const visibility = await browser.capabilities.get("visibility"); await visibility.set(true); visibility.get() reports the state and visibility.set(false) hides it.`
   },
   {
     name: 'browser-safety', mode: 'included',

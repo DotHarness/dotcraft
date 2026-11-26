@@ -3,6 +3,7 @@ using DotCraft.AppBinding;
 using DotCraft.Mcp;
 using DotCraft.Context;
 using DotCraft.GenerativeUi;
+using DotCraft.Sessions;
 using DotCraft.Visualizations;
 using DotCraft.Tools;
 using Microsoft.Extensions.DependencyInjection;
@@ -37,6 +38,7 @@ public static class AppServerServiceCollectionExtensions
         services.TryAddSingleton<IAcpExtensionProxy>(provider => provider.GetRequiredService<WireAcpExtensionProxy>());
         services.TryAddSingleton<WireNodeReplProxy>();
         services.TryAddSingleton<INodeReplProxy>(provider => provider.GetRequiredService<WireNodeReplProxy>());
+        services.AddSingleton<IThreadLifecycleObserver>(provider => provider.GetRequiredService<WireNodeReplProxy>());
         services.TryAddSingleton<VisualizationRuntimeRegistry>();
         services.AddSingleton<IThreadSystemPromptContextProvider>(provider =>
             provider.GetRequiredService<VisualizationRuntimeRegistry>());
