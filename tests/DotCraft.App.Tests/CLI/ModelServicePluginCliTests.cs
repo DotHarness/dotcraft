@@ -1,9 +1,15 @@
 using System.Diagnostics;
+using DotCraft.Agents;
 using DotCraft.Agents.Remote;
 using DotCraft.CLI;
 using DotCraft.Configuration;
 using DotCraft.ModelService;
+using DotCraft.Plugins;
+using DotCraft.Runtime;
 using DotCraft.Tests.Runtime.Plugins;
+using DotCraft.Workspaces;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Xunit;
 
 namespace DotCraft.Tests.CLI;
@@ -39,6 +45,77 @@ public sealed class ModelServicePluginCliTests : IDisposable
         var revoke = await RunAsync("--plugin", PluginId, "plugin", "revoke", PluginId);
         Assert.True(revoke.Code == 0, revoke.Output + revoke.Error);
         Assert.NotEqual(0, (await RunAsync("--plugin", PluginId, "check")).Code);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RevokeRemovesAllStoredGrantsAfterInstalledBundleChanges(bool removeBundle)
+    {
+        PrepareService();
+        var trust = await RunAsync("--plugin", PluginId, "plugin", "trust", PluginId);
+        Assert.Equal(0, trust.Code);
+
+        var config = FileModelServiceAccess.ReadStateConfiguration(_root);
+        using var authority = new DotNetExtensionTrust(config);
+        Assert.True(authority.Grant(PluginId, "another-fixture-fingerprint"));
+        Assert.True(authority.Grant("other-plugin", "other-fixture-fingerprint"));
+
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var services = new ServiceCollection();
+        services.AddDotCraftModelPluginRuntime(config, DotCraftPaths.Create(_root, _root),
+            [Path.Combine(_root, "plugins")], [PluginId]);
+        await using var service = services.BuildServiceProvider();
+        foreach (var hosted in service.GetServices<IHostedService>())
+            await hosted.StartAsync(deadline.Token);
+        var resolver = service.GetRequiredService<ModelBackendResolver>();
+        var provider = ModelProviderResolver.ResolveProvider(config, ProviderId);
+        var route = Assert.IsType<ModelServiceProvider>(ModelServiceProvider.ResolveBackend(provider, resolver));
+
+        var bundle = Path.Combine(_root, "plugins", PluginId);
+        if (removeBundle)
+            Directory.Delete(bundle, recursive: true);
+        else
+            DotNetExtensionTestBundle.WritePlugin(bundle, PluginId, "Fixture.Plugin",
+                PluginSource.Replace("fixture-model", "replacement-model", StringComparison.Ordinal));
+
+        Assert.False(route.Stopping.IsCancellationRequested);
+        var withdrawn = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var registration = route.Stopping.Register(() => withdrawn.TrySetResult());
+
+        var revoke = await RunAsync("plugin", "revoke", PluginId);
+        Assert.Equal(0, revoke.Code);
+        await withdrawn.Task.WaitAsync(deadline.Token);
+        Assert.Null(ModelServiceProvider.ResolveBackend(provider, resolver));
+
+        using var reloaded = new DotNetExtensionTrust(config);
+        Assert.Null(reloaded.TrustedFingerprint(PluginId));
+        Assert.Equal(DotNetExtensionTrustStatus.Trusted, reloaded.ResolveStatus("other-plugin", "other-fixture-fingerprint"));
+    }
+
+    [Fact]
+    public async Task TrustAdministrationDoesNotRequireOtherProvidersToBeReady()
+    {
+        PrepareService();
+        File.WriteAllText(Path.Combine(_root, "config.json"), """
+            {
+                "Providers": {
+                    "gateway": { "BackendId": "service-fixture" },
+                    "unconfigured": { "Protocol": "openai-responses", "EndPoint": "https://provider.invalid/v1" }
+                }
+            }
+            """);
+
+        var trust = await RunAsync("--plugin", PluginId, "plugin", "trust", PluginId);
+        Assert.Equal(0, trust.Code);
+        using var authority = new DotNetExtensionTrust(FileModelServiceAccess.ReadStateConfiguration(_root));
+        Assert.NotNull(authority.TrustedFingerprint(PluginId));
+
+        Assert.NotEqual(0, (await RunAsync("--plugin", PluginId, "check")).Code);
+
+        var revoke = await RunAsync("plugin", "revoke", PluginId);
+        Assert.Equal(0, revoke.Code);
+        Assert.Null(authority.TrustedFingerprint(PluginId));
     }
 
     [Fact]

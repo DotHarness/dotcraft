@@ -130,26 +130,35 @@ public sealed class PluginDiscoveryService(
         }
     }
 
-    public PluginDiscoveryResult DiscoverDirectory(string directory, AppConfig config)
+    public PluginDiscoveryResult DiscoverDirectory(string directory, AppConfig config) =>
+        DiscoverDirectories([directory], config);
+
+    public PluginDiscoveryResult DiscoverDirectories(
+        IReadOnlyList<string> directories, AppConfig config, IReadOnlySet<string>? allowedPluginIds = null)
     {
+        if (allowedPluginIds is { Count: 0 })
+            return new([], []);
+
         var diagnostics = new List<PluginDiagnostic>();
-        var root = Path.GetFullPath(directory);
-        if (!Directory.Exists(root))
+        var roots = directories.Select(directory => (directory, PluginDiscoverySourceKind.Explicit));
+        var candidates = EnumerateRoots(roots, diagnostics);
+        var discovered = DiscoverCandidates(config, candidates, diagnostics, allowedPluginIds);
+        if (allowedPluginIds is not null)
         {
-            diagnostics.Add(PluginDiagnostic.Info("PluginRootMissing",
-                $"Plugin root '{root}' does not exist.", path: root));
-            return new PluginDiscoveryResult([], diagnostics);
+            var found = discovered.Select(plugin => plugin.Manifest.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (var id in allowedPluginIds.Order(StringComparer.Ordinal))
+                if (!found.Contains(id))
+                    diagnostics.Add(PluginDiagnostic.Warning("PluginNotFound",
+                        $"Allowed plugin '{id}' was not found in the selected plugin roots.", id));
         }
 
-        var candidates = ExpandRoot(root)
-            .Select(pluginRoot => new PluginCandidate(pluginRoot, PluginDiscoverySourceKind.Explicit, root));
-        return new PluginDiscoveryResult(
-            PluginDependencyCatalogProjection.Attach(DiscoverCandidates(config, candidates, diagnostics)),
+        return new PluginDiscoveryResult(PluginDependencyCatalogProjection.Attach(discovered),
             PluginDiagnostic.Deduplicate(diagnostics));
     }
 
     private static List<DiscoveredPlugin> DiscoverCandidates(
-        AppConfig config, IEnumerable<PluginCandidate> candidates, List<PluginDiagnostic> diagnostics)
+        AppConfig config, IEnumerable<PluginCandidate> candidates, List<PluginDiagnostic> diagnostics,
+        IReadOnlySet<string>? allowedPluginIds = null)
     {
         var discovered = new List<DiscoveredPlugin>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -158,7 +167,7 @@ public sealed class PluginDiscoveryService(
             var parse = PluginManifestParser.Load(candidate.PluginRoot);
             diagnostics.AddRange(parse.Diagnostics);
             var manifest = parse.Manifest;
-            if (manifest == null)
+            if (manifest == null || (allowedPluginIds is not null && !allowedPluginIds.Contains(manifest.Id)))
                 continue;
 
             if (!seen.Add(manifest.Id))
@@ -228,6 +237,12 @@ public sealed class PluginDiscoveryService(
         if (!string.IsNullOrWhiteSpace(userGlobalPluginsPath))
             roots.Add((userGlobalPluginsPath, PluginDiscoverySourceKind.UserGlobal));
 
+        return EnumerateRoots(roots, diagnostics);
+    }
+
+    private static IReadOnlyList<PluginCandidate> EnumerateRoots(
+        IEnumerable<(string Path, PluginDiscoverySourceKind SourceKind)> roots, List<PluginDiagnostic> diagnostics)
+    {
         var candidates = new List<PluginCandidate>();
         var candidateRoots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var (root, sourceKind) in roots)

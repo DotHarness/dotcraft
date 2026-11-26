@@ -11,8 +11,7 @@ internal sealed record PluginGenerationHost(
     IContributionRegistry Contributions,
     PluginCallGateRegistry CallGates,
     IReadOnlySet<string> HostSharedAssemblies,
-    bool ToolsOnly = false,
-    bool ModelsOnly = false);
+    bool ToolsOnly = false);
 
 /// <summary>The poller's reference to the load context must be weak so it can observe collection.</summary>
 internal sealed record PluginGenerationRemnant(
@@ -66,6 +65,10 @@ internal sealed class PluginGeneration
     private readonly object _gate = new();
     private readonly PluginCallGate _calls;
     private readonly PluginCallGateRegistry _callGates;
+    private readonly CancellationTokenSource _routeStopping;
+    private Task? _routeDrain;
+    private Task<string?>? _routeCancellation;
+    private string? _routeWithdrawalError;
     private PluginLoadContext? _loadContext;
     private IDotCraftPlugin? _entry;
     private PluginLifetime? _lifetime;
@@ -80,6 +83,7 @@ internal sealed class PluginGeneration
         string shadowRoot,
         PluginCallGateRegistry callGates,
         PluginCallGate calls,
+        CancellationTokenSource routeStopping,
         PluginLoadContext loadContext,
         IDotCraftPlugin entry,
         PluginLifetime lifetime,
@@ -92,6 +96,7 @@ internal sealed class PluginGeneration
         ShadowRoot = shadowRoot;
         _callGates = callGates;
         _calls = calls;
+        _routeStopping = routeStopping;
         _loadContext = loadContext;
         _entry = entry;
         _lifetime = lifetime;
@@ -121,6 +126,7 @@ internal sealed class PluginGeneration
     {
         PluginLoadContext? loadContext = null;
         PluginLifetime? lifetime = null;
+        CancellationTokenSource? routeStopping = null;
         PluginCallGate? calls = null;
         PluginContributionRegistrar? registrar = null;
         PluginServiceExportRegistry? exports = null;
@@ -146,6 +152,8 @@ internal sealed class PluginGeneration
                 ?? throw new InvalidOperationException("Plugin entry type does not implement IDotCraftPlugin.");
             lifetime = new PluginLifetime();
             lifetime.SetEntryInstance(entry);
+            routeStopping = new CancellationTokenSource();
+            lifetime.Own(routeStopping);
             calls = new PluginCallGate();
             registrar = new PluginContributionRegistrar(
                 host.Contributions,
@@ -153,8 +161,7 @@ internal sealed class PluginGeneration
                 calls,
                 entry,
                 host.ToolsOnly,
-                lifetime.Stopping,
-                host.ModelsOnly);
+                routeStopping.Token);
             exports = new PluginServiceExportRegistry(
                 snapshot.Manifest.Id,
                 new HashSet<Assembly>(exportedApis.Values, ReferenceEqualityComparer.Instance));
@@ -198,6 +205,7 @@ internal sealed class PluginGeneration
                 shadowRoot,
                 host.CallGates,
                 calls,
+                routeStopping,
                 loadContext,
                 entry,
                 lifetime,
@@ -221,6 +229,7 @@ internal sealed class PluginGeneration
             registrar?.Revoke();
             var callDrain = calls?.CloseAsync() ?? Task.CompletedTask;
             host.CallGates.Revoke(snapshot.Manifest.Id, generationId);
+            var routeCancellation = CancelRoutesAsync(routeStopping);
             try
             {
                 lifetime?.SignalStopping();
@@ -229,9 +238,11 @@ internal sealed class PluginGeneration
             {
             }
             await callDrain.ConfigureAwait(false);
-            var cleanupErrors = registrar == null
-                ? []
-                : await registrar.DisposeTargetsAsync().ConfigureAwait(false);
+            var cleanupErrors = new List<string>();
+            if (await routeCancellation.ConfigureAwait(false) is { } routeError)
+                cleanupErrors.Add(routeError);
+            if (registrar != null)
+                cleanupErrors.AddRange(await registrar.DisposeTargetsAsync().ConfigureAwait(false));
             exports?.Clear();
             await DisposeEntryAndLifetimeAsync(entry, lifetime).ConfigureAwait(false);
             var released = loadContext == null ? null : ReleaseLoadContext(loadContext);
@@ -267,7 +278,30 @@ internal sealed class PluginGeneration
         }
     }
 
-    /// <summary>Closes routing synchronously before returning the task that drains callers and releases resources.</summary>
+    public void WithdrawRouting()
+    {
+        lock (_gate)
+        {
+            if (_routeDrain != null)
+                return;
+
+            // Close the gate before removing its lookup entry so callers holding it cannot enter.
+            _routeDrain = _calls.CloseAsync();
+            _callGates.Revoke(PluginId, GenerationId);
+            try
+            {
+                _registrar?.Revoke();
+            }
+            catch (Exception exception)
+            {
+                _routeWithdrawalError = CopyExceptionMessage(exception);
+            }
+
+            // Admitted dependents can still use typed exports until their own cleanup finishes.
+            _routeCancellation = CancelRoutesAsync(_routeStopping);
+        }
+    }
+
     public Task<PluginGenerationRemnant> BeginCleanup()
     {
         lock (_gate)
@@ -278,27 +312,14 @@ internal sealed class PluginGeneration
 
     private async Task<PluginGenerationRemnant> CleanupCoreAsync()
     {
+        WithdrawRouting();
         var errors = new List<string>();
+        if (_routeWithdrawalError is { } withdrawalError)
+            errors.Add(withdrawalError);
         var lifetime = _lifetime;
         var entry = _entry;
-
         var registrar = _registrar;
         _registrar = null;
-        if (registrar != null)
-        {
-            try
-            {
-                registrar.Revoke();
-            }
-            catch (Exception exception)
-            {
-                errors.Add(CopyExceptionMessage(exception));
-            }
-        }
-
-        // Close the gate before removing its lookup entry so callers holding it cannot enter.
-        var callDrain = _calls.CloseAsync();
-        _callGates.Revoke(PluginId, GenerationId);
         if (lifetime != null)
         {
             try
@@ -310,7 +331,9 @@ internal sealed class PluginGeneration
                 errors.Add(CopyExceptionMessage(exception));
             }
         }
-        await callDrain.ConfigureAwait(false);
+        await _routeDrain!.ConfigureAwait(false);
+        if (await _routeCancellation!.ConfigureAwait(false) is { } routeError)
+            errors.Add(routeError);
 
         if (lifetime != null)
         {
@@ -360,6 +383,20 @@ internal sealed class PluginGeneration
             GenerationId,
             ShadowRoot,
             errors);
+    }
+
+    private static async Task<string?> CancelRoutesAsync(CancellationTokenSource? stopping)
+    {
+        try
+        {
+            if (stopping != null)
+                await stopping.CancelAsync().ConfigureAwait(false);
+            return null;
+        }
+        catch (Exception exception)
+        {
+            return CopyExceptionMessage(exception);
+        }
     }
 
     private static async Task DisposeEntryAndLifetimeAsync(

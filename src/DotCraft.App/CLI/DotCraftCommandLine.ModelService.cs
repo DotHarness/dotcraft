@@ -74,19 +74,18 @@ public static partial class DotCraftCommandLine
 
     private static Command CreateModelServicePluginCommand(Option<string> state, Option<string[]> plugins)
     {
-        var group = new Command("plugin", "Manage trust for installed model service plugins.");
-        Add("trust", "Trust the installed fingerprint of an allowed plugin.", true);
-        Add("revoke", "Remove trust from the installed fingerprint of an allowed plugin.", false);
+        var group = new Command("plugin", "Manage trust for model service plugins.");
+        var trustId = new Argument<string>("id");
+        var trust = new Command("trust", "Trust the installed fingerprint of an allowed plugin.") { trustId };
+        trust.SetAction((parse, ct) => ModelServiceCliRunner.TrustPluginAsync(
+            parse.GetRequiredValue(state), parse.GetValue(plugins) ?? [], parse.GetRequiredValue(trustId),
+            parse.InvocationConfiguration.Output, ct));
+        var revokeId = new Argument<string>("id");
+        var revoke = new Command("revoke", "Remove every trust grant for a plugin from the selected service state.") { revokeId };
+        revoke.SetAction(parse => ModelServiceCliRunner.RevokePluginTrust(
+            parse.GetRequiredValue(state), parse.GetRequiredValue(revokeId), parse.InvocationConfiguration.Output));
+        group.Subcommands.Add(trust);
+        group.Subcommands.Add(revoke);
         return group;
-
-        void Add(string name, string description, bool trusted)
-        {
-            var pluginId = new Argument<string>("id");
-            var command = new Command(name, description) { pluginId };
-            command.SetAction((parse, ct) => ModelServiceCliRunner.SetPluginTrustAsync(
-                parse.GetRequiredValue(state), parse.GetValue(plugins) ?? [], parse.GetRequiredValue(pluginId),
-                trusted, parse.InvocationConfiguration.Output, ct));
-            group.Subcommands.Add(command);
-        }
     }
 }

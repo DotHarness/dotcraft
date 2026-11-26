@@ -97,8 +97,7 @@ internal sealed partial class DotNetExtensionRuntimeManager
             dataRoot,
             node.WorkspaceRoot,
             settings,
-            new PluginGenerationHost(_services, _contributions, CallGates, _options.HostSharedAssemblies, _executionOnly,
-                ModelsOnly: _options.ModelPluginAdmission is not null),
+            new PluginGenerationHost(_services, _contributions, CallGates, _options.HostSharedAssemblies, _executionOnly),
             GetDirectProviderGenerations(node),
             commitGate,
             TrustCommitBlocker,
@@ -172,8 +171,8 @@ internal sealed partial class DotNetExtensionRuntimeManager
             node.Generation = attempt.Generation;
             node.State = DotNetExtensionRuntimeState.Active;
             node.Blockers = [];
-            if (_options.ModelPluginAdmission is null)
-                await DescribeToolsAsync(CancellationToken.None).ConfigureAwait(false);
+            if (_toolSource.IsValueCreated)
+                await DescribeToolsAsync(_toolSource.Value, CancellationToken.None).ConfigureAwait(false);
             PublishSnapshot();
             var generation = attempt.Generation;
             generation.StartWork(message => _ = HandleWorkFailureAsync(

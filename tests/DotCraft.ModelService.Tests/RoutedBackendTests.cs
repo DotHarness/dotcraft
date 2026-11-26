@@ -19,6 +19,7 @@ namespace DotCraft.ModelService.Tests;
 public sealed class RoutedBackendTests : IDisposable
 {
     private readonly string _state = Directory.CreateTempSubdirectory().FullName;
+    private const int ResolvedOutputLimit = 123;
 
     [Fact]
     public async Task OrdinaryRegistrationRoutesNativeModelsWithoutBackendOnWorker()
@@ -54,6 +55,7 @@ public sealed class RoutedBackendTests : IDisposable
         using var transport = new RemoteProviderTransport(new(new Uri("http://localhost/model-service/"), client.Token), serviceClient);
         var catalog = await transport.GetCatalogAsync(ct);
         var provider = Assert.Single(catalog.Providers);
+        Assert.Null(provider.Authentication);
         var serialized = JsonSerializer.Serialize(provider);
         Assert.DoesNotContain("upstream-key", serialized);
         Assert.DoesNotContain("gateway.invalid", serialized);
@@ -72,6 +74,7 @@ public sealed class RoutedBackendTests : IDisposable
         workerServices.AddSingleton<IProviderHttpTransport>(transport);
         await using var worker = workerServices.BuildServiceProvider();
         var resolver = worker.GetRequiredService<IModelRuntimeResolver>();
+        Assert.True(ModelProviderResolver.IsProviderUsable(config, "gateway"));
         foreach (var (model, protocol, path) in GatewayHandler.Models)
         {
             var runtime = ModelProviderResolver.ResolveMain(config, "gateway", model);
@@ -112,7 +115,7 @@ public sealed class RoutedBackendTests : IDisposable
     }
 
     private sealed class GatewayProvider(ModelBackendContext context) :
-        IModelProvider, IModelCatalogProvider, IProviderNativeHttpRouter
+        IModelProvider, IModelCatalogProvider, IProviderNativeHttpRouter, IProviderModelRuntimeResolver
     {
         private readonly string? _key = context.Credentials.ReadAsync(context.Stopping).GetAwaiter().GetResult()?.GetString();
         public IReadOnlyCollection<string> Protocols => ["auto", .. GatewayHandler.Models.Select(item => item.Protocol)];
@@ -126,9 +129,13 @@ public sealed class RoutedBackendTests : IDisposable
                 Success = true,
                 Models = GatewayHandler.Models.Select(item => new ModelCatalogEntry
                 {
-                    Id = item.Model, DefaultProtocol = item.Protocol, SupportedProtocols = [item.Protocol]
+                    Id = item.Model, DefaultProtocol = item.Protocol, SupportedProtocols = [item.Protocol],
+                    MaxOutputTokens = item.Protocol == ModelProviderProtocols.Anthropic ? 2_000 : null
                 }).ToList()
             });
+
+        public EffectiveModelRuntime ResolveRuntime(EffectiveModelRuntime runtime) =>
+            runtime.Model == "opus" ? runtime with { MaxOutputTokens = ResolvedOutputLimit } : runtime;
 
         public ProviderHttpRoute ResolveRoute(EffectiveModelRuntime runtime)
         {
@@ -163,6 +170,8 @@ public sealed class RoutedBackendTests : IDisposable
             Assert.Equal(ExpectedKey, Assert.Single(request.Headers.GetValues("x-gateway-key")));
             using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
             var model = body.RootElement.GetProperty("model").GetString()!;
+            if (model == "opus")
+                Assert.Equal(ResolvedOutputLimit, body.RootElement.GetProperty("max_tokens").GetInt32());
             Requests.Add((model, request.RequestUri!.AbsolutePath));
             var content = model switch
             {

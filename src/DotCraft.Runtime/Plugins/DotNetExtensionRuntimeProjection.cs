@@ -9,10 +9,11 @@ namespace DotCraft.Runtime;
 internal sealed partial class DotNetExtensionRuntimeManager
 {
     internal const int MaxDiagnosticsPerPlugin = 32;
-    private IReadOnlyList<PluginDiagnostic> _modelDiscoveryDiagnostics = [];
+    private IReadOnlyList<PluginDiagnostic> _discoveryDiagnostics = [];
 
     private void PublishSnapshot()
     {
+        var toolSource = _toolSource.IsValueCreated ? _toolSource.Value : null;
         var plugins = _nodes.Values
             .OrderBy(static node => node.Snapshot.Manifest.Id, StringComparer.Ordinal)
             .Select(node =>
@@ -28,8 +29,8 @@ internal sealed partial class DotNetExtensionRuntimeManager
                     {
                         Parameters = CloneParameters(blocker.Parameters)
                     }).ToArray(),
-                    node.State == DotNetExtensionRuntimeState.Active && node.GenerationId != null
-                        ? ToolSource.DescribeTools(pluginId, node.GenerationId)
+                    toolSource is not null && node.State == DotNetExtensionRuntimeState.Active && node.GenerationId != null
+                        ? toolSource.DescribeTools(pluginId, node.GenerationId)
                         : [],
                     leaked,
                     leaked >= _options.LeakedGenerationRestartThreshold,
@@ -40,8 +41,8 @@ internal sealed partial class DotNetExtensionRuntimeManager
             .ToArray();
         var diagnostics = _nodes.Values
             .SelectMany(static node => node.Diagnostics)
-            .Concat(ToolSource.Diagnostics)
-            .Concat(_modelDiscoveryDiagnostics)
+            .Concat(toolSource?.Diagnostics ?? [])
+            .Concat(_discoveryDiagnostics)
             .Select(static diagnostic => diagnostic with
             {
                 Parameters = CloneParameters(diagnostic.Parameters)
@@ -186,11 +187,11 @@ internal sealed partial class DotNetExtensionRuntimeManager
     }
 
     /// <summary>Primes the tool projection before publishing a snapshot for a new generation.</summary>
-    private async Task DescribeToolsAsync(CancellationToken cancellationToken)
+    private async Task DescribeToolsAsync(DotNetExtensionToolSource toolSource, CancellationToken cancellationToken)
     {
         try
         {
-            await ToolSource.GetRegistrationsAsync(DescribePlanningContext(), cancellationToken)
+            await toolSource.GetRegistrationsAsync(DescribePlanningContext(), cancellationToken)
                 .ConfigureAwait(false);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)

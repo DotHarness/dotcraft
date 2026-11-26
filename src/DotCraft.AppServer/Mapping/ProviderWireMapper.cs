@@ -17,7 +17,8 @@ public static class ProviderContractMapper
             var authenticated = authentication is null
                 ? provider.RemoteAuthentication?.IsAuthenticated
                 : await authentication.TryGetAuthenticatedAsync(config, id, ct).ConfigureAwait(false);
-            infos.Add(BuildProviderInfo(id, provider, ResolveRuntime(config, id, resolver), authenticated, ResolvePluginId(provider, resolver)));
+            infos.Add(BuildProviderInfo(id, provider, ResolveRuntime(config, id, resolver), authenticated,
+                ResolvePluginId(provider, resolver), managedByModelService: config.ModelService is not null));
         }
         return infos;
     }
@@ -26,7 +27,8 @@ public static class ProviderContractMapper
     {
         return config.Providers
             .OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
-            .Select(pair => BuildProviderInfo(pair.Key, pair.Value, ResolveRuntime(config, pair.Key, resolver), pluginId: ResolvePluginId(pair.Value, resolver)))
+            .Select(pair => BuildProviderInfo(pair.Key, pair.Value, ResolveRuntime(config, pair.Key, resolver),
+                pluginId: ResolvePluginId(pair.Value, resolver), managedByModelService: config.ModelService is not null))
             .ToList();
     }
 
@@ -35,7 +37,8 @@ public static class ProviderContractMapper
         AppConfig.ModelProviderConfig provider,
         EffectiveModelRuntime? runtime = null,
         bool? authenticated = null,
-        string? pluginId = null)
+        string? pluginId = null,
+        bool managedByModelService = false)
     {
         var custom = !string.IsNullOrWhiteSpace(provider.BackendId);
         var protocol = custom ? runtime?.Protocol ?? provider.Protocol : ModelProviderProtocols.Normalize(provider.Protocol);
@@ -46,9 +49,9 @@ public static class ProviderContractMapper
             BackendId = custom ? provider.BackendId! : default(Protocol.Optional<string>),
             PluginId = pluginId is null ? default(Protocol.Optional<string>) : pluginId,
             BackendSettings = custom ? System.Text.Json.JsonSerializer.SerializeToElement(provider.BackendSettings) : default(Protocol.Optional<System.Text.Json.JsonElement>),
-            ManagedBy = provider.RemoteAuthentication is null ? default : "modelService",
-            IsAuthenticated = authenticated is { } ready ? ready
-                : provider.RemoteAuthentication is null ? default(Protocol.Optional<bool>) : provider.RemoteAuthentication.IsAuthenticated,
+            ManagedBy = managedByModelService ? "modelService" : default,
+            IsAuthenticated = (authenticated ?? provider.RemoteAuthentication?.IsAuthenticated) is { } ready
+                ? ready : default(Protocol.Optional<bool>),
             DisplayName = string.IsNullOrWhiteSpace(provider.DisplayName) ? id : provider.DisplayName.Trim(),
             Protocol = protocol,
             ApiKey = string.IsNullOrWhiteSpace(provider.ApiKey) ? null : "********",

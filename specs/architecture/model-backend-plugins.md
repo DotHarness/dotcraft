@@ -47,7 +47,9 @@ storage.
 
 One runtime resolver serves chat, subagents, summaries, maintenance, cache warming, model
 catalogs, authentication and usage. Backend generation and instance configuration
-participate in cache identity. Authentication changes invalidate affected identities.
+participate in cache identity. Authentication changes invalidate affected identities. A replaced
+plugin provider stops admitting new calls and releases its resources after its admitted calls
+drain, without unloading the generation or interrupting other providers.
 
 The host applies its normal retry policy to backend requests. The host remains responsible for tool policy, approval and execution. Backends emit standard model
 tool calls and consume the resulting tool messages.

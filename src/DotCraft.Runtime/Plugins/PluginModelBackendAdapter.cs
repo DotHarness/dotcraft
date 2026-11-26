@@ -43,12 +43,25 @@ internal sealed class PluginModelBackendSourceAdapter : IModelBackendSource
 
         public IModelProvider CreateProvider(ModelBackendContext context)
         {
-            try { return _invocation.Invoke(() => new ProviderAdapter(_target.Value.CreateProvider(context), _invocation, Descriptor.Id)); }
+            try
+            {
+                return _invocation.Invoke(() =>
+                {
+                    var provider = _target.Value.CreateProvider(context);
+                    var providerScope = _invocation.CreateScope();
+                    try { return new ProviderAdapter(provider, providerScope, Descriptor.Id); }
+                    catch
+                    {
+                        providerScope.Retire();
+                        throw;
+                    }
+                });
+            }
             catch (PluginContributionUnavailableException) { throw new ModelBackendUnavailableException(Descriptor.Id); }
         }
     }
 
-    private sealed class ProviderAdapter : IModelProvider
+    private sealed class ProviderAdapter : IModelProvider, IRetirableModelProvider
     {
         private readonly PluginTarget<IModelProvider> _target;
         private readonly PluginInvocation _invocation;
@@ -64,6 +77,8 @@ internal sealed class PluginModelBackendSourceAdapter : IModelBackendSource
         }
 
         public IReadOnlyCollection<string> Protocols { get; }
+
+        public void Retire() => _invocation.Retire();
 
         public IChatClient CreateChatClient(EffectiveModelRuntime runtime) =>
             _invocation.Invoke(() => new PluginChatClient(_target.Value.CreateChatClient(runtime), _invocation));

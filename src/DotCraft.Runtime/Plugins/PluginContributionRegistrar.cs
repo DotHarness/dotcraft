@@ -14,7 +14,6 @@ internal sealed class PluginContributionRegistrar : IContributionRegistrar
     private int _preparing;
     private RegistrarState _state;
     private readonly bool _toolsOnly;
-    private readonly bool _modelsOnly;
 
     public PluginContributionRegistrar(
         IContributionRegistry registry,
@@ -22,12 +21,10 @@ internal sealed class PluginContributionRegistrar : IContributionRegistrar
         PluginCallGate callGate,
         object generationOwnedEntry,
         bool toolsOnly = false,
-        CancellationToken stopping = default,
-        bool modelsOnly = false)
+        CancellationToken stopping = default)
     {
         _registry = registry;
         _toolsOnly = toolsOnly;
-        _modelsOnly = modelsOnly;
         _inner = registry.CreateRegistrar(origin);
         _invocation = new PluginInvocation(origin.Name!, origin.Generation!, callGate, stopping);
         _generationOwnedEntry = generationOwnedEntry ?? throw new ArgumentNullException(nameof(generationOwnedEntry));
@@ -58,8 +55,6 @@ internal sealed class PluginContributionRegistrar : IContributionRegistrar
                 resolvedOptions,
                 resolvedOptions.OwnsContribution && !ReferenceEquals(contribution, _generationOwnedEntry));
             _registrations.Add(registration);
-            if (_modelsOnly && typeof(TContract) != typeof(IModelBackendSource) && typeof(TContract) != typeof(IProviderUsageSource))
-                return registration;
             _preparing++;
         }
 

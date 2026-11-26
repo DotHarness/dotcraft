@@ -54,7 +54,6 @@ public sealed class DotNetExtensionTrust : IDisposable
         ReplaceGrants(ReadStore());
         if (_store is IDotNetExtensionTrustChangeSource changeSource)
             changeSource.Changed += OnStoreChanged;
-
     }
 
     public DotNetExtensionTrustStatus ResolveStatus(string pluginId, string currentFingerprint)
@@ -140,6 +139,14 @@ public sealed class DotNetExtensionTrust : IDisposable
                 _grants.Remove(canonicalId);
             return true;
         }
+    }
+
+    public static bool RevokePersistedGrants(string globalConfigPath, string pluginId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(globalConfigPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(pluginId);
+        return new DotNetExtensionTrustConfigStore(DotNetExtensionTrustConfigStore.PathForConfig(globalConfigPath))
+            .RevokeAll(PluginIds.Canonicalize(pluginId));
     }
 
     private IDotNetExtensionTrustStore RequireStore() =>

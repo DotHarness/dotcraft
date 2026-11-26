@@ -25,6 +25,7 @@ namespace DotCraft.ModelService.Tests;
 public sealed class ModelServicePluginTests : IDisposable
 {
     private readonly string _root = Directory.CreateTempSubdirectory().FullName;
+    private readonly TaskCompletionSource _toolProjected = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private const string PluginId = HttpBackendPluginFixture.Id;
     private const string WorkerToken = "worker-fixture";
 
@@ -45,6 +46,8 @@ public sealed class ModelServicePluginTests : IDisposable
         await using var service = Build(first, [PluginId], upstream);
         await service.StartAsync(ct);
         Assert.Null(service.Services.GetService<ISessionService>());
+        Assert.Null(service.Services.GetService<IToolSource>());
+        Assert.Null(service.Services.GetService<IDotNetExtensionBuildPublisher>());
         var runtime = service.Services.GetRequiredService<IDotNetExtensionRuntimeCoordinator>();
         var resolver = service.Services.GetRequiredService<ModelBackendResolver>();
         var auth = service.Services.GetRequiredService<ProviderAuthenticationCoordinator>();
@@ -54,10 +57,15 @@ public sealed class ModelServicePluginTests : IDisposable
         Assert.Empty((await remote.GetCatalogAsync(ct)).Providers);
         Assert.NotEqual(PluginRuntimeMutationOutcome.NotApplied, (await runtime.TrustAsync(PluginId, ct)).Outcome);
         Assert.Equal(PluginId, Assert.Single(resolver.GetBackendRegistrations()).PluginId);
-        Assert.Empty(service.Services.GetRequiredService<IContributionView>().Resolve<IToolSource>());
+        Assert.Single(service.Services.GetRequiredService<IContributionView>().Resolve<IToolSource>());
         var beforeLogin = Assert.Single((await remote.GetCatalogAsync(ct)).Providers);
-        Assert.False(beforeLogin.Authentication.IsAuthenticated);
-        Assert.Contains("first-model", beforeLogin.Models!.Keys);
+        Assert.Equal(false, beforeLogin.Authentication?.IsAuthenticated);
+        Assert.Equal("first-model", Assert.Single(beforeLogin.Models!.Keys));
+        using (var rejected = await SendAsync(client, "rejected-first-model", ct))
+        {
+            Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+            Assert.DoesNotContain("Fixture resolver diagnostic.", await rejected.Content.ReadAsStringAsync(ct));
+        }
         using (var unauthenticated = await SendAsync(client, "first-model", ct))
             Assert.Equal(HttpStatusCode.Unauthorized, unauthenticated.StatusCode);
 
@@ -66,7 +74,8 @@ public sealed class ModelServicePluginTests : IDisposable
         var nativeUsage = await auth.ReadUsageAsync(first.Config, "native", ct);
         Assert.Equal(17, nativeUsage!.Values["balance"]);
         Assert.Equal(PluginId, nativeUsage.PluginId);
-        Assert.True(Assert.Single((await remote.GetCatalogAsync(ct)).Providers).Authentication.IsAuthenticated);
+        var afterLogin = Assert.Single((await remote.GetCatalogAsync(ct)).Providers);
+        Assert.Equal(true, afterLogin.Authentication?.IsAuthenticated);
 
         await using (var isolated = Build(second, [PluginId], upstream))
         {
@@ -102,6 +111,7 @@ public sealed class ModelServicePluginTests : IDisposable
         await upstream.StreamCancelled.Task.WaitAsync(ct);
         Assert.Empty((await remote.GetCatalogAsync(ct)).Providers);
         await service.StopAsync(ct);
+        Assert.False(_toolProjected.Task.IsCompleted);
     }
 
     private (AppConfig Config, DotCraftPaths Paths) Setup(string name, string model)
@@ -128,6 +138,7 @@ public sealed class ModelServicePluginTests : IDisposable
         var builder = WebApplication.CreateBuilder();
         builder.Logging.ClearProviders();
         builder.WebHost.UseTestServer();
+        builder.Services.AddSingleton<Action>(() => _toolProjected.TrySetResult());
         builder.Services.AddDotCraftModelPluginRuntime(scope.Config, scope.Paths, [Path.Combine(_root, "installed")], allowed,
             createCredentialStore: (backend, provider) => new ProviderCredentialStore(
                 Path.Combine(scope.Paths.Data.RootPath, "custom-vault"), backend, provider));

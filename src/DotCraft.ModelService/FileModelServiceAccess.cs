@@ -101,7 +101,7 @@ public sealed class FileModelServiceAccess : IModelServiceAccess, IDisposable
         foreach (var id in config.Providers.Keys.Where(id => ModelProviderResolver.IsBackendProvider(config, id)))
         {
             var runtime = ModelProviderResolver.ResolveProvider(config, id);
-            var backend = backends.Resolve(backends.Normalize(runtime));
+            var (_, backend, _) = backends.ResolveBackend(runtime);
             if (backend.GetService(typeof(IProviderNativeHttpRouter)) is not IProviderNativeHttpRouter)
                 throw new InvalidOperationException($"Provider '{id}' does not support inference through Model Service.");
         }
@@ -110,13 +110,7 @@ public sealed class FileModelServiceAccess : IModelServiceAccess, IDisposable
 
     public static AppConfig ReadConfiguration(string stateDirectory)
     {
-        var path = Path.Combine(stateDirectory, "config.json");
-        if (!File.Exists(path))
-            throw new InvalidOperationException($"Model service configuration is missing: {path}");
-        var config = AppConfig.Load(path);
-        config.GlobalConfigPath = path;
-        if (config.ModelService is not null)
-            throw new InvalidOperationException("A model service must configure upstream providers directly.");
+        var config = ReadStateConfiguration(stateDirectory);
         foreach (var id in config.Providers.Keys)
         {
             var runtime = ModelProviderResolver.ResolveProvider(config, id);
@@ -127,6 +121,18 @@ public sealed class FileModelServiceAccess : IModelServiceAccess, IDisposable
             if (!runtime.IsChatGptOAuth && string.IsNullOrWhiteSpace(runtime.ApiKey))
                 throw new InvalidOperationException($"Provider '{id}' requires an API key.");
         }
+        return config;
+    }
+
+    public static AppConfig ReadStateConfiguration(string stateDirectory)
+    {
+        var path = Path.Combine(stateDirectory, "config.json");
+        if (!File.Exists(path))
+            throw new InvalidOperationException($"Model service configuration is missing: {path}");
+        var config = AppConfig.Load(path);
+        config.GlobalConfigPath = path;
+        if (config.ModelService is not null)
+            throw new InvalidOperationException("A model service must configure upstream providers directly.");
         return config;
     }
 

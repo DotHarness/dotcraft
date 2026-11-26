@@ -45,6 +45,7 @@ public interface IModelRuntimeResolver
 
 public interface IProviderModelRuntimeResolver
 {
+    /// <summary>Throws <see cref="ArgumentException"/> if the selected model is unsupported.</summary>
     EffectiveModelRuntime ResolveRuntime(EffectiveModelRuntime runtime);
 }
 

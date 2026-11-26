@@ -12,4 +12,5 @@ public sealed record ProviderRequestAdaptation(
 {
     public ProviderContextBudget? ContextBudget { get; init; }
     public ModelProviderCapabilities? Capabilities { get; init; }
+    public int? MaxOutputTokens { get; init; }
 }

@@ -33,18 +33,18 @@ internal sealed class CSharpToolSource : IToolSource
         "Inspect the current DotCraft managed plugin API and build workspace .NET extension projects.";
 
     private readonly AppConfig _config;
-    private readonly IDotNetExtensionRuntimeCoordinator _runtime;
+    private readonly IDotNetExtensionBuildPublisher _publisher;
     private readonly Lazy<CSharpReferenceSet> _references;
     private readonly Lazy<CSharpApiInspector> _inspector;
 
     public CSharpToolSource(
         AppConfig config,
-        IDotNetExtensionRuntimeCoordinator runtime)
+        IDotNetExtensionBuildPublisher publisher)
     {
         _config = config;
-        _runtime = runtime;
+        _publisher = publisher;
         _references = new Lazy<CSharpReferenceSet>(
-            () => CSharpReferenceSet.LoadCurrentHost(runtime.HostSharedAssemblies),
+            () => CSharpReferenceSet.LoadCurrentHost(publisher.HostSharedAssemblies),
             LazyThreadSafetyMode.ExecutionAndPublication);
         _inspector = new Lazy<CSharpApiInspector>(
             () => new CSharpApiInspector(_references.Value),
@@ -64,7 +64,7 @@ internal sealed class CSharpToolSource : IToolSource
 
         var methods = new CSharpToolMethods(
             ResolveAuthoringDataPath(context),
-            _runtime,
+            _publisher,
             _references,
             _inspector);
         var functions = new AIFunction[]
@@ -129,7 +129,7 @@ internal sealed class CSharpToolSource : IToolSource
 
 internal sealed class CSharpToolMethods(
     string dataPath,
-    IDotNetExtensionRuntimeCoordinator runtime,
+    IDotNetExtensionBuildPublisher publisher,
     Lazy<CSharpReferenceSet> references,
     Lazy<CSharpApiInspector> inspector)
 {
@@ -161,7 +161,7 @@ internal sealed class CSharpToolMethods(
                 ToDiagnostics(preparation.Diagnostics));
         }
 
-        var result = await runtime.ApplyBuildAsync(pluginId, preparation, cancellationToken)
+        var result = await publisher.ApplyBuildAsync(pluginId, preparation, cancellationToken)
             .ConfigureAwait(false);
         var runtimeInfo = result.Runtime;
         var active = runtimeInfo?.State == DotNetExtensionRuntimeState.Active;
@@ -170,12 +170,7 @@ internal sealed class CSharpToolMethods(
             : result.Outcome == PluginRuntimeMutationOutcome.Applied && active
                 ? "built"
                 : "failed";
-        var diagnostics = preparation.Diagnostics
-            .Concat(result.Diagnostics)
-            .Concat(runtime.Snapshot.Diagnostics.Where(diagnostic =>
-                diagnostic.PluginId is not null &&
-                PluginIds.EqualsCanonical(diagnostic.PluginId, pluginId)))
-            .ToArray();
+        var diagnostics = preparation.Diagnostics.Concat(result.Diagnostics);
         return new CSharpBuildResult(
             outcome,
             preparation.Fingerprint,

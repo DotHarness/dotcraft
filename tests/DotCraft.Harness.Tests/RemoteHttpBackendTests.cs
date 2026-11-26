@@ -14,14 +14,14 @@ public sealed class RemoteHttpBackendTests
     public async Task HarnessUsesRemoteBackendMetadataAndUsageWithoutLocalBackend()
     {
         const string providerId = "account";
-        const string modelId = "maas/claude";
-        const string backendId = "maas-test";
+        const string modelId = "fixture-model";
+        const string backendId = "gateway-fixture";
         var budget = new ProviderContextBudget(128_000);
         var usage = new ProviderUsageSnapshot(DateTimeOffset.UtcNow, new Dictionary<string, double> { ["usage"] = 5 });
-        var model = new ModelCatalogEntry { Id = modelId, DisplayName = "Claude", MaxOutputTokens = 6_000 };
+        var model = new ModelCatalogEntry { Id = modelId, DisplayName = "Fixture model", MaxOutputTokens = 6_000 };
         var catalog = new ModelServiceCatalog("caller", [
-            new RemoteModelProvider(providerId, "Account", "auto", "https://private-gateway.test",
-                "personalToken", false, false, new ProviderAuthenticationStatus(true), MaxOutputTokens: 8_000,
+            new RemoteModelProvider(providerId, "Account", "auto", "https://upstream.invalid",
+                "apiKey", false, false, new ProviderAuthenticationStatus(true), MaxOutputTokens: 8_000,
                 Models: new Dictionary<string, ProviderRequestAdaptation>
                 {
                     [modelId] = new(false, false, null, null, model, ModelProviderProtocols.Anthropic)

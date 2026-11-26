@@ -16,7 +16,8 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
     private readonly ConcurrentDictionary<(string BackendId, string ProviderId), Lazy<IProviderCredentialStore>> _credentialStores = new();
     private readonly IReadOnlyDictionary<string, IModelBackend> officialBackends;
     private readonly List<IContributionHandle> _officialRegistrations = [];
-    private readonly ConcurrentDictionary<EffectiveModelRuntime, Lazy<IModelProvider>> _providers = new();
+    private readonly object _providerCacheGate = new();
+    private readonly Dictionary<EffectiveModelRuntime, ModelProviderCacheEntry> _providers = new();
     private readonly ConcurrentDictionary<(string Instance, string Model), ModelCatalogEntry> _pluginMetadata = new();
     private readonly ConcurrentDictionary<string, long> _authenticationRevisions = new(StringComparer.Ordinal);
     private long _chatGptRevision;
@@ -171,26 +172,40 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
             ConfiguredEndPoint = runtime.ConfiguredEndPoint ?? runtime.EndPoint,
             AuthMethod = method,
             Capabilities = descriptor.Capabilities,
-            BackendGeneration = entry.Id.Value + ":" + _authenticationRevisions.GetValueOrDefault(InstanceKey(runtime))
+            BackendGeneration = PluginGenerationKey(runtime, entry)
         };
     }
 
+    private string PluginGenerationKey(EffectiveModelRuntime runtime, ContributionEntry<IModelBackendSource> entry) =>
+        entry.Id.Value + ":" + _authenticationRevisions.GetValueOrDefault(InstanceKey(runtime));
+
     private IModelProvider ResolvePlugin(EffectiveModelRuntime baseRuntime, ContributionEntry<IModelBackendSource> entry)
     {
+        var backend = entry.Contribution.Backend;
+        var backendId = backend.Descriptor.Id;
         var key = baseRuntime with
         {
             Model = string.Empty,
             ModelMetadata = null,
             RequestAdaptation = null,
             MaxOutputTokens = baseRuntime.ConfiguredMaxOutputTokens,
-            Capabilities = entry.Contribution.Backend.Descriptor.Capabilities
+            Capabilities = backend.Descriptor.Capabilities
         };
-        return _providers.GetOrAdd(key, value => new Lazy<IModelProvider>(() =>
+        ModelProviderCacheEntry cached;
+        lock (_providerCacheGate)
         {
-            var backend = entry.Contribution.Backend;
-            var store = GetCredentials(backend.Descriptor.Id, value.ProviderId);
-            return backend.CreateProvider(new ModelBackendContext(value, store, backend.Stopping));
-        }, LazyThreadSafetyMode.ExecutionAndPublication)).Value;
+            if (key.BackendGeneration != PluginGenerationKey(key, entry))
+                throw new ModelBackendUnavailableException(backendId);
+            if (!_providers.TryGetValue(key, out cached!))
+            {
+                if (!contributions.ResolveEntries<IModelBackendSource>().Any(active => active.Id == entry.Id))
+                    throw new ModelBackendUnavailableException(backendId);
+                cached = new ModelProviderCacheEntry(() =>
+                    backend.CreateProvider(new ModelBackendContext(key, GetCredentials(backendId, key.ProviderId), backend.Stopping)), entry.Id);
+                _providers.Add(key, cached);
+            }
+        }
+        return cached.Value;
     }
 
     private EffectiveModelRuntime ApplyPluginResolvedRuntime(
@@ -242,16 +257,25 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
 
     private IModelProvider ResolveOfficial(EffectiveModelRuntime runtime, IModelBackend backend)
     {
-        var key = runtime with
+        ModelProviderCacheEntry cached;
+        lock (_providerCacheGate)
         {
-            Model = string.Empty, ModelMetadata = null, RequestAdaptation = null,
-            Protocol = runtime.ConfiguredProtocol ?? runtime.Protocol,
-            EndPoint = runtime.ConfiguredEndPoint ?? runtime.EndPoint,
-            BackendGeneration = _authenticationRevisions.GetValueOrDefault(InstanceKey(runtime)).ToString(),
-            MaxOutputTokens = runtime.ConfiguredMaxOutputTokens, Capabilities = backend.Descriptor.Capabilities
-        };
-        return _providers.GetOrAdd(key, value => new Lazy<IModelProvider>(() => backend.CreateProvider(
-            new ModelBackendContext(value, GetCredentials(backend.Descriptor.Id, value.ProviderId), backend.Stopping)))).Value;
+            var key = runtime with
+            {
+                Model = string.Empty, ModelMetadata = null, RequestAdaptation = null,
+                Protocol = runtime.ConfiguredProtocol ?? runtime.Protocol,
+                EndPoint = runtime.ConfiguredEndPoint ?? runtime.EndPoint,
+                BackendGeneration = _authenticationRevisions.GetValueOrDefault(InstanceKey(runtime)).ToString(),
+                MaxOutputTokens = runtime.ConfiguredMaxOutputTokens, Capabilities = backend.Descriptor.Capabilities
+            };
+            if (!_providers.TryGetValue(key, out cached!))
+            {
+                cached = new ModelProviderCacheEntry(() => backend.CreateProvider(
+                    new ModelBackendContext(key, GetCredentials(backend.Descriptor.Id, key.ProviderId), backend.Stopping)));
+                _providers.Add(key, cached);
+            }
+        }
+        return cached.Value;
     }
 
     public void InvalidateAuthentication(EffectiveModelRuntime runtime)
@@ -263,9 +287,15 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
             return;
         }
         var instanceKey = InstanceKey(runtime);
-        _authenticationRevisions.AddOrUpdate(instanceKey, 1, (_, revision) => revision + 1);
-        foreach (var key in _providers.Keys.Where(key => InstanceKey(key) == instanceKey))
-            _providers.TryRemove(key, out _);
+        lock (_providerCacheGate)
+        {
+            _authenticationRevisions.AddOrUpdate(instanceKey, 1, (_, revision) => revision + 1);
+            foreach (var (key, cached) in _providers.Where(pair => InstanceKey(pair.Key) == instanceKey).ToArray())
+            {
+                cached.Retire();
+                _providers.Remove(key);
+            }
+        }
         foreach (var key in _pluginMetadata.Keys.Where(key => key.Instance == instanceKey))
             _pluginMetadata.TryRemove(key, out _);
         Changed?.Invoke();
@@ -291,7 +321,15 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
     private void OnContributionsChanged(object? sender, ContributionsChangedEventArgs args)
     {
         if (!args.Includes<IModelBackendSource>()) return;
-        _providers.Clear();
+        lock (_providerCacheGate)
+        {
+            var activeIds = contributions.ResolveEntries<IModelBackendSource>().Select(entry => entry.Id).ToHashSet();
+            foreach (var (key, cached) in _providers)
+            {
+                if (cached.ContributionId is { } id && !activeIds.Contains(id))
+                    _providers.Remove(key);
+            }
+        }
         _pluginMetadata.Clear();
         Changed?.Invoke();
     }
@@ -300,7 +338,12 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
     {
         if (contributions is IContributionRegistry registry) registry.Changed -= OnContributionsChanged;
         foreach (var handle in _officialRegistrations) handle.Dispose();
-        _providers.Clear();
+        lock (_providerCacheGate)
+        {
+            foreach (var cached in _providers.Values)
+                cached.Retire();
+            _providers.Clear();
+        }
         _pluginMetadata.Clear();
         _credentialStores.Clear();
         Changed = null;

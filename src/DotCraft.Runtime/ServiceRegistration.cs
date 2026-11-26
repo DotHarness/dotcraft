@@ -59,8 +59,6 @@ public static class ServiceRegistration
         });
         services.AddSingleton(options);
         services.AddSingleton(config);
-        services.TryAddSingleton<ContributionRegistry>();
-        services.TryAddSingleton<IContributionView>(sp => sp.GetRequiredService<ContributionRegistry>());
         services.TryAddSingleton<ModuleRegistry>();
         services.AddSingleton<IAppConfigMonitor, AppConfigMonitor>();
         services.AddSingleton<ToolInvocationRecorderRouter>();
@@ -225,15 +223,23 @@ public static class ServiceRegistration
         {
             HostSharedAssemblies = PluginHostAssemblies.ValidateHostShared(options.PluginSharedAssemblies)
         });
-        services.AddDotNetExtensionRuntimeManager(sp => new DotNetExtensionRuntimeManager(
-            sp.GetRequiredService<PluginDiscoveryService>(),
-            sp.GetRequiredService<AppConfig>(),
-            sp.GetRequiredService<DotCraftPaths>(),
-            sp,
-            sp.GetRequiredService<ContributionRegistry>(),
-            sp.GetRequiredService<DotNetExtensionRuntimeOptions>(),
-            sp.GetService<ILogger<DotNetExtensionRuntimeManager>>(),
-            pluginConfigStore: sp.GetRequiredService<PluginConfigStore>()));
+        services.AddDotNetExtensionRuntimeManager(sp =>
+        {
+            var discovery = sp.GetRequiredService<PluginDiscoveryService>();
+            var runtimeConfig = sp.GetRequiredService<AppConfig>();
+            var runtimePaths = sp.GetRequiredService<DotCraftPaths>();
+            var manager = new DotNetExtensionRuntimeManager(
+                () => discovery.DiscoverAll(runtimeConfig, runtimePaths.WorkspacePath, runtimePaths.Data.RootPath),
+                runtimeConfig, runtimePaths, sp,
+                sp.GetRequiredService<ContributionRegistry>(),
+                sp.GetRequiredService<DotNetExtensionRuntimeOptions>(),
+                sp.GetService<ILogger<DotNetExtensionRuntimeManager>>(),
+                pluginConfigStore: sp.GetRequiredService<PluginConfigStore>());
+            _ = manager.ToolSource;
+            return manager;
+        });
+        services.AddSingleton<IDotNetExtensionBuildPublisher>(sp =>
+            sp.GetRequiredService<DotNetExtensionRuntimeManager>());
         services.AddSingleton<IToolSource>(sp =>
             sp.GetRequiredService<DotNetExtensionRuntimeManager>().ToolSource);
 

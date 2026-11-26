@@ -15,11 +15,6 @@ internal sealed partial class DotNetExtensionRuntimeManager
         DotNetExtensionBuild preparation,
         CancellationToken cancellationToken = default)
     {
-        if (_options.ModelPluginAdmission is not null)
-            return AuthoringResult(PluginRuntimeMutationOutcome.NotApplied, pluginId,
-                [PluginDiagnostic.Error("ModelPluginAuthoringUnavailable",
-                    "The model plugin host accepts installed bundles only.", pluginId)]);
-
         ArgumentNullException.ThrowIfNull(preparation);
         if (!preparation.Succeeded
             || string.IsNullOrWhiteSpace(preparation.BundlePath)
@@ -154,12 +149,15 @@ internal sealed partial class DotNetExtensionRuntimeManager
     private DotNetExtensionBuildApplyResult AuthoringResult(
         PluginRuntimeMutationOutcome outcome,
         string pluginId,
-        IReadOnlyList<PluginDiagnostic> diagnostics) =>
-        new(
+        IReadOnlyList<PluginDiagnostic> diagnostics)
+    {
+        var snapshot = Snapshot;
+        return new(
             outcome,
-            Snapshot.Plugins.FirstOrDefault(plugin =>
-                PluginIds.EqualsCanonical(plugin.PluginId, pluginId)),
-            diagnostics);
+            snapshot.Plugins.FirstOrDefault(plugin => PluginIds.EqualsCanonical(plugin.PluginId, pluginId)),
+            [.. diagnostics, .. snapshot.Diagnostics.Where(diagnostic =>
+                diagnostic.PluginId is not null && PluginIds.EqualsCanonical(diagnostic.PluginId, pluginId))]);
+    }
 
     private static void PublishAuthoringBundle(string stagedRoot, string destination)
     {

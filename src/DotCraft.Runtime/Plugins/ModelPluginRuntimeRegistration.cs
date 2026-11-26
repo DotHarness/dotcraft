@@ -42,11 +42,7 @@ public static class ModelPluginRuntimeRegistration
             ArgumentException.ThrowIfNullOrWhiteSpace(pluginId);
             return PluginIds.Canonicalize(pluginId);
         }).ToFrozenSet(StringComparer.OrdinalIgnoreCase);
-        var options = new DotNetExtensionRuntimeOptions { ModelPluginAdmission = new(roots, allowedIds) };
-
         services.AddLogging();
-        services.TryAddSingleton<ContributionRegistry>();
-        services.TryAddSingleton<IContributionView>(sp => sp.GetRequiredService<ContributionRegistry>());
         services.TryAddSingleton<ModelProviderRegistry>();
         services.AddSingleton(sp =>
         {
@@ -58,22 +54,19 @@ public static class ModelPluginRuntimeRegistration
         });
         services.AddSingleton<IModelRuntimeResolver>(sp => sp.GetRequiredService<ModelBackendResolver>());
         services.AddSingleton<ProviderAuthenticationCoordinator>();
-        services.AddDotNetExtensionRuntimeManager(sp => new DotNetExtensionRuntimeManager(
-            new PluginDiscoveryService(logger: sp.GetService<ILogger<PluginDiscoveryService>>()),
-            config, paths, sp, sp.GetRequiredService<ContributionRegistry>(), options,
-            sp.GetService<ILogger<DotNetExtensionRuntimeManager>>(), trustStore));
+        services.AddDotNetExtensionRuntimeManager(sp =>
+        {
+            var discovery = new PluginDiscoveryService(logger: sp.GetService<ILogger<PluginDiscoveryService>>());
+            return new DotNetExtensionRuntimeManager(
+                () => discovery.DiscoverDirectories(roots, config, allowedIds),
+                config, paths, sp, sp.GetRequiredService<ContributionRegistry>(),
+                logger: sp.GetService<ILogger<DotNetExtensionRuntimeManager>>(), trustStore: trustStore);
+        });
         services.AddSingleton<IHostedService>(sp =>
         {
             _ = sp.GetRequiredService<ModelBackendResolver>();
             return sp.GetRequiredService<DotNetExtensionRuntimeManager>();
         });
         return services;
-    }
-
-    internal static void AddDotNetExtensionRuntimeManager(this IServiceCollection services,
-        Func<IServiceProvider, DotNetExtensionRuntimeManager> create)
-    {
-        services.AddSingleton(create);
-        services.AddSingleton<IDotNetExtensionRuntimeCoordinator>(sp => sp.GetRequiredService<DotNetExtensionRuntimeManager>());
     }
 }

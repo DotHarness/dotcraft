@@ -40,12 +40,17 @@ internal static class PluginProviderCapabilities
     private sealed class RuntimeResolver(IProviderModelRuntimeResolver target, PluginInvocation invocation) : IProviderModelRuntimeResolver
     {
         private readonly PluginTarget<IProviderModelRuntimeResolver> _target = invocation.Capture(target);
-        public EffectiveModelRuntime ResolveRuntime(EffectiveModelRuntime runtime) =>
-            invocation.Invoke(() =>
+        public EffectiveModelRuntime ResolveRuntime(EffectiveModelRuntime runtime)
+        {
+            var result = invocation.Invoke<EffectiveModelRuntime?>(() =>
             {
-                var resolved = _target.Value.ResolveRuntime(runtime);
+                EffectiveModelRuntime resolved;
+                try { resolved = _target.Value.ResolveRuntime(runtime); }
+                catch (ArgumentException) { return null; }
                 return HostOwned(resolved with { ModelMetadata = SnapshotMetadata(resolved.ModelMetadata) });
             });
+            return result ?? throw new ArgumentException("The provider does not support the selected model.");
+        }
 
         private static ModelCatalogEntry? SnapshotMetadata(ModelCatalogEntry? metadata) =>
             metadata is null

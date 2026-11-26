@@ -121,12 +121,16 @@ public static class ModelServiceProviderCatalog
                 var (selected, _, _) = ModelServiceBackendRouting.Resolve(backend, router,
                     source.Runtime with { Model = model.Id, ModelMetadata = model });
                 var adaptation = selected.RequestAdaptation ?? CreateNativeAdaptation(selected);
+                var selectedModel = selected.ModelMetadata ?? model;
+                var catalogLimit = MinimumLimit(selectedModel.MaxOutputTokens, model.MaxOutputTokens);
+                var runtimeLimit = MinimumLimit(description.MaxOutputTokens, selected.MaxOutputTokens);
                 models.TryAdd(model.Id, adaptation with
                 {
-                    Model = selected.ModelMetadata ?? model,
+                    Model = selectedModel,
                     Protocol = selected.Protocol,
                     Capabilities = selected.Capabilities,
-                    ContextBudget = adaptation.ContextBudget ?? selected.ContextBudget
+                    ContextBudget = adaptation.ContextBudget ?? selected.ContextBudget,
+                    MaxOutputTokens = MinimumLimit(runtimeLimit, catalogLimit)
                 });
             }
             catch (ArgumentException) { }
@@ -151,6 +155,14 @@ public static class ModelServiceProviderCatalog
                 ? new ProviderAuthenticationStatus(false, FailureCode: result.ErrorCode.ToString()) : authentication
         };
     }
+
+    private static int? MinimumLimit(int? first, int? second) => (first, second) switch
+    {
+        (int a, int b) when a > 0 && b > 0 => Math.Min(a, b),
+        (int a, _) when a > 0 => a,
+        (_, int b) when b > 0 => b,
+        _ => null
+    };
 
     private static RemoteModelProvider Unavailable(RemoteModelProvider description) => description with
     {

@@ -158,14 +158,6 @@ public sealed class SetupImportConcurrencyTests : IDisposable
 
     private sealed class RecordingDotnetRuntime(params string[] running) : CorePlugins.IDotNetExtensionRuntimeCoordinator
     {
-        public IReadOnlySet<string> HostSharedAssemblies { get; } = new HashSet<string>();
-
-        public Task<CorePlugins.DotNetExtensionBuildApplyResult> ApplyBuildAsync(
-            string pluginId,
-            CorePlugins.DotNetExtensionBuild build,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
         public List<string> Calls { get; } = [];
 
         public CorePlugins.PluginRuntimeSnapshot Snapshot { get; } = new(

@@ -3,11 +3,8 @@ using Microsoft.Extensions.Logging;
 
 namespace DotCraft.Runtime;
 
-/// <summary>The trust half of the runtime manager: the activation gate and the grant and revoke operations.</summary>
-/// <remarks>A grant binds the fingerprint the runtime accepted, never one the caller supplies.</remarks>
 internal sealed partial class DotNetExtensionRuntimeManager
 {
-    /// <inheritdoc />
     public async Task<PluginRuntimeMutationResult> TrustAsync(
         string pluginId,
         CancellationToken cancellationToken = default)
@@ -33,7 +30,6 @@ internal sealed partial class DotNetExtensionRuntimeManager
             catch (Exception exception)
                 when (exception is PluginTrustPersistenceException or IOException or UnauthorizedAccessException)
             {
-                // A grant that cannot be persisted must not activate anything.
                 _logger?.LogWarning("Could not persist trust for .NET extension {PluginId}.", canonicalId);
                 return NotApplied(
                     canonicalId,
@@ -56,7 +52,6 @@ internal sealed partial class DotNetExtensionRuntimeManager
         }
     }
 
-    /// <inheritdoc />
     public async Task<PluginRuntimeMutationResult> RevokeTrustAsync(
         string pluginId,
         CancellationToken cancellationToken = default)
@@ -92,7 +87,10 @@ internal sealed partial class DotNetExtensionRuntimeManager
 
             // A development build has an independent process-local qualification for these exact bytes.
             if (!HasAuthoringExecutionQualification(canonicalId, node.Snapshot.DotnetFingerprint))
+            {
+                WithdrawTrustRevokedRoutes(affected);
                 await StopClosureAsync(canonicalId, node, cancellationToken).ConfigureAwait(false);
+            }
             await ReplanAllAsync(new HashSet<string>(StringComparer.OrdinalIgnoreCase), cancellationToken)
                 .ConfigureAwait(false);
             PublishSnapshot();
@@ -104,11 +102,9 @@ internal sealed partial class DotNetExtensionRuntimeManager
         }
     }
 
-    /// <summary>Resolves one node's trust status against its accepted bundle fingerprint.</summary>
     private DotNetExtensionTrustStatus TrustStatusOf(PluginRuntimeNode node) =>
         _trust.ResolveStatus(node.Snapshot.Manifest.Id, node.Snapshot.DotnetFingerprint);
 
-    /// <summary>Returns the blocker that keeps an untrusted or modified bundle out of the process.</summary>
     private PluginRuntimeBlocker[] TrustBlockers(PluginRuntimeNode node)
     {
         var blocker = TrustCommitBlocker(
@@ -148,11 +144,9 @@ internal sealed partial class DotNetExtensionRuntimeManager
             ("fingerprintPrefix", fingerprintPrefix));
     }
 
-    /// <summary>Returns the wire-stable spelling of a trust status.</summary>
     private static string StatusName(DotNetExtensionTrustStatus status) =>
         status.ToString().ToLowerInvariant();
 
-    /// <summary>Shortens a fingerprint to the prefix a client displays.</summary>
     private static string? Prefix(string? fingerprint) =>
         string.IsNullOrEmpty(fingerprint)
             ? null

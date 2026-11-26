@@ -29,7 +29,7 @@ internal static class HttpBackendPluginFixture
             {
                 context.Contributions.Add<IModelBackendSource>(new ModelBackend(context.Settings.GetProperty("model").GetString()!));
                 context.Contributions.Add<IProviderUsageSource>(new NativeUsage());
-                context.Contributions.Add<IToolSource>(new UnusedToolSource());
+                context.Contributions.Add<IToolSource>(new ToolSource((Action)context.Services.GetService(typeof(Action))!));
                 return ValueTask.CompletedTask;
             }
         }
@@ -43,14 +43,17 @@ internal static class HttpBackendPluginFixture
         }
 
         internal sealed class Provider(IProviderCredentialStore credentials, string model) :
-            IModelProvider, IProviderNativeHttpRouter, IModelCatalogProvider, IProviderAuthenticator, IProviderUsageReader
+            IModelProvider, IProviderNativeHttpRouter, IModelCatalogProvider, IProviderAuthenticator,
+            IProviderUsageReader, IProviderModelRuntimeResolver
         {
             public IReadOnlyCollection<string> Protocols => ["openai-chat-completions"];
             public IChatClient CreateChatClient(EffectiveModelRuntime runtime) => throw new NotSupportedException();
 
+            public EffectiveModelRuntime ResolveRuntime(EffectiveModelRuntime runtime) =>
+                runtime.Model == model ? runtime : throw new ArgumentException("Fixture resolver diagnostic.");
+
             public ProviderHttpRoute ResolveRoute(EffectiveModelRuntime runtime) =>
-                runtime.Model == model ? new("openai-chat-completions", "https://fixture.invalid/native/v1", model)
-                    : throw new ArgumentException("Unknown model.");
+                new("openai-chat-completions", "https://fixture.invalid/native/v1", runtime.Model);
 
             public async Task<IReadOnlyDictionary<string, string>> AuthenticateAsync(EffectiveModelRuntime runtime, CancellationToken ct) =>
                 new Dictionary<string, string>(StringComparer.Ordinal)
@@ -63,7 +66,7 @@ internal static class HttpBackendPluginFixture
                 Task.FromResult(new ModelCatalogResult
                 {
                     Success = true,
-                    Models = [new ModelCatalogEntry { Id = model, SupportedProtocols = new[] { "openai-chat-completions" } }]
+                    Models = [new ModelCatalogEntry { Id = "rejected-" + model }, new ModelCatalogEntry { Id = model }]
                 });
 
             public async Task<ProviderAuthenticationStatus> GetStatusAsync(CancellationToken ct) =>
@@ -88,11 +91,14 @@ internal static class HttpBackendPluginFixture
                 (await credentials.ReadAsync(ct))?.GetString();
         }
 
-        internal sealed class UnusedToolSource : IToolSource
+        internal sealed class ToolSource(Action projected) : IToolSource
         {
             public string SourceId => "fixture-tool";
-            public ValueTask<IReadOnlyList<ToolRegistration>> GetRegistrationsAsync(ToolPlanningContext context, CancellationToken ct) =>
-                throw new InvalidOperationException("The model service cannot call this contribution.");
+            public ValueTask<IReadOnlyList<ToolRegistration>> GetRegistrationsAsync(ToolPlanningContext context, CancellationToken ct)
+            {
+                projected();
+                return ValueTask.FromResult<IReadOnlyList<ToolRegistration>>([]);
+            }
         }
 
         internal sealed class NativeUsage : IProviderUsageSource

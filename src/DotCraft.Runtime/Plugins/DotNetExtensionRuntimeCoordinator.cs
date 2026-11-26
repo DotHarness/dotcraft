@@ -131,11 +131,8 @@ internal sealed partial class DotNetExtensionRuntimeManager
 
     private PluginDiscoveryResult DiscoverCurrent()
     {
-        if (_options.ModelPluginAdmission is not { } admission)
-            return _discovery.DiscoverAll(_config, _paths.WorkspacePath, _paths.Data.RootPath);
-
-        var discovery = admission.Discover(_discovery, _config);
-        _modelDiscoveryDiagnostics = discovery.Diagnostics;
+        var discovery = _discover();
+        _discoveryDiagnostics = discovery.Diagnostics;
         return discovery;
     }
 

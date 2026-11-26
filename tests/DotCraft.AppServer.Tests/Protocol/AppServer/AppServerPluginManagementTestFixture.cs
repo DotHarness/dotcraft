@@ -67,14 +67,6 @@ public sealed partial class AppServerPluginManagementTests : IDisposable
     private sealed class FakePluginRuntimeCoordinator(PluginRuntimeSnapshot snapshot)
         : IDotNetExtensionRuntimeCoordinator
     {
-        public IReadOnlySet<string> HostSharedAssemblies { get; } = new HashSet<string>();
-
-        public Task<DotNetExtensionBuildApplyResult> ApplyBuildAsync(
-            string pluginId,
-            DotNetExtensionBuild build,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
         public PluginRuntimeSnapshot Snapshot { get; private set; } = snapshot;
 
         public event EventHandler<PluginRuntimeSnapshotChangedEventArgs>? SnapshotChanged

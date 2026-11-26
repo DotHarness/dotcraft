@@ -13,7 +13,7 @@ public sealed record RemoteModelProvider(
     string AuthMethod,
     bool SupportsImageGeneration,
     bool SupportsFreeformTools,
-    ProviderAuthenticationStatus Authentication,
+    ProviderAuthenticationStatus? Authentication,
     int? MaxOutputTokens = null,
     int NetworkTimeoutSeconds = 300,
     IReadOnlyDictionary<string, ProviderRequestAdaptation>? Models = null,

@@ -126,7 +126,10 @@ public interface IDotNetExtensionRuntimeCoordinator
     Task<PluginRuntimeMutationResult> RevokeTrustAsync(
         string pluginId,
         CancellationToken cancellationToken = default);
+}
 
+public interface IDotNetExtensionBuildPublisher
+{
     /// <summary>Gets the simple names of the application assemblies shared with plugin load contexts.</summary>
     IReadOnlySet<string> HostSharedAssemblies { get; }
 

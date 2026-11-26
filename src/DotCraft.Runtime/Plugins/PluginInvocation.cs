@@ -1,12 +1,13 @@
 namespace DotCraft.Runtime;
 
-/// <summary>Enters one generation for the complete duration of a plugin callback.</summary>
-internal sealed class PluginInvocation
+internal sealed class PluginInvocation : IPluginTarget
 {
     private readonly object _targetsGate = new();
     private readonly List<IPluginTarget> _targets = [];
     private readonly PluginCallGate _gate;
+    private readonly PluginInvocation? _parent;
     private bool _targetsDetached;
+    private int _retiring;
 
     public PluginInvocation(string pluginId, string generationId, PluginCallGate gate, CancellationToken stopping = default)
     {
@@ -16,28 +17,95 @@ internal sealed class PluginInvocation
         Stopping = stopping;
     }
 
+    private PluginInvocation(PluginInvocation parent)
+        : this(parent.PluginId, parent.GenerationId, new PluginCallGate(), parent.Stopping)
+    {
+        _parent = parent;
+    }
+
     public string PluginId { get; }
 
     public string GenerationId { get; }
     public CancellationToken Stopping { get; }
 
-    public IDisposable Enter() => _gate.TryEnter()
+    public IDisposable Enter() => TryEnter()
         ?? throw new PluginContributionUnavailableException(PluginId, GenerationId);
+
+    private IDisposable? TryEnter()
+    {
+        if (_parent is null)
+            return _gate.TryEnter();
+        if (_parent.TryEnter() is not { } parentLease)
+            return null;
+        if (_gate.TryEnter() is { } lease)
+            return new ScopedLease(lease, parentLease);
+        parentLease.Dispose();
+        return null;
+    }
+
+    public PluginInvocation CreateScope()
+    {
+        var scope = new PluginInvocation(this);
+        AddTarget(scope);
+        return scope;
+    }
+
+    public void Retire()
+    {
+        if (_parent is not { } parent || Interlocked.Exchange(ref _retiring, 1) != 0)
+            return;
+
+        var drained = _gate.CloseAsync();
+        // Generation teardown owns the scope if its gate has already closed.
+        if (parent.TryEnter() is { } parentLease)
+            _ = Task.Run(() => RetireAsync(parent, parentLease, drained));
+    }
+
+    private async Task RetireAsync(PluginInvocation parent, IDisposable parentLease, Task drained)
+    {
+        using (parentLease)
+        {
+            await drained.ConfigureAwait(false);
+            await DisposeCapturedTargetsAsync().ConfigureAwait(false);
+            lock (parent._targetsGate)
+                parent._targets.Remove(this);
+        }
+    }
+
+    async ValueTask IPluginTarget.DisposeAsync()
+    {
+        await _gate.CloseAsync().ConfigureAwait(false);
+        var errors = await DisposeCapturedTargetsAsync().ConfigureAwait(false);
+        if (errors.Count > 0)
+            throw new InvalidOperationException(string.Join(Environment.NewLine, errors));
+    }
 
     public PluginTarget<T> Capture<T>(T target, bool ownsTarget = false) where T : class
     {
         var reference = new PluginTarget<T>(target, PluginId, GenerationId, ownsTarget);
+        AddTarget(reference);
+        return reference;
+    }
+
+    private void AddTarget(IPluginTarget target)
+    {
         lock (_targetsGate)
         {
             if (_targetsDetached)
                 throw new PluginContributionUnavailableException(PluginId, GenerationId);
-            else
-                _targets.Add(reference);
+            _targets.Add(target);
         }
-        return reference;
     }
 
-    /// <summary>Releases every raw plugin reference held by retained host adapters.</summary>
+    private sealed class ScopedLease(IDisposable lease, IDisposable parentLease) : IDisposable
+    {
+        public void Dispose()
+        {
+            lease.Dispose();
+            parentLease.Dispose();
+        }
+    }
+
     public async Task<IReadOnlyList<string>> DisposeCapturedTargetsAsync()
     {
         IPluginTarget[] targets;
@@ -172,7 +240,6 @@ internal interface IPluginTarget
     ValueTask DisposeAsync();
 }
 
-/// <summary>A clearable reference from a host adapter to one collectible plugin object.</summary>
 internal sealed class PluginTarget<T>(
     T value,
     string pluginId,
@@ -197,14 +264,12 @@ internal sealed class PluginTarget<T>(
     }
 }
 
-/// <summary>A host-owned failure copied from a plugin callback without retaining the plugin exception.</summary>
 internal class PluginContributionException(
     string pluginId,
     string generationId,
     string message)
     : InvalidOperationException($"Plugin '{pluginId}' generation '{generationId}' callback failed: {message}");
 
-/// <summary>Thrown by a retained host adapter after its plugin generation has been revoked.</summary>
 internal sealed class PluginContributionUnavailableException(
     string pluginId,
     string generationId)

@@ -27,10 +27,15 @@ accepts only supported model operations. Caller authorization, cookies, and hop-
 never become upstream authentication. The service cannot execute workspace tools.
 
 Provider descriptions contain protocol, authentication method, non-secret routing and model
-metadata, and sanitized authentication status. They contain no API keys, OAuth tokens, or server
-filesystem paths. Workers keep provider request shaping and native history.
-HTTP backends publish per-model protocol, limits, reasoning options, prices when known, and native
-request adaptation. A backend must explicitly provide `IProviderNativeHttpRouter` to be served.
+metadata, and sanitized authentication status when known. They contain no API keys, OAuth tokens,
+or server filesystem paths. An unknown upstream authentication status does not block provider
+selection. A reported authentication failure does. The service authenticates each upstream request.
+Workers keep provider request shaping and native history.
+
+HTTP backends publish per-model protocol, effective output limit, reasoning options, prices when
+known, and native request adaptation. Workers apply the effective output limit when building native
+requests. A model explicitly rejected by the backend's resolver is omitted without removing other
+models from the catalog. A backend must explicitly provide `IProviderNativeHttpRouter` to be served.
 The worker selects a native protocol adapter from the model catalog and contacts only the service.
 It does not load the backend or receive the upstream endpoint, authentication headers, or backend
 settings. OpenRouter publishes only schema-defined supplier preferences for request shaping.
@@ -72,13 +77,17 @@ provider-instance scope. Candidate plugins and dependencies must pass the host's
 before activation. Trust grants apply to accepted contents, not just a plugin name.
 
 The standalone CLI discovers installed bundles beneath `<state>/plugins`. Only IDs explicitly supplied with
-`--plugin <id>` can activate, including dependencies. `plugin trust <id>` and `plugin revoke <id>` modify the
-same state-scoped trust authority. The CLI uses this scope for `serve`, `check` and provider-specific
-`auth login`, `auth status` and `auth logout`. Changes to file-backed provider credentials are visible to a
-running service without restarting it.
+`--plugin <id>` can activate, including dependencies. `plugin trust <id>` grants trust to the accepted
+fingerprint. `plugin revoke <id>` removes all persisted grants for that plugin from the state-scoped
+trust authority in one operation, even if its installed bundle has changed or is missing. Trust
+administration does not require inference-ready provider configuration. The CLI validates provider
+readiness for `serve` and `check`. Provider-specific authentication uses that same state scope, and
+changes to file-backed provider credentials take effect without restarting the service.
 
-The service consumes model backend and provider Usage contributions. This limits which contributions
-it uses, not what admitted plugin code can execute. Provider-instance login, logout, status, and
+The service registers admitted plugins' contributions through the shared runtime and composes only
+model backend and provider Usage consumers. It does not compose tool execution, tool projection, or
+plugin authoring. This limits what the host uses, not what admitted plugin code can execute.
+Provider-instance login, logout, status, and
 account Usage are management operations, separate from per-request inference accounting. A backend
 supplies its own account Usage reader. A Usage contribution can supply it for an authorized native
 API-key provider. Worker inference credentials never grant management access. Revocation prevents

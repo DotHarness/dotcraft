@@ -29,7 +29,8 @@ public sealed record ModelServiceProvider(
 
             return new ModelServiceProvider(new RemoteModelProvider(resolved.ProviderId, resolved.DisplayName,
                 resolved.ConfiguredProtocol ?? resolved.Protocol, string.Empty, resolved.AuthMethod, false, false,
-                new(!string.IsNullOrWhiteSpace(resolved.ApiKey)), resolved.MaxOutputTokens, resolved.NetworkTimeoutSeconds,
+                string.IsNullOrWhiteSpace(resolved.ApiKey) ? null : new(true),
+                resolved.MaxOutputTokens, resolved.NetworkTimeoutSeconds,
                 BackendId: resolved.BackendId), resolved, Backend: backend, Stopping: stopping);
         }
         catch (InvalidOperationException) { return null; }

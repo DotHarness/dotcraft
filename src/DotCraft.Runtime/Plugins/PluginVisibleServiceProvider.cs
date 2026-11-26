@@ -31,6 +31,7 @@ internal sealed class PluginVisibleServiceProvider(IServiceProvider services) : 
                || typeof(IHostApplicationLifetime).IsAssignableFrom(serviceType)
                || typeof(IHostLifetime).IsAssignableFrom(serviceType)
                || typeof(IDotNetExtensionRuntimeCoordinator).IsAssignableFrom(serviceType)
+               || typeof(IDotNetExtensionBuildPublisher).IsAssignableFrom(serviceType)
                || typeof(DotCraft.Agents.IModelRuntimeResolver).IsAssignableFrom(serviceType)
                || serviceType == typeof(DotCraft.Agents.ProviderAuthenticationCoordinator)
                || serviceType == typeof(WorkspaceRuntime)

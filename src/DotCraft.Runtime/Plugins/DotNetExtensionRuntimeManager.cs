@@ -11,9 +11,11 @@ namespace DotCraft.Runtime;
 internal sealed partial class DotNetExtensionRuntimeManager :
     IHostedService,
     IAsyncDisposable,
-    IDotNetExtensionRuntimeCoordinator
+    IDotNetExtensionRuntimeCoordinator,
+    IDotNetExtensionBuildPublisher
 {
-    private readonly PluginDiscoveryService _discovery;
+    private readonly Func<PluginDiscoveryResult> _discover;
+    private readonly Lazy<DotNetExtensionToolSource> _toolSource;
     private readonly AppConfig _config;
     private readonly DotCraftPaths _paths;
     private readonly PluginConfigStore _pluginConfigStore;
@@ -37,7 +39,7 @@ internal sealed partial class DotNetExtensionRuntimeManager :
     private readonly bool _executionOnly;
 
     internal DotNetExtensionRuntimeManager(
-        PluginDiscoveryService discovery,
+        Func<PluginDiscoveryResult> discover,
         AppConfig config,
         DotCraftPaths paths,
         IServiceProvider services,
@@ -49,7 +51,7 @@ internal sealed partial class DotNetExtensionRuntimeManager :
         bool executionOnly = false,
         bool installedExecution = false)
     {
-        _discovery = discovery;
+        _discover = discover;
         _config = config;
         _paths = paths;
         _pluginConfigStore = pluginConfigStore ?? new PluginConfigStore(paths);
@@ -67,13 +69,13 @@ internal sealed partial class DotNetExtensionRuntimeManager :
             executionOnly && !installedExecution ? Path.Combine(paths.Data.RootPath, "plugins") : null);
         _reclaim = new PluginReclaimPoller(_options, ReclaimAsync, _bundleStore.DeleteGeneration, logger);
         CallGates = new PluginCallGateRegistry();
-        ToolSource = new DotNetExtensionToolSource(contributions, CallGates, ExportAsync);
+        _toolSource = new(() => new DotNetExtensionToolSource(contributions, CallGates, ExportAsync));
         _trust.Changed += OnTrustChanged;
     }
 
     public PluginCallGateRegistry CallGates { get; }
 
-    public DotNetExtensionToolSource ToolSource { get; }
+    public DotNetExtensionToolSource ToolSource => _toolSource.Value;
 
     public IReadOnlySet<string> HostSharedAssemblies => _options.HostSharedAssemblies;
 

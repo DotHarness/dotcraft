@@ -63,9 +63,6 @@ public sealed partial class OpenRouterProvider : IModelProvider, IProviderModelR
         if (string.IsNullOrWhiteSpace(runtime.Model)) return resolved;
         var model = FindModel(snapshot, runtime.Model);
         var protocol = OpenRouterModelCatalog.SelectProtocol(model, configured);
-        var capacity = runtime.ConfiguredMaxOutputTokens;
-        var maxOutput = capacity is > 0 && model.MaxOutputTokens is > 0 ? Math.Min(capacity.Value, model.MaxOutputTokens.Value)
-            : capacity ?? model.MaxOutputTokens;
         var adaptation = runtime.IsRemote
             ? runtime.RemoteModels![model.Id]
             : _adaptations.GetOrAdd((model.Id, protocol, snapshot.Revision), _ => new ProviderRequestAdaptation(false, false,
@@ -75,6 +72,10 @@ public sealed partial class OpenRouterProvider : IModelProvider, IProviderModelR
                             ? null : Path.Combine(runtime.ProviderStateDirectory, ModelThinkingAdapterCatalog.FileName),
                         useAdaptiveFallback: true)
                     : null, null, model, protocol));
+        var capacity = runtime.ConfiguredMaxOutputTokens;
+        var modelLimit = adaptation.MaxOutputTokens ?? model.MaxOutputTokens;
+        var maxOutput = capacity is > 0 && modelLimit is > 0 ? Math.Min(capacity.Value, modelLimit.Value)
+            : capacity ?? modelLimit;
         return resolved with
         {
             Protocol = protocol, EndPoint = protocol == "anthropic" ? _root[..^3] : _root,

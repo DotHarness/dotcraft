@@ -17,6 +17,4 @@ internal sealed record DotNetExtensionRuntimeOptions
     public int LeakedGenerationRestartThreshold { get; init; } = 3;
 
     public IReadOnlySet<string> HostSharedAssemblies { get; init; } = FrozenSet<string>.Empty;
-
-    public ModelPluginAdmission? ModelPluginAdmission { get; init; }
 }

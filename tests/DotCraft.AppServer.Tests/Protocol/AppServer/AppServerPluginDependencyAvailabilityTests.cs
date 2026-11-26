@@ -115,14 +115,6 @@ public sealed class AppServerPluginDependencyAvailabilityTests : IDisposable
     private sealed class SnapshotPluginRuntimeCoordinator(PluginRuntimeSnapshot snapshot)
         : IDotNetExtensionRuntimeCoordinator
     {
-        public IReadOnlySet<string> HostSharedAssemblies { get; } = new HashSet<string>();
-
-        public Task<DotNetExtensionBuildApplyResult> ApplyBuildAsync(
-            string pluginId,
-            DotNetExtensionBuild build,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
         public PluginRuntimeSnapshot Snapshot { get; } = snapshot;
 
         public event EventHandler<PluginRuntimeSnapshotChangedEventArgs>? SnapshotChanged

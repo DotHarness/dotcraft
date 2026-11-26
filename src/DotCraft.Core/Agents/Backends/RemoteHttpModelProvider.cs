@@ -22,7 +22,7 @@ internal sealed class RemoteHttpModelProvider(ModelProviderRegistry native) : IM
         if (adaptation?.Protocol is not { } protocol || !SupportedProtocols.Contains(protocol))
             throw new ArgumentException($"Model '{runtime.Model}' has no native route in the model service catalog. Refresh the catalog before selecting it.");
 
-        var maxOutputTokens = (runtime.ConfiguredMaxOutputTokens, adaptation.Model?.MaxOutputTokens) switch
+        var maxOutputTokens = (runtime.ConfiguredMaxOutputTokens, adaptation.MaxOutputTokens ?? adaptation.Model?.MaxOutputTokens) switch
         {
             (int configured, int limit) when configured > 0 && limit > 0 => Math.Min(configured, limit),
             (int configured, _) when configured > 0 => configured,

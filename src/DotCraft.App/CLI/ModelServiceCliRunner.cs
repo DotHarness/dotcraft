@@ -64,8 +64,8 @@ internal static partial class ModelServiceCliRunner
             return Task.FromResult(0);
         }, ct);
 
-    public static Task<int> SetPluginTrustAsync(
-        string directory, string[] plugins, string pluginId, bool trusted, TextWriter output, CancellationToken ct)
+    public static Task<int> TrustPluginAsync(
+        string directory, string[] plugins, string pluginId, TextWriter output, CancellationToken ct)
     {
         if (!plugins.Any(id => PluginIds.EqualsCanonical(id, pluginId)))
         {
@@ -76,14 +76,21 @@ internal static partial class ModelServiceCliRunner
         return WithRuntimeAsync(directory, plugins, async (_, services) =>
         {
             var runtime = services.GetRequiredService<IDotNetExtensionRuntimeCoordinator>();
-            var result = trusted ? await runtime.TrustAsync(pluginId, ct) : await runtime.RevokeTrustAsync(pluginId, ct);
+            var result = await runtime.TrustAsync(pluginId, ct);
             foreach (var diagnostic in result.Diagnostics)
                 output.WriteLine($"{diagnostic.Code}: {diagnostic.Message}");
             if (result.Outcome == PluginRuntimeMutationOutcome.NotApplied)
                 return 1;
-            output.WriteLine(trusted ? $"Trusted plugin '{pluginId}'." : $"Revoked trust for plugin '{pluginId}'.");
+            output.WriteLine($"Trusted plugin '{pluginId}'.");
             return 0;
-        }, ct, disableActivation: !trusted);
+        }, ct, FileModelServiceAccess.ReadStateConfiguration);
+    }
+
+    public static int RevokePluginTrust(string directory, string pluginId, TextWriter output)
+    {
+        var revoked = DotNetExtensionTrust.RevokePersistedGrants(Path.Combine(directory, "config.json"), pluginId);
+        output.WriteLine(revoked ? $"Revoked trust for plugin '{pluginId}'." : $"No trust grants for plugin '{pluginId}'.");
+        return 0;
     }
 
     private static void ConfigureServices(IServiceCollection services, string directory, AppConfig config, string[] plugins)
@@ -99,12 +106,10 @@ internal static partial class ModelServiceCliRunner
     }
 
     private static async Task<int> WithRuntimeAsync(string directory, string[] plugins,
-        Func<AppConfig, IServiceProvider, Task<int>> action, CancellationToken ct, bool disableActivation = false)
+        Func<AppConfig, IServiceProvider, Task<int>> action, CancellationToken ct, Func<string, AppConfig>? readConfig = null)
     {
         directory = Path.GetFullPath(directory);
-        var config = FileModelServiceAccess.ReadConfiguration(directory);
-        if (disableActivation)
-            config.Plugins.DisabledPlugins.AddRange(plugins);
+        var config = (readConfig ?? FileModelServiceAccess.ReadConfiguration)(directory);
         var services = new ServiceCollection();
         ConfigureServices(services, directory, config, plugins);
         await using var provider = services.BuildServiceProvider();
