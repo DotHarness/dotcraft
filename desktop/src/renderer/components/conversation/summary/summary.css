@@ -227,7 +227,8 @@
 }
 
 .conversation-summary-row__inline {
-  flex: 0 10 auto;
+  flex: 0 0 auto;
+  max-width: 88px;
   margin-left: -4px;
   color: var(--text-dimmed);
   font-size: var(--type-secondary-size);
