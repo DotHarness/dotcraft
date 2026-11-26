@@ -172,66 +172,48 @@ internal static partial class ResponsesToolSearchMapper
         return options;
     }
 
-    private static PromptCacheRequestShapeSnapshot CreatePromptCacheRequestShapeSnapshot(
-        string model,
-        PromptCacheKeyResolution promptCacheKey,
-        string? instructions,
-        JsonArray input,
-        OpenAIResponsesItemIdentityDiagnostics itemIdentity,
-        JsonArray tools,
-        bool includeReasoning,
-        ResponseReasoningOptions? reasoningOptions,
-        CreateResponseOptions responseOptions,
+    internal static PromptCacheRequestShapeSnapshot CreatePromptCacheRequestShapeSnapshot(
+        MappedResponseRequest request,
         ChatOptions? options,
-        bool removesUnsupportedOAuthResponsesFields)
+        bool removesUnsupportedOAuthResponsesFields,
+        (JsonArray Input, JsonArray Tools)? liteShape = null)
     {
-        var inputItemHashes = HashInputItems(input);
+        var input = liteShape?.Input ?? request.Input;
+        var tools = liteShape?.Tools ?? request.Tools;
+        var itemIdentity = liteShape is null
+            ? request.ItemIdentity
+            : OpenAIResponsesItemIdentityDiagnostics.FromInput(input);
+        var inputBytes = JsonSerializer.SerializeToUtf8Bytes(input, JsonOptions);
+        var promptCacheKey = request.PromptCacheKey;
+        var reasoningOptions = request.Options.ReasoningOptions;
         var maxOutputTokensRequested = options?.MaxOutputTokens;
         var maxOutputTokensRemovedByOAuthRewrite = maxOutputTokensRequested.HasValue && removesUnsupportedOAuthResponsesFields;
 
         return new PromptCacheRequestShapeSnapshot(
             PromptCacheRequestShapeSchemaVersion,
             OpenAIResponsesProtocolName,
-            model,
+            request.Options.Model!,
             string.IsNullOrWhiteSpace(promptCacheKey.Value) ? null : HashUtf8String(promptCacheKey.Value!),
             promptCacheKey.Source,
-            HashJsonStringValue(instructions),
+            HashJsonStringValue(request.Instructions),
             HashJsonNode(tools),
-            HashReasoningShape(includeReasoning, reasoningOptions),
-            HashJsonNode(input),
+            HashReasoningShape(request.IncludeReasoning, reasoningOptions),
+            HashUtf8Bytes(inputBytes),
             input.Count,
-            inputItemHashes,
-            Encoding.UTF8.GetByteCount(input.ToJsonString(JsonOptions)),
+            HashInputItems(input),
+            inputBytes.Length,
             itemIdentity.EligibleCount,
             itemIdentity.PresentCount,
-            itemIdentity.GeneratedCount,
+            request.ItemIdentity.GeneratedCount + input.Count - request.Input.Count,
             itemIdentity.MissingCount,
-            itemIdentity.InvalidSourceCount,
+            request.ItemIdentity.InvalidSourceCount,
             maxOutputTokensRequested,
             maxOutputTokensRequested.HasValue && !maxOutputTokensRemovedByOAuthRewrite,
             maxOutputTokensRemovedByOAuthRewrite,
             reasoningOptions?.ReasoningEffortLevel?.ToString(),
             DescribeToolChoiceKind(options?.ToolMode),
             tools.Count,
-            responseOptions.StreamingEnabled == true);
-    }
-
-    internal static PromptCacheRequestShapeSnapshot WithFinalRequestShape(
-        PromptCacheRequestShapeSnapshot shape, JsonArray input, JsonArray tools)
-    {
-        var identity = OpenAIResponsesItemIdentityDiagnostics.FromInput(input);
-        return shape with
-        {
-            ToolsHash = HashJsonNode(tools),
-            ToolCount = tools.Count,
-            InputHash = HashJsonNode(input),
-            InputItemCount = input.Count,
-            InputItemHashes = HashInputItems(input),
-            InputBytes = Encoding.UTF8.GetByteCount(input.ToJsonString(JsonOptions)),
-            InputItemIdEligibleCount = identity.EligibleCount,
-            InputItemIdPresentCount = identity.PresentCount,
-            InputItemIdMissingCount = identity.MissingCount
-        };
+            request.Options.StreamingEnabled == true);
     }
 
     private static string DescribeToolChoiceKind(ChatToolMode? toolMode)
@@ -276,7 +258,7 @@ internal static partial class ResponsesToolSearchMapper
     }
 
     private static string HashJsonNode(JsonNode node) =>
-        HashUtf8String(node.ToJsonString(JsonOptions));
+        HashUtf8Bytes(JsonSerializer.SerializeToUtf8Bytes(node, JsonOptions));
 
     /// <summary>Item ids are thread-scoped, so they are left out to keep equal content comparable across threads.</summary>
     private static string[] HashInputItems(JsonArray input) => input

@@ -9,10 +9,12 @@ namespace DotCraft.Agents;
 
 internal static class OpenAIResponsesRequestOptions
 {
-    internal static void Freeze(CreateResponseOptions options)
+    internal static BinaryData Freeze(CreateResponseOptions options)
     {
-        // SDK array patches are consumed by serialization; capture the final body for repeatable writes.
-        options.Patch.Set("$"u8, ModelReaderWriter.Write(options));
+        // Writing SDK options consumes array patches, so keep the serialized body for subsequent writes.
+        var body = ModelReaderWriter.Write(options);
+        options.Patch.Set("$"u8, body);
+        return body;
     }
 
     internal static CreateResponseOptions Copy(CreateResponseOptions source)

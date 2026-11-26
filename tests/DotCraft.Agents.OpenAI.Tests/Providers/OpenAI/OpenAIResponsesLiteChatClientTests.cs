@@ -11,7 +11,7 @@ using Xunit;
 
 namespace DotCraft.Tests.Agents;
 
-public sealed class OpenAIResponsesLiteChatClientTests
+public sealed partial class OpenAIResponsesLiteChatClientTests
 {
     [Fact]
     public void RequestMapper_EmitsResponsesLiteContract()

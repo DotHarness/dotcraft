@@ -1,4 +1,4 @@
-using System.ClientModel.Primitives;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Tools;
 using Microsoft.Extensions.AI;
@@ -26,7 +26,7 @@ internal static class OpenAIResponsesLiteRequestMapper
         string installationId,
         bool supportsFreeformTools)
     {
-        var standard = ResponsesToolSearchMapper.CreateResponseRequest(
+        var mapped = ResponsesToolSearchMapper.MapResponseRequest(
             model,
             messages,
             options,
@@ -35,23 +35,20 @@ internal static class OpenAIResponsesLiteRequestMapper
             rawRepresentationClient: rawRepresentationClient,
             supportsFreeformTools: supportsFreeformTools);
         var routes = ResponsesToolSearchMapper.CollectLiteToolCallRoutes(options);
-        var (body, tools) = BuildWireObject(ModelReaderWriter.Write(standard.Options), installationId, options, routes);
-        var input = body["input"]!.AsArray();
+        var (body, tools) = BuildWireObject(mapped.SdkBody, installationId, options, routes);
         return new OpenAIResponsesLiteRequest(
-            standard.Options,
-            BinaryData.FromString(body.ToJsonString()),
-            ResponsesToolSearchMapper.WithFinalRequestShape(standard.Shape, input, tools) with
-            {
-                InputItemIdGeneratedCount = standard.Shape.InputItemIdGeneratedCount
-                                            + input.Count - standard.Shape.InputItemCount,
-                MaxOutputTokensPresentAfterOAuthRewrite = false,
-                MaxOutputTokensRemovedByOAuthRewrite = standard.Shape.MaxOutputTokensRequested.HasValue
-            },
+            mapped.Options,
+            EncodeWireBody(body),
+            ResponsesToolSearchMapper.CreatePromptCacheRequestShapeSnapshot(
+                mapped, options, removesUnsupportedOAuthResponsesFields: true, (body["input"]!.AsArray(), tools)),
             routes);
     }
 
     internal static BinaryData BuildWireBody(BinaryData standardBody, string? installationId, ChatOptions? options = null) =>
-        BinaryData.FromString(BuildWireObject(standardBody, installationId, options, null).Body.ToJsonString());
+        EncodeWireBody(BuildWireObject(standardBody, installationId, options, null).Body);
+
+    private static BinaryData EncodeWireBody(JsonObject body) =>
+        BinaryData.FromBytes(JsonSerializer.SerializeToUtf8Bytes(body));
 
     private static (JsonObject Body, JsonArray Tools) BuildWireObject(
         BinaryData standardBody,
@@ -59,9 +56,10 @@ internal static class OpenAIResponsesLiteRequestMapper
         ChatOptions? options,
         Dictionary<string, ResponsesToolSearchMapper.LiteToolCallRoute>? routes)
     {
-        var canonicalJson = OpenAIResponsesRequestBodyCanonicalizer.NormalizeTopLevelObject(standardBody.ToString())
-                            ?? throw new InvalidDataException("Responses request must be a JSON object.");
-        var root = JsonNode.Parse(canonicalJson)!.AsObject();
+        var json = standardBody.ToMemory();
+        var canonicalJson = OpenAIResponsesRequestBodyCanonicalizer.Canonicalize(json) ?? json;
+        var root = JsonNode.Parse(canonicalJson.Span) as JsonObject
+                   ?? throw new InvalidDataException("Responses request must be a JSON object.");
         var tools = ApplyLiteDialect(root, options, routes);
         if (!string.IsNullOrWhiteSpace(installationId))
         {
