@@ -54,6 +54,7 @@
 .partner {
   display: inline-flex;
   min-width: 0;
+  animation: brand-fade-in 160ms ease-out;
   align-items: center;
   gap: 8px;
 }
@@ -176,18 +177,6 @@
   animation: brand-wave 520ms calc(120ms + var(--i) * 40ms) cubic-bezier(0.3, 0.7, 0.4, 1);
 }
 
-.partner[data-link] .rule {
-  animation: brand-rule 260ms cubic-bezier(0.2, 0.8, 0.3, 1) both;
-}
-
-.partner[data-link] .partnerMark {
-  animation: brand-partner-in 360ms 160ms cubic-bezier(0.2, 0.8, 0.3, 1) both;
-}
-
-.partner:not([data-link]) {
-  animation: brand-fade-in 160ms ease-out;
-}
-
 @keyframes brand-hop {
   0% { transform: translateY(0) scale(1, 1); }
   25% { transform: translateY(0) scale(1.12, 0.86); }
@@ -237,16 +226,6 @@
   0% { transform: translateY(0); }
   40% { transform: translateY(-3px); }
   100% { transform: translateY(0); }
-}
-
-@keyframes brand-rule {
-  from { opacity: 0; transform: scaleY(0); }
-  to { opacity: 1; transform: scaleY(1); }
-}
-
-@keyframes brand-partner-in {
-  from { opacity: 0; transform: translateX(-6px) scale(0.8); }
-  to { opacity: 1; transform: translateX(0) scale(1); }
 }
 
 @keyframes brand-fade-in {

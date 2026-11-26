@@ -633,8 +633,8 @@ When the conversation, or the workspace default, runs on a plugin model backend 
 subscription sign-in, the header pairs the wordmark with that backend: a `14px` rule one
 device pixel wide in 28% `--text-primary`, then the backend's icon fitted by its visible shape to the
 mark's `18px x 14px` ink, with its name in a tooltip. API-key providers show nothing.
-Gaining a backend plays one link-up (the rule grows, the icon slides in, the bulb
-pops); switching between backends only cross-fades. Below `150px` of header the
+A change of backend, from any thread or workspace switch, only fades the pairing in; the
+mark moves only when pressed. Below `150px` of header the
 pairing hides.
 
 ### Sidebar selection

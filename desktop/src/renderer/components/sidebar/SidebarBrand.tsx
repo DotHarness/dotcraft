@@ -131,17 +131,6 @@ function PartnerMark({ partner, size }: { partner: BrandPartner; size: number })
 export function SidebarBrand({ partner }: { partner: BrandPartner | null }): JSX.Element {
   const [beat, setBeat] = useState<{ kind: Beat; seq: number } | null>(null)
   const streak = useRef({ count: 0, at: 0 })
-  const previousPartner = useRef<string | null | undefined>(undefined)
-  const [linkSeq, setLinkSeq] = useState(0)
-
-  const partnerKey = partner?.key ?? null
-  useEffect(() => {
-    const previous = previousPartner.current
-    previousPartner.current = partnerKey
-    if (previous !== null || partnerKey === null) return
-    setLinkSeq((value) => value + 1)
-    setBeat((current) => ({ kind: 'pop', seq: (current?.seq ?? 0) + 1 }))
-  }, [partnerKey])
 
   const onPointerDown = (): void => {
     const now = performance.now()
@@ -164,7 +153,7 @@ export function SidebarBrand({ partner }: { partner: BrandPartner | null }): JSX
         </span>
       </span>
       {partner ? (
-        <span key={`${partner.key}:${linkSeq}`} className={css.partner} data-link={linkSeq > 0 ? true : undefined}>
+        <span key={partner.key} className={css.partner}>
           <span className={css.rule} aria-hidden="true" />
           <ActionTooltip label={partner.name} placement="bottom" wrapperClassName={css.partnerMark}>
             <span role="img" aria-label={partner.name} className={css.partnerMarkInner}>
