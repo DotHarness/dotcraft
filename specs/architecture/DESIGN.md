@@ -1375,8 +1375,10 @@ and state already say.
   blooms in dots beneath it, and a sentence ends with a small spray of square
   sparks above the caret. Bloom, Sparks, Resolve (dots settle under each new
   character), and Wake each play one layer alone, and Off turns typing effects
-  off. Paste, uncommitted input-method text, and typing while recording do not
-  trigger them.
+  off. With an input method, each composing keystroke answers with a fainter,
+  sparser pulse at the caret, and committed text plays the effect across each
+  committed character in turn, with Rhythm blooming beneath the whole phrase.
+  Paste and typing while recording do not trigger them.
 - With Colorful effects, the Composer mascot listens while recording: it leans
   toward the input with the voice level and sound arcs pulse beside its face.
   When the trails reach Send or Stop, a short stream of the ribbon's colors
