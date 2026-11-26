@@ -2,10 +2,8 @@ using DotCraft.Plugins;
 
 namespace DotCraft.Runtime;
 
-/// <summary>The coordinated quiesce, mutate, reconcile protocol AppServer drives bundle mutations through.</summary>
 internal sealed partial class DotNetExtensionRuntimeManager
 {
-    /// <inheritdoc />
     public async Task<PluginRuntimeMutationResult> QuiesceForMutationAsync(
         string pluginId,
         CancellationToken cancellationToken = default)
@@ -40,7 +38,6 @@ internal sealed partial class DotNetExtensionRuntimeManager
         }
     }
 
-    /// <inheritdoc />
     public async Task<PluginRuntimeMutationResult> ReconcileAfterMutationAsync(
         string pluginId,
         CancellationToken cancellationToken = default)
@@ -132,8 +129,15 @@ internal sealed partial class DotNetExtensionRuntimeManager
         return Result(PluginRuntimeMutationOutcome.Applied, pluginId, affected, []);
     }
 
-    private PluginDiscoveryResult DiscoverCurrent() =>
-        _discovery.DiscoverAll(_config, _paths.WorkspacePath, _paths.Data.RootPath);
+    private PluginDiscoveryResult DiscoverCurrent()
+    {
+        if (_options.ModelPluginAdmission is not { } admission)
+            return _discovery.DiscoverAll(_config, _paths.WorkspacePath, _paths.Data.RootPath);
+
+        var discovery = admission.Discover(_discovery, _config);
+        _modelDiscoveryDiagnostics = discovery.Diagnostics;
+        return discovery;
+    }
 
     private void RefreshEffectivePlugins(PluginDiscoveryResult discovery)
     {

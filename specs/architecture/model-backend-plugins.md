@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.14.2 |
+| Version | 0.15.0 |
 | Status | Living |
-| Date | 2026-11-25 |
+| Date | 2026-11-26 |
 
 ## Identity and ownership
 
@@ -56,7 +56,7 @@ tool calls and consume the resulting tool messages.
 
 Factories, clients, authentication, model runtime resolvers and model catalogs cross the generation boundary only through
 host-owned adapters. Async calls and streaming enumeration hold the gate throughout. Provider capability
-lookup is limited to model catalogs, model runtime resolution, authentication and usage. Chat client
+lookup admits published contracts for model catalogs, model runtime resolution, authentication, account Usage, and native HTTP routing. Chat client
 services and response metadata return only host-owned values.
 
 Revocation removes routes before signalling generation stopping. Login, refresh and inference receive
@@ -70,7 +70,7 @@ Authentication is scoped to a configured provider instance. Supported methods de
 OAuth, delegated CLI or ambient/keyless access. Availability checks distinguish missing credentials
 from unavailable dependencies. A plugin may delegate all credential management to an external CLI.
 
-Host credential storage partitions by backend ID and provider ID. Stored JSON never enters workspace
+Host credential storage partitions by host scope, backend ID, and provider ID. Stored JSON never enters workspace
 configuration, rollouts or ordinary logging. Credential files are created with current-user
 permissions before any secret is written; writes use atomic replacement and cross-process locking. Refresh, login commit
 and logout serialize per partition. Cancellation is checked before committing a write.
@@ -83,8 +83,7 @@ message. The runtime copies only the text across the generation boundary without
 exception instances, while unexpected exceptions remain redacted to `ProviderLoginFailed`.
 
 Provider-independent startup permits plugin discovery, trust, configuration and login before any
-usable model exists. Standalone ModelService hosts reject local plugin-backend configurations;
-hosts may explicitly compose built-in backends.
+usable model exists. Backend use in a [remote model service](model-service.md) requires explicit native HTTP routing.
 
 ## Requests and conversation state
 

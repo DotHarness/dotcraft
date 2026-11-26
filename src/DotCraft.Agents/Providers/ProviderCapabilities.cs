@@ -4,7 +4,6 @@ using Microsoft.Extensions.AI;
 
 namespace DotCraft.Agents;
 
-/// <summary>Lists models for one provider runtime.</summary>
 public interface IModelCatalogProvider
 {
     Task<ModelCatalogResult> FetchModelsAsync(
@@ -12,12 +11,16 @@ public interface IModelCatalogProvider
         CancellationToken cancellationToken);
 }
 
+public interface IProviderCachedModelCatalog
+{
+    ModelCatalogResult ReadCatalog();
+}
+
 public interface IProviderAccessTokenReader
 {
     Task<string?> TryGetAccessTokenAsync(bool forceRefresh, CancellationToken cancellationToken);
 }
 
-/// <summary>Provider-neutral authentication state.</summary>
 public sealed record ProviderAuthenticationStatus(
     bool IsAuthenticated,
     string? AccountId = null,
@@ -29,19 +32,16 @@ public sealed record ProviderAuthenticationStatus(
     DateTimeOffset? LastRefresh = null,
     DateTimeOffset? AccessTokenExpiresAt = null);
 
-/// <summary>Reads an optional provider account-usage snapshot.</summary>
 public interface IProviderUsageReader
 {
     Task<ProviderUsageSnapshot?> ReadAsync(CancellationToken cancellationToken);
 }
 
-/// <summary>Starts and stops provider-owned background services at host boundaries.</summary>
 public interface IProviderLifecycle : IAsyncDisposable
 {
     void Start();
 }
 
-/// <summary>Resolves provider-owned runtime identity such as an OAuth account binding.</summary>
 public interface IProviderRuntimeIdentityResolver
 {
     string? ResolveAccountId(EffectiveModelRuntime runtime);
@@ -52,18 +52,15 @@ public sealed record ProviderContextBudget(
     int EffectiveContextWindowPercent = 95,
     int? AutoCompactTokenLimit = null);
 
-/// <summary>Provider-owned model metadata that affects Core orchestration.</summary>
 public sealed record ProviderRuntimeMetadata(
     bool UseLightweightResponses = false,
     ProviderContextBudget? ContextBudget = null);
 
-/// <summary>Resolves provider-owned runtime metadata without exposing provider catalog types.</summary>
 public interface IProviderRuntimeMetadataResolver
 {
     ProviderRuntimeMetadata Resolve(EffectiveModelRuntime runtime);
 }
 
-/// <summary>Provider-neutral account usage values for control-plane projection.</summary>
 public sealed record ProviderUsageSnapshot(
     DateTimeOffset ObservedAt,
     IReadOnlyDictionary<string, double> Values,
@@ -92,7 +89,6 @@ public sealed record ProviderBalance(
     string Granted,
     string ToppedUp);
 
-/// <summary>Generates or edits images through an optional provider capability.</summary>
 public interface IProviderImageGeneration
 {
     Task<ProviderImageResult> GenerateImageAsync(
@@ -136,7 +132,6 @@ public sealed record ProviderWebSearchResult(
     string Output,
     JsonArray Results);
 
-/// <summary>Executes provider-native history compaction for one configured model runtime.</summary>
 public interface IProviderNativeCompactor
 {
     Task<ProviderNativeCompactionReplacement> CompactAsync(
@@ -146,7 +141,6 @@ public interface IProviderNativeCompactor
         CancellationToken cancellationToken);
 }
 
-/// <summary>Creates a provider-native compactor for an immutable runtime.</summary>
 public interface IProviderNativeCompactorFactory
 {
     IProviderNativeCompactor CreateCompactor(
@@ -154,7 +148,6 @@ public interface IProviderNativeCompactorFactory
         IChatClient? rawRepresentationClient = null);
 }
 
-/// <summary>Provider-neutral request-shaping options selected by Core.</summary>
 public sealed record ProviderPipelineOptions(
     EffectiveModelRuntime Runtime,
     string? ReasoningEffort,
@@ -164,7 +157,6 @@ public sealed record ProviderPipelineOptions(
     bool PromptCachingEnabled,
     string? PromptCacheTtl);
 
-/// <summary>Flows Core-selected provider request options into provider-owned middleware.</summary>
 public static class ProviderPipelineOptionsScope
 {
     private static readonly AsyncLocal<ProviderPipelineOptions?> CurrentOptions = new();

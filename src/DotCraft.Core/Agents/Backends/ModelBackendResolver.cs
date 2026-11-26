@@ -8,9 +8,12 @@ public sealed record ModelBackendRegistration(ModelBackendDescriptor Descriptor,
 
 public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
 {
+    private const string OpenRouterBackendId = "openrouter";
     private readonly ModelProviderRegistry builtins;
+    private readonly RemoteHttpModelProvider remoteHttp;
     private readonly IContributionView contributions;
-    private readonly string credentialRoot;
+    private readonly Func<string, string, IProviderCredentialStore> createCredentialStore;
+    private readonly ConcurrentDictionary<(string BackendId, string ProviderId), Lazy<IProviderCredentialStore>> _credentialStores = new();
     private readonly IReadOnlyDictionary<string, IModelBackend> officialBackends;
     private readonly List<IContributionHandle> _officialRegistrations = [];
     private readonly ConcurrentDictionary<EffectiveModelRuntime, Lazy<IModelProvider>> _providers = new();
@@ -20,11 +23,14 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
     public event Action? Changed;
 
     public ModelBackendResolver(ModelProviderRegistry builtins, IContributionView contributions, string credentialRoot,
-        IEnumerable<IModelBackend>? officialBackends = null)
+        IEnumerable<IModelBackend>? officialBackends = null,
+        Func<string, string, IProviderCredentialStore>? createCredentialStore = null)
     {
         this.builtins = builtins;
+        remoteHttp = new RemoteHttpModelProvider(builtins);
         this.contributions = contributions;
-        this.credentialRoot = credentialRoot;
+        this.createCredentialStore = createCredentialStore
+            ?? ((backendId, providerId) => new ProviderCredentialStore(credentialRoot, backendId, providerId));
         this.officialBackends = (officialBackends ?? []).ToDictionary(backend => backend.Descriptor.Id, StringComparer.Ordinal);
         if (contributions is IContributionRegistry registry)
         {
@@ -69,41 +75,77 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
                 ? runtime with { BackendGeneration = "chatgpt:" + Interlocked.Read(ref _chatGptRevision) }
                 : runtime;
         }
+        if (IsGenericRemoteBackend(runtime))
+            return RemoteHttpModelProvider.Normalize(runtime);
         if (officialBackends.TryGetValue(runtime.BackendId, out var official))
-        {
-            var configured = runtime with
-            {
-                IsBuiltInBackend = true,
-                ConfiguredProtocol = runtime.ConfiguredProtocol ?? runtime.Protocol,
-                ConfiguredEndPoint = runtime.ConfiguredEndPoint ?? runtime.EndPoint,
-                AuthMethod = string.IsNullOrWhiteSpace(runtime.AuthMethod) ? official.Descriptor.AuthenticationMethods[0].Id : runtime.AuthMethod
-            };
-            var provider = ResolveOfficial(configured, official);
-            return provider.GetService(typeof(IProviderModelRuntimeResolver)) is IProviderModelRuntimeResolver resolver
-                ? resolver.ResolveRuntime(configured) : configured;
-        }
+            return ResolveOfficialRuntime(runtime, official).Runtime;
+        if (runtime.IsRemote)
+            throw new ModelBackendUnavailableException(runtime.BackendId);
         var entry = Find(runtime.BackendId);
         var normalized = NormalizePluginBase(runtime, entry);
         if (string.IsNullOrWhiteSpace(normalized.Model))
             return normalized;
-        var pluginProvider = ResolvePlugin(normalized, entry);
-        if (pluginProvider.GetService(typeof(IProviderModelRuntimeResolver)) is not IProviderModelRuntimeResolver modelResolver)
-            return normalized;
-        return ApplyPluginResolvedRuntime(normalized, modelResolver.ResolveRuntime(normalized), entry.Contribution.Backend.Descriptor);
+        return NormalizePluginModel(normalized, entry.Contribution.Backend.Descriptor, ResolvePlugin(normalized, entry));
     }
+
+    /// <summary>Resolves a hosted backend and its stopping token from the same generation.</summary>
+    public (EffectiveModelRuntime Runtime, IModelProvider Provider, CancellationToken Stopping) ResolveBackend(EffectiveModelRuntime runtime)
+    {
+        if (runtime.IsRemote || string.IsNullOrWhiteSpace(runtime.BackendId))
+            throw new ArgumentException("A local backend provider instance is required.", nameof(runtime));
+        if (officialBackends.TryGetValue(runtime.BackendId, out var official))
+            return ResolveOfficialRuntime(runtime, official);
+
+        var entry = Find(runtime.BackendId);
+        var backend = entry.Contribution.Backend;
+        var stopping = backend.Stopping;
+        var configured = NormalizePluginBase(runtime, entry);
+        var provider = ResolvePlugin(configured, entry);
+        return (NormalizePluginModel(configured, backend.Descriptor, provider), provider, stopping);
+    }
+
+    private (EffectiveModelRuntime Runtime, IModelProvider Provider, CancellationToken Stopping) ResolveOfficialRuntime(
+        EffectiveModelRuntime runtime, IModelBackend backend)
+    {
+        var configured = runtime with
+        {
+            IsBuiltInBackend = true,
+            ConfiguredProtocol = runtime.ConfiguredProtocol ?? runtime.Protocol,
+            ConfiguredEndPoint = runtime.ConfiguredEndPoint ?? runtime.EndPoint,
+            AuthMethod = string.IsNullOrWhiteSpace(runtime.AuthMethod)
+                ? backend.Descriptor.AuthenticationMethods.FirstOrDefault()?.Id ?? string.Empty : runtime.AuthMethod
+        };
+        var provider = ResolveOfficial(configured, backend);
+        var selected = provider.GetService(typeof(IProviderModelRuntimeResolver)) is IProviderModelRuntimeResolver resolver
+            ? resolver.ResolveRuntime(configured) : configured;
+        return (selected, provider, backend.Stopping);
+    }
+
+    private EffectiveModelRuntime NormalizePluginModel(EffectiveModelRuntime configured, ModelBackendDescriptor descriptor, IModelProvider provider) =>
+        !string.IsNullOrWhiteSpace(configured.Model)
+        && provider.GetService(typeof(IProviderModelRuntimeResolver)) is IProviderModelRuntimeResolver resolver
+            ? ApplyPluginResolvedRuntime(configured, resolver.ResolveRuntime(configured), descriptor)
+            : configured;
 
     public IModelProvider Resolve(EffectiveModelRuntime runtime)
     {
         if (string.IsNullOrWhiteSpace(runtime.BackendId))
             return builtins.Resolve(runtime);
+        if (IsGenericRemoteBackend(runtime))
+            return remoteHttp;
         if (officialBackends.TryGetValue(runtime.BackendId, out var official))
             return ResolveOfficial(runtime, official);
+        if (runtime.IsRemote)
+            throw new ModelBackendUnavailableException(runtime.BackendId);
         var entry = Find(runtime.BackendId);
         return ResolvePlugin(NormalizePluginBase(runtime, entry), entry);
     }
 
+    private static bool IsGenericRemoteBackend(EffectiveModelRuntime runtime) =>
+        runtime.IsRemote && runtime.BackendId != OpenRouterBackendId;
+
     public CancellationToken GetStopping(EffectiveModelRuntime runtime) =>
-        string.IsNullOrWhiteSpace(runtime.BackendId) ? CancellationToken.None
+        runtime.IsRemote || string.IsNullOrWhiteSpace(runtime.BackendId) ? CancellationToken.None
             : officialBackends.TryGetValue(runtime.BackendId, out var official) ? official.Stopping
             : Find(runtime.BackendId).Contribution.Backend.Stopping;
 
@@ -146,7 +188,7 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
         return _providers.GetOrAdd(key, value => new Lazy<IModelProvider>(() =>
         {
             var backend = entry.Contribution.Backend;
-            var store = new ProviderCredentialStore(credentialRoot, value.BackendId!, value.ProviderId);
+            var store = GetCredentials(backend.Descriptor.Id, value.ProviderId);
             return backend.CreateProvider(new ModelBackendContext(value, store, backend.Stopping));
         }, LazyThreadSafetyMode.ExecutionAndPublication)).Value;
     }
@@ -209,7 +251,7 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
             MaxOutputTokens = runtime.ConfiguredMaxOutputTokens, Capabilities = backend.Descriptor.Capabilities
         };
         return _providers.GetOrAdd(key, value => new Lazy<IModelProvider>(() => backend.CreateProvider(
-            new ModelBackendContext(value, new ProviderCredentialStore(credentialRoot, backend.Descriptor.Id, value.ProviderId), backend.Stopping)))).Value;
+            new ModelBackendContext(value, GetCredentials(backend.Descriptor.Id, value.ProviderId), backend.Stopping)))).Value;
     }
 
     public void InvalidateAuthentication(EffectiveModelRuntime runtime)
@@ -230,7 +272,11 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
     }
 
     public Task ClearCredentialsAsync(EffectiveModelRuntime runtime, CancellationToken ct) =>
-        new ProviderCredentialStore(credentialRoot, runtime.BackendId!, runtime.ProviderId).DeleteAsync(ct);
+        GetCredentials(runtime.BackendId!, runtime.ProviderId).DeleteAsync(ct);
+
+    private IProviderCredentialStore GetCredentials(string backendId, string providerId) =>
+        _credentialStores.GetOrAdd((backendId, providerId.ToLowerInvariant()), key =>
+            new Lazy<IProviderCredentialStore>(() => createCredentialStore(key.BackendId, key.ProviderId))).Value;
 
     private ContributionEntry<IModelBackendSource> Find(string id)
     {
@@ -256,6 +302,7 @@ public sealed class ModelBackendResolver : IModelRuntimeResolver, IDisposable
         foreach (var handle in _officialRegistrations) handle.Dispose();
         _providers.Clear();
         _pluginMetadata.Clear();
+        _credentialStores.Clear();
         Changed = null;
     }
 

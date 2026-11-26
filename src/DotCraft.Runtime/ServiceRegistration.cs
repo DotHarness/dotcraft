@@ -43,8 +43,6 @@ public static class ServiceRegistration
         var config = options.Config;
         var workspacePath = paths.WorkspacePath;
         var dataPath = paths.Data.RootPath;
-        // Provider selection belongs to the application composition root. AddLogging still
-        // supplies a no-op-capable ILoggerFactory for embedders that do not configure one.
         services.AddLogging();
         services.AddSingleton(_ =>
         {
@@ -69,8 +67,7 @@ public static class ServiceRegistration
         services.AddSingleton(_ => new CommonToolApprovalEvaluator(paths.UserData.RootPath));
         services.AddSingleton<McpAppTransientContextStore>();
         services.AddSingleton<ThreadToolDispatchPolicyRegistry>();
-        // The dispatch stages below are the fallback for the window before the workspace starts and
-        // registers them into the contribution registry.
+        // Use these dispatch stages until the workspace contributions are registered.
         services.AddSingleton(_ => new DefaultToolResultNormalizer(
             config.Tools.ResultLimits.MaxToolResultChars,
             workspacePath,
@@ -223,13 +220,12 @@ public static class ServiceRegistration
         services.AddSingleton<ISessionRuntimeRefresher>(sp => new UserConfigurationRefresher(sp));
         services.AddSingleton<IHostedService, WorkspaceRuntimeHostedService>();
 
-        // WorkspaceRuntime starts this manager after the kernel and stops it before tearing the
-        // kernel down. Keeping one owner also covers custom hosts that do not run IHostedService.
+        // WorkspaceRuntime starts and stops the plugin manager within the kernel lifetime.
         services.TryAddSingleton(new DotNetExtensionRuntimeOptions
         {
             HostSharedAssemblies = PluginHostAssemblies.ValidateHostShared(options.PluginSharedAssemblies)
         });
-        services.AddSingleton(sp => new DotNetExtensionRuntimeManager(
+        services.AddDotNetExtensionRuntimeManager(sp => new DotNetExtensionRuntimeManager(
             sp.GetRequiredService<PluginDiscoveryService>(),
             sp.GetRequiredService<AppConfig>(),
             sp.GetRequiredService<DotCraftPaths>(),
@@ -238,8 +234,6 @@ public static class ServiceRegistration
             sp.GetRequiredService<DotNetExtensionRuntimeOptions>(),
             sp.GetService<ILogger<DotNetExtensionRuntimeManager>>(),
             pluginConfigStore: sp.GetRequiredService<PluginConfigStore>()));
-        services.AddSingleton<IDotNetExtensionRuntimeCoordinator>(sp =>
-            sp.GetRequiredService<DotNetExtensionRuntimeManager>());
         services.AddSingleton<IToolSource>(sp =>
             sp.GetRequiredService<DotNetExtensionRuntimeManager>().ToolSource);
 

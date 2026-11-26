@@ -17,6 +17,19 @@ public sealed class ProviderCredentialStore : IProviderCredentialStore
         _path = Path.Combine(root, "provider-credentials", key + ".json");
     }
 
+    public string ReadRevision()
+    {
+        try
+        {
+            using var record = File.Open(_path, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
+            return Convert.ToHexString(SHA256.HashData(record));
+        }
+        catch (Exception e) when (e is FileNotFoundException or DirectoryNotFoundException)
+        {
+            return string.Empty;
+        }
+    }
+
     public async Task<JsonElement?> ReadAsync(CancellationToken cancellationToken)
     {
         await using var held = await AcquireAsync(cancellationToken).ConfigureAwait(false);

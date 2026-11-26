@@ -6,10 +6,10 @@ using Microsoft.Extensions.Logging;
 
 namespace DotCraft.Runtime;
 
-/// <summary>The immutable, monotonically revised view of the runtime that clients reconcile against.</summary>
 internal sealed partial class DotNetExtensionRuntimeManager
 {
     internal const int MaxDiagnosticsPerPlugin = 32;
+    private IReadOnlyList<PluginDiagnostic> _modelDiscoveryDiagnostics = [];
 
     private void PublishSnapshot()
     {
@@ -41,6 +41,7 @@ internal sealed partial class DotNetExtensionRuntimeManager
         var diagnostics = _nodes.Values
             .SelectMany(static node => node.Diagnostics)
             .Concat(ToolSource.Diagnostics)
+            .Concat(_modelDiscoveryDiagnostics)
             .Select(static diagnostic => diagnostic with
             {
                 Parameters = CloneParameters(diagnostic.Parameters)
@@ -184,7 +185,7 @@ internal sealed partial class DotNetExtensionRuntimeManager
             catalogAvailability);
     }
 
-    /// <summary>Runs one projection pass so <see cref="DotNetExtensionToolSource.DescribeTools"/> reflects the live generations.</summary>
+    /// <summary>Primes the tool projection before publishing a snapshot for a new generation.</summary>
     private async Task DescribeToolsAsync(CancellationToken cancellationToken)
     {
         try
@@ -198,7 +199,6 @@ internal sealed partial class DotNetExtensionRuntimeManager
         }
     }
 
-    /// <summary>The Host-owned planning inputs a description pass runs under: an internal helper thread, not a user one.</summary>
     private ToolPlanningContext DescribePlanningContext() =>
         new(
             threadId: "plugin-runtime",
@@ -211,8 +211,6 @@ internal sealed partial class DotNetExtensionRuntimeManager
             revision: _contributions.GetRevision<IToolSource>(),
             threadKind: ToolPlanningThreadKind.Internal);
 
-    /// <summary>Records an activation attempt that produced no generation, as both a log line and a node
-    /// diagnostic the snapshot carries to the client.</summary>
     private void ReportFailedActivation(PluginRuntimeNode node, string? generationId)
     {
         if (node.Blockers.Count == 0)
@@ -291,7 +289,6 @@ internal sealed partial class DotNetExtensionRuntimeManager
             ? value.ValueKind == JsonValueKind.String ? value.GetString() : value.GetRawText()
             : null;
 
-    /// <summary>Returns the preflight findings that make a bundle inadmissible for activation.</summary>
     private static PluginRuntimeBlocker[] PreflightBlockers(PluginAcceptedSnapshot snapshot) =>
         snapshot.PreflightDiagnostics
             .Where(static diagnostic => diagnostic.Severity == PluginDiagnosticSeverity.Error)

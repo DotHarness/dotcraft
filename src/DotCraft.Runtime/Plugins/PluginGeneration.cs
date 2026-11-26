@@ -6,16 +6,15 @@ using DotCraft.Plugins;
 
 namespace DotCraft.Runtime;
 
-/// <summary>The Host collaborators every activation generation is composed against.</summary>
 internal sealed record PluginGenerationHost(
     IServiceProvider Services,
     IContributionRegistry Contributions,
     PluginCallGateRegistry CallGates,
     IReadOnlySet<string> HostSharedAssemblies,
-    bool ToolsOnly = false);
+    bool ToolsOnly = false,
+    bool ModelsOnly = false);
 
-/// <summary>What a torn-down generation leaves behind for the reclaim poller.</summary>
-/// <param name="LoadContext">Weak by construction: a poller able to keep the context alive could never observe its collection.</param>
+/// <summary>The poller's reference to the load context must be weak so it can observe collection.</summary>
 internal sealed record PluginGenerationRemnant(
     WeakReference? LoadContext,
     string PluginId,
@@ -23,9 +22,7 @@ internal sealed record PluginGenerationRemnant(
     string ShadowCopyPath,
     IReadOnlyList<string> CleanupErrors);
 
-/// <summary>The outcome of one activation transaction.</summary>
-/// <param name="DeterministicFailure">Whether the failure is a property of the bundle, so retrying the same bytes cannot succeed.</param>
-/// <param name="CommitRejected">Whether a final admission predicate rejected publication.</param>
+/// <summary>Retrying with the same activation inputs cannot resolve a deterministic failure.</summary>
 internal sealed record PluginActivationAttempt(
     PluginGeneration? Generation,
     string? Error,
@@ -34,7 +31,6 @@ internal sealed record PluginActivationAttempt(
     PluginGenerationRemnant? Remnant,
     bool CommitRejected = false);
 
-/// <summary>Linearizes the runtime deadline and final admission predicate against activation commit.</summary>
 internal sealed class PluginActivationCommitGate
 {
     private const int Open = 0;
@@ -50,8 +46,7 @@ internal sealed class PluginActivationCommitGate
         if (Volatile.Read(ref _state) != Open)
             return false;
 
-        // Validation may touch an external authority and throw. Keep it before the committed CAS so
-        // every such failure still follows the normal rollback path.
+        // External trust checks can throw, so validate before committing while rollback is still possible.
         if (!canCommit())
         {
             TryCancel();
@@ -66,8 +61,6 @@ internal sealed class PluginActivationCommitGate
     }
 }
 
-/// <summary>One activation generation: its load context, entry instance, and everything it owns.</summary>
-/// <remarks>Teardown order is load-bearing (spec §7.3): revoke, signal stopping, drain, dispose, then unload.</remarks>
 internal sealed class PluginGeneration
 {
     private readonly object _gate = new();
@@ -160,7 +153,8 @@ internal sealed class PluginGeneration
                 calls,
                 entry,
                 host.ToolsOnly,
-                lifetime.Stopping);
+                lifetime.Stopping,
+                host.ModelsOnly);
             exports = new PluginServiceExportRegistry(
                 snapshot.Manifest.Id,
                 new HashSet<Assembly>(exportedApis.Values, ReferenceEqualityComparer.Instance));
@@ -179,7 +173,6 @@ internal sealed class PluginGeneration
             await entry.ActivateAsync(context, cancellationToken).ConfigureAwait(false);
             exports.ValidateOwnership(entry, lifetime);
 
-            // Activation returns the complete generation composition, so all registrars seal before publication.
             lifetime.Seal();
             exports.Seal();
             dependencies.Seal();
@@ -274,7 +267,7 @@ internal sealed class PluginGeneration
         }
     }
 
-    /// <summary>Starts teardown, or returns the run already in progress.</summary>
+    /// <summary>Closes routing synchronously before returning the task that drains callers and releases resources.</summary>
     public Task<PluginGenerationRemnant> BeginCleanup()
     {
         lock (_gate)
@@ -289,7 +282,6 @@ internal sealed class PluginGeneration
         var lifetime = _lifetime;
         var entry = _entry;
 
-        // Revoke routing before anything that can fail or block.
         var registrar = _registrar;
         _registrar = null;
         if (registrar != null)
@@ -304,8 +296,7 @@ internal sealed class PluginGeneration
             }
         }
 
-        // Close the gate synchronously before removing its lookup entry. A caller that already
-        // resolved the gate but has not entered it must still observe closed admission.
+        // Close the gate before removing its lookup entry so callers holding it cannot enter.
         var callDrain = _calls.CloseAsync();
         _callGates.Revoke(PluginId, GenerationId);
         if (lifetime != null)
@@ -402,8 +393,7 @@ internal sealed class PluginGeneration
         }
     }
 
-    /// <summary>Unloads the load context and hands back a weak reference to it.</summary>
-    /// <remarks>Not inlined: an inlined frame would keep the load context strongly reachable and leak the generation.</remarks>
+    // Inlining can keep the load context alive in the caller's frame.
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static WeakReference ReleaseLoadContext(PluginLoadContext loadContext)
     {

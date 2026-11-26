@@ -2,30 +2,28 @@ using DotCraft.Configuration;
 
 namespace DotCraft.Plugins;
 
-/// <summary>Fingerprint-bound trust state of one .NET extension bundle. Every plugin needs an explicit grant, including built-ins.</summary>
+/// <summary>Trust applies to specific bundle fingerprints, including built-in .NET extensions.</summary>
 public enum DotNetExtensionTrustStatus
 {
-    /// <summary>No grant exists for this plugin.</summary>
     Untrusted,
 
-    /// <summary>A grant exists and matches the current bundle fingerprint.</summary>
     Trusted,
 
-    /// <summary>A grant exists for a different fingerprint, so the bundle bytes changed.</summary>
+    /// <summary>Grants exist, but none match the current bundle fingerprint.</summary>
     Modified
 }
 
-/// <summary>The store a trust grant is written through. A store that throws fails the grant.</summary>
+/// <summary>A failed write must throw so the resolver does not apply the change in memory.</summary>
 public interface IDotNetExtensionTrustStore
 {
     /// <summary>Reads every persisted grant, keyed by canonical plugin id.</summary>
     IReadOnlyDictionary<string, IReadOnlySet<string>> Read();
 
-    /// <summary>Adds or removes one exact plugin bundle grant.</summary>
     void SetTrusted(string pluginId, string fingerprint, bool trusted);
 }
 
-internal interface IDotNetExtensionTrustChangeSource
+/// <summary>Optional notification contract for an embedding host's trust store.</summary>
+public interface IDotNetExtensionTrustChangeSource
 {
     event EventHandler? Changed;
 }
@@ -35,14 +33,11 @@ public sealed class DotNetExtensionTrustChangedEventArgs(IReadOnlyList<string> p
     public IReadOnlyList<string> PluginIds { get; } = pluginIds;
 }
 
-/// <summary>Indicates that a trust change could not be durably stored.</summary>
 public sealed class PluginTrustPersistenceException(string message, Exception? inner = null)
     : InvalidOperationException(message, inner);
 
-/// <summary>Resolves and mutates the fingerprint-bound trust that gates .NET extension activation.</summary>
-/// <remarks>Grants come from a machine-local authority beside the global config, never from merged
-/// workspace configuration: a repository must not pre-authorize its own in-process code.</remarks>
-public sealed class DotNetExtensionTrust
+/// <summary>Without an explicit store, grants come from the machine-local authority beside global configuration, not workspace configuration.</summary>
+public sealed class DotNetExtensionTrust : IDisposable
 {
     private readonly object _sync = new();
     private readonly Dictionary<string, HashSet<string>> _grants;
@@ -51,7 +46,6 @@ public sealed class DotNetExtensionTrust
 
     public event EventHandler<DotNetExtensionTrustChangedEventArgs>? Changed;
 
-    /// <summary>Creates a trust resolver over the machine-local trust authority, when configured.</summary>
     public DotNetExtensionTrust(AppConfig config, IDotNetExtensionTrustStore? store = null)
     {
         ArgumentNullException.ThrowIfNull(config);
@@ -63,7 +57,6 @@ public sealed class DotNetExtensionTrust
 
     }
 
-    /// <summary>Resolves the trust status of one plugin against its current bundle fingerprint.</summary>
     public DotNetExtensionTrustStatus ResolveStatus(string pluginId, string currentFingerprint)
     {
         RefreshFromStore();
@@ -78,7 +71,7 @@ public sealed class DotNetExtensionTrust
             : DotNetExtensionTrustStatus.Modified;
     }
 
-    /// <summary>Returns the fingerprint one plugin is trusted at, or <see langword="null"/>.</summary>
+    /// <summary>Returns one existing grant fingerprint when the plugin has any grants.</summary>
     public string? TrustedFingerprint(string pluginId)
     {
         RefreshFromStore();
@@ -90,8 +83,7 @@ public sealed class DotNetExtensionTrust
         }
     }
 
-    /// <summary>Grants trust for one plugin at one bundle fingerprint, persisting before the in-memory
-    /// state changes so a store that cannot write leaves the plugin untrusted.</summary>
+    /// <summary>Persists a grant before adding it to in-memory trust.</summary>
     public bool Grant(string pluginId, string fingerprint)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fingerprint);
@@ -121,7 +113,6 @@ public sealed class DotNetExtensionTrust
         }
     }
 
-    /// <summary>Revokes one exact plugin bundle's trust grant.</summary>
     public bool Revoke(string pluginId, string fingerprint)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fingerprint);
@@ -154,6 +145,12 @@ public sealed class DotNetExtensionTrust
     private IDotNetExtensionTrustStore RequireStore() =>
         _store ?? throw new PluginTrustPersistenceException(
             "A machine-local authority path is required to persist .NET extension trust.");
+
+    public void Dispose()
+    {
+        if (_store is IDotNetExtensionTrustChangeSource changeSource)
+            changeSource.Changed -= OnStoreChanged;
+    }
 
     private void OnStoreChanged(object? sender, EventArgs args)
     {

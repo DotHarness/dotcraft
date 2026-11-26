@@ -11,4 +11,5 @@ public sealed record ProviderRequestAdaptation(
     string? Protocol = null)
 {
     public ProviderContextBudget? ContextBudget { get; init; }
+    public ModelProviderCapabilities? Capabilities { get; init; }
 }

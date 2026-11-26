@@ -5,9 +5,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace DotCraft.Agents;
 
-/// <summary>
-/// Central provider-neutral registry for resolving model runtimes and cached chat clients.
-/// </summary>
 public sealed class ChatClientRegistry
 {
     private readonly ModelProviderRegistry _providerRegistry;
@@ -26,13 +23,11 @@ public sealed class ChatClientRegistry
     {
     }
 
-    /// <summary>Creates a registry from explicitly supplied providers.</summary>
     public ChatClientRegistry(IEnumerable<IModelProvider> providers)
         : this(new ModelProviderRegistry(providers))
     {
     }
 
-    /// <summary>Creates a registry from one explicitly supplied provider.</summary>
     public ChatClientRegistry(IModelProvider provider)
         : this([provider])
     {
@@ -43,14 +38,11 @@ public sealed class ChatClientRegistry
 
     public void InvalidateBackends()
     {
-        // Generation teardown owns plugin objects; cache eviction must not dispose admitted calls.
+        // Plugin generations dispose their clients after in-flight calls finish.
         foreach (var key in _chatClients.Keys.Where(key => key.BackendId is not null || key.IsChatGptOAuth))
             _chatClients.TryRemove(key, out _);
     }
 
-    /// <summary>
-    /// Resolves the effective MainAgent runtime for a workspace or thread.
-    /// </summary>
     public EffectiveModelRuntime ResolveMainRuntime(
         AppConfig config,
         string? providerIdOverride = null,
@@ -60,21 +52,12 @@ public sealed class ChatClientRegistry
         return ResolveRuntimeMetadata(ModelProviderResolver.ResolveMain(config, providerIdOverride, modelOverride));
     }
 
-    /// <summary>
-    /// Resolves the effective MainAgent model for a workspace or thread.
-    /// </summary>
     public string ResolveMainModel(AppConfig config, string? modelOverride = null) =>
         ResolveMainRuntime(config, modelOverride: modelOverride).Model;
 
-    /// <summary>
-    /// Resolves the effective MainAgent provider id for a workspace or thread.
-    /// </summary>
     public string ResolveMainProviderId(AppConfig config, string? providerIdOverride = null) =>
         ResolveMainRuntime(config, providerIdOverride).ProviderId;
 
-    /// <summary>
-    /// Resolves the effective SubAgent runtime for the current thread context.
-    /// </summary>
     public EffectiveModelRuntime ResolveSubAgentRuntime(
         AppConfig config,
         string effectiveMainProviderId,
@@ -85,18 +68,13 @@ public sealed class ChatClientRegistry
             ModelProviderResolver.ResolveSubAgent(config, effectiveMainProviderId, effectiveMainModel));
     }
 
-    /// <summary>
-    /// Resolves the effective SubAgent model for the current thread context.
-    /// </summary>
     public string ResolveSubAgentModel(
         AppConfig config,
         string effectiveMainProviderId,
         string effectiveMainModel) =>
         ResolveSubAgentRuntime(config, effectiveMainProviderId, effectiveMainModel).Model;
 
-    /// <summary>
-    /// Resolves the model Dreams runs use.
-    /// </summary>
+    /// <summary>Resolves the model Dreams runs use.</summary>
     public string ResolveConsolidationModel(AppConfig config)
     {
         ArgumentNullException.ThrowIfNull(config);
@@ -106,15 +84,10 @@ public sealed class ChatClientRegistry
             : config.ConsolidationModel.Trim();
     }
 
-    /// <summary>
-    /// Gets a cached provider-neutral chat client for the workspace's effective MainAgent model.
-    /// </summary>
     public IChatClient GetMainChatClient(AppConfig config, string? providerIdOverride = null, string? modelOverride = null) =>
         GetChatClient(ResolveMainRuntime(config, providerIdOverride, modelOverride));
 
-    /// <summary>
-    /// Gets a cached provider-neutral chat client for a specific provider runtime.
-    /// </summary>
+    /// <summary>Returns a shared chat client for the normalized runtime.</summary>
     public IChatClient GetChatClient(EffectiveModelRuntime runtime)
     {
         ArgumentNullException.ThrowIfNull(runtime);
@@ -147,20 +120,13 @@ public sealed class ChatClientRegistry
         }, this);
     }
 
-    /// <summary>Resolves an optional capability for a provider runtime.</summary>
     public TService? GetProviderService<TService>(EffectiveModelRuntime runtime)
         where TService : class =>
         _runtimeResolver.Resolve(runtime).GetService(typeof(TService)) as TService;
 
-    /// <summary>
-    /// Gets a cached provider-neutral chat client for a provider/model pair.
-    /// </summary>
     public IChatClient GetChatClient(AppConfig config, string providerId, string model) =>
         GetChatClient(ResolveMainRuntime(config, providerId, model));
 
-    /// <summary>
-    /// Tries to get a cached chat client for a provider/model pair without throwing on invalid configuration.
-    /// </summary>
     public bool TryGetChatClient(AppConfig config, string providerId, string model, out IChatClient? chatClient)
     {
         try
@@ -195,7 +161,7 @@ public sealed class ChatClientRegistry
             return runtime with
             {
                 UseResponsesLite = false,
-                ContextBudget = null
+                ContextBudget = runtime.IsRemote ? runtime.RequestAdaptation?.ContextBudget : null
             };
 
         var accountId = _providerRegistry

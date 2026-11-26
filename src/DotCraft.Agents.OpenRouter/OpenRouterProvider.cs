@@ -9,7 +9,8 @@ using Microsoft.Extensions.AI;
 namespace DotCraft.Agents;
 
 public sealed partial class OpenRouterProvider : IModelProvider, IProviderModelRuntimeResolver,
-    IModelCatalogProvider, IProviderAuthenticator, IProviderUsageReader, IProviderAccessTokenReader, IProviderRoutingCatalog
+    IModelCatalogProvider, IProviderAuthenticator, IProviderUsageReader, IProviderAccessTokenReader, IProviderRoutingCatalog,
+    IProviderNativeHttpRouter, IProviderCachedModelCatalog
 {
     private readonly ModelBackendContext _context;
     private readonly HttpClient _http;
@@ -149,6 +150,27 @@ public sealed partial class OpenRouterProvider : IModelProvider, IProviderModelR
     }
 
     public ModelCatalogResult ReadCatalog() => Result(true);
+
+    public JsonElement? GetRemoteRoutingPreferences() => _routing.IsEmpty
+        ? null : JsonSerializer.SerializeToElement(_routing, OpenRouterJson.Options);
+
+    public ProviderHttpRoute ResolveRoute(EffectiveModelRuntime runtime)
+    {
+        var resolved = ResolveRuntime(runtime);
+        return new ProviderHttpRoute(resolved.Protocol, resolved.EndPoint, resolved.Model);
+    }
+
+    public async Task<IReadOnlyDictionary<string, string>> AuthenticateAsync(
+        EffectiveModelRuntime runtime, CancellationToken cancellationToken)
+    {
+        var key = runtime.AuthMethod == OpenRouterBackend.OAuth
+            ? (await _context.Credentials.ReadAsync(cancellationToken).ConfigureAwait(false))
+                ?.Deserialize<OpenRouterCredential>(OpenRouterJson.Options)?.Key
+            : runtime.ApiKey;
+        if (string.IsNullOrWhiteSpace(key))
+            throw new ProviderAuthenticationException("OpenRouterAuthenticationRequired", "An OpenRouter credential is required.");
+        return new Dictionary<string, string> { ["Authorization"] = $"Bearer {key}" };
+    }
 
     private ModelCatalogResult Result(bool success, ModelCatalogErrorCode code = ModelCatalogErrorCode.None,
         string? error = null, string? notice = null)

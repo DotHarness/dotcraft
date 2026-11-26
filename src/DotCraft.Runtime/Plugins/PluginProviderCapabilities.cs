@@ -7,14 +7,16 @@ internal static class PluginProviderCapabilities
 {
     public static bool Supports(Type type) =>
         type == typeof(IModelCatalogProvider) || type == typeof(IProviderModelRuntimeResolver)
-        || type == typeof(IProviderAuthenticator) || type == typeof(IProviderUsageReader);
+        || type == typeof(IProviderAuthenticator) || type == typeof(IProviderUsageReader)
+        || type == typeof(IProviderNativeHttpRouter);
 
-    public static object Adapt(object target, Type type, PluginInvocation invocation) => target switch
+    public static object Adapt(object target, Type type, PluginInvocation invocation, string backendId) => target switch
     {
         IModelCatalogProvider catalog when type == typeof(IModelCatalogProvider) => new Catalog(catalog, invocation),
         IProviderModelRuntimeResolver runtimeResolver when type == typeof(IProviderModelRuntimeResolver) => new RuntimeResolver(runtimeResolver, invocation),
         IProviderAuthenticator auth when type == typeof(IProviderAuthenticator) => new Authentication(auth, invocation),
         IProviderUsageReader usage when type == typeof(IProviderUsageReader) => new Usage(usage, invocation),
+        IProviderNativeHttpRouter router when type == typeof(IProviderNativeHttpRouter) => new PluginNativeHttpRouter(router, invocation, backendId),
         _ => throw new InvalidOperationException("Unsupported provider capability.")
     };
 

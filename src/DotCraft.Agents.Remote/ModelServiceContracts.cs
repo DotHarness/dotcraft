@@ -1,3 +1,4 @@
+using System.Text.Json;
 using DotCraft.Configuration;
 
 namespace DotCraft.Agents.Remote;
@@ -18,7 +19,7 @@ public sealed record RemoteModelProvider(
     IReadOnlyDictionary<string, ProviderRequestAdaptation>? Models = null,
     string? WebSearchBackend = null,
     string? BackendId = null,
-    string BackendSettingsJson = "{}",
+    JsonElement? OpenRouterRouting = null,
     ModelCatalogResult? CatalogState = null,
     ProviderUsageSnapshot? Usage = null);
 

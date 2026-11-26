@@ -15,6 +15,11 @@ internal sealed partial class DotNetExtensionRuntimeManager
         DotNetExtensionBuild preparation,
         CancellationToken cancellationToken = default)
     {
+        if (_options.ModelPluginAdmission is not null)
+            return AuthoringResult(PluginRuntimeMutationOutcome.NotApplied, pluginId,
+                [PluginDiagnostic.Error("ModelPluginAuthoringUnavailable",
+                    "The model plugin host accepts installed bundles only.", pluginId)]);
+
         ArgumentNullException.ThrowIfNull(preparation);
         if (!preparation.Succeeded
             || string.IsNullOrWhiteSpace(preparation.BundlePath)
@@ -185,7 +190,7 @@ internal sealed partial class DotNetExtensionRuntimeManager
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
             {
-                // Publication already committed; a stale backup does not change the authoritative root.
+                // Backup deletion is best-effort after the new bundle is published.
             }
         }
     }

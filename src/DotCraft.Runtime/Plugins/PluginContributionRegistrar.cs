@@ -2,7 +2,7 @@ using DotCraft.Contributions;
 
 namespace DotCraft.Runtime;
 
-/// <summary>Stages plugin registrations and keeps raw plugin ownership outside the kernel registry.</summary>
+/// <summary>Only host-owned adapters reach the contribution registry.</summary>
 internal sealed class PluginContributionRegistrar : IContributionRegistrar
 {
     private readonly object _gate = new();
@@ -14,6 +14,7 @@ internal sealed class PluginContributionRegistrar : IContributionRegistrar
     private int _preparing;
     private RegistrarState _state;
     private readonly bool _toolsOnly;
+    private readonly bool _modelsOnly;
 
     public PluginContributionRegistrar(
         IContributionRegistry registry,
@@ -21,10 +22,12 @@ internal sealed class PluginContributionRegistrar : IContributionRegistrar
         PluginCallGate callGate,
         object generationOwnedEntry,
         bool toolsOnly = false,
-        CancellationToken stopping = default)
+        CancellationToken stopping = default,
+        bool modelsOnly = false)
     {
         _registry = registry;
         _toolsOnly = toolsOnly;
+        _modelsOnly = modelsOnly;
         _inner = registry.CreateRegistrar(origin);
         _invocation = new PluginInvocation(origin.Name!, origin.Generation!, callGate, stopping);
         _generationOwnedEntry = generationOwnedEntry ?? throw new ArgumentNullException(nameof(generationOwnedEntry));
@@ -55,6 +58,8 @@ internal sealed class PluginContributionRegistrar : IContributionRegistrar
                 resolvedOptions,
                 resolvedOptions.OwnsContribution && !ReferenceEquals(contribution, _generationOwnedEntry));
             _registrations.Add(registration);
+            if (_modelsOnly && typeof(TContract) != typeof(IModelBackendSource) && typeof(TContract) != typeof(IProviderUsageSource))
+                return registration;
             _preparing++;
         }
 
@@ -79,7 +84,6 @@ internal sealed class PluginContributionRegistrar : IContributionRegistrar
         return registration;
     }
 
-    /// <summary>Publishes every successfully prepared activation registration as one change batch.</summary>
     public void Commit()
     {
         Registration[] registrations;
@@ -110,7 +114,7 @@ internal sealed class PluginContributionRegistrar : IContributionRegistrar
         }
     }
 
-    /// <summary>Removes every route without disposing a raw plugin target.</summary>
+    /// <summary>Revocation leaves targets alive until admitted calls and tracked workers have drained.</summary>
     public void Revoke()
     {
         Registration[] registrations;
@@ -129,7 +133,6 @@ internal sealed class PluginContributionRegistrar : IContributionRegistrar
         _inner.Dispose();
     }
 
-    /// <summary>Disposes raw plugin targets after every admitted callback and tracked worker has stopped.</summary>
     public async Task<IReadOnlyList<string>> DisposeTargetsAsync()
     {
         Registration[] registrations;

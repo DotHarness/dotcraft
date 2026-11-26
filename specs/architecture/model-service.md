@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.14.0 |
+| Version | 0.15.0 |
 | Status | Living |
-| Date | 2026-11-23 |
+| Date | 2026-11-26 |
 
 DotCraft runtimes select either direct model access or one remote model service. A service exposes
 multiple configured providers. The worker runs the provider adapters, model loop, tools,
@@ -29,8 +29,20 @@ never become upstream authentication. The service cannot execute workspace tools
 Provider descriptions contain protocol, authentication method, non-secret routing and model
 metadata, and sanitized authentication status. They contain no API keys, OAuth tokens, or server
 filesystem paths. Workers keep provider request shaping and native history.
-Built-in backends publish each model's supported protocols, limits, reasoning options and prices.
-Workers resolve the model's protocol before inference, and the service validates its operation.
+HTTP backends publish per-model protocol, limits, reasoning options, prices when known, and native
+request adaptation. A backend must explicitly provide `IProviderNativeHttpRouter` to be served.
+The worker selects a native protocol adapter from the model catalog and contacts only the service.
+It does not load the backend or receive the upstream endpoint, authentication headers, or backend
+settings. OpenRouter publishes only schema-defined supplier preferences for request shaping.
+
+The service resolves the model and operation again from its authorized provider instance. An HTTP
+backend maps the model to a standard Anthropic Messages, OpenAI Responses, or Chat Completions
+request with a service-resolved HTTP(S) target and authentication. It accepts only the matching
+POST inference operation, with a bounded UTF-8 JSON body and no query or compression. The request
+context and body must identify the same model. The service does not rewrite that model or translate
+the body. Native provider operations retain their own authorization and wire behavior. Backend
+catalog refresh does not require preparing inference credentials.
+
 Thread, root thread, Turn, and request-kind correlation remain explicit. The request context also carries
 the service tier selected in the final native request options, so billing does not infer it from a
 thread preference or inspect compressed request bodies. Cache routing identities are scoped by the
@@ -46,10 +58,33 @@ translated by the remote transport into DotCraft failures. There is no direct-cr
 `DotCraft.Agents.Remote` supplies the client through Harness. `DotCraft.ModelService` supplies
 registration and HTTP endpoints for an embedding ASP.NET host or the official `dotcraft
 model-service` host. Neither service registration nor endpoint mapping creates a Session runtime.
-The official host uses its own state directory; an embedded host supplies authorization,
-provider resolution, credential storage, and usage recording.
-Hosts explicitly compose built-in backends such as [OpenRouter](openrouter.md). Local plugin backends
-remain outside the service boundary.
+The official host uses its own state directory. An embedded host supplies caller authorization,
+provider resolution, credential storage, and usage recording. Hosts can register HTTP backends
+directly, including [OpenRouter](openrouter.md), without enabling plugins. An embedded host carries
+the stopping signal of the resolved backend generation for the complete HTTP request.
+
+A host may opt into the shared [trusted .NET plugin runtime](dotnet-extensions.md) without starting
+an Agent Session. It uses installed bundles, the same manifest and contribution contracts, and
+explicit discovery and trust inputs. The official service scopes plugin enablement, trust, settings,
+data, and credentials to its own state rather than inheriting the operator's workspace. Embedded
+hosts bind those inputs and the provider credential store to their own authority and
+provider-instance scope. Candidate plugins and dependencies must pass the host's admission policy
+before activation. Trust grants apply to accepted contents, not just a plugin name.
+
+The standalone CLI discovers installed bundles beneath `<state>/plugins`. Only IDs explicitly supplied with
+`--plugin <id>` can activate, including dependencies. `plugin trust <id>` and `plugin revoke <id>` modify the
+same state-scoped trust authority. The CLI uses this scope for `serve`, `check` and provider-specific
+`auth login`, `auth status` and `auth logout`. Changes to file-backed provider credentials are visible to a
+running service without restarting it.
+
+The service consumes model backend and provider Usage contributions. This limits which contributions
+it uses, not what admitted plugin code can execute. Provider-instance login, logout, status, and
+account Usage are management operations, separate from per-request inference accounting. A backend
+supplies its own account Usage reader. A Usage contribution can supply it for an authorized native
+API-key provider. Worker inference credentials never grant management access. Revocation prevents
+new calls and stops work owned by the active plugin generation. Hosts can restart to apply package
+or settings changes. Custom chat clients without native HTTP routes are outside the remote inference
+boundary.
 
 OpenAI authorization, exchange, refresh, and revocation have one implementation in DotCraft.
 File storage and host-owned encrypted storage implement the same token-store contract. A credential

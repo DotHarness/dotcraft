@@ -16,12 +16,33 @@ public sealed record ModelServiceProvider(
     RemoteModelProvider Description,
     EffectiveModelRuntime Runtime,
     OpenAIAuthManager? Authentication = null,
-    IModelProvider? Backend = null);
+    IModelProvider? Backend = null,
+    CancellationToken Stopping = default)
+{
+    public static ModelServiceProvider? ResolveBackend(EffectiveModelRuntime runtime, ModelBackendResolver backends)
+    {
+        try
+        {
+            var (resolved, backend, stopping) = backends.ResolveBackend(runtime);
+            if (stopping.IsCancellationRequested || backend.GetService(typeof(IProviderNativeHttpRouter)) is not IProviderNativeHttpRouter)
+                return null;
+
+            return new ModelServiceProvider(new RemoteModelProvider(resolved.ProviderId, resolved.DisplayName,
+                resolved.ConfiguredProtocol ?? resolved.Protocol, string.Empty, resolved.AuthMethod, false, false,
+                new(!string.IsNullOrWhiteSpace(resolved.ApiKey)), resolved.MaxOutputTokens, resolved.NetworkTimeoutSeconds,
+                BackendId: resolved.BackendId), resolved, Backend: backend, Stopping: stopping);
+        }
+        catch (InvalidOperationException) { return null; }
+    }
+}
 
 public interface IModelServiceAccess
 {
     ValueTask<ModelServiceCaller?> AuthenticateAsync(HttpContext context, CancellationToken cancellationToken);
     Task<IReadOnlyList<ModelServiceProvider>> GetProvidersAsync(ModelServiceCaller caller, CancellationToken cancellationToken);
+    async Task<ModelServiceProvider?> GetProviderAsync(ModelServiceCaller caller, string providerId, CancellationToken cancellationToken) =>
+        (await GetProvidersAsync(caller, cancellationToken).ConfigureAwait(false))
+        .FirstOrDefault(provider => provider.Description.Id == providerId);
     ValueTask<IDisposable?> BeginRequestAsync(ModelServiceCaller caller, ModelServiceRequestContext request, CancellationToken cancellationToken);
 }
 
@@ -47,7 +68,7 @@ public static class ModelServiceHosting
     {
         services.TryAddSingleton<ModelServiceProxy>();
         services.AddHttpClient("DotCraft.ModelService.Upstream", client => client.Timeout = Timeout.InfiniteTimeSpan)
-            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
+            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false, UseCookies = false });
         return services;
     }
 

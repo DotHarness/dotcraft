@@ -1,3 +1,5 @@
+using System.Text.Json.Nodes;
+using DotCraft.Agents;
 using DotCraft.Agents.Remote;
 using DotCraft.Configuration;
 
@@ -14,9 +16,10 @@ public static class RemoteModelConfiguration
         {
             DisplayName = provider.DisplayName,
             BackendId = provider.BackendId,
-            BackendSettings = System.Text.Json.Nodes.JsonNode.Parse(provider.BackendSettingsJson) as System.Text.Json.Nodes.JsonObject ?? new(),
+            BackendSettings = provider.BackendId == OpenRouterBackend.Id && provider.OpenRouterRouting is { } routing
+                ? JsonNode.Parse(routing.GetRawText()) as JsonObject ?? new() : new(),
             Protocol = provider.Protocol,
-            EndPoint = provider.Endpoint,
+            EndPoint = provider.BackendId is null ? provider.Endpoint : string.Empty,
             AuthMethod = provider.AuthMethod,
             SupportsImageGeneration = provider.SupportsImageGeneration,
             SupportsFreeformTools = provider.SupportsFreeformTools,

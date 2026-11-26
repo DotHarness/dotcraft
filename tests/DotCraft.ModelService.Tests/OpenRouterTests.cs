@@ -31,13 +31,17 @@ public sealed class OpenRouterTests
         {
             seen.Add((context.Request.Path, context.Request.Headers.Authorization.ToString(), await new StreamReader(context.Request.Body).ReadToEndAsync()));
             Assert.False(context.Request.Headers.ContainsKey("x-api-key"));
+            Assert.Equal("enabled", context.Request.Headers["X-OpenRouter-Metadata"]);
             context.Response.ContentType = protocol == "openai-responses" ? "text/event-stream" : "application/json";
             await context.Response.WriteAsync(Response(protocol));
         });
         await upstream.StartAsync();
         var root = upstream.Urls.Single() + "/api/v1";
         var runtime = new EffectiveModelRuntime("router", "", "auto", "OpenRouter", "server-secret", root, 20, null, new())
-        { BackendId = "openrouter", ConfiguredProtocol = "auto", ConfiguredEndPoint = root };
+        {
+            BackendId = "openrouter", ConfiguredProtocol = "auto", ConfiguredEndPoint = root,
+            BackendSettingsJson = """{"order":["provider-a"],"allow_fallbacks":false}"""
+        };
         var backend = new OpenRouterProvider(new(runtime, new Credentials(), default), catalogClient: new HttpClient(new Catalog()));
         var access = new Access(runtime, backend);
         var builder = WebApplication.CreateBuilder(); builder.Logging.ClearProviders(); builder.WebHost.UseTestServer();
@@ -47,8 +51,16 @@ public sealed class OpenRouterTests
         var catalog = await transport.GetCatalogAsync();
         var description = Assert.Single(catalog.Providers);
         Assert.Equal("openrouter", description.BackendId);
-        Assert.DoesNotContain("server-secret", JsonSerializer.Serialize(description));
-        var workerRuntime = runtime with { ApiKey = "", IsRemote = true, RemoteModels = description.Models, RemoteCatalogState = description.CatalogState, Model = model };
+        var projection = JsonSerializer.Serialize(description);
+        Assert.DoesNotContain("server-secret", projection);
+        Assert.DoesNotContain(root, projection);
+        Assert.Equal(1d, description.Usage!.Values["usage"]);
+        var workerRuntime = runtime with
+        {
+            ApiKey = "", EndPoint = "https://router.invalid/api/v1", ConfiguredEndPoint = "https://router.invalid/api/v1",
+            IsRemote = true, RemoteModels = description.Models, RemoteCatalogState = description.CatalogState,
+            BackendSettingsJson = description.OpenRouterRouting!.Value.GetRawText(), Model = model
+        };
         var worker = new OpenRouterProvider(new(workerRuntime, new Credentials(), default), transport);
         var resolved = worker.ResolveRuntime(workerRuntime);
         Assert.Equal(protocol, resolved.Protocol);
@@ -59,10 +71,13 @@ public sealed class OpenRouterTests
         var request = Assert.Single(seen);
         Assert.Equal(path, request.Path);
         Assert.Equal("Bearer server-secret", request.Auth);
-        Assert.Equal(model, JsonNode.Parse(request.Body)!["model"]!.GetValue<string>());
+        var requestBody = JsonNode.Parse(request.Body)!;
+        Assert.Equal(model, requestBody["model"]!.GetValue<string>());
+        Assert.Equal("provider-a", requestBody["provider"]!["order"]![0]!.GetValue<string>());
+        Assert.False(requestBody["provider"]!["allow_fallbacks"]!.GetValue<bool>());
 
         using var rejected = new HttpRequestMessage(HttpMethod.Post, "http://localhost/model-service/providers/router/http/responses/compact")
-        { Content = new StringContent(JsonSerializer.Serialize(new { model })) };
+        { Content = new StringContent(JsonSerializer.Serialize(new { model }), Encoding.UTF8, "application/json") };
         rejected.Headers.Authorization = new("Bearer", "worker-secret");
         rejected.Headers.Add(ModelServiceProtocol.ContextHeader, Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(new ModelServiceRequestContext(model, null))));
         using var invalid = await service.GetTestClient().SendAsync(rejected);
