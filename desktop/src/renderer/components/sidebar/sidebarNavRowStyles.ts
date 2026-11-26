@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react'
 
 /**
- * Shared row height for the sidebar "button" rows — New chat, Search, the nav
+ * Shared row height for the sidebar "button" rows — New chat, the nav
  * destinations (Channels/Automations/Skills), Settings, and project headers — so
  * they all line up. Thread rows are intentionally a little taller (content rows).
  */
@@ -14,7 +14,7 @@ export const SIDEBAR_ROW_MIN_HEIGHT = '30px'
  */
 export const SIDEBAR_RAIL_CONTENT_INSET = 'var(--sidebar-rail-content-inset)'
 
-/** Shared geometry for New chat, Search, Automations, Skills, Settings, and project header rows. */
+/** Shared geometry for New chat, Automations, Skills, Settings, and project header rows. */
 export const SIDEBAR_NAV_ROW_OUTER: CSSProperties = {
   width: 'calc(100% - 8px)',
   margin: '2px 4px',

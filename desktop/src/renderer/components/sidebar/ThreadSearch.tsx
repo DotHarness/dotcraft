@@ -8,28 +8,18 @@ import { Input } from '../ui/Input'
 import type { ThreadSummary } from '../../types/thread'
 import { isSubAgentThread } from '../../utils/subAgentThreads'
 import { isOwnedThreadId } from '../../../shared/ownedThreads'
+import { IconButton } from '../ui/IconButton'
 import { ShortcutBadge } from '../ui/ShortcutBadge'
 import { ACTION_SHORTCUTS } from '../ui/shortcutKeys'
-import {
-  SIDEBAR_NAV_BORDER_INACTIVE,
-  SIDEBAR_NAV_ICON_SLOT,
-  SIDEBAR_NAV_LABEL,
-  SIDEBAR_NAV_ROW_OUTER
-} from './sidebarNavRowStyles'
 import { SidebarNavIcon } from './SidebarNavIcon'
 
 interface ThreadSearchProps {
   workspaceName: string
 }
 
-/**
- * Sidebar search entry. The actual search input lives in a centered dialog so
- * the sidebar stays visually quiet.
- */
 export function ThreadSearch({ workspaceName }: ThreadSearchProps): JSX.Element {
   const t = useT()
   const [open, setOpen] = useState(false)
-  const [active, setActive] = useState(false)
 
   useEffect(() => {
     const openSearch = (): void => setOpen(true)
@@ -41,38 +31,18 @@ export function ThreadSearch({ workspaceName }: ThreadSearchProps): JSX.Element 
 
   return (
     <>
-      <div style={{ flexShrink: 0 }}>
-        <button
-          className="dotcraft-sidebar-row-radius"
-          type="button"
-          data-nav-icon-host=""
-          onClick={() => setOpen(true)}
-          aria-label={t('threadSearch.open')}
-          onFocus={() => setActive(true)}
-          onBlur={() => setActive(false)}
-          onMouseEnter={() => setActive(true)}
-          onMouseLeave={() => setActive(false)}
-          style={{
-            ...SIDEBAR_NAV_ROW_OUTER,
-            ...SIDEBAR_NAV_BORDER_INACTIVE,
-            cursor: 'pointer',
-            color: 'var(--text-primary)',
-            backgroundColor: active ? 'var(--sidebar-control-hover)' : 'transparent',
-            justifyContent: 'space-between',
-            transition: 'background-color 120ms ease, color 120ms ease'
-          }}
-        >
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-            <span style={SIDEBAR_NAV_ICON_SLOT}>
-              <SidebarNavIcon name="search" />
-            </span>
-            <span style={{ ...SIDEBAR_NAV_LABEL, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {t('threadSearch.open')}
-            </span>
-          </span>
-          {active && <ShortcutBadge shortcut={ACTION_SHORTCUTS.search} />}
-        </button>
-      </div>
+      <IconButton
+        className="dc-sidebar-icon-button"
+        data-nav-icon-host=""
+        size={28}
+        label={t('threadSearch.open')}
+        tooltipLabel={t('threadSearch.open')}
+        shortcut={ACTION_SHORTCUTS.search}
+        tooltipPlacement="bottom"
+        aria-haspopup="dialog"
+        onClick={() => setOpen(true)}
+        icon={<SidebarNavIcon name="search" />}
+      />
 
       {open && (
         <ThreadSearchDialog

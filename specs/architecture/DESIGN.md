@@ -607,6 +607,14 @@ The chevron uses the readout's own ink, never a status colour, and sits outside
 the layout so the unit and neighbouring readouts never shift. Reduced motion
 swaps the number and shows the chevron without travel or fade.
 
+### Sidebar header
+
+The expanded sidebar opens with one header row: the DotCraft mark and wordmark on
+the leading edge and a search icon button on the trailing edge. The wordmark is
+brand, not a control, so it never answers hover or press. Search is a sidebar
+icon button whose tooltip names `Mod+K`, and the shortcut opens the same dialog.
+The peeking sidebar shows the same header.
+
 ### Sidebar selection
 
 The current sidebar destination takes `--sidebar-control-active` behind it and

@@ -18,7 +18,7 @@ export function NewThreadButton(): JSX.Element {
   const [active, setActive] = useState(false)
 
   return (
-    <div style={{ padding: '8px 0 0', flexShrink: 0 }}>
+    <div style={{ flexShrink: 0 }}>
       <button
         className="dotcraft-sidebar-row-radius"
         data-nav-icon-host=""

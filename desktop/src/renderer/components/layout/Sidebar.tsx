@@ -1,7 +1,7 @@
 import { useId, type MouseEvent as ReactMouseEvent } from 'react'
 import { SpaceFeatureGuide } from '../featureGuides/SpaceFeatureGuide'
 import { NewThreadButton } from '../sidebar/NewThreadButton'
-import { ThreadSearch } from '../sidebar/ThreadSearch'
+import { SidebarHeader } from '../sidebar/SidebarHeader'
 import { ThreadList } from '../sidebar/ThreadList'
 import { SidebarFooter } from '../sidebar/SidebarFooter'
 import {
@@ -39,12 +39,12 @@ export function Sidebar({
         position: 'relative'
       }}
     >
+      <SidebarHeader workspaceName={workspaceName} />
+
       <NewThreadButton />
 
-      <ThreadSearch workspaceName={workspaceName} />
-
-      {/* No top padding: rows rely on their shared 2px row margin so New chat,
-          Search, and these nav items keep one uniform vertical rhythm. */}
+      {/* No top padding: rows rely on their shared 2px row margin so New chat
+          and these nav items keep one uniform vertical rhythm. */}
       <div
         style={{
           paddingBottom: '6px',
