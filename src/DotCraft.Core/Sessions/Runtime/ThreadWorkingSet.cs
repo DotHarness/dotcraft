@@ -27,7 +27,7 @@ internal static class ThreadWorkingSet
 
         thread.OmittedTokenUsage = usage;
         thread.OmittedTurnCount += keepFrom;
-        turns.RemoveRange(0, keepFrom);
+        thread.Turns = turns.GetRange(keepFrom, turns.Count - keepFrom);
     }
 
     public static SessionTurn? FindResident(SessionThread thread, string turnId) =>

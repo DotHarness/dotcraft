@@ -43,8 +43,12 @@ public sealed partial class ChannelHost : IChannelService, IAdapterChannelToolRu
     private AppServerConnection? _lastToolConnection;
 
     private ChannelPluginLaunch? _channelPluginLaunch;
+    private readonly Lock _adapterProcessLock = new();
     private ManagedChildProcess? _adapterProcess;
+    private Task? _adapterTerminationTask;
+    private TaskCompletionSource? _runCompletion;
     private CancellationTokenSource? _runCts;
+    private bool _disposed;
 
     private TaskCompletionSource<(IAppServerTransport Transport, AppServerConnection Connection)>?
         _wsAttachTcs;
@@ -233,8 +237,11 @@ public sealed partial class ChannelHost : IChannelService, IAdapterChannelToolRu
     {
         get
         {
-            try { return !_stopped && _adapterProcess is { } managed && !managed.Process.HasExited; }
-            catch (InvalidOperationException) { return false; }
+            ManagedChildProcess? managed;
+            lock (_adapterProcessLock)
+                managed = _adapterProcess;
+            try { return !_stopped && managed is not null && !managed.Process.HasExited; }
+            catch (Exception ex) when (ex is InvalidOperationException or ObjectDisposedException) { return false; }
         }
     }
 
@@ -648,7 +655,17 @@ public sealed partial class ChannelHost : IChannelService, IAdapterChannelToolRu
 
     public async ValueTask DisposeAsync()
     {
+        lock (_adapterProcessLock)
+            _disposed = true;
+
         await StopAsync();
-        _runCts?.Dispose();
+
+        CancellationTokenSource? cts;
+        lock (_adapterProcessLock)
+        {
+            cts = _runCts;
+            _runCts = null;
+        }
+        cts?.Dispose();
     }
 }

@@ -97,10 +97,16 @@ public sealed class SessionThread
 
     public IReadOnlyList<ThreadDynamicToolDeclaration> DynamicToolDeclarations { get; set; } = [];
 
+    private volatile List<SessionTurn> _turns = [];
+
     /// <summary>
     /// Ordered visible Turns. A loaded persistent Thread keeps only its active and most recent terminal Turns here.
     /// </summary>
-    public List<SessionTurn> Turns { get; set; } = [];
+    public List<SessionTurn> Turns
+    {
+        get => _turns;
+        set => _turns = value;
+    }
 
     /// <summary>
     /// Number of visible Turns, including earlier Turns that are not held in <see cref="Turns"/>.

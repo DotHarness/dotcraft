@@ -148,16 +148,20 @@ internal sealed class SessionApprovalService : IApprovalService
     /// </summary>
     public bool TryResolve(string requestId, SessionApprovalDecision decision)
     {
-        if (!_pending.TryRemove(requestId, out var pending))
-            return false;
+        PendingApproval? pending;
+        lock (_gate)
+        {
+            if (!_pending.TryRemove(requestId, out pending))
+                return false;
 
-        if (decision.AppliesToSession())
-            _sessionScopes.Add(_turn.ThreadId, pending.ScopeKey);
+            if (decision.AppliesToSession())
+                _sessionScopes.Add(_turn.ThreadId, pending.ScopeKey);
 
-        if (decision.IsPersistent() && pending.PersistAcceptAlways)
-            PersistApproval(pending);
+            if (decision.IsPersistent() && pending.PersistAcceptAlways)
+                PersistApproval(pending);
 
-        RecordResolution(requestId, decision);
+            RecordResolution(requestId, decision);
+        }
 
         if (decision == SessionApprovalDecision.CancelTurn)
             _cancelTurn();
@@ -178,17 +182,23 @@ internal sealed class SessionApprovalService : IApprovalService
     /// </summary>
     public void Close()
     {
+        List<PendingApproval> cancelled = [];
         lock (_gate)
+        {
             _closed = true;
 
-        foreach (var requestId in _pending.Keys)
-        {
-            if (!_pending.TryRemove(requestId, out var pending))
-                continue;
+            foreach (var requestId in _pending.Keys)
+            {
+                if (!_pending.TryRemove(requestId, out var pending))
+                    continue;
 
-            RecordResolution(requestId, SessionApprovalDecision.CancelTurn);
-            pending.Completion.TrySetResult(SessionApprovalDecision.CancelTurn);
+                RecordResolution(requestId, SessionApprovalDecision.CancelTurn);
+                cancelled.Add(pending);
+            }
         }
+
+        foreach (var pending in cancelled)
+            pending.Completion.TrySetResult(SessionApprovalDecision.CancelTurn);
     }
 
     private void RecordResolution(string requestId, SessionApprovalDecision decision)
@@ -231,9 +241,9 @@ internal sealed class SessionApprovalService : IApprovalService
                 return false;
 
             var requestItem = CreateItem(ItemType.ApprovalRequest, payload);
+            _pending[requestId] = new PendingApproval(scopeKey, payload, tcs, shellRequest, persistAcceptAlways);
             _turn.Items.Add(requestItem);
             _turn.Status = TurnStatus.WaitingApproval;
-            _pending[requestId] = new PendingApproval(scopeKey, payload, tcs, shellRequest, persistAcceptAlways);
 
             _channel.EmitItemStarted(requestItem);
             _channel.EmitItemCompleted(requestItem);

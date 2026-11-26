@@ -46,10 +46,15 @@ internal sealed class SessionUserInputRequestService
 
     public bool TryResolve(string requestId, RequestUserInputResponse response)
     {
-        if (!_pending.TryRemove(requestId, out var completion))
-            return false;
+        TaskCompletionSource<RequestUserInputResponse>? completion;
+        lock (_gate)
+        {
+            if (!_pending.TryRemove(requestId, out completion))
+                return false;
 
-        RecordResolution(requestId, response);
+            RecordResolution(requestId, response);
+        }
+
         completion.TrySetResult(response);
         return true;
     }
@@ -60,17 +65,23 @@ internal sealed class SessionUserInputRequestService
     /// </summary>
     public void Close()
     {
+        List<TaskCompletionSource<RequestUserInputResponse>> cancelled = [];
         lock (_gate)
+        {
             _closed = true;
 
-        foreach (var requestId in _pending.Keys)
-        {
-            if (!_pending.TryRemove(requestId, out var completion))
-                continue;
+            foreach (var requestId in _pending.Keys)
+            {
+                if (!_pending.TryRemove(requestId, out var completion))
+                    continue;
 
-            RecordResolution(requestId, new RequestUserInputResponse());
-            completion.TrySetCanceled();
+                RecordResolution(requestId, new RequestUserInputResponse());
+                cancelled.Add(completion);
+            }
         }
+
+        foreach (var completion in cancelled)
+            completion.TrySetCanceled();
     }
 
     private void RecordResolution(string requestId, RequestUserInputResponse response)
@@ -101,9 +112,9 @@ internal sealed class SessionUserInputRequestService
                 return Task.FromCanceled<RequestUserInputResponse>(new CancellationToken(canceled: true));
 
             var requestItem = CreateItem(ItemType.UserInputRequest, payload);
+            _pending[requestId] = tcs;
             _turn.Items.Add(requestItem);
             _turn.Status = TurnStatus.WaitingInput;
-            _pending[requestId] = tcs;
 
             _channel.EmitItemStarted(requestItem);
             _channel.EmitItemCompleted(requestItem);

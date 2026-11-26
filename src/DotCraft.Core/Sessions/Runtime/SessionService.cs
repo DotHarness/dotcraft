@@ -725,7 +725,7 @@ public sealed partial class SessionService(
             throw new InvalidOperationException($"Thread '{threadId}' has only {thread.TurnCount} turns; cannot roll back {numTurns}.");
 
         var residentRemoved = Math.Min(numTurns, thread.Turns.Count);
-        thread.Turns.RemoveRange(thread.Turns.Count - residentRemoved, residentRemoved);
+        thread.Turns = thread.Turns.GetRange(0, thread.Turns.Count - residentRemoved);
         thread.OmittedTurnCount -= numTurns - residentRemoved;
         thread.LastActiveAt = DateTimeOffset.UtcNow;
 

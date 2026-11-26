@@ -10,11 +10,21 @@ public sealed partial class ChannelHost
 {
     public async Task StartAsync(CancellationToken cancellationToken)
     {
-        _stopped = false;
-        _permanentlyFailed = false;
-        _consecutiveFailures = 0;
-        _runCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        var ct = _runCts.Token;
+        var runCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        CancellationToken ct;
+        lock (_adapterProcessLock)
+        {
+            if (_disposed)
+                return;
+
+            _stopped = false;
+            _permanentlyFailed = false;
+            _consecutiveFailures = 0;
+            _runCts?.Dispose();
+            _runCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            _runCompletion = runCompletion;
+            ct = _runCts.Token;
+        }
 
         using var channelScope = _logger.BeginScope(new Dictionary<string, object?>
         {
@@ -66,21 +76,34 @@ public sealed partial class ChannelHost
             _stopped = true;
             StopHeartbeatTimer();
             _logger.LogInformation("External channel {Channel} stopped", Name);
+            lock (_adapterProcessLock)
+            {
+                if (ReferenceEquals(_runCompletion, runCompletion))
+                    _runCompletion = null;
+            }
+            runCompletion.TrySetResult();
         }
     }
 
     public async Task StopAsync()
     {
-        _stopped = true;
-        _permanentlyFailed = false;
-        StopHeartbeatTimer();
-
-        if (_runCts is { } cts)
+        CancellationTokenSource? cts;
+        Task? runTask;
+        lock (_adapterProcessLock)
         {
-            await cts.CancelAsync();
+            _stopped = true;
+            _permanentlyFailed = false;
+            cts = _runCts;
+            runTask = _runCompletion?.Task;
         }
 
-        await TerminateAdapterProcessAsync();
+        StopHeartbeatTimer();
+
+        if (cts is not null)
+        {
+            try { await cts.CancelAsync(); }
+            catch (ObjectDisposedException) { }
+        }
 
         _wsAttachTcs?.TrySetCanceled();
 
@@ -91,6 +114,11 @@ public sealed partial class ChannelHost
 
         if (transport is IAsyncDisposable disposable)
             await disposable.DisposeAsync();
+
+        await TerminateAdapterProcessAsync();
+
+        if (runTask is not null)
+            await runTask;
     }
 
     public bool TryAttachTransport(IAppServerTransport transport, AppServerConnection connection) =>
@@ -178,10 +206,25 @@ public sealed partial class ChannelHost
         catch (Exception) { /* output forwarding is best-effort */ }
     }
 
-    private async Task TerminateAdapterProcessAsync()
+    private Task TerminateAdapterProcessAsync()
     {
-        if (Interlocked.Exchange(ref _adapterProcess, null) is not { } adapterProcess)
-            return;
+        lock (_adapterProcessLock)
+        {
+            var adapterProcess = _adapterProcess;
+            _adapterProcess = null;
+            if (adapterProcess is null)
+                return _adapterTerminationTask ?? Task.CompletedTask;
+
+            var termination = DisposeAdapterProcessAsync(_adapterTerminationTask, adapterProcess);
+            _adapterTerminationTask = termination;
+            return termination;
+        }
+    }
+
+    private static async Task DisposeAdapterProcessAsync(Task? previous, ManagedChildProcess adapterProcess)
+    {
+        if (previous is not null)
+            await previous;
 
         try
         {
@@ -197,8 +240,11 @@ public sealed partial class ChannelHost
 
         try
         {
+            ct.ThrowIfCancellationRequested();
             var adapterProcess = SpawnAdapterProcess();
-            _adapterProcess = adapterProcess;
+            lock (_adapterProcessLock)
+                _adapterProcess = adapterProcess;
+            ct.ThrowIfCancellationRequested();
             var process = adapterProcess.Process;
 
             _ = ForwardProcessOutputAsync(process.StandardOutput, ct);

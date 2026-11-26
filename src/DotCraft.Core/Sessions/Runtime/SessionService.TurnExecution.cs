@@ -104,7 +104,7 @@ public sealed partial class SessionService
             turn.Items.Add(userItem);
         }
 
-        thread.Turns.Add(turn);
+        thread.Turns = [.. thread.Turns, turn];
         thread.LastActiveAt = DateTimeOffset.UtcNow;
 
         string? provisionalThreadTitle = null;

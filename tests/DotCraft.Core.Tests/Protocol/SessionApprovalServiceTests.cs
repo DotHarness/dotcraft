@@ -385,6 +385,62 @@ public sealed class SessionApprovalServiceTests : IDisposable
         Assert.Equal(["inner:/f1", "override:/f2", "inner:/f3"], calls);
     }
 
+    [Fact]
+    public async Task RequestUserInput_ConcurrentResolveUponWaitingStateNeverDropsResponse()
+    {
+        for (var i = 0; i < 100; i++)
+        {
+            var threadId = "thread_ui_race";
+            var channel = new SessionEventChannel(threadId, TurnId);
+            var turn = new SessionTurn
+            {
+                Id = TurnId,
+                ThreadId = threadId,
+                Status = TurnStatus.Running,
+                StartedAt = DateTimeOffset.UtcNow
+            };
+            var seq = 1;
+            var svc = new SessionUserInputRequestService(channel, turn, () => seq++, CancellationToken.None);
+            var requestId = $"req_{i}";
+
+            var resolver = Task.Run(async () =>
+            {
+                while (turn.Status != TurnStatus.WaitingInput)
+                    await Task.Yield();
+                Assert.True(svc.TryResolve(requestId, new RequestUserInputResponse()));
+            });
+
+            var requestTask = svc.RequestAsync(requestId, [], isBlocking: false);
+            await Task.WhenAll(requestTask, resolver).WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Equal(TurnStatus.Running, turn.Status);
+        }
+    }
+
+    [Fact]
+    public async Task RequestApproval_ConcurrentResolveUponWaitingStateNeverDropsDecision()
+    {
+        for (var i = 0; i < 100; i++)
+        {
+            var (svc, _, turn) = MakeApprovalService();
+
+            var resolver = Task.Run(async () =>
+            {
+                while (turn.Status != TurnStatus.WaitingApproval)
+                    await Task.Yield();
+                var payload = turn.Items
+                    .Select(item => item.Payload)
+                    .OfType<ApprovalRequestPayload>()
+                    .Single();
+                Assert.True(svc.TryResolve(payload.RequestId, SessionApprovalDecision.AcceptOnce));
+            });
+
+            var requestTask = svc.RequestFileApprovalAsync("write", $"/tmp/race-{i}.txt");
+            await Task.WhenAll(requestTask, resolver).WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.True(await requestTask);
+            Assert.Equal(TurnStatus.Running, turn.Status);
+        }
+    }
+
     private static async IAsyncEnumerable<SessionEvent> DrainWithTimeout(
         SessionEventChannel channel,
         int timeoutMs = 2000)
