@@ -1,34 +1,24 @@
 using System.Collections.Concurrent;
-using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using DotCraft.Agents;
+using DotCraft.AppServer;
+using DotCraft.CLI;
 using DotCraft.Commands.Core;
 using DotCraft.Common;
 using DotCraft.Hooks;
 using DotCraft.Memory;
-using DotCraft.CLI;
-using Spectre.Console;
-using Contract = DotCraft.Protocol.AppServer;
-using DotCraft.AppServer;
-using DotCraft.Channels;
 using DotCraft.Sessions;
 using DotCraft.Sessions.Wire;
-using AgentMessagePayload = DotCraft.Sessions.AgentMessagePayload;
-using McpServerConfig = DotCraft.Mcp.McpServerConfig;
-using ReasoningContentPayload = DotCraft.Sessions.ReasoningContentPayload;
-using ThreadConfiguration = DotCraft.Sessions.ThreadConfiguration;
-using ThreadSummary = DotCraft.Sessions.ThreadSummary;
-using UserMessagePayload = DotCraft.Sessions.UserMessagePayload;
+using DotHarness.Acp.Rpc;
+using DotHarness.Acp.Transport;
+using DotHarness.Acp.V1;
+using Spectre.Console;
+using Contract = DotCraft.Protocol.AppServer;
 
 namespace DotCraft.Acp;
 
-/// <summary>
-/// Translates between the IDE ACP protocol (stdio) and the AppServer Session Wire protocol.
-/// </summary>
 public sealed partial class AcpBridgeHandler(
-    AcpTransport acpTransport,
     AppServerWireClient wire,
     string workspacePath,
     HookRunner? hookRunner = null,
@@ -37,7 +27,7 @@ public sealed partial class AcpBridgeHandler(
     AppServerProcess? appServerProcess = null,
     int extForwardTimeoutSeconds = 120,
     int permissionRequestTimeoutSeconds = 120,
-    CommandRegistry? commandRegistry = null)
+    CommandRegistry? commandRegistry = null) : IAcpAgentHandler
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -48,21 +38,11 @@ public sealed partial class AcpBridgeHandler(
 
     private static readonly JsonSerializerOptions WireReadOptions = SessionWireJsonOptions.Default;
 
-    /// <summary>
-    /// Throws <see cref="InvalidOperationException"/> if the JSON-RPC document contains an <c>error</c> field.
-    /// </summary>
-    private static void ThrowIfWireError(JsonDocument doc, string context)
-    {
-        if (!doc.RootElement.TryGetProperty("error", out var error))
-            return;
-        var message = error.TryGetProperty("message", out var msg)
-            ? msg.GetString() ?? "Unknown error"
-            : "Unknown error";
-        throw new InvalidOperationException(string.IsNullOrEmpty(context) ? message : $"{context}: {message}");
-    }
+    private readonly TaskCompletionSource<AcpV1Agent> _agentReady =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private CancellationToken _bridgeLifetime;
 
     private ClientCapabilities? _clientCapabilities;
-    private bool _initialized;
     private readonly ConcurrentDictionary<string, string?> _activeTurnIds = new();
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _activePrompts = new();
     private readonly ConcurrentDictionary<string, string> _activeToolNames = new();
@@ -74,95 +54,33 @@ public sealed partial class AcpBridgeHandler(
     private readonly TimeSpan _permissionRequestTimeout = TimeSpan.FromSeconds(permissionRequestTimeoutSeconds);
 
     public const int ProtocolVersion = 1;
-    internal const string DefaultModelValue = "__dotcraft_default__";
 
-    public async Task RunAsync(CancellationToken ct)
+    public async Task RunAsync(IAcpTransport transport, CancellationToken ct = default)
     {
-        while (!ct.IsCancellationRequested)
-        {
-            var request = await acpTransport.ReadRequestAsync(ct);
-            if (request == null) break;
-
-            try
-            {
-                await DispatchAsync(request, ct).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                logger?.LogError($"Error handling {request.Method}", ex);
-                AnsiConsole.MarkupLine($"[red][[ACP]] Error handling {Markup.Escape(request.Method)}: {Markup.Escape(ex.Message)}[/]");
-                if (!request.IsNotification)
-                    await acpTransport.SendErrorAsync(request.Id, -32603, ex.Message);
-            }
-        }
+        _bridgeLifetime = ct;
+        await using var agent = new AcpV1Agent(transport, this);
+        _agentReady.TrySetResult(agent);
+        await agent.Connection.Completion.WaitAsync(ct).ConfigureAwait(false);
     }
 
-    private async Task DispatchAsync(JsonRpcRequest request, CancellationToken ct)
-    {
-        switch (request.Method)
-        {
-            case AcpMethods.Initialize:
-                await HandleInitializeAsync(request, ct).ConfigureAwait(false);
-                break;
-            case AcpMethods.SessionNew:
-                await HandleSessionNewAsync(request, ct);
-                break;
-            case AcpMethods.SessionLoad:
-                await HandleSessionLoadAsync(request, ct);
-                break;
-            case AcpMethods.SessionList:
-                await HandleSessionListAsync(request, ct);
-                break;
-            case AcpMethods.DotCraftSessionDelete:
-                await HandleDotCraftSessionDeleteAsync(request, ct);
-                break;
-            case AcpMethods.SessionPrompt:
-                _ = Task.Run(async () =>
-                {
-                    try
-                    {
-                        await HandleSessionPromptAsync(request, ct);
-                    }
-                    catch (Exception ex)
-                    {
-                        logger?.LogError("Unhandled prompt exception", ex);
-                        await acpTransport.SendErrorAsync(request.Id, -32603, ex.Message);
-                    }
-                }, ct);
-                break;
-            case AcpMethods.SessionCancel:
-                await HandleSessionCancelAsync(request, ct);
-                break;
-            case AcpMethods.SessionMode:
-                await HandleSessionModeAsync(request, ct);
-                break;
-            case AcpMethods.SessionSetConfigOption:
-                await HandleSessionSetConfigOptionAsync(request, ct);
-                break;
-            default:
-                if (!request.IsNotification)
-                    await acpTransport.SendErrorAsync(request.Id, -32601, $"Method not found: {request.Method}");
-                break;
-        }
-    }
+    private ValueTask<AcpV1Agent> GetAgentAsync(CancellationToken ct = default) =>
+        _agentReady.Task.IsCompletedSuccessfully
+            ? ValueTask.FromResult(_agentReady.Task.Result)
+            : new ValueTask<AcpV1Agent>(_agentReady.Task.WaitAsync(ct));
 
-    private async Task HandleInitializeAsync(JsonRpcRequest request, CancellationToken ct)
+    public async ValueTask<InitializeResponse> InitializeAsync(InitializeRequest parameters, CancellationToken ct)
     {
-        var p = Deserialize<InitializeParams>(request.Params);
-        _clientCapabilities = p?.ClientCapabilities;
+        _clientCapabilities = parameters.ClientCapabilities.HasValue ? parameters.ClientCapabilities.Value : null;
 
-        if (!TryBuildRuntimeTools(_clientCapabilities, out var dynamicTools, out var runtimeDescriptors, out var dynamicToolError))
-        {
-            await acpTransport.SendErrorAsync(request.Id, -32602, dynamicToolError);
-            return;
-        }
+        if (!AcpRuntimeTools.TryBuildRuntimeTools(_clientCapabilities, out var dynamicTools, out var runtimeDescriptors, out var dynamicToolError))
+            throw new AcpRpcException(-32602, dynamicToolError);
 
         _runtimeDynamicTools = dynamicTools;
         _runtimeToolDescriptors.Clear();
         foreach (var descriptor in runtimeDescriptors)
-            _runtimeToolDescriptors[RuntimeToolKey(descriptor.Namespace, descriptor.Name)] = descriptor;
+            _runtimeToolDescriptors[AcpRuntimeTools.RuntimeToolKey(descriptor.Namespace, descriptor.Name)] = descriptor;
 
-        var acpExt = BuildAcpClientCapability(_clientCapabilities, runtimeDescriptors);
+        var acpExt = AcpRuntimeTools.BuildAcpClientCapability(_clientCapabilities, runtimeDescriptors);
 
         try
         {
@@ -190,1177 +108,83 @@ public sealed partial class AcpBridgeHandler(
 
             logger?.LogError("Wire initialize failed", ex);
             logger?.LogError(detail);
-            await acpTransport.SendErrorAsync(request.Id, -32603, detail);
-            return;
+            throw new AcpRpcException(-32603, detail);
         }
 
-        var version = AppVersion.Short;
-        var result = new InitializeResult
+        wire.ServerRequestHandler = OnWireServerRequestAsync;
+
+        var result = new InitializeResponse
         {
-            ProtocolVersion = ProtocolVersion,
+            ProtocolVersion = new(ProtocolVersion),
             AgentCapabilities = new AgentCapabilities
             {
                 LoadSession = true,
-                ListSessions = true,
+                SessionCapabilities = new SessionCapabilities
+                {
+                    List = new SessionListCapabilities(),
+                    Delete = new SessionDeleteCapabilities()
+                },
                 PromptCapabilities = new PromptCapabilities
                 {
-                    Text = true,
                     Image = true,
                     EmbeddedContext = true
                 },
-                McpCapabilities = new McpCapabilities { Http = true },
-                Meta = new AgentCapabilitiesMeta
-                {
-                    DotCraft = new DotCraftAgentCapabilities { SessionDelete = true }
-                }
+                McpCapabilities = new McpCapabilities { Http = true }
             },
-            AgentInfo = new AgentInfo
+            AgentInfo = new Implementation
             {
                 Name = "DotCraft",
                 Title = "DotCraft AI Agent",
-                Version = version
+                Version = AppVersion.Short
             }
         };
 
-        _initialized = true;
-        wire.ServerRequestHandler = OnWireServerRequestAsync;
-        await acpTransport.SendResponseAsync(request.Id, result);
-
         var caps = new List<string>();
-        if (_clientCapabilities?.Fs?.ReadTextFile == true) caps.Add("fs.read");
-        if (_clientCapabilities?.Fs?.WriteTextFile == true) caps.Add("fs.write");
-        if (_clientCapabilities?.Terminal?.Create == true) caps.Add("terminal");
-        var extensionFamilies = GetCustomExtensionFamilies(runtimeDescriptors);
+        var fs = _clientCapabilities is { Fs.HasValue: true } ? _clientCapabilities.Fs.Value : null;
+        if (fs is { ReadTextFile: { HasValue: true, Value: true } }) caps.Add("fs.read");
+        if (fs is { WriteTextFile: { HasValue: true, Value: true } }) caps.Add("fs.write");
+        if (_clientCapabilities is { Terminal: { HasValue: true, Value: true } }) caps.Add("terminal");
+        var extensionFamilies = AcpRuntimeTools.GetCustomExtensionFamilies(runtimeDescriptors);
         caps.AddRange(extensionFamilies.Select(e => $"ext:{e}"));
         if (_runtimeDynamicTools.Count > 0)
             caps.Add($"runtimeTools:{_runtimeDynamicTools.Count}");
         var capsStr = caps.Count > 0 ? string.Join(", ", caps) : "none";
         logger?.LogEvent($"Initialized (client capabilities: {capsStr})");
         AnsiConsole.MarkupLine($"[green][[ACP]][/] Initialized via AppServer (client capabilities: {Markup.Escape(capsStr)})");
+        return result;
     }
 
-    internal static Contract.AcpExtensionCapability? BuildAcpClientCapability(
-        ClientCapabilities? caps,
-        IReadOnlyList<AcpRuntimeToolDescriptor>? runtimeDescriptors = null)
+    private IReadOnlyList<RuntimeDynamicToolDeclarationSpec>? RuntimeDynamicToolsOrNull() =>
+        _runtimeDynamicTools.Count == 0 ? null : _runtimeDynamicTools;
+
+    private static void ThrowIfWireError(JsonDocument doc, string context)
     {
-        if (caps == null)
-            return null;
-        var extensions = GetCustomExtensionFamilies(runtimeDescriptors);
-        if (caps.Fs == null && caps.Terminal == null && extensions.Count == 0)
-            return null;
-
-        return new Contract.AcpExtensionCapability
-        {
-            FsReadTextFile = caps.Fs?.ReadTextFile == true ? true : null,
-            FsWriteTextFile = caps.Fs?.WriteTextFile == true ? true : null,
-            TerminalCreate = caps.Terminal?.Create == true ? true : null,
-            Extensions = extensions.Count > 0 ? [.. extensions] : null
-        };
-    }
-
-    private static IReadOnlyList<string> GetCustomExtensionFamilies(
-        IReadOnlyList<AcpRuntimeToolDescriptor>? runtimeDescriptors)
-    {
-        if (runtimeDescriptors is not { Count: > 0 })
-            return [];
-
-        return runtimeDescriptors
-            .Select(descriptor => descriptor.AcpMethod?.Split('/', 2)[0])
-            .Where(family => !string.IsNullOrWhiteSpace(family)
-                             && family.StartsWith('_'))
-            .Select(family => family!)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Order(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-    }
-
-    internal static bool TryBuildRuntimeTools(
-        ClientCapabilities? caps,
-        out IReadOnlyList<RuntimeDynamicToolDeclarationSpec> dynamicTools,
-        out IReadOnlyList<AcpRuntimeToolDescriptor> descriptors,
-        out string message)
-    {
-        dynamicTools = [];
-        descriptors = [];
-        message = string.Empty;
-
-        var capability = caps?.Meta?.DotCraft?.RuntimeTools;
-        if (capability == null)
-            return true;
-
-        if (capability.Version != 1)
-        {
-            message = "clientCapabilities._meta.dotcraft.runtimeTools.version must be 1.";
-            return false;
-        }
-
-        var requested = capability.Tools;
-        if (requested is not { Count: > 0 })
-            return true;
-
-        var topLevelFunctions = new List<RuntimeDynamicToolFunctionSpec>();
-        var namespacedFunctions = new Dictionary<string, List<RuntimeDynamicToolFunctionSpec>>(StringComparer.Ordinal);
-        var normalizedDescriptors = new List<AcpRuntimeToolDescriptor>();
-        foreach (var descriptor in requested)
-        {
-            var name = descriptor.Name?.Trim();
-            if (string.IsNullOrWhiteSpace(name))
-            {
-                message = "runtimeTools[].name is required.";
-                return false;
-            }
-
-            var description = descriptor.Description?.Trim();
-            if (string.IsNullOrWhiteSpace(description))
-            {
-                message = $"runtime tool '{name}' must declare a description.";
-                return false;
-            }
-
-            if (!TryNormalizeAcpRuntimeMethod(caps, descriptor.AcpMethod, out var acpMethod, out message))
-                return false;
-
-            var normalized = new AcpRuntimeToolDescriptor
-            {
-                Namespace = NormalizeOptionalString(descriptor.Namespace),
-                Name = name,
-                Description = description,
-                InputSchema = descriptor.InputSchema?.DeepClone() as JsonObject,
-                AcpMethod = acpMethod,
-                Kind = NormalizeOptionalString(descriptor.Kind),
-                DeferLoading = descriptor.DeferLoading,
-                Approval = descriptor.Approval == null
-                    ? null
-                    : new AcpRuntimeToolApprovalDescriptor
-                    {
-                        Kind = descriptor.Approval.Kind,
-                        TargetArgument = descriptor.Approval.TargetArgument,
-                        Operation = descriptor.Approval.Operation,
-                        OperationArgument = descriptor.Approval.OperationArgument
-                    }
-            };
-            normalizedDescriptors.Add(normalized);
-            var function = new RuntimeDynamicToolFunctionSpec
-            {
-                Name = normalized.Name,
-                Description = normalized.Description,
-                InputSchema = normalized.InputSchema?.DeepClone() as JsonObject,
-                DeferLoading = normalized.DeferLoading,
-                Approval = normalized.Approval == null
-                    ? null
-                    : new ChannelToolApprovalSpec
-                    {
-                        Kind = normalized.Approval.Kind,
-                        TargetArgument = normalized.Approval.TargetArgument,
-                        Operation = normalized.Approval.Operation,
-                        OperationArgument = normalized.Approval.OperationArgument
-                    }
-            };
-
-            if (normalized.Namespace is null)
-            {
-                topLevelFunctions.Add(function);
-            }
-            else
-            {
-                if (!namespacedFunctions.TryGetValue(normalized.Namespace, out var functions))
-                {
-                    functions = [];
-                    namespacedFunctions[normalized.Namespace] = functions;
-                }
-
-                functions.Add(function);
-            }
-        }
-
-        var specs = new List<RuntimeDynamicToolDeclarationSpec>(topLevelFunctions);
-        specs.AddRange(namespacedFunctions.Select(pair => new RuntimeDynamicToolNamespaceSpec
-        {
-            Name = pair.Key,
-            Description = $"ACP runtime tools in the '{pair.Key}' namespace.",
-            Tools = [.. pair.Value]
-        }));
-
-        if (!WireDynamicToolProxy.TryValidateSpecs(specs, out message))
-            return false;
-
-        dynamicTools = specs;
-        descriptors = normalizedDescriptors;
-        return true;
-    }
-
-    private IReadOnlyList<RuntimeDynamicToolDeclarationSpec>? RuntimeDynamicToolsOrNull()
-        => _runtimeDynamicTools.Count == 0 ? null : _runtimeDynamicTools;
-
-    private static bool TryNormalizeAcpRuntimeMethod(
-        ClientCapabilities? caps,
-        string? rawMethod,
-        out string method,
-        out string message)
-    {
-        method = string.Empty;
-        message = string.Empty;
-
-        var trimmed = rawMethod?.Trim();
-        if (string.IsNullOrWhiteSpace(trimmed))
-        {
-            message = "runtimeTools[].acpMethod is required.";
-            return false;
-        }
-
-        if (trimmed.StartsWith("ext/acp/", StringComparison.Ordinal))
-            trimmed = trimmed["ext/acp/".Length..];
-
-        var parts = trimmed
-            .Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (parts.Length < 2)
-        {
-            message = $"runtime tool acpMethod '{rawMethod}' must include a capability prefix and method name.";
-            return false;
-        }
-
-        if (parts[0].Equals("fs", StringComparison.OrdinalIgnoreCase))
-        {
-            var supported = parts[1] switch
-            {
-                "readTextFile" => caps?.Fs?.ReadTextFile == true,
-                "writeTextFile" => caps?.Fs?.WriteTextFile == true,
-                _ => false
-            };
-            if (!supported)
-            {
-                message = $"runtime tool acpMethod '{rawMethod}' requires an advertised fs capability.";
-                return false;
-            }
-        }
-        else if (parts[0].Equals("terminal", StringComparison.OrdinalIgnoreCase))
-        {
-            if (caps?.Terminal?.Create != true)
-            {
-                message = $"runtime tool acpMethod '{rawMethod}' requires an advertised terminal capability.";
-                return false;
-            }
-        }
-        else if (!parts[0].StartsWith('_'))
-        {
-            message = $"runtime tool acpMethod '{rawMethod}' must use an ACP custom method beginning with '_'.";
-            return false;
-        }
-
-        method = string.Join('/', parts);
-        return true;
-    }
-
-    private static string RuntimeToolKey(string? @namespace, string name)
-        => $"{NormalizeOptionalString(@namespace) ?? string.Empty}\u001F{name.Trim()}";
-
-    private static string? NormalizeOptionalString(string? value)
-    {
-        var trimmed = value?.Trim();
-        return string.IsNullOrWhiteSpace(trimmed) ? null : trimmed;
-    }
-
-    private async Task ReplayItemAsAcpUpdate(string sessionId, SessionWireItem item)
-    {
-        string? updateKind = null;
-        if (item.Type == ItemType.UserMessage)
-            updateKind = AcpUpdateKind.UserMessageChunk;
-        else if (item.Type == ItemType.AgentMessage)
-            updateKind = AcpUpdateKind.AgentMessageChunk;
-        else if (item.Type == ItemType.ReasoningContent)
-            updateKind = AcpUpdateKind.AgentThoughtChunk;
-
-        if (updateKind == null)
+        if (!doc.RootElement.TryGetProperty("error", out var error))
             return;
-
-        var text = ExtractTextFromPayload(item.Payload);
-        if (text == null)
-            return;
-
-        await acpTransport.SendNotificationAsync(AcpMethods.SessionUpdate, new SessionUpdateParams
-        {
-            SessionId = sessionId,
-            Update = new AcpSessionUpdate
-            {
-                SessionUpdate = updateKind,
-                Content = new AcpContentBlock { Type = "text", Text = text }
-            }
-        });
-    }
-
-    /// <summary>
-    /// Extracts message text from wire item payload. After JSON deserialization, <paramref name="payload"/>
-    /// is typically a <see cref="JsonElement"/> rather than <see cref="UserMessagePayload"/> / <see cref="AgentMessagePayload"/>.
-    /// </summary>
-    internal static string? ExtractTextFromPayload(object? payload)
-    {
-        if (payload is JsonElement el)
-        {
-            if (el.ValueKind == JsonValueKind.Object &&
-                el.TryGetProperty("text", out var textEl) &&
-                textEl.ValueKind == JsonValueKind.String)
-                return textEl.GetString();
-            return null;
-        }
-
-        if (payload is UserMessagePayload userMsg)
-            return userMsg.Text;
-        if (payload is AgentMessagePayload agentMsg)
-            return agentMsg.Text;
-        if (payload is ReasoningContentPayload reasoning)
-            return reasoning.Text;
-        return null;
-    }
-
-    internal static bool IsTodoProgressTool(string? toolName) =>
-        string.Equals(toolName, "TodoWrite", StringComparison.OrdinalIgnoreCase);
-
-    internal static List<AcpContentBlock>? BuildToolResultContent(
-        string? toolName,
-        object? resultObj,
-        bool success)
-    {
-        if (success && IsTodoProgressTool(toolName))
-            return null;
-
-        var preview = ImageContentSanitizingChatClient.DescribeResult(resultObj);
-        if (preview.Length > 500) preview = preview[..500] + "...";
-        return new List<AcpContentBlock> { new() { Type = "text", Text = preview } };
+        var message = error.TryGetProperty("message", out var msg)
+            ? msg.GetString() ?? "Unknown error"
+            : "Unknown error";
+        throw new AcpRpcException(-32603, string.IsNullOrEmpty(context) ? message : $"{context}: {message}");
     }
 
     private static string ToolCallKey(string sessionId, string callId) =>
         $"{sessionId}\u001F{callId}";
 
-    private async Task HandleSessionListAsync(JsonRpcRequest request, CancellationToken ct)
+    private static string? TryGetStringProperty(JsonElement obj, string name)
     {
-        if (!await EnsureInitialized(request)) return;
+        if (obj.ValueKind != JsonValueKind.Object)
+            return null;
 
-        var listDoc = await wire.SendRequestAsync(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadList, new
+        foreach (var property in obj.EnumerateObject())
         {
-            identity = new
+            if (string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase)
+                && property.Value.ValueKind == JsonValueKind.String)
             {
-                channelName = "acp",
-                userId = "local",
-                channelContext = (string?)null,
-                workspacePath
+                return AcpRuntimeTools.NormalizeOptionalString(property.Value.GetString());
             }
-        }, ct: ct);
-
-        ThrowIfWireError(listDoc, "thread/list");
-        var dataEl = listDoc.RootElement.GetProperty("result").GetProperty("data");
-        var summaries = JsonSerializer.Deserialize<List<ThreadSummary>>(dataEl.GetRawText(), WireReadOptions) ?? [];
-
-        var sessions = summaries
-            .Select(t => new SessionListEntry
-            {
-                SessionId = t.Id,
-                UpdatedAt = t.LastActiveAt.ToString("O"),
-                Cwd = workspacePath
-            })
-            .ToList();
-
-        await acpTransport.SendResponseAsync(request.Id, new SessionListResult { Sessions = sessions });
-    }
-
-    private async Task HandleDotCraftSessionDeleteAsync(JsonRpcRequest request, CancellationToken ct)
-    {
-        if (!await EnsureInitialized(request)) return;
-
-        var p = Deserialize<SessionDeleteParams>(request.Params);
-        if (p == null || string.IsNullOrWhiteSpace(p.SessionId))
-        {
-            await acpTransport.SendErrorAsync(request.Id, -32602, "Invalid params");
-            return;
-        }
-
-        if (_activePrompts.TryRemove(p.SessionId, out var cts))
-        {
-            await cts.CancelAsync();
-        }
-
-        _activeTurnIds.TryRemove(p.SessionId, out _);
-
-        await wire.SendRequestAsync(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadArchive, new { threadId = p.SessionId }, ct: ct);
-        _knownSessions.TryRemove(p.SessionId, out _);
-        await acpTransport.SendResponseAsync(request.Id, new SessionDeleteResult());
-    }
-
-    private async Task<RuntimeDynamicToolCallResult> HandleRuntimeToolCallAsync(JsonElement wireParams, CancellationToken ct)
-    {
-        var toolName = TryGetStringProperty(wireParams, "tool");
-        if (string.IsNullOrWhiteSpace(toolName))
-            return RuntimeToolFailed("InvalidRequest", "Dynamic tool request did not include tool name.");
-
-        var @namespace = TryGetStringProperty(wireParams, "namespace");
-        if (!_runtimeToolDescriptors.TryGetValue(RuntimeToolKey(@namespace, toolName), out var descriptor))
-        {
-            return RuntimeToolFailed(
-                "UnsupportedTool",
-                $"Dynamic tool '{toolName}' is not registered for this ACP session.");
-        }
-
-        var arguments = new JsonObject();
-        if (wireParams.TryGetProperty("arguments", out var args) && args.ValueKind != JsonValueKind.Null)
-        {
-            if (JsonNode.Parse(args.GetRawText()) is JsonObject parsed)
-                arguments = parsed;
-        }
-
-        try
-        {
-            var result = await acpTransport.SendClientRequestAsync(
-                descriptor.AcpMethod,
-                arguments,
-                ct,
-                timeout: _extForwardTimeout).ConfigureAwait(false);
-            RuntimeDynamicToolCallResult? toolResult;
-            try
-            {
-                toolResult = result.Deserialize<RuntimeDynamicToolCallResult>(JsonOptions);
-            }
-            catch (JsonException ex)
-            {
-                return RuntimeToolFailed("DynamicToolResultInvalid", ex.Message);
-            }
-
-            if (toolResult == null)
-                return RuntimeToolFailed(
-                    "DynamicToolResultInvalid",
-                    "ACP runtime tool returned an empty result.");
-
-            if (!TryValidateAcpRuntimeToolResult(toolResult, out var resultError))
-                return RuntimeToolFailed("DynamicToolResultInvalid", resultError);
-
-            return toolResult;
-        }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
-        {
-            return RuntimeToolFailed("DynamicToolTimeout", $"Dynamic tool '{toolName}' timed out.");
-        }
-        catch (OperationCanceledException)
-        {
-            return RuntimeToolFailed("DynamicToolCancelled", $"Dynamic tool '{toolName}' was cancelled.");
-        }
-        catch (AcpClientException ex)
-        {
-            var code = ex.Code switch
-            {
-                -32601 => "DynamicToolUnavailable",
-                -32602 => "InvalidArguments",
-                -32800 => "DynamicToolCancelled",
-                _ => "DynamicToolProtocolError"
-            };
-            var structured = new JsonObject
-            {
-                ["code"] = ex.Code,
-                ["message"] = ex.Message
-            };
-            if (ex.ErrorData is { } data)
-                structured["data"] = JsonNode.Parse(data.GetRawText());
-
-            return RuntimeToolFailed(code, ex.Message, structured);
-        }
-        catch (Exception ex)
-        {
-            return RuntimeToolFailed("DynamicToolFailed", ex.Message);
-        }
-    }
-
-    private static RuntimeDynamicToolCallResult RuntimeToolFailed(
-        string code,
-        string message,
-        JsonNode? structuredContent = null)
-        => new()
-        {
-            Success = false,
-            ErrorCode = code,
-            ErrorMessage = message,
-            ContentItems = [new RuntimeDynamicToolContentItem { Type = "text", Text = $"{code}: {message}" }],
-            StructuredContent = structuredContent
-        };
-
-    private static bool TryValidateAcpRuntimeToolResult(
-        RuntimeDynamicToolCallResult result,
-        out string message)
-    {
-        var hasUsefulText = result.ContentItems?.Any(item =>
-            string.Equals(item.Type, "text", StringComparison.Ordinal)
-            && !string.IsNullOrWhiteSpace(item.Text)) == true;
-        if (result.Success && !hasUsefulText)
-        {
-            message = "A successful ACP runtime tool result requires a useful text content item.";
-            return false;
-        }
-
-        if (!result.Success
-            && (string.IsNullOrWhiteSpace(result.ErrorCode)
-                || string.IsNullOrWhiteSpace(result.ErrorMessage)))
-        {
-            message = "A failed ACP runtime tool result requires errorCode and errorMessage.";
-            return false;
-        }
-
-        message = string.Empty;
-        return true;
-    }
-
-    /// <summary>
-    /// Strips routing-only <c>threadId</c> from wire params before forwarding <c>ext/acp/*</c> to the IDE.
-    /// </summary>
-    internal static object? ParamsForIdeExtForward(JsonElement wireParams)
-    {
-        if (wireParams.ValueKind != JsonValueKind.Object)
-            return JsonSerializer.Deserialize<object>(wireParams.GetRawText(), JsonOptions);
-
-        if (!wireParams.TryGetProperty("threadId", out _))
-            return JsonSerializer.Deserialize<object>(wireParams.GetRawText(), JsonOptions);
-
-        if (JsonNode.Parse(wireParams.GetRawText()) is not JsonObject obj)
-            return JsonSerializer.Deserialize<object>(wireParams.GetRawText(), JsonOptions);
-
-        obj.Remove("threadId");
-        return obj;
-    }
-
-    /// <summary>
-    /// Maps <c>fs/readTextFile</c> wire suffix to ACP <c>fs/readTextFile</c> method name.
-    /// </summary>
-    private static string MapExtPathToAcpMethod(string pathUnderExtAcp)
-    {
-        var parts = pathUnderExtAcp.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length >= 2 && parts[0] == "fs")
-            return $"fs/{parts[1]}";
-        if (parts.Length >= 2 && parts[0] == "terminal")
-            return $"terminal/{parts[1]}";
-        return string.Join('/', parts);
-    }
-
-    private async Task MapWireNotificationToAcp(string sessionId, string method, JsonElement @params)
-    {
-        switch (method)
-        {
-            case DotCraft.Protocol.AppServer.AppServerMethodNames.AgentMessageDelta:
-            {
-                var delta = @params.TryGetProperty("delta", out var d) ? d.GetString() : null;
-                if (!string.IsNullOrEmpty(delta))
-                    await SendMessageChunk(sessionId, delta);
-                break;
-            }
-            case DotCraft.Protocol.AppServer.AppServerMethodNames.ReasoningDelta:
-            {
-                var delta = @params.TryGetProperty("delta", out var d) ? d.GetString() : null;
-                if (!string.IsNullOrEmpty(delta))
-                    await SendThoughtChunk(sessionId, delta);
-                break;
-            }
-            case DotCraft.Protocol.AppServer.AppServerMethodNames.ItemStarted:
-            {
-                if (!@params.TryGetProperty("item", out var item)) break;
-                var type = item.TryGetProperty("type", out var t) ? t.GetString() : null;
-                if (type is not ("toolCall" or "dynamicToolCall")) break;
-                if (!item.TryGetProperty("payload", out var payload)) break;
-                var toolName = payload.TryGetProperty("toolName", out var tn) ? tn.GetString() ?? "" : "";
-                var callId = payload.TryGetProperty("callId", out var ci) ? ci.GetString() ?? "" : "";
-                if (!string.IsNullOrEmpty(callId))
-                    _activeToolNames[ToolCallKey(sessionId, callId)] = toolName;
-                string? argsStr = null;
-                if (payload.TryGetProperty("arguments", out var args) && args.ValueKind == JsonValueKind.Object)
-                {
-                    try
-                    {
-                        argsStr = JsonSerializer.Serialize(args, JsonOptions);
-                    }
-                    catch
-                    {
-                        argsStr = args.ToString();
-                    }
-                }
-
-                var kind = AcpToolKindMapper.GetKind(toolName, ResolveRuntimeToolKind(payload, toolName));
-                IDictionary<string, object?>? argsDict = null;
-                if (!string.IsNullOrEmpty(argsStr))
-                {
-                    try
-                    {
-                        argsDict = JsonSerializer.Deserialize<Dictionary<string, object?>>(argsStr, JsonOptions);
-                    }
-                    catch
-                    {
-                        /* ignore */
-                    }
-                }
-
-                var filePaths = AcpToolKindMapper.ExtractFilePaths(toolName, argsDict);
-                await acpTransport.SendNotificationAsync(AcpMethods.SessionUpdate, new SessionUpdateParams
-                {
-                    SessionId = sessionId,
-                    Update = new AcpSessionUpdate
-                    {
-                        SessionUpdate = AcpUpdateKind.ToolCall,
-                        ToolCallId = callId,
-                        Title = toolName,
-                        Kind = kind,
-                        Status = AcpToolStatus.InProgress,
-                        Content = string.IsNullOrEmpty(argsStr)
-                            ? null
-                            : new List<AcpContentBlock> { new() { Type = "text", Text = argsStr } },
-                        FileLocations = filePaths?.Select(fp => new AcpFileLocation { Uri = $"file://{fp}" }).ToList()
-                    }
-                });
-                break;
-            }
-            case DotCraft.Protocol.AppServer.AppServerMethodNames.ItemCompleted:
-            {
-                if (!@params.TryGetProperty("item", out var item)) break;
-                var type = item.TryGetProperty("type", out var t) ? t.GetString() : null;
-                if (type is not ("toolResult" or "dynamicToolCall")) break;
-                if (!item.TryGetProperty("payload", out var payload)) break;
-                var callId = payload.TryGetProperty("callId", out var ci) ? ci.GetString() ?? "" : "";
-                object? resultObj = null;
-                if (type == "dynamicToolCall")
-                {
-                    resultObj = ExtractDynamicToolResult(payload);
-                }
-                else if (payload.TryGetProperty("result", out var r))
-                {
-                    resultObj = r.ValueKind == JsonValueKind.String
-                        ? r.GetString()
-                        : JsonSerializer.Deserialize<object>(r.GetRawText(), JsonOptions);
-                }
-
-                var success = payload.TryGetProperty("success", out var su) ? su.GetBoolean() : true;
-                var toolName = payload.TryGetProperty("toolName", out var tn) ? tn.GetString() : null;
-                if (!string.IsNullOrEmpty(callId)
-                    && _activeToolNames.TryRemove(ToolCallKey(sessionId, callId), out var trackedToolName)
-                    && string.IsNullOrEmpty(toolName))
-                {
-                    toolName = trackedToolName;
-                }
-                var content = BuildToolResultContent(toolName, resultObj, success);
-
-                await acpTransport.SendNotificationAsync(AcpMethods.SessionUpdate, new SessionUpdateParams
-                {
-                    SessionId = sessionId,
-                    Update = new AcpSessionUpdate
-                    {
-                        SessionUpdate = AcpUpdateKind.ToolCallUpdate,
-                        ToolCallId = callId,
-                        Status = success ? AcpToolStatus.Completed : AcpToolStatus.Failed,
-                        Content = content
-                    }
-                });
-                break;
-            }
-            case DotCraft.Protocol.AppServer.AppServerMethodNames.TurnCompleted:
-            {
-                break;
-            }
-            case DotCraft.Protocol.AppServer.AppServerMethodNames.PlanUpdated:
-            {
-                if (!@params.TryGetProperty("todos", out var todosEl) || todosEl.ValueKind != JsonValueKind.Array)
-                    break;
-                var entries = new List<AcpPlanEntry>();
-                foreach (var todo in todosEl.EnumerateArray())
-                {
-                    var content = todo.TryGetProperty("content", out var c) ? c.GetString() ?? "" : "";
-                    var priority = todo.TryGetProperty("priority", out var pr) ? pr.GetString() : "medium";
-                    var status = todo.TryGetProperty("status", out var st) ? st.GetString() : "pending";
-                    entries.Add(new AcpPlanEntry
-                    {
-                        Content = content,
-                        Priority = priority switch
-                        {
-                            "high" => AcpPlanEntryPriority.High,
-                            "low" => AcpPlanEntryPriority.Low,
-                            _ => AcpPlanEntryPriority.Medium
-                        },
-                        Status = status switch
-                        {
-                            "inProgress" => AcpToolStatus.InProgress,
-                            "completed" or "cancelled" => AcpToolStatus.Completed,
-                            _ => AcpToolStatus.Pending
-                        }
-                    });
-                }
-
-                await acpTransport.SendNotificationAsync(AcpMethods.SessionUpdate, new SessionUpdateParams
-                {
-                    SessionId = sessionId,
-                    Update = new AcpSessionUpdate
-                    {
-                        SessionUpdate = AcpUpdateKind.Plan,
-                        Entries = entries
-                    }
-                });
-                break;
-            }
-        }
-    }
-
-    private string? ResolveRuntimeToolKind(JsonElement payload, string toolName)
-    {
-        var @namespace = TryGetStringProperty(payload, "namespace");
-        return _runtimeToolDescriptors.TryGetValue(RuntimeToolKey(@namespace, toolName), out var descriptor)
-            ? descriptor.Kind
-            : null;
-    }
-
-    private static object? ExtractDynamicToolResult(JsonElement payload)
-    {
-        if (payload.TryGetProperty("structuredContent", out var structuredContent)
-            && structuredContent.ValueKind is not (JsonValueKind.Null or JsonValueKind.Undefined))
-        {
-            return JsonSerializer.Deserialize<object>(structuredContent.GetRawText(), JsonOptions);
-        }
-
-        if (payload.TryGetProperty("contentItems", out var contentItems)
-            && contentItems.ValueKind is not (JsonValueKind.Null or JsonValueKind.Undefined))
-        {
-            return JsonSerializer.Deserialize<object>(contentItems.GetRawText(), JsonOptions);
-        }
-
-        if (payload.TryGetProperty("errorMessage", out var error)
-            && error.ValueKind == JsonValueKind.String)
-        {
-            return error.GetString();
         }
 
         return null;
-    }
-
-    private async Task SendMessageChunk(string sessionId, string text)
-    {
-        await SendContentChunk(sessionId, AcpUpdateKind.AgentMessageChunk, text);
-    }
-
-    private async Task SendThoughtChunk(string sessionId, string text)
-    {
-        await SendContentChunk(sessionId, AcpUpdateKind.AgentThoughtChunk, text);
-    }
-
-    private async Task SendContentChunk(string sessionId, string updateKind, string text)
-    {
-        await acpTransport.SendNotificationAsync(AcpMethods.SessionUpdate, new SessionUpdateParams
-        {
-            SessionId = sessionId,
-            Update = new AcpSessionUpdate
-            {
-                SessionUpdate = updateKind,
-                Content = new AcpContentBlock { Type = "text", Text = text }
-            }
-        });
-    }
-
-    private async Task SendPlanUpdate(string sessionId, StructuredPlan plan)
-    {
-        var entries = plan.Todos.Select(t => new AcpPlanEntry
-        {
-            Content = t.Content,
-            Priority = t.Priority switch
-            {
-                PlanTodoPriority.High => AcpPlanEntryPriority.High,
-                PlanTodoPriority.Low => AcpPlanEntryPriority.Low,
-                _ => AcpPlanEntryPriority.Medium
-            },
-            Status = t.Status switch
-            {
-                PlanTodoStatus.InProgress => AcpToolStatus.InProgress,
-                PlanTodoStatus.Completed or PlanTodoStatus.Cancelled => AcpToolStatus.Completed,
-                _ => AcpToolStatus.Pending
-            }
-        }).ToList();
-
-        await acpTransport.SendNotificationAsync(AcpMethods.SessionUpdate, new SessionUpdateParams
-        {
-            SessionId = sessionId,
-            Update = new AcpSessionUpdate
-            {
-                SessionUpdate = AcpUpdateKind.Plan,
-                Entries = entries
-            }
-        });
-    }
-
-    private async Task HandleSessionCancelAsync(JsonRpcRequest request, CancellationToken ct)
-    {
-        var p = Deserialize<SessionCancelParams>(request.Params);
-        if (p == null) return;
-
-        if (_activePrompts.TryGetValue(p.SessionId, out var cts))
-        {
-            try { await cts.CancelAsync(); }
-            catch (ObjectDisposedException) { /* prompt already finished and disposed its CTS */ }
-        }
-
-        if (_activeTurnIds.TryGetValue(p.SessionId, out var turnId) && !string.IsNullOrEmpty(turnId))
-        {
-            try
-            {
-                await wire.SendRequestAsync(DotCraft.Protocol.AppServer.AppServerMethodNames.TurnInterrupt, new
-                {
-                    threadId = p.SessionId,
-                    turnId
-                }, ct: ct);
-            }
-            catch
-            {
-                // ignored
-            }
-        }
-
-        logger?.LogEvent($"Session cancel requested: {p.SessionId}");
-        AnsiConsole.MarkupLine($"[yellow][[ACP]][/] Cancelled session: {Markup.Escape(p.SessionId)}");
-    }
-
-    private async Task HandleSessionModeAsync(JsonRpcRequest request, CancellationToken ct)
-    {
-        if (!await EnsureInitialized(request)) return;
-
-        var p = Deserialize<SessionModeParams>(request.Params);
-        if (p == null)
-        {
-            await acpTransport.SendErrorAsync(request.Id, -32602, "Invalid params");
-            return;
-        }
-
-        var modeName = p.Mode?.ToLowerInvariant() ?? "agent";
-        await wire.SendRequestAsync(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadModeSet, new { threadId = p.SessionId, mode = modeName },
-            ct: ct);
-
-        var resolvedMode = modeName == "plan" ? AgentMode.Plan : AgentMode.Agent;
-        await acpTransport.SendResponseAsync(request.Id, new { mode = resolvedMode.ToString().ToLower() });
-        await SendModeUpdate(p.SessionId, resolvedMode);
-        logger?.LogEvent($"Mode changed [session={p.SessionId}]: {modeName}");
-    }
-
-    private async Task HandleSessionSetConfigOptionAsync(JsonRpcRequest request, CancellationToken ct)
-    {
-        if (!await EnsureInitialized(request)) return;
-
-        var p = Deserialize<SessionSetConfigOptionParams>(request.Params);
-        if (p == null)
-        {
-            await acpTransport.SendErrorAsync(request.Id, -32602, "Invalid params");
-            return;
-        }
-
-        if (p.ConfigId == "mode")
-        {
-            var modeName = p.Value.ToLowerInvariant();
-            await wire.SendRequestAsync(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadModeSet,
-                new { threadId = p.SessionId, mode = modeName }, ct: ct);
-
-            var current = await ReadThreadConfigurationAsync(p.SessionId, ct);
-            var updatedOptions = await BuildConfigOptionsAsync(modeName, current.Model, ct);
-            await acpTransport.SendResponseAsync(request.Id, new SessionSetConfigOptionResult { ConfigOptions = updatedOptions });
-
-            await SendConfigOptionsUpdate(p.SessionId, updatedOptions);
-            return;
-        }
-
-        if (p.ConfigId == "model")
-        {
-            var current = await ReadThreadConfigurationAsync(p.SessionId, ct);
-            var availableOptions = await BuildConfigOptionsAsync(current.Mode, current.Model, ct);
-            var modelOption = availableOptions.FirstOrDefault(o => IsModelConfigOption(o));
-            if (modelOption == null)
-            {
-                await acpTransport.SendErrorAsync(request.Id, -32602, "Model switching is unavailable for this session.");
-                return;
-            }
-
-            if (modelOption.Options.All(o => !string.Equals(o.Value, p.Value, StringComparison.Ordinal)))
-            {
-                await acpTransport.SendErrorAsync(request.Id, -32602, $"Unknown model option: {p.Value}");
-                return;
-            }
-
-            var nextModel = string.Equals(p.Value, DefaultModelValue, StringComparison.Ordinal)
-                ? null
-                : p.Value.Trim();
-
-            current = await ReadThreadConfigurationAsync(p.SessionId, ct);
-            var config = current.Configuration ?? new JsonObject();
-            SetCaseInsensitiveStringProperty(config, "model", nextModel);
-
-            var updateDoc = await wire.SendRequestAsync(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadConfigUpdate,
-                new { threadId = p.SessionId, config }, ct: ct);
-            ThrowIfWireError(updateDoc, "thread/config/update");
-
-            var updatedOptions = await BuildConfigOptionsAsync(current.Mode, nextModel, ct);
-            await acpTransport.SendResponseAsync(request.Id, new SessionSetConfigOptionResult { ConfigOptions = updatedOptions });
-            await SendConfigOptionsUpdate(p.SessionId, updatedOptions);
-            logger?.LogEvent($"Model changed [session={p.SessionId}]: {nextModel ?? "Default"}");
-            return;
-        }
-
-        await acpTransport.SendErrorAsync(request.Id, -32602, $"Unknown configId: {p.ConfigId}");
-    }
-
-    private async Task SendModeUpdate(string sessionId, AgentMode mode)
-    {
-        await acpTransport.SendNotificationAsync(AcpMethods.SessionUpdate, new SessionUpdateParams
-        {
-            SessionId = sessionId,
-            Update = new AcpSessionUpdate
-            {
-                SessionUpdate = AcpUpdateKind.CurrentModeUpdate,
-                Content = new AcpContentBlock { Type = "text", Text = mode.ToString().ToLower() }
-            }
-        });
-    }
-
-    private async Task BroadcastSlashCommands(string sessionId)
-    {
-        var commands = commandRegistry?.ListCommands()
-            .Where(static command => command.Category == "workflow")
-            .Select(c => new AcpSlashCommand
-            {
-                Name = c.Name.TrimStart('/'),
-                Description = string.IsNullOrWhiteSpace(c.Description) ? null : c.Description
-            })
-            .ToList()
-            ?? [];
-
-        if (commands.Count == 0) return;
-
-        await acpTransport.SendNotificationAsync(AcpMethods.SessionUpdate, new SessionUpdateParams
-        {
-            SessionId = sessionId,
-            Update = new AcpSessionUpdate
-            {
-                SessionUpdate = AcpUpdateKind.AvailableCommandsUpdate,
-                Commands = commands
-            }
-        });
-    }
-
-    private static List<SessionInputPart> BuildWireInputParts(List<AcpContentBlock> prompt)
-    {
-        var parts = new List<SessionInputPart>();
-        foreach (var block in prompt)
-        {
-            switch (block.Type)
-            {
-                case "text" when !string.IsNullOrEmpty(block.Text):
-                    parts.Add(new SessionInputPart { Type = "text", Text = block.Text });
-                    break;
-                case "resource" when block.Resource != null:
-                {
-                    var t = $"[File: {block.Resource.Uri}]";
-                    if (!string.IsNullOrEmpty(block.Resource.Text))
-                        t += "\n" + block.Resource.Text;
-                    parts.Add(new SessionInputPart { Type = "text", Text = t });
-                    break;
-                }
-                default:
-                    if (!string.IsNullOrEmpty(block.Data) &&
-                        !string.IsNullOrEmpty(block.MimeType) &&
-                        block.MimeType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
-                    {
-                        parts.Add(new SessionInputPart
-                        {
-                            Type = "image",
-                            Url = $"data:{block.MimeType};base64,{block.Data}"
-                        });
-                    }
-                    break;
-            }
-        }
-
-        if (parts.Count == 0 && prompt.Count > 0)
-            parts.Add(new SessionInputPart { Type = "text", Text = ExtractPromptText(prompt) });
-
-        return parts;
-    }
-
-    private static string ExtractPromptText(List<AcpContentBlock> prompt)
-    {
-        if (prompt.Count == 0)
-            return "";
-
-        var sb = new StringBuilder();
-        foreach (var block in prompt)
-        {
-            switch (block.Type)
-            {
-                case "text" when !string.IsNullOrEmpty(block.Text):
-                    if (sb.Length > 0) sb.Append('\n');
-                    sb.Append(block.Text);
-                    break;
-                case "resource" when block.Resource != null:
-                    if (sb.Length > 0) sb.Append('\n');
-                    sb.Append($"[File: {block.Resource.Uri}]");
-                    if (!string.IsNullOrEmpty(block.Resource.Text))
-                    {
-                        sb.Append('\n');
-                        sb.Append(block.Resource.Text);
-                    }
-                    break;
-            }
-        }
-
-        return sb.ToString();
-    }
-
-    private static List<McpServerConfig> ConvertToMcpConfigs(List<AcpMcpServer> mcpServers)
-    {
-        var configs = new List<McpServerConfig>();
-        foreach (var s in mcpServers)
-        {
-            if (string.IsNullOrWhiteSpace(s.Name))
-                continue;
-            var transport = string.IsNullOrEmpty(s.Type) || s.Type.Equals("stdio", StringComparison.OrdinalIgnoreCase)
-                ? "stdio"
-                : s.Type.Equals("http", StringComparison.OrdinalIgnoreCase)
-                    ? "http"
-                    : null;
-            if (transport == null)
-                continue;
-            configs.Add(new McpServerConfig
-            {
-                Name = s.Name,
-                Enabled = true,
-                Transport = transport,
-                Command = s.Command ?? "",
-                Arguments = s.Args ?? [],
-                EnvironmentVariables = s.Env != null ? s.Env.ToDictionary(e => e.Name, e => e.Value) : new Dictionary<string, string>(),
-                Url = s.Url ?? "",
-                Headers = s.Headers != null ? s.Headers.ToDictionary(h => h.Name, h => h.Value) : new Dictionary<string, string>()
-            });
-        }
-
-        return configs;
-    }
-
-    private async Task SendConfigOptionsUpdate(string sessionId, List<ConfigOption> configOptions)
-    {
-        await acpTransport.SendNotificationAsync(AcpMethods.SessionUpdate, new SessionUpdateParams
-        {
-            SessionId = sessionId,
-            Update = new AcpSessionUpdate
-            {
-                SessionUpdate = AcpUpdateKind.ConfigOptionsUpdate,
-                ConfigOptions = configOptions
-            }
-        });
-    }
-
-    private async Task<List<ConfigOption>> BuildConfigOptionsAsync(
-        string? currentMode = "agent",
-        string? currentModel = null,
-        CancellationToken ct = default)
-    {
-        Contract.ModelListResult? modelList = null;
-        try
-        {
-            modelList = await wire.ModelListAsync(ct);
-        }
-        catch (Exception ex)
-        {
-            logger?.LogError("ACP model list unavailable", ex);
-        }
-
-        return BuildConfigOptions(currentMode, currentModel, modelList);
-    }
-
-    internal static List<ConfigOption> BuildConfigOptions(
-        string? currentMode = "agent",
-        string? currentModel = null,
-        Contract.ModelListResult? modelList = null)
-    {
-        var options = new List<ConfigOption>
-        {
-            new ConfigOption
-            {
-                Id = "mode",
-                Name = "Mode",
-                Category = "mode",
-                CurrentValue = string.IsNullOrWhiteSpace(currentMode) ? "agent" : currentMode.Trim(),
-                Options =
-                [
-                    new ConfigOptionValue { Value = "agent", Name = "Agent", Description = "Full agent mode with all tools" },
-                    new ConfigOptionValue { Value = "plan", Name = "Plan", Description = "Read-only planning mode" }
-                ]
-            }
-        };
-
-        if (modelList?.Success is { IsSet: true, Value: true })
-        {
-            var models = modelList.Models.IsSet
-                ? modelList.Models.Value ?? Array.Empty<Contract.ModelCatalogItem>()
-                : Array.Empty<Contract.ModelCatalogItem>();
-            var modelIds = models
-                .Select(m => m.Id.IsSet ? m.Id.Value?.Trim() : null)
-                .Where(id => !string.IsNullOrWhiteSpace(id))
-                .Select(id => id!)
-                .ToList();
-
-            var normalizedCurrentModel = NormalizeOptionalModel(currentModel);
-            if (!string.IsNullOrWhiteSpace(normalizedCurrentModel)
-                && modelIds.All(id => !string.Equals(id, normalizedCurrentModel, StringComparison.OrdinalIgnoreCase)))
-            {
-                modelIds.Add(normalizedCurrentModel);
-            }
-
-            modelIds = [.. modelIds
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)];
-
-            var modelOptions = new List<ConfigOptionValue>
-            {
-                new() { Value = DefaultModelValue, Name = "Default" }
-            };
-            modelOptions.AddRange(modelIds.Select(id => new ConfigOptionValue { Value = id, Name = id }));
-
-            options.Add(new ConfigOption
-            {
-                Id = "model",
-                Name = "Model",
-                Category = "model",
-                CurrentValue = string.IsNullOrWhiteSpace(normalizedCurrentModel)
-                    ? DefaultModelValue
-                    : normalizedCurrentModel,
-                Options = modelOptions
-            });
-        }
-
-        return options;
-    }
-
-    private async Task<ThreadConfigurationState> ReadThreadConfigurationAsync(
-        string threadId,
-        CancellationToken ct)
-    {
-        var readDoc = await wire.SendRequestAsync(DotCraft.Protocol.AppServer.AppServerMethodNames.ThreadRead, new
-        {
-            threadId
-        }, ct: ct);
-
-        ThrowIfWireError(readDoc, "thread/read");
-        var threadEl = readDoc.RootElement.GetProperty("result").GetProperty("thread");
-        var (mode, model) = ExtractThreadModeAndModel(threadEl);
-        JsonObject? config = null;
-        if (threadEl.TryGetProperty("configuration", out var configEl)
-            && configEl.ValueKind == JsonValueKind.Object)
-        {
-            config = JsonNode.Parse(configEl.GetRawText()) as JsonObject;
-        }
-
-        return new ThreadConfigurationState(mode, model, config);
-    }
-
-    private static (string Mode, string? Model) ExtractThreadModeAndModel(JsonElement threadEl)
-    {
-        if (!threadEl.TryGetProperty("configuration", out var configEl)
-            || configEl.ValueKind != JsonValueKind.Object)
-        {
-            return ("agent", null);
-        }
-
-        var mode = TryGetCaseInsensitiveString(configEl, "mode");
-        var model = TryGetCaseInsensitiveString(configEl, "model");
-        return (string.IsNullOrWhiteSpace(mode) ? "agent" : mode.Trim(), NormalizeOptionalModel(model));
     }
 
     private static string? TryGetCaseInsensitiveString(JsonElement obj, string name)
@@ -1375,29 +199,6 @@ public sealed partial class AcpBridgeHandler(
         }
 
         return null;
-    }
-
-    private static string? TryGetStringProperty(JsonElement obj, string name)
-    {
-        if (obj.ValueKind != JsonValueKind.Object)
-            return null;
-
-        foreach (var property in obj.EnumerateObject())
-        {
-            if (string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase)
-                && property.Value.ValueKind == JsonValueKind.String)
-            {
-                return NormalizeOptionalString(property.Value.GetString());
-            }
-        }
-
-        return null;
-    }
-
-    private static string? NormalizeOptionalModel(string? model)
-    {
-        var trimmed = model?.Trim();
-        return string.IsNullOrEmpty(trimmed) ? null : trimmed;
     }
 
     private static void SetCaseInsensitiveStringProperty(JsonObject obj, string key, string? value)
@@ -1416,23 +217,5 @@ public sealed partial class AcpBridgeHandler(
         obj[existingKey ?? key] = value;
     }
 
-    private static bool IsModelConfigOption(ConfigOption option) =>
-        string.Equals(option.Id, "model", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(option.Category, "model", StringComparison.OrdinalIgnoreCase);
-
     private sealed record ThreadConfigurationState(string Mode, string? Model, JsonObject? Configuration);
-
-    private async Task<bool> EnsureInitialized(JsonRpcRequest request)
-    {
-        if (_initialized) return true;
-        await acpTransport.SendErrorAsync(request.Id, -32002, "Agent not initialized. Call 'initialize' first.");
-        return false;
-    }
-
-    private static T? Deserialize<T>(JsonElement? element) where T : class
-    {
-        if (element == null || element.Value.ValueKind == JsonValueKind.Undefined)
-            return null;
-        return element.Value.Deserialize<T>(JsonOptions);
-    }
 }

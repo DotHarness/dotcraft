@@ -12,7 +12,7 @@ The editor launches DotCraft, and DotCraft bridges that conversation to its [App
 |---|---|
 | **JetBrains IDEs** | Built-in AI Assistant agent support |
 | **Obsidian** | [obsidian-agent-client](https://github.com/RAIT-09/obsidian-agent-client) |
-| **Unity Editor** | [dotcraft-unity](https://github.com/DotHarness/dotcraft-unity) |
+| **Unity Editor** | [unity-acp](https://github.com/DotHarness/unity-acp) |
 
 ACP is an open standard with a growing ecosystem. Any other ACP-capable editor connects with the same configuration shape.
 
@@ -81,13 +81,13 @@ DotCraft then appears in the plugin's chat UI. It answers questions and reads an
 
 ## Unity Editor
 
-The Unity client lives in a separate repository: [DotHarness/dotcraft-unity](https://github.com/DotHarness/dotcraft-unity). Unity launches DotCraft itself over ACP, so install and initialize DotCraft with the steps above first, then add `dotcraft-unity` to your Unity project:
+The Unity ACP client lives in a separate repository: [DotHarness/unity-acp](https://github.com/DotHarness/unity-acp). Unity launches DotCraft over ACP, so install and initialize DotCraft with the steps above first, then add `unity-acp` via Package Manager (**Add package from git URL**):
 
 ```text
-https://github.com/DotHarness/dotcraft-unity.git
+https://github.com/DotHarness/unity-acp.git?path=/Packages/com.dotharness.unity-acp
 ```
 
-Once connected, the agent can query the scene, the current selection, the Console, and project info. Those tools are provided and maintained by the `dotcraft-unity` plugin.
+To let agents automate the Unity Editor (scene, selection, Console, and project tools), install [DotHarness/dotcraft-unity](https://github.com/DotHarness/dotcraft-unity) alongside it.
 
 ## What the editor adds
 

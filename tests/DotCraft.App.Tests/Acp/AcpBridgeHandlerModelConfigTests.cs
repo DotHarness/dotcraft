@@ -1,6 +1,7 @@
 using DotCraft.Acp;
-using Contract = DotCraft.Protocol.AppServer;
+using DotHarness.Acp.V1;
 using Xunit;
+using Contract = DotCraft.Protocol.AppServer;
 
 namespace DotCraft.App.Tests.Acp;
 
@@ -9,7 +10,7 @@ public sealed class AcpBridgeHandlerModelConfigTests
     [Fact]
     public void BuildConfigOptions_AddsModelSelectorFromSuccessfulCatalog()
     {
-        var options = AcpBridgeHandler.BuildConfigOptions(
+        var options = AcpConfigOptions.Build(
             currentMode: "plan",
             currentModel: "gpt-current",
             modelList: new Contract.ModelListResult
@@ -23,22 +24,27 @@ public sealed class AcpBridgeHandlerModelConfigTests
                 ])
             });
 
-        var mode = Assert.Single(options, o => o.Id == "mode");
-        Assert.Equal("plan", mode.CurrentValue);
+        var selectOptions = options.OfType<SessionConfigOption.Case1>().Select(c => c.Value).ToList();
 
-        var model = Assert.Single(options, o => o.Id == "model");
-        Assert.Equal("model", model.Category);
-        Assert.Equal("gpt-current", model.CurrentValue);
+        var mode = Assert.Single(selectOptions, o => o.Id.Value == "mode");
+        Assert.Equal("plan", mode.CurrentValue.Value);
+
+        var model = Assert.Single(selectOptions, o => o.Id.Value == "model");
+        Assert.True(model.Category.HasValue);
+        Assert.Equal("model", model.Category.Value?.Value);
+        Assert.Equal("gpt-current", model.CurrentValue.Value);
+
+        var flatOptions = Assert.IsType<SessionConfigSelectOptions.Case1>(model.Options).Value;
         Assert.Equal(
-            [AcpBridgeHandler.DefaultModelValue, "gpt-alpha", "gpt-beta", "gpt-current"],
-            model.Options.Select(o => o.Value).ToArray());
-        Assert.Equal("Default", model.Options[0].Name);
+            [AcpConfigOptions.DefaultModelValue, "gpt-alpha", "gpt-beta", "gpt-current"],
+            flatOptions.Select(o => o.Value.Value).ToArray());
+        Assert.Equal("Default", flatOptions[0].Name);
     }
 
     [Fact]
     public void BuildConfigOptions_OmitsModelSelectorWhenCatalogFails()
     {
-        var options = AcpBridgeHandler.BuildConfigOptions(
+        var options = AcpConfigOptions.Build(
             currentMode: "agent",
             currentModel: "gpt-current",
             modelList: new Contract.ModelListResult
@@ -48,7 +54,8 @@ public sealed class AcpBridgeHandlerModelConfigTests
                 ErrorMessage = "Endpoint does not support model listing."
             });
 
-        Assert.Contains(options, o => o.Id == "mode");
-        Assert.DoesNotContain(options, o => o.Id == "model");
+        var selectOptions = options.OfType<SessionConfigOption.Case1>().Select(c => c.Value).ToList();
+        Assert.Contains(selectOptions, o => o.Id.Value == "mode");
+        Assert.DoesNotContain(selectOptions, o => o.Id.Value == "model");
     }
 }

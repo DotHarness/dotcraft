@@ -4,6 +4,19 @@ using System.Text.Json.Serialization;
 
 namespace DotCraft.Protocol.AppServer;
 [ContractModule("acp")]
+public sealed class AcpEnvVariable : ExtensibleJsonObject
+{
+    [JsonPropertyName("name")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Name { get; init; }
+
+    [JsonPropertyName("value")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string> Value { get; init; }
+
+}
+
+[ContractModule("acp")]
 public sealed class AcpFsReadTextFileParams : ExtensibleJsonObject
 {
     [JsonPropertyName("limit")]
@@ -11,10 +24,10 @@ public sealed class AcpFsReadTextFileParams : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<int?> Limit { get; init; }
 
-    [JsonPropertyName("offset")]
+    [JsonPropertyName("line")]
     [JsonPropertyOrder(1)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<int?> Offset { get; init; }
+    public Optional<int?> Line { get; init; }
 
     [JsonPropertyName("path")]
     [JsonPropertyOrder(0)]
@@ -55,17 +68,12 @@ public sealed class AcpFsWriteTextFileParams : ExtensibleJsonObject
 }
 
 [ContractModule("acp")]
-public sealed class AcpFsWriteTextFileResult : ExtensibleJsonObject
-{
-    [JsonPropertyName("success")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool> Success { get; init; }
-
-}
-
-[ContractModule("acp")]
 public sealed class AcpTerminalCreateParams : ExtensibleJsonObject
 {
+    [JsonPropertyName("args")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>?> Args { get; init; }
+
     [JsonPropertyName("command")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> Command { get; init; }
@@ -76,7 +84,12 @@ public sealed class AcpTerminalCreateParams : ExtensibleJsonObject
 
     [JsonPropertyName("env")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyDictionary<string, string>?> Env { get; init; }
+    public Optional<IReadOnlyList<AcpEnvVariable>?> Env { get; init; }
+
+    [JsonPropertyName("outputByteLimit")]
+    [JsonSafeInteger]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<long?> OutputByteLimit { get; init; }
 
     [JsonPropertyName("threadId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -94,7 +107,20 @@ public sealed class AcpTerminalCreateResult : ExtensibleJsonObject
 }
 
 [ContractModule("acp")]
-public sealed class AcpTerminalGetOutputParams : ExtensibleJsonObject
+public sealed class AcpTerminalExitStatus : ExtensibleJsonObject
+{
+    [JsonPropertyName("exitCode")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<int?> ExitCode { get; init; }
+
+    [JsonPropertyName("signal")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> Signal { get; init; }
+
+}
+
+[ContractModule("acp")]
+public sealed class AcpTerminalOutputParams : ExtensibleJsonObject
 {
     [JsonPropertyName("terminalId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -122,13 +148,17 @@ public sealed class AcpTerminalKillParams : ExtensibleJsonObject
 [ContractModule("acp")]
 public sealed class AcpTerminalOutputResult : ExtensibleJsonObject
 {
-    [JsonPropertyName("exitCode")]
+    [JsonPropertyName("exitStatus")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<int?> ExitCode { get; init; }
+    public Optional<AcpTerminalExitStatus?> ExitStatus { get; init; }
 
     [JsonPropertyName("output")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> Output { get; init; }
+
+    [JsonPropertyName("truncated")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool> Truncated { get; init; }
 
 }
 
@@ -156,9 +186,18 @@ public sealed class AcpTerminalWaitForExitParams : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> ThreadId { get; init; }
 
-    [JsonPropertyName("timeout")]
+}
+
+[ContractModule("acp")]
+public sealed class AcpTerminalWaitForExitResult : ExtensibleJsonObject
+{
+    [JsonPropertyName("exitCode")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<int?> Timeout { get; init; }
+    public Optional<int?> ExitCode { get; init; }
+
+    [JsonPropertyName("signal")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> Signal { get; init; }
 
 }
 

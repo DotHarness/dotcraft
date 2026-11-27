@@ -10,6 +10,8 @@ using DotCraft.Tests.Sessions.Protocol.AppServer;
 using Contract = DotCraft.Protocol.AppServer;
 using DotCraft.AppServer;
 using DotCraft.Sessions;
+using AcpStdioTransport = DotHarness.Acp.Transport.StdioTransport;
+using WireStdioTransport = DotCraft.AppServer.StdioTransport;
 using ModelPreference = DotCraft.Configuration.ModelPreference;
 using Xunit;
 
@@ -35,7 +37,7 @@ public sealed class AcpBridgePipeIntegrationTests
         var ideToBridge = new Pipe();
         var bridgeToIde = new Pipe();
 
-        var serverTransport = StdioTransport.Create(
+        var serverTransport = WireStdioTransport.Create(
             clientToServer.Reader.AsStream(),
             serverToClient.Writer.AsStream());
         serverTransport.Start();
@@ -64,16 +66,15 @@ public sealed class AcpBridgePipeIntegrationTests
             clientToServer.Writer.AsStream());
         wire.Start();
 
-        await using var acp = new AcpTransport(ideToBridge.Reader.AsStream(), bridgeToIde.Writer.AsStream());
-        acp.StartReaderLoop();
+        await using var acp = new AcpStdioTransport(ideToBridge.Reader.AsStream(), bridgeToIde.Writer.AsStream());
 
         var bridgeCts = new CancellationTokenSource();
-        var bridge = new AcpBridgeHandler(acp, wire, tempDir);
-        var bridgeTask = Task.Run(() => bridge.RunAsync(bridgeCts.Token));
+        var bridge = new AcpBridgeHandler(wire, tempDir);
+        var bridgeTask = Task.Run(() => bridge.RunAsync(acp, bridgeCts.Token));
 
         try
         {
-            await using var ideWriter = new StreamWriter(ideToBridge.Writer.AsStream(), Encoding.UTF8) { AutoFlush = true };
+            await using var ideWriter = new StreamWriter(ideToBridge.Writer.AsStream(), new UTF8Encoding(false)) { AutoFlush = true };
             using var ideReader = new StreamReader(bridgeToIde.Reader.AsStream(), Encoding.UTF8);
 
             const string initLine =
@@ -88,7 +89,7 @@ public sealed class AcpBridgePipeIntegrationTests
             Assert.True(initDoc.RootElement.TryGetProperty("result", out var initResult));
             Assert.Equal(AcpBridgeHandler.ProtocolVersion, initResult.GetProperty("protocolVersion").GetInt32());
 
-            await ideWriter.WriteLineAsync("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"session/new\",\"params\":{}}");
+            await ideWriter.WriteLineAsync("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"session/new\",\"params\":{\"cwd\":\"/workspace\",\"mcpServers\":[]}}");
 
             var sessionResponse = await ReadJsonLineAsync(ideReader);
             using var sessionDoc = JsonDocument.Parse(sessionResponse);
@@ -149,7 +150,7 @@ public sealed class AcpBridgePipeIntegrationTests
         var ideToBridge = new Pipe();
         var bridgeToIde = new Pipe();
 
-        var serverTransport = StdioTransport.Create(
+        var serverTransport = WireStdioTransport.Create(
             clientToServer.Reader.AsStream(),
             serverToClient.Writer.AsStream());
         serverTransport.Start();
@@ -171,19 +172,15 @@ public sealed class AcpBridgePipeIntegrationTests
             clientToServer.Writer.AsStream());
         wire.Start();
 
-        await using var acp = new AcpTransport(ideToBridge.Reader.AsStream(), bridgeToIde.Writer.AsStream())
-        {
-            HeartbeatInterval = Timeout.InfiniteTimeSpan
-        };
-        acp.StartReaderLoop();
+        await using var acp = new AcpStdioTransport(ideToBridge.Reader.AsStream(), bridgeToIde.Writer.AsStream());
 
         var bridgeCts = new CancellationTokenSource();
-        var bridge = new AcpBridgeHandler(acp, wire, tempDir, extForwardTimeoutSeconds: 1);
-        var bridgeTask = Task.Run(() => bridge.RunAsync(bridgeCts.Token));
+        var bridge = new AcpBridgeHandler(wire, tempDir, extForwardTimeoutSeconds: 1);
+        var bridgeTask = Task.Run(() => bridge.RunAsync(acp, bridgeCts.Token));
 
         try
         {
-            await using var ideWriter = new StreamWriter(ideToBridge.Writer.AsStream(), Encoding.UTF8) { AutoFlush = true };
+            await using var ideWriter = new StreamWriter(ideToBridge.Writer.AsStream(), new UTF8Encoding(false)) { AutoFlush = true };
             using var ideReader = new StreamReader(bridgeToIde.Reader.AsStream(), Encoding.UTF8);
 
             const string initLine =
@@ -204,7 +201,7 @@ public sealed class AcpBridgePipeIntegrationTests
             using var initDoc = JsonDocument.Parse(initResponse);
             Assert.True(initDoc.RootElement.TryGetProperty("result", out _));
 
-            await ideWriter.WriteLineAsync("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"session/new\",\"params\":{}}");
+            await ideWriter.WriteLineAsync("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"session/new\",\"params\":{\"cwd\":\"/workspace\",\"mcpServers\":[]}}");
 
             var threadStartParams = await capturedThreadStart.Task.WaitAsync(TimeSpan.FromSeconds(10));
             var dynamicTools = threadStartParams.GetProperty("dynamicTools");
@@ -311,7 +308,7 @@ public sealed class AcpBridgePipeIntegrationTests
             AssertRuntimeResult(runtimeResponses[3], success: false, expectedCode: "DynamicToolResultInvalid");
             AssertRuntimeResult(runtimeResponses[4], success: false, expectedCode: "DynamicToolTimeout");
             using var promptResponse = JsonDocument.Parse(await ReadJsonLineForIdAsync(ideReader, 3));
-            Assert.Equal(AcpStopReason.EndTurn,
+            Assert.Equal("end_turn",
                 promptResponse.RootElement.GetProperty("result").GetProperty("stopReason").GetString());
         }
         finally
@@ -368,7 +365,7 @@ public sealed class AcpBridgePipeIntegrationTests
         var ideToBridge = new Pipe();
         var bridgeToIde = new Pipe();
 
-        var serverTransport = StdioTransport.Create(
+        var serverTransport = WireStdioTransport.Create(
             clientToServer.Reader.AsStream(),
             serverToClient.Writer.AsStream());
         serverTransport.Start();
@@ -397,16 +394,15 @@ public sealed class AcpBridgePipeIntegrationTests
             clientToServer.Writer.AsStream());
         wire.Start();
 
-        await using var acp = new AcpTransport(ideToBridge.Reader.AsStream(), bridgeToIde.Writer.AsStream());
-        acp.StartReaderLoop();
+        await using var acp = new AcpStdioTransport(ideToBridge.Reader.AsStream(), bridgeToIde.Writer.AsStream());
 
         var bridgeCts = new CancellationTokenSource();
-        var bridge = new AcpBridgeHandler(acp, wire, tempDir);
-        var bridgeTask = Task.Run(() => bridge.RunAsync(bridgeCts.Token));
+        var bridge = new AcpBridgeHandler(wire, tempDir);
+        var bridgeTask = Task.Run(() => bridge.RunAsync(acp, bridgeCts.Token));
 
         try
         {
-            await using var ideWriter = new StreamWriter(ideToBridge.Writer.AsStream(), Encoding.UTF8) { AutoFlush = true };
+            await using var ideWriter = new StreamWriter(ideToBridge.Writer.AsStream(), new UTF8Encoding(false)) { AutoFlush = true };
             using var ideReader = new StreamReader(bridgeToIde.Reader.AsStream(), Encoding.UTF8);
 
             await ideWriter.WriteLineAsync(
@@ -415,7 +411,7 @@ public sealed class AcpBridgePipeIntegrationTests
                 + "\"clientInfo\":{\"name\":\"test-ide\",\"version\":\"1.0\"}}}");
             _ = await ReadJsonLineForIdAsync(ideReader, 1);
 
-            await ideWriter.WriteLineAsync("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"session/new\",\"params\":{}}");
+            await ideWriter.WriteLineAsync("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"session/new\",\"params\":{\"cwd\":\"/workspace\",\"mcpServers\":[]}}");
             using var sessionDoc = JsonDocument.Parse(await ReadJsonLineForIdAsync(ideReader, 2));
             var sessionId = sessionDoc.RootElement.GetProperty("result").GetProperty("sessionId").GetString()!;
 
@@ -476,8 +472,8 @@ public sealed class AcpBridgePipeIntegrationTests
 
             var updates = await ReadSessionUpdateLinesUntilResponseAsync(ideReader, responseId: 3);
 
-            AssertTextUpdate(updates, AcpUpdateKind.AgentThoughtChunk, "I need to inspect state first.");
-            AssertTextUpdate(updates, AcpUpdateKind.AgentMessageChunk, "Visible answer.");
+            AssertTextUpdate(updates, "agent_thought_chunk", "I need to inspect state first.");
+            AssertTextUpdate(updates, "agent_message_chunk", "Visible answer.");
         }
         finally
         {
@@ -531,7 +527,7 @@ public sealed class AcpBridgePipeIntegrationTests
         var ideToBridge = new Pipe();
         var bridgeToIde = new Pipe();
 
-        var serverTransport = StdioTransport.Create(
+        var serverTransport = WireStdioTransport.Create(
             clientToServer.Reader.AsStream(),
             serverToClient.Writer.AsStream());
         serverTransport.Start();
@@ -544,16 +540,15 @@ public sealed class AcpBridgePipeIntegrationTests
             clientToServer.Writer.AsStream());
         wire.Start();
 
-        await using var acp = new AcpTransport(ideToBridge.Reader.AsStream(), bridgeToIde.Writer.AsStream());
-        acp.StartReaderLoop();
+        await using var acp = new AcpStdioTransport(ideToBridge.Reader.AsStream(), bridgeToIde.Writer.AsStream());
 
         var bridgeCts = new CancellationTokenSource();
-        var bridge = new AcpBridgeHandler(acp, wire, tempDir);
-        var bridgeTask = Task.Run(() => bridge.RunAsync(bridgeCts.Token));
+        var bridge = new AcpBridgeHandler(wire, tempDir);
+        var bridgeTask = Task.Run(() => bridge.RunAsync(acp, bridgeCts.Token));
 
         try
         {
-            await using var ideWriter = new StreamWriter(ideToBridge.Writer.AsStream(), Encoding.UTF8) { AutoFlush = true };
+            await using var ideWriter = new StreamWriter(ideToBridge.Writer.AsStream(), new UTF8Encoding(false)) { AutoFlush = true };
             using var ideReader = new StreamReader(bridgeToIde.Reader.AsStream(), Encoding.UTF8);
 
             await ideWriter.WriteLineAsync(
@@ -562,12 +557,12 @@ public sealed class AcpBridgePipeIntegrationTests
                 + "\"clientInfo\":{\"name\":\"test-ide\",\"version\":\"1.0\"}}}");
             _ = await ReadJsonLineForIdAsync(ideReader, 1);
 
-            await ideWriter.WriteLineAsync("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"session/new\",\"params\":{}}");
+            await ideWriter.WriteLineAsync("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"session/new\",\"params\":{\"cwd\":\"/workspace\",\"mcpServers\":[]}}");
             using var sessionDoc = JsonDocument.Parse(await ReadJsonLineForIdAsync(ideReader, 2));
             var sessionResult = sessionDoc.RootElement.GetProperty("result");
             var sessionId = sessionResult.GetProperty("sessionId").GetString()!;
             var modelOption = FindConfigOption(sessionResult.GetProperty("configOptions"), "model");
-            Assert.Equal(AcpBridgeHandler.DefaultModelValue, modelOption.GetProperty("currentValue").GetString());
+            Assert.Equal(AcpConfigOptions.DefaultModelValue, modelOption.GetProperty("currentValue").GetString());
             Assert.Contains(modelOption.GetProperty("options").EnumerateArray(), o => o.GetProperty("value").GetString() == "gpt-beta");
 
             await ideWriter.WriteLineAsync(JsonSerializer.Serialize(new
@@ -577,11 +572,13 @@ public sealed class AcpBridgePipeIntegrationTests
                 method = "session/set_config_option",
                 @params = new { sessionId, configId = "model", value = "gpt-beta" }
             }));
-            using var setDoc = JsonDocument.Parse(await ReadJsonLineForIdAsync(ideReader, 3));
+            var setNotifications = new List<string>();
+            using var setDoc = JsonDocument.Parse(await ReadJsonLineForIdAsync(ideReader, 3, setNotifications));
             var setModelOption = FindConfigOption(setDoc.RootElement.GetProperty("result").GetProperty("configOptions"), "model");
             Assert.Equal("gpt-beta", setModelOption.GetProperty("currentValue").GetString());
-            using var updateDoc = JsonDocument.Parse(await ReadJsonLineAsync(ideReader));
-            Assert.Equal(AcpUpdateKind.ConfigOptionsUpdate,
+            var updateLine = setNotifications.FirstOrDefault() ?? await ReadJsonLineAsync(ideReader);
+            using var updateDoc = JsonDocument.Parse(updateLine);
+            Assert.Equal("config_option_update",
                 updateDoc.RootElement.GetProperty("params").GetProperty("update").GetProperty("sessionUpdate").GetString());
             Assert.Equal("gpt-beta", threadConfig["model"]?.GetValue<string>());
 
@@ -590,11 +587,11 @@ public sealed class AcpBridgePipeIntegrationTests
                 jsonrpc = "2.0",
                 id = 4,
                 method = "session/set_config_option",
-                @params = new { sessionId, configId = "model", value = AcpBridgeHandler.DefaultModelValue }
+                @params = new { sessionId, configId = "model", value = AcpConfigOptions.DefaultModelValue }
             }));
             using var clearDoc = JsonDocument.Parse(await ReadJsonLineForIdAsync(ideReader, 4));
             var clearModelOption = FindConfigOption(clearDoc.RootElement.GetProperty("result").GetProperty("configOptions"), "model");
-            Assert.Equal(AcpBridgeHandler.DefaultModelValue, clearModelOption.GetProperty("currentValue").GetString());
+            Assert.Equal(AcpConfigOptions.DefaultModelValue, clearModelOption.GetProperty("currentValue").GetString());
             Assert.False(threadConfig.ContainsKey("model"));
         }
         finally
@@ -644,14 +641,20 @@ public sealed class AcpBridgePipeIntegrationTests
         return line;
     }
 
-    private static async Task<string> ReadJsonLineForIdAsync(StreamReader reader, int id)
+    private static async Task<string> ReadJsonLineForIdAsync(
+        StreamReader reader,
+        int id,
+        List<string>? skippedNotifications = null)
     {
         for (var i = 0; i < 10; i++)
         {
             var line = await ReadJsonLineAsync(reader);
             using var doc = JsonDocument.Parse(line);
-            if (doc.RootElement.TryGetProperty("id", out var idEl) && idEl.GetInt32() == id)
+            if (doc.RootElement.TryGetProperty("id", out var idEl)
+                && idEl.ValueKind == JsonValueKind.Number
+                && idEl.GetInt32() == id)
                 return line;
+            skippedNotifications?.Add(line);
         }
 
         throw new InvalidOperationException($"No ACP response with id {id} was sent.");
@@ -667,13 +670,13 @@ public sealed class AcpBridgePipeIntegrationTests
             var root = doc.RootElement;
             if (root.TryGetProperty("id", out var idEl) && idEl.GetInt32() == responseId)
             {
-                Assert.Equal(AcpStopReason.EndTurn,
+                Assert.Equal("end_turn",
                     root.GetProperty("result").GetProperty("stopReason").GetString());
                 return updates;
             }
 
             if (root.TryGetProperty("method", out var methodEl)
-                && methodEl.GetString() == AcpMethods.SessionUpdate)
+                && methodEl.GetString() == "session/update")
             {
                 updates.Add(line);
             }

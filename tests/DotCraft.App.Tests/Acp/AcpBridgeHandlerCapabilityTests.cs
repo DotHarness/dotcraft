@@ -1,14 +1,13 @@
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Acp;
 using DotCraft.AppServer;
-using ClientCapabilities = DotCraft.Acp.ClientCapabilities;
+using DotHarness.Acp.V1;
 using Xunit;
+using ClientCapabilities = DotHarness.Acp.V1.ClientCapabilities;
 
 namespace DotCraft.Tests.Acp;
 
-/// <summary>
-/// Unit tests for <see cref="AcpBridgeHandler"/> capability mapping (ACP client → wire <c>acpExtensions</c>).
-/// </summary>
 public sealed class AcpBridgeHandlerCapabilityTests
 {
     [Fact]
@@ -16,12 +15,12 @@ public sealed class AcpBridgeHandlerCapabilityTests
     {
         var caps = new ClientCapabilities
         {
-            Fs = new FsCapabilities
+            Fs = new FileSystemCapabilities
             {
                 ReadTextFile = true,
                 WriteTextFile = true
             },
-            Terminal = new TerminalCapabilities { Create = true }
+            Terminal = true
         };
 
         var descriptors = new[]
@@ -29,7 +28,7 @@ public sealed class AcpBridgeHandlerCapabilityTests
             new AcpRuntimeToolDescriptor { AcpMethod = "_unity/scene_query" }
         };
 
-        var ext = AcpBridgeHandler.BuildAcpClientCapability(caps, descriptors);
+        var ext = AcpRuntimeTools.BuildAcpClientCapability(caps, descriptors);
 
         Assert.NotNull(ext);
         Assert.True(ext!.FsReadTextFile);
@@ -41,41 +40,27 @@ public sealed class AcpBridgeHandlerCapabilityTests
     [Fact]
     public void TryBuildRuntimeTools_MapsClientRuntimeToolsToDynamicToolSpecs()
     {
-        var caps = new ClientCapabilities
-        {
-            Meta = new ClientCapabilitiesMeta
+        var caps = CreateRuntimeToolsCapabilities(
+            version: 1,
+            new AcpRuntimeToolDescriptor
             {
-                DotCraft = new DotCraftClientCapabilities
+                Namespace = "unity",
+                Name = "unity_scene_query",
+                Description = "Query Unity scene hierarchy.",
+                InputSchema = new JsonObject
                 {
-                    RuntimeTools = new AcpRuntimeToolsCapability
+                    ["type"] = "object",
+                    ["properties"] = new JsonObject
                     {
-                        Version = 1,
-                        Tools =
-                        [
-                            new AcpRuntimeToolDescriptor
-                            {
-                                Namespace = "unity",
-                                Name = "unity_scene_query",
-                                Description = "Query Unity scene hierarchy.",
-                                InputSchema = new JsonObject
-                                {
-                                    ["type"] = "object",
-                                    ["properties"] = new JsonObject
-                                    {
-                                        ["query"] = new JsonObject { ["type"] = "string" }
-                                    }
-                                },
-                                AcpMethod = "_unity/scene_query",
-                                Kind = AcpToolKind.Unity,
-                                DeferLoading = true
-                            }
-                        ]
+                        ["query"] = new JsonObject { ["type"] = "string" }
                     }
-                }
-            }
-        };
+                },
+                AcpMethod = "_unity/scene_query",
+                Kind = "read",
+                DeferLoading = true
+            });
 
-        Assert.True(AcpBridgeHandler.TryBuildRuntimeTools(
+        Assert.True(AcpRuntimeTools.TryBuildRuntimeTools(
             caps,
             out var dynamicTools,
             out var descriptors,
@@ -93,41 +78,27 @@ public sealed class AcpBridgeHandlerCapabilityTests
         Assert.Equal("unity", descriptor.Namespace);
         Assert.Equal("unity_scene_query", descriptor.Name);
         Assert.Equal("_unity/scene_query", descriptor.AcpMethod);
-        Assert.Equal(AcpToolKind.Unity, descriptor.Kind);
+        Assert.Equal("read", descriptor.Kind);
     }
 
     [Fact]
     public void TryBuildRuntimeTools_RejectsCustomMethodWithoutUnderscore()
     {
-        var caps = new ClientCapabilities
-        {
-            Meta = new ClientCapabilitiesMeta
+        var caps = CreateRuntimeToolsCapabilities(
+            version: 1,
+            new AcpRuntimeToolDescriptor
             {
-                DotCraft = new DotCraftClientCapabilities
+                Name = "unity_scene_query",
+                Description = "Query Unity scene hierarchy.",
+                InputSchema = new JsonObject
                 {
-                    RuntimeTools = new AcpRuntimeToolsCapability
-                    {
-                        Version = 1,
-                        Tools =
-                        [
-                            new AcpRuntimeToolDescriptor
-                            {
-                                Name = "unity_scene_query",
-                                Description = "Query Unity scene hierarchy.",
-                                InputSchema = new JsonObject
-                                {
-                                    ["type"] = "object",
-                                    ["properties"] = new JsonObject()
-                                },
-                                AcpMethod = "unity/scene_query"
-                            }
-                        ]
-                    }
-                }
-            }
-        };
+                    ["type"] = "object",
+                    ["properties"] = new JsonObject()
+                },
+                AcpMethod = "unity/scene_query"
+            });
 
-        Assert.False(AcpBridgeHandler.TryBuildRuntimeTools(
+        Assert.False(AcpRuntimeTools.TryBuildRuntimeTools(
             caps,
             out var dynamicTools,
             out var descriptors,
@@ -142,22 +113,9 @@ public sealed class AcpBridgeHandlerCapabilityTests
     [InlineData(2)]
     public void TryBuildRuntimeTools_RejectsUnsupportedPrivateContractVersion(int version)
     {
-        var caps = new ClientCapabilities
-        {
-            Meta = new ClientCapabilitiesMeta
-            {
-                DotCraft = new DotCraftClientCapabilities
-                {
-                    RuntimeTools = new AcpRuntimeToolsCapability
-                    {
-                        Version = version,
-                        Tools = []
-                    }
-                }
-            }
-        };
+        var caps = CreateRuntimeToolsCapabilities(version);
 
-        Assert.False(AcpBridgeHandler.TryBuildRuntimeTools(
+        Assert.False(AcpRuntimeTools.TryBuildRuntimeTools(
             caps,
             out var dynamicTools,
             out var descriptors,
@@ -168,9 +126,32 @@ public sealed class AcpBridgeHandlerCapabilityTests
     }
 
     [Fact]
-    public void ToolKindMapper_UsesRuntimeDeclaredKind()
+    public void ToolKindMapper_MapsStandardKindsAndFallsBackToOther()
     {
-        Assert.Equal(AcpToolKind.Unity, AcpToolKindMapper.GetKind("unity_scene_query", "unity"));
-        Assert.Equal(AcpToolKind.Other, AcpToolKindMapper.GetKind("unity_scene_query"));
+        Assert.Equal(ToolKind.Search, AcpToolKindMapper.GetKind("unity_scene_query", "search"));
+        Assert.Equal(ToolKind.Other, AcpToolKindMapper.GetKind("unity_scene_query", "unity"));
+        Assert.Equal(ToolKind.Other, AcpToolKindMapper.GetKind("unity_scene_query"));
+    }
+
+    private static ClientCapabilities CreateRuntimeToolsCapabilities(
+        int version,
+        params AcpRuntimeToolDescriptor[] tools)
+    {
+        var dotcraftMeta = JsonSerializer.SerializeToElement(new
+        {
+            runtimeTools = new AcpRuntimeToolsCapability
+            {
+                Version = version,
+                Tools = [.. tools]
+            }
+        });
+
+        return new ClientCapabilities
+        {
+            Meta = new Dictionary<string, JsonElement>
+            {
+                ["dotcraft"] = dotcraftMeta
+            }
+        };
     }
 }

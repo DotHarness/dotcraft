@@ -30,6 +30,31 @@
   ],
   "types": [
     {
+      "id": "acp.AcpEnvVariable",
+      "name": "AcpEnvVariable",
+      "module": "acp",
+      "kind": "object",
+      "schema": "schemas/acp/AcpEnvVariable.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "value",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.AcpExtensionCapability",
       "name": "AcpExtensionCapability",
       "module": "core",
@@ -84,7 +109,7 @@
           "const": null
         },
         {
-          "name": "offset",
+          "name": "line",
           "type": "integer",
           "required": false,
           "nullable": true,
@@ -158,24 +183,6 @@
       "variants": []
     },
     {
-      "id": "acp.AcpFsWriteTextFileResult",
-      "name": "AcpFsWriteTextFileResult",
-      "module": "acp",
-      "kind": "object",
-      "schema": "schemas/acp/AcpFsWriteTextFileResult.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "success",
-          "type": "boolean",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
       "id": "acp.AcpTerminalCreateParams",
       "name": "AcpTerminalCreateParams",
       "module": "acp",
@@ -183,6 +190,13 @@
       "schema": "schemas/acp/AcpTerminalCreateParams.schema.json",
       "additionalProperties": true,
       "fields": [
+        {
+          "name": "args",
+          "type": "array<string>",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
         {
           "name": "command",
           "type": "string",
@@ -199,10 +213,19 @@
         },
         {
           "name": "env",
-          "type": "map<string>",
+          "type": "array<acp.AcpEnvVariable>",
           "required": false,
           "nullable": true,
           "const": null
+        },
+        {
+          "name": "outputByteLimit",
+          "type": "integer",
+          "required": false,
+          "nullable": true,
+          "const": null,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
         },
         {
           "name": "threadId",
@@ -233,25 +256,25 @@
       "variants": []
     },
     {
-      "id": "acp.AcpTerminalGetOutputParams",
-      "name": "AcpTerminalGetOutputParams",
+      "id": "acp.AcpTerminalExitStatus",
+      "name": "AcpTerminalExitStatus",
       "module": "acp",
       "kind": "object",
-      "schema": "schemas/acp/AcpTerminalGetOutputParams.schema.json",
+      "schema": "schemas/acp/AcpTerminalExitStatus.schema.json",
       "additionalProperties": true,
       "fields": [
         {
-          "name": "terminalId",
-          "type": "string",
+          "name": "exitCode",
+          "type": "integer",
           "required": false,
-          "nullable": false,
+          "nullable": true,
           "const": null
         },
         {
-          "name": "threadId",
+          "name": "signal",
           "type": "string",
           "required": false,
-          "nullable": false,
+          "nullable": true,
           "const": null
         }
       ],
@@ -283,6 +306,31 @@
       "variants": []
     },
     {
+      "id": "acp.AcpTerminalOutputParams",
+      "name": "AcpTerminalOutputParams",
+      "module": "acp",
+      "kind": "object",
+      "schema": "schemas/acp/AcpTerminalOutputParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "terminalId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "threadId",
+          "type": "string",
+          "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "acp.AcpTerminalOutputResult",
       "name": "AcpTerminalOutputResult",
       "module": "acp",
@@ -291,8 +339,8 @@
       "additionalProperties": true,
       "fields": [
         {
-          "name": "exitCode",
-          "type": "integer",
+          "name": "exitStatus",
+          "type": "acp.AcpTerminalExitStatus",
           "required": false,
           "nullable": true,
           "const": null
@@ -302,6 +350,13 @@
           "type": "string",
           "required": false,
           "nullable": true,
+          "const": null
+        },
+        {
+          "name": "truncated",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
           "const": null
         }
       ],
@@ -353,10 +408,28 @@
           "required": false,
           "nullable": false,
           "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "acp.AcpTerminalWaitForExitResult",
+      "name": "AcpTerminalWaitForExitResult",
+      "module": "acp",
+      "kind": "object",
+      "schema": "schemas/acp/AcpTerminalWaitForExitResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "exitCode",
+          "type": "integer",
+          "required": false,
+          "nullable": true,
+          "const": null
         },
         {
-          "name": "timeout",
-          "type": "integer",
+          "name": "signal",
+          "type": "string",
           "required": false,
           "nullable": true,
           "const": null
@@ -27611,7 +27684,7 @@
       "stability": "stable"
     },
     {
-      "name": "ext/acp/fs/readTextFile",
+      "name": "ext/acp/fs/read_text_file",
       "descriptorMember": "ExtAcpFsReadTextFile",
       "kind": "request",
       "direction": "serverToClient",
@@ -27631,12 +27704,12 @@
       "stability": "stable"
     },
     {
-      "name": "ext/acp/fs/writeTextFile",
+      "name": "ext/acp/fs/write_text_file",
       "descriptorMember": "ExtAcpFsWriteTextFile",
       "kind": "request",
       "direction": "serverToClient",
       "paramsType": "acp.AcpFsWriteTextFileParams",
-      "resultType": "acp.AcpFsWriteTextFileResult",
+      "resultType": "core.RpcEmpty",
       "module": "acp",
       "capability": "acpExtensions",
       "scope": "connection",
@@ -27671,12 +27744,12 @@
       "stability": "stable"
     },
     {
-      "name": "ext/acp/terminal/getOutput",
-      "descriptorMember": "ExtAcpTerminalGetOutput",
+      "name": "ext/acp/terminal/kill",
+      "descriptorMember": "ExtAcpTerminalKill",
       "kind": "request",
       "direction": "serverToClient",
-      "paramsType": "acp.AcpTerminalGetOutputParams",
-      "resultType": "acp.AcpTerminalOutputResult",
+      "paramsType": "acp.AcpTerminalKillParams",
+      "resultType": "core.RpcEmpty",
       "module": "acp",
       "capability": "acpExtensions",
       "scope": "connection",
@@ -27691,12 +27764,12 @@
       "stability": "stable"
     },
     {
-      "name": "ext/acp/terminal/kill",
-      "descriptorMember": "ExtAcpTerminalKill",
+      "name": "ext/acp/terminal/output",
+      "descriptorMember": "ExtAcpTerminalOutput",
       "kind": "request",
       "direction": "serverToClient",
-      "paramsType": "acp.AcpTerminalKillParams",
-      "resultType": "core.RpcEmpty",
+      "paramsType": "acp.AcpTerminalOutputParams",
+      "resultType": "acp.AcpTerminalOutputResult",
       "module": "acp",
       "capability": "acpExtensions",
       "scope": "connection",
@@ -27731,12 +27804,12 @@
       "stability": "stable"
     },
     {
-      "name": "ext/acp/terminal/waitForExit",
+      "name": "ext/acp/terminal/wait_for_exit",
       "descriptorMember": "ExtAcpTerminalWaitForExit",
       "kind": "request",
       "direction": "serverToClient",
       "paramsType": "acp.AcpTerminalWaitForExitParams",
-      "resultType": "acp.AcpTerminalOutputResult",
+      "resultType": "acp.AcpTerminalWaitForExitResult",
       "module": "acp",
       "capability": "acpExtensions",
       "scope": "connection",

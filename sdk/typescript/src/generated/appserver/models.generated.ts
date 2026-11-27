@@ -3,6 +3,12 @@
 export type JsonPrimitive = null | boolean | number | string;
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
 
+export interface AcpEnvVariable {
+  name?: string;
+  value?: string;
+  [key: string]: unknown;
+}
+
 export interface AcpExtensionCapability {
   extensions?: string[] | null;
   fsReadTextFile?: boolean | null;
@@ -13,7 +19,7 @@ export interface AcpExtensionCapability {
 
 export interface AcpFsReadTextFileParams {
   limit?: number | null;
-  offset?: number | null;
+  line?: number | null;
   path?: string;
   threadId?: string;
   [key: string]: unknown;
@@ -31,15 +37,12 @@ export interface AcpFsWriteTextFileParams {
   [key: string]: unknown;
 }
 
-export interface AcpFsWriteTextFileResult {
-  success?: boolean;
-  [key: string]: unknown;
-}
-
 export interface AcpTerminalCreateParams {
+  args?: string[] | null;
   command?: string;
   cwd?: string | null;
-  env?: Record<string, string> | null;
+  env?: AcpEnvVariable[] | null;
+  outputByteLimit?: number | null;
   threadId?: string;
   [key: string]: unknown;
 }
@@ -49,9 +52,9 @@ export interface AcpTerminalCreateResult {
   [key: string]: unknown;
 }
 
-export interface AcpTerminalGetOutputParams {
-  terminalId?: string;
-  threadId?: string;
+export interface AcpTerminalExitStatus {
+  exitCode?: number | null;
+  signal?: string | null;
   [key: string]: unknown;
 }
 
@@ -61,9 +64,16 @@ export interface AcpTerminalKillParams {
   [key: string]: unknown;
 }
 
+export interface AcpTerminalOutputParams {
+  terminalId?: string;
+  threadId?: string;
+  [key: string]: unknown;
+}
+
 export interface AcpTerminalOutputResult {
-  exitCode?: number | null;
+  exitStatus?: AcpTerminalExitStatus | null;
   output?: string | null;
+  truncated?: boolean;
   [key: string]: unknown;
 }
 
@@ -76,7 +86,12 @@ export interface AcpTerminalReleaseParams {
 export interface AcpTerminalWaitForExitParams {
   terminalId?: string;
   threadId?: string;
-  timeout?: number | null;
+  [key: string]: unknown;
+}
+
+export interface AcpTerminalWaitForExitResult {
+  exitCode?: number | null;
+  signal?: string | null;
   [key: string]: unknown;
 }
 

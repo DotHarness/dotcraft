@@ -40,7 +40,7 @@ public sealed class WireAcpExtensionProxyMergeTests
         var parameters = new Contract.AcpFsReadTextFileParams
         {
             Path = "sample.txt",
-            Offset = null,
+            Line = null,
             Limit = null
         };
 
@@ -48,7 +48,7 @@ public sealed class WireAcpExtensionProxyMergeTests
         var json = JsonSerializer.Serialize(merged, JsonOptions);
 
         Assert.Equal(
-            "{\"path\":\"sample.txt\",\"offset\":null,\"limit\":null,\"threadId\":\"thread-a\"}",
+            "{\"path\":\"sample.txt\",\"line\":null,\"limit\":null,\"threadId\":\"thread-a\"}",
             json);
     }
 
