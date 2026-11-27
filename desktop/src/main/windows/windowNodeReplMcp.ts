@@ -35,6 +35,11 @@ export function ownsWorkspaceNodeReplThread(entry: WorkspaceConnectionEntry, thr
   return routeId != null && nodeReplMcpServer.ownsThread(routeId, threadId)
 }
 
+export function hasPendingWorkspaceComputerUseApproval(entry: WorkspaceConnectionEntry, threadId: string): boolean {
+  const routeId = states.get(entry.client)?.registration?.routeId
+  return routeId != null && nodeReplMcpServer.hasPendingComputerUseApproval(routeId, threadId)
+}
+
 export function registerWorkspaceNodeReplClient(
   ctx: DesktopWindowRuntime,
   entry: WorkspaceConnectionEntry
@@ -57,8 +62,9 @@ export function registerWorkspaceNodeReplClient(
   registerClientAdditionalMcpProvider(entry.client, {
     prepare: () => {
       if (state.disposed) return undefined
+      if (state.syncPromise) return state.syncPromise
       if (!state.hasSynced) return sync()
-      return state.syncPromise ?? undefined
+      return undefined
     },
     getServers: (): AdditionalMcpServerConfig[] | undefined => {
       if (state.disposed || !state.hasSynced) return undefined
@@ -79,18 +85,31 @@ export function registerWorkspaceNodeReplClient(
     }
   })
 
-  entry.client.on('ready', () => {
+  const onReady = (): void => {
     void sync()
-  })
-  entry.client.on('reconnected', () => {
-    void sync()
-  })
-  entry.client.on('retained-turn-ended', (threadId: string, turnId: string) => {
+  }
+  const onRetainedTurnEnded = (threadId: string, turnId: string): void => {
     const routeId = state.registration?.routeId
     if (routeId) nodeReplMcpServer.handleRetainedTurnEnded(routeId, threadId, turnId)
-  })
-  entry.client.on('close', () => releaseWorkspaceNodeReplBindings(entry))
-  entry.client.once('disposed', () => releaseWorkspaceNodeReplBindings(entry))
+  }
+  const onDisposed = (): void => {
+    entry.client.off('ready', onReady)
+    entry.client.off('reconnected', onReady)
+    entry.client.off('retained-turn-ended', onRetainedTurnEnded)
+    entry.client.off('close', onClose)
+    entry.client.off('disposed', onDisposed)
+    releaseWorkspaceNodeReplBindings(entry)
+  }
+  const onClose = (): void => {
+    onDisposed()
+    if (!entry.client.isDisposed) registerWorkspaceNodeReplClient(ctx, entry)
+  }
+
+  entry.client.on('ready', onReady)
+  entry.client.on('reconnected', onReady)
+  entry.client.on('retained-turn-ended', onRetainedTurnEnded)
+  entry.client.on('close', onClose)
+  entry.client.once('disposed', onDisposed)
 }
 
 export function releaseWorkspaceNodeReplBindings(entry: WorkspaceConnectionEntry): void {
@@ -164,7 +183,7 @@ async function syncWorkspaceNodeReplPlugins(
           retainBrowserTurn: (threadId, turnId) => entry.client.retainBrowserTurn(threadId, turnId),
           releaseBrowserTurn: (threadId, turnId) => entry.client.releaseBrowserTurn(threadId, turnId)
         })
-        if (state.disposed) {
+        if (state.disposed || state.registration) {
           registration.dispose()
           return
         }

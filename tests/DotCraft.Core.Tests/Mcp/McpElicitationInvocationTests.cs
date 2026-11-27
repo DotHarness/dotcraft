@@ -115,6 +115,44 @@ public sealed partial class McpElicitationInvocationTests
     }
 
     [Fact]
+    public async Task ReverseRequestWithMatchingCallId_AttributesToActiveHttpInvocationAndHonorsDenyPolicy()
+    {
+        await using var server = await McpFixtureProcess.StartHttpAsync(legacy: true);
+        var handler = new InputHandler();
+        await using var manager = await ConnectAsync(Config(server), handler);
+
+        var activeCall = manager.CallToolAsync(
+            "inputs",
+            "choose",
+            new Dictionary<string, object?> { ["owner"] = "A", ["echoCallId"] = true },
+            context: Context("A", "turn-A"));
+        var pending = await handler.ReadAsync();
+        Assert.Equal("A", pending.Context.ThreadId);
+        Assert.Equal("turn-A", pending.Context.TurnId);
+        Assert.Equal("call-A", pending.Context.CallId);
+        pending.Answer("approved");
+        var accepted = await activeCall.WaitAsync(Deadline);
+        Assert.Contains("\"action\":\"accept\"", Assert.IsType<TextContentBlock>(Assert.Single(accepted.Content)).Text);
+        Assert.Equal(1, handler.Count);
+
+        var denyContext = Context("B", "turn-B") with
+        {
+            TurnServices = new TurnToolServices
+            {
+                IsTopLevelThread = true,
+                GetApprovalPolicy = () => DotCraft.Sessions.ApprovalPolicy.Deny
+            }
+        };
+        var denied = await manager.CallToolAsync(
+            "inputs",
+            "choose",
+            new Dictionary<string, object?> { ["owner"] = "B", ["echoCallId"] = true },
+            context: denyContext).WaitAsync(Deadline);
+        Assert.Contains("\"action\":\"decline\"", Assert.IsType<TextContentBlock>(Assert.Single(denied.Content)).Text);
+        Assert.Equal(1, handler.Count);
+    }
+
+    [Fact]
     public async Task MissingHostHandler_PreservesStableToolFailure()
     {
         await using var manager = await ConnectAsync(Config(null), null);

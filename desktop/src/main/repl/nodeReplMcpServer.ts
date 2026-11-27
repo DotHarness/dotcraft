@@ -120,6 +120,7 @@ export class NodeReplMcpServer {
   private readonly routes = new Map<string, ActiveWorkspaceRoute>()
   private readonly sessions = new Map<string, ActiveMcpSession>()
   private readonly threads = new Map<string, ThreadBinding>()
+  private readonly pendingComputerUseApprovals = new Map<string, number>()
   private readonly deps: NodeReplMcpServerDeps
 
   constructor(deps: NodeReplMcpServerDeps = {}) {
@@ -201,6 +202,10 @@ export class NodeReplMcpServer {
 
   ownsThread(routeId: string, threadId: string): boolean {
     return this.threads.get(threadId)?.routeId === routeId
+  }
+
+  hasPendingComputerUseApproval(routeId: string, threadId: string): boolean {
+    return (this.pendingComputerUseApprovals.get(`${routeId}\0${threadId}`) ?? 0) > 0
   }
 
   handleThreadDeleted(routeId: string, threadId: string): void {
@@ -362,6 +367,10 @@ export class NodeReplMcpServer {
     if (!threadId) {
       return { content: [{ type: 'text', text: 'NodeReplJs requires dotcraft/callContext.threadId.' }], isError: true }
     }
+    const turnId = callContext.turnId
+    if (!turnId) {
+      return { content: [{ type: 'text', text: 'NodeReplJs requires an active turn.' }], isError: true }
+    }
     if (!route.binding.isActive()) {
       return { content: [{ type: 'text', text: 'Workspace connection is no longer active.' }], isError: true }
     }
@@ -382,14 +391,16 @@ export class NodeReplMcpServer {
     if (callContext.isSubagent) threadBinding.isSubagent = true
 
     const evaluationId = callContext.callId || randomUUID()
-    const turnId = callContext.turnId
-    threadBinding.turnId = turnId ?? evaluationId
-    if (turnId) {
-      threadBinding.completedTurnIds.delete(turnId)
-      const retained = await route.binding.retainBrowserTurn(threadId, turnId)
-      if (!retained) {
-        return { content: [{ type: 'text', text: 'The Node REPL turn is no longer active.' }], isError: true }
-      }
+    threadBinding.turnId = turnId
+    threadBinding.completedTurnIds.delete(turnId)
+    const retained = await route.binding.retainBrowserTurn(threadId, turnId)
+    if (!retained) {
+      return { content: [{ type: 'text', text: 'The Node REPL turn is no longer active.' }], isError: true }
+    }
+    if (!route.binding.isActive() || route.binding.getOwnerWindow() !== owner
+        || owner.isDestroyed() || this.threads.get(threadId) !== threadBinding) {
+      await route.binding.releaseBrowserTurn(threadId, turnId).catch(console.warn)
+      return { content: [{ type: 'text', text: 'Workspace request source changed before Node REPL evaluation.' }], isError: true }
     }
 
     const onAbort = (): void => {
@@ -410,7 +421,7 @@ export class NodeReplMcpServer {
           protocolVersion: 1,
           sessionId: threadId,
           threadId,
-          turnId: turnId ?? evaluationId,
+          turnId,
           evaluationId,
           ...(callContext.isSubagent ? { isSubagent: true } : {})
         },
@@ -419,7 +430,7 @@ export class NodeReplMcpServer {
         workspacePath: callContext.workspacePath || route.binding.workspacePath,
         projectKey: route.binding.projectId,
         allowComputerUse: route.binding.isComputerEnabled(),
-        requestApproval: (approval) => this.requestComputerApproval(route, server, approval, extra)
+        requestApproval: (approval) => this.requestComputerApproval(route, server, threadId, approval, extra)
       })
       return formatEvaluateResult(result, route.binding.defaultSurface())
     } finally {
@@ -430,11 +441,14 @@ export class NodeReplMcpServer {
   private async requestComputerApproval(
     route: ActiveWorkspaceRoute,
     server: Server,
+    threadId: string,
     request: NodeReplApprovalRequest,
     extra: { requestId: string | number; signal: AbortSignal }
   ): Promise<boolean> {
     if (!route.binding.isActive() || extra.signal.aborted) return false
     const appLabel = request.targetLabel || request.target
+    const pendingKey = `${route.routeId}\0${threadId}`
+    this.pendingComputerUseApprovals.set(pendingKey, (this.pendingComputerUseApprovals.get(pendingKey) ?? 0) + 1)
     try {
       const response = await server.elicitInput(
         {
@@ -455,6 +469,7 @@ export class NodeReplMcpServer {
             required: ['decision']
           },
           _meta: {
+            callId: request.evaluationId,
             approvalKind: 'computerUse',
             operation: request.operation,
             target: request.target,
@@ -474,6 +489,10 @@ export class NodeReplMcpServer {
       return true
     } catch {
       return false
+    } finally {
+      const remaining = (this.pendingComputerUseApprovals.get(pendingKey) ?? 1) - 1
+      if (remaining > 0) this.pendingComputerUseApprovals.set(pendingKey, remaining)
+      else this.pendingComputerUseApprovals.delete(pendingKey)
     }
   }
 

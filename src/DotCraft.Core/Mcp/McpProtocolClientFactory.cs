@@ -15,7 +15,7 @@ internal static class McpProtocolClientFactory
         CancellationToken cancellationToken)
     {
         // Connection readers must not inherit an invocation that happened to create this client.
-        using var connectionScope = new McpInvocationScope(null, Task.CompletedTask);
+        using var connectionScope = new McpInvocationScope(null, null);
         IClientTransport transport;
 
         if (server.NormalizedTransport == "streamableHttp")
@@ -96,9 +96,12 @@ internal static class McpProtocolClientFactory
             transport = new StdioClientTransport(options);
         }
 
+        var activeInvocations = new McpInvocationScope.ActiveInvocationTable();
         var clientOptions = CreateClientOptions((request, ct) =>
-            McpInvocationScope.HandleAsync(elicitationHandler, server.Name, request, ct));
-        return await McpClient.CreateAsync(transport, clientOptions, cancellationToken: cancellationToken);
+            McpInvocationScope.HandleAsync(elicitationHandler, server.Name, activeInvocations, request, ct));
+        var client = await McpClient.CreateAsync(transport, clientOptions, cancellationToken: cancellationToken);
+        McpInvocationScope.AttachClient(client, activeInvocations);
+        return client;
     }
 
     internal static bool HasConfiguredBearerToken(McpServerConfig server) =>

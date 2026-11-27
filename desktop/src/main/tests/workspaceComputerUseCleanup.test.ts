@@ -141,15 +141,14 @@ function expectClosed(threadId: string, turnId: string): void {
 
 describe('source-owned Computer Use cleanup via NodeRepl MCP', () => {
   it.each([
-    { event: 'close', turnId: 'explicit', effectiveTurnId: 'explicit' },
-    { event: 'disposed', turnId: 'explicit', effectiveTurnId: 'explicit' },
-    { event: 'disposed', turnId: undefined, effectiveTurnId: 'evaluation' }
-  ])('ends $effectiveTurnId on $event', async ({ event, turnId, effectiveTurnId }) => {
+    { event: 'close', turnId: 'explicit' },
+    { event: 'disposed', turnId: 'explicit' }
+  ])('ends $turnId on $event', async ({ event, turnId }) => {
     const a = await source('a')
-    await use(a.mcpClient, { threadId: 'thread', turnId, callId: 'evaluation' }, effectiveTurnId)
+    await use(a.mcpClient, { threadId: 'thread', turnId, callId: 'evaluation' }, turnId)
     if (event === 'disposed') a.client.dispose()
     else a.client.emit(event)
-    expectClosed('thread', effectiveTurnId)
+    expectClosed('thread', turnId)
   })
 
   it('stays closed when reconnect delivers a terminal notification without another evaluation', async () => {
@@ -182,10 +181,10 @@ describe('source-owned Computer Use cleanup via NodeRepl MCP', () => {
     expectClosed('b-thread', 'b-turn')
   })
 
-  it('ends the evaluation-owned Computer Use turn when its thread is deleted', async () => {
+  it('ends the active Computer Use turn when its thread is deleted', async () => {
     const a = await source('a')
-    await use(a.mcpClient, { threadId: 'thread', callId: 'evaluation' }, 'evaluation')
+    await use(a.mcpClient, { threadId: 'thread', turnId: 'turn-del', callId: 'evaluation' }, 'turn-del')
     a.client.notify('thread/deleted', { threadId: 'thread' })
-    expectClosed('thread', 'evaluation')
+    expectClosed('thread', 'turn-del')
   })
 })

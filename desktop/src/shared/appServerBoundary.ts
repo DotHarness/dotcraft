@@ -68,6 +68,7 @@ export type KnownServerRequestPayload = {
     wireRequestId?: string | number
     connectionKey?: string
     connectionId?: string
+    trustedComputerUse?: boolean
     method: M
     params: ServerRequestMethods[M]['params']
   }
@@ -84,6 +85,7 @@ export interface RawServerRequestPayload {
   wireRequestId?: string | number
   connectionKey?: string
   connectionId?: string
+  trustedComputerUse?: boolean
   method: string
   params: unknown
 }

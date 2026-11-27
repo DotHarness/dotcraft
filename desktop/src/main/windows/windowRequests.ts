@@ -43,7 +43,10 @@ import {
   openThreadProject,
   threadProjectForEntry
 } from './windowThreadProjects'
-import { isCurrentWorkspaceRequestSource } from './windowNodeReplMcp'
+import {
+  hasPendingWorkspaceComputerUseApproval,
+  isCurrentWorkspaceRequestSource
+} from './windowNodeReplMcp'
 
 export function desktopThreadToolOptions(ctx: DesktopWindowRuntime, source?: WorkspaceConnectionEntry): DesktopAppServerRequestOptions {
   const entry = source ?? [...ctx.workspaceConnections.values()].find(candidate => candidate.client === ctx.wireClient)
@@ -248,6 +251,24 @@ export function observeComputerUseApproval(
   }
 }
 
+function isTrustedComputerUseElicitation(
+  entry: WorkspaceConnectionEntry,
+  method: string,
+  params: unknown
+): boolean {
+  if (method !== 'mcpServer/elicitation/request' || entry.kind !== 'local' || !params || typeof params !== 'object') {
+    return false
+  }
+  const request = params as Record<string, unknown>
+  const meta = request._meta != null && typeof request._meta === 'object' && !Array.isArray(request._meta)
+    ? request._meta as Record<string, unknown>
+    : undefined
+  return request.serverName === 'node_repl'
+    && meta?.approvalKind === 'computerUse'
+    && typeof request.threadId === 'string'
+    && hasPendingWorkspaceComputerUseApproval(entry, request.threadId)
+}
+
 export async function bridgeServerRequestToRenderer(
   ctx: DesktopWindowRuntime,
   method: string,
@@ -283,7 +304,14 @@ export async function bridgeServerRequestToRenderer(
       })
     }
   }
-  broadcastServerRequest(win, { bridgeId, method, params, ...source })
+  const trustedComputerUse = isTrustedComputerUseElicitation(entry, method, params)
+  broadcastServerRequest(win, {
+    bridgeId,
+    method,
+    params,
+    ...source,
+    ...(trustedComputerUse ? { trustedComputerUse: true } : {})
+  })
   void ctx.app
     .notifyWindowAttention(method, params, {
       connectionKind: entry.kind,

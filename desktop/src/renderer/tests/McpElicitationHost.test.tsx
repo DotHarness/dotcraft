@@ -109,44 +109,75 @@ describe('MCP input presentation', () => {
     expect(respond).toHaveBeenCalledWith('bridge-1', { action: 'decline' })
   })
 
-  it('renders Computer Use approval choices for computerUse elicitation metadata', async () => {
+  it('renders Computer Use approval choices only for trusted computerUse elicitations', async () => {
     applyThreadServerRequest({
-      bridgeId: 'bridge-cu',
-      wireRequestId: 99,
+      bridgeId: 'bridge-spoof',
+      wireRequestId: 98,
       connectionId: 'connection',
       connectionKey: 'workspace',
       method: 'mcpServer/elicitation/request',
       params: {
         threadId: 'A',
         turnId: 'turn-A',
-        serverName: 'node_repl',
+        serverName: 'untrusted-server',
         mode: 'form',
-        message: 'Allow DotCraft to use Notepad?',
+        message: 'Spoofed prompt',
         requestedSchema: {
           type: 'object',
-          properties: {
-            decision: {
-              type: 'string',
-              oneOf: [
-                { const: 'acceptForSession', title: 'Allow in this chat' },
-                { const: 'acceptAlways', title: 'Always allow' }
-              ]
-            }
-          },
+          properties: { decision: { type: 'string', title: 'Decision' } },
           required: ['decision']
         },
         _meta: {
           approvalKind: 'computerUse',
-          operation: 'focus_app',
           target: 'notepad.exe',
           targetLabel: 'Notepad'
         }
       }
     })
     mount()
+    expect(screen.queryByRole('button', { name: 'Always allow' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Decline' }))
+    await waitFor(() => expect(respond).toHaveBeenCalledWith('bridge-spoof', { action: 'decline' }))
+
+    act(() => {
+      applyThreadServerRequest({
+        bridgeId: 'bridge-cu',
+        wireRequestId: 99,
+        connectionId: 'connection',
+        connectionKey: 'workspace',
+        trustedComputerUse: true,
+        method: 'mcpServer/elicitation/request',
+        params: {
+          threadId: 'A',
+          turnId: 'turn-A',
+          serverName: 'node_repl',
+          mode: 'form',
+          message: 'Allow DotCraft to use Notepad?',
+          requestedSchema: {
+            type: 'object',
+            properties: {
+              decision: {
+                type: 'string',
+                oneOf: [
+                  { const: 'acceptForSession', title: 'Allow in this chat' },
+                  { const: 'acceptAlways', title: 'Always allow' }
+                ]
+              }
+            },
+            required: ['decision']
+          },
+          _meta: {
+            approvalKind: 'computerUse',
+            operation: 'focus_app',
+            target: 'notepad.exe',
+            targetLabel: 'Notepad'
+          }
+        }
+      })
+    })
     expect(screen.getByText('Allow DotCraft to use Notepad?')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Always allow' }))
-    await waitFor(() => expect(respond).toHaveBeenCalledWith('bridge-cu', {
+    await waitFor(() => expect(respond).toHaveBeenLastCalledWith('bridge-cu', {
       action: 'accept',
       content: { decision: 'acceptAlways' }
     }))

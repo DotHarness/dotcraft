@@ -62,6 +62,7 @@ export function applyThreadServerRequest(payload: RawServerRequestPayload): bool
           message: typeof p.message === 'string' ? p.message : undefined,
           url: typeof p.url === 'string' ? p.url : undefined,
           requestedSchema: p.requestedSchema,
+          trustedComputerUse: payload.trustedComputerUse === true,
           meta: p._meta != null && typeof p._meta === 'object' && !Array.isArray(p._meta)
             ? p._meta as Record<string, unknown>
             : undefined

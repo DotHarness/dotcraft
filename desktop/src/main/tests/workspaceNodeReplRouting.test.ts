@@ -149,6 +149,25 @@ describe('workspace NodeRepl MCP mounting and source-bound routing', () => {
     expect(getClientAdditionalMcpRevision(a.client)).not.toBe(revBefore)
   })
 
+  it('restores the node_repl MCP provider after a transient close and reconnect on the same client', async () => {
+    const { a, ctx } = fixture()
+    registerWorkspaceNodeReplClient(ctx, a)
+
+    a.client.emit('ready')
+    await prepareClientAdditionalMcpServers(a.client)
+    const firstUrl = getClientAdditionalMcpServers(a.client)?.[0]?.url
+    expect(firstUrl).toBeDefined()
+
+    a.client.emit('close')
+    expect(getClientAdditionalMcpServers(a.client)).toBeUndefined()
+
+    a.client.emit('reconnected')
+    await prepareClientAdditionalMcpServers(a.client)
+    const secondUrl = getClientAdditionalMcpServers(a.client)?.[0]?.url
+    expect(secondUrl).toBeDefined()
+    expect(secondUrl).not.toBe(firstUrl)
+  })
+
   it('keeps background interactions source-bound and promotes their project only on notification click', async () => {
     const { a, ctx, promoteB, owner } = fixture()
     promoteB()

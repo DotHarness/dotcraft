@@ -75,6 +75,7 @@ export class DesktopThreadBindings {
         this.assertCurrent(client, state)
       }
     }
+    const requestRevision = this.tools.contextRevision(threadId ?? '', client)
     const nextParams = startsThread
       ? this.tools.withTools(params, options.remote !== true, client)
       : params
@@ -84,7 +85,9 @@ export class DesktopThreadBindings {
         const id = resultThreadId(result) ?? (method === 'thread/resume' ? threadId : null)
         if (id) {
           state.visualizations.add(id)
-          if (this.tools.includesTools(nextParams)) state.bound.set(id, this.tools.contextRevision(id, client))
+          if (this.tools.includesTools(nextParams) && this.tools.contextRevision(threadId ?? '', client) === requestRevision) {
+            state.bound.set(id, this.tools.contextRevision(id, client))
+          }
         }
       }
       options.onResponse?.(result)

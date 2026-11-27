@@ -240,12 +240,46 @@ describe('NodeReplMcpServer', () => {
     expect(result.content).toEqual([{ type: 'text', text: 'true,true,false' }])
     expect(seenElicitations).toHaveLength(3)
     expect(seenElicitations[0]._meta).toEqual({
+      callId: 'call-cu',
       approvalKind: 'computerUse',
       operation: 'focus_app',
       target: 'notepad.exe',
       targetLabel: 'Notepad'
     })
     expect(rememberAlwaysAllowed).toHaveBeenCalledExactlyOnceWith({ id: 'notepad.exe', displayName: 'Notepad' })
+  })
+
+  it('rejects NodeReplJs calls without an active turn and releases retention if ownership changes mid-retain', async () => {
+    const { server, replManager } = createFixture()
+    let active = true
+    let resolveRetain!: (ok: boolean) => void
+    const binding = makeBinding({
+      isActive: () => active,
+      retainBrowserTurn: vi.fn(() => new Promise<boolean>(resolve => { resolveRetain = resolve }))
+    })
+    const reg = await server.registerWorkspace(binding)
+    const client = await connectClient(reg.url, reg.token)
+
+    const missingTurn = await client.callTool({
+      name: 'NodeReplJs',
+      arguments: { code: '1' },
+      _meta: { 'dotcraft/callContext': { threadId: 't-no-turn', callId: 'c1' } }
+    })
+    expect(missingTurn.isError).toBe(true)
+    expect(replManager.evaluate).not.toHaveBeenCalled()
+
+    const staleCall = client.callTool({
+      name: 'NodeReplJs',
+      arguments: { code: '1' },
+      _meta: { 'dotcraft/callContext': { threadId: 't-stale', turnId: 'turn-1', callId: 'c2' } }
+    })
+    await vi.waitFor(() => expect(binding.retainBrowserTurn).toHaveBeenCalledWith('t-stale', 'turn-1'))
+    active = false
+    resolveRetain(true)
+    const staleResult = await staleCall
+    expect(staleResult.isError).toBe(true)
+    expect(binding.releaseBrowserTurn).toHaveBeenCalledWith('t-stale', 'turn-1')
+    expect(replManager.evaluate).not.toHaveBeenCalled()
   })
 
   it('handles turn_ended idempotently for main threads and disposes subagents', async () => {

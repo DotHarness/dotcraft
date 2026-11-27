@@ -15,6 +15,7 @@ export interface McpElicitationRequest {
   message?: string
   url?: string
   requestedSchema?: unknown
+  trustedComputerUse?: boolean
   meta?: Record<string, unknown>
 }
 
@@ -70,7 +71,9 @@ export function McpElicitationDialog({ request, onRespond, submitting }: Props):
     : fields != null && validateValues(fields, values)
 
   const unsupported = request.mode === 'url' ? safeUrl == null : fields == null
-  const computerUseAppLabel = request.mode === 'form' && request.meta?.approvalKind === 'computerUse'
+  const computerUseAppLabel = request.trustedComputerUse === true
+    && request.mode === 'form'
+    && request.meta?.approvalKind === 'computerUse'
     && typeof request.meta.target === 'string' && request.meta.target.trim().length > 0
     ? (typeof request.meta.targetLabel === 'string' && request.meta.targetLabel.trim()
         ? request.meta.targetLabel.trim()

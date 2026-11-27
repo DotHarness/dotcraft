@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Text.Json.Nodes;
 using DotCraft.McpTestServer;
@@ -23,27 +24,37 @@ if (args.Contains("http"))
     builder.Logging.ClearProviders();
     builder.WebHost.ConfigureKestrel(options => options.Listen(IPAddress.Loopback, 0));
     var app = builder.Build();
-    var legacyResponse = new TaskCompletionSource<JsonObject>(TaskCreationOptions.RunContinuationsAsynchronously);
+    var legacyResponses = new ConcurrentDictionary<string, TaskCompletionSource<JsonObject>>(StringComparer.Ordinal);
+    var legacyInputSeq = 0;
     app.MapPost("/", async context =>
     {
         var request = (await JsonNode.ParseAsync(context.Request.Body))!.AsObject();
-        if (legacy && request["id"]?.ToString() == "legacy-input")
+        var responseId = request["id"]?.ToString();
+        if (legacy && responseId is not null && legacyResponses.TryRemove(responseId, out var pendingResponse))
         {
-            legacyResponse.TrySetResult(request);
+            pendingResponse.TrySetResult(request);
             context.Response.StatusCode = 202;
             return;
         }
         if (legacy && request["method"]?.GetValue<string>() == "tools/call")
         {
+            var echoCallId = request["params"]?["arguments"]?["echoCallId"]?.GetValue<bool>() == true;
+            var callId = request["params"]?["_meta"]?["dotcraft/callContext"]?["callId"]?.GetValue<string>();
+            var elicitationParams = McpFixtureProtocol.Input("legacy");
+            if (echoCallId && !string.IsNullOrWhiteSpace(callId))
+                elicitationParams["_meta"] = new JsonObject { ["callId"] = callId };
+            var inputId = $"legacy-input-{Interlocked.Increment(ref legacyInputSeq)}";
+            var responseTcs = new TaskCompletionSource<JsonObject>(TaskCreationOptions.RunContinuationsAsynchronously);
+            legacyResponses[inputId] = responseTcs;
             context.Response.ContentType = "text/event-stream";
             var input = new JsonObject
             {
-                ["jsonrpc"] = "2.0", ["id"] = "legacy-input", ["method"] = "elicitation/create",
-                ["params"] = McpFixtureProtocol.Input("legacy")
+                ["jsonrpc"] = "2.0", ["id"] = inputId, ["method"] = "elicitation/create",
+                ["params"] = elicitationParams
             };
             await context.Response.WriteAsync($"event: message\ndata: {input.ToJsonString()}\n\n");
             await context.Response.Body.FlushAsync(context.RequestAborted);
-            var answer = await legacyResponse.Task.WaitAsync(context.RequestAborted);
+            var answer = await responseTcs.Task.WaitAsync(context.RequestAborted);
             var completed = McpFixtureProtocol.Result(request, new JsonObject
             {
                 ["content"] = new JsonArray(new JsonObject { ["type"] = "text", ["text"] = answer.ToJsonString() })
