@@ -21,7 +21,6 @@ public static class ToolUsageSource
         ToolSourceKind.Mcp => $"mcp:{provenance.SourceId}",
         ToolSourceKind.PluginNative => PluginPrefix + provenance.SourceId,
         ToolSourceKind.RuntimeDynamic => Client,
-        ToolSourceKind.LegacyAppBinding => Binding,
         _ => Unknown
     };
 

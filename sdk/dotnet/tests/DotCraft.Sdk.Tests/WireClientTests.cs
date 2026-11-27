@@ -209,7 +209,7 @@ public sealed class WireClientTests
             result = new
             {
                 serverInfo = new { name = "dotcraft", version = "test", protocolVersion = "1" },
-                capabilities = new { dynamicToolRebind = true, appBinding = true }
+                capabilities = new { dynamicToolRebind = true }
             }
         });
         using var initialized = await transport.ReadOutboundAsync();

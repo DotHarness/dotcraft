@@ -152,9 +152,7 @@ internal sealed class ThreadManager : IAsyncDisposable
 internal sealed class ThreadRuntime(SessionThread thread, ThreadEventBroker broker) : IAsyncDisposable
 {
     private static long _nextGeneration;
-    private readonly object _bindingMcpLock = new();
-    private readonly Dictionary<string, IReadOnlyList<McpServerConfig>> _bindingMcpServers =
-        new(StringComparer.Ordinal);
+    private readonly object _additionalMcpLock = new();
     private IReadOnlyList<McpServerConfig> _additionalMcpServers = [];
     private ThreadMaintenanceState? _maintenance;
     private int _goalContinuationStarting;
@@ -210,34 +208,16 @@ internal sealed class ThreadRuntime(SessionThread thread, ThreadEventBroker brok
         await manager.DisposeAsync().ConfigureAwait(false);
     }
 
-    public IReadOnlyList<McpServerConfig> GetBindingMcpServers()
-    {
-        lock (_bindingMcpLock)
-            return _bindingMcpServers.Values.SelectMany(static servers => servers).Select(static server => server.Clone()).ToArray();
-    }
-
-    public void SetBindingMcpServers(string bindingId, IReadOnlyList<McpServerConfig> servers)
-    {
-        lock (_bindingMcpLock)
-        {
-            if (servers.Count == 0)
-                _bindingMcpServers.Remove(bindingId);
-            else
-                _bindingMcpServers[bindingId] = servers.Select(static server => server.Clone()).ToArray();
-        }
-        MarkToolSnapshotDirty();
-    }
-
     public IReadOnlyList<McpServerConfig> GetAdditionalMcpServers()
     {
-        lock (_bindingMcpLock)
+        lock (_additionalMcpLock)
             return _additionalMcpServers.Select(static server => server.Clone()).ToArray();
     }
 
     public bool SetAdditionalMcpServers(IReadOnlyList<McpServerConfig> servers)
     {
         var next = servers.Select(static server => server.Clone()).ToArray();
-        lock (_bindingMcpLock)
+        lock (_additionalMcpLock)
         {
             if (AreMcpServerListsEquivalent(_additionalMcpServers, next))
                 return false;

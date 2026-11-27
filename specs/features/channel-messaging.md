@@ -68,11 +68,9 @@ A root thread has a chat binding when one of these holds:
 | Thread | Binding |
 |--------|---------|
 | Created by an inbound channel | The adapter's chat for the thread. Its target is the thread's `channelContext`. |
-| Bound by App Binding | The verified channel binding target ([App Binding](../protocols/app-binding.md) §7). |
 | An automation run whose definition has a channel origin | The origin's channel and delivery target, with the origin's chat kind and label when it has them; without a kind the chat is unspecified. A thread-mode run into a thread that already has a binding uses that thread's binding. |
 
-SubAgent threads, Workflow children and other non-root threads have no chat binding. An App Binding
-binding's chat lifecycle is defined in §10.
+SubAgent threads, Workflow children and other non-root threads have no chat binding.
 
 ### 4.2 Membership
 
@@ -281,31 +279,20 @@ follows.
 - The run's summary remains the last agent message and is shown in Desktop.
 - Automations without a channel origin report their result through Desktop notification.
 
-## 10. App Binding
-
-A thread bound to a chat through App Binding speaks to it only through `SendChannelMessage`. The
-binding binds its chat in every state that keeps a verified target until it is revoked; only an
-`active` binding can deliver. The tool stays published in every binding state that keeps a verified target, so a binding going offline does
-not change the thread's tools ([App Binding](../protocols/app-binding.md) §6.3). The tool resolves
-the binding revision and verified target at call time, and a call fails with `channelUnavailable`
-unless the binding is `active` then. Revocation removes the binding: later calls fail, the tool is
-no longer published, and the channel section retires once (§6.1). The assistant's final reply is not
-delivered to the bound chat.
-
-## 11. Adapter channel tools
+## 10. Adapter channel tools
 
 Adapters declare no `channelTools` for sending text or media to a chat or for reading its earlier
 messages; every message goes through `SendChannelMessage` and every history read through
 `ReadChannelHistory`. `channelTools` remain for platform operations that are not messaging.
 
-## 12. Commands
+## 11. Commands
 
-### 12.1 Registry
+### 11.1 Registry
 
 In-chat commands are server commands from the command registry
 ([AppServer Protocol](../protocols/appserver-protocol.md) §19), executed with `command/execute` on the
-conversation's current thread. Adapter-local commands are limited to platform setup: `/bind` and
-adapter-owned account commands such as personal authorization.
+conversation's current thread. Adapter-local commands are limited to platform setup such as
+adapter-owned account authorization.
 
 - A message is a command only when its first word is a registered command name. Any other text that
   starts with `/`, such as a path, is ordinary input.

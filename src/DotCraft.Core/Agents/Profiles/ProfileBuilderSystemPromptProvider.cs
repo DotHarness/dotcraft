@@ -8,7 +8,7 @@ namespace DotCraft.Agents;
 /// §12A.3): the Agent Profile frontmatter schema and field semantics, the working draft, and the built-in
 /// tool catalog. Active only on a builder thread — one that has a working-draft entry in
 /// <see cref="ProfileBuilderDraftStore"/>; ordinary threads get nothing. The key is constant so the section
-/// stays cache-stable for prompt caching (matching the AppBinding provider): it snapshots the draft once per
+/// stays cache-stable for prompt caching: it snapshots the draft once per
 /// thread after each compaction, and the conversation's own tool-call history carries later field edits.
 /// </summary>
 public sealed class ProfileBuilderSystemPromptProvider : IThreadSystemPromptContextProvider

@@ -131,7 +131,7 @@ describe('AgentResponseBlock interactive card pinning', () => {
       arguments: {},
       success: true,
       createdAt,
-      source: { kind: 'LegacyAppBinding', sourceId: 'workflow' },
+      source: { kind: 'Mcp', sourceId: 'workflow' },
       toolUi: { resourceUri, prefersBorder: true, domain: toolName }
     }
   }
@@ -226,7 +226,7 @@ describe('AgentResponseBlock interactive card pinning', () => {
     expect(container.querySelector('iframe[title="ListBoardItems"]')).toBeNull()
   })
 
-  it('keeps a plan but not a private App Binding iframe', () => {
+  it('keeps a plan but not a private iframe without live authority', () => {
     const turn: ConversationTurn = {
       id: 'turn-plan-and-card',
       threadId: 'thread-1',

@@ -20,7 +20,6 @@ The package is published on npm. Runtime entry points belong in Node.js or Elect
 | `@dotcraft/sdk/contracts` | Generated DTOs, method maps, registries, and protocol metadata. |
 | `@dotcraft/sdk/wire` | `DotCraftWireClient`, transports, lifecycle state, timeouts, typed methods, and raw extension APIs. |
 | `@dotcraft/sdk/hub` | Hub discovery, AppServer management, process policy, events, and structured errors. |
-| `@dotcraft/sdk/app-binding` | App Binding handoff and result helpers. |
 | `@dotcraft/sdk/dynamic-tools` | Runtime Dynamic Tool authoring helpers. |
 | `@dotcraft/sdk/testing` | Transport and protocol test surface. |
 | `@dotcraft/sdk/meta` | SDK, contract, protocol, and contract-hash metadata. |
@@ -44,7 +43,6 @@ An appearance fills five independent slots (`head`, `face`, `hand`, `back`, `ski
 | Thread state | `snapshot()`, `refresh()`, `unsubscribe()`, `setMode()`, `archive()`, `delete()` |
 | Models | `models.list()` |
 | MCP runtime | `mcpRuntime.listStatus()`, `readResource()`, `callTool()`, `loginOAuth()`, `reload()` |
-| App Binding | `appBindings` |
 | Runtime tools | `onToolCall()` |
 
 Configure `approvalHandler` and `userInputHandler` in local or remote connection options. See [Threads & runs](./runs) and [Tools & approvals](./tools) for task flows.
@@ -89,15 +87,13 @@ Start options contain identity fields, display name, history mode, configuration
 
 `run()` and `runStreamed()` accept text, `InputPart[]`, or `{ input, sender }`. Run options include `providerId`, `model`, `reasoning`, `speed`, `approvalPolicy`, `sender`, `collectRawEvents`, and `abortSignal`. A buffered result contains `thread`, optional terminal `turn`, merged `text`, `items`, optional `usage`, and optional raw events. A run starts a turn or adds guidance to an active regular turn. See [Runs](./runs#run-options) for model inheritance, shared results, and explicit queueing.
 
-## Models, MCP, and App Binding
+## Models and MCP
 
 | Manager | Operations |
 | --- | --- |
 | `models` | `list()` returns the model catalog visible to this AppServer. |
 | `mcpRuntime` | `listStatus()`, `readResource()`, `callTool()`, `loginOAuth()`, `reload()`. |
-| `appBindings` | App discovery, connection, surfaces, thread bindings, channel bindings, and principal operations. |
-
-Use run options to submit model settings with input. To change complete thread configuration independently of a run, use the typed Wire request map for `thread/config/update` and preserve fields the application does not own. See [MCP runtime](./mcp-runtime) and [DotCraft App](../app-binding) for task-oriented flows.
+Use run options to submit model settings with input. To change complete thread configuration independently of a run, use the typed Wire request map for `thread/config/update` and preserve fields the application does not own. See [MCP runtime](./mcp-runtime) for task-oriented flows.
 
 The MCP manager signatures are:
 

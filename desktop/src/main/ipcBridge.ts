@@ -3,7 +3,10 @@ import type { ConnectionStatusPayload } from '../shared/connectionStatus'
 import type { AppServerConnectionSource } from '../shared/appServerBoundary'
 import type { WorkspaceStatusPayload } from '../shared/workspaceSetup'
 import type { DesktopAppServerClient } from './DesktopAppServerClient'
-import { unregisterDesktopPluginModuleIpc } from './desktopPluginModuleIpc'
+import {
+  registerDesktopPluginModuleIpc,
+  unregisterDesktopPluginModuleIpc
+} from './desktopPluginModuleIpc'
 import { getCodexRemoteHubBridge } from './codexRemote/codexRemoteHubBridge'
 import { registerCodexRemoteHandlers } from './codexRemote/codexRemoteIpc'
 import { getMobileHubBridge } from './mobile/mobileHubBridge'
@@ -26,7 +29,6 @@ import {
 
 import { registerAppServerHandlers } from './ipcAppServer'
 import type { IpcHandlerCallbacks, WindowIpcContext } from './ipcBridgeContracts'
-import { registerDesktopAppHandlers } from './ipcDesktopApps'
 import { registerGitHandlers } from './ipcGit'
 import { cancelWindowServerRequests } from './ipcServerRequests'
 import { registerViewerBrowserHandlers } from './ipcViewerBrowser'
@@ -41,7 +43,6 @@ export { withDesktopRequestIdentity } from './ipcAppServer'
 export type { IpcHandlerCallbacks, ResolvedBinaryRequest } from './ipcBridgeContracts'
 export {
   getProtocolHandlerName,
-  openAppHandoffUrl,
   openExternalHttpUrl,
   openExternalUrl,
   sanitizeExternalUrl,
@@ -82,7 +83,7 @@ export function registerIpcHandlers(
   registerGitHandlers(context)
   registerWorkspaceHandlers(context)
   registerWorkspaceFileHandlers(context)
-  registerDesktopAppHandlers(context)
+  registerDesktopPluginModuleIpc(getWireClient, callbacks, workspacePath, ipc, owner.webContents.id)
   registration.disposeProjectActions = registerViewerBrowserHandlers(context)
   registerThreadPanelStateHandlers(context)
   handleSafe('settings:get', () => {

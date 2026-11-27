@@ -20,7 +20,6 @@ import { placeResponses, sameTurns } from './responseRuns'
 import { ScrollToBottomButton } from './ScrollToBottomButton'
 import { RunningTurnChangesPill } from './RunningTurnChangesPill'
 import { StreamRetryNotice } from './StreamRetryNotice'
-import { ChannelBindingCodeCard } from './ChannelBindingCodeCard'
 import { FeedbackSurvey } from './FeedbackSurvey'
 import { SystemStatusDivider } from './SystemStatusDivider'
 import { ConversationColumn } from './ConversationColumn'
@@ -232,8 +231,6 @@ function MessageStreamContent({ sendScrollRequest = null, viewportKey }: Message
           {systemLabel && visibleTurns.length === 0 && <SystemStatusDivider labelKey={systemLabel} />}
 
           {streamRetry && <StreamRetryNotice status={streamRetry} />}
-
-          {activeThreadId && <ChannelBindingCodeCard threadId={activeThreadId} />}
 
           {activeThreadId && <FeedbackSurvey key={activeThreadId} threadId={activeThreadId} />}
 

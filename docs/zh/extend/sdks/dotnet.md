@@ -22,7 +22,6 @@
 | `DotCraft.Sdk.Wire` | `DotCraftWireClient`、transport、连接状态、超时和 JSON-RPC 错误。 |
 | `DotCraft.Sdk.Hub` | Hub 发现、AppServer 管理、进程策略、事件和结构化错误。 |
 | `DotCraft.Sdk.DynamicTools` | 基于 attribute 的 Runtime Dynamic Tool authoring。 |
-| `DotCraft.Sdk.AppBinding` | App Binding handoff 和结果 helper。 |
 
 Contracts 是独立程序集和逻辑层，不是独立 NuGet 包。
 
@@ -39,7 +38,6 @@ Contracts 是独立程序集和逻辑层，不是独立 NuGet 包。
 | 模型配置 | `Threads.ReadModelConfigurationAsync()`、`UpdateModelConfigurationAsync()` |
 | Agent Profile | `AgentProfiles.ListAsync()`、`ReadAsync()`、`ValidateAsync()`、`UpsertAsync()`、`RemoveAsync()`、`RefreshThreadAsync()` |
 | MCP runtime | `McpRuntime.ListStatusAsync()`、`ReadResourceAsync()`、`CallToolAsync()`、`LoginOAuthAsync()`、`ReloadAsync()` |
-| App Binding | `AppBindings` |
 | 运行时工具 | `OnToolCall()` 或 `RegisterDynamicToolHandler()` |
 
 在连接选项中配置 `ApprovalHandler` 和 `UserInputHandler`。向用户暴露 Agent Profile 管理功能前，先检查 `Capabilities.AgentProfileManagement`。任务流程见[线程与运行](./runs)和[工具与审批](./tools)。
@@ -79,7 +77,7 @@ Task<ThreadItemsListResult> ListItemsAsync(ThreadItemsListParams parameters, Can
 
 结果类型为 `DotCraftRunResult`。流式事件为 `DotCraftRunEvent` 或 `DotCraftRunEvent<TParams>`。Thread 控制方法使用 handle 的 `Id`，低层 `Turns` 接口则接受显式协议参数。
 
-## Provider、模型、MCP 与 App Binding
+## Provider、模型与 MCP
 
 | Client | 操作 |
 | --- | --- |
@@ -87,9 +85,7 @@ Task<ThreadItemsListResult> ListItemsAsync(ThreadItemsListParams parameters, Can
 | `Models` | `GetCatalogAsync(providerId?)` 返回模型及类型化 capability。 |
 | `Threads` | `ReadModelConfigurationAsync()` 和 `UpdateModelConfigurationAsync()` 会保留无关的 thread 配置字段。 |
 | `McpRuntime` | `ListStatusAsync()`、`ReadResourceAsync()`、`CallToolAsync()`、`LoginOAuthAsync()`、`ReloadAsync()`。 |
-| `AppBindings` | 类型化连接、surface、thread binding 和 principal 操作。 |
-
-任务流程见 [MCP 运行时](./mcp-runtime)和 [DotCraft App](../app-binding)。
+任务流程见 [MCP 运行时](./mcp-runtime)。
 
 MCP client 接受生成的 Contracts DTO，并返回生成的 result DTO：
 
@@ -174,7 +170,7 @@ SDK 异常派生自 `DotCraftException`，并带有稳定的 `Code`。
 
 `HubClient` 发现或启动 Hub、验证本地 lock、解析工作区 AppServer，并支持 ensure、restart、stop、list、status、events 和 shutdown。
 
-不要记录 Hub token、App Binding credential 或包含 token 的完整 WebSocket URL。
+不要记录 Hub token 或包含 token 的完整 WebSocket URL。
 
 ## 相关文档
 

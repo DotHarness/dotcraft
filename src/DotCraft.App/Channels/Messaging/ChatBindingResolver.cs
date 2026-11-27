@@ -1,8 +1,6 @@
-using DotCraft.AppBinding;
 using DotCraft.Automations;
 using DotCraft.Channels;
 using DotCraft.Sessions;
-using DotCraft.Workspaces;
 using SessionThread = DotCraft.Sessions.SessionThread;
 
 namespace DotCraft.Channels.Messaging;
@@ -38,18 +36,8 @@ internal static class ChatAddress
 
 internal sealed class ChatBindingResolver(
     IChannelRuntimeRegistry registry,
-    DotCraftPaths? paths = null,
-    AppBindingService? appBindings = null,
     AutomationService? automations = null)
 {
-    private static readonly HashSet<string> BindsChat = new(StringComparer.Ordinal)
-    {
-        AppBindingStates.Active,
-        AppBindingStates.Offline,
-        AppBindingStates.Syncing,
-        AppBindingStates.NeedsConfirmation
-    };
-
     public IChannelRuntimeRegistry Registry => registry;
 
     public static bool IsRootThread(SessionThread thread) =>
@@ -74,7 +62,7 @@ internal sealed class ChatBindingResolver(
             return new ChatBinding(runtime.Name, channelContext.Trim(), runtime.GetThreadChat(threadId));
         }
 
-        return ResolveAppBinding(threadId);
+        return null;
     }
 
     private ChatBinding? ResolveAutomationRun(AutomationDefinition automation)
@@ -91,43 +79,5 @@ internal sealed class ChatBindingResolver(
             origin.DeliveryTarget!,
             origin.Chat,
             RefusesOtherChats: automation.ApprovalPolicy != "fullAuto");
-    }
-
-    private ChatBinding? ResolveAppBinding(string threadId)
-    {
-        if (paths == null || appBindings == null)
-            return null;
-
-        IReadOnlyList<AppBindingSnapshot> bindings;
-        try
-        {
-            bindings = appBindings.ListThreadBindings(paths.Data.RootPath, threadId);
-        }
-        catch (AppBindingException)
-        {
-            return null;
-        }
-
-        var binding = bindings
-            .Where(candidate => BindsChat.Contains(candidate.State)
-                && candidate.ChannelTarget is { } target
-                && !string.IsNullOrWhiteSpace(target.ChannelName)
-                && !string.IsNullOrWhiteSpace(target.DeliveryTarget))
-            .OrderByDescending(candidate => candidate.State == AppBindingStates.Active)
-            .FirstOrDefault();
-        if (binding == null)
-            return null;
-
-        var target = binding.ChannelTarget!;
-
-        var kind = string.Equals(target.ConversationKind, "user", StringComparison.OrdinalIgnoreCase)
-            ? ChannelChatKinds.Direct
-            : ChannelChatKinds.Group;
-        var label = string.IsNullOrWhiteSpace(target.DisplayName) ? null : target.DisplayName.Trim();
-        return new ChatBinding(
-            target.ChannelName,
-            target.DeliveryTarget,
-            new ChannelChatDescriptor(kind, label, ChannelChatMemberships.Shared),
-            CanDeliver: binding.State == AppBindingStates.Active);
     }
 }

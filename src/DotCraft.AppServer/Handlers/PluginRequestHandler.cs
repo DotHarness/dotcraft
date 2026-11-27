@@ -1,4 +1,3 @@
-using DotCraft.AppBinding;
 using DotCraft.Configuration;
 using DotCraft.Hooks;
 using DotCraft.Lsp;
@@ -21,7 +20,6 @@ internal sealed partial class PluginRequestHandler(
     string? hostWorkspacePath,
     IReadOnlyList<string>? builtInPluginSourceRoots,
     AppServerMcpConfigService mcpConfig,
-    AppBindingService? appBindingService,
     WorkspaceConfigEditor workspaceConfig,
     AppServerManagedPluginRefresher managedPluginRefresher,
     IPluginWorkflowSummaryProvider? workflowSummaryProvider,
@@ -209,18 +207,9 @@ internal sealed partial class PluginRequestHandler(
             : ChangedRuntimeIds(runtimeBefore, dotnetRuntime.Snapshot, pluginId);
         AdvancePluginSnapshotRevision();
         var result = BuildOperationResult(discovery, pluginId, "applied", affected, []);
-        var appListUpdate = TryBuildAppListUpdatedNotification(discovery, pluginId, enabled ? "plugin/enable" : "plugin/disable");
-        IReadOnlyList<AppBindingSnapshot> offlineBindings = enabled
-            ? []
-            : TryMoveActiveAppBindingsOfflineForPlugin(
-                TryDiscoverAppBindingCatalog(),
-                pluginId,
-                "The owning plugin was disabled.");
         return await WriteWithLifecycleNotificationsAsync(
             request.Message,
             result,
-            [appListUpdate],
-            offlineBindings,
             [pluginId, .. affected],
             ct);
     }
@@ -321,8 +310,6 @@ internal sealed partial class PluginRequestHandler(
         return await WriteWithLifecycleNotificationsAsync(
             msg,
             result,
-            [TryBuildAppListUpdatedNotification(discovery, pluginId, appListReason)],
-            [],
             [pluginId, .. (runtimeMutation?.AffectedPluginIds ?? [])],
             deliveryToken);
     }
@@ -351,9 +338,6 @@ internal sealed partial class PluginRequestHandler(
             || !IsStrictPathWithin(pluginRoot, Path.GetFullPath(Path.Combine(dataPath, "plugins"))))
             throw AppServerErrors.InvalidParams($"Plugin '{pluginId}' cannot be removed by DotCraft.");
         var commitToken = EnterMutationCommit(ct);
-
-        var removalCatalog = TryDiscoverAppBindingCatalog();
-        var appListUpdate = TryBuildAppListUpdatedNotification(before, pluginId, "plugin/remove");
 
         var quiesce = dotnetRuntime == null
             ? null
@@ -449,15 +433,9 @@ internal sealed partial class PluginRequestHandler(
             "applied",
             runtimeMutation?.AffectedPluginIds ?? quiesce?.AffectedPluginIds ?? [],
             runtimeMutation?.Diagnostics ?? []);
-        var offlineBindings = TryMoveActiveAppBindingsOfflineForPlugin(
-            removalCatalog,
-            pluginId,
-            "The owning plugin was removed.");
         return await WriteWithLifecycleNotificationsAsync(
             request.Message,
             result,
-            [appListUpdate],
-            offlineBindings,
             [pluginId, .. (runtimeMutation?.AffectedPluginIds ?? quiesce?.AffectedPluginIds ?? [])],
             ct);
     }
@@ -499,8 +477,6 @@ internal sealed partial class PluginRequestHandler(
     private async Task<AppServerTypedResult<TResult>> WriteWithLifecycleNotificationsAsync<TResult>(
         AppServerIncomingMessage msg,
         TResult result,
-        IReadOnlyList<Contract.AppListUpdatedNotification?> appListUpdates,
-        IReadOnlyList<AppBindingSnapshot> offlineBindings,
         IReadOnlyList<string> pluginSnapshotIds,
         CancellationToken ct)
         where TResult : class
@@ -519,40 +495,6 @@ internal sealed partial class PluginRequestHandler(
         managementState.CompleteCurrentMutation();
 
         var deliveryFailure = await TryWriteMutationResponseAsync(msg, result, ct).ConfigureAwait(false);
-        if (deliveryFailure == null)
-        {
-            try
-            {
-                foreach (var appListUpdate in appListUpdates.OfType<Contract.AppListUpdatedNotification>())
-                {
-                    await transport.NotifyContractAsync(
-                        Protocol.AppServer.AppServerRpc.AppListUpdated,
-                        appListUpdate,
-                        ct).ConfigureAwait(false);
-                }
-
-                foreach (var binding in offlineBindings)
-                {
-                    await transport.NotifyContractAsync(
-                        Protocol.AppServer.AppServerRpc.ThreadAppBindingsChanged,
-                        new Contract.ThreadAppBindingsChangedNotification
-                        {
-                            ThreadId = binding.ThreadId,
-                            BindingId = binding.BindingId,
-                            AppId = binding.AppId,
-                            State = binding.State,
-                            PreviousState = AppBindingStates.Active,
-                            ChangeKind = "offline"
-                        },
-                        ct).ConfigureAwait(false);
-                }
-            }
-            catch (Exception exception)
-            {
-                deliveryFailure = System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception);
-            }
-        }
-
         responseBarrier?.TrySetResult();
 
         if (pluginSnapshot != null && responseBarrier == null && deliveryFailure == null)
@@ -582,98 +524,6 @@ internal sealed partial class PluginRequestHandler(
             Protocol.AppServer.AppServerRpc.PluginSnapshotUpdated,
             notification,
             cancellationToken);
-
-    private Contract.AppListUpdatedNotification? TryBuildAppListUpdatedNotification(
-        PluginDiscoveryResult discovery,
-        string pluginId,
-        string reason)
-    {
-        if (appBindingService == null
-            || string.IsNullOrWhiteSpace(workspaceCraftPath)
-            || string.IsNullOrWhiteSpace(hostWorkspacePath))
-        {
-            return null;
-        }
-
-        var pluginHasAppContribution = discovery.Plugins.Any(plugin =>
-            PluginIds.EqualsCanonical(plugin.Manifest.Id, pluginId)
-            && !string.IsNullOrWhiteSpace(plugin.Manifest.AppsPath));
-
-        var appIds = TryResolveAppBindingAppIdsForPlugin(pluginId);
-        if (!pluginHasAppContribution && appIds.Count == 0)
-            return null;
-
-        return new Contract.AppListUpdatedNotification
-        {
-            PluginId = pluginId,
-            Reason = reason,
-            AppIds = appIds
-        };
-    }
-
-    private IReadOnlyList<AppBindingSnapshot> TryMoveActiveAppBindingsOfflineForPlugin(
-        AppCatalogSnapshot? catalog,
-        string pluginId,
-        string diagnostic)
-    {
-        if (appBindingService == null
-            || catalog == null
-            || string.IsNullOrWhiteSpace(workspaceCraftPath))
-        {
-            return [];
-        }
-
-        var appIds = ResolveAppBindingAppIdsForPlugin(catalog, pluginId);
-        return appIds.Count == 0
-            ? []
-            : appIds
-                .SelectMany(appId => appBindingService.ListAppBindings(workspaceCraftPath, appId))
-                .Where(binding => binding.State == AppBindingStates.Active)
-                .Select(binding => appBindingService.MarkUnavailable(
-                    workspaceCraftPath,
-                    binding.BindingId,
-                    diagnostic,
-                    failed: false))
-                .ToArray();
-    }
-
-    private List<string> TryResolveAppBindingAppIdsForPlugin(string pluginId)
-    {
-        var catalog = TryDiscoverAppBindingCatalog();
-        return catalog == null ? [] : ResolveAppBindingAppIdsForPlugin(catalog, pluginId);
-    }
-
-    private AppCatalogSnapshot? TryDiscoverAppBindingCatalog()
-    {
-        if (appBindingService == null
-            || string.IsNullOrWhiteSpace(workspaceCraftPath)
-            || string.IsNullOrWhiteSpace(hostWorkspacePath))
-        {
-            return null;
-        }
-
-        try
-        {
-            return AppBindingCatalog.Discover(
-                appConfigMonitor?.Current ?? workspaceConfig.LoadCurrentMergedConfig(),
-                hostWorkspacePath,
-                workspaceCraftPath,
-                skillsLoader,
-                builtInPluginSourceRoots);
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private static List<string> ResolveAppBindingAppIdsForPlugin(AppCatalogSnapshot catalog, string pluginId) =>
-        catalog.Entries
-            .Where(entry => PluginIds.EqualsCanonical(entry.Plugin.Manifest.Id, pluginId))
-            .Select(entry => entry.Descriptor.AppId)
-            .Distinct(StringComparer.Ordinal)
-            .OrderBy(appId => appId, StringComparer.Ordinal)
-            .ToList();
 
     private PluginDiscoveryResult RefreshPluginRuntime() =>
         managedPluginRefresher.RefreshPluginRuntime();

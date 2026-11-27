@@ -68,7 +68,7 @@ marketplace-root/
 - `source.source` 必须为 `local`。
 - `source.path` 必须以 `./` 开头、保持在市场根目录内，并指向有效插件目录。
 - 只有 `policy.installation` 为 `AVAILABLE` 的插件才会显示为可安装。
-- 当前发布格式中的 `policy.authentication` 为 `ON_INSTALL`。App 与账号配置行为由插件自己的 [App descriptor](./app-binding) 定义。
+- 当前发布格式中的 `policy.authentication` 为 `ON_INSTALL`。
 - `category` 与插件的 `interface.category` 一致。
 - 插件能力和安装页元数据属于 `.craft-plugin/plugin.json`，不应写入市场文档。
 

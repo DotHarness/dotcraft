@@ -9,8 +9,6 @@ import type {
   DesktopPluginSettingsSnapshot
 } from '@dotcraft/plugin'
 import type {
-  AppConnectionStartResult,
-  AppConnectionStatusResult,
   ClientRequestMethods,
   ServerNotificationMethods
 } from '@dotcraft/sdk/contracts'
@@ -30,8 +28,6 @@ import { useFeatureGuideStore } from '../stores/featureGuideStore'
 import { openActiveThreadFile, openAutomation, openExternalUrl, openThread, revealToolCall } from '../utils/desktopNavigation'
 import { openSkill } from '../utils/openSkill'
 import { openSubAgent } from '../utils/subAgentNavigation'
-import { activateThreadAppBindings } from '../utils/threadAppBindings'
-import { translate } from '../../shared/locales/catalog'
 import { registerDesktopPluginAppearanceSlot } from './desktopPluginAppearance'
 import {
   onDesktopPluginEnvironmentChange,
@@ -434,41 +430,6 @@ export function createDesktopPluginHost(
         ))
       }
     },
-    appBindings: {
-      getConnectionStatus(appId) {
-        return window.api.desktopPlugins.getAppConnectionStatus({ appId }) as Promise<AppConnectionStatusResult>
-      },
-      startConnection(appId) {
-        return window.api.desktopPlugins.startAppConnection({ appId }) as Promise<AppConnectionStartResult>
-      },
-      openNativeApp(appId, url) {
-        return window.api.desktopPlugins.openApp({ appId, url })
-      },
-      enableThread(threadId, appId) {
-        const locale = readDesktopPluginEnvironment().locale
-        return activateThreadAppBindings({ threadId, appIds: [appId], translate: (key, vars) => translate(locale, key, vars) })
-      }
-    },
-    appSurfaces: {
-      getJson<T = unknown>(appId: string, surfaceId: string, relativePath: string, timeoutMs?: number): Promise<T> {
-        return window.api.desktopPlugins.appSurfaceGetJson({ appId, surfaceId, relativePath, timeoutMs }) as Promise<T>
-      },
-      postJson<T = unknown>(
-        appId: string,
-        surfaceId: string,
-        relativePath: string,
-        body: unknown,
-        timeoutMs?: number
-      ): Promise<T> {
-        return window.api.desktopPlugins.appSurfacePostJson({
-          appId,
-          surfaceId,
-          relativePath,
-          body,
-          timeoutMs
-        }) as Promise<T>
-      }
-    },
     workspaces: {
       async listLocalProjects() {
         return useWorkspaceProjectsStore.getState().projects
@@ -491,8 +452,6 @@ export function createDesktopPluginHost(
       getContext: () => window.api.oratorio.getContext(),
       request: (request) => window.api.oratorio.request(request),
       retry: () => window.api.oratorio.retry(),
-      getPendingHandoff: () => window.api.oratorio.getPendingHandoff(),
-      resolveHandoff: (requestId, approved) => window.api.oratorio.resolveHandoff(requestId, approved),
       focusRun: (runId) => window.api.oratorio.focusRun(runId),
       onEvent: (callback) => own(cleanups, window.api.oratorio.onEvent(callback))
     }

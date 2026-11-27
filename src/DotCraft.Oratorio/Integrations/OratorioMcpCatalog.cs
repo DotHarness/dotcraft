@@ -1,25 +1,25 @@
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using ModelContextProtocol;
 using ModelContextProtocol.Protocol;
 
 namespace DotCraft.Oratorio.Integrations;
 
-/// <summary>MCP-only metadata projected over the shared attribute-authored binding descriptors.</summary>
-public static class OratorioBindingMcpCatalog
+public static class OratorioMcpCatalog
 {
-    public const string AppId = "com.dotharness.oratorio";
     public const string UiResourcePrefix = "ui://oratorio";
     public const string BoardUiResourceUri = $"{UiResourcePrefix}/board.html";
     public const string ItemUiResourceUri = $"{UiResourcePrefix}/item.html";
     public const string ReviewUiResourceUri = $"{UiResourcePrefix}/review.html";
     public const string CredentialUiResourceUri = $"{UiResourcePrefix}/credential.html";
-    public const string ServerInstructions = "Inspect and manage the authorized Oratorio project board and its repository connections. Read current Oratorio state before making claims; use mutation tools only when the user asks to change Oratorio state.";
+    public const string ServerInstructions = "Inspect and manage the Oratorio project board and its repository connections. Read current Oratorio state before making claims, and use mutation tools only when the user asks to change Oratorio state.";
 
     private static readonly string[] ModelAndAppVisibility = ["model", "app"];
     private static readonly string[] AppOnlyVisibility = ["app"];
 
-    public static IReadOnlyList<Tool> McpBindingTools(OratorioDynamicToolCatalog tools) =>
-        tools.BindingDescriptors.Select(descriptor =>
+    public static IReadOnlyList<Tool> McpTools(OratorioDynamicToolCatalog tools) =>
+        tools.McpDescriptors.Select(descriptor =>
         {
             string? resourceUri = descriptor.LocalName switch
             {
@@ -58,7 +58,35 @@ public static class OratorioBindingMcpCatalog
         McpResource(CredentialUiResourceUri, "Oratorio credential", "credential.html")
     ];
 
-    public static string? ResolveUiFile(string? uri) => uri switch
+    public static async ValueTask<ReadResourceResult> ReadUiResourceAsync(
+        string? uri,
+        CancellationToken cancellationToken = default)
+    {
+        if (uri is null)
+            throw new McpProtocolException("Missing resources/read URI.", McpErrorCode.InvalidParams);
+        if (ResolveUiFile(uri) is null)
+            throw new McpProtocolException("Unknown MCP App resource.", McpErrorCode.InvalidParams);
+
+        var html = await ReadEmbeddedUiHtmlAsync(uri, cancellationToken).ConfigureAwait(false);
+        if (html is null)
+            throw new McpProtocolException("MCP App resource is unavailable.", McpErrorCode.InternalError);
+
+        return new ReadResourceResult
+        {
+            Contents =
+            [
+                new TextResourceContents
+                {
+                    Uri = uri,
+                    MimeType = "text/html;profile=mcp-app",
+                    Text = html,
+                    Meta = ResourceMeta()
+                }
+            ]
+        };
+    }
+
+    private static string? ResolveUiFile(string? uri) => uri switch
     {
         BoardUiResourceUri => "board.html",
         ItemUiResourceUri => "item.html",
@@ -67,7 +95,22 @@ public static class OratorioBindingMcpCatalog
         _ => null
     };
 
-    public static JsonObject ResourceMeta() => new()
+    private static async Task<string?> ReadEmbeddedUiHtmlAsync(string uri, CancellationToken cancellationToken = default)
+    {
+        var fileName = ResolveUiFile(uri);
+        if (fileName is null)
+            return null;
+
+        var resourceName = $"DotCraft.Oratorio.UiResources.{fileName}";
+        await using var stream = typeof(OratorioMcpCatalog).Assembly.GetManifestResourceStream(resourceName);
+        if (stream is null)
+            return null;
+
+        using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+        return await reader.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private static JsonObject ResourceMeta() => new()
     {
         ["ui"] = new JsonObject { ["prefersBorder"] = true }
     };

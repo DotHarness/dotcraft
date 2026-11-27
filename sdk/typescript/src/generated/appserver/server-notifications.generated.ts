@@ -3,9 +3,6 @@
 import type * as Models from "./models.generated.js";
 
 export interface ServerNotificationMethods {
-  "app/binding/requested": { params: Models.AppBindingRequestedNotification; result: Models.RpcEmpty };
-  "app/connection/changed": { params: Models.AppConnectionChangedNotification; result: Models.RpcEmpty };
-  "app/list/updated": { params: Models.AppListUpdatedNotification; result: Models.RpcEmpty };
   "automation/run/updated": { params: Models.AutomationRunUpdatedNotification; result: Models.RpcEmpty };
   "automation/updated": { params: Models.AutomationUpdatedNotification; result: Models.RpcEmpty };
   "config/changed": { params: Models.ConfigChangedParams; result: Models.RpcEmpty };
@@ -44,7 +41,6 @@ export interface ServerNotificationMethods {
   "terminal/outputDelta": { params: Models.TerminalLifecycleNotification; result: Models.RpcEmpty };
   "terminal/stalled": { params: Models.TerminalLifecycleNotification; result: Models.RpcEmpty };
   "terminal/started": { params: Models.TerminalLifecycleNotification; result: Models.RpcEmpty };
-  "thread/appBindings/changed": { params: Models.ThreadAppBindingsChangedNotification; result: Models.RpcEmpty };
   "thread/archived": { params: Models.ThreadArchivedNotification; result: Models.RpcEmpty };
   "thread/deleted": { params: Models.ThreadDeletedNotification; result: Models.RpcEmpty };
   "thread/goal/cleared": { params: Models.ThreadGoalClearedNotification; result: Models.RpcEmpty };

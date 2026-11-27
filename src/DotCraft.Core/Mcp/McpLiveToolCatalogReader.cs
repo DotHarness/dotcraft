@@ -15,7 +15,7 @@ internal static class McpLiveToolCatalogReader
     {
         var catalogs = new List<McpToolCatalog>();
         foreach (var status in (await manager.ListStatusesAsync(cancellationToken))
-                     .Where(static status => status.StartupState == "ready" && !status.Origin.IsBinding)
+                     .Where(static status => status.StartupState == "ready")
                      .OrderBy(static status => status.Name, StringComparer.Ordinal))
         {
             var inventory = await manager.GetInventoryAsync(status.Name, cancellationToken);

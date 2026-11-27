@@ -20,7 +20,7 @@ public sealed class SourceSetupService(
     BoardEventHub boardEvents,
     IClock clock)
 {
-    public const string AuditActor = "app-binding";
+    public const string AuditActor = "mcp";
     private const string WritesDisabledReason = "Server configuration writes are disabled for this deployment.";
     private static readonly JsonSerializerOptions EventJsonOptions = new(JsonSerializerDefaults.Web)
     {

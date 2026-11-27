@@ -46,4 +46,11 @@ internal static class OratorioCliRunner
             return 1;
         }
     }
+
+    public static Task<int> McpAsync(
+        string? url,
+        string? token,
+        TextWriter error,
+        CancellationToken cancellationToken) =>
+        OratorioMcpProxy.RunStdioAsync(url, token, error, cancellationToken);
 }

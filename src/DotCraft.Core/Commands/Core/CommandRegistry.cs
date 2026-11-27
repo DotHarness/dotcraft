@@ -116,9 +116,6 @@ public sealed class CommandRegistry
                     return CommandResult.HandledResult();
                 }
 
-                if (registration.SwitchesConversation && CommandThreads.IsBoundToChat(context))
-                    return CommandResult.HandledResult(FallbackText.CommandConversationBound);
-
                 if (!await ApplyBusyBehaviorAsync(registration.Busy, context))
                     return CommandResult.HandledResult(FallbackText.CommandBusy);
             }

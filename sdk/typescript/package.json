@@ -37,10 +37,6 @@
       "types": "./dist/gateway.d.ts",
       "import": "./dist/gateway.js"
     },
-    "./app-binding": {
-      "types": "./dist/app-binding.d.ts",
-      "import": "./dist/app-binding.js"
-    },
     "./dynamic-tools": {
       "types": "./dist/dynamic-tools.d.ts",
       "import": "./dist/dynamic-tools.js"

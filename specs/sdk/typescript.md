@@ -32,14 +32,13 @@ This binding owns TypeScript packages, exports, Node.js requirements, high-level
 | `@dotcraft/sdk/wire` | Low-level AppServer JSON-RPC client, typed operations, and raw escape hatches. |
 | `@dotcraft/sdk/hub` | Hub discovery, startup, management, and SSE helpers. |
 | `@dotcraft/sdk/gateway` | I/O-free [Device Gateway](../protocols/device-gateway.md) client and pairing URL parsing, over a transport the host supplies. |
-| `@dotcraft/sdk/app-binding` | App Binding helpers. |
 | `@dotcraft/sdk/dynamic-tools` | Runtime Dynamic Tool authoring helpers. |
 | `@dotcraft/sdk/testing` | SDK transport and protocol test helpers. |
 | `@dotcraft/sdk/meta` | SDK and generated protocol metadata. |
 
 ### 2.3 Top-Level Exports
 
-The top-level package exports `DotCraft`, `DotCraftThread`, `DotCraftRunResult`, `DotCraftRunEvent`, `DotCraftError`, `HubClientError`, `TurnInProgressError`, `parseAppBindingHandoff`, `appBindingToolError`, the input part helpers (§10.2), and common approval decision constants.
+The top-level package exports `DotCraft`, `DotCraftThread`, `DotCraftRunResult`, `DotCraftRunEvent`, `DotCraftError`, `HubClientError`, `TurnInProgressError`, the input part helpers (§10.2), and common approval decision constants.
 
 It does not expose Wire clients, Hub models, Channel APIs, or the complete generated DTO graph.
 
@@ -59,7 +58,7 @@ Under the `react-native` and `browser` export conditions, `@dotcraft/sdk/wire` r
 
 ### 2.7 Specialized Exports
 
-`@dotcraft/sdk/app-binding` exports App Binding workflow helpers and `@dotcraft/sdk/dynamic-tools` exports Runtime Dynamic Tool authoring helpers. Both consume Contracts DTOs without defining synonymous wire models.
+`@dotcraft/sdk/dynamic-tools` exports Runtime Dynamic Tool authoring helpers and consumes Contracts DTOs without defining synonymous wire models.
 
 `@dotcraft/sdk/meta` exports `SDK_VERSION`, `CONTRACT_VERSION`, `APPSERVER_PROTOCOL_VERSION`, and `CONTRACT_SHA256` from package and generated metadata rather than duplicated literals.
 

@@ -100,21 +100,10 @@ public interface IThreadMcpRuntimeService
     /// <summary>Requests background MCP refresh for loaded active threads.</summary>
     Task RefreshMcpRuntimesAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>Returns the runtime composed from thread-selected user configuration and additive binding sessions.</summary>
+    /// <summary>Returns the runtime composed from thread-selected user configuration.</summary>
     Task<McpClientManager?> GetEffectiveMcpRuntimeAsync(
         string threadId,
         CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Replaces the MCP servers contributed by one live binding. An empty list removes that
-    /// binding contribution without changing the thread's inherited/disabled/replacement choice.
-    /// </summary>
-    Task SetBindingMcpServersAsync(
-        string threadId,
-        string bindingId,
-        IReadOnlyList<McpServerConfig> servers,
-        CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException("Binding MCP sessions are not supported by this session service.");
 
     Task SetAdditionalMcpServersAsync(
         string threadId,

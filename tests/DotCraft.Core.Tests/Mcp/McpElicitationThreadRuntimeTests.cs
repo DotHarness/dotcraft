@@ -14,10 +14,8 @@ namespace DotCraft.Tests.Mcp;
 
 public sealed partial class McpElicitationInvocationTests
 {
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task ThreadAndBindingManagers_ForwardInvocationToWorkspaceHandler(bool binding)
+    [Fact]
+    public async Task ThreadManager_ForwardsInvocationToWorkspaceHandler()
     {
         var root = Path.Combine(Path.GetTempPath(), $"mcp-input-runtime-{Guid.NewGuid():N}");
         Directory.CreateDirectory(root);
@@ -46,15 +44,13 @@ public sealed partial class McpElicitationInvocationTests
                 new ThreadConfiguration
                 {
                     Mode = "agent", ApprovalPolicy = ApprovalPolicy.AutoApprove,
-                    McpServers = binding ? [] : [Config(null)]
+                    McpServers = [Config(null)]
                 });
             try
             {
-                if (binding)
-                    await sessions.SetBindingMcpServersAsync(thread.Id, "fixture-binding", [Config(null)]);
                 var manager = (await sessions.GetEffectiveMcpRuntimeAsync(thread.Id))!;
                 var server = Assert.Single(await manager.ListConfigsAsync());
-                Assert.Equal(binding, server.Origin.IsBinding);
+                Assert.True(server.Origin.IsThread);
                 var generation = (await manager.GetGenerationAsync(server.Name))!.Value;
                 var runtime = new McpToolRuntime(manager, server.Name, "choose", generation);
                 var call = runtime.InvokeAsync(Context(thread.Id, null) with { CallId = "host-call" },
@@ -69,7 +65,7 @@ public sealed partial class McpElicitationInvocationTests
                 Assert.Equal(thread.Id, input.Context.ThreadId);
                 Assert.Null(input.Context.TurnId);
                 Assert.Equal("host-call", input.Context.CallId);
-                Assert.Equal(binding ? "binding:fixture-binding:inputs" : "inputs", input.ServerName);
+                Assert.Equal("inputs", input.ServerName);
                 input.Answer("from-host");
                 var result = await call.WaitAsync(Deadline);
                 Assert.True(result.Success, result.Error?.Message);

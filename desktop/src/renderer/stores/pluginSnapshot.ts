@@ -82,10 +82,6 @@ export function normalizePlugin(plugin: PluginEntry): PluginEntry {
     ...plugin,
     functions: plugin.functions ?? [],
     skills: plugin.skills ?? [],
-    apps: (plugin.apps ?? []).map((app) => ({
-      ...app,
-      nativeApplication: app.nativeApplication ?? null
-    })),
     desktop: plugin.desktop
       ? { ...plugin.desktop, styles: plugin.desktop.styles ?? [] }
       : null,

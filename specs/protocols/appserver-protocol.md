@@ -182,8 +182,6 @@ The surface id is the channel of every Turn the connection starts, enqueues, or 
 | `dynamicToolRebind` | `thread/resume.dynamicTools`. |
 | `runtimeAdditionalContext` | `additionalContext` on `thread/start` and `thread/resume`. |
 | `gitWorktrees` | `worktree/createAndFork`, `worktree/createAndStart`, `thread/worktree/handoff`, `worktree/list`, `worktree/status`, `worktree/remove`, `worktree/cancelCreate`, `worktree/runSetup`, `worktree/setEnvironment`. |
-| `appBindingVersion` | App Binding control-plane version (`1`). |
-| `appThreadInputEnqueue` | `app/threadInput/enqueue`. |
 | `approvalFlow` | Server may send approval requests. |
 | `requestUserInput` | Root-thread `RequestUserInput` tool and `item/tool/requestUserInput` to capable clients. |
 | `modeSwitch` / `configOverride` | `thread/mode/set`; `thread/config/update`. |
@@ -237,7 +235,7 @@ Thread methods correspond to `ISessionService` thread lifecycle operations in [S
 
 `thread/start` and `thread/fork` return `{ thread, instructionSources }`; `thread/resume` additionally returns required `currentState` and its requested `initialTurnsPage` (Section 4.2). `instructionSources` is the required ordered array of absolute logical paths used by the thread's stable `AGENTS.md` snapshot (`[]` when no file contributes). Thread notifications and worktree lifecycle results do not carry it.
 
-The `Thread` object carries lineage (`forkedFromId`), `ephemeral`, `worktree`, `gitInfo` (branch and credential-free `originUrl` last observed at a Turn start, [Session Core §4.1.1.6](../architecture/session-core.md#4116-git-context); `null` when unknown, omitted from summaries), `cwd`, `runtimeWorkspaceRoots`, and `effectiveWorkspacePath`. `cwd`/`effectiveWorkspacePath` is the root clients use for relative file, shell, Git, and editor surfaces; `runtimeWorkspaceRoots` is the full set of runtime content boundaries. Optional header state includes `queuedInputs`, `runtime`, `plan`, and `contextUsage` (see [Section 4.4](#44-threadread)). Threads carry no app attribution: clients that brand an origin match `originChannel` against `app/list` entries ([App Binding §8](app-binding.md#8-public-methods-and-notifications)).
+The `Thread` object carries lineage (`forkedFromId`), `ephemeral`, `worktree`, `gitInfo` (branch and credential-free `originUrl` last observed at a Turn start, [Session Core §4.1.1.6](../architecture/session-core.md#4116-git-context); `null` when unknown, omitted from summaries), `cwd`, `runtimeWorkspaceRoots`, and `effectiveWorkspacePath`. `cwd`/`effectiveWorkspacePath` is the root clients use for relative file, shell, Git, and editor surfaces; `runtimeWorkspaceRoots` is the full set of runtime content boundaries. Optional header state includes `queuedInputs`, `runtime`, `plan`, and `contextUsage` (see [Section 4.4](#44-threadread)).
 
 ### 4.1 `thread/start`
 
@@ -300,7 +298,7 @@ A request carrying `chat` from a connection without `capabilities.channelAdapter
 |-------|-------------|
 | `agentProfileId`, `agentProfileSource`, `agentProfileFingerprint` | Provenance of the resolved Agent Profile snapshot. Runtime behavior reads the resolved fields, not the profile file. `agent/profiles/refreshThread` compares the fingerprint. |
 | `agentBuilderTargetId`, `agentBuilderTargetSource` | Marks a conversational profile-builder thread editing that profile. The server exposes builder tools and a thread-scoped draft; the thread is excluded from ordinary listings. |
-| `mcpServers` | Three-state: omitted/null inherits workspace and enabled plugin servers; `[]` disables those inherited origins; non-empty replaces them. Binding-origin MCP is independent and additive. |
+| `mcpServers` | Three-state: omitted/null inherits workspace and enabled plugin servers; `[]` disables those inherited origins; non-empty replaces them. |
 | `mode` | Agent mode; default `agent`. |
 | `extensions` | Active ACP extension prefixes. |
 | `workspaceOverride` / `executionWorkspaceOverride` | Alternate workspace root / runtime execution root used for worktree-bound execution without moving thread state. |
@@ -493,9 +491,8 @@ Idempotently release the connection's observation. Params: `threadId`. Result: `
 
 Archive a thread (params `threadId`, result `{}`). Archived threads can be listed and read but not resumed or turned.
 
-- Archiving releases the thread's channel App Bindings: accepted bindings are revoked and pending social bind-code requests are cancelled, so the conversation can bind to another thread. Social-channel resolve and accept flows also lazily revoke bindings that point at missing or archived threads.
 - A top-level parent archives its full session-backed SubAgent subtree. Archiving a SubAgent child directly is invalid.
-- The server emits `thread/archived`, plus `thread/appBindings/changed` for each affected binding.
+- The server emits `thread/archived`.
 
 ### 4.9 `thread/unarchive`
 
@@ -1854,7 +1851,7 @@ Validation:
 - Callback URLs are HTTP loopback URLs without credentials, query, or fragment. An explicit URL port and `callbackPort` must agree; a configured port must be available and is never substituted. Without one, login uses an ephemeral port.
 - Read projections mask a literal `clientSecret` and expose `hasClientSecret`. On `mcp/upsert`, omitted `oauth` keeps the existing configuration and `null` removes it; within an OAuth object, an omitted secret or the read mask keeps the stored secret (the mask is never stored), while `null` or empty removes it. Switching to stdio removes OAuth.
 - `toolApprovalMode` accepts only `auto`, `approve`, or `prompt`; reads always report it. On `mcp/upsert`, an omitted mode keeps the existing server's mode, so a client that does not edit it never resets it, and a new server defaults to `auto`.
-- Workspace-origin servers are editable. Plugin-origin servers are read-only runtime entries derived from plugin `.mcp.json`. Runtime status additionally reports thread and binding origins.
+- Workspace-origin servers are editable. Plugin-origin servers are read-only runtime entries derived from plugin `.mcp.json`. Runtime status additionally reports thread origins.
 
 ### 22.3 `mcp/list`
 
@@ -1874,7 +1871,7 @@ Params: required `scope` and `name`. Removes a non-plugin server definition. Rem
 
 ### 22.7 Runtime identity and origin
 
-Runtime operations resolve an effective server by optional `threadId`. Origins are `workspace`, `plugin`, `thread`, or `binding`. Status carries both `declaredName` and the collision-safe `runtimeName` with safe provenance. `runtimeName` selects the effective connection; it may contain source delimiters and must never be exposed as or parsed into a model tool namespace. Model-visible identity is the separately normalized tool name, while dispatch keeps the exact `runtimeName` and raw source tool id. Binding servers are additive and cannot shadow another runtime name. Thread `mcpServers` follows the three-state contract in [Section 4.1.1](#411-threadconfiguration-wire-shape).
+Runtime operations resolve an effective server by optional `threadId`. Origins are `workspace`, `plugin`, or `thread`. Status carries both `declaredName` and the collision-safe `runtimeName` with safe provenance. `runtimeName` selects the effective connection; it may contain source delimiters and must never be exposed as or parsed into a model tool namespace. Model-visible identity is the separately normalized tool name, while dispatch keeps the exact `runtimeName` and raw source tool id. Thread `mcpServers` follows the three-state contract in [Section 4.1.1](#411-threadconfiguration-wire-shape).
 
 All MCP `tools/call` requests attach structured call context under `_meta["dotcraft/callContext"]` (`protocolVersion`, `threadId`, `turnId`, `sessionId`, `callId`, `isSubagent`, and `parentThreadId`). Hook-triggered MCP calls additionally attach `_meta["dotcraft/hookEvent"]`.
 

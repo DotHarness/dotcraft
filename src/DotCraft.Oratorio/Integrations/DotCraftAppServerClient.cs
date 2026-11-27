@@ -1,6 +1,5 @@
 using System.Text.Json;
 using DotCraft.Protocol.AppServer;
-using DotCraft.Sdk.AppBinding;
 using DotCraft.Sdk;
 using DotCraft.Sdk.Wire;
 using DotCraft.Oratorio.Api;
@@ -18,7 +17,6 @@ public interface IDotCraftAppServerClient : IAsyncDisposable
 {
     bool SupportsDynamicToolRebind { get; }
     bool SupportsRuntimeAdditionalContext { get; }
-    DotCraftAppBindingClient AppBindings { get; }
     void SetDynamicToolHandler(Func<DynamicToolCallParams, CancellationToken, Task<DynamicToolCallResult>> handler);
     Task<string> StartThreadAsync(AppServerThreadStartRequest request, CancellationToken ct);
     Task ResumeThreadAsync(
@@ -82,8 +80,6 @@ public sealed class DotCraftAppServerClient(SdkClient client) : IDotCraftAppServ
     public bool SupportsDynamicToolRebind => client.Capabilities.DynamicToolRebind;
 
     public bool SupportsRuntimeAdditionalContext => client.Capabilities.RuntimeAdditionalContext;
-
-    public DotCraftAppBindingClient AppBindings => client.AppBindings;
 
     public void SetDynamicToolHandler(Func<DynamicToolCallParams, CancellationToken, Task<DynamicToolCallResult>> handler)
     {

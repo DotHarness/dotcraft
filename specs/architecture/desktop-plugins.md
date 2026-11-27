@@ -484,10 +484,6 @@ interface DesktopPluginLinkedChat {
 
 `state` is the product reading Desktop shows on the chat's card: `waiting` means the chat needs the person's approval, input, or plan confirmation.
 
-### App Binding
-
-`appBindings.enableThread(threadId, appId)` enables a connected app in one thread through Desktop's enable flow ([App Binding §4.1](../protocols/app-binding.md#41-one-click-enable)). It delivers the activation handoff when the app has to be woken and resolves once the binding is active. When activation fails it cancels the request and rejects.
-
 ### SubAgent state
 
 `subagents.list(parentThreadId)` returns the SubAgent children Desktop tracks for a parent thread (those its Subagents tab lists). `subagents.onChange(parentThreadId, listener)` notifies when a listed child's identity or state changes.

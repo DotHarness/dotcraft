@@ -45,7 +45,6 @@
 | `mcpServers` | path | MCP server 配置。默认读取根目录的 `.mcp.json` |
 | `lspServers` | path | 语言服务器配置。默认读取根目录的 `.lsp.json` |
 | `hooks` | path、array 或 object | 生命周期 hooks。默认读取根目录的 `hooks/hooks.json` |
-| `apps` | path | [App Binding](./app-binding) 描述文件 |
 | `channel` | object | [渠道模块](./channel-modules)描述文件和打包后的启动入口 |
 | `workflows` | path | Dynamic Workflow 目录。默认读取根目录的 `workflows/` |
 | `settings` | path | 设置 schema |

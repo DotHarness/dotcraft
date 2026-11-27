@@ -1,11 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { AlertTriangle, Check, ExternalLink, Link2, RefreshCw } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { AlertTriangle } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
-import type { PluginAppInfo, PluginEntry } from '../../stores/pluginStore'
-import { useAppBindingStore, type AppInfo } from '../../stores/appBindingStore'
+import type { PluginEntry } from '../../stores/pluginStore'
 import { addToast } from '../../stores/toastStore'
 import { PluginIcon, pluginSubtitle, pluginTitle } from './PluginCatalogItem'
-import { openAppHandoff } from '../../utils/threadAppBindings'
 import { getPluginContentSummaries } from '../../utils/pluginContentSummaries'
 import { Button } from '../ui/Button'
 import { DialogCloseButton } from '../ui/DialogCloseButton'
@@ -14,17 +12,7 @@ import { ModalDialog } from '../ui/ModalDialog'
 import { PluginContentIcon } from './PluginContentIcon'
 import styles from './PluginInstallDialog.module.css'
 
-type NativeStatus = 'installed' | 'missing' | 'unknown'
-type SetupStage = 'pluginInstall' | 'trustRequired' | 'nativeAppRequired' | 'nativeAppPending' | 'appConnect' | 'handoffOpened' | 'complete'
-
-interface AppSetupState {
-  app: PluginAppInfo
-  liveApp?: AppInfo
-  nativeStatus: NativeStatus | string
-  connected: boolean
-  nativeOpened: boolean
-  handoffOpened: boolean
-}
+type SetupStage = 'pluginInstall' | 'trustRequired' | 'complete'
 
 const dotharLogoUrl = new URL('../../assets/brand/dothar.svg', import.meta.url).href
 
@@ -49,64 +37,18 @@ export function PluginInstallDialog({
   const t = useT()
   const title = pluginTitle(plugin)
   const capabilities = plugin.interface?.capabilities ?? []
-  const pluginApps = useMemo(() => plugin.apps ?? [], [plugin.apps])
-  const hasApps = pluginApps.length > 0
-  const {
-    apps,
-    fetchApps,
-    startConnection,
-    waitForConnection
-  } = useAppBindingStore()
-  const [nativeStatuses, setNativeStatuses] = useState<Record<string, NativeStatus>>({})
-  const [nativeOpenedAppIds, setNativeOpenedAppIds] = useState<Record<string, boolean>>({})
-  const [handoffOpenedAppIds, setHandoffOpenedAppIds] = useState<Record<string, boolean>>({})
   const [busyKey, setBusyKey] = useState<string | null>(null)
-
-  const appsById = useMemo(() => new Map(apps.map((app) => [app.appId, app])), [apps])
-  const setupApps = useMemo<AppSetupState[]>(() => pluginApps.map((app) => {
-    const liveApp = appsById.get(app.appId)
-    const nativeStatus = (liveApp?.nativeApp?.status as NativeStatus | undefined)
-      ?? nativeStatuses[app.appId]
-      ?? 'unknown'
-    return {
-      app,
-      liveApp,
-      nativeStatus,
-      connected: liveApp?.connectionState === 'connected',
-      nativeOpened: nativeOpenedAppIds[app.appId] === true,
-      handoffOpened: handoffOpenedAppIds[app.appId] === true || liveApp?.connectionState === 'connecting'
-    }
-  }), [appsById, handoffOpenedAppIds, nativeOpenedAppIds, nativeStatuses, pluginApps])
 
   const needsTrust = plugin.dotnet != null && plugin.dotnetRuntime?.trustStatus !== 'trusted'
 
-  const setupStage = useMemo<{ stage: SetupStage; apps: AppSetupState[] }>(() => {
-    if (!plugin.installed) return { stage: 'pluginInstall', apps: [] }
-    // Copying the bundle is not authority: an in-process plugin stays blocked until this step.
-    if (needsTrust) return { stage: 'trustRequired', apps: [] }
-    if (!hasApps) return { stage: 'complete', apps: [] }
+  const setupStage: SetupStage = !plugin.installed
+    ? 'pluginInstall'
+    : needsTrust
+      // Copying the bundle is not authority: an in-process plugin stays blocked until this step.
+      ? 'trustRequired'
+      : 'complete'
 
-    const appsNeedingNative = setupApps.filter((setupApp) => requiresNativeInstallCheck(setupApp.app) && setupApp.nativeStatus !== 'installed')
-    if (appsNeedingNative.length > 0) {
-      const hasUnopenedMissingApp = appsNeedingNative.some((setupApp) => setupApp.nativeStatus === 'missing' && !setupApp.nativeOpened)
-      return {
-        stage: hasUnopenedMissingApp ? 'nativeAppRequired' : 'nativeAppPending',
-        apps: appsNeedingNative
-      }
-    }
-
-    const appsNeedingConnection = setupApps.filter((setupApp) => !setupApp.connected)
-    if (appsNeedingConnection.length > 0) {
-      return {
-        stage: appsNeedingConnection.some((setupApp) => setupApp.handoffOpened) ? 'handoffOpened' : 'appConnect',
-        apps: setupApps
-      }
-    }
-
-    return { stage: 'complete', apps: setupApps }
-  }, [hasApps, needsTrust, plugin.installed, setupApps])
-
-  const setupFinished = setupStage.stage === 'complete'
+  const setupFinished = setupStage === 'complete'
   const completionReported = useRef(false)
   useEffect(() => {
     if (confirmLabel || !setupFinished || completionReported.current) return
@@ -114,27 +56,9 @@ export function PluginInstallDialog({
     ;(onSetupComplete ?? onClose)()
   }, [confirmLabel, onClose, onSetupComplete, setupFinished])
 
-  const dialogTitle = plugin.installed && (confirmLabel || hasApps || needsTrust)
+  const dialogTitle = plugin.installed && (confirmLabel || needsTrust)
     ? t('plugins.installDialog.setupTitle', { name: title })
     : t('plugins.installDialog.title', { name: title })
-
-  const refreshNativeStatuses = useCallback(async () => {
-    const next: Record<string, NativeStatus> = {}
-    await Promise.all(pluginApps.map(async (app) => {
-      const protocol = app.nativeApplication?.protocol
-      if (!protocol) {
-        next[app.appId] = 'unknown'
-        return
-      }
-      try {
-        const handler = await window.api.shell.getProtocolHandlerName(protocol)
-        next[app.appId] = handler ? 'installed' : 'missing'
-      } catch {
-        next[app.appId] = 'unknown'
-      }
-    }))
-    setNativeStatuses(next)
-  }, [pluginApps])
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent): void {
@@ -144,61 +68,11 @@ export function PluginInstallDialog({
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [onClose])
 
-  useEffect(() => {
-    setNativeStatuses({})
-    setNativeOpenedAppIds({})
-    setHandoffOpenedAppIds({})
-  }, [plugin.id])
-
-  useEffect(() => {
-    if (!plugin.installed || !hasApps) return
-    void refreshNativeStatuses()
-  }, [hasApps, plugin.installed, refreshNativeStatuses])
-
-  useEffect(() => {
-    if (!plugin.installed || !hasApps) return
-    void fetchApps(null, true, 'pluginDetail')
-  }, [fetchApps, hasApps, plugin.installed])
-
   async function run(key: string, action: () => Promise<void>): Promise<void> {
     if (busyKey) return
     setBusyKey(key)
     try {
       await action()
-    } catch (err) {
-      addToast(err instanceof Error ? err.message : String(err), 'error')
-    } finally {
-      setBusyKey(null)
-    }
-  }
-
-  async function refreshAppSetup(): Promise<void> {
-    await Promise.all([
-      refreshNativeStatuses(),
-      fetchApps(null, true, 'pluginDetail')
-    ])
-  }
-
-  async function handleInstallNative(app: PluginAppInfo): Promise<void> {
-    await run(`${app.appId}:native`, async () => {
-      const url = app.nativeApplication?.installUrl || app.releasePage
-      if (!url) throw new Error(t('appBinding.nativeInstallMissing'))
-      await window.api.shell.openExternal(url)
-      setNativeOpenedAppIds((current) => ({ ...current, [app.appId]: true }))
-    })
-  }
-
-  async function handleConnect(app: PluginAppInfo): Promise<void> {
-    if (busyKey) return
-    setBusyKey(`${app.appId}:connect`)
-    try {
-      const result = await startConnection(app.appId)
-      await openAppHandoff(result.handoff)
-      setHandoffOpenedAppIds((current) => ({ ...current, [app.appId]: true }))
-      addToast(t('appBinding.connectStarted'), 'info')
-      void waitForConnection(app.appId)
-        .then(() => addToast(t('appBinding.connection.connected'), 'success'))
-        .catch((err) => addToast(err instanceof Error ? err.message : String(err), 'error'))
     } catch (err) {
       addToast(err instanceof Error ? err.message : String(err), 'error')
     } finally {
@@ -234,7 +108,7 @@ export function PluginInstallDialog({
                 {confirmLabel}
               </Button>
             </>
-          ) : setupStage.stage === 'trustRequired' ? (
+          ) : setupStage === 'trustRequired' ? (
             <>
               <TrustNotice name={title} />
               <Button
@@ -248,21 +122,11 @@ export function PluginInstallDialog({
                 {t('plugins.installDialog.trustAction')}
               </Button>
             </>
-          ) : setupStage.stage === 'pluginInstall' ? (
+          ) : setupStage === 'pluginInstall' ? (
             <Button size="prominent" variant="primary" onClick={() => { void onInstall() }} disabled={installing} loading={installing} className={styles.wide}>
               {installing ? t('plugins.installing') : t('plugins.installDialog.addToDotCraft')}
             </Button>
-          ) : (
-            <CurrentSetupStage
-              stage={setupStage.stage}
-              apps={setupStage.apps}
-              busyKey={busyKey}
-              onConnect={handleConnect}
-              onInstallNative={handleInstallNative}
-              onRefresh={() => { void run('setup:refresh', refreshAppSetup) }}
-              t={t}
-            />
-          )}
+          ) : null}
         </div>
       )}
     >
@@ -318,199 +182,16 @@ function ContentChips({ plugin }: { plugin: PluginEntry }): JSX.Element {
 function TrustNotice({ name }: { name: string }): JSX.Element {
   const t = useT()
   return (
-    <SetupPanel
-      tone="warning"
-      title={t('plugins.installDialog.trustRequired')}
-      status={t('plugins.installDialog.trustStep', { name })}
-    />
-  )
-}
-
-function CurrentSetupStage({
-  stage,
-  apps,
-  busyKey,
-  onConnect,
-  onInstallNative,
-  onRefresh,
-  t
-}: {
-  stage: SetupStage
-  apps: AppSetupState[]
-  busyKey: string | null
-  onConnect: (app: PluginAppInfo) => Promise<void>
-  onInstallNative: (app: PluginAppInfo) => Promise<void>
-  onRefresh: () => void
-  t: ReturnType<typeof useT>
-}): JSX.Element | null {
-  if (stage === 'complete') return null
-
-  const nativeStage = stage === 'nativeAppRequired' || stage === 'nativeAppPending'
-  const title = nativeStage
-    ? t('plugins.installDialog.requiredApps')
-    : t('plugins.installDialog.connectRequired')
-  const status = nativeStage
-    ? t('plugins.installDialog.nativeStep', { name: apps.map((setupApp) => setupApp.app.nativeApplication?.displayName || setupApp.app.displayName).join(', ') })
-    : t('plugins.installDialog.connectStep', { name: apps.filter((setupApp) => !setupApp.connected).map((setupApp) => setupApp.app.displayName).join(', ') })
-
-  return (
-    <SetupPanel title={title} status={status}>
-      <div className={styles.appList}>
-        {apps.map((setupApp) => (
-          <AppSetupRow
-            key={setupApp.app.appId}
-            setupApp={setupApp}
-            busyKey={busyKey}
-            stage={stage}
-            onConnect={onConnect}
-            onInstallNative={onInstallNative}
-            onRefresh={onRefresh}
-            t={t}
-          />
-        ))}
-      </div>
-    </SetupPanel>
-  )
-}
-
-function SetupPanel({
-  tone,
-  title,
-  status,
-  details,
-  children
-}: {
-  tone?: 'warning'
-  title: string
-  status: string
-  details?: ReactNode
-  children?: ReactNode
-}): JSX.Element {
-  return (
-    <div className={styles.setupPanel} data-tone={tone}>
+    <div className={styles.setupPanel} data-tone="warning">
       <span className={styles.setupIcon}>
-        {tone === 'warning'
-          ? <AlertTriangle size={13} aria-hidden />
-          : <Link2 size={13} aria-hidden />}
+        <AlertTriangle size={13} aria-hidden />
       </span>
       <span className={styles.stepBody}>
-        <strong className={styles.stepTitle}>{title}</strong>
-        <span className={styles.muted}>{status}</span>
-        {details}
-      </span>
-      {children && <div className={styles.stepAction}>{children}</div>}
-    </div>
-  )
-}
-
-function AppSetupRow({
-  setupApp,
-  busyKey,
-  stage,
-  onConnect,
-  onInstallNative,
-  onRefresh,
-  t
-}: {
-  setupApp: AppSetupState
-  busyKey: string | null
-  stage: SetupStage
-  onConnect: (app: PluginAppInfo) => Promise<void>
-  onInstallNative: (app: PluginAppInfo) => Promise<void>
-  onRefresh: () => void
-  t: ReturnType<typeof useT>
-}): JSX.Element {
-  const { app, liveApp, nativeStatus, nativeOpened, handoffOpened } = setupApp
-  const nativeStage = stage === 'nativeAppRequired' || stage === 'nativeAppPending'
-  const connected = setupApp.connected && !nativeStage
-  const waitingForApp = stage === 'handoffOpened' && handoffOpened
-  const nativePending = nativeStatus !== 'missing' || nativeOpened
-  return (
-    <div className={styles.appRow}>
-      <AppSetupIcon app={app} />
-      <span className={styles.appBody}>
-        <strong className={styles.stepTitle}>{app.displayName}</strong>
-        {!connected && (
-          <span className={styles.muted}>
-            {stage === 'nativeAppRequired' || stage === 'nativeAppPending'
-              ? nativePending ? t('plugins.installDialog.nativePending') : nativeStatusLabel(nativeStatus, t)
-              : waitingForApp ? t('plugins.installDialog.waitingForApp') : connectionStatusLabel(liveApp, t)}
-          </span>
-        )}
-      </span>
-      <span className={styles.appActions}>
-        {connected ? (
-          <Button size="sm" disabled variant="secondary">
-            <Check size={13} aria-hidden />
-            {t('appBinding.connection.connected')}
-          </Button>
-        ) : stage === 'nativeAppRequired' || stage === 'nativeAppPending' ? (
-          nativePending ? (
-            <Button size="sm" onClick={onRefresh} disabled={busyKey != null} variant="secondary">
-              <RefreshCw size={13} aria-hidden />
-              {t('appBinding.refresh')}
-            </Button>
-          ) : (
-            <Button size="sm" onClick={() => { void onInstallNative(app) }} disabled={busyKey != null} variant="primary">
-              <ExternalLink size={13} aria-hidden />
-              {t('appBinding.installNative')}
-            </Button>
-          )
-        ) : waitingForApp ? (
-          <>
-            <Button size="sm" disabled variant="secondary">
-              <Link2 size={13} aria-hidden />
-              {t('plugins.installDialog.linkOpened')}
-            </Button>
-            <Button size="sm" onClick={onRefresh} disabled={busyKey != null} variant="secondary">
-              <RefreshCw size={13} aria-hidden />
-              {t('appBinding.refresh')}
-            </Button>
-            <Button size="sm" onClick={() => { void onConnect(app) }} disabled={busyKey != null} variant="secondary">
-              <Link2 size={13} aria-hidden />
-              {t('appBinding.connect')}
-            </Button>
-          </>
-        ) : (
-          <Button size="sm" onClick={() => { void onConnect(app) }} disabled={busyKey != null} variant="primary">
-            <Link2 size={13} aria-hidden />
-            {t('appBinding.connect')}
-          </Button>
-        )}
+        <strong className={styles.stepTitle}>{t('plugins.installDialog.trustRequired')}</strong>
+        <span className={styles.muted}>{t('plugins.installDialog.trustStep', { name })}</span>
       </span>
     </div>
   )
-}
-
-function AppSetupIcon({ app }: { app: PluginAppInfo }): JSX.Element {
-  return (
-    <IdentityMark
-      role="list"
-      size={36}
-      src={app.icon}
-      fallback={<Link2 size={15} />}
-      framed={!app.icon}
-    />
-  )
-}
-
-function requiresNativeInstallCheck(app: PluginAppInfo): boolean {
-  return Boolean(app.nativeApplication?.protocol?.trim())
-}
-
-function nativeStatusLabel(status: NativeStatus | string, t: ReturnType<typeof useT>): string {
-  if (status === 'installed') return t('appBinding.native.installed')
-  if (status === 'missing') return t('appBinding.native.missing')
-  return t('appBinding.native.unknown')
-}
-
-function connectionStatusLabel(app: AppInfo | undefined, t: ReturnType<typeof useT>): string {
-  if (!app) return t('appBinding.connection.notConnected')
-  if (app.connectionState === 'connected') return t('appBinding.connection.connected')
-  if (app.connectionState === 'connecting') return t('appBinding.connection.connecting')
-  if (app.connectionState === 'needsAuth') return t('appBinding.connection.needsAuth')
-  if (app.connectionState === 'error') return t('appBinding.connection.error')
-  return t('appBinding.connection.notConnected')
 }
 
 function Divider(): JSX.Element {

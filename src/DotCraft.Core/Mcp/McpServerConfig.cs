@@ -16,8 +16,6 @@ public sealed class McpServerOrigin
 
     public string? ThreadId { get; set; }
 
-    public string? BindingId { get; set; }
-
     [JsonIgnore]
     public string? PluginFingerprint { get; set; }
 
@@ -26,9 +24,6 @@ public sealed class McpServerOrigin
 
     [JsonIgnore]
     public bool IsThread => string.Equals(Kind, "thread", StringComparison.OrdinalIgnoreCase);
-
-    [JsonIgnore]
-    public bool IsBinding => string.Equals(Kind, "binding", StringComparison.OrdinalIgnoreCase);
 
     [JsonIgnore]
     public bool IsWorkspace => string.Equals(Kind, "workspace", StringComparison.OrdinalIgnoreCase);
@@ -52,9 +47,6 @@ public sealed class McpServerOrigin
     public static McpServerOrigin Thread(string threadId, string declaredName) =>
         new() { Kind = "thread", ThreadId = threadId, DeclaredName = declaredName };
 
-    public static McpServerOrigin Binding(string bindingId, string declaredName) =>
-        new() { Kind = "binding", BindingId = bindingId, DeclaredName = declaredName };
-
     public McpServerOrigin Clone() =>
         new()
         {
@@ -63,7 +55,6 @@ public sealed class McpServerOrigin
             PluginDisplayName = PluginDisplayName,
             DeclaredName = DeclaredName,
             ThreadId = ThreadId,
-            BindingId = BindingId,
             PluginFingerprint = PluginFingerprint
         };
 }

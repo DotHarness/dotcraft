@@ -89,7 +89,6 @@ public static partial class PluginVerifier
                      (manifest.SkillsPath != null, ["skill", "skills"]),
                      (manifest.McpServersPath != null, ["mcp"]),
                      (manifest.LspServersPath != null, ["lsp"]),
-                     (manifest.AppsPath != null, ["app", "apps"]),
                      (manifest.Hooks?.HasAny == true, ["hooks"]),
                      (manifest.WorkflowsPath != null, ["workflow", "workflows"]),
                      (manifest.Desktop != null, ["desktop"]),

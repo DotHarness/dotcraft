@@ -159,7 +159,6 @@ export class DotCraftWireClient {
       requestUserInputSupport: opts.requestUserInputSupport ?? false,
       streamingSupport: opts.streamingSupport ?? true,
       configChange: opts.configChange ?? false,
-      appBindingVersion: 1,
     };
     if (opts.extraCapabilities) {
       Object.assign(capabilities, opts.extraCapabilities);

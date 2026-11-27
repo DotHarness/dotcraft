@@ -53,7 +53,6 @@ public sealed partial class SessionService
             || runtime.Maintenance != null
             || runtime.GoalContinuationStarting
             || runtime.Broker.HasSubscribers
-            || runtime.GetBindingMcpServers().Count > 0
             || HasBackgroundWork(thread.Id)
             || thread.Turns.Any(static turn =>
                 turn.Status is TurnStatus.Running or TurnStatus.WaitingApproval or TurnStatus.WaitingInput))

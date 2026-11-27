@@ -29,7 +29,6 @@ import { usePerforceChangelistStore } from '../../stores/perforceChangelistStore
 import { useUIStore } from '../../stores/uiStore'
 import { useComposerDraftStore, type ThreadComposerDraftInput } from '../../stores/composerDraftStore'
 import { useSkillsStore } from '../../stores/skillsStore'
-import { useAppBindingStore } from '../../stores/appBindingStore'
 import { addToast } from '../../stores/toastStore'
 import { readConfigValue, useConfig } from '../../stores/configStore'
 import { useBuiltinCommandAvailability } from '../../hooks/useBuiltinCommandAvailability'
@@ -247,8 +246,6 @@ function ConversationWelcomeCore({
   const setWelcomeDraft = useUIStore((s) => s.setWelcomeDraft)
   const clearWelcomeDraft = useUIStore((s) => s.clearWelcomeDraft)
   const setWelcomeDraftWorkspace = useUIStore((s) => s.setWelcomeDraftWorkspace)
-  const appBindingApps = useAppBindingStore((s) => s.apps)
-  const fetchAppBindings = useAppBindingStore((s) => s.fetchApps)
 
   const isConnected = connectionStatus === 'connected' && workspaceReady &&
     (capabilities?.workspaceConfigManagement !== true || workspaceConfig != null)
@@ -258,7 +255,6 @@ function ConversationWelcomeCore({
   const canUseCommandPicker = capabilities?.commandManagement === true
   const canUseSkillPicker = capabilities?.skillsManagement === true
   const canUseThreadGoals = capabilities?.threadGoals === true
-  const canUseAppBinding = capabilities?.appBindingVersion === 1
   const canUseAgentProfiles = capabilities?.agentProfileManagement === true
   const [profilePickerOpen, setProfilePickerOpen] = useState(false)
   const resolvedProfileName = useResolvedProfileName(selectedProfileId ?? undefined, workspacePath)
@@ -331,21 +327,6 @@ function ConversationWelcomeCore({
       return actions
     },
     [canUseAgentProfiles, canUseCommandPicker, canUseThreadGoals, creatorControls.action, initAvailable, selectedProfileId, t]
-  )
-  useEffect(() => {
-    if (!canUseAppBinding || !isConnected) return
-    void fetchAppBindings(null, false, 'welcome')
-  }, [canUseAppBinding, fetchAppBindings, isConnected])
-
-  const welcomeAppIds = useMemo(
-    () => appBindingApps
-      .filter((app) => app.installed
-        && app.enabled
-        && app.connectionState === 'connected'
-        && app.requiresExternalConnection !== false
-        && app.managed !== true)
-      .map((app) => app.appId),
-    [appBindingApps]
   )
 
   const handleAtQuery = useCallback((q: string | null): void => {
@@ -720,7 +701,6 @@ function ConversationWelcomeCore({
         text: trimmedObjective,
         modelSettings: modelSettingsFromConfiguration(welcomeThreadConfiguration as ThreadConfigurationWire),
         inputParts,
-        ...(welcomeAppIds.length > 0 ? { appIds: [...welcomeAppIds] } : {}),
         sentAsGoal: true,
         ...(title ? { title } : {})
       })
@@ -746,7 +726,6 @@ function ConversationWelcomeCore({
     openOrDetachCreatedThread,
     showGoalUnavailable,
     startWelcomeThread,
-    welcomeAppIds,
     welcomeCreator,
     welcomeThreadConfiguration,
     welcomeThreadName,
@@ -870,7 +849,6 @@ function ConversationWelcomeCore({
         inputParts,
         images: prepared.images.length > 0 ? prepared.images : undefined,
         files: prepared.files.length > 0 ? prepared.files : undefined,
-        ...(welcomeAppIds.length > 0 ? { appIds: [...welcomeAppIds] } : {}),
         ...(title ? { title } : {})
       })
       addThread({ ...thread, displayName: thread.displayName || threadName })
@@ -892,7 +870,6 @@ function ConversationWelcomeCore({
     addThread,
     openOrDetachCreatedThread,
     startWelcomeThread,
-    welcomeAppIds,
     welcomeCreator,
     welcomeThreadConfiguration,
     welcomeThreadName,

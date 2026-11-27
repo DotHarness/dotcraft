@@ -133,12 +133,6 @@ public sealed partial class AppServerPluginManagementTests
         var plugin = FindPlugin(await ReadPluginListResultAsync(harness), "registry-app");
         Assert.False(plugin.GetProperty("installed").GetBoolean());
         Assert.True(plugin.GetProperty("installable").GetBoolean());
-        var app = Assert.Single(plugin.GetProperty("apps").EnumerateArray());
-        Assert.Equal("com.example.registry-app", app.GetProperty("appId").GetString());
-        Assert.Equal("Registry App", app.GetProperty("displayName").GetString());
-        Assert.Equal("registryapp", app.GetProperty("nativeApplication").GetProperty("protocol").GetString());
-        Assert.False(app.TryGetProperty("toolNamespace", out _));
-        Assert.False(app.TryGetProperty("toolCatalog", out _));
         Assert.Contains(
             plugin.GetProperty("skills").EnumerateArray(),
             item => item.GetProperty("name").GetString() == "registry-app");
@@ -327,11 +321,11 @@ public sealed partial class AppServerPluginManagementTests
         await manager.ConnectAsync([
             new McpServerConfig
             {
-                Name = "binding:board",
+                Name = "plugin:board:board",
                 Enabled = false,
                 Transport = "stdio",
                 Command = "node",
-                Origin = McpServerOrigin.Binding("board-binding", "board")
+                Origin = McpServerOrigin.Plugin("board-plugin", "Board", "board")
             },
             new McpServerConfig
             {
@@ -351,9 +345,9 @@ public sealed partial class AppServerPluginManagementTests
         AppServerTestHarness.AssertIsSuccessResponse(response);
         var result = response.RootElement.GetProperty("result");
         var status = Assert.Single(result.GetProperty("data").EnumerateArray());
-        Assert.Equal("binding:board", status.GetProperty("runtimeName").GetString());
+        Assert.Equal("plugin:board:board", status.GetProperty("runtimeName").GetString());
         Assert.Equal("board", status.GetProperty("declaredName").GetString());
-        Assert.Equal("binding", status.GetProperty("origin").GetProperty("kind").GetString());
+        Assert.Equal("plugin", status.GetProperty("origin").GetProperty("kind").GetString());
         Assert.Equal("1", result.GetProperty("nextCursor").GetString());
     }
 

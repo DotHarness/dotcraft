@@ -509,13 +509,10 @@ Agent 只能通过 `SendChannelMessage` 工具触达聊天，server 用 `ext/cha
 | Automations | `automation/list`, `automation/create`, `automation/runs/list` | 本地任务生命周期、绑定和受管工作树清理。 |
 | Worktrees | `worktree/list`, `worktree/status`, `thread/worktree/handoff`, `worktree/remove` | 受管 Git 工作树状态、交接和删除。 |
 | 配置 | `config/schema`、`config/read`、`config/value/write`、`config/batchWrite` | 按 key path 读取和修改用户级与工作区配置。 |
-| App Binding | `app/connection/authenticate`、`app/binding/activate`、`app/threadInput/enqueue` | 面向外部应用的扩展模块，由 `capabilities.appBindingVersion` 门控。 |
 
 展示功能相关的 UI 之前，先读 `initialize` 响应中的 `capabilities`。
 
 `skills/read` 返回完整的 `SKILL.md`，包括 frontmatter。`skills/view` 返回去掉 frontmatter 的正文。
-
-App Binding 客户端通过 `capabilities.appBindingVersion: 1` 协商版本。完成认证的 App principal 连接只能调用 app-role allowlist：连接认证、刷新、状态与撤销，binding 请求、激活、rebind 与列表，`app/surface/publish`，以及 `app/threadInput/enqueue`。工具由 binding-scoped MCP session 提供。不受支持的 App Binding 版本返回 `AppBindingUpgradeRequired`，未声明的方法返回 `MethodNotFound`，其他越权方法返回 `AppPrincipalUnauthorized`。详见 [DotCraft App](../app-binding)。
 
 ### 自动化运行与工作树
 

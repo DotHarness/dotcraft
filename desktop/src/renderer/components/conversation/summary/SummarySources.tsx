@@ -39,9 +39,9 @@ function SourceThumbnail({ services, path }: { services: SummaryServices; path: 
   return src ? <img className="conversation-summary-thumbnail" src={src} alt="" draggable={false} /> : <FileText {...GLYPH} />
 }
 
-export function SourceIcon({ services, source, threadId }: { services: SummaryServices; source: Source; threadId: string }): JSX.Element {
+export function SourceIcon({ services, source }: { services: SummaryServices; source: Source; threadId?: string }): JSX.Element {
   const skillIconUrl = useSkillIconUrl(source.kind === 'skill' ? source.id : null)
-  const mcpIconUrl = useMcpSourceIconUrl(source.kind === 'mcp' ? source.id : null, source.pluginId, threadId)
+  const mcpIconUrl = useMcpSourceIconUrl(source.kind === 'mcp' ? source.pluginId : null)
   const [failedSrc, setFailedSrc] = useState<string | null>(null)
   const customIconUrl = skillIconUrl || mcpIconUrl
   if (customIconUrl && failedSrc !== customIconUrl) {

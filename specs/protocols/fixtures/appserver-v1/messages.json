@@ -715,24 +715,6 @@
       ]
     },
     {
-      "name": "app-binding",
-      "tags": ["clientRequest", "firstPartyExtension", "appBinding"],
-      "messages": [
-        {
-          "jsonrpc": "2.0",
-          "id": 11,
-          "method": "app/list",
-          "params": { "threadId": "thread_fixture", "includeCatalog": true }
-        },
-        { "jsonrpc": "2.0", "id": 11, "result": { "apps": [] } },
-        {
-          "jsonrpc": "2.0",
-          "method": "thread/appBindings/changed",
-          "params": { "threadId": "thread_fixture", "state": "active" }
-        }
-      ]
-    },
-    {
       "name": "automation",
       "tags": ["clientRequest", "serverNotification", "firstPartyExtension", "automations"],
       "messages": [

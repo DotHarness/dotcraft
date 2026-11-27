@@ -13,8 +13,6 @@ public enum ToolSourceKind
     Mcp,
     /// <summary>A thread-scoped callback exposed by an AppServer client.</summary>
     RuntimeDynamic,
-    /// <summary>A read-only App Binding projection source.</summary>
-    LegacyAppBinding,
 }
 
 /// <summary>Controls how a permitted tool is published to the model.</summary>

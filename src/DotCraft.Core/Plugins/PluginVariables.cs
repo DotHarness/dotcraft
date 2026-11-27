@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text;
 
 namespace DotCraft.Plugins;
@@ -8,26 +9,66 @@ internal static class PluginVariables
     {
         const string rootToken = "${PLUGIN_ROOT}";
         const string dataToken = "${PLUGIN_DATA}";
+        const string binToken = "${DOTCRAFT_BIN}";
+        var dotcraftBin = ResolveDotCraftBinary();
         var remaining = value.AsSpan();
         var output = new StringBuilder(value.Length);
         while (!remaining.IsEmpty)
         {
-            var rootIndex = pluginRoot is null ? -1 : remaining.IndexOf(rootToken, StringComparison.Ordinal);
-            var dataIndex = pluginDataPath is null ? -1 : remaining.IndexOf(dataToken, StringComparison.Ordinal);
-            if (rootIndex < 0 && dataIndex < 0)
+            var bestIndex = -1;
+            string? bestToken = null;
+            string? bestValue = null;
+
+            Consider(remaining, rootToken, pluginRoot, ref bestIndex, ref bestToken, ref bestValue);
+            Consider(remaining, dataToken, pluginDataPath, ref bestIndex, ref bestToken, ref bestValue);
+            Consider(remaining, binToken, dotcraftBin, ref bestIndex, ref bestToken, ref bestValue);
+
+            if (bestIndex < 0 || bestToken is null)
             {
                 output.Append(remaining);
                 break;
             }
 
-            var isRoot = rootIndex >= 0 && (dataIndex < 0 || rootIndex <= dataIndex);
-            var index = isRoot ? rootIndex : dataIndex;
-            var token = isRoot ? rootToken : dataToken;
-            output.Append(remaining[..index]);
-            output.Append(isRoot ? pluginRoot : pluginDataPath);
-            remaining = remaining[(index + token.Length)..];
+            output.Append(remaining[..bestIndex]);
+            output.Append(bestValue);
+            remaining = remaining[(bestIndex + bestToken.Length)..];
         }
 
         return output.ToString();
+    }
+
+    private static void Consider(
+        ReadOnlySpan<char> remaining,
+        string token,
+        string? replacement,
+        ref int bestIndex,
+        ref string? bestToken,
+        ref string? bestValue)
+    {
+        if (replacement is null)
+            return;
+        var index = remaining.IndexOf(token, StringComparison.Ordinal);
+        if (index >= 0 && (bestIndex < 0 || index < bestIndex))
+        {
+            bestIndex = index;
+            bestToken = token;
+            bestValue = replacement;
+        }
+    }
+
+    internal static string? ResolveDotCraftBinary()
+    {
+        var processPath = Environment.ProcessPath;
+        if (!string.IsNullOrWhiteSpace(processPath)
+            && Path.GetFileNameWithoutExtension(processPath).Equals("dotcraft", StringComparison.OrdinalIgnoreCase))
+        {
+            return processPath;
+        }
+
+        var entryPath = Assembly.GetEntryAssembly()?.Location;
+        if (!string.IsNullOrWhiteSpace(entryPath) && File.Exists(entryPath))
+            return entryPath;
+
+        return !string.IsNullOrWhiteSpace(processPath) ? processPath : null;
     }
 }

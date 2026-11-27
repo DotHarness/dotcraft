@@ -22,7 +22,6 @@
 | `DotCraft.Sdk.Wire` | `DotCraftWireClient`, transports, connection state, timeouts, and JSON-RPC errors. |
 | `DotCraft.Sdk.Hub` | Hub discovery, AppServer management, process policy, events, and structured errors. |
 | `DotCraft.Sdk.DynamicTools` | Attribute-based Runtime Dynamic Tool authoring. |
-| `DotCraft.Sdk.AppBinding` | App Binding handoff and result helpers. |
 
 Contracts is a separate assembly and logical layer, not a separate NuGet package.
 
@@ -39,7 +38,6 @@ Contracts is a separate assembly and logical layer, not a separate NuGet package
 | Model configuration | `Threads.ReadModelConfigurationAsync()`, `UpdateModelConfigurationAsync()` |
 | Agent Profiles | `AgentProfiles.ListAsync()`, `ReadAsync()`, `ValidateAsync()`, `UpsertAsync()`, `RemoveAsync()`, `RefreshThreadAsync()` |
 | MCP runtime | `McpRuntime.ListStatusAsync()`, `ReadResourceAsync()`, `CallToolAsync()`, `LoginOAuthAsync()`, `ReloadAsync()` |
-| App Binding | `AppBindings` |
 | Runtime tools | `OnToolCall()` or `RegisterDynamicToolHandler()` |
 
 Configure `ApprovalHandler` and `UserInputHandler` in connection options. Check `Capabilities.AgentProfileManagement` before exposing Agent Profile management. See [Threads & runs](./runs) and [Tools & approvals](./tools) for task flows.
@@ -79,7 +77,7 @@ Task<ThreadItemsListResult> ListItemsAsync(ThreadItemsListParams parameters, Can
 
 The result is `DotCraftRunResult`; streamed events are `DotCraftRunEvent` or `DotCraftRunEvent<TParams>`. Thread-control methods operate on the handle's `Id`, while the low-level `Turns` surface accepts explicit protocol parameters.
 
-## Providers, models, MCP, and App Binding
+## Providers, models, and MCP
 
 | Client | Operations |
 | --- | --- |
@@ -87,9 +85,7 @@ The result is `DotCraftRunResult`; streamed events are `DotCraftRunEvent` or `Do
 | `Models` | `GetCatalogAsync(providerId?)` returns models and typed capabilities. |
 | `Threads` | `ReadModelConfigurationAsync()` and `UpdateModelConfigurationAsync()` preserve unrelated thread configuration fields. |
 | `McpRuntime` | `ListStatusAsync()`, `ReadResourceAsync()`, `CallToolAsync()`, `LoginOAuthAsync()`, `ReloadAsync()`. |
-| `AppBindings` | Typed connection, surface, thread-binding, and principal operations. |
-
-See [MCP runtime](./mcp-runtime) and [DotCraft App](../app-binding) for task-oriented flows.
+See [MCP runtime](./mcp-runtime) for task-oriented flows.
 
 The MCP client accepts generated Contracts DTOs and returns generated result DTOs:
 
@@ -174,7 +170,7 @@ SDK exceptions derive from `DotCraftException` and carry a stable `Code`.
 
 `HubClient` discovers or starts Hub, validates the local lock, resolves a workspace AppServer, and supports ensure, restart, stop, list, status, events, and shutdown operations.
 
-Do not log Hub tokens, App Binding credentials, or full token-bearing WebSocket URLs.
+Do not log Hub tokens or full token-bearing WebSocket URLs.
 
 ## Related docs
 

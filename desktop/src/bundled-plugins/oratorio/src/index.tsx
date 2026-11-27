@@ -1,7 +1,4 @@
-import type {
-  DesktopPluginActivate,
-  DesktopPluginOratorioHandoffRequest
-} from '@dotcraft/plugin'
+import type { DesktopPluginActivate } from '@dotcraft/plugin'
 
 import { OratorioSettingsSurface } from './OratorioSettingsSurface'
 import { OratorioView } from './OratorioView'
@@ -23,32 +20,8 @@ const labels = {
   }
 }
 
-const handoffCopy = {
-  title: ['Connect Oratorio', '连接 Oratorio', 'Oratorio に接続', 'Oratorio 연결', 'Conectar Oratorio', 'Connecter Oratorio', 'Oratorio verbinden'],
-  connect: ['Connect', '连接', '接続', '연결', 'Conectar', 'Connecter', 'Verbinden'],
-  bind: ['Bind thread', '绑定线程', 'スレッドを紐付ける', '스레드 연결', 'Vincular hilo', 'Lier le fil', 'Thread verknüpfen'],
-  cancel: ['Cancel', '取消', 'キャンセル', '취소', 'Cancelar', 'Annuler', 'Abbrechen']
-} as const
-const locales = ['en', 'zh-Hans', 'ja', 'ko', 'es', 'fr', 'de'] as const
-
 export const activate: DesktopPluginActivate = (host) => {
   const uninstallHost = installOratorioHost(host)
-  let disposed = false
-  let activeRequestId: string | null = null
-
-  const presentHandoff = async (handoff: DesktopPluginOratorioHandoffRequest): Promise<void> => {
-    if (activeRequestId === handoff.requestId) return
-    activeRequestId = handoff.requestId
-    const localeIndex = Math.max(0, locales.indexOf(host.environment.locale as typeof locales[number]))
-    const approved = await host.ui.confirm({
-      title: handoffCopy.title[localeIndex],
-      message: `${handoff.summary}\n\n${handoff.workspacePath}`,
-      confirmLabel: handoffCopy[handoff.operation][localeIndex],
-      cancelLabel: handoffCopy.cancel[localeIndex]
-    })
-    if (!disposed) await host.oratorio.resolveHandoff(handoff.requestId, approved)
-    activeRequestId = null
-  }
 
   host.navigation.onOpenUrl((url) => {
     const target = parseOratorioNavigationUrl(url)
@@ -58,12 +31,6 @@ export const activate: DesktopPluginActivate = (host) => {
     else host.navigation.openMainView('board')
     return true
   })
-  host.oratorio.onEvent((event) => {
-    if (event.type === 'handoff-requested' && event.handoff) void presentHandoff(event.handoff)
-  })
-  void host.oratorio.getPendingHandoff().then((handoff) => {
-    if (handoff) void presentHandoff(handoff)
-  })
   host.ui.wrap('composer.mascot', ConductorMascot)
   host.ui.wrap('composer.toolbar.permissions', ConductorPermissions)
   host.ui.add('conversation.empty', ConductorIntro)
@@ -72,8 +39,6 @@ export const activate: DesktopPluginActivate = (host) => {
   }
   host.session.onChange(onSessionChange)
   onSessionChange()
-  // Resolving the context is what asks Hub to start the Oratorio server; a missing executable
-  // is normal in a Desktop-only checkout.
   void host.oratorio.getContext().catch(() => {})
 
   return {
@@ -81,7 +46,6 @@ export const activate: DesktopPluginActivate = (host) => {
     spaces: [conductorSpace(labels)],
     settingsPages: [{ id: 'oratorio', label: labels, icon: OratorioBatonIcon, order: 45, component: OratorioSettingsSurface }],
     dispose() {
-      disposed = true
       uninstallHost()
     }
   }

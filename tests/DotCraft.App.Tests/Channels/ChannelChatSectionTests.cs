@@ -1,4 +1,3 @@
-using DotCraft.AppBinding;
 using DotCraft.Channels;
 using DotCraft.Context.WorldState;
 using DotCraft.Channels.Messaging;
@@ -71,63 +70,6 @@ public sealed class ChannelChatSectionTests : IDisposable
         Assert.False(Sent(world, desktop));
     }
 
-    [Fact]
-    public void RemovedBinding_IsRetiredOnce_AndAnOfflineBindingChangesNothing()
-    {
-        var (bindings, dataPath, bindingId, resolver) = AppBinding();
-        var world = World(resolver);
-        var thread = new SessionThread { Id = "desktop-thread", OriginChannel = "desktop", WorkspacePath = _workspace };
-        Assert.True(Sent(world, thread));
-
-        bindings.MarkUnavailable(dataPath, bindingId, "channelDisconnected");
-        Assert.False(Sent(world, thread));
-
-        bindings.RevokeBinding(dataPath, thread.Id, bindingId, "local");
-        Assert.True(Sent(world, thread));
-        Assert.False(Sent(world, thread));
-    }
-
-    [Fact]
-    public async Task OfflineBinding_KeepsTheTool_AndFailsTheCall_WhileRevocationRemovesIt()
-    {
-        var (bindings, dataPath, bindingId, resolver) = AppBinding();
-        var provider = new SendChannelMessageToolProvider(resolver);
-        var thread = new SessionThread { Id = "desktop-thread", OriginChannel = "desktop", WorkspacePath = _workspace };
-
-        bindings.MarkUnavailable(dataPath, bindingId, "channelDisconnected");
-        var source = Assert.Single(provider.CreateToolSourcesForThread(thread));
-        var planning = new DotCraft.Tools.ToolPlanningContext(thread.Id, null, _workspace, Path.Combine(_workspace, ".craft"), "agent", null, null, 1);
-        var runtime = Assert.Single(await source.GetRegistrationsAsync(planning)).Binding.Runtime;
-        var result = await runtime.InvokeAsync(Context(thread.Id), System.Text.Json.Nodes.JsonNode.Parse("""{ "text": "hi" }""")!.AsObject());
-
-        Assert.Equal(SendChannelMessageErrorCodes.ChannelUnavailable, result.Error?.Code);
-        Assert.Empty(_qq.Deliveries);
-
-        bindings.RevokeBinding(dataPath, thread.Id, bindingId, "local");
-        Assert.Empty(provider.CreateToolSourcesForThread(thread));
-    }
-
-    private (AppBindingService Bindings, string DataPath, string BindingId, ChatBindingResolver Resolver) AppBinding()
-    {
-        var paths = DotCraftPaths.Create(_workspace, Path.Combine(_workspace, ".craft"));
-        var bindings = new AppBindingService();
-        var dataPath = paths.Data.RootPath;
-        var request = bindings.CreateChannelRequest(dataPath, "desktop-thread", "qq", "local");
-        var binding = bindings.AcceptChannel(dataPath, "qq", new ChannelBindingAcceptCommand
-        {
-            Code = request.Code,
-            Target = new ChannelTarget
-            {
-                ChannelName = "qq",
-                ConversationKind = "group",
-                ConversationId = "42",
-                DeliveryTarget = "group:42",
-                DisplayName = "Release team"
-            }
-        });
-        return (bindings, dataPath, binding.BindingId, new ChatBindingResolver(_registry, paths, bindings));
-    }
-
     private static WorldState World(ChatBindingResolver resolver)
     {
         var world = new WorldState();
@@ -143,21 +85,6 @@ public sealed class ChannelChatSectionTests : IDisposable
         _baseline = render.Snapshot;
         return render.Fragments.Count > 0;
     }
-
-    private DotCraft.Tools.ToolInvocationContext Context(string threadId) => new(
-        threadId,
-        "turn-1",
-        "call-1",
-        DotCraft.Tools.ToolInvocationAudience.Model,
-        new DotCraft.Tools.ToolName(null, SendChannelMessageToolSource.ToolName),
-        new DotCraft.Tools.ToolDefinitionId(
-            DotCraft.Tools.ToolSourceKind.CoreNative,
-            "channel-message",
-            new DotCraft.Tools.SourceToolId(SendChannelMessageToolSource.ToolName)),
-        new DotCraft.Tools.RuntimeBindingId("binding"),
-        1,
-        DateTimeOffset.UtcNow,
-        WorkspacePath: _workspace);
 
     private sealed class FakeChannel : IChannelRuntime
     {

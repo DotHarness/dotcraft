@@ -119,10 +119,7 @@ public static partial class OratorioApplication
         builder.Services.AddScoped<AutoReviewDispatchService>();
         builder.Services.AddScoped<ImplementationAutoDispatchService>();
         builder.Services.AddScoped<ImplementationFollowUpDispatchService>();
-        builder.Services.AddSingleton<OratorioAppBindingService>();
-        builder.Services.AddSingleton<OratorioBindingMcpRuntime>();
-        builder.Services.AddSingleton<OratorioBindingMcpHandlers>();
-        builder.Services.AddSingleton<OratorioBoardSurfaceRuntime>();
+        builder.Services.AddSingleton<OratorioMcpHandlers>();
         builder.Services.AddSingleton<BoardEventHub>();
         builder.Services.AddSingleton<DrawerStateService>();
         builder.Services.AddSingleton<IAppServerRunCoordinator, AppServerRunCoordinator>();
@@ -144,24 +141,21 @@ public static partial class OratorioApplication
 
         var databasePath = ResolveDatabasePath(builder);
         builder.Services.AddDbContext<OratorioDbContext>(options => options.UseSqlite($"Data Source={databasePath}"));
-        builder.Services.AddSingleton(new OratorioDotCraftBindingStore(
-            Path.Combine(Path.GetDirectoryName(databasePath)!, "dotcraft-binding.json")));
-        builder.Services.AddHostedService<OratorioAppBindingReannounceWorker>();
         builder.Services.AddMcpServer(options =>
             {
                 options.ServerInfo = new Implementation { Name = "oratorio.board", Version = "1" };
-                options.ServerInstructions = OratorioBindingMcpCatalog.ServerInstructions;
+                options.ServerInstructions = OratorioMcpCatalog.ServerInstructions;
             })
             .WithHttpTransport(options => options.Stateless = false)
             .WithListToolsHandler((request, ct) =>
-                request.Services!.GetRequiredService<OratorioBindingMcpHandlers>().ListToolsAsync(request, ct))
+                request.Services!.GetRequiredService<OratorioMcpHandlers>().ListToolsAsync(request, ct))
             .WithCallToolHandler((request, ct) =>
-                request.Services!.GetRequiredService<OratorioBindingMcpHandlers>().CallToolAsync(request, ct))
+                request.Services!.GetRequiredService<OratorioMcpHandlers>().CallToolAsync(request, ct))
             .WithListResourcesHandler((request, ct) =>
-                request.Services!.GetRequiredService<OratorioBindingMcpHandlers>().ListResourcesAsync(request, ct))
+                request.Services!.GetRequiredService<OratorioMcpHandlers>().ListResourcesAsync(request, ct))
             .WithListResourceTemplatesHandler((request, ct) =>
-                request.Services!.GetRequiredService<OratorioBindingMcpHandlers>().ListResourceTemplatesAsync(request, ct))
+                request.Services!.GetRequiredService<OratorioMcpHandlers>().ListResourceTemplatesAsync(request, ct))
             .WithReadResourceHandler((request, ct) =>
-                request.Services!.GetRequiredService<OratorioBindingMcpHandlers>().ReadResourceAsync(request, ct));
+                request.Services!.GetRequiredService<OratorioMcpHandlers>().ReadResourceAsync(request, ct));
     }
 }

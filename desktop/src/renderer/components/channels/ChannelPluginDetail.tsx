@@ -228,7 +228,7 @@ export function ChannelPluginDetail({
               onRemove={onRemove}
             />
             {(canDisconnect || controls) ? (
-              <MorphingActionPill label={t(enabled ? 'appBinding.disconnect' : 'appBinding.connect')}
+              <MorphingActionPill label={t(enabled ? 'channels.disconnect' : 'channels.connect')}
                 loading={busy} onClick={() => void setEnabled(!enabled)} />
             ) : !plugin.installed && plugin.installable && onInstall ? (
               <MorphingActionPill label={t('plugins.install')} disabled={Boolean(channel.compatibilityError)}

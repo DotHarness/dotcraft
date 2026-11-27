@@ -4,9 +4,9 @@
   "version": "0.14.4",
   "displayName": "Oratorio",
   "description": "Manage local, GitHub, and GitLab work from one agent-driven project board.",
-  "capabilities": ["skill", "app"],
+  "capabilities": ["skill", "mcp"],
   "skills": "./skills/",
-  "apps": "./apps.json",
+  "mcpServers": "./.mcp.json",
   "desktop": {
     "entry": "./desktop/dist/index.mjs",
     "styles": ["./desktop/dist/index.css"]
@@ -17,7 +17,7 @@
     "longDescription": "Oratorio brings local tasks, GitHub and GitLab work, agent runs, reviews, and approved changes together on one unified project board.",
     "developerName": "DotHarness",
     "category": "Productivity",
-    "capabilities": ["App", "Skill", "Read", "Write"],
+    "capabilities": ["MCP", "Skill", "Read", "Write"],
     "defaultPrompt": "Please help me inspect and manage tasks on my Oratorio board.",
     "composerIcon": "./assets/oratorio-small.svg",
     "logo": "./assets/oratorio.svg",

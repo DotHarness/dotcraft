@@ -8,23 +8,6 @@ public sealed record ItemListResponse(IReadOnlyList<ItemSummaryDto> Items, strin
 
 public sealed record TaskListResponse(IReadOnlyList<ItemSummaryDto> Tasks, string? NextCursor);
 
-public sealed record DotCraftAppBindingHandoffRequest(string Url);
-
-public sealed record DotCraftAppBindingStatusResponse(
-    string AppId,
-    bool Available,
-    bool Configured,
-    bool Connected,
-    string State,
-    string WorkspacePath,
-    string Endpoint,
-    string EndpointSource,
-    string? AccountLabel,
-    DateTimeOffset? ConnectedAt,
-    DateTimeOffset? ExpiresAt,
-    string? Diagnostic,
-    string Message);
-
 public sealed record ItemDetailResponse(
     ItemDto Item,
     IReadOnlyList<RoundDto> Rounds,

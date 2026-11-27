@@ -3,7 +3,6 @@ import type { WindowIpcMain } from '../windowIpc'
 
 import type { OratorioRequest, OratorioServiceEvent } from '../../shared/oratorio'
 import type { DesktopHubClient } from '../desktopHub'
-import { setDesktopServiceHandoffHandler } from '../desktopServiceHandoff'
 import { OratorioProvider, type RemoteOratorioService } from './OratorioProvider'
 
 const GET_PATHS = [
@@ -57,10 +56,6 @@ export function registerOratorioIpc(
     revision = nextRevision
     send(event ? { type: 'board-event', revision, event } : { type: 'data-changed', revision })
   }, resolveRemoteService)
-  setDesktopServiceHandoffHandler(sender.id, async (url) => {
-    const handoff = await provider.handleDesktopServiceHandoff(url)
-    if (handoff) send({ type: 'handoff-requested', revision, handoff })
-  })
 
   ipc.handle('oratorio:get-context', () => provider.getContext())
   ipc.handle('oratorio:request', (_event, value: unknown) => provider.request(validateRequest(value)))
@@ -69,13 +64,6 @@ export function registerOratorioIpc(
     revision = context.revision
     send({ type: 'context-changed', revision })
     return { ...context, revision }
-  })
-  ipc.handle('oratorio:get-pending-handoff', () => provider.getPendingHandoff())
-  ipc.handle('oratorio:resolve-handoff', (_event, value: unknown) => {
-    if (!value || typeof value !== 'object') throw new Error('oratorio.invalid_handoff_resolution')
-    const resolution = value as { requestId?: unknown; approved?: unknown }
-    if (typeof resolution.requestId !== 'string' || typeof resolution.approved !== 'boolean') throw new Error('oratorio.invalid_handoff_resolution')
-    return provider.resolveHandoff(resolution.requestId, resolution.approved)
   })
   ipc.handle('oratorio:focus-run', (_event, runId: unknown) => {
     if (runId !== null && typeof runId !== 'string') throw new Error('oratorio.invalid_run_focus')
@@ -99,7 +87,6 @@ export function registerOratorioIpc(
     dispose: () => {
       if (disposed) return
       disposed = true
-      setDesktopServiceHandoffHandler(sender.id, null)
       provider.dispose()
     }
   }

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "oratorio": {
+      "command": "${DOTCRAFT_BIN}",
+      "arguments": ["oratorio", "mcp"]
+    }
+  }
+}

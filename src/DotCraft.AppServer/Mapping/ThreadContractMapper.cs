@@ -1,5 +1,4 @@
 using System.Text.Json;
-using DotCraft.AppBinding;
 using Domain = DotCraft.Sessions;
 using Contract = DotCraft.Protocol.AppServer;
 using DotCraft.Sessions.Wire;
@@ -150,82 +149,6 @@ internal static class ThreadContractMapper
         Icon = value.Icon,
         SubjectId = value.SubjectId,
         SubjectKind = value.SubjectKind
-    };
-
-    public static Contract.ThreadAppBindingSummary ToContract(ThreadAppBindingSummarySnapshot value) => new()
-    {
-        BindingRequestId = OmitIfNull(value.BindingRequestId),
-        ThreadId = value.ThreadId,
-        BindingId = value.BindingId,
-        AppId = value.AppId,
-        DisplayName = OmitIfNull(value.DisplayName),
-        Icon = OmitIfNull(value.Icon),
-        State = value.State,
-        Managed = value.Managed,
-        RequiresExternalConnection = value.RequiresExternalConnection,
-        ChannelTarget = value.ChannelTarget is null
-            ? default
-            : Protocol.Optional<Contract.ChannelTarget?>.FromValue(
-                ToContract(value.ChannelTarget)),
-        AuthorityRevision = value.AuthorityRevision == 0 ? default : value.AuthorityRevision,
-        ApprovedCapabilityRevision = value.ApprovedCapabilityRevision == 0
-            ? default
-            : value.ApprovedCapabilityRevision,
-        CandidateCapabilityRevision = OmitIfNull(value.CandidateCapabilityRevision),
-        ApprovedTools = Protocol.Optional<IReadOnlyList<Contract.AppBindingToolCapability>>.FromValue(
-            value.ApprovedTools.Select(ToContract).ToArray()),
-        PendingChanges = Protocol.Optional<IReadOnlyList<Contract.AppBindingCapabilityChange>>.FromValue(
-            value.PendingChanges.Select(ToContract).ToArray()),
-        FailureReason = OmitIfNull(value.FailureReason)
-    };
-
-    private static Contract.AppBindingToolCapability ToContract(AppBindingToolCapability value) => new()
-    {
-        SourceToolName = value.SourceToolName,
-        Description = value.Description,
-        NamespaceDescription = OmitIfNull(value.NamespaceDescription),
-        InputSchema = JsonSerializer.SerializeToElement(value.InputSchema, SessionWireJsonOptions.Default),
-        OutputSchema = value.OutputSchema is null ? default : Protocol.Optional<JsonElement?>.FromValue(JsonSerializer.SerializeToElement(value.OutputSchema, SessionWireJsonOptions.Default)),
-        Visibility = Protocol.Optional<IReadOnlyList<string>>.FromValue(value.Visibility),
-        Annotations = JsonSerializer.SerializeToElement(value.Annotations, SessionWireJsonOptions.Default),
-        Ui = value.Ui is null
-            ? default
-            : Protocol.Optional<Contract.AppBindingUiCapability?>.FromValue(
-                ToContract(value.Ui))
-    };
-
-    private static Contract.AppBindingUiCapability ToContract(AppBindingUiCapability value) => new()
-    {
-        ResourceUri = value.ResourceUri,
-        ConnectDomains = Protocol.Optional<IReadOnlyList<string>>.FromValue(value.ConnectDomains),
-        ResourceDomains = Protocol.Optional<IReadOnlyList<string>>.FromValue(value.ResourceDomains),
-        Permissions = Protocol.Optional<IReadOnlyList<string>>.FromValue(value.Permissions),
-        SecurityHash = value.SecurityHash
-    };
-
-    private static Contract.AppBindingCapabilityChange ToContract(AppBindingCapabilityChange value) => new()
-    {
-        Kind = value.Kind,
-        Tool = value.Tool,
-        Detail = value.Detail
-    };
-
-    private static Contract.ChannelTarget ToContract(ChannelTarget value) => new()
-    {
-        ChannelName = value.ChannelName,
-        AccountId = OmitIfNull(value.AccountId),
-        ConversationKind = value.ConversationKind,
-        ConversationId = value.ConversationId,
-        DeliveryTarget = value.DeliveryTarget,
-        DisplayName = OmitIfNull(value.DisplayName),
-        BoundBy = value.BoundBy is null
-            ? default
-            : Protocol.Optional<Contract.ChannelBoundBy?>.FromValue(
-                new Contract.ChannelBoundBy
-                {
-                    PlatformUserId = value.BoundBy.PlatformUserId,
-                    DisplayName = OmitIfNull(value.BoundBy.DisplayName)
-                })
     };
 
     public static Contract.TurnInitiatorContext ToContract(Domain.TurnInitiatorContext value) => new()

@@ -39,38 +39,6 @@ public sealed class AppServerWireDtoSerializationTests
                 TokenUsage = new Contract.SystemJobTokenUsage { InputTokens = 4, OutputTokens = 2 }
             }));
 
-        Assert.Equal(
-            "{\"connectionRequestId\":\"request-1\",\"appId\":\"app-1\",\"displayName\":\"Example\",\"developerName\":\"Example Developer\",\"userId\":\"user-1\",\"expiresAt\":\"2026-07-31T01:02:03+00:00\"}",
-            Serialize(new Contract.AppConnectionRequestGetResult
-            {
-                ConnectionRequestId = "request-1",
-                AppId = "app-1",
-                DisplayName = "Example",
-                DeveloperName = "Example Developer",
-                UserId = "user-1",
-                ExpiresAt = DateTimeOffset.Parse("2026-07-31T01:02:03Z")
-            }));
-
-        Assert.Equal(
-            "{\"bindingRequestId\":\"request-1\",\"bindingId\":\"binding-1\",\"threadId\":\"thread-1\",\"appId\":\"app-1\"}",
-            Serialize(new Contract.AppBindingRequestedNotification
-            {
-                BindingRequestId = "request-1",
-                BindingId = "binding-1",
-                ThreadId = "thread-1",
-                AppId = "app-1"
-            }));
-        Assert.Equal(
-            "{\"bindingRequestId\":\"request-2\",\"bindingId\":\"binding-2\",\"code\":\"ABC123\",\"channelName\":\"test-channel\",\"expiresAt\":\"2026-07-31T01:02:03+00:00\"}",
-            Serialize(new Contract.AppBindingRequestedNotification
-            {
-                BindingRequestId = "request-2",
-                BindingId = "binding-2",
-                Code = "ABC123",
-                ChannelName = "test-channel",
-                ExpiresAt = DateTimeOffset.Parse("2026-07-31T01:02:03Z")
-            }));
-
         using var input = JsonDocument.Parse("{\"type\":\"object\",\"x-extra\":true}");
         using var output = JsonDocument.Parse("{\"type\":\"string\"}");
         Assert.Equal(

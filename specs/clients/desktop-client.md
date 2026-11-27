@@ -6,7 +6,7 @@
 | **Status** | Living |
 | **Date** | 2026-11-27 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
-| **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [App Binding](../protocols/app-binding.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Hub Architecture](../architecture/hub-architecture.md), [Device Gateway](../protocols/device-gateway.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Goal Design](../features/goal.md), [Session Import](../features/session-import.md), [Desktop DESIGN.md](../architecture/DESIGN.md) |
+| **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Hub Architecture](../architecture/hub-architecture.md), [Device Gateway](../protocols/device-gateway.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Goal Design](../features/goal.md), [Session Import](../features/session-import.md), [Desktop DESIGN.md](../architecture/DESIGN.md) |
 
 Purpose: Define the stable user-experience behavior of **DotCraft Desktop** as a protocol client for DotCraft AppServer: user-visible flows, interaction rules, state ownership, state transitions, and recovery behavior. It does not define frontend implementation, visual design, or framework choices.
 
@@ -711,16 +711,6 @@ Creator mode points a thread at extending DotCraft itself: building or changing 
 - Selecting the context ring shows the Summary with its Context section open. The section's row follows the same `contextUsage` as the ring. Opened, it reads `thread/contextUsage/read` and reads it again whenever `contextUsage` changes while no turn runs; during a turn, tokens beyond the measured categories show as added since the last update. Its Compact button runs the same manual compaction as `/compact`.
 - The context ring updates from RPC responses that include `contextUsage`, from terminal compaction `system/event.contextUsage`, and from a compacted `SystemNotice`'s after-values, but never from compaction start events, whose counts are estimates.
 
-### 5.13.1 Continue in a Channel Chat
-
-A conversation can be continued in a connected channel chat through a channel binding ([App Binding](../protocols/app-binding.md)).
-
-- Only an existing thread's composer offers it. When `capabilities.channelStatus = true`, Desktop caches `channel/status` per workspace and refreshes it when stale or when capabilities change, never per render.
-- The slash surface shows one `/bind <channel>` action per running `social` or `external` channel. Selecting it or submitting `/bind <channel>` calls `thread/channelBindings/request/create` and never starts a turn. A bare `/bind` binds the only running channel; otherwise it suggests an example. Unknown or stopped channels report not connected.
-- The returned code is client-only, unpersisted thread state. A pending card shows the command to send in the channel, remaining time, copy, and cancel (which revokes the pending binding). Before a new request for the same channel, Desktop revokes a still-connecting one so the server does not reject a duplicate.
-- The card clears when `thread/appBindings/list` reports the binding settled: once active, the server's persistent channel notice takes over; on expiry Desktop revokes it and suggests `/bind` again.
-- Active bindings show a chip beside the thread title. Stopping continuation, from the header or `/unbind [<channel>]`, calls `thread/appBindings/revoke`; the server appends an unbound notice.
-
 ### 5.14 Desktop Runtime Thread Tools
 
 Desktop exposes a client-owned thread-management profile as Runtime Dynamic Tools declared on `thread/start`, `worktree/createAndStart`, and `thread/resume`.
@@ -918,22 +908,14 @@ The Plugins destination has `Plugins` and `Skills` tabs, shown when `capabilitie
 - Adding a marketplace collects a source, optional reference, and optional sparse paths, or a local directory. Fetch failures are reported inline so the user can correct input. After adding, the client shows the resolved source, reference, and revision.
 - Browse groups entries by category; a marketplace is a delivery route, not a category. A marketplace filter mode lists marketplace-sourced entries grouped by marketplace with per-group refresh and remove; it is offered only while a marketplace is configured.
 - Removing a marketplace does not remove installed plugins, and the confirmation says so.
-- Plugin detail lists skills, apps, and other included contributions. Installed skill switches use the same `skills/setEnabled` operation as Skills management; a disabled parent plugin shows its skills off without changing saved skill preferences. Skills are matched by plugin attribution and name; a skill shadowed by another source cannot be toggled from the plugin.
+- Plugin detail lists skills, MCP servers, and other included contributions. Installed skill switches use the same `skills/setEnabled` operation as Skills management; a disabled parent plugin shows its skills off without changing saved skill preferences. Skills are matched by plugin attribution and name; a skill shadowed by another source cannot be toggled from the plugin.
 - Plugin detail of an installed, enabled plugin shows a Settings section for each of its MCP servers that advertises the settings extension ([Tool Architecture §12.4](../architecture/tools-architecture.md#124-settings-extension)). Each change saves at once, toggles and choices when picked and text and numbers on blur or Enter, and the form then shows the server's values again. A failed read or save shows a retry. The form is read-only when the update tool is unavailable. MCP Servers settings keep plugin servers read-only and link to the plugin.
 - With `capabilities.pluginConfiguration`, the Settings section of an installed, enabled plugin that declares a settings schema ([Plugin Architecture §2.5](../architecture/plugin-architecture.md#25-settings-and-plugin-configuration)) starts with that configuration. A plugin whose Desktop extension contributes a main view or settings page manages its configuration there, and the section shows no configuration for it. Otherwise the host renders a row per field, labeled by its `title` or key, and writes the personal scope with the same save timing; lists, maps, and JSON save when the field loses focus. A field set in the workspace scope is read-only and says so. While a personal override is in effect, a Restore defaults action beside the section heading removes every personal override in one change. The form is read-only without a writable personal scope. A rejected save shows the error with the stored values, and the form follows `config/changed` for plugin configuration.
 - Installing a plugin, from a catalog or local folder, installs it for every workspace. Enablement can be turned off for the active workspace alone. Uninstalling a user-global plugin removes it everywhere, and the confirmation says so.
 - Marketplace controls are hidden without `capabilities.pluginMarketplaces`; marketplace add and local-directory install are unavailable for remote workspaces.
 - The catalog loads when the surface opens, after client mutations, and on explicit refresh only.
 
-#### 6.1.2 Plugin App Connection and Conversation Binding
-
-Desktop presents app-principal connection and thread binding as separate workflows, both backed by [App Binding](../protocols/app-binding.md):
-
-- A plugin's Apps section manages workspace-level app connection only: install, connect, reconnect, and disconnect. Disconnect confirms first because revoking the app principal also revokes its thread bindings.
-- Connecting an app is the user's decision to use it in the workspace. Every conversation started from Welcome binds each installed, enabled, connected app that requires an external connection; there is no per-conversation picker, and existing conversations' bindings do not change.
-- The first message creates and opens the thread; Desktop enables and awaits those bindings, then starts the Turn. A failed binding is reported as a warning and the Turn starts without that app.
-
-#### 6.1.3 Desktop Extensions
+#### 6.1.2 Desktop Extensions
 
 Installed and enabled plugins may contribute trusted Desktop modules through the inline `desktop` manifest declaration. Desktop derives entry points and content revision from AppServer plugin discovery rather than hardcoding plugin ids.
 
@@ -941,7 +923,6 @@ Installed and enabled plugins may contribute trusted Desktop modules through the
 - Desktop modules load from local installed plugin files or a verified local cache of a remote plugin's Desktop output; Desktop never executes JavaScript from remote URLs.
 - A remote AppServer must advertise `desktopPluginArtifacts` for Desktop to download and activate its plugin interfaces. Without it, Desktop skips them and explains the required server update; it never substitutes a local package or resolves a remote path locally.
 - Desktop extension code is trusted local renderer code. Installing and enabling the plugin is the local trust decision; remote interfaces additionally require a client-side grant per remote workspace. Bundled and user-installed plugins share one host API and lifecycle.
-- App Surface access goes through the trusted host's proxy, which follows the App Surface rules in [App Binding](../protocols/app-binding.md#32-app-surface-registry).
 - A failed plugin load shows an error state for that contribution without breaking core conversation workflows.
 
 ### 6.2 Automations

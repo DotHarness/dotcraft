@@ -7,15 +7,13 @@ import { ToolRowGlyph } from './ToolRowGlyph'
 export function ToolRowPluginIcon({
   item,
   fallback,
-  threadId,
   live
 }: {
   item: Pick<ConversationItem, 'type' | 'source'>
   fallback?: ToolRowIcon
-  threadId?: string | null
   live?: boolean
 }): JSX.Element | null {
-  const iconUrl = useToolPluginIconUrl(item, threadId)
+  const iconUrl = useToolPluginIconUrl(item)
   const [failedSrc, setFailedSrc] = useState<string | null>(null)
 
   if (iconUrl && failedSrc !== iconUrl) {

@@ -4,7 +4,7 @@ Use the SDK MCP runtime surface to inspect the servers visible to a thread, read
 
 ## Understand server scope
 
-An MCP server can come from workspace configuration, a plugin, a thread, or an App Binding. Status entries include an `origin` that identifies the source and, where applicable, the plugin, thread, or binding that owns it.
+An MCP server can come from workspace configuration, a plugin, or a thread. Status entries include an `origin` that identifies the source and, where applicable, the plugin or thread that owns it.
 
 Each thread owns its MCP connections, including servers inherited from workspace or plugin configuration. Turns in the same loaded thread reuse those sessions; other threads establish separate sessions.
 
@@ -158,7 +158,6 @@ Reload refreshes configuration and the next thread tool snapshot, retaining unch
 | --- | --- |
 | Expose an application callback as a tool for one thread | [Runtime Dynamic Tools](./tools#runtime-dynamic-tools) |
 | Inspect or directly control a configured MCP server | MCP runtime API on this page |
-| Connect a product integration with thread-scoped authority | [DotCraft App](../app-binding) |
 
 ## Related docs
 

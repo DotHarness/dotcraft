@@ -2,8 +2,6 @@
 
 MCP Apps 允许 MCP 工具附带交互式结果视图。MCP server 声明 `ui://` resource，DotCraft Desktop 通过标准 AppBridge contract 在沙箱中渲染它。其他客户端继续使用工具的文本 fallback。
 
-[App Binding](./app-binding) 不定义独立 UI 协议。App Binding 应用从自己的 binding-scoped Streamable HTTP MCP server 提供工具和视图。
-
 ## 声明视图
 
 在 MCP 工具上添加稳定的 UI metadata：
@@ -57,4 +55,3 @@ UI 通过官方 `@modelcontextprotocol/ext-apps` client 通信。使用 `tools/c
 - 宿主 CSP 从 `default-src 'none'` 起步，只按 resource 的声明放行指定 HTTPS origin。
 - 无论 resource 声明什么，浏览器 permission 都不会被授予。
 - App 发起的工具调用会重新对照当前 tool snapshot 校验：必须来自同一个 MCP server，并且仍然声明 app 可见性。
-- 撤销 App Binding 会立即关闭对应 MCP session 和视图。

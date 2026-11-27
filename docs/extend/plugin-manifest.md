@@ -45,7 +45,6 @@ To have the agent write a plugin for you, start with `$plugin-creator`. It uses 
 | `mcpServers` | path | MCP server config. Defaults to a root `.mcp.json` |
 | `lspServers` | path | Language server config. Defaults to a root `.lsp.json` |
 | `hooks` | path, array, or object | Lifecycle hooks. Defaults to a root `hooks/hooks.json` |
-| `apps` | path | [App Binding](./app-binding) descriptors |
 | `channel` | object | [Channel module](./channel-modules) descriptor and bundled launcher |
 | `workflows` | path | Dynamic Workflow directory. Defaults to a root `workflows/` |
 | `settings` | path | Settings schema |

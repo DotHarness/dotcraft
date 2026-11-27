@@ -1,10 +1,8 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
   DotCraft,
-  parseAppBindingHandoff,
   type ApprovalDecision,
   type ApprovalHandler,
   type UserInputHandler,
@@ -25,11 +23,6 @@ import {
   makeTurn,
 } from "./test-contract-fixtures.js";
 import type { DotCraftWireClient, ServerRequestHandler } from "./client.js";
-
-const appBindingFixture = JSON.parse(readFileSync(
-  new URL("../../../specs/protocols/fixtures/app-binding.json", import.meta.url),
-  "utf8",
-)) as { version: number; states: string[]; channelMethods: string[]; errors: Record<string, string> };
 
 class FakeWire {
   readonly requestHandlers = new Map<string, ServerRequestHandler>();
@@ -370,96 +363,4 @@ test("DotCraftThread runStreamed interrupts the active turn on abort", async () 
 
   assert.deepEqual(seen, ["turn_started", "cancelled"]);
   assert.deepEqual(wire.interrupted, { threadId: "thread-1", turnId: "turn-1" });
-});
-
-test("parseAppBindingHandoff extracts fields and validates scheme and appId", () => {
-  const handoff = parseAppBindingHandoff(
-    "board-example://dotcraft/connect?app=com.example.board&request=req_1&token=tok_1&endpoint=ws://127.0.0.1:1234/x",
-    { expectedScheme: "board-example", expectedAppId: "com.example.board" },
-  );
-  assert.equal(handoff.operation, "connect");
-  assert.equal(handoff.appId, "com.example.board");
-  assert.equal(handoff.requestId, "req_1");
-  assert.equal(handoff.requestToken, "tok_1");
-  assert.equal(handoff.appServerUrl, "ws://127.0.0.1:1234/x");
-  assert.throws(() =>
-    parseAppBindingHandoff("evil://dotcraft/connect?app=x&request=r&token=t", {
-      expectedScheme: "board-example",
-    }),
-  );
-  assert.throws(() => parseAppBindingHandoff(
-    "board-example://dotcraft/connect?appId=com.example.board&requestId=req_1&requestToken=tok_1",
-  ));
-});
-
-test("DotCraft appBindings channel binding helpers send expected JSON-RPC params", async () => {
-  const wire = new FakeWire();
-  const sdk = createSdk(wire);
-  const channelTarget = {
-    channelName: "qq",
-    conversationKind: "group",
-    conversationId: "123",
-    deliveryTarget: "group:123",
-    displayName: "QQ group 123",
-    boundBy: {
-      platformUserId: "456",
-      displayName: "Alice",
-    },
-  };
-
-  await sdk.appBindings.createChannelBindingRequest({
-    threadId: "thread-1",
-    channelName: "qq",
-  });
-  await sdk.appBindings.getBindingRequest({
-    bindCode: "482913",
-    requestToken: "482913",
-  });
-  await sdk.appBindings.acceptChannelBinding({
-    requestToken: "482913",
-    channelTarget,
-  });
-  await sdk.appBindings.resolveChannelBinding({
-    channelName: "qq",
-    conversationKind: "group",
-    conversationId: "123",
-  });
-  await sdk.appBindings.enqueueThreadInput({
-    bindingId: "binding-1",
-    input: [{ type: "text", text: "hello" }],
-    displayText: "hello",
-    triggerLabel: "qq message",
-    triggerRefId: "qq::group:123",
-    startPolicy: "runWhenIdle",
-    sender: { senderId: "456", senderName: "Alice", senderRole: "user", groupId: "group:123" },
-  });
-
-  assert.deepEqual(wire.requests.map((request) => request.method), appBindingFixture.channelMethods.filter(
-    (method) => method !== "app/channelBinding/rebind",
-  ));
-  assert.deepEqual(wire.requests[0]?.params, {
-    threadId: "thread-1",
-    channelName: "qq",
-  });
-  assert.deepEqual(wire.requests[1]?.params, {
-    code: "482913",
-  });
-  assert.deepEqual(wire.requests[2]?.params, {
-    code: "482913",
-    target: channelTarget,
-  });
-  assert.deepEqual(wire.requests[3]?.params, {
-    channelName: "qq",
-    conversationKind: "group",
-    conversationId: "123",
-  });
-  assert.deepEqual(wire.requests[4]?.params, {
-    bindingId: "binding-1",
-    input: [{ type: "text", text: "hello" }],
-    displayText: "hello",
-    triggerLabel: "qq message",
-    triggerRefId: "qq::group:123",
-    startPolicy: "runWhenIdle",
-    sender: { senderId: "456", senderName: "Alice", senderRole: "user", groupId: "group:123" },
-  });
 });

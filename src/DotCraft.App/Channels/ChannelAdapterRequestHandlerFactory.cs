@@ -1,5 +1,4 @@
 using DotCraft.Agents;
-using DotCraft.AppBinding;
 using DotCraft.AppServer;
 using DotCraft.Configuration;
 using DotCraft.Logging;
@@ -23,7 +22,6 @@ internal sealed class ChannelAdapterRequestHandlerFactory(
     SessionStreamDebugLogger? streamDebugLogger,
     IAppConfigMonitor? appConfigMonitor,
     IReadOnlyList<IAppServerProtocolExtension> protocolExtensions,
-    AppBindingService? appBindingService,
     IReadOnlyList<IThreadOriginPresentationProvider> originPresentationProviders,
     ILoggerFactory? loggerFactory,
     WireRuntimeAdditionalContextProvider? wireRuntimeAdditionalContextProvider = null,
@@ -53,7 +51,6 @@ internal sealed class ChannelAdapterRequestHandlerFactory(
                 ChatClientRegistry = chatClientRegistry,
                 ModelProviderRegistry = modelProviderRegistry,
                 ProtocolExtensions = protocolExtensions,
-                AppBindingService = appBindingService,
                 ThreadOriginPresentationProviders = originPresentationProviders,
                 LoggerFactory = loggerFactory,
                 WireRuntimeAdditionalContextProvider = wireRuntimeAdditionalContextProvider,

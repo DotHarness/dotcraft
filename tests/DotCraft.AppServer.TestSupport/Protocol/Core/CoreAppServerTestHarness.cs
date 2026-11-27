@@ -1,5 +1,4 @@
 using System.Text.Json;
-using DotCraft.AppBinding;
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Commands.Core;
@@ -69,7 +68,6 @@ internal sealed class CoreAppServerTestHarness : IDisposable
         IBackgroundTerminalService? backgroundTerminalService = null,
         IAppServerChannelListContributor? channelListContributor = null,
         DreamsService? dreamsService = null,
-        AppBindingService? appBindingService = null,
         PlanStore? planStore = null,
         IContextPageManager? contextPageManager = null,
         OpenAIClientProvider? openAIClientProvider = null,
@@ -139,7 +137,6 @@ internal sealed class CoreAppServerTestHarness : IDisposable
                 WireDynamicToolProxy = wireDynamicToolProxy,
                 BackgroundTerminalService = backgroundTerminalService,
                 DreamsService = dreamsService,
-                AppBindingService = appBindingService,
                 ThreadOriginPresentationProviders = threadOriginPresentationProviders,
                 PlanStore = planStore,
                 ContextPageManager = contextPageManager,

@@ -36,16 +36,6 @@ export function installOratorioTestHost(overrides: Partial<DesktopPluginHost> = 
     session: { workspacePath: null, threadId: null, mode: 'agent', busy: false, onChange() { return () => undefined } },
     threads: { findOwned: () => null } as unknown as DesktopPluginHost['threads'],
     appServer: { request: async () => { throw new Error('Unexpected AppServer request.') }, onNotification: () => () => undefined },
-    appBindings: {
-      getConnectionStatus: async () => { throw new Error('Unexpected app binding request.') },
-      startConnection: async () => { throw new Error('Unexpected app binding request.') },
-      openNativeApp: async () => undefined,
-      enableThread: async () => { throw new Error('Unexpected app binding request.') }
-    },
-    appSurfaces: {
-      getJson: async () => { throw new Error('Unexpected app surface request.') },
-      postJson: async () => { throw new Error('Unexpected app surface request.') }
-    },
     workspaces: {
       async listLocalProjects() {
         const payload = await window.api.workspace.getProjects()
@@ -58,8 +48,6 @@ export function installOratorioTestHost(overrides: Partial<DesktopPluginHost> = 
       getContext: () => api.getContext(),
       request: (request) => api.request(request),
       retry: () => api.retry(),
-      getPendingHandoff: () => api.getPendingHandoff(),
-      resolveHandoff: (requestId, approved) => api.resolveHandoff(requestId, approved),
       focusRun: (runId) => api.focusRun(runId),
       onEvent: (listener) => api.onEvent(listener)
     },

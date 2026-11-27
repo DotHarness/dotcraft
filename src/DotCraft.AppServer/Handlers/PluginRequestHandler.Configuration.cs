@@ -105,7 +105,7 @@ internal sealed partial class PluginRequestHandler
 
         if (plugin.Manifest.Channel != null)
         {
-            if (connection.IsChannelAdapter || connection.IsAppPrincipalAuthenticated)
+            if (connection.IsChannelAdapter)
                 throw AppServerErrors.InvalidRequest("Channel settings require a workspace management connection.");
             if (channelPlugins == null)
                 throw AppServerErrors.MethodNotFound(method);
@@ -132,7 +132,7 @@ internal sealed partial class PluginRequestHandler
         foreach (var plugin in discovery.Plugins.Where(plugin => plugin.Installed))
         {
             if (plugin.Manifest.Channel is { } channel && channelPlugins != null
-                && !connection.IsChannelAdapter && !connection.IsAppPrincipalAuthenticated
+                && !connection.IsChannelAdapter
                 && !channelPlugins.HasDescriptorConflict(discovery.Plugins, plugin))
             {
                 try

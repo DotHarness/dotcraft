@@ -310,7 +310,7 @@ public sealed partial class DynamicWorkflowServiceTests : IDisposable
         var extension = new DynamicWorkflowProtocolExtension(restartedService, restartedProjection);
         await using var transport = new NullTransport();
         var context = new AppServerExtensionContext(
-            new AppServerConnection(), transport, session, null, _root, null, null, null, CancellationToken.None);
+            new AppServerConnection(), transport, session, null, _root, null, null, CancellationToken.None);
         var read = Assert.IsType<Contract.WorkflowRunReadResult>(await extension.HandleContractAsync(
             Contract.AppServerRpc.WorkflowRunRead,
             new Contract.WorkflowRunParams { ThreadId = proxy.Thread.Id, RunId = first.RunId },

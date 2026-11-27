@@ -19,18 +19,9 @@ export interface OratorioResponse<T = unknown> {
 }
 
 export interface OratorioServiceEvent {
-  type: 'context-changed' | 'data-changed' | 'board-event' | 'handoff-requested'
+  type: 'context-changed' | 'data-changed' | 'board-event'
   revision: number
   event?: OratorioBoardEvent
-  handoff?: OratorioHandoffRequest
-}
-
-export interface OratorioHandoffRequest {
-  requestId: string
-  operation: 'connect' | 'bind'
-  appId: string
-  workspacePath: string
-  summary: string
 }
 
 export interface OratorioBoardEvent {
@@ -49,8 +40,6 @@ export interface OratorioApi {
   getContext(): Promise<OratorioServiceContext>
   request<T = unknown>(request: OratorioRequest): Promise<OratorioResponse<T>>
   retry(): Promise<OratorioServiceContext>
-  getPendingHandoff(): Promise<OratorioHandoffRequest | null>
-  resolveHandoff(requestId: string, approved: boolean): Promise<void>
   focusRun(runId: string | null): Promise<void>
   onEvent(callback: (event: OratorioServiceEvent) => void): () => void
 }

@@ -1,4 +1,3 @@
-using DotCraft.AppBinding;
 using DotCraft.Skills;
 
 namespace DotCraft.Plugins;
@@ -84,7 +83,6 @@ public static partial class PluginVerifier
         PluginMcpServerLoader.LoadPluginServers(plugin, diagnostics);
         PluginLspServerLoader.LoadPluginServers(plugin, diagnostics);
         PluginHookLoader.LoadPluginHooks(plugin, diagnostics);
-        AppBindingCatalog.LoadPluginAppDescriptors(plugin, diagnostics);
 
         foreach (var diagnostic in diagnostics.Where(d => d.Severity != PluginDiagnosticSeverity.Info))
             findings.Error(diagnostic.Code, diagnostic.Message, diagnostic.Path);
@@ -131,7 +129,7 @@ public static partial class PluginVerifier
     {
         var files = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { manifest.ManifestPath };
         files.UnionWith(Directory.EnumerateFiles(manifest.RootPath, "*.json"));
-        foreach (var path in new[] { manifest.McpServersPath, manifest.LspServersPath, manifest.AppsPath, manifest.Channel?.ManifestPath })
+        foreach (var path in new[] { manifest.McpServersPath, manifest.LspServersPath, manifest.Channel?.ManifestPath })
         {
             if (path != null)
                 files.Add(path);

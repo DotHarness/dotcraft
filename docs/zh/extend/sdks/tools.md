@@ -104,7 +104,6 @@ Handler 返回以下一种结果：
 
 恢复 thread 时传入同一组声明。Wire 重连会重放初始化，但不会恢复 thread、run 或动态工具状态，所以重连后要先刷新或恢复 thread 并重新绑定运行时工具，才能继续依赖它们。
 
-App Binding 工具走的是另一条路径。它们使用 binding 作用域的 MCP session 和 App Binding 错误 helper，见 [DotCraft App](../app-binding)。
 
 ## 审批
 

@@ -185,7 +185,7 @@ public sealed class SourceSetupToolTests : IDisposable
         var changes = await client.GetStringAsync("/api/v1/settings/server-configuration/changes");
         Assert.DoesNotContain(token, changes, StringComparison.Ordinal);
         var audit = JsonSerializer.Deserialize<IReadOnlyList<ConfigurationChangeDto>>(changes, JsonOptions)!;
-        Assert.All(audit, change => Assert.Equal("app-binding", change.Actor));
+        Assert.All(audit, change => Assert.Equal("mcp", change.Actor));
         Assert.Contains(audit[0].ChangedFields, field => field.EndsWith(".secrets.token", StringComparison.Ordinal));
 
         var setup = (await CallAsync(app, OratorioDynamicToolCatalog.GetSourceSetupName, new { })).StructuredContent!.Value;
@@ -257,9 +257,8 @@ public sealed class SourceSetupToolTests : IDisposable
             new OratorioToolInvocationContext(
                 scope.ServiceProvider,
                 call,
-                OratorioToolSurface.AppBinding,
-                BindingGrant: new OratorioAppBindingGrantContext("binding-1", 1)),
-            catalog.BindingDescriptors.Select(x => x.LocalName).ToHashSet(StringComparer.Ordinal),
+                OratorioToolSurface.Mcp),
+            catalog.McpDescriptors.Select(x => x.LocalName).ToHashSet(StringComparer.Ordinal),
             CancellationToken.None);
     }
 

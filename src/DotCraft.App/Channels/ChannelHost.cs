@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using DotCraft.AppBinding;
 using DotCraft.AppServer;
 using DotCraft.Workspaces;
 using DotCraft.Configuration;
@@ -81,7 +80,6 @@ public sealed partial class ChannelHost : IChannelService, IAdapterChannelToolRu
         SessionStreamDebugLogger? streamDebugLogger = null,
         IAppConfigMonitor? appConfigMonitor = null,
         IEnumerable<IAppServerProtocolExtension>? protocolExtensions = null,
-        AppBindingService? appBindingService = null,
         IEnumerable<IThreadOriginPresentationProvider>? originPresentationProviders = null,
         ILoggerFactory? loggerFactory = null,
         WireRuntimeAdditionalContextProvider? wireRuntimeAdditionalContextProvider = null,
@@ -103,7 +101,6 @@ public sealed partial class ChannelHost : IChannelService, IAdapterChannelToolRu
             streamDebugLogger,
             appConfigMonitor,
             protocolExtensions,
-            appBindingService,
             originPresentationProviders,
             loggerFactory,
             wireRuntimeAdditionalContextProvider: wireRuntimeAdditionalContextProvider,
@@ -126,7 +123,6 @@ public sealed partial class ChannelHost : IChannelService, IAdapterChannelToolRu
         SessionStreamDebugLogger? streamDebugLogger = null,
         IAppConfigMonitor? appConfigMonitor = null,
         IEnumerable<IAppServerProtocolExtension>? protocolExtensions = null,
-        AppBindingService? appBindingService = null,
         IEnumerable<IThreadOriginPresentationProvider>? originPresentationProviders = null,
         ILoggerFactory? loggerFactory = null,
         TimeSpan? initialBackoff = null,
@@ -151,7 +147,6 @@ public sealed partial class ChannelHost : IChannelService, IAdapterChannelToolRu
             streamDebugLogger,
             appConfigMonitor,
             protocolExtensions,
-            appBindingService,
             originPresentationProviders,
             loggerFactory,
             initialBackoff,
@@ -179,7 +174,6 @@ public sealed partial class ChannelHost : IChannelService, IAdapterChannelToolRu
         SessionStreamDebugLogger? streamDebugLogger = null,
         IAppConfigMonitor? appConfigMonitor = null,
         IEnumerable<IAppServerProtocolExtension>? protocolExtensions = null,
-        AppBindingService? appBindingService = null,
         IEnumerable<IThreadOriginPresentationProvider>? originPresentationProviders = null,
         ILoggerFactory? loggerFactory = null,
         TimeSpan? initialBackoff = null,
@@ -218,7 +212,6 @@ public sealed partial class ChannelHost : IChannelService, IAdapterChannelToolRu
             streamDebugLogger,
             _appConfigMonitor,
             protocolExtensions?.ToArray() ?? [],
-            appBindingService,
             originPresentationProviders?.ToArray() ?? [],
             loggerFactory,
             wireRuntimeAdditionalContextProvider,

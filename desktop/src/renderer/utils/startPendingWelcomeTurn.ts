@@ -1,13 +1,9 @@
 import { captureComposerAttachmentTarget } from './prepareComposerAttachments'
 import type { PendingWelcomeTurnInput } from '../stores/uiStore'
-import { AppBindingWaitAbortedError } from '../stores/appBindingStore'
-import { useConversationStore } from '../stores/conversationStore'
 import { showThreadRouteFailureToast, useThreadRouteStore } from '../stores/threadRouteStore'
 import { useThreadStore } from '../stores/threadStore'
-import { addToast } from '../stores/toastStore'
-import { activateThreadAppBindings } from './threadAppBindings'
 import { restoreRejectedWelcomeInput } from './welcomeSubmissionRecovery'
-import { echoOptimisticTurn, submitOptimisticTurn, type OptimisticTurn } from './startTurn'
+import { echoOptimisticTurn, submitOptimisticTurn } from './startTurn'
 
 type TranslateFn = (key: string, vars?: Record<string, string | number>) => string
 
@@ -15,14 +11,12 @@ export async function startPendingWelcomeTurn({
   threadId,
   pending,
   workspacePath,
-  translate,
-  signal
+  translate
 }: {
   threadId: string
   pending: Omit<PendingWelcomeTurnInput, 'threadId'>
   workspacePath: string
   translate: TranslateFn
-  signal?: AbortSignal
 }): Promise<void> {
   const target = captureComposerAttachmentTarget(threadId)
   const onScreen = useThreadStore.getState().activeThreadId === threadId
@@ -43,9 +37,6 @@ export async function startPendingWelcomeTurn({
   })
   if (!echo) return
 
-  const appIds = pending.appIds ?? []
-  if (appIds.length > 0 && !(await activateStagedApps({ threadId, echo, appIds, translate, signal }))) return
-
   const routeFailure = await useThreadRouteStore.getState().applyPendingRoute(threadId)
   if (routeFailure) {
     showThreadRouteFailureToast(routeFailure.hostName, routeFailure.error, translate)
@@ -63,39 +54,4 @@ export async function startPendingWelcomeTurn({
     void restoreRejectedWelcomeInput(threadId, echo.inputParts)
       .catch((restoreError) => console.error('Unable to restore Welcome input:', restoreError))
   }
-}
-
-async function activateStagedApps({
-  threadId,
-  echo,
-  appIds,
-  translate,
-  signal
-}: {
-  threadId: string
-  echo: OptimisticTurn
-  appIds: string[]
-  translate: TranslateFn
-  signal?: AbortSignal
-}): Promise<boolean> {
-  // Activation can outlive the user's stay, so conversation state moves only while this thread is on screen.
-  const onScreen = (): boolean => useThreadStore.getState().activeThreadId === threadId
-  const abandon = async (): Promise<void> => {
-    if (onScreen()) useConversationStore.getState().removeOptimisticTurn(echo.optimisticTurnId)
-    await restoreRejectedWelcomeInput(threadId, echo.inputParts)
-      .catch((restoreError) => console.error('Unable to restore Welcome input:', restoreError))
-  }
-
-  try {
-    await activateThreadAppBindings({ threadId, appIds, translate, signal })
-  } catch (err) {
-    if (!(err instanceof AppBindingWaitAbortedError)) {
-      addToast(err instanceof Error ? err.message : String(err), 'warning')
-    }
-  }
-  if (signal?.aborted) {
-    await abandon()
-    return false
-  }
-  return true
 }

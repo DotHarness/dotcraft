@@ -5,7 +5,7 @@
 | **Version** | 0.9.1 |
 | **Status** | Living |
 | **Date** | 2026-10-19 |
-| **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [AppServer Protocol Contracts and SDK Generation](protocol-contract-generation.md), [Hub Architecture](../architecture/hub-architecture.md), [App Binding](../protocols/app-binding.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Session Core](../architecture/session-core.md) |
+| **Related Specs** | [AppServer Protocol](../protocols/appserver-protocol.md), [AppServer Protocol Contracts and SDK Generation](protocol-contract-generation.md), [Hub Architecture](../architecture/hub-architecture.md), [External Channel Adapter](../protocols/external-channel-adapter.md), [Session Core](../architecture/session-core.md) |
 
 Purpose: define the shared SDK design contract for DotCraft across languages while allowing each language binding to keep idiomatic package structure, runtime constraints, publishing rules, and environment-specific helpers.
 
@@ -25,7 +25,6 @@ This specification does not define:
 
 - AppServer JSON-RPC wire semantics. See [AppServer Protocol](../protocols/appserver-protocol.md).
 - Hub HTTP endpoint semantics. See [Hub Architecture](../architecture/hub-architecture.md).
-- App Binding product semantics. See [App Binding](../protocols/app-binding.md).
 - Session persistence, turn lifecycle, item payload semantics, or agent internals. See [Session Core](../architecture/session-core.md).
 - Exact package exports, class names, namespace layout, or publishing workflows. Those live in the language binding specs.
 
@@ -51,7 +50,6 @@ Bindings stay idiomatic in *form* — async suffixes, casing, iteration primitiv
 | Approval handler | `approvalHandler` | `ApprovalHandler` |
 | User-input handler | `userInputHandler` | `UserInputHandler` |
 | Dynamic tool handler | `thread.onToolCall()` | `thread.OnToolCall()` |
-| App Binding helpers | `dotcraft.appBindings` | `client.AppBindings` |
 
 Streaming is a variant of one verb (`run` vs `runStreamed`), not a separate object model. Both return the same normalized event type, exposed over each language's native iteration primitive: `for await … of` (TypeScript) and `await foreach` over `IAsyncEnumerable<T>` (.NET).
 
@@ -61,7 +59,7 @@ Every general-purpose binding has three public SDK layers:
 
 1. **Contracts** is the only AppServer wire model. It contains generated wire DTOs, the four RPC direction maps or descriptors, method groups, notification registries, and protocol metadata. It performs no transport I/O.
 2. **Wire** owns JSON-RPC framing, generated typed operations, explicitly named raw escape hatches, initialization, request correlation, connection state, timeouts, and optional reconnection. It does not re-export Contracts or own Thread, Run, callback, Dynamic Tool, or Channel policy.
-3. **High-level** owns product concepts such as `DotCraft`, `DotCraftThread`, Run, callbacks, input helpers, App Binding helpers, and high-level errors. It composes Wire and returns Contracts DTOs instead of defining synonymous projections.
+3. **High-level** owns product concepts such as `DotCraft`, `DotCraftThread`, Run, callbacks, input helpers, and high-level errors. It composes Wire and returns Contracts DTOs instead of defining synonymous projections.
 
 Channel authoring and hosted Channel runtime APIs are outside these three SDK layers. TypeScript ships them from the independent `@dotcraft/channel` package.
 
@@ -156,11 +154,7 @@ The Run profile is the high-level one-turn application API and is **required for
 - Cancellation performs a best-effort `turn/interrupt`.
 - Disconnection terminates the active Run without replay; recovery uses persisted Thread and Turn state.
 
-### 3.5 App Binding Profile
-
-The App Binding profile exposes typed connection, principal, binding, surface, and capability-confirmation operations from [App Binding](../protocols/app-binding.md). It also provides native handoff parsing when supported by the runtime. SDK helpers preserve the protocol's principal roles and whole-app authorization boundary; they do not introduce a separate tool or consent model.
-
-### 3.6 Channel Adapter Profile
+### 3.5 Channel Adapter Profile
 
 The Channel Adapter profile is required only for languages that ship first-party external channel adapters. The hosted-module runtime (manifests, config descriptors, module lifecycle, conformance helpers) is a TypeScript-only sub-profile.
 

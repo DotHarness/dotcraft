@@ -95,8 +95,8 @@ may set `toolApprovalMode` as defined in [Tool Architecture](tools-architecture.
 enabling the plugin accepts the declared mode, since the plugin already supplies the server it
 launches.
 
-Plugin stdio MCP declarations expand `${PLUGIN_ROOT}` (absolute plugin root) and
-`${PLUGIN_DATA}` (the shared plugin data directory in §2.5) in `command`, `arguments`,
+Plugin stdio MCP declarations expand `${PLUGIN_ROOT}` (absolute plugin root),
+`${PLUGIN_DATA}` (the shared plugin data directory in §2.5), and `${DOTCRAFT_BIN}` (the active DotCraft host executable or entry assembly) in `command`, `arguments`,
 `environmentVariables` values, and `cwd`. Expansion is case-sensitive and single-pass: inserted
 paths are not expanded again, and unknown placeholders remain literal. Arguments and environment
 values otherwise remain opaque, without path normalization or shell escaping. Only path fields
@@ -129,12 +129,7 @@ inline objects. When omitted, discovery checks `./hooks/hooks.json`, then `./hoo
 explicit declaration suppresses defaults. Only installed, enabled plugins contribute hooks;
 discovery never executes them.
 
-### 2.4 Apps, Desktop, and interface metadata
-
-`apps` points to an App Binding descriptor document, for example `"./apps.json"`. Apps of installed,
-enabled plugins are eligible for App Binding connection and thread binding. Catalog-visible
-built-ins may expose app metadata before installation, but connection and binding are blocked until
-the plugin is installed and enabled.
+### 2.4 Desktop and interface metadata
 
 `desktop` declares one trusted Desktop module built with `@dotcraft/plugin`:
 

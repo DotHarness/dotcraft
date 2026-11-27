@@ -64,17 +64,7 @@ internal static class McpProtocolClientFactory
             if (headers.Count > 0)
                 options.AdditionalHeaders = headers;
 
-            if (server.Origin.IsBinding)
-            {
-                // A binding endpoint is an authority boundary. Following a redirect could move the
-                // one-time bearer to a different origin without a fresh activation decision.
-                var handler = new HttpClientHandler { AllowAutoRedirect = false };
-                transport = new HttpClientTransport(options, new HttpClient(handler), loggerFactory: null, ownsHttpClient: true);
-            }
-            else
-            {
-                transport = new HttpClientTransport(options);
-            }
+            transport = new HttpClientTransport(options);
         }
         else
         {
@@ -82,12 +72,17 @@ internal static class McpProtocolClientFactory
                 throw new InvalidOperationException($"MCP server '{server.Name}' has transport 'stdio' but no Command configured.");
 
             var environmentVariables = McpStdioEnvironment.CreateOverlay(server);
+            var isDotNetAssembly = server.Command.EndsWith(".dll", StringComparison.OrdinalIgnoreCase);
+            var command = isDotNetAssembly ? "dotnet" : server.Command;
+            List<string>? arguments = isDotNetAssembly
+                ? [server.Command, .. server.Arguments]
+                : server.Arguments is { Count: > 0 } ? server.Arguments : null;
 
             var options = new StdioClientTransportOptions
             {
-                Command = server.Command,
+                Command = command,
                 Name = server.Name,
-                Arguments = server.Arguments is { Count: > 0 } ? server.Arguments : null,
+                Arguments = arguments,
                 EnvironmentVariables = environmentVariables.Count > 0 ? environmentVariables : null,
                 InheritEnvironmentVariables = true,
                 WorkingDirectory = string.IsNullOrWhiteSpace(server.Cwd) ? null : server.Cwd

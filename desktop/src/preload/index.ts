@@ -500,12 +500,6 @@ const api = {
     retry(): Promise<OratorioServiceContext> {
       return ipcRenderer.invoke('oratorio:retry')
     },
-    getPendingHandoff(): Promise<import('../shared/oratorio').OratorioHandoffRequest | null> {
-      return ipcRenderer.invoke('oratorio:get-pending-handoff')
-    },
-    resolveHandoff(requestId: string, approved: boolean): Promise<void> {
-      return ipcRenderer.invoke('oratorio:resolve-handoff', { requestId, approved })
-    },
     focusRun(runId: string | null): Promise<void> {
       return ipcRenderer.invoke('oratorio:focus-run', runId)
     },
@@ -786,10 +780,6 @@ const api = {
       return ipcRenderer.invoke('shell:open-desktop-link', url)
     },
 
-    openAppHandoff(url: string): Promise<void> {
-      return ipcRenderer.invoke('shell:open-app-handoff', url)
-    },
-
     getProtocolHandlerName(protocol: string): Promise<string> {
       return ipcRenderer.invoke('shell:get-protocol-handler-name', protocol)
     },
@@ -929,32 +919,6 @@ const api = {
     },
     removeModule(params: { pluginId: string; revision: string; sourceKey?: string }): Promise<{ ok: boolean }> {
       return ipcRenderer.invoke('desktop-plugin:remove-module', params)
-    },
-    appSurfaceGetJson(params: {
-      appId: string
-      surfaceId: string
-      relativePath: string
-      timeoutMs?: number
-    }): Promise<unknown> {
-      return ipcRenderer.invoke('desktop-plugin:app-surface-get-json', params)
-    },
-    appSurfacePostJson(params: {
-      appId: string
-      surfaceId: string
-      relativePath: string
-      body?: unknown
-      timeoutMs?: number
-    }): Promise<unknown> {
-      return ipcRenderer.invoke('desktop-plugin:app-surface-post-json', params)
-    },
-    getAppConnectionStatus(params: { appId: string }): Promise<unknown> {
-      return ipcRenderer.invoke('desktop-plugin:app-connection-status', params)
-    },
-    startAppConnection(params: { appId: string }): Promise<unknown> {
-      return ipcRenderer.invoke('desktop-plugin:app-connection-start', params)
-    },
-    openApp(params: { appId: string; url: string }): Promise<void> {
-      return ipcRenderer.invoke('desktop-plugin:app-open', params)
     }
   },
 

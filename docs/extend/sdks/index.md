@@ -18,7 +18,7 @@ Inside a DotCraft conversation, `$dotcraft-api` routes SDK questions to the late
 
 | Layer | Use it for |
 | --- | --- |
-| **High-level** | Applications that work with `DotCraft`, threads, runs, callbacks, models, MCP runtime, or App Binding. Start here. |
+| **High-level** | Applications that work with `DotCraft`, threads, runs, callbacks, models, or MCP runtime. Start here. |
 | **Wire** | Typed JSON-RPC, connection state, timeouts, and explicit raw extension calls. |
 | **Contracts** | Generated DTOs, method maps, registries, and protocol metadata without transport I/O. |
 
@@ -44,7 +44,6 @@ The [Quickstart](./quickstart) is the single source for installation commands.
 | Read history pages | `listTurns()` / `listItems()` | `ListTurnsAsync()` / `ListItemsAsync()` |
 | List models | `models.list()` | `Models.GetCatalogAsync()` |
 | Use MCP runtime | `mcpRuntime` | `McpRuntime` |
-| Use App Binding | `appBindings` | `AppBindings` |
 
 TypeScript also provides a Channel Adapter profile. .NET does not.
 
@@ -63,4 +62,3 @@ Reconnect restores Wire transport and initialization, not in-flight requests or 
 
 - [AppServer mode](../../contribute/lifecycle/appserver) — how the AppServer an SDK connects to is started, secured, and exposed over WebSocket.
 - [AppServer Protocol](../protocols/appserver) — the methods and notifications these clients speak.
-- [DotCraft App](../app-binding) — App Binding, for applications that expose their own capabilities to a thread.

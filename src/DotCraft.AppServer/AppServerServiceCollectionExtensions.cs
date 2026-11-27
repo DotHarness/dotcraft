@@ -1,5 +1,4 @@
 using DotCraft.Agents;
-using DotCraft.AppBinding;
 using DotCraft.Mcp;
 using DotCraft.Context;
 using DotCraft.GenerativeUi;
@@ -28,8 +27,6 @@ public static class AppServerServiceCollectionExtensions
 
         services.AddSingleton<RegistrationMarker>();
         services.TryAddSingleton<ChannelToolRegistrationService>();
-        services.TryAddSingleton<AppBindingService>();
-        services.TryAddSingleton<AppBindingCoordinator>();
         services.TryAddSingleton<AppServerPluginManagementState>();
         services.TryAddSingleton<AppServerThreadSubscribers>();
         services.TryAddSingleton<IMcpElicitationHandler, AppServerMcpElicitationHandler>();
@@ -46,9 +43,6 @@ public static class AppServerServiceCollectionExtensions
         services.AddSingleton<IToolSource>(provider => provider.GetRequiredService<WireDynamicToolProxy>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadSystemPromptContextProvider,
             ProfileBuilderSystemPromptProvider>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppServerProtocolExtension, AppBindingProtocolExtension>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IMcpToolCatalogContributor, AppBindingToolCatalogContributor>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IToolSource, ManagedChannelToolSource>());
         return services;
     }
 }

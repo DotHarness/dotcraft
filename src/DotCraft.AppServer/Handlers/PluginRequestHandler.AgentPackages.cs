@@ -282,18 +282,11 @@ internal sealed partial class PluginRequestHandler
         }
 
         DiscardAgentImport(import);
-        IReadOnlyList<Contract.AppListUpdatedNotification?> appListUpdates = [];
         IReadOnlyList<string> affected = [];
         if (installedAny)
         {
             var finalized = await FinalizeAgentImportInstallsAsync(installedPlugins, commitToken).ConfigureAwait(false);
             affected = finalized.AffectedPluginIds;
-            appListUpdates = installedPlugins
-                .Select(pluginId => TryBuildAppListUpdatedNotification(
-                    finalized.Discovery,
-                    pluginId,
-                    Protocol.AppServer.AppServerMethodNames.AgentProfileImportCommit))
-                .ToList();
         }
 
         var result = new Contract.AgentProfileUpsertResult
@@ -307,8 +300,6 @@ internal sealed partial class PluginRequestHandler
         return await WriteWithLifecycleNotificationsAsync(
             request.Message,
             result,
-            appListUpdates,
-            [],
             [.. installedPlugins, .. affected],
             ct).ConfigureAwait(false);
     }

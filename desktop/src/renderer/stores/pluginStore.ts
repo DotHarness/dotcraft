@@ -108,23 +108,6 @@ export interface PluginSkillInfo {
   enabled: boolean
 }
 
-export interface PluginAppNativeApplication {
-  displayName: string
-  protocol: string
-  installUrl?: string | null
-}
-
-export interface PluginAppInfo {
-  appId: string
-  displayName: string
-  developerName: string
-  description: string
-  category?: string | null
-  icon?: string | null
-  releasePage?: string | null
-  nativeApplication?: PluginAppNativeApplication | null
-}
-
 export interface PluginMcpServerInfo {
   name: string
   runtimeName: string
@@ -191,7 +174,6 @@ export interface PluginEntry {
   dotnetRuntime?: DotNetExtensionRuntimeInfo | null
   functions: PluginFunctionInfo[]
   skills: PluginSkillInfo[]
-  apps?: PluginAppInfo[]
   desktop?: PluginDesktopInfo | null
   channel?: ChannelPluginInfo | null
   workflows?: { name: string }[]

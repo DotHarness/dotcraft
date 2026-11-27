@@ -1,6 +1,6 @@
 ---
 name: dotcraft-api
-description: Build applications with DotCraft's public SDKs, Harness, AppServer protocol, Channel adapters and modules, App Binding, dynamic tools, Desktop or .NET extensions, and MCP Apps. Use when connecting to, embedding, or publicly extending DotCraft; not for changing DotCraft itself.
+description: Build applications with DotCraft's public SDKs, Harness, AppServer protocol, Channel adapters and modules, dynamic tools, Desktop or .NET extensions, and MCP Apps. Use when connecting to, embedding, or publicly extending DotCraft; not for changing DotCraft itself.
 ---
 
 # DotCraft API
@@ -18,7 +18,7 @@ Search `https://www.dotcraft.net` for the exact SDK, Harness, protocol, or exten
 | Package a Channel for DotCraft hosts | `https://www.dotcraft.net/extend/channel-modules` |
 | Embed the runtime in .NET | `https://www.dotcraft.net/extend/harness/` |
 | Implement AppServer JSON-RPC | `https://www.dotcraft.net/extend/protocols/appserver` |
-| Build App Binding or a plugin | `https://www.dotcraft.net/extend/app-binding` |
+| Build a plugin or MCP App | `https://www.dotcraft.net/extend/plugin-manifest` |
 
 The site describes the latest public release. Do not use a repository checkout, internal specification, test fixture, or default branch as an API reference.
 

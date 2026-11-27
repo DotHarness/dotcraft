@@ -38,8 +38,7 @@ export const SECONDARY_THREAD_NOTIFICATION_METHODS = new Set([
   'terminal/completed',
   'terminal/cleaned',
   'workflow/run/updated',
-  'subagent/graph/changed',
-  'app/list/updated'
+  'subagent/graph/changed'
 ])
 
 export function isCurrentForegroundWorkspaceConnection<TClient, TWindow extends DestroyableWindow>(

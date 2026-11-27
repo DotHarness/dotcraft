@@ -5,19 +5,19 @@
 | **Version** | 0.11.1 |
 | **Status** | Living |
 | **Date** | 2026-11-13 |
-| **Related Specs** | [Unified SDK](sdk.md), [Protocol Contracts and Generation](protocol-contract-generation.md), [AppServer Protocol](../protocols/appserver-protocol.md), [App Binding](../protocols/app-binding.md), [Session Core](../architecture/session-core.md), [Hub Architecture](../architecture/hub-architecture.md) |
+| **Related Specs** | [Unified SDK](sdk.md), [Protocol Contracts and Generation](protocol-contract-generation.md), [AppServer Protocol](../protocols/appserver-protocol.md), [Session Core](../architecture/session-core.md), [Hub Architecture](../architecture/hub-architecture.md) |
 
 Purpose: define the .NET package, its generated Wire binding, its Contracts-first public API, high-level Thread and Run behavior, raw extension boundary, and error model.
 
 ## 1. Scope and principles
 
-`DotCraft.Sdk` is the .NET 10 client SDK for AppServer, Hub-backed local connection, Runtime Dynamic Tools, and native App Binding integrations.
+`DotCraft.Sdk` is the .NET 10 client SDK for AppServer, Hub-backed local connection, and Runtime Dynamic Tools.
 
 - `DotCraft.Protocol` is the only public AppServer Wire model assembly.
 - Known AppServer methods use `AppServerRpc` descriptors and generated `DotCraftWireClient.XxxAsync` or `RegisterXxxHandler` bindings.
 - The SDK owns high-level handles, reducers, Hub models, authoring attributes, and exceptions because those are not Wire DTOs.
 - Raw JSON is available only for unknown third-party extensions, deliberately open protocol fields, diagnostics, and forward compatibility.
-- AppServer remains authoritative for lifecycle, queueing, configuration, permission, provider, and App Binding behavior.
+- AppServer remains authoritative for lifecycle, queueing, configuration, permission, and provider behavior.
 
 ## 2. Package contract
 
@@ -33,12 +33,11 @@ Public namespaces are:
 | `DotCraft.Sdk.Wire` | JSON-RPC transports, lifecycle, typed generated bindings, raw escape hatches. |
 | `DotCraft.Sdk` | High-level client, Thread handle, Run, callbacks, options, and stable SDK exceptions. |
 | `DotCraft.Sdk.DynamicTools` | Attribute-based Runtime Dynamic Tool authoring and invocation. |
-| `DotCraft.Sdk.AppBinding` | App Binding client, handoff parsing, and error helpers. |
 | `DotCraft.Sdk.Hub` | Local Hub discovery and AppServer lifecycle. |
 
 ## 3. Contracts ownership
 
-Public APIs use `DotCraft.Protocol` DTOs directly, following the [contract ownership rules](protocol-contract-generation.md#3-sources-of-truth). SDK-owned handles, Run models, Hub helpers, dynamic-tool authoring attributes, App Binding handoff parsing, and exceptions must not duplicate wire DTOs.
+Public APIs use `DotCraft.Protocol` DTOs directly, following the [contract ownership rules](protocol-contract-generation.md#3-sources-of-truth). SDK-owned handles, Run models, Hub helpers, dynamic-tool authoring attributes, and exceptions must not duplicate wire DTOs.
 
 ## 4. Wire client and generated bindings
 
@@ -50,7 +49,7 @@ Generated extension methods (for example `ThreadStartAsync(ThreadStartParams, Ca
 
 ## 5. Connection and initialization
 
-`DotCraftClient` exposes `Wire`, `ServerInfo`, `Capabilities`, and typed clients `Threads`, `Turns`, `Providers`, `Models`, `AgentProfiles`, `McpRuntime`, and `AppBindings`.
+`DotCraftClient` exposes `Wire`, `ServerInfo`, `Capabilities`, and typed clients `Threads`, `Turns`, `Providers`, `Models`, `AgentProfiles`, and `McpRuntime`.
 
 Connection entry points are:
 
@@ -105,15 +104,11 @@ Run orchestration follows the [shared Run profile](sdk.md#34-run-profile). Captu
 
 Runtime Dynamic Tool handlers map `DynamicToolCallParams` to `DynamicToolCallResult`. Declarations use Contracts `RuntimeDynamicToolDeclaration`, `RuntimeDynamicToolFunction`, `RuntimeDynamicToolNamespace`, and `ToolApprovalDescriptor`; the SDK registry and authoring attributes may generate them from typed .NET methods. Missing and failing handlers follow the [shared Runtime Dynamic Tool contract](sdk.md#44-runtime-dynamic-tools).
 
-## 11. Provider, model, MCP, and App Binding clients
+## 11. Provider, model, and MCP clients
 
 Provider and model clients return `ProviderListResult` and `ModelListResult` without projecting a second capability model.
 
 The MCP runtime client uses Contracts DTOs for status list, resource read, tool call, OAuth login, and reload.
-
-`DotCraftAppBindingClient` exposes typed Contracts methods for connection request, connect/status/revoke/authenticate/refresh, app list/view, binding request/activate/rebind, surface publish/resolve, and Thread binding enable/list/revoke/confirmation. Known App Binding methods have no generic `<T>` or `object` overloads.
-
-`AppBindingHandoff` is a high-level URL parser. `ToolError` returns a standard failed `DynamicToolCallResult`.
 
 ## 12. Error model
 

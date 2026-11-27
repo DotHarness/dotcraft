@@ -13,7 +13,7 @@ import type { VisualizationCaptureRect } from '../shared/visualization'
 import { saveFileAs, type SaveFileAsRequest } from './fileSaveAs'
 import { mainLocale, type WindowIpcContext } from './ipcBridgeContracts'
 import { assertExistingLocalPath, assertPathWithinWorkspaceOrChatFolder } from './ipcBridgePaths'
-import { getProtocolHandlerName, openAppHandoffUrl, openExternalHttpUrl, openExternalUrl } from './ipcExternalLinks'
+import { getProtocolHandlerName, openExternalHttpUrl, openExternalUrl } from './ipcExternalLinks'
 import { listOpenTargets, openInTarget } from './openTargets'
 import { showReplyTextContextMenu } from './replyTextContextMenu'
 import {
@@ -138,10 +138,6 @@ export function registerWindowHandlers(context: WindowIpcContext): void {
   handleSafe('shell:show-reply-text-menu', (event, request: TextContextMenuRequest) => {
     if (event.senderFrame !== event.sender.mainFrame) throw new Error('Text menus require the main frame')
     return showReplyTextContextMenu(event.sender, request, mainLocale(callbacks), openExternalHttpUrl)
-  })
-
-  handleSafe('shell:open-app-handoff', async (_event, url: string) => {
-    await openAppHandoffUrl(url, owner.webContents.id)
   })
 
   handleSafe('shell:get-protocol-handler-name', async (_event, protocol: string) => {

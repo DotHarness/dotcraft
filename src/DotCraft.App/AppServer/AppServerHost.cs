@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
 using DotCraft.Agents;
-using DotCraft.AppBinding;
 using Microsoft.Extensions.Logging;
 using DotCraft.Common;
 using DotCraft.Configuration;
@@ -144,8 +143,6 @@ public sealed partial class AppServerHost(
             terminals.TerminalEvent += BroadcastBackgroundTerminalEvent;
         if (_services.GetService<DotCraft.Auth.OpenAI.IOpenAIUsageService>() is { } usage)
             usage.SnapshotChanged += BroadcastOpenAiUsageChanged;
-        if (_services.GetService<AppBindingCoordinator>() is { } bindings)
-            bindings.BindingStatusChanged += BroadcastAppBindingStatusChanged;
         if (_services.GetService<IDotNetExtensionRuntimeCoordinator>() is { } plugins)
             plugins.SnapshotChanged += BroadcastPluginRuntimeSnapshotChanged;
         if (runtime.RemoteToolHostClient is { } remoteToolHostClient)
@@ -185,8 +182,6 @@ public sealed partial class AppServerHost(
             terminals.TerminalEvent -= BroadcastBackgroundTerminalEvent;
         if (_services.GetService<DotCraft.Auth.OpenAI.IOpenAIUsageService>() is { } usage)
             usage.SnapshotChanged -= BroadcastOpenAiUsageChanged;
-        if (_services.GetService<AppBindingCoordinator>() is { } bindings)
-            bindings.BindingStatusChanged -= BroadcastAppBindingStatusChanged;
         if (_services.GetService<IDotNetExtensionRuntimeCoordinator>() is { } plugins)
             plugins.SnapshotChanged -= BroadcastPluginRuntimeSnapshotChanged;
         _remoteToolHostRouteBroadcaster?.Dispose();
@@ -239,7 +234,6 @@ public sealed partial class AppServerHost(
                 ThreadSubscribers = threadSubscribers,
                 LspServerManager = runtime.LspServerManager,
                 BroadcastMcpStatusChanged = BroadcastMcpStatusChanged,
-                NotifyAppPrincipal = NotifyAppPrincipal,
                 BroadcastTrustedNotification = BroadcastTrustedNotification,
                 ProtocolExtensions = ProtocolExtensions,
                 OnChannelSetEnabled = _appServerFeature is null
@@ -259,7 +253,6 @@ public sealed partial class AppServerHost(
                 ContextPageManager = runtime.ContextPageManager,
                 DreamsService = runtime.DreamsService,
                 MemoryManagement = runtime.MemoryManagement,
-                AppBindingService = _services.GetService<AppBindingService>(),
                 ThreadOriginPresentationProviders = _services.GetServices<IThreadOriginPresentationProvider>().ToArray(),
                 PlanStore = runtime.PlanStore,
                 TraceStore = _services.GetService<TraceStore>(),
@@ -535,26 +528,11 @@ public sealed partial class AppServerHost(
         }
     }
 
-    private void NotifyAppPrincipal(string appId, string method, object? parameters)
-    {
-        foreach (var (transport, connection) in _activeTransports)
-        {
-            if (!connection.IsAppPrincipalAuthenticated
-                || !string.Equals(connection.AppPrincipalAppId, appId, StringComparison.Ordinal))
-                continue;
-            _ = Task.Run(async () =>
-            {
-                try { await transport.NotifyContractAsync(method, parameters, CancellationToken.None); }
-                catch { _activeTransports.TryRemove(transport, out _); }
-            });
-        }
-    }
-
     private void BroadcastTrustedNotification(string method, object? parameters)
     {
         foreach (var (transport, connection) in _activeTransports)
         {
-            if (connection.IsAppPrincipalAuthenticated || connection.IsChannelAdapter) continue;
+            if (connection.IsChannelAdapter) continue;
             _ = Task.Run(async () =>
             {
                 try { await transport.NotifyContractAsync(method, parameters, CancellationToken.None); }
@@ -562,19 +540,6 @@ public sealed partial class AppServerHost(
             });
         }
     }
-
-    private void BroadcastAppBindingStatusChanged(AppBindingStatusChanged change) =>
-        BroadcastTrustedNotification(
-            Contract.AppServerRpc.ThreadAppBindingsChanged.Name,
-            new Contract.ThreadAppBindingsChangedNotification
-            {
-                ThreadId = change.ThreadId,
-                BindingId = change.BindingId,
-                AppId = change.AppId,
-                State = change.State,
-                FailureReason = change.FailureReason,
-                AuthorityRevision = change.AuthorityRevision
-            });
 
     private void BroadcastOpenAiUsageChanged(DotCraft.Auth.OpenAI.OpenAIUsageSnapshot? snapshot)
     {

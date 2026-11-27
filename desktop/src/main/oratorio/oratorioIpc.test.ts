@@ -77,30 +77,6 @@ describe('Oratorio IPC validation', () => {
 })
 
 describe('Oratorio local context', () => {
-  it('keeps handoff requests and approvals with the initiating sender', async () => {
-    const first = windowFixture(301)
-    const second = windowFixture(302)
-    const hub = {
-      ensureManagedService: vi.fn().mockResolvedValue({ state: 'running', endpoint: 'http://127.0.0.1:9001', accessToken: 'service-secret' }),
-      ensureAppServer: vi.fn(async (workspacePath: string) => ({ workspacePath, endpoints: { appServerWebSocket: 'ws://127.0.0.1:9010' }, serviceStatus: {} }))
-    }
-    const local = registerOratorioIpc(() => 'F:/a', () => hub as never, undefined, first.ipc, first.webContents as never)
-    const other = registerOratorioIpc(() => 'F:/b', () => hub as never, undefined, second.ipc, second.webContents as never)
-    releases.push(local.dispose, other.dispose)
-    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ connection: { accountLabel: 'first owner' } }))))
-    const { openDesktopServiceHandoff } = await import('../desktopServiceHandoff')
-    await openDesktopServiceHandoff('dotcraft-service://oratorio/connect?app=com.dotharness.oratorio&request=one&token=secret&workspace=F%3A%2Fa', 301)
-    const handoff = first.invoke('oratorio:get-pending-handoff') as { requestId: string }
-    expect(handoff).toMatchObject({ workspacePath: 'F:/a' })
-    expect(second.invoke('oratorio:get-pending-handoff')).toBeNull()
-    await expect(second.invoke('oratorio:resolve-handoff', { requestId: handoff.requestId, approved: true })).rejects.toMatchObject({ code: 'oratorio.invalidHandoffRequest' })
-    expect(second.webContents.send).not.toHaveBeenCalled()
-    await first.invoke('oratorio:resolve-handoff', { requestId: handoff.requestId, approved: false })
-    local.dispose()
-    await expect(openDesktopServiceHandoff('dotcraft-service://oratorio/connect', 301)).rejects.toThrow()
-    await expect(second.invoke('oratorio:get-context')).resolves.toMatchObject({ workspacePath: 'F:/b' })
-  })
-
   it('routes simultaneous local and remote window requests and keeps the other window alive on close', async () => {
     const first = windowFixture(101)
     const second = windowFixture(202)

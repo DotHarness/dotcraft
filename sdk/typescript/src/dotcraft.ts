@@ -10,21 +10,6 @@ import { WebSocketTransport } from "./transport.js";
 import { HubClient, type HubBinaryMatchPolicy } from "./hubClient.js";
 import { InitializationError } from "./errors.js";
 import type {
-  AppBindingRequestGetResult,
-  AppBinding,
-  AppConnectionRevokeResult,
-  AppConnectionStatusResult,
-  AppConnectionConnectResult,
-  AppConnectionStartResult,
-  AppHandoff,
-  AppInfo,
-  AppPrincipal,
-  AppChannelBindingResolveParams,
-  AppChannelBindingResolveResult,
-  AppSurface,
-  AppSurfacePublishParams,
-  AppSurfaceResolveParams,
-  AppThreadInputEnqueueResult,
   ClientRequestMethods,
   DynamicToolCallResult,
   DynamicToolContentItem,
@@ -51,18 +36,12 @@ import type {
   ServerInfo,
   SessionThread,
   SessionTurn,
-  ChannelBindingIntent,
-  ChannelBoundBy,
-  ChannelTarget,
-  ThreadAppBindingSummary,
-  ThreadAppBindingEnableResult,
   ThreadListResult,
   ThreadResumeParams,
   ThreadForkParams,
   ThreadItemsListResult,
   ThreadSummary,
   ThreadTurnsListResult,
-  ThreadChannelBindingRequestCreateResult,
   ModelCatalogItem,
 } from "./generated/appserver/index.js";
 export type ApprovalDecision =
@@ -175,156 +154,6 @@ export interface McpRuntimeManager {
   reload(): Promise<McpServerReloadResult>;
 }
 
-export type AppBindingKind = "app" | "channel" | "managedApp" | (string & {});
-
-export type ChannelBindingTargetSelection =
-  | "confirmInChannel"
-  | "currentConversation"
-  | (string & {});
-
-export interface AppBindingManager {
-  listApps(params?: { threadId?: string; includeDisabled?: boolean; includeCatalog?: boolean; forceRefresh?: boolean }): Promise<AppInfo[]>;
-  viewApp(appId: string, params?: { threadId?: string }): Promise<AppInfo>;
-  startConnection(appId: string, params?: { handoffMode?: string; returnTo?: string }): Promise<AppConnectionStartResult>;
-  connect(params: {
-    connectionRequestId: string;
-    requestToken: string;
-    accountLabel?: string;
-  }): Promise<AppConnectionConnectResult>;
-  connectionStatus(appId: string): Promise<AppConnectionStatusResult>;
-  revokeConnection(appId: string, reason?: string): Promise<AppConnectionRevokeResult>;
-  publishSurface(params: AppSurfacePublishParams): Promise<AppSurface>;
-  resolveSurface(params: AppSurfaceResolveParams): Promise<AppSurface>;
-  authenticate(appId: string, credential: string): Promise<Record<string, unknown>>;
-  refreshCredential(): Promise<Record<string, unknown>>;
-  activate(params: { bindingRequestId: string; endpoint: string; bearer: string; bearerExpiresAt?: string }): Promise<Record<string, unknown>>;
-  rebind(params: { bindingId: string; authorityRevision: number; endpoint: string; bearer: string; bearerExpiresAt?: string }): Promise<Record<string, unknown>>;
-  confirmCapabilities(threadId: string, bindingId: string, candidateRevision: number, decision: "accept" | "reject"): Promise<Record<string, unknown>>;
-  enable(threadId: string, appId: string): Promise<ThreadAppBindingEnableResult>;
-  createChannelBindingRequest(params: {
-    threadId: string;
-    channelName: string;
-  }): Promise<ThreadChannelBindingRequestCreateResult>;
-  getBindingRequest(params: {
-    bindingRequestId?: string;
-    requestToken?: string;
-    bindCode?: string;
-  }): Promise<AppBindingRequestGetResult>;
-  acceptChannelBinding(params: {
-    requestToken: string;
-    channelTarget: ChannelTarget;
-  }): Promise<AppBinding>;
-  resolveChannelBinding(params: AppChannelBindingResolveParams): Promise<AppChannelBindingResolveResult>;
-  enqueueThreadInput(params: {
-    bindingId: string;
-    input: InputPart[];
-    displayText?: string;
-    triggerLabel?: string;
-    triggerRefId?: string;
-    startPolicy?: string;
-    sender?: SenderContext;
-  }): Promise<AppThreadInputEnqueueResult>;
-  listThreadBindings(threadId: string, includeRevoked?: boolean): Promise<AppBinding[]>;
-  revokeThreadBinding(threadId: string, bindingId: string, reason?: string): Promise<AppBinding>;
-  refreshThreadBindings(threadId: string, bindingId?: string): Promise<AppBinding[]>;
-}
-
-export const APP_BINDING_ERROR_CODES = {
-  offline: "AppBindingOffline",
-  expired: "AppBindingExpired",
-  revoked: "AppBindingRevoked",
-  scopeDenied: "AppBindingScopeDenied",
-  toolUnavailable: "AppBindingToolUnavailable",
-  protocolViolation: "AppBindingProtocolViolation",
-} as const;
-
-export type AppBindingErrorCode =
-  typeof APP_BINDING_ERROR_CODES[keyof typeof APP_BINDING_ERROR_CODES];
-
-export function appBindingToolError(
-  errorCode: AppBindingErrorCode,
-  errorMessage: string,
-  structuredContent?: JsonValue,
-): DynamicToolCallResult {
-  return {
-    success: false,
-    errorCode,
-    errorMessage,
-    structuredContent,
-    contentItems: [{ type: "text", text: `${errorCode}: ${errorMessage}` }],
-  };
-}
-
-export function appBindingUnavailableError(
-  state: "offline" | "expired" | "revoked" | string,
-  message?: string,
-): DynamicToolCallResult {
-  if (state === "expired") {
-    return appBindingToolError(
-      APP_BINDING_ERROR_CODES.expired,
-      message ?? "The app binding has expired.",
-    );
-  }
-  if (state === "revoked") {
-    return appBindingToolError(
-      APP_BINDING_ERROR_CODES.revoked,
-      message ?? "The app binding was revoked.",
-    );
-  }
-  return appBindingToolError(
-    APP_BINDING_ERROR_CODES.offline,
-    message ?? "The app binding is offline. Reconnect the app or refresh the binding.",
-  );
-}
-
-/** A parsed App Binding deep-link handoff. Parallel to the .NET SDK helpers. */
-export interface ParsedAppBindingHandoff {
-  scheme: string;
-  operation: string;
-  appId: string;
-  requestId: string;
-  requestToken: string;
-  appServerUrl?: string;
-}
-
-/**
- * Parse an App Binding handoff URL such as
- * `app://dotcraft/connect?app=...&request=...&token=...&endpoint=...`.
- *
- * Deep links are activation hints, not authorization: always inspect the request
- * over AppServer before rendering confirmation or accepting.
- */
-export function parseAppBindingHandoff(
-  url: string,
-  options?: { expectedScheme?: string; expectedAppId?: string },
-): ParsedAppBindingHandoff {
-  const parsed = new URL(url);
-  const scheme = parsed.protocol.replace(/:$/, "");
-  if (options?.expectedScheme && scheme !== options.expectedScheme) {
-    throw new Error(`Unexpected handoff scheme '${scheme}', expected '${options.expectedScheme}'.`);
-  }
-
-  const operation = parsed.pathname.replace(/^\//, "");
-  const query = parsed.searchParams;
-  const appId = query.get("app") ?? "";
-  const requestId = query.get("request") ?? "";
-  const requestToken = query.get("token") ?? "";
-  if (!appId || !requestId || !requestToken) {
-    throw new Error("The handoff URL must contain app, request, and token query parameters.");
-  }
-  if (options?.expectedAppId && appId !== options.expectedAppId) {
-    throw new Error(`Unexpected handoff appId '${appId}', expected '${options.expectedAppId}'.`);
-  }
-
-  return {
-    scheme,
-    operation,
-    appId,
-    requestId,
-    requestToken,
-    appServerUrl: query.get("endpoint") ?? undefined,
-  };
-}
 
 export interface StartThreadOptions extends ThreadIdentityOptions {
   displayName?: string | null;
@@ -430,186 +259,6 @@ function toolKey(threadId: string, namespace: string | null | undefined, name: s
   return `${threadId}\u0000${namespace ?? ""}\u0000${name}`;
 }
 
-class AppBindingManagerImpl implements AppBindingManager {
-  constructor(private readonly sdk: DotCraft) {}
-
-  async listApps(params: {
-    threadId?: string;
-    includeDisabled?: boolean;
-    includeCatalog?: boolean;
-    forceRefresh?: boolean;
-  } = {}): Promise<AppInfo[]> {
-    const result = await this.sdk.request("app/list", {
-      includeCatalog: params.includeCatalog ?? true,
-      includeDisabled: params.includeDisabled ?? true,
-      threadId: params.threadId,
-      forceRefresh: params.forceRefresh ?? false,
-    });
-    return result.apps ?? [];
-  }
-
-  async viewApp(appId: string, params: { threadId?: string } = {}): Promise<AppInfo> {
-    const result = await this.sdk.request("app/view", {
-      appId,
-      threadId: params.threadId,
-    });
-    if (!result.app) throw new Error(`App '${appId}' was not returned by app/view.`);
-    return result.app;
-  }
-
-  async startConnection(
-    appId: string,
-    params: { handoffMode?: string; returnTo?: string } = {},
-  ): Promise<AppConnectionStartResult> {
-    return await this.sdk.request("app/connection/start", {
-      appId,
-      handoffMode: params.handoffMode,
-      returnTo: params.returnTo,
-    });
-  }
-
-  async connect(params: {
-    connectionRequestId: string;
-    requestToken: string;
-    accountLabel?: string;
-  }): Promise<AppConnectionConnectResult> {
-    return await this.sdk.request("app/connection/connect", {
-      connectionRequestId: params.connectionRequestId,
-      requestToken: params.requestToken,
-      accountLabel: params.accountLabel,
-    });
-  }
-
-  async connectionStatus(appId: string): Promise<AppConnectionStatusResult> {
-    return await this.sdk.request("app/connection/status", { appId });
-  }
-
-  async revokeConnection(appId: string, reason?: string): Promise<AppConnectionRevokeResult> {
-    return await this.sdk.request("app/connection/revoke", { appId, reason });
-  }
-
-  async publishSurface(params: AppSurfacePublishParams): Promise<AppSurface> {
-    return await this.sdk.request("app/surface/publish", {
-      surfaceId: params.surfaceId,
-      endpoint: params.endpoint,
-      bearer: params.bearer,
-    });
-  }
-
-  async resolveSurface(params: AppSurfaceResolveParams): Promise<AppSurface> {
-    return await this.sdk.request("app/surface/resolve", {
-      appId: params.appId,
-      surfaceId: params.surfaceId,
-    });
-  }
-
-  async authenticate(appId: string, credential: string): Promise<Record<string, unknown>> {
-    return await this.sdk.request("app/connection/authenticate", { appId, credential });
-  }
-
-  async refreshCredential(): Promise<Record<string, unknown>> {
-    return await this.sdk.request("app/connection/refresh", {});
-  }
-
-  async activate(params: { bindingRequestId: string; endpoint: string; bearer: string; bearerExpiresAt?: string }): Promise<Record<string, unknown>> {
-    return await this.sdk.request("app/binding/activate", params);
-  }
-
-  async rebind(params: { bindingId: string; authorityRevision: number; endpoint: string; bearer: string; bearerExpiresAt?: string }): Promise<Record<string, unknown>> {
-    return await this.sdk.request("app/binding/rebind", params);
-  }
-
-  async confirmCapabilities(threadId: string, bindingId: string, candidateRevision: number, decision: "accept" | "reject"): Promise<Record<string, unknown>> {
-    return await this.sdk.request("thread/appBindings/confirmCapabilities", { threadId, bindingId, candidateRevision, decision });
-  }
-
-  async enable(threadId: string, appId: string): Promise<ThreadAppBindingEnableResult> {
-    return await this.sdk.request("thread/appBindings/enable", {
-      threadId,
-      appId,
-    });
-  }
-
-  async createChannelBindingRequest(params: {
-    threadId: string;
-    channelName: string;
-  }): Promise<ThreadChannelBindingRequestCreateResult> {
-    return await this.sdk.request("thread/channelBindings/request/create", {
-      threadId: params.threadId,
-      channelName: params.channelName,
-    });
-  }
-
-  async getBindingRequest(params: {
-    bindingRequestId?: string;
-    requestToken?: string;
-    bindCode?: string;
-  }): Promise<AppBindingRequestGetResult> {
-    return await this.sdk.request(
-      params.bindCode ? "app/channelBinding/request/get" : "app/binding/request/get",
-      params.bindCode ? { code: params.bindCode } : {
-        bindingRequestId: params.bindingRequestId,
-        requestToken: params.requestToken,
-      },
-    );
-  }
-
-  async acceptChannelBinding(params: {
-    requestToken: string;
-    channelTarget: ChannelTarget;
-  }): Promise<AppBinding> {
-    const target = params.channelTarget;
-    return await this.sdk.request("app/channelBinding/accept", {
-      code: params.requestToken,
-      target,
-    });
-  }
-
-  async resolveChannelBinding(params: AppChannelBindingResolveParams): Promise<AppChannelBindingResolveResult> {
-    return await this.sdk.request("app/channelBinding/resolve", {
-      channelName: params.channelName,
-      accountId: params.accountId,
-      conversationKind: params.conversationKind,
-      conversationId: params.conversationId,
-    });
-  }
-
-  async enqueueThreadInput(params: {
-    bindingId: string;
-    input: InputPart[];
-    displayText?: string;
-    triggerLabel?: string;
-    triggerRefId?: string;
-    startPolicy?: string;
-    sender?: SenderContext;
-  }): Promise<AppThreadInputEnqueueResult> {
-    return await this.sdk.request("app/threadInput/enqueue", {
-      ...params,
-      sender: toContractSender(params.sender),
-    });
-  }
-
-  async listThreadBindings(threadId: string, includeRevoked = false): Promise<AppBinding[]> {
-    const result = await this.sdk.request("thread/appBindings/list", {
-      threadId,
-      includeRevoked,
-    });
-    return result.bindings ?? [];
-  }
-
-  async revokeThreadBinding(threadId: string, bindingId: string, reason?: string): Promise<AppBinding> {
-    return await this.sdk.request("thread/appBindings/revoke", {
-      threadId,
-      bindingId,
-      reason,
-    });
-  }
-
-  async refreshThreadBindings(threadId: string, bindingId?: string): Promise<AppBinding[]> {
-    const result = await this.sdk.request("thread/appBindings/list", { threadId, bindingId });
-    return result.bindings ?? [];
-  }
-}
 
 export interface ModelManager {
   list(): Promise<ModelCatalogItem[]>;
@@ -650,7 +299,6 @@ class McpRuntimeManagerImpl implements McpRuntimeManager {
 
 export class DotCraft {
   readonly threads: ThreadManager;
-  readonly appBindings: AppBindingManager;
   readonly models: ModelManager;
   readonly mcpRuntime: McpRuntimeManager;
 
@@ -662,7 +310,6 @@ export class DotCraft {
     private readonly userInputHandler?: UserInputHandler,
   ) {
     this.threads = new ThreadManagerImpl(this);
-    this.appBindings = new AppBindingManagerImpl(this);
     this.models = new ModelManagerImpl(this);
     this.mcpRuntime = new McpRuntimeManagerImpl(this);
     this.installServerRequestHandlers();

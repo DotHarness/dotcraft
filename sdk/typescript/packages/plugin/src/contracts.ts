@@ -1,6 +1,4 @@
 import type {
-  AppConnectionStartResult,
-  AppConnectionStatusResult,
   ClientRequestMethods,
   ServerNotificationMethods,
 } from "@dotcraft/sdk/contracts";
@@ -583,17 +581,6 @@ export interface DesktopPluginSettings {
   ): DesktopPluginDispose;
 }
 
-export interface DesktopPluginAppBindings {
-  getConnectionStatus(appId: string): Promise<AppConnectionStatusResult>;
-  startConnection(appId: string): Promise<AppConnectionStartResult>;
-  openNativeApp(appId: string, url: string): Promise<void>;
-  enableThread(threadId: string, appId: string): Promise<void>;
-}
-
-export interface DesktopPluginAppSurfaces {
-  getJson<T = unknown>(appId: string, surfaceId: string, relativePath: string, timeoutMs?: number): Promise<T>;
-  postJson<T = unknown>(appId: string, surfaceId: string, relativePath: string, body: unknown, timeoutMs?: number): Promise<T>;
-}
 export interface DesktopPluginMcpToolCall {
   readonly server: string;
   readonly tool: string;
@@ -644,14 +631,6 @@ export interface DesktopPluginOratorioResponse<T = unknown> {
   readonly data: T;
 }
 
-export interface DesktopPluginOratorioHandoffRequest {
-  readonly requestId: string;
-  readonly operation: "connect" | "bind";
-  readonly appId: string;
-  readonly workspacePath: string;
-  readonly summary: string;
-}
-
 export interface DesktopPluginOratorioBoardEvent {
   readonly type: string;
   readonly taskId?: string;
@@ -669,18 +648,15 @@ export interface DesktopPluginOratorioBoardEvent {
 }
 
 export interface DesktopPluginOratorioEvent {
-  readonly type: "context-changed" | "data-changed" | "board-event" | "handoff-requested";
+  readonly type: "context-changed" | "data-changed" | "board-event";
   readonly revision: number;
   readonly event?: DesktopPluginOratorioBoardEvent;
-  readonly handoff?: DesktopPluginOratorioHandoffRequest;
 }
 
 export interface DesktopPluginOratorio {
   getContext(): Promise<DesktopPluginOratorioContext>;
   request<T = unknown>(request: DesktopPluginOratorioRequest): Promise<DesktopPluginOratorioResponse<T>>;
   retry(): Promise<DesktopPluginOratorioContext>;
-  getPendingHandoff(): Promise<DesktopPluginOratorioHandoffRequest | null>;
-  resolveHandoff(requestId: string, approved: boolean): Promise<void>;
   focusRun(runId: string | null): Promise<void>;
   onEvent(listener: (event: DesktopPluginOratorioEvent) => void): DesktopPluginDispose;
 }
@@ -701,8 +677,6 @@ export interface DesktopPluginHost {
   readonly appServer: DesktopPluginAppServer;
   readonly mcp: DesktopPluginMcp;
   readonly settings: DesktopPluginSettings;
-  readonly appBindings: DesktopPluginAppBindings;
-  readonly appSurfaces: DesktopPluginAppSurfaces;
   readonly workspaces: DesktopPluginWorkspaceReader;
   readonly oratorio: DesktopPluginOratorio;
   readonly satellites: DesktopPluginSatellites;
