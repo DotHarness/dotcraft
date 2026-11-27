@@ -36,7 +36,7 @@ while the configured approval policy remains authoritative.
 | Project identity / state workspace | Desktop Project | Stable workspace that owns the Project's connection and chats; assigned when the Project is created and unchanged by source-folder edits. |
 | Project primary folder | Desktop Project | Mutable default working directory for new chats and the source for project-level discovery. |
 | Project secondary folders | Desktop Project | Additional code and data folders available to the chat. |
-| Thread `workspacePath` | Session Core | Stable state owner and lookup key for rollout, memory, goals, plans, app bindings, and project discovery. |
+| Thread `workspacePath` | Session Core | Stable state owner and lookup key for rollout, memory, goals, plans, and project discovery. |
 | Thread `cwd` | Session Core | Sticky working directory for tools and relative path resolution. |
 | Thread `runtimeWorkspaceRoots` | Session Core | Sticky ordered set of roots inside the runtime workspace boundary. |
 | Execution workspace override | Session Core worktree flow | Effective cwd that replaces the ordinary cwd root without moving thread state. |

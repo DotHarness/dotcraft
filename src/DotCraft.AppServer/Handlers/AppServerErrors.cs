@@ -97,10 +97,6 @@ public static class AppServerErrors
     public const int McpServerTestFailedCode = -32073;
     public const int McpServerNameConflictCode = -32074;
     public const int McpServerReadOnlyCode = -32075;
-    public const int AppBindingUpgradeRequiredCode = -32076;
-    public const int AppPrincipalUnauthorizedCode = -32077;
-    public const int AppBindingConflictCode = -32078;
-    public const int AppBindingPolicyDeniedCode = -32079;
     public const int ChannelNotFoundCode = -32080;
     public const int ChannelValidationFailedCode = -32081;
     public const int ChannelNameConflictCode = -32082;
@@ -110,7 +106,6 @@ public static class AppServerErrors
     public const int AgentProfileSourceUnavailableCode = -32089;
     public const int WorktreeHandoffConflictCode = -32090;
     public const int AgentProfileConflictCode = -32091;
-    public const int AppSurfaceUnavailableCode = -32092;
     public const int MarketplaceSourceInvalidCode = -32093;
     public const int MarketplaceFetchFailedCode = -32094;
     public const int ThreadHistoryUnavailableCode = -32095;
@@ -355,46 +350,6 @@ public static class AppServerErrors
 
     public static AppServerException McpServerReadOnly(string name) =>
         Create(McpServerReadOnlyCode, "McpServerReadOnly", "errors.mcpServerReadOnly", $"MCP server is read-only: {name}", new NamedResourceErrorParams(name));
-
-    public static AppServerException AppBindingUpgradeRequired() =>
-        Create(
-            AppBindingUpgradeRequiredCode,
-            "AppBindingUpgradeRequired",
-            "errors.appBindingUpgradeRequired",
-            "App Binding version 1 is required",
-            new AppBindingVersionErrorParams(1));
-
-    public static AppServerException AppPrincipalUnauthorized(string detail) =>
-        Create(
-            AppPrincipalUnauthorizedCode,
-            "AppPrincipalUnauthorized",
-            "errors.appPrincipalUnauthorized",
-            "App principal authentication failed",
-            detail: detail);
-
-    public static AppServerException AppBindingConflict(string detail) =>
-        Create(
-            AppBindingConflictCode,
-            "AppBindingConflict",
-            "errors.appBindingConflict",
-            "App Binding state conflict",
-            detail: detail);
-
-    public static AppServerException AppBindingPolicyDenied(string detail) =>
-        Create(
-            AppBindingPolicyDeniedCode,
-            "AppBindingPolicyDenied",
-            "errors.appBindingPolicyDenied",
-            "App Binding policy denied the request",
-            detail: detail);
-
-    public static AppServerException AppSurfaceUnavailable(string appId, string surfaceId) =>
-        Create(
-            AppSurfaceUnavailableCode,
-            "AppSurfaceUnavailable",
-            "errors.appSurfaceUnavailable",
-            "App surface is unavailable",
-            new AppSurfaceErrorParams(appId, surfaceId));
 
     public static AppServerException ChannelNotFound(string name) =>
         Create(ChannelNotFoundCode, "ChannelNotFound", "errors.channelNotFound", $"Channel not found: {name}", new NamedResourceErrorParams(name));

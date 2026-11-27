@@ -40,8 +40,6 @@ internal sealed partial class FakeAppServerClient(
 
     public bool SupportsDynamicToolRebind => true;
     public bool SupportsRuntimeAdditionalContext => supportsRuntimeAdditionalContext();
-    public global::DotCraft.Sdk.AppBinding.DotCraftAppBindingClient AppBindings =>
-        throw new NotSupportedException("The general AppServer test fake does not exercise App Binding.");
 
     public void SetDynamicToolHandler(Func<DynamicToolCall, CancellationToken, Task<DynamicToolResult>> handler) =>
         _dynamicToolHandler = handler;

@@ -245,7 +245,7 @@ Runtime boundaries:
 
 - Adding a marketplace only makes its plugins visible as installable catalog entries. No plugin contributes runtime behavior until the user installs it.
 - Desktop extensions are trusted installed code and load only after installation and enablement.
-- App Binding, MCP/LSP, dynamic tools, and Desktop extensions retain the lifecycle and consent rules in their owning specifications.
+- MCP/LSP, dynamic tools, and Desktop extensions retain the lifecycle and consent rules in their owning specifications.
 
 Review expectations for the official marketplace: check misleading metadata, copy that explains or hedges instead of stating what the plugin does, missing referenced files, unsupported contribution types, unclear code or artwork licensing, unjustified data or network access, compiled or bundled code without a public source repository and commit, and obvious provenance problems. An official listing is a review result, not a sandbox or a security guarantee.
 

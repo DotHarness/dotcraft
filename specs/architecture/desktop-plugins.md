@@ -401,7 +401,7 @@ Verified cache entries survive disconnects; superseded revisions and removed plu
 
 ## Host and compatibility contract
 
-Every Desktop extension receives the same Host contract: the four primitives plus stable product operations for metadata, locale and theme, session state, SubAgent state, navigation, open targets, project actions, notifications, AppServer, MCP tool calls, App Binding, App Surfaces, workspaces, owned threads and linked chats, Oratorio, satellites, thread routes, and screen sessions. It is a supported authoring API, not a security membrane. Main-process validation remains a service invariant rather than a plugin permission.
+Every Desktop extension receives the same Host contract: the four primitives plus stable product operations for metadata, locale and theme, session state, SubAgent state, navigation, open targets, project actions, notifications, AppServer, MCP tool calls, workspaces, owned threads and linked chats, Oratorio, satellites, thread routes, and screen sessions. It is a supported authoring API, not a security membrane. Main-process validation remains a service invariant rather than a plugin permission.
 
 Every `onChange` subscription below is generation-owned, carries a complete snapshot, and fires only when a value actually changes.
 
@@ -483,10 +483,6 @@ interface DesktopPluginLinkedChat {
 ```
 
 `state` is the product reading Desktop shows on the chat's card: `waiting` means the chat needs the person's approval, input, or plan confirmation.
-
-### App Binding
-
-`appBindings.enableThread(threadId, appId)` enables a connected app in one thread through Desktop's enable flow ([App Binding §4.1](../protocols/app-binding.md#41-one-click-enable)). It delivers the activation handoff when the app has to be woken and resolves once the binding is active. When activation fails it cancels the request and rejects.
 
 ### SubAgent state
 

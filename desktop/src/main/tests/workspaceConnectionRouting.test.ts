@@ -78,7 +78,7 @@ describe('workspace connection routing', () => {
       expect(getWorkspaceNotificationForeground(method, state, { threadId: 'cold' })).toBeNull()
     }
     expect(getWorkspaceNotificationForeground('terminal/outputDelta', state, { terminal: { threadId: 'warm' } })).toBe(false)
-    for (const method of ['terminal/started', 'terminal/backgrounded', 'terminal/completed', 'terminal/cleaned', 'workflow/run/updated', 'subagent/graph/changed', 'app/list/updated']) {
+    for (const method of ['terminal/started', 'terminal/backgrounded', 'terminal/completed', 'terminal/cleaned', 'workflow/run/updated', 'subagent/graph/changed']) {
       expect(getWorkspaceNotificationForeground(method, state, { threadId: 'cold' })).toBe(false)
     }
     expect(getWorkspaceNotificationForeground('subagent/graph/changed', state, { parentThreadId: 'warm' })).toBe(false)

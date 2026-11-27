@@ -68,7 +68,7 @@ The default catalog path is `.craft/plugins/marketplace.json`. Each listed plugi
 - `source.source` must be `local`.
 - `source.path` must start with `./`, stay inside the marketplace root, and point to a valid plugin directory.
 - `policy.installation` must be `AVAILABLE` for the plugin to appear as installable.
-- `policy.authentication` is `ON_INSTALL` in the current publication format. App and account setup behavior comes from the plugin's own [app descriptors](./app-binding).
+- `policy.authentication` is `ON_INSTALL` in the current publication format.
 - `category` equals the plugin's `interface.category`.
 - Plugin capabilities and install-page metadata belong in `.craft-plugin/plugin.json`, not in the marketplace document.
 

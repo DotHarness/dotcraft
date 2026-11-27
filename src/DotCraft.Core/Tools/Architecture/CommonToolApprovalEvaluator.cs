@@ -44,9 +44,6 @@ public sealed class CommonToolApprovalEvaluator(string? userDataPath = null) : I
                 "dotcraft/pluginApproval",
                 out descriptor)
             || registration.Definition.Annotations.TryGetValue(
-                "dotcraft/legacyAppBindingApproval",
-                out descriptor)
-            || registration.Definition.Annotations.TryGetValue(
                 "dotcraft/nativeApproval",
                 out descriptor);
         if (!hasDescriptor && registration.Definition.Id.Kind == ToolSourceKind.Mcp)

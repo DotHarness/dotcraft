@@ -1,5 +1,4 @@
 using DotCraft.Agents;
-using DotCraft.AppBinding;
 using DotCraft.Configuration;
 using DotCraft.Sessions;
 
@@ -39,8 +38,6 @@ public sealed record CommandContext
     public AppConfig? Config { get; init; }
 
     public ModelProviderRegistry? ModelProviders { get; init; }
-
-    public AppBindingService? AppBindings { get; init; }
 
     public string? WorkspaceCraftPath { get; init; }
 }

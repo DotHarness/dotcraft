@@ -34,8 +34,6 @@ public sealed record PluginManifest
 
     public string? LspServersPath { get; init; }
 
-    public string? AppsPath { get; init; }
-
     public PluginSettingsSchema? Settings { get; init; }
 
     public PluginDesktopManifest? Desktop { get; init; }
@@ -224,13 +222,6 @@ public static partial class PluginManifestParser
             raw.Id,
             manifestPath,
             diagnostics);
-        var appsPath = ResolveOptionalManifestPath(
-            pluginRoot,
-            raw.Apps,
-            "apps",
-            raw.Id,
-            manifestPath,
-            diagnostics);
         var settings = ParseSettings(
             pluginRoot,
             raw.Settings,
@@ -297,7 +288,6 @@ public static partial class PluginManifestParser
         if (skillsPath == null
             && mcpServersPath == null
             && lspServersPath == null
-            && appsPath == null
             && raw.Desktop == null
             && raw.Channel.ValueKind == JsonValueKind.Undefined
             && workflowsPath == null
@@ -307,7 +297,7 @@ public static partial class PluginManifestParser
         {
             diagnostics.Add(PluginDiagnostic.Error(
                 "MissingPluginCapabilities",
-                "Plugin manifest must declare skills, mcpServers, lspServers, apps, desktop, workflows, hooks, interface metadata, dotnet, or channel.",
+                "Plugin manifest must declare skills, mcpServers, lspServers, desktop, workflows, hooks, interface metadata, dotnet, or channel.",
                 raw.Id,
                 path: manifestPath));
         }
@@ -334,7 +324,6 @@ public static partial class PluginManifestParser
             SkillsPath = skillsPath,
             McpServersPath = mcpServersPath,
             LspServersPath = lspServersPath,
-            AppsPath = appsPath,
             Settings = settings,
             Desktop = desktop,
             WorkflowsPath = workflowsPath,
@@ -866,8 +855,6 @@ public static partial class PluginManifestParser
         public string? McpServers { get; set; }
 
         public string? LspServers { get; set; }
-
-        public string? Apps { get; set; }
 
         public string? Settings { get; set; }
 

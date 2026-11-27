@@ -1,4 +1,3 @@
-using DotCraft.AppBinding;
 using DotCraft.Configuration;
 using DotCraft.Hooks;
 using DotCraft.Plugins;
@@ -38,10 +37,7 @@ internal sealed partial class PluginRequestHandler
             ? dotnetRuntime?.Snapshot.Plugins.FirstOrDefault(candidate =>
                 PluginIds.EqualsCanonical(candidate.PluginId, manifest.Id))
             : null;
-        var appDiagnostics = new List<PluginDiagnostic>();
-        var apps = MapPluginAppsToWire(plugin, appDiagnostics);
         var pluginDiagnostics = diagnostics
-            .Concat(appDiagnostics)
             .Where(d => string.Equals(d.PluginId, manifest.Id, StringComparison.OrdinalIgnoreCase))
             .Select(MapPluginDiagnosticToWire)
             .ToList();
@@ -92,7 +88,6 @@ internal sealed partial class PluginRequestHandler
                 Description = tool.Description
             }).ToArray() ?? [],
             Skills = MapPluginSkillsToWire(plugin, skillIndex),
-            Apps = apps,
             Channel = MapPluginChannelToWire(manifest.Channel),
             Desktop = manifest.Desktop is { } desktop
                 ? Protocol.Optional<Contract.PluginDesktopInfo?>.FromValue(new Contract.PluginDesktopInfo
@@ -227,31 +222,6 @@ internal sealed partial class PluginRequestHandler
 
     private static string CamelCase(string value) =>
         char.ToLowerInvariant(value[0]) + value[1..];
-
-    private static List<Contract.PluginAppInfo> MapPluginAppsToWire(
-        DiscoveredPlugin plugin,
-        List<PluginDiagnostic> diagnostics) =>
-        AppBindingCatalog.LoadPluginAppDescriptors(plugin, diagnostics)
-            .Select(app => new Contract.PluginAppInfo
-            {
-                AppId = app.AppId,
-                DisplayName = app.DisplayName,
-                DeveloperName = app.DeveloperName,
-                Description = app.Description,
-                Category = OmitIfNull(app.Category),
-                Icon = OmitIfNull(TryReadDataUrl(app.Icon) ?? app.Icon),
-                ReleasePage = OmitIfNull(app.ReleasePage),
-                NativeApplication = app.NativeApplication == null
-                    ? default
-                    : Protocol.Optional<Contract.PluginAppNativeApplication?>.FromValue(
-                      new Contract.PluginAppNativeApplication
-                    {
-                        DisplayName = app.NativeApplication.DisplayName,
-                        Protocol = app.NativeApplication.Protocol,
-                        InstallUrl = OmitIfNull(app.NativeApplication.InstallUrl)
-                    })
-            })
-            .ToList();
 
     private static Contract.PluginMcpServerInfo MapPluginMcpServerToWire(PluginMcpServerSummary server) =>
         new()

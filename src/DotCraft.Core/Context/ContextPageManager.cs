@@ -284,9 +284,6 @@ public static class ContextPageKeys
     public static ContextPageKey AgentInstructions(string variant) =>
         new("agentsMd", "instructions", variant);
 
-    public static ContextPageKey AppContextBlocks() =>
-        new("appBinding", "contextBlocks", "");
-
     public static ContextPageKey RuntimeAdditionalContext() =>
         new("runtime", "additionalContext", "");
 

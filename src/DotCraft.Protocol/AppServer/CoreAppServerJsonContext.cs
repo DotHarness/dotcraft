@@ -201,8 +201,6 @@ namespace DotCraft.Protocol;
 [JsonSerializable(typeof(AppServer.PerforceConnection))]
 [JsonSerializable(typeof(AppServer.PlanTodo))]
 [JsonSerializable(typeof(AppServer.PlanUpdatedNotification))]
-[JsonSerializable(typeof(AppServer.PluginAppInfo))]
-[JsonSerializable(typeof(AppServer.PluginAppNativeApplication))]
 [JsonSerializable(typeof(AppServer.PluginDesktopInfo))]
 [JsonSerializable(typeof(AppServer.PluginDependencyInfo))]
 [JsonSerializable(typeof(AppServer.PluginDiagnostic))]

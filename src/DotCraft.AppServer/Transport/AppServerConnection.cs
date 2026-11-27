@@ -20,8 +20,6 @@ public sealed class AppServerConnection
     private ClientConnectionInfo? _clientInfo;
     private ClientConnectionCapabilities? _clientCapabilities;
     private HashSet<string>? _optOutMethods;
-    private string? _appPrincipalId;
-    private string? _appPrincipalAppId;
 
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _subscriptions = new();
     private readonly ConcurrentDictionary<string, ThreadObservation> _observations = new(StringComparer.Ordinal);
@@ -148,32 +146,6 @@ public sealed class AppServerConnection
     /// </summary>
     public bool IsChannelAdapter => ChannelAdapterName != null;
 
-    /// <summary>True after App Binding authenticates this connection as an app principal.</summary>
-    public bool IsAppPrincipalAuthenticated => !string.IsNullOrWhiteSpace(_appPrincipalId);
-
-    /// <summary>The authenticated App Binding principal identifier.</summary>
-    public string? AppPrincipalId => _appPrincipalId;
-
-    /// <summary>The app owned by the authenticated App Binding principal.</summary>
-    public string? AppPrincipalAppId => _appPrincipalAppId;
-
-    /// <summary>Binds this initialized connection to one authenticated app principal.</summary>
-    public void BindAppPrincipal(string principalId, string appId)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(principalId);
-        ArgumentException.ThrowIfNullOrWhiteSpace(appId);
-        if (IsChannelAdapter)
-            throw new InvalidOperationException("A channel-adapter connection cannot become an app-principal connection.");
-        if (IsAppPrincipalAuthenticated
-            && (!string.Equals(_appPrincipalId, principalId, StringComparison.Ordinal)
-                || !string.Equals(_appPrincipalAppId, appId, StringComparison.Ordinal)))
-        {
-            throw new InvalidOperationException("The AppServer connection is already bound to another app principal.");
-        }
-        _appPrincipalId = principalId;
-        _appPrincipalAppId = appId;
-    }
-
     public string? ChannelDisplayName { get; private set; }
 
     public ChannelDeliveryCapabilitySnapshot? DeliveryCapabilities { get; private set; }
@@ -290,8 +262,6 @@ public sealed class AppServerConnection
     public void MarkClosed()
     {
         _isClosed = true;
-        _appPrincipalId = null;
-        _appPrincipalAppId = null;
         _closedTcs.TrySetResult();
         _ = CompleteThreadNotificationsAsync();
         foreach (var threadId in _openingObservations.Keys)

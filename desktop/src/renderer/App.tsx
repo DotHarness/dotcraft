@@ -43,8 +43,6 @@ import { applyMcpNotification } from './stores/mcpNotifications'
 import { useSkillsStore } from './stores/skillsStore'
 import { usePluginStore } from './stores/pluginStore'
 import { useHooksStore } from './stores/hooksStore'
-import { useAppBindingStore } from './stores/appBindingStore'
-import { useOriginAppStore } from './stores/originAppStore'
 import { useThreadRouteStore } from './stores/threadRouteStore'
 import { useGitStore } from './stores/gitStore'
 import { useWorkspaceReadinessTiming } from './hooks/useWorkspaceReadinessTiming'
@@ -904,16 +902,6 @@ export function App(): JSX.Element {
           }
           case 'automation/run/updated': {
             if (p.run) useAutomationsStore.getState().upsertRun(p.run as AutomationRun)
-            break
-          }
-
-          case 'app/list/updated':
-            void useOriginAppStore.getState().refresh(useConnectionStore.getState().connectionKey)
-            useAppBindingStore.getState().handleNotification(method, p)
-            break
-          case 'app/connection/changed':
-          case 'thread/appBindings/changed': {
-            useAppBindingStore.getState().handleNotification(method, p)
             break
           }
 

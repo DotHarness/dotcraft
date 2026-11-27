@@ -1,7 +1,6 @@
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using DotCraft.AppBinding;
 using DotCraft.Memory;
 
 namespace DotCraft.Sessions.Wire;

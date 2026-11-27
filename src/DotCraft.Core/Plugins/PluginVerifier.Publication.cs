@@ -40,7 +40,7 @@ public static partial class PluginVerifier
             ScanForTokens(entry, findings);
 
         var documents = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { manifest.ManifestPath };
-        foreach (var path in new[] { manifest.McpServersPath, manifest.LspServersPath, manifest.AppsPath })
+        foreach (var path in new[] { manifest.McpServersPath, manifest.LspServersPath })
         {
             if (path != null)
                 documents.Add(path);

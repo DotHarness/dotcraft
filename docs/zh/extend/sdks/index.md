@@ -18,7 +18,7 @@
 
 | 层级 | 适用场景 |
 | --- | --- |
-| **High-level** | 使用 `DotCraft`、thread、run、回调、模型、MCP runtime 或 App Binding 的应用。从这里开始。 |
+| **High-level** | 使用 `DotCraft`、thread、run、回调、模型或 MCP runtime 的应用。从这里开始。 |
 | **Wire** | 强类型 JSON-RPC、连接状态、超时和显式 raw 扩展调用。 |
 | **Contracts** | 不含传输 I/O 的生成 DTO、方法映射、注册表和协议元数据。 |
 
@@ -44,7 +44,6 @@
 | 读取历史分页 | `listTurns()` / `listItems()` | `ListTurnsAsync()` / `ListItemsAsync()` |
 | 列出模型 | `models.list()` | `Models.GetCatalogAsync()` |
 | 使用 MCP runtime | `mcpRuntime` | `McpRuntime` |
-| 使用 App Binding | `appBindings` | `AppBindings` |
 
 TypeScript 还提供 Channel Adapter profile，.NET 不提供。
 
@@ -63,4 +62,3 @@ TypeScript 还提供 Channel Adapter profile，.NET 不提供。
 
 - [AppServer 模式](../../contribute/lifecycle/appserver)——SDK 所连接的 AppServer 如何启动、加固并对外暴露 WebSocket 端点。
 - [AppServer 协议](../protocols/appserver)——这些 client 实际收发的方法与通知。
-- [DotCraft App](../app-binding)——App Binding，供应用向 thread 暴露自身能力。

@@ -463,9 +463,8 @@ Beyond the four primitives, `DesktopPluginHost` groups stable product operations
 | `appServer` | Supported JSON-RPC requests and subscriptions. |
 | `mcp` | Calling tools on the workspace's MCP servers. |
 | `settings` | Reading, mutating, and following this plugin's schema-backed settings. |
-| `appBindings`, `appSurfaces` | Connected-app binding, including enabling an app in a thread with `enableThread`, and app-provided UI surfaces. |
 | `workspaces` | Reading local workspace information. |
-| `oratorio` | Team runs, handoffs, and events. |
+| `oratorio` | Team runs and events. |
 | `satellites` | The local Hub's devices, invitations, events, activity, and read-only local sharing status. |
 | `remoteToolHost` | Thread execution routes, welcome and next-idle choices, and route snapshots. |
 | `screenView` | Generation-owned screen sessions and viewer layout preferences. |

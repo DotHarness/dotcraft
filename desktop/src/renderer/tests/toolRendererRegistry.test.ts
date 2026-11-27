@@ -60,7 +60,7 @@ describe('ToolRendererRegistry', () => {
     })
   })
 
-  it.each(['Mcp', 'PluginNative', 'RuntimeDynamic', 'LegacyAppBinding'])(
+  it.each(['Mcp', 'PluginNative', 'RuntimeDynamic'])(
     'rejects %s provenance even when it claims a Core presentation id',
     (kind) => {
       expect(resolve(CORE_TOOL_PRESENTATION_IDS.shell, kind)).toBeNull()
@@ -197,20 +197,14 @@ describe('resolveToolPluginIconUrl', () => {
       skills: [],
       mcpServers: [{ name: 'board', runtimeName: 'oratorio:board', transport: 'streamableHttp', enabled: true, active: true }],
       lspServers: [],
-      hooks: [],
-      apps: [{ appId: 'oratorio.board', name: 'Board', transport: 'streamableHttp', enabled: true }]
+      hooks: []
     }
   ]
 
-  it('resolves plugin icons via pluginId and app bindings while ignoring CoreNative tools', () => {
+  it('resolves plugin icons via pluginId while ignoring CoreNative tools', () => {
     expect(resolveToolPluginIconUrl(
       { type: 'mcpToolCall', source: { kind: 'Mcp', sourceId: 'oratorio:board', pluginId: 'oratorio' } },
       plugins
-    )).toBe('data:image/svg+xml,composer')
-    expect(resolveToolPluginIconUrl(
-      { type: 'mcpToolCall', source: { kind: 'Mcp', sourceId: 'binding:b1' } },
-      plugins,
-      [{ bindingId: 'b1', appId: 'oratorio.board', name: 'Board', enabled: true, transport: 'streamableHttp' }]
     )).toBe('data:image/svg+xml,composer')
     expect(resolveToolPluginIconUrl(
       { type: 'toolCall', source: { kind: 'CoreNative', sourceId: 'worktree', pluginId: 'oratorio' } },

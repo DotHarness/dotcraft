@@ -7,7 +7,7 @@ description: Use when the user asks to inspect or manage Oratorio board items, l
 
 ## Overview
 
-Oratorio is an operator-facing board for agent work. It tracks local tasks, GitHub issues, pull requests, review rounds, run history, decisions, comments, drafts, and source-write audit records. Its board tools are delivered through the Oratorio App Binding and MCP. Refer to the stable local tool names below; DotCraft assigns the canonical MCP namespace, so do not guess or hard-code it.
+Oratorio is an operator-facing board for agent work. It tracks local tasks, GitHub issues, pull requests, review rounds, run history, decisions, comments, drafts, and source-write audit records. Its board tools are delivered through the bundled Oratorio MCP server. Refer to the stable local tool names below; DotCraft assigns the canonical MCP namespace, so do not guess or hard-code it.
 
 ## Core Concepts
 

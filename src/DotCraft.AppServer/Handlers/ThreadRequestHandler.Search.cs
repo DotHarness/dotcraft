@@ -1,4 +1,3 @@
-using DotCraft.AppBinding;
 using DotCraft.Sessions;
 using Contract = DotCraft.Protocol.AppServer;
 

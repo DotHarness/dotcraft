@@ -108,8 +108,7 @@ internal static class McpContractMapper
             PluginId = origin.PluginId,
             PluginDisplayName = origin.PluginDisplayName,
             DeclaredName = origin.DeclaredName,
-            ThreadId = origin.ThreadId,
-            BindingId = origin.BindingId
+            ThreadId = origin.ThreadId
         };
 
     private static string ToContract(McpToolApprovalMode mode) => mode switch

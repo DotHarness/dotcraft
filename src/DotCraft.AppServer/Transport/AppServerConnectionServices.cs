@@ -1,5 +1,4 @@
 using DotCraft.Agents;
-using DotCraft.AppBinding;
 using DotCraft.Commands.Core;
 using DotCraft.Configuration;
 using DotCraft.Context;
@@ -54,7 +53,6 @@ public sealed record AppServerConnectionServices
 
     public IAutomationsRequestHandler? AutomationsHandler { get; init; }
     public Action<McpServerStatusSnapshot>? BroadcastMcpStatusChanged { get; init; }
-    public Action<string, string, object?>? NotifyAppPrincipal { get; init; }
     public Action<string, object?>? BroadcastTrustedNotification { get; init; }
     public Action<IAppServerTransport, Contract.PluginSnapshotUpdatedNotification, Task>?
         BroadcastPluginSnapshotUpdated { get; init; }
@@ -88,7 +86,6 @@ public sealed record AppServerConnectionServices
     public IContextPageManager? ContextPageManager { get; init; }
     public DreamsService? DreamsService { get; init; }
     public MemoryManagementService? MemoryManagement { get; init; }
-    public AppBindingService? AppBindingService { get; init; }
     public IReadOnlyList<IThreadOriginPresentationProvider>? ThreadOriginPresentationProviders { get; init; }
     public PlanStore? PlanStore { get; init; }
     public TraceStore? TraceStore { get; init; }

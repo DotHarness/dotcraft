@@ -47,7 +47,7 @@ kind (§8) without learning which it carries.
 Remote Tool Host does not provide general .NET remoting, IL weaving, arbitrary method interception,
 gRPC, NAT traversal, a cloud relay, LAN discovery, OAuth, enterprise SSO, multi-user roles, or a
 LocalSystem/root service. Each pairing is one principal; there are no roles or permissions beyond
-Host-local tool policy. It does not proxy MCP, Runtime Dynamic, App Binding, Session,
+Host-local tool policy. It does not proxy MCP, Runtime Dynamic, Session,
 Agent-control, planning, goal, or user-interaction tools. It provides no remote input, remote
 control, or recording. A separate read-only screen data session may use the same broker transport
 without acquiring execution authority.

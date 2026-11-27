@@ -362,373 +362,6 @@ export interface AgentProfileValidateResult {
   [key: string]: unknown;
 }
 
-export interface AppBinding {
-  appId?: string;
-  approvedCapabilityRevision?: number;
-  approvedTools?: AppBindingToolCapability[];
-  authorityRevision?: number;
-  bindingId?: string;
-  candidateCapabilityRevision?: number | null;
-  channelTarget?: ChannelTarget | null;
-  failureReason?: string | null;
-  pendingChanges?: AppBindingCapabilityChange[];
-  state?: string;
-  threadId?: string;
-  updatedAt?: string;
-  [key: string]: unknown;
-}
-
-export interface AppBindingActivateParams {
-  bearer?: string;
-  bearerExpiresAt?: string | null;
-  bindingRequestId?: string;
-  endpoint?: string;
-  [key: string]: unknown;
-}
-
-export interface AppBindingCapabilityChange {
-  detail?: string;
-  kind?: string;
-  tool?: string;
-  [key: string]: unknown;
-}
-
-export interface AppBindingRebindParams {
-  authorityRevision?: number;
-  bearer?: string;
-  bearerExpiresAt?: string | null;
-  bindingId?: string;
-  endpoint?: string;
-  [key: string]: unknown;
-}
-
-export interface AppBindingRequest {
-  appId?: string;
-  bindingId?: string;
-  bindingRequestId?: string;
-  expiresAt?: string;
-  state?: string;
-  threadId?: string;
-  [key: string]: unknown;
-}
-
-export interface AppBindingRequestGetParams {
-  bindingRequestId?: string;
-  requestToken?: string | null;
-  [key: string]: unknown;
-}
-
-export interface AppBindingRequestGetResult {
-  appId?: string;
-  bindingId?: string;
-  bindingKind?: string | null;
-  bindingRequestId?: string;
-  channelIntent?: ChannelBindingIntent | null;
-  developerName?: string;
-  displayName?: string;
-  dynamicToolCatalog?: AppDynamicToolCatalogDescriptor;
-  expiresAt?: string;
-  reason?: string | null;
-  requestedScopes?: string[];
-  requestedTools?: string[];
-  scopeCatalog?: AppScopeDescriptor[];
-  source?: string;
-  state?: string;
-  threadId?: string;
-  threadTitle?: string | null;
-  toolCatalog?: AppToolCatalogEntry[];
-  [key: string]: unknown;
-}
-
-export interface AppBindingRequestedNotification {
-  appId?: string | null;
-  bindingId?: string;
-  bindingRequestId?: string;
-  channelName?: string | null;
-  code?: string | null;
-  expiresAt?: string | null;
-  threadId?: string | null;
-  [key: string]: unknown;
-}
-
-export interface AppBindingToolCapability {
-  annotations?: JsonValue;
-  description?: string;
-  inputSchema?: JsonValue;
-  namespaceDescription?: string | null;
-  outputSchema?: JsonValue;
-  sourceToolName?: string;
-  ui?: AppBindingUiCapability | null;
-  visibility?: string[];
-  [key: string]: unknown;
-}
-
-export interface AppBindingUiCapability {
-  connectDomains?: string[];
-  permissions?: string[];
-  resourceDomains?: string[];
-  resourceUri?: string;
-  securityHash?: string;
-  [key: string]: unknown;
-}
-
-export interface AppBindingsListResult {
-  bindings?: AppBinding[];
-  [key: string]: unknown;
-}
-
-export interface AppChannelBindingResolveParams {
-  accountId?: string | null;
-  channelName?: string;
-  conversationId?: string;
-  conversationKind?: string;
-  [key: string]: unknown;
-}
-
-export interface AppChannelBindingResolveResult {
-  binding?: AppBinding | null;
-  [key: string]: unknown;
-}
-
-export interface AppConnectionAuthenticateParams {
-  appId?: string;
-  credential?: string;
-  [key: string]: unknown;
-}
-
-export interface AppConnectionAuthenticateResult {
-  principal?: AppPrincipal;
-  [key: string]: unknown;
-}
-
-export interface AppConnectionChangedNotification {
-  appId?: string | null;
-  state?: string;
-  [key: string]: unknown;
-}
-
-export interface AppConnectionConnectParams {
-  accountLabel?: string | null;
-  connectionRequestId?: string;
-  requestToken?: string;
-  [key: string]: unknown;
-}
-
-export interface AppConnectionConnectResult {
-  credential?: string;
-  principal?: AppPrincipal;
-  [key: string]: unknown;
-}
-
-export interface AppConnectionRefreshResult {
-  credential?: string;
-  principal?: AppPrincipal;
-  [key: string]: unknown;
-}
-
-export interface AppConnectionRequestGetParams {
-  connectionRequestId?: string;
-  requestToken?: string;
-  [key: string]: unknown;
-}
-
-export interface AppConnectionRequestGetResult {
-  appId?: string;
-  connectionRequestId?: string;
-  developerName?: string;
-  displayName?: string;
-  expiresAt?: string;
-  userId?: string;
-  [key: string]: unknown;
-}
-
-export interface AppConnectionRevokeParams {
-  appId?: string;
-  reason?: string | null;
-  [key: string]: unknown;
-}
-
-export interface AppConnectionRevokeResult {
-  state?: string;
-  [key: string]: unknown;
-}
-
-export interface AppConnectionStartParams {
-  appId?: string;
-  [key: string]: unknown;
-}
-
-export interface AppConnectionStartResult {
-  connectionRequestId?: string;
-  expiresAt?: string;
-  handoff?: AppHandoff | null;
-  requestToken?: string;
-  [key: string]: unknown;
-}
-
-export interface AppConnectionStatusParams {
-  appId?: string;
-  [key: string]: unknown;
-}
-
-export interface AppConnectionStatusResult {
-  appId?: string;
-  principal?: AppPrincipal | null;
-  state?: string;
-  [key: string]: unknown;
-}
-
-export interface AppDynamicToolCatalogDescriptor {
-  description?: string | null;
-  enabled?: boolean;
-  [key: string]: unknown;
-}
-
-export interface AppHandoff {
-  bindCode?: string | null;
-  instructions?: string | null;
-  mode?: string;
-  uri?: string | null;
-  [key: string]: unknown;
-}
-
-export interface AppHandoffModeDescriptor {
-  mode?: string;
-  serviceId?: string | null;
-  uriTemplate?: string | null;
-  [key: string]: unknown;
-}
-
-export interface AppInfo {
-  accountLabel?: string | null;
-  appId?: string;
-  bindingSummary?: ThreadAppBindingSummary | null;
-  catalogVisible?: boolean;
-  category?: string | null;
-  connectionState?: string;
-  description?: string;
-  developerName?: string;
-  diagnostics?: PluginDiagnostic[];
-  displayName?: string;
-  downloadUrl?: string | null;
-  enabled?: boolean;
-  handoffModes?: AppHandoffModeDescriptor[];
-  icon?: string | null;
-  installed?: boolean;
-  managed?: boolean;
-  nativeApp?: AppNativeApplication;
-  originChannel?: string | null;
-  pluginId?: string;
-  releasePage?: string | null;
-  requiresExternalConnection?: boolean;
-  [key: string]: unknown;
-}
-
-export interface AppListParams {
-  forceRefresh?: boolean | null;
-  includeCatalog?: boolean | null;
-  includeDisabled?: boolean | null;
-  surface?: string | null;
-  threadId?: string | null;
-  [key: string]: unknown;
-}
-
-export interface AppListResult {
-  apps?: AppInfo[];
-  [key: string]: unknown;
-}
-
-export interface AppListUpdatedNotification {
-  appIds?: string[];
-  pluginId?: string;
-  reason?: string;
-  [key: string]: unknown;
-}
-
-export interface AppNativeApplication {
-  displayName?: string;
-  installUrl?: string | null;
-  protocol?: string;
-  status?: string;
-  [key: string]: unknown;
-}
-
-export interface AppPrincipal {
-  appId?: string;
-  expiresAt?: string;
-  principalId?: string;
-  userId?: string;
-  [key: string]: unknown;
-}
-
-export interface AppScopeDescriptor {
-  defaultSelected?: boolean | null;
-  description?: string;
-  displayName?: string;
-  id?: string;
-  risk?: string;
-  [key: string]: unknown;
-}
-
-export interface AppSurface {
-  appId?: string;
-  bearer?: string;
-  endpoint?: string;
-  expiresAt?: string;
-  surfaceId?: string;
-  [key: string]: unknown;
-}
-
-export interface AppSurfacePublishParams {
-  bearer?: string;
-  endpoint?: string;
-  surfaceId?: string;
-  [key: string]: unknown;
-}
-
-export interface AppSurfaceResolveParams {
-  appId?: string;
-  surfaceId?: string;
-  [key: string]: unknown;
-}
-
-export interface AppThreadInputEnqueueParams {
-  bindingId?: string;
-  displayText?: string | null;
-  input?: InputPart[];
-  sender?: SenderContext | null;
-  startPolicy?: string | null;
-  triggerLabel?: string | null;
-  triggerRefId?: string | null;
-  [key: string]: unknown;
-}
-
-export interface AppThreadInputEnqueueResult {
-  queuedInput?: QueuedTurnInput;
-  queuedInputs?: QueuedTurnInput[];
-  [key: string]: unknown;
-}
-
-export interface AppToolCatalogEntry {
-  defaultExposure?: string;
-  description?: string | null;
-  name?: string;
-  risk?: string;
-  scope?: string;
-  [key: string]: unknown;
-}
-
-export interface AppViewParams {
-  appId?: string;
-  threadId?: string | null;
-  [key: string]: unknown;
-}
-
-export interface AppViewResult {
-  app?: AppInfo;
-  [key: string]: unknown;
-}
-
 export interface ApprovalRequestParams {
   approvalType: string;
   callId?: string | null;
@@ -961,37 +594,6 @@ export interface ChannelAdapterCapability {
   [key: string]: unknown;
 }
 
-export interface ChannelBindingAcceptParams {
-  code?: string;
-  target?: ChannelTarget;
-  [key: string]: unknown;
-}
-
-export interface ChannelBindingIntent {
-  channelName?: string;
-  displayHint?: string | null;
-  targetSelection?: string;
-  [key: string]: unknown;
-}
-
-export interface ChannelBindingRebindParams {
-  authorityRevision?: number;
-  bindingId?: string;
-  target?: ChannelTarget;
-  [key: string]: unknown;
-}
-
-export interface ChannelBindingRequestGetParams {
-  code?: string;
-  [key: string]: unknown;
-}
-
-export interface ChannelBoundBy {
-  displayName?: string | null;
-  platformUserId?: string;
-  [key: string]: unknown;
-}
-
 export interface ChannelChat {
   kind: string;
   label?: string | null;
@@ -1137,17 +739,6 @@ export interface ChannelStatusResult {
   [key: string]: unknown;
 }
 
-export interface ChannelTarget {
-  accountId?: string | null;
-  boundBy?: ChannelBoundBy | null;
-  channelName?: string;
-  conversationId?: string;
-  conversationKind?: string;
-  deliveryTarget?: string;
-  displayName?: string | null;
-  [key: string]: unknown;
-}
-
 export interface ChannelTargetCapability {
   direct: string;
   group: boolean;
@@ -1180,7 +771,6 @@ export interface ChannelToolDescriptor {
 
 export interface ClientCapabilities {
   acpExtensions?: AcpExtensionCapability | null;
-  appBindingVersion?: number | null;
   approvalSupport?: boolean | null;
   backgroundTerminals?: boolean | null;
   channelAdapter?: ChannelAdapterCapability | null;
@@ -2675,25 +2265,6 @@ export interface PlanUpdatedNotification {
   [key: string]: unknown;
 }
 
-export interface PluginAppInfo {
-  appId?: string;
-  category?: string | null;
-  description?: string;
-  developerName?: string;
-  displayName?: string;
-  icon?: string | null;
-  nativeApplication?: PluginAppNativeApplication | null;
-  releasePage?: string | null;
-  [key: string]: unknown;
-}
-
-export interface PluginAppNativeApplication {
-  displayName?: string;
-  installUrl?: string | null;
-  protocol?: string;
-  [key: string]: unknown;
-}
-
 export interface PluginChannelCapabilitySummary {
   capabilitySetMayVaryByEnvironment: boolean;
   hasChannelTools: boolean;
@@ -2820,7 +2391,6 @@ export interface PluginHookInfo {
 }
 
 export interface PluginInfo {
-  apps?: PluginAppInfo[];
   channel?: PluginChannelInfo | null;
   dependencies?: PluginDependencyInfo[];
   description?: string | null;
@@ -3437,8 +3007,6 @@ export interface SenderContext {
 
 export interface ServerCapabilities {
   agentProfileManagement?: boolean;
-  appBindingVersion?: number;
-  appThreadInputEnqueue?: boolean;
   approvalFlow?: boolean;
   automations?: boolean;
   backgroundTerminals?: boolean;
@@ -4111,79 +3679,6 @@ export interface TerminalWriteResult {
   [key: string]: unknown;
 }
 
-export interface ThreadAppBindingConfirmCapabilitiesParams {
-  bindingId?: string;
-  candidateRevision?: number;
-  decision?: string;
-  threadId?: string;
-  [key: string]: unknown;
-}
-
-export interface ThreadAppBindingEnableParams {
-  appId?: string;
-  threadId?: string;
-  [key: string]: unknown;
-}
-
-export interface ThreadAppBindingEnableResult {
-  bindingId?: string;
-  bindingRequestId?: string;
-  expiresAt?: string;
-  handoff?: AppHandoff | null;
-  state?: string;
-  [key: string]: unknown;
-}
-
-export interface ThreadAppBindingRevokeParams {
-  bindingId?: string;
-  reason?: string | null;
-  threadId?: string;
-  [key: string]: unknown;
-}
-
-export interface ThreadAppBindingSummary {
-  appId?: string;
-  approvedCapabilityRevision?: number;
-  approvedTools?: AppBindingToolCapability[];
-  authorityRevision?: number;
-  bindingId?: string;
-  bindingRequestId?: string | null;
-  candidateCapabilityRevision?: number | null;
-  channelTarget?: ChannelTarget | null;
-  displayName?: string | null;
-  failureReason?: string | null;
-  icon?: string | null;
-  managed?: boolean;
-  pendingChanges?: AppBindingCapabilityChange[];
-  requiresExternalConnection?: boolean;
-  state?: string;
-  threadId?: string;
-  [key: string]: unknown;
-}
-
-export interface ThreadAppBindingsChangedNotification {
-  appId?: string | null;
-  authorityRevision?: number | null;
-  bindingId?: string | null;
-  changeKind?: string | null;
-  failureReason?: string | null;
-  previousState?: string | null;
-  state?: string;
-  threadId?: string;
-  [key: string]: unknown;
-}
-
-export interface ThreadAppBindingsListParams {
-  includeRevoked?: boolean | null;
-  threadId?: string;
-  [key: string]: unknown;
-}
-
-export interface ThreadAppBindingsListResult {
-  bindings?: AppBinding[];
-  [key: string]: unknown;
-}
-
 export interface ThreadArchiveParams {
   threadId?: string;
   [key: string]: unknown;
@@ -4191,21 +3686,6 @@ export interface ThreadArchiveParams {
 
 export interface ThreadArchivedNotification {
   threadId: string;
-  [key: string]: unknown;
-}
-
-export interface ThreadChannelBindingRequestCreateParams {
-  channelName?: string;
-  threadId?: string;
-  [key: string]: unknown;
-}
-
-export interface ThreadChannelBindingRequestCreateResult {
-  bindingId?: string;
-  bindingRequestId?: string;
-  channelName?: string;
-  code?: string;
-  expiresAt?: string;
   [key: string]: unknown;
 }
 

@@ -2656,58 +2656,6 @@ public sealed class PlanUpdatedNotification : ExtensibleJsonObject
 
 }
 
-public sealed class PluginAppInfo : ExtensibleJsonObject
-{
-    [JsonPropertyName("appId")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> AppId { get; init; }
-
-    [JsonPropertyName("category")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> Category { get; init; }
-
-    [JsonPropertyName("description")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Description { get; init; }
-
-    [JsonPropertyName("developerName")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> DeveloperName { get; init; }
-
-    [JsonPropertyName("displayName")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> DisplayName { get; init; }
-
-    [JsonPropertyName("icon")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> Icon { get; init; }
-
-    [JsonPropertyName("nativeApplication")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<PluginAppNativeApplication?> NativeApplication { get; init; }
-
-    [JsonPropertyName("releasePage")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> ReleasePage { get; init; }
-
-}
-
-public sealed class PluginAppNativeApplication : ExtensibleJsonObject
-{
-    [JsonPropertyName("displayName")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> DisplayName { get; init; }
-
-    [JsonPropertyName("installUrl")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string?> InstallUrl { get; init; }
-
-    [JsonPropertyName("protocol")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Protocol { get; init; }
-
-}
-
 public sealed class PluginDesktopInfo : ExtensibleJsonObject
 {
     [JsonPropertyName("description")]
@@ -2867,10 +2815,6 @@ public sealed class PluginHookInfo : ExtensibleJsonObject
 
 public sealed class PluginInfo : ExtensibleJsonObject
 {
-    [JsonPropertyName("apps")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<IReadOnlyList<PluginAppInfo>> Apps { get; init; }
-
     [JsonPropertyName("channel")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public PluginChannelInfo? Channel { get; init; }

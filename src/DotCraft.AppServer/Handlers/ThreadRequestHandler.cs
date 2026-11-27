@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
-using DotCraft.AppBinding;
 using DotCraft.Configuration;
 using DotCraft.Logging;
 using Contract = DotCraft.Protocol.AppServer;
@@ -451,11 +450,9 @@ internal sealed partial class ThreadRequestHandler(
         if (!await sessionService.ArchiveThreadAsync(threadId, ct))
             return AppServerTypedResult<Protocol.RpcEmpty>.FromResult(new());
 
-        var channelBindingCleanup = threadProjector.RevokeChannelAppBindingsForArchivedThread(threadId);
         if (connection.HasSubscription(threadId))
         {
             await responseWriter.WriteResponseAsync(msg.Id, new Protocol.RpcEmpty(), ct);
-            await SendArchiveChannelBindingNotificationsAsync(channelBindingCleanup, ct);
             return AppServerTypedResult<Protocol.RpcEmpty>.Written;
         }
 
@@ -464,30 +461,7 @@ internal sealed partial class ThreadRequestHandler(
             Contract.AppServerRpc.ThreadArchived,
             new Contract.ThreadArchivedNotification { ThreadId = threadId },
             ct);
-        await SendArchiveChannelBindingNotificationsAsync(channelBindingCleanup, ct);
         return AppServerTypedResult<Protocol.RpcEmpty>.Written;
-    }
-
-    private async Task SendArchiveChannelBindingNotificationsAsync(
-        IReadOnlyList<AppBindingSnapshot> revokedBindings,
-        CancellationToken ct)
-    {
-        foreach (var binding in revokedBindings)
-        {
-            await transport.NotifyContractAsync(
-                Contract.AppServerRpc.ThreadAppBindingsChanged,
-                new Contract.ThreadAppBindingsChangedNotification
-                {
-                    ThreadId = binding.ThreadId,
-                    BindingId = binding.BindingId,
-                    AppId = binding.AppId,
-                    State = binding.State,
-                    PreviousState = AppBindingStates.Active,
-                    ChangeKind = "threadArchived"
-                },
-                ct);
-        }
-
     }
 
     private async Task<AppServerTypedResult<Protocol.RpcEmpty>> HandleThreadUnarchiveAsync(
@@ -525,7 +499,6 @@ internal sealed partial class ThreadRequestHandler(
     {
         var threadId = Require(request.Params.ThreadId, "'threadId' is required.");
         await sessionService.DeleteThreadPermanentlyAsync(threadId, ct);
-        threadProjector.RevokeAppBindingsForDeletedThread(threadId);
         return AppServerTypedResult<Protocol.RpcEmpty>.FromResult(new());
     }
 

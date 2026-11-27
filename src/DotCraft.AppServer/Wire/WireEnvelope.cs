@@ -52,10 +52,6 @@ public sealed class ClientConnectionInfo
 
 public sealed class ClientConnectionCapabilities
 {
-    /// <summary>App Binding control-plane version required by the client.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public int? AppBindingVersion { get; set; }
-
     /// <summary>Whether the client can handle server-initiated approval requests. Default true.</summary>
     public bool? ApprovalSupport { get; set; }
 
@@ -190,18 +186,6 @@ public sealed class ServerCapabilitySnapshot
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool RuntimeAdditionalContext { get; set; }
-
-    /// <summary>
-    /// App Binding control-plane version supported by the server.
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public int AppBindingVersion { get; set; }
-
-    /// <summary>
-    /// Server supports AppBinding-safe app-triggered queued input via <c>app/threadInput/enqueue</c>.
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public bool AppThreadInputEnqueue { get; set; }
 
     /// <summary>
     /// Server supports interrupting active thread maintenance via <c>thread/maintenance/interrupt</c>.

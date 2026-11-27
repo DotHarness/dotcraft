@@ -1,3 +1,5 @@
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using DotCraft.Common;
 using SdkHub = DotCraft.Sdk.Hub;
 
@@ -7,14 +9,15 @@ public sealed class HubClient
 {
     private readonly HubPaths _paths;
     private readonly SdkHub.HubClient _client;
+    private readonly string _executable;
 
     public HubClient(string? dotcraftBin = null, HubPaths? paths = null)
     {
         _paths = paths ?? HubPaths.ForCurrentUser();
-        var executable = string.IsNullOrWhiteSpace(dotcraftBin) ? HubLauncher.CurrentBinary() : dotcraftBin;
+        _executable = string.IsNullOrWhiteSpace(dotcraftBin) ? HubLauncher.CurrentBinary() : dotcraftBin;
         _client = new SdkHub.HubClient(new SdkHub.DotCraftHubClientOptions
         {
-            Executable = executable,
+            Executable = _executable,
             HubLockPath = _paths.LockFilePath,
             StartHubProcess = value =>
             {
@@ -42,6 +45,51 @@ public sealed class HubClient
         string workspacePath,
         CancellationToken cancellationToken = default) =>
         ForwardAsync(() => _client.RestartAppServerAsync(workspacePath, cancellationToken: cancellationToken));
+
+    public async Task<HubManagedServiceResponse> EnsureManagedServiceAsync(
+        string serviceId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(serviceId);
+        try
+        {
+            var hub = await _client.EnsureHubAsync(cancellationToken).ConfigureAwait(false);
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+            using var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"{hub.ApiBaseUrl.TrimEnd('/')}/v1/services/ensure")
+            {
+                Content = JsonContent.Create(
+                    new EnsureManagedServiceRequest
+                    {
+                        ServiceId = serviceId,
+                        StartIfMissing = true,
+                        Executable = _executable
+                    },
+                    options: HubJson.Options)
+            };
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", hub.Token);
+            using var response = await http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+            {
+                var detail = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+                throw new HubClientException(
+                    "managedServiceUnavailable",
+                    string.IsNullOrWhiteSpace(detail)
+                        ? $"Hub returned {(int)response.StatusCode} while ensuring service '{serviceId}'."
+                        : detail);
+            }
+
+            var service = await response.Content
+                .ReadFromJsonAsync<HubManagedServiceResponse>(HubJson.Options, cancellationToken)
+                .ConfigureAwait(false);
+            return service ?? throw new HubClientException("managedServiceUnavailable", $"Hub returned an empty response for service '{serviceId}'.");
+        }
+        catch (SdkHub.HubClientException error)
+        {
+            throw new HubClientException(error.Code, error.Message, error);
+        }
+    }
 
     private static async Task<HubAppServerResponse> ForwardAsync(Func<Task<SdkHub.HubAppServerResponse>> operation)
     {

@@ -1,8 +1,7 @@
-import { Anchor, Box, Code2, Link2, Server, Settings } from 'lucide-react'
+import { Anchor, Box, Code2, Server, Settings } from 'lucide-react'
 import type { PluginContentType } from '../../utils/pluginContentSummaries'
 
 export function PluginContentIcon({ type, size }: { type: PluginContentType; size: number }): JSX.Element {
-  if (type === 'app') return <Link2 size={size} aria-hidden />
   if (type === 'desktopPlugin') return <Settings size={size} aria-hidden />
   if (type === 'dotnet') return <DotNetIcon size={size} />
   if (type === 'hooks') return <Anchor size={size} aria-hidden />

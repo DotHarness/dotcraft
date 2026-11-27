@@ -673,7 +673,7 @@ function ToolActivityRow({
   }, active)
 
   const headerKey = `${heldIconItem?.id ?? ''}:${heldWorking ? 'live' : 'rest'}`
-  const pluginIconUrl = useToolPluginIconUrl(heldIconItem, threadId)
+  const pluginIconUrl = useToolPluginIconUrl(heldIconItem)
   const iconKey = !heldIconItem || !icon
     ? 'none'
     : pluginIconUrl
@@ -690,7 +690,7 @@ function ToolActivityRow({
       live={heldWorking}
       iconNode={heldIconItem && icon ? (
         <ToolIconHandoff iconKey={iconKey}>
-          <ToolRowPluginIcon item={heldIconItem} fallback={icon} threadId={threadId} live={heldWorking} />
+          <ToolRowPluginIcon item={heldIconItem} fallback={icon} live={heldWorking} />
         </ToolIconHandoff>
       ) : undefined}
       title={(

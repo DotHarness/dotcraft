@@ -122,44 +122,33 @@ public sealed partial class AppServerPluginManagementTests
         Assert.Empty(saved.GetProperty("configuredSecrets").EnumerateArray());
     }
 
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task ChannelSettings_AreNotAccessibleFromAdapterOrAppPrincipal(bool adapter)
+    [Fact]
+    public async Task ChannelSettings_AreNotAccessibleFromAdapter()
     {
         WriteChannelSettingsFixture();
         using var harness = CreateChannelSettingsHarness(_workspaceCraftPath);
-        if (adapter)
+        await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethodNames.Initialize, new
         {
-            await harness.ExecuteRequestAsync(harness.BuildRequest(AppServerMethodNames.Initialize, new
+            clientInfo = new { name = "fixture-adapter", version = "1.0.0" },
+            capabilities = new
             {
-                clientInfo = new { name = "fixture-adapter", version = "1.0.0" },
-                capabilities = new
+                channelAdapter = new
                 {
-                    channelAdapter = new
-                    {
-                        channelName = "example",
-                        displayName = "Example",
-                        deliveryCapabilities = new { text = new { format = "plain" }, targets = new { group = false, direct = "any" } }
-                    }
+                    channelName = "example",
+                    displayName = "Example",
+                    deliveryCapabilities = new { text = new { format = "plain" }, targets = new { group = false, direct = "any" } }
                 }
-            }));
-            using var initialized = await harness.Transport.ReadNextSentAsync();
-            AppServerTestHarness.AssertIsSuccessResponse(initialized);
-            Assert.True(harness.Handler.HandleNotification(harness.BuildNotification(AppServerMethodNames.Initialized, new { })));
-        }
-        else
-        {
-            using var initialized = await harness.InitializeAsync();
-            harness.Connection.BindAppPrincipal("fixture-principal", "fixture-app");
-        }
+            }
+        }));
+        using var initialized = await harness.Transport.ReadNextSentAsync();
+        AppServerTestHarness.AssertIsSuccessResponse(initialized);
+        Assert.True(harness.Handler.HandleNotification(harness.BuildNotification(AppServerMethodNames.Initialized, new { })));
 
-        var expected = adapter ? AppServerErrors.InvalidRequestCode : AppServerErrors.AppPrincipalUnauthorizedCode;
         using var read = await GetChannelSettingsAsync(harness);
-        AppServerTestHarness.AssertIsErrorResponse(read, expected);
+        AppServerTestHarness.AssertIsErrorResponse(read, AppServerErrors.InvalidRequestCode);
         using var write = await MutateChannelSettingsAsync(harness, "workspace",
             new { op = "set", key = "example.token", value = "fixture-token" });
-        AppServerTestHarness.AssertIsErrorResponse(write, expected);
+        AppServerTestHarness.AssertIsErrorResponse(write, AppServerErrors.InvalidRequestCode);
         Assert.False(File.Exists(Path.Combine(_workspaceCraftPath, PlatformConfigFile)));
     }
 

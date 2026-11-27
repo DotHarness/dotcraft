@@ -1,5 +1,4 @@
 using System.Text.Json;
-using DotCraft.AppBinding;
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Commands.Core;
@@ -73,7 +72,6 @@ public sealed class AppServerTestHarness : IDisposable
         IAppServerChannelListContributor? channelListContributor = null,
         DreamsService? dreamsService = null,
         MemoryManagementService? memoryManagement = null,
-        AppBindingService? appBindingService = null,
         PlanStore? planStore = null,
         IContextPageManager? contextPageManager = null,
         OpenAIClientProvider? openAIClientProvider = null,
@@ -159,7 +157,6 @@ public sealed class AppServerTestHarness : IDisposable
                 BackgroundTerminalService = backgroundTerminalService,
                 DreamsService = dreamsService,
                 MemoryManagement = memoryManagement,
-                AppBindingService = appBindingService,
                 ThreadOriginPresentationProviders = threadOriginPresentationProviders,
                 PlanStore = planStore,
                 ContextPageManager = contextPageManager,

@@ -104,7 +104,6 @@ If no handler matches, the SDK returns `UnsupportedTool`. If the handler throws,
 
 Pass the same declarations when you resume a thread. A Wire reconnect replays initialization but does not restore thread, run, or dynamic-tool state, so refresh or resume the thread and rebind its runtime tools before relying on them again.
 
-App Binding tools take a different path. They use their binding-scoped MCP session and App Binding error helpers — see [DotCraft App](../app-binding).
 
 ## Approvals
 

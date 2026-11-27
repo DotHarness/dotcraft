@@ -21,7 +21,7 @@ The conductor is Oratorio's conversation: one Desktop thread from which the pers
 ## 2. Chats
 
 - The conductor hands project work off as an ordinary **chat** in the owning project with `CreateThread` and initiation `userAsked`. `ownInitiative` proposals remain available for follow-ups the conductor notices.
-- The conductor does not create, inspect, or synchronize Oratorio board tasks, and opening the conductor does not enable or require an Oratorio App Binding.
+- The conductor does not create, inspect, or synchronize Oratorio board tasks.
 
 ## 3. Reporting and Proactive Check-ins
 

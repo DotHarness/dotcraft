@@ -27,7 +27,6 @@ Choose the contributions with the least execution authority that meet the need. 
 | Automation on agent events | `"hooks": "./hooks/hooks.json"` | `assets/template-hooks.json`, `assets/template-hook-script.js` | Follow `$create-hooks` |
 | A scripted multi-agent procedure | `"workflows": "./workflows"` | | Follow `$workflow-authoring` |
 | Language intelligence | `"lspServers": "./.lsp.json"` | `assets/template-lsp.json` | |
-| An application connected to threads | `"apps": "./apps.json"` | | See `https://www.dotcraft.net/extend/app-binding` |
 | A messaging platform connected to a workspace | `"channel"` | | Follow `https://www.dotcraft.net/extend/channel-modules` |
 | User options | `"settings": "./settings.schema.json"` | `assets/template-settings.json` | |
 | A view or action in Desktop | `"desktop"` | `assets/template-desktop-*` | Read `references/desktop-authoring.md` |

@@ -101,8 +101,7 @@ public sealed class OratorioDynamicToolCatalogTests
             new OratorioToolInvocationContext(
                 services,
                 call,
-                OratorioToolSurface.AppBinding,
-                BindingGrant: new OratorioAppBindingGrantContext("binding-1", 1)),
+                OratorioToolSurface.Mcp),
             new HashSet<string>(StringComparer.Ordinal) { OratorioDynamicToolCatalog.SubmitReviewDraftName },
             CancellationToken.None);
 
@@ -130,8 +129,7 @@ public sealed class OratorioDynamicToolCatalogTests
             new OratorioToolInvocationContext(
                 services,
                 call,
-                OratorioToolSurface.AppBinding,
-                BindingGrant: new OratorioAppBindingGrantContext("binding-1", 1)),
+                OratorioToolSurface.Mcp),
             new HashSet<string>(StringComparer.Ordinal) { OratorioDynamicToolCatalog.SubmitReviewDraftName },
             CancellationToken.None);
 

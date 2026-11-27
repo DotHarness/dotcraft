@@ -1,6 +1,4 @@
-using DotCraft.AppBinding;
 using DotCraft.Sessions;
-using DotCraft.Text;
 using Xunit;
 
 namespace DotCraft.Tests.Commands;
@@ -24,37 +22,6 @@ public sealed class CommandConversationTests
         var conversation = await harness.Service.FindThreadsAsync(harness.Identity, includeArchived: true);
         Assert.Equal(second, Assert.Single(conversation, static thread => thread.Status == ThreadStatus.Active).Id);
         Assert.Equal(2, conversation.Count(static thread => thread.Status == ThreadStatus.Archived));
-    }
-
-    [Fact]
-    public async Task ConversationCommands_AreRefusedInAChatBoundToAThread()
-    {
-        await using var harness = CommandSessionHarness.Create();
-        var bound = await harness.CreateThreadAsync();
-        var request = harness.AppBindings.CreateChannelRequest(harness.CraftPath, bound.Id, "chat", "local");
-        harness.AppBindings.AcceptChannel(harness.CraftPath, "chat", new ChannelBindingAcceptCommand
-        {
-            Code = request.Code,
-            Target = new ChannelTarget
-            {
-                ChannelName = "chat",
-                ConversationKind = "group",
-                ConversationId = "1",
-                DeliveryTarget = "group:1"
-            }
-        });
-
-        foreach (var command in new[] { "/new", "/sessions", "/resume 1" })
-        {
-            var result = await harness.ExecuteAsync(bound.Id, command);
-
-            Assert.Null(result.ThreadId);
-            Assert.Null(result.Choices);
-            Assert.Equal(FallbackText.CommandConversationBound, result.Message);
-        }
-
-        Assert.Equal(ThreadStatus.Active, (await harness.Service.GetThreadAsync(bound.Id)).Status);
-        Assert.Single(await harness.Service.FindThreadsAsync(harness.Identity, includeArchived: true));
     }
 
     [Fact]

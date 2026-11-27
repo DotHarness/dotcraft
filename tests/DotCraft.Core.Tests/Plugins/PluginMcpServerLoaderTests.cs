@@ -196,8 +196,7 @@ public sealed class PluginMcpServerLoaderTests : IDisposable
         var v1Inherited = McpServerComposition.Compose(
             "thread-1",
             threadServers: null,
-            PluginMcpServerLoader.LoadPluginServers(v1Plugin, [], dataPath),
-            bindingServers: []);
+            PluginMcpServerLoader.LoadPluginServers(v1Plugin, [], dataPath));
         var v1Stdio = v1Inherited.Single(server => server.Name == "demo:local");
         var v1Http = v1Inherited.Single(server => server.Name == "demo:remote");
         var v1StdioIdentity = await McpConnectionIdentity.CreateAsync(v1Stdio, userDataPath: null, CancellationToken.None);
@@ -211,8 +210,7 @@ public sealed class PluginMcpServerLoaderTests : IDisposable
         var v2Inherited = McpServerComposition.Compose(
             "thread-1",
             threadServers: null,
-            PluginMcpServerLoader.LoadPluginServers(v2Plugin, [], dataPath),
-            bindingServers: []);
+            PluginMcpServerLoader.LoadPluginServers(v2Plugin, [], dataPath));
         var v2Stdio = v2Inherited.Single(server => server.Name == "demo:local");
         var v2Http = v2Inherited.Single(server => server.Name == "demo:remote");
         var v2StdioIdentity = await McpConnectionIdentity.CreateAsync(v2Stdio, userDataPath: null, CancellationToken.None);
@@ -224,6 +222,22 @@ public sealed class PluginMcpServerLoaderTests : IDisposable
         Assert.NotEqual(v1Stdio.Origin.PluginFingerprint, v2Stdio.Origin.PluginFingerprint);
         Assert.NotEqual(v1StdioIdentity.Configuration, v2StdioIdentity.Configuration);
         Assert.Equal(v1HttpIdentity.Configuration, v2HttpIdentity.Configuration);
+    }
+
+    [Fact]
+    public void LoadPluginServers_ExpandsDotCraftBinVariableInStdioCommand()
+    {
+        var plugin = WritePlugin(new
+        {
+            command = "${DOTCRAFT_BIN}",
+            arguments = new[] { "oratorio", "mcp" }
+        }, "oratorio-mcp");
+
+        var loaded = PluginMcpServerLoader.LoadPluginServers(plugin, [], Path.Combine(_root, "data"));
+        var server = Assert.Single(loaded);
+        Assert.False(string.IsNullOrWhiteSpace(server.Command));
+        Assert.DoesNotContain("${DOTCRAFT_BIN}", server.Command, StringComparison.Ordinal);
+        Assert.Equal(["oratorio", "mcp"], server.Arguments);
     }
 
     private DiscoveredPlugin WritePlugin(object server, string directory = "plugin with spaces")

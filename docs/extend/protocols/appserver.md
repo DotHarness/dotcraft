@@ -509,13 +509,10 @@ The table below covers common method families used by AppServer clients.
 | Automations | `automation/list`, `automation/create`, `automation/runs/list` | Local task lifecycle, binding, and managed worktree cleanup. |
 | Worktrees | `worktree/list`, `worktree/status`, `thread/worktree/handoff`, `worktree/remove` | Managed Git worktree status, handoff, and removal. |
 | Configuration | `config/schema`, `config/read`, `config/value/write`, `config/batchWrite` | Read and change user and workspace configuration by key path. |
-| App Binding | `app/connection/authenticate`, `app/binding/activate`, `app/threadInput/enqueue` | Extension module for external apps, gated by `capabilities.appBindingVersion`. |
 
 Use `capabilities` from the `initialize` response before showing feature-specific UI.
 
 `skills/read` returns the whole `SKILL.md`, frontmatter included; `skills/view` returns its body without frontmatter.
-
-App Binding clients negotiate `capabilities.appBindingVersion: 1`. An authenticated app-principal connection may call only the app-role allowlist — connection authentication, refresh, status, and revoke, binding request, activation, rebind, and list, `app/surface/publish`, and `app/threadInput/enqueue` — and its tools are delivered by binding-scoped MCP sessions. An unsupported App Binding version returns `AppBindingUpgradeRequired`, undeclared methods return `MethodNotFound`, and other unauthorized methods return `AppPrincipalUnauthorized`. See [DotCraft App](../app-binding).
 
 ### Automation runs and worktrees
 

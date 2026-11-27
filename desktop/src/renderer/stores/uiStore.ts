@@ -82,7 +82,6 @@ export interface PendingWelcomeTurnInput {
   inputParts: InputPart[]
   images?: ImageAttachment[]
   files?: ComposerFileAttachment[]
-  appIds?: string[]
   sentAsGoal?: boolean
   modelSettings?: TurnModelSettings
   title?: ThreadTitleRequest
@@ -506,13 +505,12 @@ export const useUIStore = create<UIStore & InternalState>((set, get) => ({
         clearTimeout(timer)
       }
       set({ pendingWelcomeTurn: null, _pendingWelcomeTimer: null })
-      const { text, inputParts, images, files, appIds, sentAsGoal, title } = p
+      const { text, inputParts, images, files, sentAsGoal, title } = p
       return {
         text,
         inputParts,
         ...(images !== undefined ? { images } : {}),
         ...(files !== undefined ? { files } : {}),
-        ...(appIds !== undefined ? { appIds } : {}),
         ...(sentAsGoal !== undefined ? { sentAsGoal } : {}),
         ...(title !== undefined ? { title } : {})
       }

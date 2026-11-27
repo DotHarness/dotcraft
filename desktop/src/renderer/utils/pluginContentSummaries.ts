@@ -2,7 +2,6 @@ import type { PluginEntry } from '../stores/pluginStore'
 import { getPluginDesktopContent } from './pluginDesktop'
 
 export type PluginContentType =
-  | 'app'
   | 'desktopPlugin'
   | 'dotnet'
   | 'hooks'
@@ -55,13 +54,6 @@ export function getPluginContentSummaries(plugin: PluginEntry, t: Translate): Pl
         || plugin.description
         || plugin.displayName
     }]),
-    ...(plugin.apps ?? []).map((app) => ({
-      key: `app:${app.appId}`,
-      type: 'app' as const,
-      kind: t('plugins.content.app'),
-      title: app.displayName,
-      description: app.description
-    })),
     ...getPluginHookContent(plugin, t),
     ...plugin.skills.map((skill) => ({
       key: `skill:${skill.name}`,

@@ -9,14 +9,14 @@
 
 ## 1. Purpose
 
-This specification defines the architecture for every tool that can be made available to a DotCraft agent. It is the source of truth for shared behavior across native tool providers, MCP, Runtime Dynamic Tools, App Binding, Plugin Functions, social channels, and client presentation boundaries.
+This specification defines the architecture for every tool that can be made available to a DotCraft agent. It is the source of truth for shared behavior across native tool providers, MCP, Runtime Dynamic Tools, Plugin Functions, social channels, and client presentation boundaries.
 
 The architecture has four goals:
 
 1. one source-neutral registration and dispatch pipeline;
 2. explicit authority, exposure, identity, and audience boundaries;
 3. consistent AppServer tool semantics across server and clients;
-4. standards-based interactive tool UI through MCP Apps, while retaining App Binding as a small authorization and connection control plane.
+4. standards-based interactive tool UI through MCP Apps.
 
 ### 1.1 Specification ownership
 
@@ -25,7 +25,6 @@ The architecture has four goals:
 | this document | cross-source identity, layer boundaries, exposure, authority, execution, result audiences, presentation invariants, and the semantics of built-in tools |
 | [Session Core](session-core.md) | Thread/Turn/Item persistence, generic lifecycle, event ordering, archive/resume/fork semantics |
 | the AppServer protocol | JSON-RPC method names, DTOs, capability negotiation, notifications, and transport serialization |
-| the App Binding protocol | app discovery, principal/connection handoff, thread binding state, capability authorization, revoke/rebind/audit |
 | MCP and MCP Apps standards | MCP capability, tool/resource/result, Apps metadata, and bridge wire contracts |
 
 Consumers reference these semantics rather than redefining them.
@@ -37,8 +36,8 @@ This specification does not:
 - define general app discovery, marketplace, or plugin installation UX;
 - make every tool source use the same transport or session item type;
 - require interactive UI for a tool to be correct;
-- expose App Binding credentials or external app executables to the agent runtime;
-- provide aliases for Runtime Dynamic Tool or App Binding execution protocols.
+- expose external server credentials to the agent runtime;
+- provide aliases for Runtime Dynamic Tool execution protocols.
 
 ## 3. Normative language
 
@@ -60,7 +59,6 @@ The key words **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, and **MAY** ar
 | **Tool Execution Result** | Source-neutral result containing model content, client-only structured content, host-only metadata, success, and stable error information. |
 | **Presentation Descriptor** | Trusted metadata that selects or configures a local renderer. It is distinct from MCP Apps UI resource metadata. |
 | **Runtime Dynamic Tool** | A Thread-owned declaration with a callback lease held by an AppServer client. It is not a general external app integration mechanism. |
-| **Binding MCP** | An MCP server connection authorized for one App Binding and added independently to one thread. |
 
 ## 5. Architectural layers
 
@@ -78,7 +76,7 @@ The source discovers or declares a definition and owns source-specific lifecycle
 |---|---|---|---|
 | Core Native | process/workspace | DotCraft server | file, web, subagent |
 | Plugin Native | plugin enablement | trusted in-process plugin | plugin-contributed functions, managed channel tools |
-| MCP | MCP connection/session | MCP server | workspace, thread, plugin, or binding MCP |
+| MCP | MCP connection/session | MCP server | workspace, thread, or plugin MCP |
 | Runtime Dynamic | Thread declarations, connection lease | connected AppServer client | client-owned thread management and run callbacks |
 
 Core Native file and shell tools execute in the DotCraft process environment; for Docker Stack deployments, that is the DotCraft container.
@@ -97,7 +95,7 @@ The runtime registry retains executable registrations that are hidden from the m
 
 ### 5.3 Binding and authority
 
-Authority determines whether a registration is usable by a thread and whether a particular invocation can dispatch. Inputs include thread configuration, plugin state, App Binding state, mode policy, approval policy, MCP annotations, and connection health. Source-owned business invariants remain the native service's execution-boundary responsibility.
+Authority determines whether a registration is usable by a thread and whether a particular invocation can dispatch. Inputs include thread configuration, plugin state, mode policy, approval policy, MCP annotations, and connection health. Source-owned business invariants remain the native service's execution-boundary responsibility.
 
 The common dispatcher evaluates operational mode from the current runtime authority. A running Turn retains its captured mode; committed changes apply to subsequent Turns without rebuilding tools or rediscovering plugins.
 
@@ -203,16 +201,16 @@ MCP is normalized as one deterministic batch:
 2. Every Unicode scalar value outside ASCII letters, digits, and underscore becomes one `_` (hyphen included, so one identity works across providers). No Unicode normalization precedes sanitization or hashing.
 3. A namespace is limited to 49 ASCII bytes; a longer one becomes its first 36 bytes, `_`, and the first 12 lowercase hex characters of SHA-1 over the UTF-8 unsanitized seed.
 4. The child limit is `64 - namespaceLength - 2`; a longer child is truncated with the same `prefix + "_" + 12-hex` form.
-5. Distinct source identities that sanitize to the same namespace each receive a suffix from SHA-1 of the full source identity; distinct raw tools in one source that collide receive a suffix from SHA-1 of `sourceIdentity + NUL + rawToolName`. Truncation is reapplied after suffixing. Ordinary catalogs scope source identity to the server source family; binding catalogs use the binding id.
+5. Distinct source identities that sanitize to the same namespace each receive a suffix from SHA-1 of the full source identity; distinct raw tools in one source that collide receive a suffix from SHA-1 of `sourceIdentity + NUL + rawToolName`. Truncation is reapplied after suffixing. Catalogs scope source identity to the server source family.
 6. Collision groups are computed from ordinally sorted full seeds, so results do not depend on enumeration order. A remaining duplicate is quarantined, not resolved by last-write-wins.
 
 For MCP, `runtimeName` identifies the effective connection and `SourceToolId` is the exact raw name sent to `tools/call`; neither is a model namespace. The snapshot keeps the exact mapping `ToolName -> (ToolDefinitionId, RuntimeBindingId, runtimeName, SourceToolId)`. Clients, Views, and provider adapters MUST NOT reconstruct the MCP route by parsing or prefixing `ToolName`.
 
-Ordinary and approved App Binding catalogs share this normalization. Binding definitions retain identity, descriptions, schemas, annotations, audiences, and exposure across connection loss; only executor and lease change. Candidate binding catalogs are withheld. Persisted MCP items and MCP App resource operations record the executor's routing name and generation separately from the binding's authority revision.
+Persisted MCP items and MCP App resource operations record the executor's routing name and generation.
 
 Direct publication, deferred indexes, native tool-search results, and provider callbacks all use the same canonical namespace. In a namespace-capable search result, the container name is the canonical namespace and each child is the canonical local name; a `ProviderFlatName` is never nested as a child. A namespace appears at most once per projection or search result. Raw MCP server, runtime, and source identities are restricted to routing, authority, generation lookup, and provenance. A deferred descriptor's namespace equals its definition's canonical namespace. Callbacks with an invalid or unknown namespace fail closed as an unresolved tool call and never fail the Turn.
 
-The MCP initialize result's optional `instructions` value is the model-visible description of that server's namespace. It is untrusted tool metadata, not a system prompt or source of authority; it follows the normal description limits and stays attached to the server generation that returned it. A namespace without one uses a generic description. If registrations in one namespace carry distinct non-empty descriptions, projection uses the generic description, emits one `conflicting_namespace_description` snapshot diagnostic, and still emits exactly one namespace container. Binding MCP snapshots retain the approved description while offline and remove it on revocation. A description-only change follows the non-expanding capability-diff rule.
+The MCP initialize result's optional `instructions` value is the model-visible description of that server's namespace. It is untrusted tool metadata, not a system prompt or source of authority; it follows the normal description limits and stays attached to the server generation that returned it. A namespace without one uses a generic description. If registrations in one namespace carry distinct non-empty descriptions, projection uses the generic description, emits one `conflicting_namespace_description` snapshot diagnostic, and still emits exactly one namespace container.
 
 Provider projection follows the provider's identity shape:
 
@@ -261,7 +259,7 @@ Every first-party tool whose model-visible contract is known at compile time der
 
 Generated parameter objects are closed by default, including nested DTOs; explicitly open JSON values remain open. CLR enum parameters are model-visible camelCase strings unless `JsonStringEnumMemberName` overrides a value; invocation deserializes with the same rules and rejects numeric enum values.
 
-Schemas discovered or supplied at runtime are exempt: MCP servers, plugins, channel adapters, App Bindings, Runtime Dynamic tools, and provider translation layers.
+Schemas discovered or supplied at runtime are exempt: MCP servers, plugins, channel adapters, Runtime Dynamic tools, and provider translation layers.
 
 ### 7.2 Strongly typed tool implementations
 
@@ -319,7 +317,7 @@ Each Turn executes against one immutable `EffectiveToolSnapshot`. Registration, 
 
 The following invalidate the next snapshot:
 
-- workspace, thread, plugin, or binding MCP configuration changes;
+- workspace, thread, or plugin MCP configuration changes;
 - tool-source enablement changes;
 - Runtime Dynamic declaration replacement;
 - binding capability snapshot acceptance;
@@ -413,7 +411,7 @@ An image item provides exactly one of `url` or `dataBase64`; data URLs are not a
 
 ## 12. MCP architecture
 
-MCP is the standard external tool and interactive app transport. DotCraft supports three independent MCP origins: workspace configuration (including enabled plugin-contributed servers), per-thread configuration, and App Binding MCP sessions.
+MCP is the standard external tool and interactive app transport. DotCraft supports two independent MCP origins: workspace configuration (including enabled plugin-contributed servers) and per-thread configuration.
 
 ### 12.1 Thread configuration semantics
 
@@ -425,13 +423,11 @@ MCP is the standard external tool and interactive app transport. DotCraft suppor
 | `[]` | disable user-configured workspace/plugin MCP for this thread |
 | non-empty | replace workspace/plugin MCP with this thread list |
 
-Binding MCP is additive and is never removed or overridden by the thread list.
-
 Inherited servers retain their configuration origin, names, approval rules, and credential partitions.
 
 #### 12.1.1 Policy boundary
 
-MCP registrations are governed by the thread's MCP policy (server selection and namespaced tool selectors), not by the Agent Profile's tool allow/deny name lists: MCP origins are chosen by configuration, the thread's host, or an App Binding, which the Profile author does not enumerate, so a name list would withhold their tools silently. Mode policy, approval policy, connection leases, and Thread/Turn authority still apply.
+MCP registrations are governed by the thread's MCP policy (server selection and namespaced tool selectors), not by the Agent Profile's tool allow/deny name lists: MCP origins are chosen by configuration or the thread's host, which the Profile author does not enumerate, so a name list would withhold their tools silently. Mode policy, approval policy, connection leases, and Thread/Turn authority still apply.
 
 ### 12.2 Runtime and control surface
 
@@ -454,7 +450,7 @@ Streamable HTTP is only an OAuth candidate transport and does not by itself impl
 
 Startup readiness depends on SDK protocol negotiation and tool discovery. Clients use the MCP SDK's default automatic discovery/initialize negotiation and fallback. Optional resource and resource-template inventory never fails an otherwise usable server; `toolsAndAuthOnly` status reads do not enumerate resources, and full reads treat enumeration failure as an empty inventory.
 
-Modern MCP input responses stay on the originating tool invocation's async call chain. Core carries the immutable `ToolInvocationContext` and cancellation through that chain; the SDK owns input collection and continuation. A host-provided elicitation handler is shared by workspace, thread, and binding managers. Core does not own AppServer connections. Unassociated reverse requests are unavailable rather than attributed to an active thread. Elicitation is transient, creates no tool Item, and ends with the invocation or its MCP connection. AppServer projects it using the original thread and nullable Turn, with request completion and client cleanup defined in AppServer §22.8.8–22.8.9.
+Modern MCP input responses stay on the originating tool invocation's async call chain. Core carries the immutable `ToolInvocationContext` and cancellation through that chain; the SDK owns input collection and continuation. A host-provided elicitation handler is shared by workspace and thread managers. Core does not own AppServer connections. Unassociated reverse requests are unavailable rather than attributed to an active thread. Elicitation is transient, creates no tool Item, and ends with the invocation or its MCP connection. AppServer projects it using the original thread and nullable Turn, with request completion and client cleanup defined in AppServer §22.8.8–22.8.9.
 
 ### 12.3 Approval
 
@@ -466,7 +462,7 @@ Whether an MCP invocation requires approval follows the server's `toolApprovalMo
 | `approve` | Never required. The deployer has confirmed the server is safe to call unattended. |
 | `prompt` | Always required, whatever the annotations say. |
 
-The mode is deployment configuration: workspace and user `McpServers` entries and plugin `.mcp.json` declarations carry it. Thread-origin servers always use `auto`, because the client that starts a thread supplies them, and App Binding MCP keeps its own approval contract. The Agent Profile selects servers but cannot set a mode. An invocation that still requires approval follows the thread's approval policy; an exempt invocation never reaches it, so the mode exempts one server without widening any other approval. Registration or App Binding approval does not bypass invocation approval. MCP App-initiated calls use the same policy. Settings tools follow [§12.4](#124-settings-extension).
+The mode is deployment configuration: workspace and user `McpServers` entries and plugin `.mcp.json` declarations carry it. Thread-origin servers always use `auto`, because the client that starts a thread supplies them. The Agent Profile selects servers but cannot set a mode. An invocation that still requires approval follows the thread's approval policy; an exempt invocation never reaches it, so the mode exempts one server without widening any other approval. Registration does not bypass invocation approval. MCP App-initiated calls use the same policy. Settings tools follow [§12.4](#124-settings-extension).
 
 ### 12.4 Settings extension
 
@@ -559,15 +555,15 @@ A View may save a widget state snapshot `{ modelContent, privateContent }`, each
 
 Saving never starts a Turn. `modelContent` reaches the model as the `visualization_state` [world-state section](world-state.md): before a model request, each visualization whose `modelContent` differs from what the model last saw is delivered keyed by path, and one that became `null` or was removed is delivered once as cleared. The section labels `modelContent` as untrusted data, not instructions. `privateContent` restores View presentation only and never reaches the model. A follow-up may carry explicit View context, appended to the user's message as a visible JSON block.
 
-## 15. App Binding boundary
+## 15. Credential and authority boundary
 
-An application binding supplies independently revocable authority for its tool registrations. Binding identity, approved capability revision, live executor health, and model exposure are separate facts. Capability expansion requires accepted authority before dispatch; revocation blocks existing snapshots immediately. Offline definitions may remain visible as non-executable stubs.
+External tool registrations do not grant ambient authority. Approval policy, connection health, and model exposure remain distinct checks at dispatch time.
 
-Binding-scoped connections and credentials stay isolated from shared MCP connections. Credentials never enter model content, tool arguments, persisted definitions, or client-private result metadata.
+Credentials never enter model content, tool arguments, persisted definitions, or client-private result metadata.
 
 ## 16. Protocol consistency
 
-Core, clients, and the SDKs use the same canonical tool identity, Runtime Dynamic declaration, MCP Apps, and App Binding contracts. Unsupported fields and method names are rejected rather than interpreted as alternate shapes.
+Core, clients, and the SDKs use the same canonical tool identity, Runtime Dynamic declaration, and MCP Apps contracts. Unsupported fields and method names are rejected rather than interpreted as alternate shapes.
 
 ## 17. Security invariants
 
@@ -575,14 +571,13 @@ Core, clients, and the SDKs use the same canonical tool identity, Runtime Dynami
 2. Revocation and expiry are enforced at dispatch time, not only at snapshot construction.
 3. Model content, structured client content, and host-private metadata never cross audience boundaries implicitly.
 4. Remote metadata cannot select trusted local code.
-5. Binding MCP cannot launch local executables supplied by an app.
-6. Conversation targets are server-derived and cannot be overridden by tool arguments.
-7. Persisted diagnostics contain no bearer, credential, live executor, or sensitive `_meta`.
-8. Interactive UI is optional; text/model fallback remains sufficient for correctness.
+5. Conversation targets are server-derived and cannot be overridden by tool arguments.
+6. Persisted diagnostics contain no bearer, credential, live executor, or sensitive `_meta`.
+7. Interactive UI is optional; text/model fallback remains sufficient for correctness.
 
 ## 18. Observability and diagnostics
 
-Diagnostics SHOULD identify canonical `ToolName` and safe provenance, provider projection shape and `ProviderFlatName` when used, source kind and MCP origin, snapshot revision, exposure and authority decision reason, approval decision, call/item identifiers, duration, outcome, stable error code, and connection/binding capability revision without secrets.
+Diagnostics SHOULD identify canonical `ToolName` and safe provenance, provider projection shape and `ProviderFlatName` when used, source kind and MCP origin, snapshot revision, exposure and authority decision reason, approval decision, call/item identifiers, duration, outcome, stable error code, and connection revision without secrets.
 
 Status and audit views distinguish declaration availability, model exposure, live executor health, and authority.
 

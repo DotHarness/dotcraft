@@ -32,36 +32,6 @@ public sealed partial class SessionService
         return manager;
     }
 
-    public async Task SetBindingMcpServersAsync(
-        string threadId,
-        string bindingId,
-        IReadOnlyList<McpServerConfig> servers,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
-        ArgumentException.ThrowIfNullOrWhiteSpace(bindingId);
-        ArgumentNullException.ThrowIfNull(servers);
-        var normalized = servers.Select(server =>
-        {
-            var clone = server.Clone();
-            clone.Origin = McpServerOrigin.Binding(bindingId, server.Origin.DeclaredName ?? server.Name);
-            return clone;
-        }).ToArray();
-        await InvokeThreadCommandAsync(threadId, async commandCt =>
-        {
-            var thread = await GetOrLoadThreadAsync(threadId, commandCt).ConfigureAwait(false);
-            var runtime = _runtimeRegistry.SetThread(thread);
-            using (await AcquireThreadAgentLockAsync(threadId, commandCt).ConfigureAwait(false))
-            {
-                runtime.SetBindingMcpServers(bindingId, normalized);
-                if (thread.Status == ThreadStatus.Active)
-                    SetThreadAgent(threadId, await BuildAgentForThreadAsync(thread, commandCt).ConfigureAwait(false));
-                else
-                    await runtime.ReleaseMcpAsync().ConfigureAwait(false);
-            }
-        }, cancellationToken).ConfigureAwait(false);
-    }
-
     public async Task SetAdditionalMcpServersAsync(
         string threadId,
         IReadOnlyList<McpServerConfig> servers,
@@ -107,7 +77,6 @@ public sealed partial class SessionService
         CancellationToken ct)
     {
         var workspaceManager = agentFactory.RuntimeContext.McpClientManager;
-        var bindingMcpServers = threadRuntimeState.GetBindingMcpServers();
         var additionalMcpServers = config.UseToolProfileOnly ? [] : threadRuntimeState.GetAdditionalMcpServers();
         var inheritedMcpServers = !config.UseToolProfileOnly && config.McpServers is null && workspaceManager is not null
             ? await workspaceManager.ListConfigsAsync(ct)
@@ -116,7 +85,6 @@ public sealed partial class SessionService
             thread.Id,
             config.UseToolProfileOnly ? [] : config.McpServers,
             inheritedMcpServers,
-            bindingMcpServers,
             additionalMcpServers);
         if (effectiveMcpServers.Count > 0
             || (!config.UseToolProfileOnly && (config.McpServers is not null || workspaceManager is not null)))

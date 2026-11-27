@@ -57,10 +57,6 @@ public sealed class AcpExtensionCapability : ExtensibleJsonObject
 /// <summary>Capabilities declared by an AppServer client.</summary>
 public sealed class ClientCapabilities : ExtensibleJsonObject
 {
-    [JsonPropertyName("appBindingVersion")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public int? AppBindingVersion { get; init; }
-
     [JsonPropertyName("approvalSupport")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? ApprovalSupport { get; init; }
@@ -203,14 +199,6 @@ public sealed class ServerCapabilities : ExtensibleJsonObject
     [JsonPropertyName("manualCompaction")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool ManualCompaction { get; init; }
-
-    [JsonPropertyName("appBindingVersion")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public int AppBindingVersion { get; init; }
-
-    [JsonPropertyName("appThreadInputEnqueue")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public bool AppThreadInputEnqueue { get; init; }
 
     [JsonPropertyName("threadMaintenanceInterrupt")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

@@ -11,7 +11,6 @@ import { selectLatestCreatePlanTurnId, useConversationStore, type PendingApprova
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useThreadRestorationStore } from '../../stores/threadRestoration'
 import { useUIStore } from '../../stores/uiStore'
-import { useChannelBindingStore } from '../../stores/channelBindingStore'
 import { ThreadHeader } from '../conversation/ThreadHeader'
 import { MessageStream } from '../conversation/MessageStream'
 import { InputComposer, type InputComposerSubmitPayload } from '../conversation/InputComposer'
@@ -110,7 +109,6 @@ export function ConversationPanel({
   const pendingProjectThreadOpen = useUIStore((s) => s.pendingProjectThreadOpen)
   const openingProjectThread = pendingProjectThreadOpen != null
     && sameWorkspaceProjectKey(pendingProjectThreadOpen.projectKey, projectKey)
-  const hasPendingChannelBinding = useChannelBindingStore((s) => activeThreadId != null && s.pendingByThread[activeThreadId] != null)
   const protocolWorkspacePath = identityWorkspacePath || workspacePath
   const { scrollRequest, onOptimisticEcho } = useComposerSendScroll(
     projectKey ?? protocolWorkspacePath,
@@ -250,7 +248,7 @@ export function ConversationPanel({
   }
 
   const threadName = thread.displayName ?? t('sidebar.newConversation')
-  const hasContent = conversationReady && (turns.length > 0 || turnStatus === 'running' || hasPendingChannelBinding)
+  const hasContent = conversationReady && (turns.length > 0 || turnStatus === 'running')
   const viewportKey = JSON.stringify([projectKey ?? protocolWorkspacePath, thread.id])
   const selectedConversationView = !isAgentBuilder && selectedConversationViewKey
     ? conversationViews.find((view) => view.contributionKey === selectedConversationViewKey) ?? null

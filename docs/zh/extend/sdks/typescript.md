@@ -20,7 +20,6 @@
 | `@dotcraft/sdk/contracts` | 生成的 DTO、方法映射、注册表和协议元数据。 |
 | `@dotcraft/sdk/wire` | `DotCraftWireClient`、transport、生命周期状态、超时、typed 方法和 raw 扩展 API。 |
 | `@dotcraft/sdk/hub` | Hub 发现、AppServer 管理、进程策略、事件和结构化错误。 |
-| `@dotcraft/sdk/app-binding` | App Binding handoff 和结果 helper。 |
 | `@dotcraft/sdk/dynamic-tools` | Runtime Dynamic Tool authoring helper。 |
 | `@dotcraft/sdk/testing` | Transport 与协议测试接口。 |
 | `@dotcraft/sdk/meta` | SDK、contract、protocol 和 contract hash 元数据。 |
@@ -44,7 +43,6 @@ Contracts 不依赖 Node.js、WebSocket 或运行时 I/O，因此 Renderer 代�
 | Thread 状态 | `snapshot()`、`refresh()`、`unsubscribe()`、`setMode()`、`archive()`、`delete()` |
 | 模型 | `models.list()` |
 | MCP runtime | `mcpRuntime.listStatus()`、`readResource()`、`callTool()`、`loginOAuth()`、`reload()` |
-| App Binding | `appBindings` |
 | 运行时工具 | `onToolCall()` |
 
 在本地或远程连接选项中配置 `approvalHandler` 和 `userInputHandler`。任务流程见[线程与运行](./runs)和[工具与审批](./tools)。
@@ -89,15 +87,13 @@ Start 选项包含 identity 字段、显示名称、history mode、配置、运�
 
 `run()` 和 `runStreamed()` 接受文本、`InputPart[]` 或 `{ input, sender }`。Run 选项包括 `providerId`、`model`、`reasoning`、`speed`、`approvalPolicy`、`sender`、`collectRawEvents` 和 `abortSignal`。Buffered 结果包含 `thread`、可选终止 `turn`、合并后的 `text`、`items`、可选 `usage` 和可选 raw event。Run 会启动 turn，或向活动的普通 turn 添加指导。模型继承、共享结果和显式排队见 [Run](./runs#run-选项)。
 
-## 模型、MCP 与 App Binding
+## 模型与 MCP
 
 | Manager | 操作 |
 | --- | --- |
 | `models` | `list()` 返回当前 AppServer 可见的模型目录。 |
 | `mcpRuntime` | `listStatus()`、`readResource()`、`callTool()`、`loginOAuth()`、`reload()`。 |
-| `appBindings` | App 发现、连接、surface、thread binding、channel binding 和 principal 操作。 |
-
-通过 Run 选项把模型设置与输入一起提交。需要独立于 Run 修改完整 thread 配置时，使用类型化 Wire request map 调用 `thread/config/update`，并保留不归应用所有的字段。任务流程见 [MCP 运行时](./mcp-runtime)和 [DotCraft App](../app-binding)。
+通过 Run 选项把模型设置与输入一起提交。需要独立于 Run 修改完整 thread 配置时，使用类型化 Wire request map 调用 `thread/config/update`，并保留不归应用所有的字段。任务流程见 [MCP 运行时](./mcp-runtime)。
 
 MCP manager 的签名如下：
 

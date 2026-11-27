@@ -32,45 +32,6 @@ public sealed partial class SessionServiceSetThreadModeTests : IDisposable
     }
 
     [Fact]
-    public async Task BindingMcpServers_RemainWhenThreadUserConfigurationIsDisabled()
-    {
-        var store = new ThreadStore(_tempDir);
-        var persistence = new SessionPersistenceService(store);
-        await using var agentFactory = CreateAgentFactory();
-        var service = new SessionService(
-            agentFactory,
-            agentFactory.CreateAgentForMode(AgentMode.Agent),
-            persistence,
-            new SessionGate());
-        var thread = await service.CreateThreadAsync(
-            new SessionIdentity { ChannelName = "test", UserId = "u", WorkspacePath = _tempDir },
-            new ThreadConfiguration { Mode = "agent", McpServers = [] });
-
-        await service.SetBindingMcpServersAsync(
-            thread.Id,
-            "board-binding",
-            [new McpServerConfig { Name = "board", Enabled = false }]);
-        var runtime = await service.GetEffectiveMcpRuntimeAsync(thread.Id);
-        var configs = await runtime!.ListConfigsAsync();
-
-        var binding = Assert.Single(configs);
-        Assert.Equal("binding:board-binding:board", binding.Name);
-        Assert.True(binding.Origin.IsBinding);
-        Assert.Equal("board-binding", binding.Origin.BindingId);
-
-        await service.SetBindingMcpServersAsync(thread.Id, "board-binding", []);
-
-        var clearedRuntime = await service.GetEffectiveMcpRuntimeAsync(thread.Id);
-        Assert.Empty(await clearedRuntime!.ListConfigsAsync());
-
-        await service.UpdateThreadConfigurationAsync(
-            thread.Id,
-            new ThreadConfiguration { Mode = "agent", McpServers = null });
-
-        Assert.Null(await service.GetEffectiveMcpRuntimeAsync(thread.Id));
-    }
-
-    [Fact]
     public async Task SetThreadModeAsync_KeepsPerThreadChatClient_WhenModelOverrideIsSet()
     {
         var store = new ThreadStore(_tempDir);

@@ -177,7 +177,7 @@ internal sealed class ChannelRequestHandler(
 
     private IChannelRuntimeProvider RequireManagement(string method)
     {
-        if (connection.IsChannelAdapter || connection.IsAppPrincipalAuthenticated)
+        if (connection.IsChannelAdapter)
             throw AppServerErrors.InvalidRequest("Channel management requires a workspace management connection.");
         if (string.IsNullOrWhiteSpace(services.WorkspaceCraftPath) || services.ChannelRuntimeProvider?.ChannelPlugins == null)
             throw AppServerErrors.MethodNotFound(method);

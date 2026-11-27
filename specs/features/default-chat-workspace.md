@@ -25,7 +25,7 @@ Its state still lives under:
 
 ## 2. Goals
 
-- Let Desktop, SDK clients, and App Binding integrations start ordinary conversations without asking users to create a temporary project workspace.
+- Let Desktop and SDK clients start ordinary conversations without asking users to create a temporary project workspace.
 - Preserve the invariant that each AppServer owns exactly one workspace runtime and one `.craft` state root.
 - Avoid AppServer Protocol changes for default chat bootstrap.
 - Keep project-bound threads and default chat threads distinguishable by their workspace path.
@@ -34,7 +34,7 @@ Its state still lives under:
 
 - No new `Chat` thread type.
 - No change to `thread/start`, `thread/list`, or `SessionIdentity`.
-- No special App Binding behavior for default chat threads.
+- No special MCP behavior for default chat threads.
 - No execution access to the user's home directory: a chat reaches only its own folder (§4.1) and the memory stores that [Memory](memory.md#61-while-responding) makes writable, the personal store among them.
 
 ## 4. Workspace Contract
@@ -71,7 +71,7 @@ configuration and state home, so `identity.workspacePath` is unchanged; only the
   deletes a chat folder; archiving, deleting, or renaming the chat leaves it in place.
 - **Entry points.** Every Desktop path that starts a chat — the Welcome composer, the desktop pet's
   Quick Chat, the agent's thread-creation tool, and Skills' try action — uses this. Clients that
-  start a chat without `cwd`, such as mobile, App Binding, and SDK clients, run in the workspace
+  start a chat without `cwd`, such as mobile and SDK clients, run in the workspace
   root.
 
 The standalone-chat instructions are:
@@ -95,16 +95,16 @@ After bootstrap:
 - Threads persist in the default Chat workspace's `.craft` state.
 - `thread/list` works exactly like any other workspace list.
 
-## 6. App Binding And External Apps
+## 6. External Tools And Apps
 
-App Binding integrations bind to ordinary default Chat threads. The binding, tools, approvals, and app-side confirmations use the existing App Binding model.
+External integrations attach to ordinary default Chat threads through standard MCP servers and SDKs.
 
-For read-only consulting against an external observability or business system:
+For consulting against an external observability or business system:
 
 - The DotCraft thread may live in the default Chat workspace.
 - External application data remains owned by that application.
-- DotCraft owns conversation, thread context, App Binding lifecycle, and model/tool approval.
-- Mutating or external operations still require explicit scopes and app-side confirmation.
+- DotCraft owns conversation, thread context, and model/tool approval.
+- Mutating or external operations follow the thread's approval policy and the external service's own authorization.
 
 ## 7. Desktop Product Contract
 
@@ -122,4 +122,4 @@ A chat's Files tree, terminal, and open-in actions act on its folder. Chats offe
 
 The default Chat workspace never appears as a project or by its path: the Projects menu, the tray's AppServer list, plugin install locations, and automation targets name it `Chats`, and automations in Chats offer no worktree option.
 
-Project workspaces remain visible under `Projects`. Default Chat workspace threads remain ordinary AppServer threads, so Desktop can reuse existing thread row, App Binding, and welcome composer behavior after it connects to the default Chat AppServer.
+Project workspaces remain visible under `Projects`. Default Chat workspace threads remain ordinary AppServer threads, so Desktop can reuse existing thread row and welcome composer behavior after it connects to the default Chat AppServer.

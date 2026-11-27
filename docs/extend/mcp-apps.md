@@ -2,8 +2,6 @@
 
 MCP Apps let an MCP tool attach an interactive result view. The MCP server declares a `ui://` resource, and DotCraft Desktop renders it in a sandbox through the standard AppBridge contract. Other clients keep using the tool's text fallback.
 
-[App Binding](./app-binding) does not define a separate UI protocol. An App Binding app exposes its tools and views from its own binding-scoped Streamable HTTP MCP server.
-
 ## Declare a view
 
 Add stable UI metadata to the MCP tool:
@@ -57,4 +55,3 @@ The UI communicates through the official `@modelcontextprotocol/ext-apps` client
 - The host CSP starts at `default-src 'none'` and opens only to the HTTPS origins the resource declares.
 - Browser permissions are never granted, whatever the resource declares.
 - App-initiated tool calls are re-checked against the live tool snapshot: same MCP server, app visibility still declared.
-- Revoking an App Binding closes its MCP session and views immediately.

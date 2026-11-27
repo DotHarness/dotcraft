@@ -2,63 +2,7 @@
 namespace DotCraft.Protocol.AppServer;
 
 public static partial class AppServerRpc
-{    public static readonly RpcRequest<AppBindingActivateParams, AppBinding> AppBindingActivate = new("app/binding/activate", RpcDirection.ClientToServer, "1", "specs/protocols/app-binding.md", module: "app-binding", scope: "connection", capability: "appBindingVersion:1", errors: CommonErrors);
-
-    public static readonly RpcRequest<AppBindingRebindParams, AppBinding> AppBindingRebind = new("app/binding/rebind", RpcDirection.ClientToServer, "1", "specs/protocols/app-binding.md", module: "app-binding", scope: "connection", capability: "appBindingVersion:1", errors: CommonErrors);
-
-    public static readonly RpcRequest<AppBindingRequestGetParams, AppBindingRequestGetResult> AppBindingRequestGet = new("app/binding/request/get", RpcDirection.ClientToServer, "1", "specs/protocols/app-binding.md", module: "app-binding", scope: "connection", capability: "appBindingVersion:1", errors: CommonErrors);
-
-    public static readonly RpcNotification<AppBindingRequestedNotification> AppBindingRequested = new("app/binding/requested", RpcDirection.ServerToClient, "1", "specs/protocols/app-binding.md", module: "app-binding", scope: "connection", capability: "appBindingVersion:1");
-
-    public static readonly RpcRequest<global::DotCraft.Protocol.RpcEmpty, AppBindingsListResult> AppBindingsList = new("app/bindings/list", RpcDirection.ClientToServer, "1", "specs/protocols/app-binding.md", module: "app-binding", scope: "connection", capability: "appBindingVersion:1", errors: CommonErrors);
-
-    public static readonly RpcRequest<AppConnectionAuthenticateParams, AppConnectionAuthenticateResult> AppConnectionAuthenticate = new("app/connection/authenticate", RpcDirection.ClientToServer, "1", "specs/protocols/app-binding.md", module: "app-binding", scope: "connection", capability: "appBindingVersion:1", errors: CommonErrors);
-
-    public static readonly RpcNotification<AppConnectionChangedNotification> AppConnectionChanged = new("app/connection/changed", RpcDirection.ServerToClient, "1", "specs/protocols/app-binding.md", module: "app-binding", scope: "connection", capability: "appBindingVersion:1");
-
-    public static readonly RpcRequest<AppConnectionConnectParams, AppConnectionConnectResult> AppConnectionConnect = new("app/connection/connect", RpcDirection.ClientToServer, "1", "specs/protocols/app-binding.md", module: "app-binding", scope: "connection", capability: "appBindingVersion:1", errors: CommonErrors);
-
-    public static readonly RpcRequest<global::DotCraft.Protocol.RpcEmpty, AppConnectionRefreshResult> AppConnectionRefresh = new("app/connection/refresh", RpcDirection.ClientToServer, "1", "specs/protocols/app-binding.md", module: "app-binding", scope: "connection", capability: "appBindingVersion:1", errors: CommonErrors);
-
-    public static readonly RpcRequest<AppConnectionRequestGetParams, AppConnectionRequestGetResult> AppConnectionRequestGet = new("app/connection/request/get", RpcDirection.ClientToServer, "1", "specs/protocols/app-binding.md", module: "app-binding", scope: "connection", capability: "appBindingVersion:1", errors: CommonErrors);
-
-    public static readonly RpcRequest<AppConnectionRevokeParams, AppConnectionRevokeResult> AppConnectionRevoke = new("app/connection/revoke", RpcDirection.ClientToServer, "1", "specs/protocols/app-binding.md", module: "app-binding", scope: "connection", capability: "appBindingVersion:1", errors: CommonErrors);
-
-    public static readonly RpcRequest<AppConnectionStartParams, AppConnectionStartResult> AppConnectionStart = new("app/connection/start", RpcDirection.ClientToServer, "1", "specs/protocols/app-binding.md", module: "app-binding", scope: "connection", capability: "appBindingVersion:1", errors: CommonErrors);
-
-    public static readonly RpcRequest<AppConnectionStatusParams, AppConnectionStatusResult> AppConnectionStatus = new("app/connection/status", RpcDirection.ClientToServer, "1", "specs/protocols/app-binding.md", module: "app-binding", scope: "connection", capability: "appBindingVersion:1", errors: CommonErrors);
-
-    public static readonly RpcRequest<AppListParams, AppListResult> AppList = new("app/list", RpcDirection.ClientToServer, "1", "specs/protocols/app-binding.md", module: "app-binding", scope: "connection", capability: "appBindingVersion:1", errors: CommonErrors);
-
-    public static readonly RpcNotification<AppListUpdatedNotification> AppListUpdated = new("app/list/updated", RpcDirection.ServerToClient, "1", "specs/protocols/app-binding.md", module: "app-binding", scope: "connection", capability: "appBindingVersion:1");
-
-    public static readonly RpcRequest<ChannelBindingAcceptParams, AppBinding> ChannelBindingAccept = new("app/channelBinding/accept", RpcDirection.ClientToServer, "1", "specs/protocols/app-binding.md", module: "app-binding", scope: "connection", capability: "appBindingVersion:1", errors: CommonErrors);
-
-    public static readonly RpcRequest<ChannelBindingRebindParams, AppBinding> ChannelBindingRebind = new("app/channelBinding/rebind", RpcDirection.ClientToServer, "1", "specs/protocols/app-binding.md", module: "app-binding", scope: "connection", capability: "appBindingVersion:1", errors: CommonErrors);
-
-    public static readonly RpcRequest<ChannelBindingRequestGetParams, AppBindingRequest> ChannelBindingRequestGet = new("app/channelBinding/request/get", RpcDirection.ClientToServer, "1", "specs/protocols/app-binding.md", module: "app-binding", scope: "connection", capability: "appBindingVersion:1", errors: CommonErrors);
-
-    public static readonly RpcRequest<AppChannelBindingResolveParams, AppChannelBindingResolveResult> AppChannelBindingResolve = new("app/channelBinding/resolve", RpcDirection.ClientToServer, "1", "specs/protocols/app-binding.md", module: "app-binding", scope: "connection", capability: "appBindingVersion:1", errors: CommonErrors);
-
-    public static readonly RpcRequest<AppSurfacePublishParams, AppSurface> AppSurfacePublish = new("app/surface/publish", RpcDirection.ClientToServer, "1", "specs/protocols/app-binding.md", module: "app-binding", scope: "connection", capability: "appBindingVersion:1", errors: CommonErrors);
-
-    public static readonly RpcRequest<AppSurfaceResolveParams, AppSurface> AppSurfaceResolve = new("app/surface/resolve", RpcDirection.ClientToServer, "1", "specs/protocols/app-binding.md", module: "app-binding", scope: "connection", capability: "appBindingVersion:1", errors: CommonErrors);
-
-    public static readonly RpcRequest<AppThreadInputEnqueueParams, AppThreadInputEnqueueResult> AppThreadInputEnqueue = new("app/threadInput/enqueue", RpcDirection.ClientToServer, "1", "specs/protocols/app-binding.md", module: "app-binding", scope: "connection", capability: "appBindingVersion:1", errors: CommonErrors);
-
-    public static readonly RpcRequest<AppViewParams, AppViewResult> AppView = new("app/view", RpcDirection.ClientToServer, "1", "specs/protocols/app-binding.md", module: "app-binding", scope: "connection", capability: "appBindingVersion:1", errors: CommonErrors);
-
-
-
-
-
-
-
-
-
-
-
-
+{
     public static readonly RpcRequest<AcpFsReadTextFileParams, AcpFsReadTextFileResult> ExtAcpFsReadTextFile = new("ext/acp/fs/readTextFile", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", module: "acp", scope: "connection", capability: "acpExtensions", errors: CommonErrors);
 
     public static readonly RpcRequest<AcpFsWriteTextFileParams, AcpFsWriteTextFileResult> ExtAcpFsWriteTextFile = new("ext/acp/fs/writeTextFile", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", module: "acp", scope: "connection", capability: "acpExtensions", errors: CommonErrors);
@@ -82,17 +26,4 @@ public static partial class AppServerRpc
     public static readonly RpcRequest<ExtChannelSendParams, ExtChannelSendResult> ExtChannelSend = new("ext/channel/send", RpcDirection.ServerToClient, "1", "specs/protocols/external-channel-adapter.md", module: "external-channel", scope: "connection", capability: "channelAdapter", errors: CommonErrors);
 
     public static readonly RpcRequest<ExtChannelToolCallParams, ExtChannelToolCallResult> ExtChannelToolCall = new("ext/channel/toolCall", RpcDirection.ServerToClient, "1", "specs/protocols/external-channel-adapter.md", module: "external-channel", scope: "connection", capability: "channelAdapter", errors: CommonErrors);
-
-    public static readonly RpcNotification<ThreadAppBindingsChangedNotification> ThreadAppBindingsChanged = new("thread/appBindings/changed", RpcDirection.ServerToClient, "1", "specs/protocols/app-binding.md", module: "app-binding", scope: "thread", capability: "appBindingVersion:1");
-
-    public static readonly RpcRequest<ThreadAppBindingConfirmCapabilitiesParams, AppBinding> ThreadAppBindingConfirmCapabilities = new("thread/appBindings/confirmCapabilities", RpcDirection.ClientToServer, "1", "specs/protocols/app-binding.md", module: "app-binding", scope: "thread", capability: "appBindingVersion:1", errors: CommonErrors);
-
-    public static readonly RpcRequest<ThreadAppBindingEnableParams, ThreadAppBindingEnableResult> ThreadAppBindingEnable = new("thread/appBindings/enable", RpcDirection.ClientToServer, "1", "specs/protocols/app-binding.md", module: "app-binding", scope: "thread", capability: "appBindingVersion:1", errors: CommonErrors);
-
-    public static readonly RpcRequest<ThreadAppBindingsListParams, ThreadAppBindingsListResult> ThreadAppBindingsList = new("thread/appBindings/list", RpcDirection.ClientToServer, "1", "specs/protocols/app-binding.md", module: "app-binding", scope: "thread", capability: "appBindingVersion:1", errors: CommonErrors);
-
-    public static readonly RpcRequest<ThreadAppBindingRevokeParams, AppBinding> ThreadAppBindingRevoke = new("thread/appBindings/revoke", RpcDirection.ClientToServer, "1", "specs/protocols/app-binding.md", module: "app-binding", scope: "thread", capability: "appBindingVersion:1", errors: CommonErrors);
-
-    public static readonly RpcRequest<ThreadChannelBindingRequestCreateParams, ThreadChannelBindingRequestCreateResult> ThreadChannelBindingRequestCreate = new("thread/channelBindings/request/create", RpcDirection.ClientToServer, "1", "specs/protocols/app-binding.md", module: "app-binding", scope: "thread", capability: "appBindingVersion:1", errors: CommonErrors);
-
 }

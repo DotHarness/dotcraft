@@ -11,7 +11,6 @@ import {
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { Button } from '../ui/Button'
 import { PluginDetailActionsMenu } from './PluginDetailActionsMenu'
-import { AppBindingPanel } from './AppBindingPanel'
 import { MorphingActionPill } from './MorphingActionPill'
 import { PluginSettingsSection } from './settings/PluginSettingsSection'
 import { PluginIcon, pluginSubtitle, pluginTitle } from './PluginCatalogItem'
@@ -125,7 +124,6 @@ export function PluginDetailView({
             </span>
           </div>
           <p style={longDescription}>{info?.longDescription || plugin.description}</p>
-          <AppBindingPanel plugin={plugin} />
           <PluginSkillsSection plugin={plugin} onOpenSkill={onOpenSkill} />
           {contents.length > 0 && (
             <section style={detailSection}>

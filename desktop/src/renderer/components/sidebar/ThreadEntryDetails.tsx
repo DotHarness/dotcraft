@@ -5,7 +5,6 @@ import type { AutomationDefinition } from '../../types/automation'
 import type { ThreadSummary } from '../../types/thread'
 import { normalizeGitPathKey } from '../../stores/gitStore'
 import { useGitHeadStore } from '../../stores/gitHeadStore'
-import { useOriginApp, type OriginAppConnection } from '../../stores/originAppStore'
 import { useBranchPullRequest, useForgeRefStore, useOriginBranchPullRequest } from '../../stores/forgeRefStore'
 import type { ForgePullSummary } from '../../../shared/forgeReferences'
 import { importedThreadSourceLabel } from '../../utils/sessionImport'
@@ -18,12 +17,11 @@ import { ThreadScheduledTaskRows } from './ThreadScheduledTask'
 export function useThreadOriginBadge({
   thread,
   isSubAgent,
-  connection,
   t
 }: {
   thread: ThreadSummary
   isSubAgent: boolean
-  connection: OriginAppConnection | null
+  connection?: unknown
   t: (key: string, vars?: Record<string, string>) => string
 }): ReactNode {
   const presentation = thread.originPresentation
@@ -31,7 +29,6 @@ export function useThreadOriginBadge({
     !isSubAgent &&
     thread.originChannel.length > 0 &&
     thread.originChannel.toLowerCase() !== 'dotcraft-desktop'
-  const originApp = useOriginApp(external && !presentation ? thread.originChannel : null, connection)
   if (isSubAgent || !(presentation || external)) return null
 
   if (presentation) {
@@ -41,19 +38,6 @@ export function useThreadOriginBadge({
         iconSrc={presentation.icon ?? undefined}
         label={presentation.displayName}
         tooltip={t('threadEntry.originMember', { name: presentation.displayName })}
-        size={14}
-
-        muted
-      />
-    )
-  }
-  if (originApp) {
-    return (
-      <ChannelIconBadge
-        channelName={thread.originChannel}
-        iconSrc={originApp.icon ?? undefined}
-        label={originApp.displayName}
-        tooltip={t('threadEntry.originApp', { app: originApp.displayName })}
         size={14}
 
         muted

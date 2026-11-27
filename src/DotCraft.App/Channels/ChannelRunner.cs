@@ -1,5 +1,4 @@
 using DotCraft.Workspaces;
-using DotCraft.AppBinding;
 using DotCraft.AppServer;
 using DotCraft.CLI;
 using DotCraft.Common;
@@ -243,7 +242,6 @@ public sealed partial class ChannelRunner : IAsyncDisposable, IChannelStatusProv
             streamDebugLogger: _sp.GetService<SessionStreamDebugLogger>(),
             appConfigMonitor: _sp.GetService<IAppConfigMonitor>(),
             protocolExtensions: _sp.GetServices<IAppServerProtocolExtension>(),
-            appBindingService: _sp.GetService<AppBindingService>(),
             originPresentationProviders: _sp.GetServices<IThreadOriginPresentationProvider>(),
             loggerFactory: _sp.GetService<ILoggerFactory>(),
             wireRuntimeAdditionalContextProvider: _sp.GetRequiredService<WireRuntimeAdditionalContextProvider>(),

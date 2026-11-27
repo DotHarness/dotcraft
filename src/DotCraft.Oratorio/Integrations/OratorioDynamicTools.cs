@@ -15,12 +15,8 @@ public enum OratorioToolSurface
 {
     Run,
     Discussion,
-    AppBinding
+    Mcp
 }
-
-public sealed record OratorioAppBindingGrantContext(
-    string BindingId,
-    long AuthorityRevision);
 
 public sealed record OratorioToolInvocationContext(
     IServiceProvider Services,
@@ -28,8 +24,7 @@ public sealed record OratorioToolInvocationContext(
     OratorioToolSurface Surface,
     string? RunId = null,
     string? ExpectedThreadId = null,
-    string? ExpectedDiscussionTurnId = null,
-    OratorioAppBindingGrantContext? BindingGrant = null);
+    string? ExpectedDiscussionTurnId = null);
 
 public sealed record OratorioDynamicToolSet(
     IReadOnlyList<RuntimeDynamicToolDeclaration> Declarations,
@@ -95,7 +90,7 @@ public sealed class OratorioDynamicToolCatalog
         _descriptors = _registry.ListDescriptors().ToDictionary(x => x.LocalName, StringComparer.Ordinal);
     }
 
-    public IReadOnlyList<DynamicToolDescriptor> BindingDescriptors =>
+    public IReadOnlyList<DynamicToolDescriptor> McpDescriptors =>
         SelectDescriptors(
             ListBoardItemsName,
             GetBoardItemName,
@@ -154,7 +149,7 @@ public sealed class OratorioDynamicToolCatalog
         IReadOnlySet<string> allowlist,
         CancellationToken ct)
     {
-        if (context.Surface != OratorioToolSurface.AppBinding &&
+        if (context.Surface != OratorioToolSurface.Mcp &&
             !string.Equals(call.Namespace, Namespace, StringComparison.Ordinal))
         {
             return Failure("UnsupportedTool", "Only Oratorio runtime dynamic tools declared for this surface are supported.");
@@ -169,10 +164,6 @@ public sealed class OratorioDynamicToolCatalog
             return Failure(
                 context.Surface == OratorioToolSurface.Run ? "InvalidRunBinding" : "InvalidDiscussionTurnBinding",
                 "The tool call is not bound to the active Oratorio thread.");
-        }
-        if (context.Surface == OratorioToolSurface.AppBinding && context.BindingGrant is null)
-        {
-            return Failure("InvalidAppBinding", "The tool call is not bound to an active Oratorio App Binding authority.");
         }
 
         var bindingFailure = await ValidateActiveBindingAsync(context, ct);
@@ -431,9 +422,7 @@ internal sealed partial class OratorioDynamicToolFacade
                 new
                 {
                     result.Items,
-                    result.NextCursor,
-                    context.BindingGrant!.BindingId,
-                    context.BindingGrant.AuthorityRevision
+                    result.NextCursor
                 });
         });
 
@@ -453,9 +442,7 @@ internal sealed partial class OratorioDynamicToolFacade
                 $"Loaded Oratorio item '{detail.Item.Title}'.",
                 new
                 {
-                    Detail = detail,
-                    context.BindingGrant!.BindingId,
-                    context.BindingGrant.AuthorityRevision
+                    Detail = detail
                 });
         });
 
@@ -482,9 +469,7 @@ internal sealed partial class OratorioDynamicToolFacade
                 $"Created Oratorio local task '{detail.Item.Title}'.",
                 new
                 {
-                    Detail = detail,
-                    context.BindingGrant!.BindingId,
-                    context.BindingGrant.AuthorityRevision
+                    Detail = detail
                 });
         });
 
@@ -509,15 +494,13 @@ internal sealed partial class OratorioDynamicToolFacade
                     MockDurationSeconds: null,
                     WorkMode: "reviewAnalysis",
                     DeliveryPolicy: DeliveryPolicy.ManualDelivery),
-                RunDispatchTrigger.AppBinding,
+                RunDispatchTrigger.Mcp,
                 ct);
             return Success(
                 $"Queued an Oratorio review round for '{result.Item.Title}'.",
                 new
                 {
-                    Detail = result,
-                    context.BindingGrant!.BindingId,
-                    context.BindingGrant.AuthorityRevision
+                    Detail = result
                 });
         });
 

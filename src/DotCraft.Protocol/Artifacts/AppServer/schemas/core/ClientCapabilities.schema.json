@@ -14,16 +14,6 @@
         }
       ]
     },
-    "appBindingVersion": {
-      "anyOf": [
-        {
-          "type": "integer"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
     "approvalSupport": {
       "anyOf": [
         {

@@ -63,4 +63,3 @@ Keep Oratorio domain behavior in the Server. Desktop view models may format data
 
 - [Hub protocol](../../extend/protocols/hub) — the interface Desktop uses to ensure the `oratorio` managed service is running.
 - [Build a Desktop extension](../../extend/desktop-extensions) — the activation contract the bundled plugin uses to register the Oratorio view.
-- [DotCraft App](../../extend/app-binding) — the authority model behind the connect and bind handoffs Main forwards.

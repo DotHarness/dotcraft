@@ -20,7 +20,6 @@ internal static class InitializeContractMapper
 
         return new ClientConnectionCapabilities
         {
-            AppBindingVersion = value.AppBindingVersion,
             ApprovalSupport = value.ApprovalSupport,
             RequestUserInputSupport = value.RequestUserInputSupport,
             StreamingSupport = value.StreamingSupport,
@@ -50,8 +49,6 @@ internal static class InitializeContractMapper
         ManualCompaction = value.ManualCompaction,
         DynamicToolRebind = value.DynamicToolRebind,
         RuntimeAdditionalContext = value.RuntimeAdditionalContext,
-        AppBindingVersion = value.AppBindingVersion,
-        AppThreadInputEnqueue = value.AppThreadInputEnqueue,
         ThreadMaintenanceInterrupt = value.ThreadMaintenanceInterrupt,
         ApprovalFlow = value.ApprovalFlow,
         RequestUserInput = value.RequestUserInput,

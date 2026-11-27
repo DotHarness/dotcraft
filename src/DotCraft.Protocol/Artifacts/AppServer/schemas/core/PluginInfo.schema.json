@@ -4,12 +4,6 @@
   "title": "PluginInfo",
   "type": "object",
   "properties": {
-    "apps": {
-      "type": "array",
-      "items": {
-        "$ref": "./PluginAppInfo.schema.json"
-      }
-    },
     "channel": {
       "anyOf": [
         {

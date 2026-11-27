@@ -107,12 +107,10 @@ import {
   sanitizeExternalUrl,
   openExternalUrl,
   openExternalHttpUrl,
-  openAppHandoffUrl,
   broadcastNotification,
   broadcastServerRequest,
   shouldShowTaskCompletionNotification
 } from '../ipcBridge'
-import { setDesktopServiceHandoffHandler } from '../desktopServiceHandoff'
 import { SshMachinesManager } from '../sshMachines/sshMachinesManager'
 import { normalizeSshMachines } from '../../shared/sshMachines'
 import { registerWindowFileAccess } from '../windowFileAccess'
@@ -260,42 +258,6 @@ describe('openExternalUrl', () => {
   })
 })
 
-describe('openAppHandoffUrl', () => {
-  it('routes managed service handoffs inside Desktop Main', async () => {
-    const handler = vi.fn().mockResolvedValue(undefined)
-    vi.mocked(shell.openExternal).mockClear()
-    setDesktopServiceHandoffHandler(testWindow.webContents.id, handler)
-    try {
-      const url = 'dotcraft-service://oratorio/connect?request=req_1'
-      await openAppHandoffUrl(url, testWindow.webContents.id)
-      expect(handler).toHaveBeenCalledWith(url)
-      expect(shell.openExternal).not.toHaveBeenCalled()
-    } finally {
-      setDesktopServiceHandoffHandler(testWindow.webContents.id, null)
-    }
-  })
-
-  it('invokes loopback HTTP handoffs without opening the browser', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200 })
-    vi.stubGlobal('fetch', fetchMock)
-    vi.mocked(shell.openExternal).mockClear()
-
-    await openAppHandoffUrl('http://127.0.0.1:39777/dotcraft/bind?app=com.example.dynamic-tools')
-
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(shell.openExternal).not.toHaveBeenCalled()
-    vi.unstubAllGlobals()
-  })
-
-  it('falls back to the OS handler for custom protocol handoffs', async () => {
-    vi.mocked(shell.openExternal).mockClear()
-
-    await openAppHandoffUrl('workflow://dotcraft/bind?request=req_1')
-
-    expect(shell.openExternal).toHaveBeenCalledWith('workflow://dotcraft/bind?request=req_1')
-  })
-})
-
 describe('registerIpcHandlers', () => {
   beforeEach(async () => {
     testContentRoots = undefined
@@ -310,161 +272,6 @@ describe('registerIpcHandlers', () => {
       stale: false
     })
     existsSyncMock.mockReturnValue(true)
-  })
-
-  it('proxies Desktop extension App Surface GET requests through the resolved endpoint', async () => {
-    const sendRequest = vi.fn().mockResolvedValue({
-      appId: 'com.example.workflow',
-      surfaceId: 'board',
-      endpoint: 'http://127.0.0.1:5087/dotcraft/board/api/v1',
-      bearer: 'surface-secret',
-      expiresAt: '2099-01-01T00:00:00Z'
-    })
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      text: vi.fn().mockResolvedValue('{"items":[1]}')
-    })
-    vi.stubGlobal('fetch', fetchMock)
-    try {
-      const handlers = registerHandlersForTest('/workspace', () => ({ sendRequest } as never))
-
-      await expect(handlers.get('desktop-plugin:app-surface-get-json')?.({}, {
-        appId: 'com.example.workflow',
-        surfaceId: 'board',
-        relativePath: '/items?state=open'
-      })).resolves.toEqual({ items: [1] })
-
-      expect(sendRequest).toHaveBeenCalledWith(
-        'app/surface/resolve',
-        { appId: 'com.example.workflow', surfaceId: 'board' },
-        20_000
-      )
-      expect(fetchMock).toHaveBeenCalledWith(
-        'http://127.0.0.1:5087/dotcraft/board/api/v1/items?state=open',
-        expect.objectContaining({
-          method: 'GET',
-          headers: expect.objectContaining({ Authorization: 'Bearer surface-secret' })
-        })
-      )
-    } finally {
-      vi.unstubAllGlobals()
-    }
-  })
-
-  it('posts Desktop extension App Surface JSON and rejects expired resolutions', async () => {
-    const sendRequest = vi.fn()
-      .mockResolvedValueOnce({
-        appId: 'com.example.workflow',
-        surfaceId: 'board',
-        endpoint: 'http://localhost:5087/api',
-        bearer: 'surface-secret',
-        expiresAt: '2099-01-01T00:00:00Z'
-      })
-      .mockResolvedValueOnce({
-        appId: 'com.example.workflow',
-        surfaceId: 'board',
-        endpoint: 'http://localhost:5087/api',
-        bearer: 'surface-secret',
-        expiresAt: '2000-01-01T00:00:00Z'
-      })
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      text: vi.fn().mockResolvedValue('{}')
-    })
-    vi.stubGlobal('fetch', fetchMock)
-    try {
-      const handlers = registerHandlersForTest('/workspace', () => ({ sendRequest } as never))
-      const request = {
-        appId: 'com.example.workflow',
-        surfaceId: 'board',
-        relativePath: '/items',
-        body: { title: 'Review' }
-      }
-
-      await expect(handlers.get('desktop-plugin:app-surface-post-json')?.({}, request)).resolves.toEqual({})
-      expect(fetchMock).toHaveBeenCalledWith(
-        'http://localhost:5087/api/items',
-        expect.objectContaining({
-          method: 'POST',
-          body: '{"title":"Review"}'
-        })
-      )
-      await expect(handlers.get('desktop-plugin:app-surface-post-json')?.({}, request))
-        .rejects.toThrow('AppSurfaceUnavailable')
-      expect(fetchMock).toHaveBeenCalledTimes(1)
-    } finally {
-      vi.unstubAllGlobals()
-    }
-  })
-
-  it('rejects unsafe Desktop extension App Surface paths before fetching', async () => {
-    const sendRequest = vi.fn().mockResolvedValue({
-      appId: 'com.example.workflow',
-      surfaceId: 'board',
-      endpoint: 'http://127.0.0.1:5087/api',
-      bearer: 'surface-secret',
-      expiresAt: '2099-01-01T00:00:00Z'
-    })
-    const fetchMock = vi.fn()
-    vi.stubGlobal('fetch', fetchMock)
-    try {
-      const handlers = registerHandlersForTest('/workspace', () => ({ sendRequest } as never))
-      for (const relativePath of ['https://example.com/items', '//example.com/items', '/../items', '/%2e%2e/items', '/items#fragment', '/items\\child']) {
-        await expect(handlers.get('desktop-plugin:app-surface-get-json')?.({}, {
-          appId: 'com.example.workflow',
-          surfaceId: 'board',
-          relativePath
-        }), relativePath).rejects.toThrow()
-      }
-      expect(fetchMock).not.toHaveBeenCalled()
-    } finally {
-      vi.unstubAllGlobals()
-    }
-  })
-
-  it('enforces the Desktop extension App Surface response size limit', async () => {
-    const sendRequest = vi.fn().mockResolvedValue({
-      appId: 'com.example.workflow',
-      surfaceId: 'board',
-      endpoint: 'http://127.0.0.1:5087/api',
-      bearer: 'surface-secret',
-      expiresAt: '2099-01-01T00:00:00Z'
-    })
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      text: vi.fn().mockResolvedValue('x'.repeat(1_000_001))
-    }))
-    try {
-      const handlers = registerHandlersForTest('/workspace', () => ({ sendRequest } as never))
-      await expect(handlers.get('desktop-plugin:app-surface-get-json')?.({}, {
-        appId: 'com.example.workflow',
-        surfaceId: 'board',
-        relativePath: '/items'
-      })).rejects.toThrow('Response is too large')
-    } finally {
-      vi.unstubAllGlobals()
-    }
-  })
-
-  it('opens only the native protocol declared by the selected app', async () => {
-    const sendRequest = vi.fn().mockResolvedValue({
-      apps: [{ appId: 'com.example.workflow', nativeApp: { protocol: 'workflow' } }]
-    })
-    const handlers = registerHandlersForTest('/workspace', () => ({ sendRequest } as never))
-
-    await expect(handlers.get('desktop-plugin:app-open')?.({}, {
-      appId: 'com.example.workflow',
-      url: 'https://example.com/open'
-    })).rejects.toThrow('App URL does not match the app native protocol.')
-
-    await handlers.get('desktop-plugin:app-open')?.({}, {
-      appId: 'com.example.workflow',
-      url: 'workflow://open/board'
-    })
-    expect(shell.openExternal).toHaveBeenCalledWith('workflow://open/board')
   })
 
   it('defers model listing until connected and forwards the trimmed provider id', async () => {

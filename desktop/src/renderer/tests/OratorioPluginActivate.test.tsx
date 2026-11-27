@@ -40,7 +40,6 @@ describe('Oratorio plugin activation', () => {
       settings: { get: vi.fn().mockResolvedValue({ locale: 'en' }) },
       oratorio: {
         getContext,
-        getPendingHandoff: vi.fn().mockResolvedValue(null),
         onEvent: vi.fn(() => vi.fn())
       }
     })

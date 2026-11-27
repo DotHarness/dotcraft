@@ -36,7 +36,7 @@ public sealed class ChannelAdapterRequestHandlerFactoryTests : IDisposable
             service, "test", new ModuleRegistry(), _tempDir,
             new ChatClientRegistry(providers), providers,
             streamDebugLogger: null, appConfigMonitor: null, protocolExtensions: [],
-            appBindingService: null, originPresentationProviders: [], loggerFactory: null,
+            originPresentationProviders: [], loggerFactory: null,
             commandRegistry: commands);
         var handler = factory.Create(new AppServerConnection(), transport);
         await ExecuteAsync(handler, transport, InMemoryTransport.BuildRequest("initialize", new
@@ -92,7 +92,6 @@ public sealed class ChannelAdapterRequestHandlerFactoryTests : IDisposable
             streamDebugLogger: null,
             appConfigMonitor: monitor,
             protocolExtensions: [],
-            appBindingService: null,
             originPresentationProviders: [],
             loggerFactory: null,
             wireRuntimeAdditionalContextProvider: runtimeContextProvider);
@@ -175,7 +174,6 @@ public sealed class ChannelAdapterRequestHandlerFactoryTests : IDisposable
             streamDebugLogger: null,
             appConfigMonitor: monitor,
             protocolExtensions: [],
-            appBindingService: null,
             originPresentationProviders: [],
             loggerFactory: null);
         var handler = factory.Create(connection, transport);

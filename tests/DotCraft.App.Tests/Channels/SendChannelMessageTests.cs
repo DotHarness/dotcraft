@@ -1,7 +1,6 @@
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using DotCraft.AppBinding;
 using DotCraft.Automations;
 using DotCraft.Channels;
 using DotCraft.Channels.Messaging;
@@ -54,40 +53,6 @@ public sealed class SendChannelMessageTests : IDisposable
         Assert.Equal(ToolExposure.DirectModelOnly, a.Exposure);
         Assert.Equal(ToolPolicyScope.RuntimeManaged, a.Definition.PolicyScope);
         Assert.Equal(a.Definition.InputSchema.GetRawText(), b.Definition.InputSchema.GetRawText());
-    }
-
-    [Fact]
-    public async Task AppBindingThread_ResolvesTheBindingAtCallTime()
-    {
-        var paths = DotCraftPaths.Create(_workspace, Path.Combine(_workspace, ".craft"));
-        var bindings = new AppBindingService();
-        var dataPath = paths.Data.RootPath;
-        var request = bindings.CreateChannelRequest(dataPath, "desktop-thread", "telegram", "local");
-        var binding = bindings.AcceptChannel(dataPath, "telegram", new ChannelBindingAcceptCommand
-        {
-            Code = request.Code,
-            Target = new ChannelTarget
-            {
-                ChannelName = "telegram",
-                ConversationKind = "group",
-                ConversationId = "-100",
-                DeliveryTarget = "-100",
-                DisplayName = "Release team"
-            }
-        });
-        var resolver = new ChatBindingResolver(_registry, paths, bindings);
-        var provider = new SendChannelMessageToolProvider(resolver);
-        var thread = new SessionThread { Id = "desktop-thread", OriginChannel = "desktop", WorkspacePath = _workspace };
-        var runtime = (await RegistrationAsync(provider, thread)).Binding.Runtime;
-
-        var sent = await runtime.InvokeAsync(Context("call-1", "desktop-thread"), Args("""{ "text": "hi" }"""));
-        bindings.RevokeBinding(dataPath, "desktop-thread", binding.BindingId, "local");
-        var revoked = await runtime.InvokeAsync(Context("call-2", "desktop-thread"), Args("""{ "text": "again" }"""));
-
-        Assert.True(sent.Success);
-        Assert.Equal("-100", Assert.Single(_telegram.Deliveries).Target);
-        Assert.False(revoked.Success);
-        Assert.Equal(SendChannelMessageErrorCodes.ChannelUnavailable, revoked.Error?.Code);
     }
 
     [Theory]

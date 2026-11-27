@@ -189,7 +189,6 @@ export const enSections: DocSection[] = [
       {
         text: 'Apps & channels',
         items: [
-          { text: withIcon('plug', 'DotCraft App'), link: '/extend/app-binding' },
           { text: withIcon('mcp', 'MCP Apps'), link: '/extend/mcp-apps' },
           { text: withIcon('blocks', 'Channel Modules'), link: '/extend/channel-modules' }
         ]
@@ -443,7 +442,6 @@ export const zhSections: DocSection[] = [
       {
         text: '应用与渠道',
         items: [
-          { text: withIcon('plug', 'DotCraft App'), link: '/zh/extend/app-binding' },
           { text: withIcon('mcp', 'MCP Apps'), link: '/zh/extend/mcp-apps' },
           { text: withIcon('blocks', '渠道模块'), link: '/zh/extend/channel-modules' }
         ]

@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { startPendingWelcomeTurn } from '../utils/startPendingWelcomeTurn'
-import { useAppBindingStore } from '../stores/appBindingStore'
 import { useComposerDraftStore } from '../stores/composerDraftStore'
 import { useConversationStore } from '../stores/conversationStore'
 import { useThreadStore } from '../stores/threadStore'
@@ -8,71 +7,30 @@ import { useToastStore } from '../stores/toastStore'
 import { installDesktopApiMock } from './desktopApiMock'
 
 const sendRequest = vi.fn()
-const openAppHandoff = vi.fn().mockResolvedValue(undefined)
 
-const APP = {
-  appId: 'com.example.workflow',
-  displayName: 'Workflow App',
-  developerName: 'Example Labs',
-  description: 'Board tools',
-  pluginId: 'workflow',
-  installed: true,
-  enabled: true,
-  catalogVisible: true,
-  connectionState: 'connected',
-  handoffModes: []
-}
-
-const ACTIVE_BINDING = {
-  bindingRequestId: 'request-1',
-  bindingId: 'binding-1',
-  threadId: 'thread-1',
-  appId: 'com.example.workflow',
-  state: 'active'
-}
-
-const FAILED_BINDING = { ...ACTIVE_BINDING, state: 'failed', failureReason: 'mcpStartupFailed' }
-
-function pending(appIds: string[]): Parameters<typeof startPendingWelcomeTurn>[0] {
+function pending(): Parameters<typeof startPendingWelcomeTurn>[0] {
   return {
     threadId: 'thread-1',
     pending: {
       text: 'List my board items',
-      inputParts: [{ type: 'text', text: 'List my board items' }],
-      appIds
+      inputParts: [{ type: 'text', text: 'List my board items' }]
     },
     workspacePath: 'X:\\fixtures\\workspace',
     translate: (key: string) => key
   }
 }
 
-function mockAppServer(bindings: Array<Record<string, unknown>>): void {
-  sendRequest.mockImplementation(async (method: string) => {
-    if (method === 'app/list') return { apps: [APP] }
-    if (method === 'thread/appBindings/enable') {
-      return {
-        bindingRequestId: 'request-1',
-        bindingId: 'binding-1',
-        state: 'connecting',
-        expiresAt: '2026-05-16T00:01:00Z',
-        handoff: { mode: 'customProtocol', uri: 'workflow://dotcraft/bind?request=request-1' }
-      }
-    }
-    if (method === 'thread/appBindings/list') return { bindings }
-    if (method === 'turn/start') return { turn: { id: 'turn-server' } }
-    return {}
-  })
-}
-
 describe('startPendingWelcomeTurn', () => {
   beforeEach(() => {
     sendRequest.mockReset()
-    openAppHandoff.mockClear()
+    sendRequest.mockImplementation(async (method: string) => {
+      if (method === 'turn/start') return { turn: { id: 'turn-server' } }
+      return {}
+    })
     installDesktopApiMock({
       appServer: { sendRequest },
-      shell: { openAppHandoff, openExternal: vi.fn() }
+      shell: { openExternal: vi.fn() }
     })
-    useAppBindingStore.getState().reset()
     useConversationStore.getState().reset()
     useThreadStore.getState().reset()
     useThreadStore.setState({ activeThreadId: 'thread-1' })
@@ -80,90 +38,21 @@ describe('startPendingWelcomeTurn', () => {
     useToastStore.setState({ toasts: [] })
   })
 
-  it('starts the turn only after every staged app binding is active', async () => {
-    mockAppServer([ACTIVE_BINDING])
+  it('starts the turn directly on the active thread', async () => {
+    await startPendingWelcomeTurn(pending())
 
-    await startPendingWelcomeTurn(pending(['com.example.workflow']))
-
-    const methods = sendRequest.mock.calls.map(([method]) => method)
-    expect(methods).toContain('thread/appBindings/enable')
-    expect(methods.indexOf('turn/start')).toBeGreaterThan(methods.indexOf('thread/appBindings/enable'))
-    expect(openAppHandoff).toHaveBeenCalledWith('workflow://dotcraft/bind?request=request-1')
+    expect(sendRequest.mock.calls.map(([method]) => method)).toContain('turn/start')
     expect(useConversationStore.getState().turns.map((turn) => turn.id)).toEqual(['turn-server'])
     expect(useConversationStore.getState().systemLabel).toBeNull()
   })
 
-  it('keeps the submitted model while app activation waits and joins a turn started meanwhile', async () => {
-    mockAppServer([ACTIVE_BINDING])
-    let release!: () => void
-    const activation = new Promise<void>(resolve => { release = resolve })
-    const original = sendRequest.getMockImplementation()!
-    sendRequest.mockImplementation(async (method: string, ...args: unknown[]) => {
-      if (method === 'thread/appBindings/enable') await activation
-      if (method === 'turn/start') return { turn: { id: 'already-running' } }
-      return original(method, ...args)
-    })
-    const request = pending(['com.example.workflow'])
-    const settings = { providerId: 'provider-a', model: 'model-a', reasoning: { enabled: true, effort: 'high' } }
-    const submitting = startPendingWelcomeTurn({ ...request, pending: { ...request.pending, modelSettings: settings } })
-    await vi.waitFor(() => expect(sendRequest.mock.calls.map(([method]) => method)).toContain('thread/appBindings/enable'))
-    settings.model = 'model-b'
-    settings.reasoning.effort = 'low'
-    useConversationStore.getState().onTurnStarted({ id: 'already-running', threadId: 'thread-1', status: 'running', items: [], startedAt: '2026-11-13T00:00:00Z' })
-    useConversationStore.setState({ streamingMessage: 'Already responding', inputTokens: 123 })
-    release()
-    await submitting
-    expect(sendRequest).toHaveBeenCalledWith('turn/start', expect.objectContaining({ model: 'model-a', reasoning: { enabled: true, effort: 'high' } }))
-    expect(useConversationStore.getState()).toMatchObject({ activeTurnId: 'already-running', streamingMessage: 'Already responding', inputTokens: 123 })
-    expect(useConversationStore.getState().turns.map(turn => turn.id)).toEqual(['already-running'])
-    expect(useConversationStore.getState().queuedInputs).toMatchObject([{ displayText: request.pending.text, status: 'guidancePending' }])
-  })
-
-  it('starts the turn without the app when a staged app fails to activate', async () => {
-    mockAppServer([FAILED_BINDING])
-
-    await startPendingWelcomeTurn(pending(['com.example.workflow']))
-
-    const methods = sendRequest.mock.calls.map(([method]) => method)
-    expect(methods).toContain('thread/appBindings/revoke')
-    expect(methods).toContain('turn/start')
-    expect(useConversationStore.getState().turns.map((turn) => turn.id)).toEqual(['turn-server'])
-    expect(useToastStore.getState().toasts.map((toast) => toast.type)).toEqual(['warning'])
-  })
-
-  it('abandons the wait without starting a turn when the user leaves the thread', async () => {
-    mockAppServer([{ ...ACTIVE_BINDING, state: 'connecting' }])
-    const controller = new AbortController()
-
-    const started = startPendingWelcomeTurn({ ...pending(['com.example.workflow']), signal: controller.signal })
-    await vi.waitFor(() => expect(sendRequest.mock.calls.map(([method]) => method)).toContain('thread/appBindings/enable'))
-    useThreadStore.setState({ activeThreadId: 'thread-2' })
-    controller.abort()
-    await started
-
-    expect(sendRequest.mock.calls.map(([method]) => method)).not.toContain('turn/start')
-    expect(useComposerDraftStore.getState().getDraft('thread-1')?.text).toBe('List my board items')
-    expect(useToastStore.getState().toasts.filter((toast) => toast.type === 'error')).toEqual([])
-  })
-
   it('starts the turn without an on-screen echo when the user is on another thread', async () => {
-    mockAppServer([])
     useThreadStore.setState({ activeThreadId: 'thread-2' })
 
-    await startPendingWelcomeTurn(pending([]))
+    await startPendingWelcomeTurn(pending())
 
     expect(sendRequest.mock.calls.map(([method]) => method)).toContain('turn/start')
     expect(useConversationStore.getState().turns).toEqual([])
     expect(useConversationStore.getState().systemLabel).toBeNull()
-  })
-
-  it('starts the turn directly when no app is staged', async () => {
-    mockAppServer([])
-
-    await startPendingWelcomeTurn(pending([]))
-
-    const methods = sendRequest.mock.calls.map(([method]) => method)
-    expect(methods).toContain('turn/start')
-    expect(methods).not.toContain('thread/appBindings/enable')
   })
 })

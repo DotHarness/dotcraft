@@ -10,7 +10,6 @@ import { isMcpAppCandidate } from '../../utils/mcpAppCandidate'
 import { Skeleton } from '../ui/Skeleton'
 import { IconButton } from '../ui/IconButton'
 import { RunningShimmer } from '../ui/RunningShimmer'
-import { useAppBindingStore } from '../../stores/appBindingStore'
 import { ToolDisclosure } from './ToolDisclosure'
 import { ToolRowPluginIcon } from './ToolRowPluginIcon'
 import { THEME_CHANGED_EVENT } from '../../../shared/theme'
@@ -157,9 +156,6 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
   const [frameWidth, setFrameWidth] = useState<number | null>(null)
   const [fullscreen, setFullscreen] = useState(false)
   const [expanded, setExpanded] = useState(true)
-  const bindingName = useAppBindingStore((state) => threadId
-    ? state.bindingsByThread[threadId]?.find((binding) => item.source?.sourceId === `binding:${binding.bindingId}`)?.displayName
-    : null)
   const fullscreenRef = useRef(fullscreen)
   const logTimes = useRef<number[]>([])
   const sizeUpdateAt = useRef(0)
@@ -559,7 +555,7 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
     )
   })()
 
-  const name = bindingName?.trim() || resolveAppName(item) || translate(locale, 'mcpApp.title')
+  const name = resolveAppName(item) || translate(locale, 'mcpApp.title')
   const rowTitle = status === 'opening'
     ? <RunningShimmer className="dc-tool-row-running-label">{translate(locale, 'mcpApp.opening', { name })}</RunningShimmer>
     : translate(locale, status === 'ready' ? 'mcpApp.opened' : 'mcpApp.openFailed', { name })
@@ -582,7 +578,7 @@ function McpAppViewImpl({ item, threadId, turnId }: McpAppViewProps): JSX.Elemen
       onToggle={() => setExpanded((value) => !value)}
       callId={item.toolCallId}
       icon={{ icon: AppWindow }}
-      iconNode={<ToolRowPluginIcon item={item} fallback={{ icon: AppWindow }} threadId={threadId} />}
+      iconNode={<ToolRowPluginIcon item={item} fallback={{ icon: AppWindow }} />}
       title={rowTitle}
       accessory={status === 'ready' && !fullscreen
         ? <span onClick={(event) => event.stopPropagation()}>{fullscreenToggle}</span>

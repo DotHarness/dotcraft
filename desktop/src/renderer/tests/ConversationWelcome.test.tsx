@@ -13,7 +13,6 @@ import { useThreadRouteStore } from '../stores/threadRouteStore'
 import { useThreadStore } from '../stores/threadStore'
 import { useSkillsStore } from '../stores/skillsStore'
 import { useToastStore } from '../stores/toastStore'
-import { useAppBindingStore } from '../stores/appBindingStore'
 import { useConversationStore } from '../stores/conversationStore'
 import { useComposerDraftStore } from '../stores/composerDraftStore'
 import { useComposerPreferencesStore } from '../stores/composerPreferencesStore'
@@ -37,7 +36,6 @@ const getPathForFile = vi.fn((file: File) => file.name === 'notes.txt' ? 'C:\\te
 const settingsGet = vi.fn()
 const settingsSet = vi.fn()
 const shellOpenExternal = vi.fn()
-const shellOpenAppHandoff = vi.fn()
 const shellGetProtocolHandlerName = vi.fn()
 const gitListBranches = vi.fn()
 const gitCheckoutBranch = vi.fn()
@@ -144,7 +142,6 @@ describe('ConversationWelcome composer', () => {
     useConversationStore.setState({ remoteWorkspaceActive: false })
     useModelCatalogStore.getState().reset()
     useProvidersStore.getState().reset()
-    useAppBindingStore.getState().reset()
     useToastStore.setState({ toasts: [] })
     useSkillsStore.setState({
       skills: [],
@@ -190,7 +187,6 @@ describe('ConversationWelcome composer', () => {
     fileReadFile.mockResolvedValue('{}')
     settingsGet.mockResolvedValue({ locale: 'en' })
     shellOpenExternal.mockResolvedValue(undefined)
-    shellOpenAppHandoff.mockResolvedValue(undefined)
     shellGetProtocolHandlerName.mockResolvedValue('Workflow App')
     gitListBranches.mockResolvedValue({
       current: 'main',
@@ -274,7 +270,6 @@ describe('ConversationWelcome composer', () => {
         },
         shell: {
           openExternal: shellOpenExternal,
-          openAppHandoff: shellOpenAppHandoff,
           getProtocolHandlerName: shellGetProtocolHandlerName,
           listOpenTargets: async () => []
         },

@@ -1,7 +1,6 @@
-import { resolve } from 'node:path'
 import WebSocket from 'ws'
 
-import type { OratorioBoardEvent, OratorioHandoffRequest, OratorioRequest, OratorioResponse, OratorioServiceContext } from '../../shared/oratorio'
+import type { OratorioBoardEvent, OratorioRequest, OratorioResponse, OratorioServiceContext } from '../../shared/oratorio'
 import type { DesktopHubClient } from '../desktopHub'
 
 const SERVICE_ID = 'oratorio'
@@ -36,7 +35,6 @@ export class OratorioProvider {
   private socket: WebSocket | null = null
   private revision = 1
   private subscribers = 0
-  private pendingHandoff: { publicRequest: OratorioHandoffRequest; approvalUrl: string } | null = null
   private focusedRunId: string | null = null
   private generation = 0
   private disposed = false
@@ -84,74 +82,6 @@ export class OratorioProvider {
     return this.context()
   }
 
-  async handleDesktopServiceHandoff(rawUrl: string): Promise<OratorioHandoffRequest | null> {
-    const signal = this.contextAbort.signal
-    const handoff = parseDesktopServiceHandoff(rawUrl)
-    const service = await this.ensure()
-    signal.throwIfAborted()
-    const workspacePath = service.workspacePath
-    if (!workspacePath || !samePath(workspacePath, handoff.workspacePath)) {
-      throw new OratorioProviderError(
-        'oratorio.handoffWorkspaceMismatch',
-        'The Oratorio handoff does not belong to the active Workspace.'
-      )
-    }
-    let endpoint = service.appServerEndpoint
-    let appServerIdentity = service.appServerIdentity
-    if (service.provider === 'local') {
-      const appServer = await this.getHubClient().ensureAppServer(workspacePath, { startIfMissing: true })
-      signal.throwIfAborted()
-      endpoint = appServer.endpoints.appServerWebSocket
-        ?? appServer.serviceStatus.appServerWebSocket?.url
-      const canonicalWorkspacePath = appServer.canonicalWorkspacePath || workspacePath
-      appServerIdentity = `local:${canonicalWorkspacePath}`
-    }
-    if (!endpoint) {
-      throw new OratorioProviderError(
-        'oratorio.appServerUnavailable',
-        'DotCraft Hub did not return an AppServer endpoint for the target Workspace.'
-      )
-    }
-    const target = new URL(`oratorio://dotcraft/${handoff.operation}`)
-    target.searchParams.set('app', handoff.appId)
-    target.searchParams.set('request', handoff.requestId)
-    target.searchParams.set('token', handoff.requestToken)
-    target.searchParams.set('endpoint', endpoint)
-    target.searchParams.set('workspace', workspacePath)
-    target.searchParams.set('identity', appServerIdentity || `local:${workspacePath}`)
-    const inspection = await this.request<Record<string, unknown>>({
-      method: 'POST',
-      path: '/api/v1/dotcraft/app-binding/inspect',
-      body: { url: target.toString() }
-    })
-    signal.throwIfAborted()
-    const publicRequest: OratorioHandoffRequest = {
-      requestId: crypto.randomUUID(), operation: handoff.operation, appId: handoff.appId, workspacePath,
-      summary: summarizeHandoffInspection(inspection.data, handoff.operation)
-    }
-    const pending = { publicRequest, approvalUrl: target.toString() }
-    if (handoff.operation === 'bind') {
-      await this.approveHandoff(pending.approvalUrl)
-      return null
-    }
-    this.pendingHandoff = pending
-    return publicRequest
-  }
-
-  getPendingHandoff(): OratorioHandoffRequest | null {
-    return this.pendingHandoff?.publicRequest ?? null
-  }
-
-  async resolveHandoff(requestId: string, approved: boolean): Promise<void> {
-    const pending = this.pendingHandoff
-    if (!pending || pending.publicRequest.requestId !== requestId) {
-      throw new OratorioProviderError('oratorio.invalidHandoffRequest', 'The Oratorio handoff request is no longer available.')
-    }
-    this.pendingHandoff = null
-    if (!approved) return
-    await this.approveHandoff(pending.approvalUrl)
-  }
-
   focusRun(runId: string | null): void {
     if (this.focusedRunId === runId) return
     if (this.focusedRunId) this.sendStreamControl({ type: 'unfocus', runId: this.focusedRunId })
@@ -185,7 +115,6 @@ export class OratorioProvider {
     this.generation += 1
     this.contextAbort.abort()
     this.contextAbort = new AbortController()
-    this.pendingHandoff = null
     this.focusedRunId = null
     this.disconnect()
     this.service = null
@@ -266,21 +195,9 @@ export class OratorioProvider {
     }
   }
 
-  private async approveHandoff(url: string): Promise<void> {
-    await this.request({ method: 'POST', path: '/api/v1/dotcraft/app-binding/approve', body: { url } })
-  }
-
   private sendStreamControl(frame: { type: 'focus' | 'unfocus'; runId: string }): void {
     if (this.socket?.readyState === WebSocket.OPEN) this.socket.send(JSON.stringify(frame))
   }
-}
-
-function summarizeHandoffInspection(inspection: Record<string, unknown>, operation: 'connect' | 'bind'): string {
-  const candidate = operation === 'connect' ? inspection.connection : inspection.binding
-  if (!candidate || typeof candidate !== 'object') return operation === 'connect' ? 'Connect Oratorio to this DotCraft workspace.' : 'Bind Oratorio to the requested DotCraft thread.'
-  const record = candidate as Record<string, unknown>
-  const label = [record.accountLabel, record.threadId, record.expiresAt].filter((value) => typeof value === 'string').join(' · ')
-  return label || (operation === 'connect' ? 'Connect Oratorio to this DotCraft workspace.' : 'Bind Oratorio to the requested DotCraft thread.')
 }
 
 function parseBoardEvent(value: string): OratorioBoardEvent | undefined {
@@ -346,35 +263,4 @@ function readErrorMessage(data: unknown, status: number): string {
 
 function normalizeWorkspacePath(value: string | null): string | null {
   return typeof value === 'string' && value.trim() ? value : null
-}
-
-function parseDesktopServiceHandoff(rawUrl: string): {
-  operation: 'connect' | 'bind'
-  appId: string
-  requestId: string
-  requestToken: string
-  workspacePath: string
-} {
-  let url: URL
-  try { url = new URL(rawUrl) } catch {
-    throw new OratorioProviderError('oratorio.invalidHandoff', 'The Oratorio handoff URL is invalid.')
-  }
-  const operation = url.pathname.replace(/^\//, '')
-  const appId = url.searchParams.get('app')?.trim() ?? ''
-  const requestId = url.searchParams.get('request')?.trim() ?? ''
-  const requestToken = url.searchParams.get('token')?.trim() ?? ''
-  const workspacePath = url.searchParams.get('workspace')?.trim() ?? ''
-  if (url.protocol !== 'dotcraft-service:' || url.hostname !== SERVICE_ID
-      || (operation !== 'connect' && operation !== 'bind')
-      || appId !== 'com.dotharness.oratorio' || !requestId || !requestToken || !workspacePath) {
-    throw new OratorioProviderError('oratorio.invalidHandoff', 'The Oratorio handoff URL is invalid.')
-  }
-  return { operation, appId, requestId, requestToken, workspacePath }
-}
-
-function samePath(left: string, right: string): boolean {
-  const normalize = (value: string): string => resolve(value).replace(/[\\/]+$/, '')
-  return process.platform === 'win32'
-    ? normalize(left).toLowerCase() === normalize(right).toLowerCase()
-    : normalize(left) === normalize(right)
 }

@@ -292,7 +292,6 @@ function buildInitializeCapabilities(): Record<string, unknown> {
     mcpApps: true,
     visualizations: true,
     generativeUi: true,
-    appBindingVersion: 1,
     mcpElicitation: true
   }
 }

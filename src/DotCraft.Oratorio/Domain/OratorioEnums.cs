@@ -277,7 +277,7 @@ public enum RunPurpose
 public enum RunDispatchTrigger
 {
     Manual,
-    AppBinding,
+    Mcp,
     AutoImplementation,
     AutoReview,
     AutoFollowUp,

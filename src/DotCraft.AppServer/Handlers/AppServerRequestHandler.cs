@@ -1,6 +1,5 @@
 using System.Text.Json;
 using DotCraft.Agents;
-using DotCraft.AppBinding;
 using DotCraft.Commands.Core;
 using DotCraft.Protocol;
 using Contract = DotCraft.Protocol.AppServer;
@@ -132,7 +131,6 @@ public sealed class AppServerRequestHandler(
             connection,
             services.AppConfigMonitor,
             services.PlanStore,
-            services.AppBindingService,
             services.ThreadOriginPresentationProviders,
             services.WorkspaceCraftPath);
 
@@ -202,7 +200,7 @@ public sealed class AppServerRequestHandler(
         new ConfigRequestHandler(services.Configuration),
         new SourceControlRequestHandler(sessionService, services.AppConfigMonitor, services.WorkspaceCraftPath, services.HostWorkspacePath),
         new HookRequestHandler(services.HookRunner, services.AppConfigMonitor, services.WorkspaceCraftPath, services.HostWorkspacePath, WorkspaceConfig, RuntimeConfig, services.BuiltInPluginSourceRoots),
-        new PluginRequestHandler(transport, connection, services.SkillsLoader, services.AppConfigMonitor, services.WorkspaceCraftPath, services.WorkspaceTempPath, services.HostWorkspacePath, services.BuiltInPluginSourceRoots, McpConfig, services.AppBindingService, WorkspaceConfig, ManagedPluginRefresher, services.PluginWorkflowSummaryProvider, services.DotNetExtensionRuntimeCoordinator, services.PluginConfigStore, services.BroadcastPluginSnapshotUpdated, services.PluginManagementState, services.LoggerFactory?.CreateLogger("DotCraft.Plugins"), services.ChannelRuntimeProvider?.ChannelPlugins),
+        new PluginRequestHandler(transport, connection, services.SkillsLoader, services.AppConfigMonitor, services.WorkspaceCraftPath, services.WorkspaceTempPath, services.HostWorkspacePath, services.BuiltInPluginSourceRoots, McpConfig, WorkspaceConfig, ManagedPluginRefresher, services.PluginWorkflowSummaryProvider, services.DotNetExtensionRuntimeCoordinator, services.PluginConfigStore, services.BroadcastPluginSnapshotUpdated, services.PluginManagementState, services.LoggerFactory?.CreateLogger("DotCraft.Plugins"), services.ChannelRuntimeProvider?.ChannelPlugins),
         new AgentProfileRequestHandler(sessionService, services.WorkspaceCraftPath, WorkspaceConfig.UserDataPath, services.HostWorkspacePath, services.AppConfigMonitor),
         new CommandRequestHandler(
             _commandRegistry,
@@ -211,7 +209,6 @@ public sealed class AppServerRequestHandler(
             services.WorkspaceCraftPath,
             () => services.AppConfigMonitor?.Current ?? WorkspaceConfig.LoadCurrentMergedConfig(),
             services.ModelProviderRegistry,
-            services.AppBindingService,
             ResponseWriter,
             ThreadHandler.AttachCreatedThreadAsync),
         new ThreadRecoveryRequestHandler(sessionService),
@@ -244,9 +241,6 @@ public sealed class AppServerRequestHandler(
 
         if (method != Contract.AppServerRpc.Initialize.Name && connection.IsInitialized && !connection.IsClientReady)
             throw AppServerErrors.InvalidRequest("Server is awaiting the 'initialized' notification before handling requests.");
-
-        if (connection.IsAppPrincipalAuthenticated && !IsAppPrincipalMethod(method))
-            throw AppServerErrors.AppPrincipalUnauthorized("App-principal connections may call only App Binding app-role methods.");
 
         try
         {
@@ -281,20 +275,6 @@ public sealed class AppServerRequestHandler(
         {
             throw AppServerErrors.ThreadHistoryUnavailable(ex.Message);
         }
-        catch (AppBindingException ex)
-        {
-            throw ex.Error switch
-            {
-                AppBindingError.InvalidInput => AppServerErrors.InvalidParams(ex.Message),
-                AppBindingError.Unauthorized => AppServerErrors.AppPrincipalUnauthorized(ex.Message),
-                AppBindingError.Conflict => AppServerErrors.AppBindingConflict(ex.Message),
-                AppBindingError.PolicyDenied => AppServerErrors.AppBindingPolicyDenied(ex.Message),
-                AppBindingError.SurfaceUnavailable => AppServerErrors.AppSurfaceUnavailable(
-                    ex.AppId ?? string.Empty,
-                    ex.SurfaceId ?? string.Empty),
-                _ => AppServerErrors.InternalError(ex.Message)
-            };
-        }
         catch (InvalidOperationException ex)
         {
             throw AppServerExceptionMapper.MapOperationException(ex);
@@ -304,22 +284,6 @@ public sealed class AppServerRequestHandler(
             throw AppServerErrors.InvalidParams(ex.Message);
         }
     }
-
-    private static readonly HashSet<string> AppPrincipalMethods =
-    [
-        Contract.AppServerRpc.AppConnectionAuthenticate.Name,
-        Contract.AppServerRpc.AppConnectionRefresh.Name,
-        Contract.AppServerRpc.AppConnectionStatus.Name,
-        Contract.AppServerRpc.AppConnectionRevoke.Name,
-        Contract.AppServerRpc.AppSurfacePublish.Name,
-        Contract.AppServerRpc.AppBindingRequestGet.Name,
-        Contract.AppServerRpc.AppBindingActivate.Name,
-        Contract.AppServerRpc.AppBindingRebind.Name,
-        Contract.AppServerRpc.AppBindingsList.Name,
-        Contract.AppServerRpc.AppThreadInputEnqueue.Name
-    ];
-
-    private static bool IsAppPrincipalMethod(string method) => AppPrincipalMethods.Contains(method);
 
     public void HandleInitializedNotification()
     {
@@ -341,7 +305,6 @@ public sealed class AppServerRequestHandler(
                 services.WorkspaceCraftPath,
                 services.HostWorkspacePath,
                 services.ContextPageManager,
-                services.NotifyAppPrincipal,
                 services.BroadcastTrustedNotification,
                 ct);
 

@@ -2,7 +2,6 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.Agents;
-using DotCraft.AppBinding;
 using DotCraft.AppServer;
 using DotCraft.Channels;
 using DotCraft.Configuration;
@@ -556,51 +555,6 @@ public sealed class ChannelDeliveryTests : IDisposable
         Assert.Equal(Assert.Single(connected.ModelVisibleDefinitions).Name, definition.Name);
         Assert.False(result.Success);
         Assert.Null(transport.LastMethod);
-    }
-
-    [Fact]
-    public async Task ManagedChannelToolSource_KeepsToolsWhileTheBindingIsOfflineAndDropsThemOnRevoke()
-    {
-        var dataPath = Path.Combine(_tempDir, ".craft");
-        var bindings = new AppBindingService();
-        var request = bindings.CreateChannelRequest(dataPath, "desktop-thread", "feishu", "local");
-        var binding = bindings.AcceptChannel(dataPath, "feishu", new ChannelBindingAcceptCommand
-        {
-            Code = request.Code,
-            Target = new ChannelTarget
-            {
-                ChannelName = "feishu",
-                ConversationKind = "group",
-                ConversationId = "oc_1",
-                DeliveryTarget = "group:oc_1",
-                DisplayName = "Release team"
-            }
-        });
-        var registry = new ChannelHostRegistry();
-        var host = CreateHost("feishu");
-        registry.Register("feishu", host);
-        var transport = new StubTransport(new ChannelToolInvocationResult { Success = true });
-        AttachFakeAdapter(host, transport, CreateToolAdapterConnection("feishu", [ReadResourceTool()]));
-        var source = new ManagedChannelToolSource(bindings, registry, new ChannelToolRegistrationService());
-        var active = await SnapshotAsync(source, "desktop-thread");
-
-        bindings.MarkUnavailable(dataPath, binding.BindingId, "adapterDisconnected");
-        var offline = await SnapshotAsync(source, "desktop-thread");
-        var definition = Assert.Single(offline.ModelVisibleDefinitions);
-        var result = await new ToolDispatcher().DispatchAsync(
-            offline,
-            definition.Name,
-            [],
-            new ToolInvocationRequest("desktop-thread", "turn_1", "call_offline", ToolInvocationAudience.Model));
-        bindings.RevokeBinding(dataPath, "desktop-thread", binding.BindingId, "local");
-        var revoked = await SnapshotAsync(source, "desktop-thread");
-
-        var shown = Assert.Single(active.ModelVisibleDefinitions);
-        Assert.Equal(shown.Name, definition.Name);
-        Assert.Equal(shown.InputSchema.GetRawText(), definition.InputSchema.GetRawText());
-        Assert.False(result.Success);
-        Assert.Null(transport.LastMethod);
-        Assert.Empty(revoked.ModelVisibleDefinitions);
     }
 
     [Fact]

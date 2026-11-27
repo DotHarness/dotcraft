@@ -1,4 +1,3 @@
-using DotCraft.AppBinding;
 using DotCraft.Configuration;
 using DotCraft.Memory;
 using DotCraft.Sessions;
@@ -13,7 +12,6 @@ internal sealed class AppServerThreadWireProjector(
     AppServerConnection connection,
     IAppConfigMonitor? appConfigMonitor,
     PlanStore? planStore,
-    AppBindingService? appBindingService,
     IReadOnlyList<IThreadOriginPresentationProvider>? originPresentationProviders,
     string? workspaceDataPath)
 {
@@ -175,31 +173,6 @@ internal sealed class AppServerThreadWireProjector(
         }
 
         return null;
-    }
-
-    public void RevokeAppBindingsForDeletedThread(string threadId)
-    {
-        if (appBindingService == null || string.IsNullOrWhiteSpace(workspaceDataPath))
-            return;
-
-        if (!Directory.Exists(workspaceDataPath))
-            return;
-
-        _ = appBindingService.RevokeThreadBindings(workspaceDataPath, threadId, "threadDeleted");
-    }
-
-    public IReadOnlyList<AppBindingSnapshot> RevokeChannelAppBindingsForArchivedThread(string threadId)
-    {
-        if (appBindingService == null || string.IsNullOrWhiteSpace(workspaceDataPath))
-            return [];
-
-        if (!Directory.Exists(workspaceDataPath))
-            return [];
-
-        return appBindingService.ListThreadBindings(workspaceDataPath, threadId)
-            .Where(binding => binding.ChannelTarget != null && binding.State != AppBindingStates.Revoked)
-            .Select(binding => appBindingService.RevokeBinding(workspaceDataPath, threadId, binding.BindingId, "threadArchived"))
-            .ToArray();
     }
 
     public async Task<SessionWireThread> HydrateThreadGoalAsync(SessionWireThread wire, CancellationToken ct)

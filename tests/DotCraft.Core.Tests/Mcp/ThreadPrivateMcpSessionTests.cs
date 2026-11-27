@@ -76,7 +76,6 @@ public sealed partial class ThreadPrivateMcpSessionTests
         await harness.Sessions.ArchiveThreadAsync(archived.Id);
         await processA.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(15));
         await Assert.ThrowsAsync<InvalidOperationException>(() => harness.Sessions.GetEffectiveToolSnapshotAsync(archived.Id));
-        await harness.Sessions.SetBindingMcpServersAsync(archived.Id, "removed-binding", []);
         Assert.Null(await harness.Sessions.GetEffectiveMcpRuntimeAsync(archived.Id));
         Assert.False(processC.HasExited);
         await harness.Sessions.UnloadIdleThreadsAsync(DateTimeOffset.UtcNow.AddHours(1), SessionService.ThreadIdleUnloadDelay);

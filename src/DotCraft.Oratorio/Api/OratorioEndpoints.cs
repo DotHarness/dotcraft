@@ -297,32 +297,6 @@ public static class OratorioEndpoints
             return Results.Ok(result);
         });
 
-        group.MapGet("/dotcraft/app-binding/status", async (OratorioAppBindingService service, CancellationToken ct) =>
-        {
-            var result = await service.GetConnectionStatusAsync(ct);
-            return Results.Ok(result);
-        });
-
-        group.MapPost("/dotcraft/app-binding/inspect", async (
-            DotCraftAppBindingHandoffRequest request,
-            OratorioAppBindingService service,
-            CancellationToken ct) =>
-        {
-            var result = await service.InspectAsync(request.Url, ct);
-            return Results.Ok(result);
-        });
-
-        group.MapPost("/dotcraft/app-binding/approve", async (
-            DotCraftAppBindingHandoffRequest request,
-            HttpContext httpContext,
-            OratorioAppBindingService service,
-            CancellationToken ct) =>
-        {
-            var surfaceBaseUrl = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}";
-            var result = await service.ApproveAsync(request.Url, surfaceBaseUrl, ct);
-            return Results.Ok(result);
-        });
-
         group.MapGet("/dotcraft/workspaces", async (WorkspaceInventoryService service, CancellationToken ct) =>
         {
             var result = await service.GetWorkspacesAsync(ct);

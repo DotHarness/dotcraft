@@ -57,7 +57,6 @@ export function useThreadRestoration(props: Props, warmThreads?: WarmThreads): {
     thread?: Thread
   } | null>(null)
   if (selected.current && activeThread?.id === selected.current.threadId) selected.current.thread = activeThread
-  const welcome = useRef<{ threadId: string; controller: AbortController } | null>(null)
 
   const targetFor = useCallback((threadId: string) => {
     const connection = useConnectionStore.getState()
@@ -114,10 +113,6 @@ export function useThreadRestoration(props: Props, warmThreads?: WarmThreads): {
     const target = activeThreadId ? targetFor(activeThreadId) : null
     if (previous?.threadId === activeThreadId && isSameThreadObservationTarget(previous.target, target)) return
 
-    if (welcome.current && welcome.current.threadId !== activeThreadId) {
-      welcome.current.controller.abort()
-      welcome.current = null
-    }
     finishThreadRestoration()
     if (previous) {
       const oldHeader = previous.thread
@@ -195,14 +190,10 @@ export function useThreadRestoration(props: Props, warmThreads?: WarmThreads): {
     const startWelcome = (): void => {
       const pending = useUIStore.getState().consumePendingWelcomeTurnIfMatch(threadId)
       if (!pending) return
-      const controller = new AbortController()
-      const onScreen = isCurrent()
-      if (onScreen) welcome.current = { threadId, controller }
       void startPendingWelcomeTurn({
         threadId, pending,
         workspacePath: latest.current.protocolWorkspacePath,
-        translate: (key, vars) => translate(latest.current.locale, key, vars),
-        signal: onScreen ? controller.signal : undefined
+        translate: (key, vars) => translate(latest.current.locale, key, vars)
       })
     }
     const fail = (error: unknown): void => {

@@ -1,5 +1,4 @@
 using DotCraft.Agents;
-using DotCraft.AppBinding;
 using DotCraft.Commands.Core;
 using DotCraft.Configuration;
 using Contract = DotCraft.Protocol.AppServer;
@@ -16,7 +15,6 @@ internal sealed class CommandRequestHandler(
     string? workspaceCraftPath,
     Func<AppConfig?> currentConfig,
     ModelProviderRegistry? modelProviders,
-    AppBindingService? appBindings,
     AppServerResponseWriter responseWriter,
     Func<SessionThread, Func<SessionWireThread, Task>, CancellationToken, Task> attachThreadAsync) : IAppServerDomainHandler
 {
@@ -99,7 +97,6 @@ internal sealed class CommandRequestHandler(
             CommandRegistry = commandRegistry,
             Config = currentConfig(),
             ModelProviders = modelProviders,
-            AppBindings = appBindings,
             WorkspaceCraftPath = workspaceCraftPath
         };
 

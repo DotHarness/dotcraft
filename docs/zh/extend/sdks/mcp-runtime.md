@@ -4,7 +4,7 @@
 
 ## 理解 server 作用域
 
-MCP server 可以来自工作区配置、插件、thread 或 App Binding。状态条目的 `origin` 会标识来源，并在适用时给出拥有它的插件、thread 或 binding。
+MCP server 可以来自工作区配置、插件或 thread。状态条目的 `origin` 会标识来源，并在适用时给出拥有它的插件或 thread。
 
 每个 thread 拥有自己的 MCP 连接，包括继承自工作区或插件配置的 server。同一个已加载 thread 的不同 Turn 复用会话，其他 thread 分别建立会话。
 
@@ -158,7 +158,6 @@ Reload 会刷新配置和 thread 下一次使用的工具快照，保留未变�
 | --- | --- |
 | 把应用回调作为某个 thread 的工具公开 | [运行时动态工具](./tools#运行时动态工具) |
 | 检查或直接控制已配置的 MCP server | 本页的 MCP 运行时 API |
-| 连接具有 thread 级权限的产品集成 | [DotCraft App](../app-binding) |
 
 ## 相关文档
 

@@ -13,7 +13,7 @@ TypeScript channel module contract.
 ## 1. Architecture Overview
 
 DotCraft plugins are host-integrated capability bundles. They distribute skills, Dynamic Workflows,
-MCP server declarations, App Binding descriptors, and optional client-facing metadata without
+MCP server declarations and optional client-facing metadata without
 requiring the agent pipeline to know each integration's implementation details.
 
 Contributions:
@@ -22,12 +22,11 @@ Contributions:
 2. **MCP Servers**: plugin-contained MCP server declarations loaded into DotCraft's MCP runtime.
 3. **Lifecycle Hooks**: plugin-contained hook declarations.
 4. **LSP Servers**: plugin-contained language server descriptors.
-5. **App Descriptors**: App Binding descriptors that make app connection and thread binding flows visible.
-6. **Desktop extensions**: optional trusted Desktop modules that contribute views, actions, commands, and tool presentation.
-7. **Dynamic Workflows**: plugin-contained JavaScript workflows registered under the plugin namespace.
-8. **.NET extensions**: plugin-contained managed assemblies admitted by the host runtime.
-9. **Channels**: plugin-contained messaging adapters run as workspace-owned child processes.
-10. **Interface Metadata**: optional client-facing plugin metadata.
+5. **Desktop extensions**: optional trusted Desktop modules that contribute views, actions, commands, and tool presentation.
+6. **Dynamic Workflows**: plugin-contained JavaScript workflows registered under the plugin namespace.
+7. **.NET extensions**: plugin-contained managed assemblies admitted by the host runtime.
+8. **Channels**: plugin-contained messaging adapters run as workspace-owned child processes.
+9. **Interface Metadata**: optional client-facing plugin metadata.
 
 Plugin manifests do not declare model-callable native tools. External reusable services use MCP.
 Thread-scoped client callbacks use the Runtime Dynamic Tool contract in
@@ -95,8 +94,8 @@ may set `toolApprovalMode` as defined in [Tool Architecture](tools-architecture.
 enabling the plugin accepts the declared mode, since the plugin already supplies the server it
 launches.
 
-Plugin stdio MCP declarations expand `${PLUGIN_ROOT}` (absolute plugin root) and
-`${PLUGIN_DATA}` (the shared plugin data directory in §2.5) in `command`, `arguments`,
+Plugin stdio MCP declarations expand `${PLUGIN_ROOT}` (absolute plugin root),
+`${PLUGIN_DATA}` (the shared plugin data directory in §2.5), and `${DOTCRAFT_BIN}` (the active DotCraft host executable or entry assembly) in `command`, `arguments`,
 `environmentVariables` values, and `cwd`. Expansion is case-sensitive and single-pass: inserted
 paths are not expanded again, and unknown placeholders remain literal. Arguments and environment
 values otherwise remain opaque, without path normalization or shell escaping. Only path fields
@@ -129,12 +128,7 @@ inline objects. When omitted, discovery checks `./hooks/hooks.json`, then `./hoo
 explicit declaration suppresses defaults. Only installed, enabled plugins contribute hooks;
 discovery never executes them.
 
-### 2.4 Apps, Desktop, and interface metadata
-
-`apps` points to an App Binding descriptor document, for example `"./apps.json"`. Apps of installed,
-enabled plugins are eligible for App Binding connection and thread binding. Catalog-visible
-built-ins may expose app metadata before installation, but connection and binding are blocked until
-the plugin is installed and enabled.
+### 2.4 Desktop and interface metadata
 
 `desktop` declares one trusted Desktop module built with `@dotcraft/plugin`:
 

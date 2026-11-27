@@ -94,25 +94,13 @@ board actions stay in the board header and follow the active DotCraft theme.
 - A remote connection failure never falls back to local mode. The error state
   offers retry and points to Server settings.
 
-### 2.2 App Binding
+### 2.2 MCP integration
 
-App Binding appears as a compact connection status and consent flow, never as
-an embedded conversation.
-
-- DotCraft receives Oratorio app-binding links, checks the active Workspace,
-  then forwards the approval to Oratorio through the main process.
-- The main process supplies the current local or tunneled AppServer address
-  and runtime identity. Neither AppServer nor Oratorio credentials reach the
-  renderer.
-- Local and remote services both support App Binding. Switching service drops
-  the previous Oratorio stream and cached service metadata.
-- App Binding state may be shown where the operator must act on it. It does
-  not replace service health and does not imply a binding to a specific
-  thread.
-- Connection consent shows the requesting DotCraft workspace and user, the
-  app, the expiry, and that thread access remains a separate DotCraft choice.
-  Thread binding consent, when policy shows it, summarizes the thread, scopes
-  and tools. Loading, error, cancel and approving states stay visible.
+The bundled Oratorio plugin contributes its board, task, review, and source-setup
+tools through a standard plugin `.mcp.json` server (`dotcraft oratorio mcp`).
+Tool calls connect to the Hub-managed Oratorio HTTP service's `/mcp` endpoint
+using the managed service bearer and expose Oratorio's MCP App UI resources
+through DotCraft's standard MCP runtime.
 
 ### 2.3 Oratorio space
 

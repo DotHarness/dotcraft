@@ -182,8 +182,6 @@ The surface id is the channel of every Turn the connection starts, enqueues, or 
 | `dynamicToolRebind` | `thread/resume.dynamicTools`. |
 | `runtimeAdditionalContext` | `additionalContext` on `thread/start` and `thread/resume`. |
 | `gitWorktrees` | `worktree/createAndFork`, `worktree/createAndStart`, `thread/worktree/handoff`, `worktree/list`, `worktree/status`, `worktree/remove`, `worktree/cancelCreate`, `worktree/runSetup`, `worktree/setEnvironment`. |
-| `appBindingVersion` | App Binding control-plane version (`1`). |
-| `appThreadInputEnqueue` | `app/threadInput/enqueue`. |
 | `approvalFlow` | Server may send approval requests. |
 | `requestUserInput` | Root-thread `RequestUserInput` tool and `item/tool/requestUserInput` to capable clients. |
 | `modeSwitch` / `configOverride` | `thread/mode/set`; `thread/config/update`. |
@@ -237,7 +235,7 @@ Thread methods correspond to `ISessionService` thread lifecycle operations in [S
 
 `thread/start` and `thread/fork` return `{ thread, instructionSources }`; `thread/resume` additionally returns required `currentState` and its requested `initialTurnsPage` (Section 4.2). `instructionSources` is the required ordered array of absolute logical paths used by the thread's stable `AGENTS.md` snapshot (`[]` when no file contributes). Thread notifications and worktree lifecycle results do not carry it.
 
-The `Thread` object carries lineage (`forkedFromId`), `ephemeral`, `worktree`, `gitInfo` (branch and credential-free `originUrl` last observed at a Turn start, [Session Core §4.1.1.6](../architecture/session-core.md#4116-git-context); `null` when unknown, omitted from summaries), `cwd`, `runtimeWorkspaceRoots`, and `effectiveWorkspacePath`. `cwd`/`effectiveWorkspacePath` is the root clients use for relative file, shell, Git, and editor surfaces; `runtimeWorkspaceRoots` is the full set of runtime content boundaries. Optional header state includes `queuedInputs`, `runtime`, `plan`, and `contextUsage` (see [Section 4.4](#44-threadread)). Threads carry no app attribution: clients that brand an origin match `originChannel` against `app/list` entries ([App Binding §8](app-binding.md#8-public-methods-and-notifications)).
+The `Thread` object carries lineage (`forkedFromId`), `ephemeral`, `worktree`, `gitInfo` (branch and credential-free `originUrl` last observed at a Turn start, [Session Core §4.1.1.6](../architecture/session-core.md#4116-git-context); `null` when unknown, omitted from summaries), `cwd`, `runtimeWorkspaceRoots`, and `effectiveWorkspacePath`. `cwd`/`effectiveWorkspacePath` is the root clients use for relative file, shell, Git, and editor surfaces; `runtimeWorkspaceRoots` is the full set of runtime content boundaries. Optional header state includes `queuedInputs`, `runtime`, `plan`, and `contextUsage` (see [Section 4.4](#44-threadread)).
 
 ### 4.1 `thread/start`
 
@@ -300,7 +298,7 @@ A request carrying `chat` from a connection without `capabilities.channelAdapter
 |-------|-------------|
 | `agentProfileId`, `agentProfileSource`, `agentProfileFingerprint` | Provenance of the resolved Agent Profile snapshot. Runtime behavior reads the resolved fields, not the profile file. `agent/profiles/refreshThread` compares the fingerprint. |
 | `agentBuilderTargetId`, `agentBuilderTargetSource` | Marks a conversational profile-builder thread editing that profile. The server exposes builder tools and a thread-scoped draft; the thread is excluded from ordinary listings. |
-| `mcpServers` | Three-state: omitted/null inherits workspace and enabled plugin servers; `[]` disables those inherited origins; non-empty replaces them. Binding-origin MCP is independent and additive. |
+| `mcpServers` | Three-state: omitted/null inherits workspace and enabled plugin servers; `[]` disables those inherited origins; non-empty replaces them. |
 | `mode` | Agent mode; default `agent`. |
 | `extensions` | Active ACP extension prefixes. |
 | `workspaceOverride` / `executionWorkspaceOverride` | Alternate workspace root / runtime execution root used for worktree-bound execution without moving thread state. |
@@ -370,7 +368,7 @@ Create a thread from a source thread's persisted history. Requires `capabilities
 Semantics:
 
 - The source is not mutated. The fork has a new id and `forkedFromId = threadId`, copies the selected history prefix, and terminates copied active or partial turns with an interrupted boundary.
-- Forks do not inherit queued inputs, pending approvals or user-input requests, app bindings, active goals, or durable plan state.
+- Forks do not inherit queued inputs, pending approvals or user-input requests, active goals, or durable plan state.
 - A persistent `systemNotice` item with `kind = "forked"` and `sourceThreadId` marks the copied-history boundary.
 - The response and the `thread/started` broadcast contain only the new header; clients read copied history through the paged history methods.
 
@@ -493,9 +491,8 @@ Idempotently release the connection's observation. Params: `threadId`. Result: `
 
 Archive a thread (params `threadId`, result `{}`). Archived threads can be listed and read but not resumed or turned.
 
-- Archiving releases the thread's channel App Bindings: accepted bindings are revoked and pending social bind-code requests are cancelled, so the conversation can bind to another thread. Social-channel resolve and accept flows also lazily revoke bindings that point at missing or archived threads.
 - A top-level parent archives its full session-backed SubAgent subtree. Archiving a SubAgent child directly is invalid.
-- The server emits `thread/archived`, plus `thread/appBindings/changed` for each affected binding.
+- The server emits `thread/archived`.
 
 ### 4.9 `thread/unarchive`
 
@@ -572,7 +569,7 @@ Interrupt active thread maintenance such as manual compaction. Gated by `capabil
 
 ### 4.17 Worktree Methods
 
-Gated by `capabilities.gitWorktrees`. These methods create, inspect, switch, and remove DotCraft-managed Git worktrees ([Session Core §4.1.1.2](../architecture/session-core.md#4112-worktrees)). Thread state (rollout, memory, goals, plans, app bindings, metadata) stays in the original workspace; the worktree is only the execution workspace. Managed worktree paths must resolve under `<workspace>/.craft/worktrees/`.
+Gated by `capabilities.gitWorktrees`. These methods create, inspect, switch, and remove DotCraft-managed Git worktrees ([Session Core §4.1.1.2](../architecture/session-core.md#4112-worktrees)). Thread state (rollout, memory, goals, plans, metadata) stays in the original workspace; the worktree is only the execution workspace. Managed worktree paths must resolve under `<workspace>/.craft/worktrees/`.
 
 Creation methods share `branchName` (allocated from `Worktrees.BranchPrefix` when omitted; an existing branch is rejected), `baseRef` (defaults to the source execution workspace `HEAD`), `path`, and `copyDirtyChanges` (default `true`: tracked and non-ignored untracked changes). Creation is atomic: the thread is created or moved only after the worktree and its changes are in place, and a failure leaves no worktree or branch behind. `worktree/createAndStart` and `worktree/createAndFork` also accept `environmentPath` and `operationId` ([Section 4.17.7](#4177-environments)).
 
@@ -1477,7 +1474,6 @@ Params `id`, optional `marketplaceName`. Result `{ plugin, snapshotRevision }`.
 | `functions` | Metadata for in-process Tools published by the current active .NET generation; empty otherwise. |
 | `skills` | Declared skills (`name`, `description`, `displayName`, `shortDescription`, `enabled`, optional icons from that skill's own interface metadata, available for catalog previews too). Enablement is managed through `skills/setEnabled` on the matching `skills/list` entry. |
 | `workflows` | Safe workflow summaries (`name`, namespaced `command`, `description`, optional `whenToUse`); never script source or paths. |
-| `apps` | App Binding descriptors (`appId`, `displayName`, `developerName`, `description`, optional `category`, `icon`, `nativeApplication`). Catalog metadata only: execution fields (`toolNamespace`, `scopes`, `toolCatalog`, `dynamicToolCatalog`) are invalid; binding capabilities come solely from the binding-scoped MCP session. |
 | `desktop` | Validated Desktop module metadata: optional `description`, manifest-relative `entry` and `styles`, and executable content `revision`. |
 | `channel` | Safe, static metadata for a validated channel contribution, including `moduleId`, `channelName`, localized display metadata, variant, setup steps, interactive setup requirement, configuration descriptors, and host compatibility. Present for catalog entries as well as installed plugins. It contains no launcher path, configuration values, or credentials. |
 | `hooks` | Hook `key` (correlates with `hooks/list`) and `eventName`. |
@@ -1576,7 +1572,7 @@ Params `id`, `trusted`. Grants or revokes the trust confirmation that lets a `do
 
 ### 18B.2 Plugin Configuration Methods
 
-Gated by `capabilities.pluginConfiguration`. [Plugin Architecture](../architecture/plugin-architecture.md) defines the schema and storage. Channel settings are workspace-only and require a workspace management connection. Channel adapters and App Binding principals cannot read or mutate them.
+Gated by `capabilities.pluginConfiguration`. [Plugin Architecture](../architecture/plugin-architecture.md) defines the schema and storage. Channel settings are workspace-only and require a workspace management connection. Channel adapters cannot read or mutate them.
 
 #### `plugin/config/get`
 
@@ -1671,7 +1667,6 @@ Execute one built-in or workflow slash command.
 **Result**: `handled`; `message` and `isMarkdown`; `expandedPrompt` (when non-null, the command expanded to a prompt the caller may submit with `turn/start`); `thread` (the conversation's new current thread, when the command changed it); `choices` (follow-ups `{ label, command }`).
 
 - When `thread` is present the caller switches its current thread immediately (`/new` and `/resume` return it). A thread created by `/new` may not be materialized until its first Turn.
-- On a thread with a non-revoked App Binding channel binding, `/new`, `/resume`, and `/sessions` change nothing and answer that the chat must first be unbound in DotCraft.
 - A choice's `command` is a complete slash command executed through `command/execute` as if typed; choices accompany `message`.
 - Each built-in command has a busy behavior while the thread has an active Turn: `run`, `interruptFirst` (cancel the Turn, then execute), or `reject` (busy reply). The in-chat command set and busy behaviors are owned by the channel messaging feature.
 - Admin-only commands fail with `CommandPermissionDenied` unless `sender.senderRole` is `"admin"`; a request without `sender` from a non-adapter connection acts as admin.
@@ -1854,7 +1849,7 @@ Validation:
 - Callback URLs are HTTP loopback URLs without credentials, query, or fragment. An explicit URL port and `callbackPort` must agree; a configured port must be available and is never substituted. Without one, login uses an ephemeral port.
 - Read projections mask a literal `clientSecret` and expose `hasClientSecret`. On `mcp/upsert`, omitted `oauth` keeps the existing configuration and `null` removes it; within an OAuth object, an omitted secret or the read mask keeps the stored secret (the mask is never stored), while `null` or empty removes it. Switching to stdio removes OAuth.
 - `toolApprovalMode` accepts only `auto`, `approve`, or `prompt`; reads always report it. On `mcp/upsert`, an omitted mode keeps the existing server's mode, so a client that does not edit it never resets it, and a new server defaults to `auto`.
-- Workspace-origin servers are editable. Plugin-origin servers are read-only runtime entries derived from plugin `.mcp.json`. Runtime status additionally reports thread and binding origins.
+- Workspace-origin servers are editable. Plugin-origin servers are read-only runtime entries derived from plugin `.mcp.json`. Runtime status additionally reports thread origins.
 
 ### 22.3 `mcp/list`
 
@@ -1874,7 +1869,7 @@ Params: required `scope` and `name`. Removes a non-plugin server definition. Rem
 
 ### 22.7 Runtime identity and origin
 
-Runtime operations resolve an effective server by optional `threadId`. Origins are `workspace`, `plugin`, `thread`, or `binding`. Status carries both `declaredName` and the collision-safe `runtimeName` with safe provenance. `runtimeName` selects the effective connection; it may contain source delimiters and must never be exposed as or parsed into a model tool namespace. Model-visible identity is the separately normalized tool name, while dispatch keeps the exact `runtimeName` and raw source tool id. Binding servers are additive and cannot shadow another runtime name. Thread `mcpServers` follows the three-state contract in [Section 4.1.1](#411-threadconfiguration-wire-shape).
+Runtime operations resolve an effective server by optional `threadId`. Origins are `workspace`, `plugin`, or `thread`. Status carries both `declaredName` and the collision-safe `runtimeName` with safe provenance. `runtimeName` selects the effective connection; it may contain source delimiters and must never be exposed as or parsed into a model tool namespace. Model-visible identity is the separately normalized tool name, while dispatch keeps the exact `runtimeName` and raw source tool id. Thread `mcpServers` follows the three-state contract in [Section 4.1.1](#411-threadconfiguration-wire-shape).
 
 All MCP `tools/call` requests attach structured call context under `_meta["dotcraft/callContext"]` (`protocolVersion`, `threadId`, `turnId`, `sessionId`, `callId`, `isSubagent`, and `parentThreadId`). Hook-triggered MCP calls additionally attach `_meta["dotcraft/hookEvent"]`.
 
@@ -1944,7 +1939,7 @@ Validates and probes a temporary configuration without persisting it. Result `{ 
 
 ### 22.10 MCP Apps opaque View methods
 
-These methods implement the MCP Apps `io.modelcontextprotocol/ui` `2026-01-26` host boundary. Both server and client must advertise `mcpApps`. They are separate from App Binding methods and from the runtime methods in Section 22.8.
+These methods implement the MCP Apps `io.modelcontextprotocol/ui` `2026-01-26` host boundary. Both server and client must advertise `mcpApps`. They are separate from the runtime methods in Section 22.8.
 
 - Only a terminal `mcpToolCall` whose persisted UI association still matches the current MCP registration and authority is eligible; `view/open` loads the thread when needed and rejects other items.
 - Every `viewHandle` is random and connection-owned, and internally binds thread, Turn, Item, server and origin, MCP generation, binding identity, authority revision, raw source tool identity, and resource URI. None of these appear as request parameters.
@@ -2083,7 +2078,7 @@ Both mutation methods rebuild the runtime hook snapshot immediately, invalidate 
 ## 23. Channel Management Methods
 
 These methods require `capabilities.channelManagement` and a workspace management connection.
-A channel adapter or App Binding principal cannot use them.
+A channel adapter cannot use them.
 
 ### 23.1 `channel/setEnabled`
 

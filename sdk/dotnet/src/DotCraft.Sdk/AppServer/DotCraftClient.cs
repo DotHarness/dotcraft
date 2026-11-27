@@ -2,7 +2,6 @@ using System.Collections.Concurrent;
 using System.Text.Json;
 using DotCraft.Protocol;
 using DotCraft.Protocol.AppServer;
-using DotCraft.Sdk.AppBinding;
 using DotCraft.Sdk.Hub;
 using DotCraft.Sdk.Wire;
 
@@ -33,7 +32,6 @@ public sealed class DotCraftClient : IAsyncDisposable
         Models = new DotCraftModelClient(this);
         AgentProfiles = new DotCraftAgentProfileClient(this);
         McpRuntime = new DotCraftMcpRuntimeClient(this);
-        AppBindings = new DotCraftAppBindingClient(this);
         Wire.RegisterItemToolCallHandler(HandleDynamicToolCallAsync);
     }
 
@@ -63,9 +61,6 @@ public sealed class DotCraftClient : IAsyncDisposable
 
     /// <summary>Source-aware MCP runtime and control operations.</summary>
     public DotCraftMcpRuntimeClient McpRuntime { get; }
-
-    /// <summary>App Binding operations.</summary>
-    public DotCraftAppBindingClient AppBindings { get; }
 
     /// <summary>Connects to a Hub-managed workspace AppServer.</summary>
     public static async Task<DotCraftClient> ConnectLocalAsync(

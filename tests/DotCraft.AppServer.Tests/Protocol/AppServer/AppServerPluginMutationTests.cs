@@ -188,10 +188,6 @@ public sealed partial class AppServerPluginManagementTests
         Assert.True(plugin.GetProperty("enabled").GetBoolean());
         Assert.True(File.Exists(Path.Combine(_userDataPath, "plugins", "registry-app", ".builtin")));
         Assert.Contains(loader.ListSkills(), skill => skill.Name == "registry-app");
-
-        var app = Assert.Single(plugin.GetProperty("apps").EnumerateArray());
-        Assert.Equal("com.example.registry-app", app.GetProperty("appId").GetString());
-        Assert.False(app.TryGetProperty("toolNamespace", out _));
     }
 
     [Fact]

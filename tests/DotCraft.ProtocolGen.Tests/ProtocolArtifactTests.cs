@@ -89,7 +89,7 @@ public sealed class ProtocolArtifactTests
         Assert.NotEmpty(automations.Methods);
         Assert.All(automations.Methods, static method => Assert.Equal("automations", method.Module));
         Assert.Contains(automations.Modules, static module => module.Name == "automations");
-        Assert.DoesNotContain(automations.Methods, static method => method.Module == "app-binding");
+        Assert.DoesNotContain(automations.Methods, static method => method.Module == "core");
         Assert.All(automations.Types, type =>
             Assert.Contains(complete.Types, candidate => candidate.Id == type.Id && candidate.SchemaPath == type.SchemaPath));
     }

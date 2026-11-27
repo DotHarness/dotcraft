@@ -23,18 +23,13 @@ internal sealed class InitializeRequestHandler(
         _ = ct;
         var clientInfo = InitializeContractMapper.ToConnectionInfo(request.Params.ClientInfo);
         var clientCapabilities = InitializeContractMapper.ToConnectionCapabilities(request.Params.Capabilities);
-        if (clientCapabilities?.AppBindingVersion is { } requestedAppBindingVersion
-            && requestedAppBindingVersion != AppBinding.AppBindingContract.Version)
-        {
-            throw AppServerErrors.AppBindingUpgradeRequired();
-        }
         if (!connection.TryMarkInitialized(clientInfo, clientCapabilities))
             throw AppServerErrors.AlreadyInitialized();
 
         var workspaceCraftPath = services.WorkspaceCraftPath;
         var channelManagement = !string.IsNullOrWhiteSpace(workspaceCraftPath)
             && services.ChannelRuntimeProvider?.ChannelPlugins != null
-            && !connection.IsChannelAdapter && !connection.IsAppPrincipalAuthenticated;
+            && !connection.IsChannelAdapter;
         var capabilities = new ServerCapabilitySnapshot
         {
             ThreadManagement = true,

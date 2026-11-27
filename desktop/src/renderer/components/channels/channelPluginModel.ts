@@ -13,7 +13,7 @@ export function isChannelPlugin(entry: PluginEntry): entry is ChannelPlugin {
 
 export function isChannelOnlyPlugin(entry: PluginEntry): boolean {
   return isChannelPlugin(entry) && !entry.dotnet && !entry.desktop &&
-    !(entry.apps?.length || entry.skills.length || entry.functions.length || entry.hooks?.length ||
+    !(entry.skills.length || entry.functions.length || entry.hooks?.length ||
       entry.mcpServers.length || entry.lspServers.length || entry.workflows?.length)
 }
 

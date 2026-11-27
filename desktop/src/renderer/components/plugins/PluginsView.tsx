@@ -215,7 +215,7 @@ export function PluginsView(): JSX.Element {
         try {
           setInstallingId(installDialogPlugin.key)
           // Copying the bundle is not authority: an in-process plugin may still owe the trust step.
-          const keepOpenForSetup = (installDialogPlugin.apps ?? []).length > 0 || installDialogPlugin.dotnet != null
+          const keepOpenForSetup = installDialogPlugin.dotnet != null
           await installPlugin(installDialogPlugin.key)
           await fetchSkills()
           await fetchPlugins()
@@ -399,7 +399,7 @@ export function PluginsView(): JSX.Element {
         addToast(t('plugins.installFailed'), 'error')
         return
       }
-      const needsSetup = (installed.apps ?? []).length > 0 || installed.dotnet != null
+      const needsSetup = installed.dotnet != null
       if (needsSetup) {
         setAnnounceInstall(true)
         setInstallTarget(installed)

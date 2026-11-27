@@ -63,4 +63,3 @@ Oratorio 领域行为应保留在 Server 中。Desktop view model 可以格式�
 
 - [Hub 协议](../../extend/protocols/hub)——Desktop 用来确保 `oratorio` managed service 已运行的接口。
 - [开发桌面扩展](../../extend/desktop-extensions)——内置插件注册 Oratorio 视图所用的激活契约。
-- [DotCraft App](../../extend/app-binding)——Main 转交的 connect 与 bind handoff 背后的授权模型。

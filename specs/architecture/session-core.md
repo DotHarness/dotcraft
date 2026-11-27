@@ -119,7 +119,7 @@ A fork creates a new conversation branch from a source thread and leaves the sou
 - History is copied, not linked; later source edits, archive, delete, rollback, or compaction never rewrite the fork.
 - The fork copies the selected turn/item prefix. A `forkPoint` targets a whole turn or an item boundary; `"after"` includes the target and `"before"` excludes it.
 - A copied active or partial source Turn ends at an explicit interrupted boundary. When a whole active Turn retains a compatible sampling request, the fork reuses that input and appends the retained model-visible items completed after it. Otherwise it rebuilds the selected part of the Turn from its copied items.
-- Forks do not inherit queued inputs, pending approvals or user-input requests, app bindings, active goals, or plan state. Copied transcript items stay visible.
+- Forks do not inherit queued inputs, pending approvals or user-input requests, active goals, or plan state. Copied transcript items stay visible.
 - Forks copy thread configuration, then apply request-level overrides.
 - A persisted `SystemNotice` with `kind = "forked"` and `sourceThreadId` marks the boundary between inherited history and new work. It is client-visible, not model-visible.
 - A fork replays the selected model history, including the newest compatible compaction checkpoint and any retained model input after it. A fork inside or before a checkpoint's covered Turn uses an older compatible checkpoint when available. A persistent fork records this history in its own rollout. Context usage follows [Context Compaction](context-compaction.md).
@@ -137,10 +137,10 @@ Side chat forks:
 
 A managed worktree is a Git worktree DotCraft creates under `<dataPath>/worktrees/` and binds to at most one thread as that thread's execution workspace.
 
-- `WorkspacePath` remains the state workspace: it owns `.craft/threads`, `.craft/state.db`, memory, goals, plans, app bindings, skills, plugins, and thread metadata.
+- `WorkspacePath` remains the state workspace: it owns `.craft/threads`, `.craft/state.db`, memory, goals, plans, skills, plugins, and thread metadata.
 - The worktree is the execution workspace: file, shell, Git, LSP, and first-party file surfaces use it.
 - `ordinaryCwd = Cwd ?? WorkspaceOverride ?? WorkspacePath`; `effectiveWorkspacePath = ExecutionWorkspaceOverride ?? ordinaryCwd`.
-- `ExecutionWorkspaceOverride` changes execution location only; it never relocates rollout, memory, goals, plans, app bindings, or workspace configuration.
+- `ExecutionWorkspaceOverride` changes execution location only; it never relocates rollout, memory, goals, plans, or workspace configuration.
 - Registered worktree roots are allowed execution roots for their bound threads even though ordinary workspace browsing hides `.craft/worktrees/**`.
 
 Creation:
@@ -406,7 +406,6 @@ An optional `callId` identifies the actual tool invocation that requested approv
 - `compacted`: `trigger` (`auto`, `reactive`, `manual`), `mode`, `tokensBefore`, `tokensAfter`, `percentLeftAfter` (fraction of the effective context window, 0.0–1.0), `clearedToolResults`.
 - `forked`: `sourceThreadId`.
 - `remoteRoute`: `reason` (`connected`, `disconnected`, `leaseLost`), `initiator` (`client`, `agent`, or `system` only with `leaseLost`), `hostId`, `hostName`, `workspaceId`, `workspaceName`.
-- `channel`: `reason` (`bound`, `unbound`), `channelName`, `targetName`. Owned by App Binding.
 
 Notices are persisted through the normal rollout path, survive reload and paged history, and render as inline timeline dividers rather than model conversation.
 
@@ -507,7 +506,7 @@ execution, and post-terminal cleanup failures do not replace the result.
 
 On the first load of a persisted Thread into a new process, a Turn still `Running`, `WaitingApproval`, or `WaitingInput` has no execution owner and is treated as interrupted. Before the load returns, Session Core sets it to `Cancelled`, sets `CompletedAt`, and commits the terminal Turn with its completed model-visible history. Existing Items, usage, and error data are preserved; no error, response, approval, or user-input Item is synthesized. The commit must succeed before the Thread is registered or `turn/cancelled` is published; a commit failure fails the load and nothing is cached. Session Core then publishes exactly one `turn/cancelled` with reason `"interrupted"`, and the Turn's unresolved requests are no longer replayed. This reconciliation happens only at the cold-load boundary; a Thread already registered in the process is never reconciled by load, resume, or read. Until then, reads of an unloaded Thread report such a Turn as `Cancelled` and its runtime as idle without persisting the change; observing a Thread's events never loads it.
 
-A loaded Thread is unloaded after 60 seconds without events or subscription changes when no connection subscribes to it, no Turn or maintenance is active, no goal continuation is starting, no App Binding MCP session is attached, and the Thread has no background work ([Background Tasks §5.4](background-tasks.md#54-background-work)), so a Thread between a running descendant and the root stays loaded. Ephemeral and not-yet-persisted Threads are never unloaded. Unloading drops the process-local runtime (agent, Thread MCP connections, tool snapshot); the next operation that needs the Thread loads it again exactly as after a restart. Event subscriptions survive unloading, and an operation that races an unload runs on the reloaded Thread.
+A loaded Thread is unloaded after 60 seconds without events or subscription changes when no connection subscribes to it, no Turn or maintenance is active, no goal continuation is starting, and the Thread has no background work ([Background Tasks §5.4](background-tasks.md#54-background-work)), so a Thread between a running descendant and the root stays loaded. Ephemeral and not-yet-persisted Threads are never unloaded. Unloading drops the process-local runtime (agent, Thread MCP connections, tool snapshot); the next operation that needs the Thread loads it again exactly as after a restart. Event subscriptions survive unloading, and an operation that races an unload runs on the reloaded Thread.
 
 ### 5.3 Item Lifecycle
 
@@ -973,7 +972,7 @@ When `crossChannelOrigins` is null or empty, discovery is the default. When non-
 
 #### Workspace-scoped discovery
 
-Trusted workspace-owner clients may request workspace scope: every Thread in the store, with no `UserId`, `ChannelContext`, or `OriginChannel` filter; `crossChannelOrigins` is ignored. Callers that omit the scope keep identity rules. Archived, sub-agent, internal-thread, query, channel-name, and pagination filters remain independent. Workspace scope makes every non-internal thread in the workspace discoverable, including automation, App Binding, and unknown external origins.
+Trusted workspace-owner clients may request workspace scope: every Thread in the store, with no `UserId`, `ChannelContext`, or `OriginChannel` filter; `crossChannelOrigins` is ignored. Callers that omit the scope keep identity rules. Archived, sub-agent, internal-thread, query, channel-name, and pagination filters remain independent. Workspace scope makes every non-internal thread in the workspace discoverable, including automation and unknown external origins.
 
 #### Resume flow
 

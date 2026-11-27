@@ -28,13 +28,6 @@ internal sealed record WorktreeCleanupErrorParams(
 
 internal sealed record FileSystemErrorParams([property: JsonPropertyName("path")] string Path);
 
-internal sealed record AppBindingVersionErrorParams(
-    [property: JsonPropertyName("requiredVersion")] int RequiredVersion);
-
-internal sealed record AppSurfaceErrorParams(
-    [property: JsonPropertyName("appId")] string AppId,
-    [property: JsonPropertyName("surfaceId")] string SurfaceId);
-
 internal sealed record AgentProfileDiagnosticsErrorParams(
     [property: JsonPropertyName("diagnostics")] object Diagnostics);
 

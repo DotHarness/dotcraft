@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import type { DesktopPluginThreadSurfaceContext } from '@dotcraft/plugin'
-import { Archive, ArrowRightLeft, GitFork, Laptop, MessageSquareOff, MessagesSquare, Pencil, Pin } from 'lucide-react'
+import { Archive, ArrowRightLeft, GitFork, Laptop, MessagesSquare, Pencil, Pin } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useConversationStore } from '../../stores/conversationStore'
 import { writtenFileSummaries } from '../../stores/turnDiffs'
@@ -16,9 +16,6 @@ import { usePerforceChangelistStore, type PerforceChangelistEntry } from '../../
 import { DetailPanelToggleButton } from './DetailPanelToggleButton'
 import { DesktopPluginSurface } from '../desktopPlugins/DesktopPluginSurface'
 import { ActionTooltip } from '../ui/ActionTooltip'
-import { ThreadChannelBindingChips, useThreadChannelBindings } from './ThreadChannelBindingChips'
-import { bindingChannelOf, useChannelBindingStore } from '../../stores/channelBindingStore'
-import { getChannelVisualMeta } from '../ui/channelMeta'
 import { ContextMenu, type ContextMenuEntry, type ContextMenuPosition } from '../ui/ContextMenu'
 import { MoreActionsButton } from '../ui/MoreActionsButton'
 import { Input } from '../ui/Input'
@@ -101,7 +98,6 @@ export function ThreadHeader({
   const sideChatAvailable = useCanOpenSideChat()
   const chatThread = isDefaultChatWorkspacePathCandidate(activeThread?.workspacePath)
   const canForkIntoWorktree = canForkWorktree(capabilities) && !remoteWorkspace && !chatThread
-  const channelBindings = useThreadChannelBindings(threadId)
 
   const openTargets = useOpenTargets(workspacePath, !remoteWorkspace)
 
@@ -150,18 +146,6 @@ export function ThreadHeader({
   async function archiveThread(): Promise<void> {
     setMenuPosition(null)
     await archiveThreadWithUndo({ threadId, t })
-  }
-
-  async function stopChannelBinding(bindingId: string, channel: string): Promise<void> {
-    setMenuPosition(null)
-    try {
-      await useChannelBindingStore.getState().revokeBinding(threadId, bindingId)
-    } catch (err) {
-      addToast(t('channelBinding.error.revoke', {
-        channel,
-        error: err instanceof Error ? err.message : String(err)
-      }), 'error')
-    }
   }
 
   function forkThread(mode: 'local' | 'worktree'): void {
@@ -347,19 +331,6 @@ export function ThreadHeader({
           onClick: () => { void archiveThread() }
         }]
       : []),
-    ...(channelBindings.length > 0
-      ? [
-          { type: 'separator' as const },
-          ...channelBindings.map((binding) => {
-            const channel = getChannelVisualMeta(bindingChannelOf(binding)).label
-            return {
-              label: t('channelBinding.stop', { channel }),
-              icon: <MessageSquareOff size={14} aria-hidden />,
-              onClick: () => { void stopChannelBinding(binding.bindingId, channel) }
-            }
-          })
-        ]
-      : []),
     ...((!activeThreadIsSubAgent && canFork) || sideChatAvailable ? [{ type: 'separator' as const }] : []),
     ...(sideChatAvailable
       ? [{
@@ -472,7 +443,6 @@ export function ThreadHeader({
                   <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {threadName}
                   </span>
-                  <ThreadChannelBindingChips bindings={channelBindings} />
                 </span>
               </h1>
             </ActionTooltip>
