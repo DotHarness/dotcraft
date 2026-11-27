@@ -17,7 +17,7 @@ interface ReferencePathContextMenuProps {
   position: ContextMenuPosition
   targetPath: string
   location?: OpenTargetLocation | null
-  allowAddToChat?: boolean
+  directory?: boolean
   onClose: () => void
 }
 
@@ -27,7 +27,7 @@ export function ReferencePathContextMenu({
   position,
   targetPath,
   location = null,
-  allowAddToChat = true,
+  directory = false,
   onClose
 }: ReferencePathContextMenuProps): JSX.Element {
   const t = useT()
@@ -56,7 +56,7 @@ export function ReferencePathContextMenu({
   }
 
   function addToChat(): void {
-    useComposerFileReferenceStore.getState().request(targetPath)
+    useComposerFileReferenceStore.getState().request(directory ? folderReferencePath(targetPath) : targetPath)
   }
 
   const statusRow: ContextMenuEntry | null = statusLabel
@@ -97,13 +97,11 @@ export function ReferencePathContextMenu({
       icon: <Copy size={16} />,
       onClick: () => { void copyPath() }
     },
-    ...(allowAddToChat
-      ? [{
-          label: t('conversation.reference.addToChat'),
-          icon: <MessageSquarePlus size={16} />,
-          onClick: addToChat
-        }]
-      : []),
+    {
+      label: t('conversation.reference.addToChat'),
+      icon: <MessageSquarePlus size={16} />,
+      onClick: addToChat
+    },
     ...(remote ? [] : [{
       label: t('conversation.reference.openInExplorer'),
       icon: <FolderOpen size={16} />,
@@ -112,4 +110,8 @@ export function ReferencePathContextMenu({
   ]
 
   return <ContextMenu items={items} position={position} onClose={onClose} width={menuWidth} />
+}
+
+function folderReferencePath(path: string): string {
+  return `${path.replace(/[/\\]+$/, '')}/`
 }

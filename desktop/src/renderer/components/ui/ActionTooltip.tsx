@@ -2,6 +2,7 @@ import {
   Children,
   cloneElement,
   isValidElement,
+  useEffect,
   useId,
   useLayoutEffect,
   useState,
@@ -15,6 +16,7 @@ import { createPortal } from 'react-dom'
 import { useTransientOverlay } from '../../hooks/useTransientOverlay'
 import type { ShortcutSpec } from './shortcutKeys'
 import { ShortcutBadge } from './ShortcutBadge'
+import { markTooltipShown, TOOLTIP_OPEN_DELAY_MS, tooltipsWarm } from './tooltipWarmup'
 
 type TooltipPlacement = 'top' | 'bottom' | 'left' | 'right'
 
@@ -30,7 +32,7 @@ interface ActionTooltipProps {
   children: ReactNode
   wrapperClassName?: string
   wrapperStyle?: CSSProperties
-  /** Pointer hover waits this long; keyboard focus still shows the tooltip at once. */
+  /** Pointer hover waits this long unless another tooltip just closed; keyboard focus shows it at once. */
   openDelayMs?: number
 }
 
@@ -54,7 +56,7 @@ export function ActionTooltip({
   children,
   wrapperClassName,
   wrapperStyle,
-  openDelayMs = 0
+  openDelayMs = TOOLTIP_OPEN_DELAY_MS
 }: ActionTooltipProps): JSX.Element {
   const tooltipId = useId()
   const { visible, anchorRef, overlayRef, open, scheduleOpen, hide } = useTransientOverlay<HTMLSpanElement, HTMLDivElement>({ openDelayMs })
@@ -68,6 +70,8 @@ export function ActionTooltip({
         'aria-describedby': shown ? tooltipId : undefined
       })
     : child
+
+  useEffect(() => (shown ? markTooltipShown() : undefined), [shown])
 
   useLayoutEffect(() => {
     if (!shown) return
@@ -85,7 +89,7 @@ export function ActionTooltip({
     <>
       <span
         ref={anchorRef}
-        onMouseEnter={scheduleOpen}
+        onMouseEnter={() => { if (tooltipsWarm()) open(); else scheduleOpen() }}
         onMouseLeave={hide}
         onFocusCapture={open}
         onBlurCapture={hide}

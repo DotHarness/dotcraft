@@ -860,7 +860,7 @@ A chat `CreateThread` started stays linked to the calling thread. The person can
 
 ### 5.14.1 File References from Context Menus
 
-- A file target's Add to chat action inserts the same structured file chip as the composer's `@` file search. Directories do not offer it.
+- A file or directory target's Add to chat action inserts the same structured chip as the composer's `@` file search, and a directory becomes a folder reference ending in `/`.
 - Pending references queue per originating thread or welcome scope, preserve order, never affect another scope, and wait until that composer's draft is editable.
 - Insertion happens at the last editor selection (replacing selected text) or appends, and restores focus.
 - Paths inside the composer's workspace are workspace-relative; others stay absolute. Drafts and submissions use normal structured file segments and `fileRef` input parts. Remote-workspace composers keep their restriction on local-file input.

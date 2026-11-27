@@ -202,7 +202,7 @@ export function WorkspaceExplorer(): JSX.Element {
         <ReferencePathContextMenu
           position={contextMenu.position}
           targetPath={contextMenu.targetPath}
-          allowAddToChat={!contextMenu.isDirectory}
+          directory={contextMenu.isDirectory}
           onClose={() => setContextMenu(null)}
         />
       )}

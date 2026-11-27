@@ -85,6 +85,7 @@ export function FileRefChip({
           position={contextMenu.position}
           targetPath={contextMenu.reference.path}
           location={contextMenu.reference.location}
+          directory={folder}
           onClose={() => setContextMenu(null)}
         />
       )}

@@ -1141,6 +1141,10 @@ places the pointer travels to and keep their own positioning. Any menu, includin
 a row's context menu, is a layer above the row: opening it closes the row's
 details card and tooltips, and they stay closed until the menu does.
 
+A tooltip opens after a 300ms hover, or at once on keyboard focus. Entering a
+control while another tooltip is open or within 400ms of one closing skips the
+delay, so scanning a toolbar does not wait at every control.
+
 A tooltip is placed against the control's drawn box. An out-of-flow rail action
 must still anchor to what is drawn (or reserve its footprint), not to a collapsed
 wrapper that would place the label at the row's centre.
