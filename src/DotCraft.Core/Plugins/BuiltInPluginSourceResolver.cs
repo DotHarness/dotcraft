@@ -16,11 +16,9 @@ internal static class BuiltInPluginSourceResolver
 {
     public const string EnvironmentVariableName = "DOTCRAFT_BUILTIN_PLUGIN_ROOTS";
 
-    public static IReadOnlyList<BuiltInPluginSource> Discover(
+    public static IReadOnlyList<BuiltInPluginSource> DiscoverHostBundled(
         IReadOnlyList<string>? sourceRoots,
-        List<PluginDiagnostic> diagnostics,
-        AppConfig.PluginsConfig? pluginsConfig = null,
-        string? craftHome = null)
+        List<PluginDiagnostic>? diagnostics = null)
     {
         var roots = sourceRoots ?? ResolveEnvironmentRoots();
         var sources = new List<BuiltInPluginSource>();
@@ -34,7 +32,7 @@ internal static class BuiltInPluginSourceResolver
 
             if (!Path.IsPathRooted(root))
             {
-                diagnostics.Add(PluginDiagnostic.Warning(
+                diagnostics?.Add(PluginDiagnostic.Warning(
                     "BuiltInPluginRootNotAbsolute",
                     $"Built-in plugin root '{root}' is ignored because it is not absolute.",
                     path: root));
@@ -44,7 +42,7 @@ internal static class BuiltInPluginSourceResolver
             var fullRoot = Path.GetFullPath(root);
             if (!Directory.Exists(fullRoot))
             {
-                diagnostics.Add(PluginDiagnostic.Warning(
+                diagnostics?.Add(PluginDiagnostic.Warning(
                     "BuiltInPluginRootMissing",
                     $"Built-in plugin root '{fullRoot}' does not exist.",
                     path: fullRoot));
@@ -58,7 +56,7 @@ internal static class BuiltInPluginSourceResolver
                     continue;
 
                 var parse = PluginManifestParser.Load(fullPluginRoot);
-                diagnostics.AddRange(parse.Diagnostics);
+                diagnostics?.AddRange(parse.Diagnostics);
                 var manifest = parse.Manifest;
                 if (manifest == null)
                     continue;
@@ -68,6 +66,18 @@ internal static class BuiltInPluginSourceResolver
                     sources.Add(source);
             }
         }
+
+        return sources;
+    }
+
+    public static IReadOnlyList<BuiltInPluginSource> Discover(
+        IReadOnlyList<string>? sourceRoots,
+        List<PluginDiagnostic> diagnostics,
+        AppConfig.PluginsConfig? pluginsConfig = null,
+        string? craftHome = null)
+    {
+        var sources = DiscoverHostBundled(sourceRoots, diagnostics).ToList();
+        var seenKeys = new HashSet<string>(sources.Select(static s => s.Key), StringComparer.OrdinalIgnoreCase);
 
         foreach (var registryPlugin in PluginSourceRegistryCatalog.Discover(pluginsConfig, diagnostics, craftHome))
         {

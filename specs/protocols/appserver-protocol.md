@@ -1909,6 +1909,8 @@ Params: required `scope` and `name`. Removes a non-plugin server definition. Rem
 
 Runtime operations resolve an effective server by optional `threadId`. Origins are `workspace`, `plugin`, `thread`, or `binding`. Status carries both `declaredName` and the collision-safe `runtimeName` with safe provenance. `runtimeName` selects the effective connection; it may contain source delimiters and must never be exposed as or parsed into a model tool namespace. Model-visible identity is the separately normalized tool name, while dispatch keeps the exact `runtimeName` and raw source tool id. Binding servers are additive and cannot shadow another runtime name. Thread `mcpServers` follows the three-state contract in [Section 4.1.1](#411-threadconfiguration-wire-shape).
 
+All MCP `tools/call` requests attach structured call context under `_meta["dotcraft/callContext"]` (`protocolVersion`, `threadId`, `turnId`, `sessionId`, `callId`, `isSubagent`, and `parentThreadId`). Hook-triggered MCP calls additionally attach `_meta["dotcraft/hookEvent"]`.
+
 ### 22.8 MCP runtime/control methods
 
 These method names and base shapes are fixed; DotCraft may add optional safe provenance fields but never renames them.
@@ -2086,14 +2088,15 @@ These methods expose lifecycle hook metadata discovered from user config, worksp
 Non-obvious fields:
 
 - `key`: stable identity. Config hooks use `<absoluteSourcePath>:<snake_case_event>:<groupIndex>:<handlerIndex>`; plugin hooks use `<pluginId>:<sourceRelativePath>:<snake_case_event>:<groupIndex>:<handlerIndex>`.
-- `handlerType`: `command`, or a reserved unsupported type reported with diagnostics.
+- `handlerType`: `command`, `mcp_tool`, or a reserved unsupported type reported with diagnostics.
 - `matcher`: tool matcher for tool events; empty or null matches all. `condition`: optional command condition such as `Bash(git commit:*)`.
-- `command`: declared command, with runtime variables expanded for plugin hooks.
+- `command`: declared command (for `command` hooks), with runtime variables expanded for plugin hooks.
+- `mcpServer`, `mcpTool`, `skipIfDormant`: target MCP server name, tool name, and dormant-skip flag for `mcp_tool` hooks.
 - `executionMode` (`sync`, `async`), `asyncRewake` (may enqueue hook-origin follow-up feedback), `rewakeMessage`, `rewakeSummary`.
 - `source`: `user`, `workspace`, `plugin`, or `unknown`; `pluginId` for plugin hooks.
 - `displayOrder`: effective execution order.
 - `enabled`: effective state after global enablement, per-hook disable, and trust.
-- `isManaged`: reserved for runtime-managed hooks.
+- `isManaged`: `true` for runtime-managed hooks (including `mcp_tool` hooks contributed by bundled built-in plugins).
 - `currentHash`: normalized hash over behavior-affecting fields, excluding machine-specific expanded paths. `trustStatus`: `trusted`, `untrusted`, `modified`, or `managed`.
 
 ### 22A.3 `hooks/list`

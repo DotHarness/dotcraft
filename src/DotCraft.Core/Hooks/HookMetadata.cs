@@ -39,6 +39,12 @@ public sealed class HookMetadata
 
     public string? Command { get; set; }
 
+    public string? McpServer { get; set; }
+
+    public string? McpTool { get; set; }
+
+    public bool SkipIfDormant { get; set; }
+
     public int TimeoutSec { get; set; }
 
     public string ExecutionMode { get; set; } = "sync";

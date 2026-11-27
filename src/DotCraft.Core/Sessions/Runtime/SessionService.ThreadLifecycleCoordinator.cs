@@ -214,23 +214,33 @@ public sealed partial class SessionService
             var previousStatus = thread.Status;
             bool interruptedTurn;
             Task<bool> terminalCleanup;
-            using (await owner.AcquireThreadAgentLockAsync(thread.Id, ct))
+            var archivedCommitted = false;
+            try
             {
-                if (thread.Ephemeral)
-                    thread.Status = ThreadStatus.Archived;
-                else
-                    await owner.Persistence.ArchiveStoredThreadAsync(
-                        thread, requireRollout: !loaded || owner.IsMaterialized(thread.Id), ct);
-                owner._runtimeRegistry.TryGetRuntime(thread.Id, out var runtime);
-                interruptedTurn = InterruptArchiveTurns(thread, runtime);
-                terminalCleanup = StopArchivedThreadTerminalsAsync(thread.Id);
-                owner.ClearThreadAgentCaches(thread.Id);
-                if (runtime != null)
-                    await runtime.ReleaseMcpAsync();
+                using (await owner.AcquireThreadAgentLockAsync(thread.Id, ct))
+                {
+                    if (thread.Ephemeral)
+                        thread.Status = ThreadStatus.Archived;
+                    else
+                        await owner.Persistence.ArchiveStoredThreadAsync(
+                            thread, requireRollout: !loaded || owner.IsMaterialized(thread.Id), ct);
+                    archivedCommitted = true;
+                    owner._runtimeRegistry.TryGetRuntime(thread.Id, out var runtime);
+                    interruptedTurn = InterruptArchiveTurns(thread, runtime);
+                    terminalCleanup = StopArchivedThreadTerminalsAsync(thread.Id);
+                    owner.ClearThreadAgentCaches(thread.Id);
+                    if (runtime != null)
+                        await runtime.ReleaseMcpAsync();
+                }
+                owner.ToolDispatchPolicyRegistry?.Remove(thread.Id);
+                await owner.AgentFactory.ReleaseThreadToolResourcesAsync(thread.Id, ct);
+                owner.ForgetContextPages(thread.Id);
             }
-            owner.ToolDispatchPolicyRegistry?.Remove(thread.Id);
-            await owner.AgentFactory.ReleaseThreadToolResourcesAsync(thread.Id, ct);
-            owner.ForgetContextPages(thread.Id);
+            finally
+            {
+                if (archivedCommitted)
+                    await owner.RunSessionEndHookAsync(thread);
+            }
 
             PublishThreadStatusChanged(thread.Id, previousStatus, thread.Status);
 
@@ -320,6 +330,7 @@ public sealed partial class SessionService
             {
                 if (IsSubAgentThread(deletingThread))
                     SubAgentSessionControl.InterruptRunningChild(threadId);
+                await owner.RunSessionEndHookAsync(deletingThread);
                 await owner.ContributionLifecycle.ThreadDeletingAsync(deletingThread, ct);
             }
 

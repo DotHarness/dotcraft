@@ -61,6 +61,26 @@
         }
       ]
     },
+    "mcpServer": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "mcpTool": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "once": {
       "type": "boolean"
     },
@@ -103,6 +123,9 @@
           "type": "null"
         }
       ]
+    },
+    "skipIfDormant": {
+      "type": "boolean"
     },
     "source": {
       "type": "string"

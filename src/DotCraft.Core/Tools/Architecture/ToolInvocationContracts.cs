@@ -42,7 +42,9 @@ public sealed record ToolInvocationRequest(
     ToolInvocationAudience Audience,
     ToolInvocationOrigin? Origin = null,
     string? WorkspacePath = null,
-    TurnToolServices? TurnServices = null);
+    TurnToolServices? TurnServices = null,
+    bool IsSubagent = false,
+    string? ParentThreadId = null);
 
 /// <summary>Resolved immutable invocation metadata supplied to a tool runtime.</summary>
 public sealed record ToolInvocationContext(
@@ -58,7 +60,9 @@ public sealed record ToolInvocationContext(
     ToolInvocationOrigin? Origin = null,
     string? WorkspacePath = null,
     ToolExecutionLocation? ExecutionLocation = null,
-    TurnToolServices? TurnServices = null);
+    TurnToolServices? TurnServices = null,
+    bool IsSubagent = false,
+    string? ParentThreadId = null);
 
 /// <summary>A captured execution destination, shared by approval and runtime execution.</summary>
 public sealed record ToolExecutionLocation(string Target, string? WorkspacePath, RemoteToolRoute? Route = null);

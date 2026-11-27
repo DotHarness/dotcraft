@@ -86,6 +86,8 @@ public sealed class HookInput
     public string? Model { get; set; }
     public string? PermissionMode { get; set; }
     public string? TranscriptPath { get; set; }
+    public bool IsSubagent { get; set; }
+    public string? ParentThreadId { get; set; }
 }
 
 /// <summary>
@@ -153,6 +155,8 @@ public sealed class HookRunner
     /// Optional callback used by async rewake hooks to enqueue thread feedback.
     /// </summary>
     public Func<HookRewakeRequest, CancellationToken, Task>? RewakeHandler { get; set; }
+
+    public IHookMcpExecutor? McpExecutor { get; set; }
 
     public HookRunner(HooksFileConfig config, string workspacePath)
         : this(new HookDiscoveryResult { RuntimeConfig = config }, workspacePath)
@@ -236,6 +240,7 @@ public sealed class HookRunner
         var outputParts = new List<string>();
         var contextParts = new List<string>();
         var blockReasonParts = new List<string>();
+        var executedMcpHooks = new HashSet<string>(StringComparer.Ordinal);
         var tool = HookToolAdapter.Build(input.ToolName, input.ToolArgs);
 
         foreach (var group in matcherGroups)
@@ -249,7 +254,9 @@ public sealed class HookRunner
 
             foreach (var hookEntry in group.Hooks)
             {
-                if (!string.Equals(hookEntry.Type, "command", StringComparison.OrdinalIgnoreCase))
+                var isCommand = string.Equals(hookEntry.Type, "command", StringComparison.OrdinalIgnoreCase);
+                var isMcpTool = string.Equals(hookEntry.Type, "mcp_tool", StringComparison.OrdinalIgnoreCase);
+                if (!isCommand && !isMcpTool)
                     continue;
 
                 if (!HookToolAdapter.MatchesCondition(hookEntry.If, tool))
@@ -259,10 +266,47 @@ public sealed class HookRunner
                     continue;
                 }
 
+                if (isMcpTool)
+                {
+                    if (evt == HookEvent.SessionEnd)
+                        continue;
+
+                    var dedupeKey = BuildMcpDedupeKey(hookEntry);
+                    if (!executedMcpHooks.Add(dedupeKey))
+                    {
+                        if (isDebug)
+                            WriteDebug($"[Hooks] {eventName}: skipping duplicate mcp_tool '{hookEntry.Server}.{hookEntry.Tool}'");
+                        continue;
+                    }
+
+                    if (hookEntry.Async)
+                    {
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                var asyncInput = PrepareInput(evt, input, hookEntry, tool);
+                                await ExecuteMcpHookAsync(evt, hookEntry, asyncInput, CancellationToken.None).ConfigureAwait(false);
+                            }
+                            catch (Exception ex)
+                            {
+                                WriteDebug($"[Hooks] Error executing async mcp_tool hook '{hookEntry.Server}.{hookEntry.Tool}': {ex.Message}");
+                            }
+                        }, CancellationToken.None);
+                        continue;
+                    }
+
+                    var mcpInput = PrepareInput(evt, input, hookEntry, tool);
+                    var mcpResult = await ExecuteMcpHookAsync(evt, hookEntry, mcpInput, ct).ConfigureAwait(false);
+                    if (!string.IsNullOrWhiteSpace(mcpResult.Output))
+                        outputParts.Add(mcpResult.Output);
+                    continue;
+                }
+
                 if (isDebug)
                     WriteDebug($"[Hooks] {eventName}: executing '{hookEntry.Command}' (matcher='{group.Matcher}', tool='{input.ToolName}')");
 
-                if (hookEntry.Async || hookEntry.AsyncRewake)
+                if (evt != HookEvent.SessionEnd && (hookEntry.Async || hookEntry.AsyncRewake))
                 {
                     _ = Task.Run(async () =>
                     {
@@ -411,10 +455,11 @@ public sealed class HookRunner
                 await WriteHookStdinAsync(process, stdinJson, timeoutCts.Token);
                 await process.WaitForExitAsync(timeoutCts.Token);
             }
-            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            catch (OperationCanceledException)
             {
-                // Timeout — kill the process
                 try { process.Kill(entireProcessTree: true); } catch { /* best effort */ }
+                if (ct.IsCancellationRequested)
+                    throw;
                 result.StdErr = $"Hook timed out after {hookEntry.Timeout} seconds";
                 return result;
             }
@@ -501,6 +546,72 @@ public sealed class HookRunner
         }
     }
 
+    private static string BuildMcpDedupeKey(HookEntry hookEntry) =>
+        $"{hookEntry.Server?.Trim().ToLowerInvariant() ?? string.Empty}\0{hookEntry.Tool?.Trim() ?? string.Empty}\0{hookEntry.Input?.ToJsonString() ?? string.Empty}";
+
+    private async Task<HookResult> ExecuteMcpHookAsync(
+        HookEvent evt,
+        HookEntry hookEntry,
+        HookInput input,
+        CancellationToken ct)
+    {
+        var result = new HookResult();
+        if (McpExecutor is null)
+        {
+            WriteDebug($"[Hooks] Warning: no MCP executor configured for mcp_tool hook '{hookEntry.Server}.{hookEntry.Tool}'");
+            return result;
+        }
+
+        var server = hookEntry.Server?.Trim();
+        var tool = hookEntry.Tool?.Trim();
+        if (string.IsNullOrWhiteSpace(server) || string.IsNullOrWhiteSpace(tool))
+            return result;
+
+        var timeoutSeconds = Math.Max(1, hookEntry.Timeout);
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeoutCts.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
+        try
+        {
+            var outcome = await McpExecutor.ExecuteAsync(
+                new HookMcpExecutionRequest(
+                    evt,
+                    server,
+                    tool,
+                    hookEntry.Input?.DeepClone() as System.Text.Json.Nodes.JsonObject,
+                    hookEntry.SkipIfDormant,
+                    input),
+                timeoutCts.Token).ConfigureAwait(false);
+            if (!outcome.Succeeded && !outcome.Skipped)
+            {
+                result.ExitCode = 1;
+                result.StdErr = outcome.Error;
+                WriteDebug($"[Hooks] Warning: mcp_tool hook '{server}.{tool}' failed: {outcome.Error}");
+            }
+            else if (!string.IsNullOrWhiteSpace(outcome.Output))
+            {
+                result.Output = outcome.Output;
+            }
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            result.ExitCode = 1;
+            result.StdErr = $"MCP hook '{server}.{tool}' timed out after {timeoutSeconds} seconds";
+            WriteDebug($"[Hooks] Warning: {result.StdErr}");
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            result.ExitCode = 1;
+            result.StdErr = $"MCP hook execution error: {ex.Message}";
+            WriteDebug($"[Hooks] Warning: mcp_tool hook '{server}.{tool}' threw: {ex.Message}");
+        }
+
+        return result;
+    }
+
     private static HookInput PrepareInput(HookEvent evt, HookInput input, HookEntry hookEntry, HookToolView tool)
     {
         return new HookInput
@@ -524,7 +635,9 @@ public sealed class HookRunner
             PluginId = hookEntry.PluginId,
             Model = input.Model,
             PermissionMode = input.PermissionMode,
-            TranscriptPath = input.TranscriptPath
+            TranscriptPath = input.TranscriptPath,
+            IsSubagent = input.IsSubagent,
+            ParentThreadId = input.ParentThreadId
         };
     }
 
@@ -626,7 +739,11 @@ public sealed class HookRunner
             ["last_assistant_message"] = lastAssistantMessage,
             ["error"] = input.Error,
             ["stopHookActive"] = input.StopHookActive,
-            ["stop_hook_active"] = input.StopHookActive
+            ["stop_hook_active"] = input.StopHookActive,
+            ["isSubagent"] = input.IsSubagent,
+            ["is_subagent"] = input.IsSubagent,
+            ["parentThreadId"] = input.ParentThreadId,
+            ["parent_thread_id"] = input.ParentThreadId
         };
 
         return payload

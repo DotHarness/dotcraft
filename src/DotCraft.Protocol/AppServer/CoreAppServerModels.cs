@@ -1093,6 +1093,14 @@ public sealed class HookMetadata : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> Matcher { get; init; }
 
+    [JsonPropertyName("mcpServer")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> McpServer { get; init; }
+
+    [JsonPropertyName("mcpTool")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> McpTool { get; init; }
+
     [JsonPropertyName("once")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> Once { get; init; }
@@ -1112,6 +1120,10 @@ public sealed class HookMetadata : ExtensibleJsonObject
     [JsonPropertyName("shell")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> Shell { get; init; }
+
+    [JsonPropertyName("skipIfDormant")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool> SkipIfDormant { get; init; }
 
     [JsonPropertyName("source")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1987,6 +1999,10 @@ public sealed class McpServerConfig : ExtensibleJsonObject
 
 public sealed class McpServerElicitationRequestParams : ExtensibleJsonObject
 {
+    [JsonPropertyName("_meta")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<JsonElement?> Meta { get; init; }
+
     [JsonPropertyName("elicitationId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> ElicitationId { get; init; }
@@ -2031,6 +2047,10 @@ public sealed class ServerRequestResolvedNotification : ExtensibleJsonObject
 
 public sealed class McpServerElicitationResponse : ExtensibleJsonObject
 {
+    [JsonPropertyName("_meta")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<JsonElement?> Meta { get; init; }
+
     [JsonPropertyName("action")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> Action { get; init; }

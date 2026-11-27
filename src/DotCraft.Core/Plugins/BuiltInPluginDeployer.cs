@@ -397,7 +397,7 @@ public sealed class BuiltInPluginDeployer(
 
     private static bool IncludeChannelFile(string relativePath) => relativePath != MarkerFile && relativePath != ChannelPluginInstallation.FileName;
 
-    private static string BuildFingerprint(string sourceRoot, bool channel)
+    internal static string BuildFingerprint(string sourceRoot, bool channel)
     {
         if (channel)
             return "filesystem;sha256:" + PluginContentTree.Fingerprint(sourceRoot, [], IncludeChannelFile);

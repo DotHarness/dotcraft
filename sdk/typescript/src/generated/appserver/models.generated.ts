@@ -1867,11 +1867,14 @@ export interface HookMetadata {
   isManaged?: boolean;
   key?: string;
   matcher?: string | null;
+  mcpServer?: string | null;
+  mcpTool?: string | null;
   once?: boolean;
   pluginId?: string | null;
   rewakeMessage?: string | null;
   rewakeSummary?: string | null;
   shell?: string | null;
+  skipIfDormant?: boolean;
   source?: string;
   sourcePath?: string;
   statusMessage?: string | null;
@@ -2392,6 +2395,7 @@ export interface McpServerConfig {
 }
 
 export interface McpServerElicitationRequestParams {
+  _meta?: JsonValue;
   elicitationId?: string | null;
   message?: string | null;
   mode?: string;
@@ -2404,6 +2408,7 @@ export interface McpServerElicitationRequestParams {
 }
 
 export interface McpServerElicitationResponse {
+  _meta?: JsonValue;
   action?: string;
   content?: Record<string, JsonValue> | null;
   [key: string]: unknown;

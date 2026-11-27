@@ -188,7 +188,9 @@ internal sealed class CodeModeCellRun(
                         ToolInvocationAudience.Model,
                         new ToolInvocationOrigin(ToolInvocationOrigin.CodeModeKind, context.CallId),
                         dependencies.Location?.Directory ?? context.WorkspacePath,
-                        context.TurnServices),
+                        context.TurnServices,
+                        context.IsSubagent,
+                        context.ParentThreadId),
                     _nested.Token).ConfigureAwait(false);
             }
 

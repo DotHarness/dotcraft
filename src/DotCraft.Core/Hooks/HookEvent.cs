@@ -72,5 +72,7 @@ public enum HookEvent
     /// <summary>
     /// Fired after Stop hook execution or continuation fails.
     /// </summary>
-    StopFailure
+    StopFailure,
+    Interrupt,
+    SessionEnd
 }

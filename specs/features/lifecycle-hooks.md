@@ -38,12 +38,16 @@ commands through hook-management APIs. Clients may only write user-local state:
 }
 ```
 
-Config and plugin hooks are unmanaged and do not run until trusted. Installing
-or enabling a plugin does not trust its hooks. Any behavior-changing edit changes
-the hook hash and returns the hook to `modified` until the user trusts the new
-hash. State lives in user-global config so personal trust and disable choices
-are never committed to a workspace. Plugin hooks are trusted as one plugin-level
-decision, stored per hook in `Hooks.State`.
+Config and plugin hooks are unmanaged and do not run until trusted, with one
+exception: `mcp_tool` hooks declared by verified host-bundled plugins
+(`dotcraft-bundled`, matched by content fingerprint against the host's bundled
+plugin roots) are trusted as `managed` hooks because they invoke host-managed
+MCP tools rather than arbitrary local shell commands. Installing or enabling a
+third-party or workspace plugin does not trust its hooks. Any behavior-changing
+edit changes the hook hash and returns the hook to `modified` until the user
+trusts the new hash. State lives in user-global config so personal trust and
+disable choices are never committed to a workspace. Plugin hooks are trusted as
+one plugin-level decision, stored per hook in `Hooks.State`.
 
 Runtime execution order is:
 
@@ -74,6 +78,8 @@ DotCraft recognizes these event names:
 | `SubagentStop` | After a subagent thread stops. | No | Yes |
 | `Stop` | After the assistant response for a turn, before queued follow-up work starts. | No | Continuation |
 | `StopFailure` | After Stop hook execution fails or a Stop-triggered continuation fails. | No | No |
+| `Interrupt` | After a running turn is cancelled or interrupted. | No | No |
+| `SessionEnd` | When a thread/session is archived or permanently deleted (including subagent subtree cleanup). | No | No |
 
 `UserPromptSubmit` runs before baseline capture, tool use, and prompt assembly;
 `PrePrompt` runs after assembly. UserPromptSubmit and PrePrompt context is recorded with the current
@@ -108,22 +114,35 @@ Hook files use this shape:
 }
 ```
 
-Supported command fields:
+Supported handler fields:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `type` | string | `command`. Other values are reserved and reported as unsupported diagnostics. |
-| `command` | string | Shell command to execute from the workspace root. |
+| `type` | string | `command` or `mcp_tool`. Other values are reserved and reported as unsupported diagnostics. |
+| `command` | string | Shell command to execute from the workspace root (required for `command`, must be omitted for `mcp_tool`). |
+| `server` | string | Target MCP server name (required for `mcp_tool`). |
+| `tool` | string | Target MCP tool name (required for `mcp_tool`). |
+| `input` | object | Optional static JSON object arguments passed to the MCP tool (`mcp_tool` only). |
+| `skipIfDormant` | boolean | When `true` (`mcp_tool` only), skip execution if the target MCP server is not ready or has not been invoked in the thread/runtime. |
 | `timeout` | integer | Timeout in seconds. Defaults to 30 and is clamped to at least 1. |
 | `matcher` | string | Group-level tool/event matcher. Empty matches all. |
 | `if` | string | Optional command condition such as `Bash(git commit:*)`. |
-| `shell` | string | Optional shell override. |
+| `shell` | string | Optional shell override (`command` only). |
 | `statusMessage` | string | Optional user-visible execution label. |
-| `environmentVariables` | object | Extra environment variables for the hook process. |
+| `environmentVariables` | object | Extra environment variables for the hook process (`command` only). |
 | `async` | boolean | Run without blocking the current action. |
-| `asyncRewake` | boolean | If output requests continuation, enqueue a hook-origin follow-up turn. |
+| `asyncRewake` | boolean | If output requests continuation, enqueue a hook-origin follow-up turn (`command` only). |
 | `rewakeMessage` | string | Prefix for model-visible continuation feedback. |
 | `rewakeSummary` | string | Short user-visible continuation summary. |
+
+`mcp_tool` handlers invoke the named tool on the thread's effective MCP runtime
+with standard `_meta` call context plus `"dotcraft/hookEvent"`. They may invoke
+app-only / model-hidden tools on enabled, ready MCP servers, while strictly
+respecting server enablement and plugin gating. `mcp_tool` handlers are not
+supported on `SessionEnd` (skipped with a warning), and `SessionEnd` hooks
+always run synchronously. Within a single event dispatch, identical
+`(server, tool, input)` `mcp_tool` hooks are deduplicated. Failures and timeouts
+are logged and fail open without blocking turn or session teardown.
 
 Handler types `prompt`, `agent`, and `http` are reserved: they are listed with
 diagnostics and not executed.
