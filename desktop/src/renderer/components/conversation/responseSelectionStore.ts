@@ -8,6 +8,7 @@ export interface ResponseSelection {
   text: string
   range: Range
   container: HTMLElement
+  element: HTMLElement
   draftKey: string
   editing: boolean
 }

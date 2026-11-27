@@ -8,13 +8,13 @@ import { Button } from '../ui/Button'
 import { ContextCommentEditor } from './ContextCommentEditor'
 import { focusComposer } from './composerFocus'
 import { sendComposer } from './composerSend'
-import { readSelectionRange, sameSelectionRange } from './replySelection'
+import { REPLY_SELECTION_OVERLAY_ATTR, getSelectionAnchorRect } from './replySelection'
 import { useResponseSelectionStore, type ResponseSelection } from './responseSelectionStore'
 
 export function ResponseSelectionOverlay({ selection }: { selection: ResponseSelection }): JSX.Element {
   const t = useT()
   const root = useRef<HTMLDivElement>(null)
-  const [position, setPosition] = useState({ left: 0, top: 0 })
+  const [layout, setLayout] = useState({ left: 0, top: 0, visible: true })
   const { dismiss, cancel, edit, setDraft } = useResponseSelectionStore.getState()
   const sideChatAvailable = useCanOpenSideChat()
   const isActiveThread = useThreadStore((state) => state.activeThreadId === selection.threadId)
@@ -22,12 +22,22 @@ export function ResponseSelectionOverlay({ selection }: { selection: ResponseSel
   useLayoutEffect(() => {
     function update(): void {
       if (!selection.container.isConnected) { dismiss(); return }
-      const rect = selection.range.getBoundingClientRect()
+      const rect = getSelectionAnchorRect(selection.range, selection.element, selection.container)
+      if (!rect) {
+        if (!selection.editing) {
+          setLayout((previous) => previous.visible ? { ...previous, visible: false } : previous)
+        }
+        return
+      }
       const size = root.current!.getBoundingClientRect()
       const left = Math.max(8, Math.min(rect.left, window.innerWidth - size.width - 8))
       const preferredTop = rect.top >= size.height + 16 ? rect.top - size.height - 8 : rect.bottom + 8
       const top = Math.max(8, Math.min(preferredTop, window.innerHeight - size.height - 8))
-      setPosition((previous) => previous.left === left && previous.top === top ? previous : { left, top })
+      setLayout((previous) =>
+        previous.visible && previous.left === left && previous.top === top
+          ? previous
+          : { left, top, visible: true },
+      )
     }
     update()
     const observer = new ResizeObserver(update)
@@ -52,15 +62,9 @@ export function ResponseSelectionOverlay({ selection }: { selection: ResponseSel
       if (root.current?.contains(event.target as Node) && selection.editing) return
       dismiss()
     }
-    const selectionChanged = (): void => {
-      if (selection.editing) return
-      const range = readSelectionRange()
-      if (!range || !sameSelectionRange(range, selection.range)) dismiss()
-    }
     document.addEventListener('pointerdown', outside, true)
     document.addEventListener('contextmenu', contextMenu, true)
     document.addEventListener('keydown', escape)
-    document.addEventListener('selectionchange', selectionChanged)
     window.addEventListener('blur', dismiss)
     const unsubscribe = useThreadStore.subscribe((state, previous) => {
       if (state.activeThreadId !== previous.activeThreadId) dismiss()
@@ -69,7 +73,6 @@ export function ResponseSelectionOverlay({ selection }: { selection: ResponseSel
       document.removeEventListener('pointerdown', outside, true)
       document.removeEventListener('contextmenu', contextMenu, true)
       document.removeEventListener('keydown', escape)
-      document.removeEventListener('selectionchange', selectionChanged)
       window.removeEventListener('blur', dismiss)
       unsubscribe()
     }
@@ -104,8 +107,13 @@ export function ResponseSelectionOverlay({ selection }: { selection: ResponseSel
     window.getSelection()?.removeAllRanges()
   }
 
+  const style = layout.visible
+    ? { left: layout.left, top: layout.top }
+    : { left: layout.left, top: layout.top, visibility: 'hidden' as const, pointerEvents: 'none' as const }
+
   return createPortal(
-    <div ref={root} className="dc-response-feedback__overlay" data-editing={selection.editing} style={position}
+    <div ref={root} className="dc-response-feedback__overlay" {...{ [REPLY_SELECTION_OVERLAY_ATTR]: '' }}
+      data-editing={selection.editing} style={style}
       onContextMenu={(event) => event.stopPropagation()}>
       {selection.editing ? (
         <ContextCommentEditor initialComment={useResponseSelectionStore.getState().drafts[selection.draftKey] ?? ''}

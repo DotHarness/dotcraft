@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useId, useRef, type ReactNode } from 'react'
 import { ResponseSelectionOverlay } from './ResponseSelectionOverlay'
-import { readSelectionRange, registerReplySelection } from './replySelection'
+import {
+  REPLY_SELECTION_TARGET_ATTR,
+  registerReplySelection,
+  type ResolvedReplySelection,
+} from './replySelection'
 import { selectionDraftKey, useResponseSelectionStore } from './responseSelectionStore'
 
 export function ResponseFeedback({ threadId, turnId, itemId, disabled = false, children }: {
@@ -18,29 +22,33 @@ export function ResponseFeedback({ threadId, turnId, itemId, disabled = false, c
     if (state.active?.owner === owner) state.dismiss()
   }, [owner, threadId, turnId, itemId])
 
-  const capture = useCallback((selection: Range | undefined): void => {
+  const capture = useCallback((resolved: ResolvedReplySelection): void => {
     const container = textRoot.current
-    if (disabled || !container || !selection || !container.contains(selection.commonAncestorContainer)) return
-    const text = selection.toString().trim()
-    if (!text) return
-    const range = selection.cloneRange()
+    if (!container) return
     useResponseSelectionStore.getState().open({
-      owner, threadId, turnId, itemId, container, range, text,
-      draftKey: selectionDraftKey(container, range, JSON.stringify([threadId, turnId, itemId])),
+      owner,
+      threadId,
+      turnId,
+      itemId,
+      container,
+      element: resolved.element,
+      range: resolved.range,
+      text: resolved.text,
+      draftKey: selectionDraftKey(container, resolved.range, JSON.stringify([threadId, turnId, itemId])),
       editing: false,
     })
-  }, [disabled, owner, threadId, turnId, itemId])
+  }, [owner, threadId, turnId, itemId])
 
   useEffect(() => {
     const container = textRoot.current
     if (container && !disabled) return registerReplySelection(container, capture)
   }, [capture, disabled])
 
+  const targetAttr = disabled ? undefined : ''
+
   return (
     <>
-      <div ref={textRoot} onKeyUp={(event) => {
-        if (event.shiftKey && event.key !== 'Escape') capture(readSelectionRange())
-      }}>
+      <div ref={textRoot} {...{ [REPLY_SELECTION_TARGET_ATTR]: targetAttr }}>
         {children}
       </div>
       {active && <ResponseSelectionOverlay key={active.draftKey} selection={active} />}
