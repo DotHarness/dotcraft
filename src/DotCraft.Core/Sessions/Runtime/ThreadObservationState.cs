@@ -138,6 +138,9 @@ internal sealed class ThreadObservationState
                 if (evt.UsageDeltaPayload is { } usage)
                 {
                     _contextUsage = usage.ContextUsage ?? _contextUsage;
+                    if (usage is { InputTokens: 0, OutputTokens: 0, CachedInputTokens: 0,
+                            CacheWriteInputTokens: 0, ReasoningOutputTokens: 0, LlmCallDelta: 0 })
+                        break;
                     var previous = _turn.TokenUsage ?? new TokenUsageInfo();
                     var input = usage.TurnInputTokens ?? previous.InputTokens + usage.InputTokens;
                     var output = usage.TurnOutputTokens ?? usage.TotalOutputTokens

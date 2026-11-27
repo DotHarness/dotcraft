@@ -15,6 +15,7 @@ public sealed class TokenTracker
 
     private long _lastInputTokens;
     private long _lastContextTokens;
+    private bool _lastContextIsDisplayOnly;
     private long _totalInputTokens;
     private long _totalOutputTokens;
     private long _totalCachedInputTokens;
@@ -36,6 +37,8 @@ public sealed class TokenTracker
     /// Context-pressure tokens from the most recent LLM call, including output tokens when available.
     /// </summary>
     public long LastContextTokens => Interlocked.Read(ref _lastContextTokens);
+
+    internal long LastRequestContextTokens => Volatile.Read(ref _lastContextIsDisplayOnly) ? 0 : LastContextTokens;
 
     /// <summary>
     /// Cumulative input tokens across all LLM calls in this session turn.
@@ -59,7 +62,7 @@ public sealed class TokenTracker
     public void Update(long inputTokens, long outputTokens, long cachedInputTokens, long reasoningOutputTokens)
     {
         Interlocked.Exchange(ref _lastInputTokens, inputTokens);
-        Interlocked.Exchange(ref _lastContextTokens, Math.Max(0, inputTokens) + Math.Max(0, outputTokens));
+        SetLastContextTokens(Math.Max(0, inputTokens) + Math.Max(0, outputTokens));
         Interlocked.Add(ref _totalInputTokens, inputTokens);
         Interlocked.Add(ref _totalOutputTokens, outputTokens);
         Interlocked.Add(ref _totalCachedInputTokens, cachedInputTokens);
@@ -69,7 +72,7 @@ public sealed class TokenTracker
     public void Update(long inputTokens, long outputTokens, long cachedInputTokens, long cacheWriteInputTokens, long reasoningOutputTokens)
     {
         Interlocked.Exchange(ref _lastInputTokens, inputTokens);
-        Interlocked.Exchange(ref _lastContextTokens, Math.Max(0, inputTokens) + Math.Max(0, outputTokens));
+        SetLastContextTokens(Math.Max(0, inputTokens) + Math.Max(0, outputTokens));
         Interlocked.Add(ref _totalInputTokens, inputTokens);
         Interlocked.Add(ref _totalOutputTokens, outputTokens);
         Interlocked.Add(ref _totalCachedInputTokens, cachedInputTokens);
@@ -92,9 +95,7 @@ public sealed class TokenTracker
         long cumulativeInputSnapshot)
     {
         Interlocked.Exchange(ref _lastInputTokens, cumulativeInputSnapshot);
-        Interlocked.Exchange(
-            ref _lastContextTokens,
-            Math.Max(0, cumulativeInputSnapshot));
+        SetLastContextTokens(Math.Max(0, cumulativeInputSnapshot));
         Interlocked.Add(ref _totalInputTokens, deltaInput);
         Interlocked.Add(ref _totalOutputTokens, deltaOutput);
         Interlocked.Add(ref _totalCachedInputTokens, deltaCachedInput);
@@ -126,10 +127,25 @@ public sealed class TokenTracker
         long cumulativeInputSnapshot,
         long cumulativeOutputSnapshot)
     {
-        Interlocked.Exchange(ref _lastInputTokens, cumulativeInputSnapshot);
-        Interlocked.Exchange(
-            ref _lastContextTokens,
-            Math.Max(0, cumulativeInputSnapshot) + Math.Max(0, cumulativeOutputSnapshot));
+        SetContextUsage(cumulativeInputSnapshot, Math.Max(0, cumulativeInputSnapshot) + Math.Max(0, cumulativeOutputSnapshot));
+        RecordStreamingUsage(deltaInput, deltaOutput, deltaCachedInput, deltaCacheWriteInput, deltaReasoningOutput);
+    }
+
+    internal void SetContextUsage(long? inputTokens, long occupiedTokens)
+    {
+        Interlocked.Exchange(ref _lastInputTokens, Math.Max(0, inputTokens ?? 0));
+        SetLastContextTokens(Math.Max(0, occupiedTokens), displayOnly: inputTokens is null);
+    }
+
+    private void SetLastContextTokens(long tokens, bool displayOnly = false)
+    {
+        Volatile.Write(ref _lastContextIsDisplayOnly, displayOnly);
+        Interlocked.Exchange(ref _lastContextTokens, tokens);
+    }
+
+    internal void RecordStreamingUsage(long deltaInput, long deltaOutput, long deltaCachedInput,
+        long deltaCacheWriteInput, long deltaReasoningOutput)
+    {
         Interlocked.Add(ref _totalInputTokens, deltaInput);
         Interlocked.Add(ref _totalOutputTokens, deltaOutput);
         Interlocked.Add(ref _totalCachedInputTokens, deltaCachedInput);
@@ -171,7 +187,7 @@ public sealed class TokenTracker
     public void Reset()
     {
         Interlocked.Exchange(ref _lastInputTokens, 0);
-        Interlocked.Exchange(ref _lastContextTokens, 0);
+        SetLastContextTokens(0);
         Interlocked.Exchange(ref _totalInputTokens, 0);
         Interlocked.Exchange(ref _totalOutputTokens, 0);
         Interlocked.Exchange(ref _totalCachedInputTokens, 0);

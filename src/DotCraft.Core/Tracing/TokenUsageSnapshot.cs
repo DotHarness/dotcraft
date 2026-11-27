@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Reflection;
 using System.Text.Json;
+using DotCraft.Agents;
 using Microsoft.Extensions.AI;
 
 namespace DotCraft.Tracing;
@@ -103,7 +104,7 @@ public static class TokenUsageExtractor
 
     private static long? TryFindLongCore(object? value, TokenField field, HashSet<object> visited, int depth)
     {
-        if (value == null)
+        if (value is null or ProviderContextUsage)
             return null;
 
         if (depth > MaxTraversalDepth)

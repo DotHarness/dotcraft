@@ -104,5 +104,10 @@ an external session keys it by that identity and rebuilds it when the conversati
 longer matches. Compaction, fork and rollback reach a backend only as a changed conversation on its
 next request.
 
+A backend that reports aggregate billing rather than the latest model request attaches
+`ProviderContextUsage` to its usage content. The attachment gives occupied tokens and, when known,
+the latest request's input tokens. A null attachment marks occupancy as unknown and prevents
+the host from inferring it from billing. A measured attachment can accompany zero billing usage.
+
 The host persists provider-neutral history for backend providers. Provider-native history, compaction
 bridges and native compactors remain built-in provider features.

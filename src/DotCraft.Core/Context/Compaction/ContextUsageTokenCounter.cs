@@ -8,6 +8,7 @@ namespace DotCraft.Context.Compaction;
 public static class ContextUsageAnchorBoundary
 {
     public const string Request = "request";
+    internal const string ProviderMeasurement = "provider_measurement";
 }
 
 /// <summary>
@@ -67,7 +68,7 @@ public static class ContextUsageTokenCounter
             return null;
 
         if (!string.IsNullOrWhiteSpace(anchor.BoundaryKind)
-            && !string.Equals(anchor.BoundaryKind, ContextUsageAnchorBoundary.Request, StringComparison.Ordinal))
+            && anchor.BoundaryKind is not (ContextUsageAnchorBoundary.Request or ContextUsageAnchorBoundary.ProviderMeasurement))
         {
             return null;
         }

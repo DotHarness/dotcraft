@@ -10,6 +10,8 @@ namespace DotCraft.Sessions;
 
 public sealed partial class SessionService
 {
+    private const string ProviderOccupancySource = "provider_occupancy";
+
     public ContextUsageSnapshot? TryGetContextUsageSnapshot(string threadId)
         => ThreadAccess.TryGetContextUsageSnapshot(threadId);
 
@@ -297,12 +299,15 @@ public sealed partial class SessionService
         return snapshot;
     }
 
-    private Task<ContextUsageSnapshot> SavePreparedContextEstimateAsync(
+    private Task SavePreparedContextEstimateAsync(
         string threadId,
         ContextTokenUsageEstimate estimate,
         CancellationToken ct,
         CompactionPipeline? pipeline)
     {
+        if (estimate.PreserveMeasuredDisplay)
+            return Task.CompletedTask;
+
         var compacted = string.Equals(estimate.Source, "provider_compacted_estimate", StringComparison.Ordinal);
         var anchor = compacted ? null : TryGetInMemoryContextUsageAnchor(threadId)
             ?? persistence.LoadContextUsageAnchor(threadId);
@@ -316,7 +321,49 @@ public sealed partial class SessionService
             pipeline);
     }
 
-    private ContextUsageAnchor? UpdateContextUsageAnchor(string threadId, long anchorTokens)
+    private async Task<ContextUsageSnapshot> SaveExplicitContextUsageAsync(
+        string threadId,
+        TokenTracker tracker,
+        ProviderContextUsage? measurement,
+        IReadOnlyList<ChatMessage> history,
+        CompactionPipeline? pipeline)
+    {
+        if (measurement is { OccupiedTokens: >= 0 } context)
+        {
+            tracker.SetContextUsage(context.InputTokens, context.OccupiedTokens);
+            var anchor = context.InputTokens is { } inputTokens
+                ? UpdateContextUsageAnchor(threadId, inputTokens, ContextUsageAnchorBoundary.ProviderMeasurement)
+                : null;
+            if (anchor is null)
+                ClearContextUsageAnchor(threadId);
+            var source = context.InputTokens is null ? ProviderOccupancySource : "provider_context";
+            return await SaveContextUsageSnapshotAsync(
+                threadId, context.OccupiedTokens, anchor, source, isEstimate: false, pipeline: pipeline);
+        }
+
+        var request = TryGetLastPromptRequestSnapshot(threadId);
+        var visibleHistory = request?.Messages ?? PrepareProviderVisibleHistory(history);
+        var measuredAnchor = TryGetInMemoryContextUsageAnchor(threadId) ?? persistence.LoadContextUsageAnchor(threadId);
+        var anchored = measuredAnchor?.BoundaryKind == ContextUsageAnchorBoundary.ProviderMeasurement
+            ? ContextUsageTokenCounter.EstimateFromAnchorDetailed(
+                measuredAnchor, visibleHistory, request?.RequestFingerprint, requireRequestFingerprint: true,
+                request?.ContextUsageFingerprint, request?.BaseInstructionsTokenEstimate)
+            : null;
+        if (anchored is null)
+        {
+            measuredAnchor = null;
+            ClearContextUsageAnchor(threadId);
+        }
+
+        tracker.SetContextUsage(null, 0);
+        var estimate = anchored?.Tokens
+            ?? (long)MessageTokenEstimator.Estimate(visibleHistory) + (request?.EstimateRequestOverheadTokens() ?? 0);
+        return await SaveContextUsageSnapshotAsync(
+            threadId, estimate, measuredAnchor, "estimate", isEstimate: true, pipeline: pipeline);
+    }
+
+    private ContextUsageAnchor? UpdateContextUsageAnchor(
+        string threadId, long anchorTokens, string boundary = ContextUsageAnchorBoundary.Request)
     {
         var snapshot = TryGetLastPromptRequestSnapshot(threadId);
         var anchorMessageCount = snapshot?.Messages.Count;
@@ -337,7 +384,7 @@ public sealed partial class SessionService
             snapshot.RequestFingerprint,
             snapshot.ContextUsageFingerprint,
             snapshot.BaseInstructionsTokenEstimate,
-            ContextUsageAnchorBoundary.Request);
+            boundary);
         if (runtime != null)
             runtime.ContextUsageAnchor = anchor;
         return anchor;
@@ -350,19 +397,21 @@ public sealed partial class SessionService
         PromptRequestSnapshot? requestSnapshot = null)
     {
         var persistedSnapshot = persistence.LoadContextUsageSnapshot(threadId);
-        var persistedAnchor = persistence.LoadContextUsageAnchor(threadId);
-        return ContextTokenUsageEstimator.Estimate(
+        var displayOnly = persistedSnapshot?.Source is ProviderOccupancySource;
+        var persistedEstimate = displayOnly ? null : persistedSnapshot;
+        var estimate = ContextTokenUsageEstimator.Estimate(
             modelVisibleHistory,
             TryGetInMemoryContextUsageAnchor(threadId),
-            persistedAnchor,
+            persistence.LoadContextUsageAnchor(threadId),
             latestContextTokens,
-            persistedSnapshot?.Tokens,
+            persistedEstimate?.Tokens,
             requestSnapshot?.RequestFingerprint,
             requestSnapshot?.ContextUsageFingerprint,
             requestSnapshot?.BaseInstructionsTokenEstimate,
-            persistedSnapshot?.Source,
-            persistedSnapshot?.IsEstimate ?? false,
+            persistedEstimate?.Source,
+            persistedEstimate?.IsEstimate ?? false,
             requestSnapshot?.EstimateRequestOverheadTokens() ?? 0);
+        return displayOnly ? estimate with { PreserveMeasuredDisplay = true } : estimate;
     }
 
     private static IReadOnlyList<ChatMessage> PrepareProviderVisibleHistory(IReadOnlyList<ChatMessage> history) =>

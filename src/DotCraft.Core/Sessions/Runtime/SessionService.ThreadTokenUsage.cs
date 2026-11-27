@@ -1,33 +1,8 @@
-using DotCraft.Context;
-
 namespace DotCraft.Sessions;
 
 public sealed partial class SessionService
 {
     public Action<ThreadTokenUsageUpdate>? ThreadTokenUsageUpdatedForBroadcast { get; set; }
-
-    private static TokenUsageInfo CombineTurnUsage(
-        long inputTokens,
-        long outputTokens,
-        long cachedInputTokens,
-        long cacheWriteInputTokens,
-        long reasoningOutputTokens,
-        int llmCallCount,
-        TokenTracker tokenTracker)
-    {
-        var input = inputTokens + tokenTracker.SubAgentInputTokens;
-        var output = outputTokens + tokenTracker.SubAgentOutputTokens;
-        return new TokenUsageInfo
-        {
-            InputTokens = input,
-            OutputTokens = output,
-            CachedInputTokens = Math.Clamp(cachedInputTokens + tokenTracker.SubAgentCachedInputTokens, 0, input),
-            CacheWriteInputTokens = Math.Clamp(cacheWriteInputTokens + tokenTracker.SubAgentCacheWriteInputTokens, 0, input),
-            ReasoningOutputTokens = reasoningOutputTokens + tokenTracker.SubAgentReasoningOutputTokens,
-            LlmCallCount = llmCallCount + tokenTracker.SubAgentLlmCallCount,
-            TotalTokens = input + output
-        };
-    }
 
     private void PublishThreadTokenUsage(
         SessionThread thread,
