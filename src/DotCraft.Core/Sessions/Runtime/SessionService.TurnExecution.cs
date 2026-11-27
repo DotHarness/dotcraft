@@ -1,4 +1,3 @@
-using System.Text.Json.Nodes;
 using DotCraft.Agents;
 using DotCraft.Configuration;
 using DotCraft.Context;
@@ -174,15 +173,10 @@ public sealed partial class SessionService
                 turn,
                 eventChannel,
                 NextItemSeq,
-                sessionStreamDebugLogger);
-            var mainTraceUsageBaseline = 0;
-            long inputTokens = 0, outputTokens = 0, cachedInputTokens = 0, cacheWriteInputTokens = 0, reasoningOutputTokens = 0;
-            var llmCallCount = 0;
-            var turnCost = new TurnCostTracker();
+                sessionStreamDebugLogger,
+                turnRuntime);
+            var turnUsageAccounting = new TurnUsageAccounting(this, thread, turn, eventChannel, traceCollector);
             var retiredResourcesReleased = false;
-            Dictionary<int, SessionItem>? streamingToolCallItemsByIndex = null;
-            Dictionary<int, string>? streamingToolNameByIndex = null;
-            Dictionary<string, SessionItem>? streamingToolCallItemsByCallId = null;
             var turnCommitter = new TurnCommitter(this, thread, turn);
             TurnModelHistory? turnModelHistory = null;
             var reactiveCompaction = new ReactiveCompactionState();
@@ -757,16 +751,7 @@ public sealed partial class SessionService
                     () => SetFailedTurn(thread, turn, errorMsg, classifiedProviderFailure));
                 await AccountGoalUsageAsync(
                     turnKey,
-                    new TokenUsageInfo
-                    {
-                        InputTokens = inputTokens,
-                        OutputTokens = outputTokens,
-                        CachedInputTokens = cachedInputTokens,
-                        CacheWriteInputTokens = cacheWriteInputTokens,
-                        ReasoningOutputTokens = reasoningOutputTokens,
-                        LlmCallCount = llmCallCount,
-                        TotalTokens = inputTokens + outputTokens
-                    },
+                    turnUsageAccounting.MainUsage,
                     turn.Id,
                     GoalAccountingMode.ActiveOrStopped,
                     CancellationToken.None);
@@ -871,7 +856,7 @@ public sealed partial class SessionService
                 RecordPromptSuggestionOutcome(thread, turn, started: true);
                 TracingChatClient.CurrentSessionKey = threadId;
                 TracingChatClient.ResetCallState(threadId);
-                mainTraceUsageBaseline = traceCollector?.GetTokenUsageCount(threadId) ?? 0;
+                turnUsageAccounting.CaptureTraceBaseline();
                 tokenTracker = agentFactory.GetOrCreateTokenTracker(threadId);
                 TokenTracker.Current = tokenTracker;
 
@@ -1052,10 +1037,7 @@ public sealed partial class SessionService
                     })
                     : null;
 
-                int? currentUsageRequestIndex = null;
                 ChatFinishReason? lastFinishReason = null;
-                var usageAccumulator = new TokenUsageRequestAccumulator();
-                TokenUsageInfo? requestUsage = null;
 
                 SubAgentProgressAggregator? progressAggregator = null;
 
@@ -1384,14 +1366,10 @@ public sealed partial class SessionService
                         new ChatClientAgentRunOptions { HistoryObserver = turnModelHistory })
                         .WithCancellation(executionCt))
                     {
-                        var chatResponseUpdate = update;
-                        if (chatResponseUpdate.FinishReason.HasValue)
-                            lastFinishReason = chatResponseUpdate.FinishReason.Value;
+                        if (update.FinishReason.HasValue)
+                            lastFinishReason = update.FinishReason.Value;
 
-                        var updateRequestIndex = TokenUsageRequestMetadata.TryGetRequestIndex(chatResponseUpdate);
-                        if (updateRequestIndex.HasValue)
-                            currentUsageRequestIndex = updateRequestIndex;
-                        turnCost.ObserveUpdate(chatResponseUpdate, currentUsageRequestIndex);
+                        turnUsageAccounting.ObserveResponse(update);
 
                         foreach (var responseContent in update.Contents)
                         {
@@ -1407,226 +1385,14 @@ public sealed partial class SessionService
                                     break;
 
                                 case ToolCallArgumentsDeltaContent toolArgsDelta:
-                                {
-                                    if (string.IsNullOrEmpty(toolArgsDelta.ArgumentsDelta))
-                                        break;
-
-                                    var toolCallIndex = toolArgsDelta.ToolCallIndex;
-                                    if (!string.IsNullOrWhiteSpace(toolArgsDelta.ToolName))
-                                    {
-                                        streamingToolNameByIndex ??= [];
-                                        streamingToolNameByIndex[toolCallIndex] = toolArgsDelta.ToolName;
-                                    }
-
-                                    var resolvedToolName =
-                                        streamingToolNameByIndex != null
-                                        && streamingToolNameByIndex.TryGetValue(toolCallIndex, out var cachedToolName)
-                                            ? cachedToolName
-                                            : null;
-                                    if (string.IsNullOrWhiteSpace(resolvedToolName))
-                                        break;
-                                    var streamingSnapshot = turnRuntime?.ToolSnapshot;
-                                    var streamingCanonicalName = default(ToolName);
-                                    ToolRegistration? streamingRegistration = null;
-                                    var resolvedSnapshotRegistration = streamingSnapshot is not null
-                                        && streamingSnapshot.TryResolveProviderFlatName(
-                                            resolvedToolName,
-                                            out streamingCanonicalName)
-                                        && streamingSnapshot.Registrations.TryGetValue(
-                                            streamingCanonicalName,
-                                            out streamingRegistration);
-                                    if (streamingRegistration?.ProjectionShape == ToolProjectionShape.DynamicLifecycle)
-                                        break;
-                                    if (!resolvedSnapshotRegistration
-                                        && streamingSnapshot?.Registrations.Keys.Any(
-                                            name => string.Equals(
-                                                name.Name,
-                                                resolvedToolName,
-                                                StringComparison.Ordinal)) == true)
-                                    {
-                                        // A local child name is not a stable tool identity; wait for the final composite callback.
-                                        break;
-                                    }
-                                    FinalizeStreamingReasoning();
-                                    FinalizeStreamingAgentMessage();
-                                    streamingToolCallItemsByIndex ??= [];
-                                    if (!streamingToolCallItemsByIndex.TryGetValue(toolCallIndex, out var streamingToolCallItem))
-                                    {
-                                        streamingToolCallItem = new SessionItem
-                                        {
-                                            Id = SessionIdGenerator.NewItemId(NextItemSeq()),
-                                            TurnId = turn.Id,
-                                            Type = ItemType.ToolCall,
-                                            Status = ItemStatus.Streaming,
-                                            CreatedAt = DateTimeOffset.UtcNow,
-                                            Payload = new ToolCallPayload
-                                            {
-                                                ToolName = resolvedSnapshotRegistration
-                                                    ? streamingCanonicalName.Name
-                                                    : resolvedToolName,
-                                                Namespace = resolvedSnapshotRegistration
-                                                    ? streamingCanonicalName.Namespace
-                                                    : null,
-                                                ProviderFlatName = resolvedSnapshotRegistration
-                                                    ? streamingSnapshot!.ProviderFlatNames[streamingCanonicalName]
-                                                    : resolvedToolName,
-                                                CallId = toolArgsDelta.CallId ?? string.Empty,
-                                                Arguments = null
-                                            }
-                                        };
-                                        if (resolvedSnapshotRegistration)
-                                        {
-                                            ApplyStartedProjection(
-                                                streamingToolCallItem,
-                                                streamingRegistration!,
-                                                streamingSnapshot!.ProviderFlatNames[streamingCanonicalName],
-                                                streamingSnapshot.Revision,
-                                                toolArgsDelta.CallId ?? string.Empty,
-                                                null);
-                                        }
-                                        streamingToolCallItem.Status = ItemStatus.Streaming;
-                                        streamingToolCallItemsByIndex[toolCallIndex] = streamingToolCallItem;
-                                        turn.Items.Add(streamingToolCallItem);
-                                        eventChannel.EmitItemStarted(streamingToolCallItem);
-                                    }
-
-                                    if (!string.IsNullOrWhiteSpace(toolArgsDelta.CallId))
-                                    {
-                                        streamingToolCallItemsByCallId ??= new Dictionary<string, SessionItem>(StringComparer.Ordinal);
-                                        if (!streamingToolCallItemsByCallId.ContainsKey(toolArgsDelta.CallId))
-                                            streamingToolCallItemsByCallId[toolArgsDelta.CallId] = streamingToolCallItem;
-                                    }
-
-                                    eventChannel.EmitItemDelta(streamingToolCallItem, new ToolCallArgumentsDelta
-                                    {
-                                        ToolName = resolvedToolName,
-                                        CallId = toolArgsDelta.CallId,
-                                        Delta = toolArgsDelta.ArgumentsDelta
-                                    });
+                                    itemProjector.AppendToolArguments(toolArgsDelta);
                                     break;
-                                }
 
                                 case FunctionCallContent fc:
                                 {
-                                    FinalizeStreamingReasoning();
-                                    FinalizeStreamingAgentMessage();
-                                    if (!string.IsNullOrWhiteSpace(fc.CallId)
-                                        && turnRuntime?.ToolInvocationItems.ContainsKey(fc.CallId) == true)
-                                    {
+                                    if (!itemProjector.TryProjectToolCall(
+                                            fc, supportsCommandExecutionStreaming, effectiveWorkspace.Cwd, supportsToolExecutionLifecycle))
                                         break;
-                                    }
-                                    RegisterCommandExecutionIfNeeded(
-                                        fc,
-                                        turn,
-                                        NextItemSeq,
-                                        eventChannel,
-                                        supportsCommandExecutionStreaming,
-                                        effectiveWorkspace.Cwd);
-                                    RegisterToolExecutionIfNeeded(
-                                        fc,
-                                        turn,
-                                        NextItemSeq,
-                                        eventChannel,
-                                        supportsToolExecutionLifecycle);
-
-                                    SessionItem? toolCallItem = null;
-                                    if (turnRuntime?.ToolSnapshot is { } invocationSnapshot
-                                        && TryResolveProviderFunctionCall(
-                                            invocationSnapshot,
-                                            fc,
-                                            out var canonicalToolName)
-                                        && invocationSnapshot.Registrations.TryGetValue(canonicalToolName, out var projectedRegistration))
-                                    {
-                                        SessionItem? existingProjectedItem = null;
-                                        if (!string.IsNullOrWhiteSpace(fc.CallId)
-                                            && streamingToolCallItemsByCallId != null)
-                                        {
-                                            streamingToolCallItemsByCallId.TryGetValue(fc.CallId, out existingProjectedItem);
-                                        }
-
-                                        var emitProjection = existingProjectedItem is null
-                                                             || !HasTrustedProjection(existingProjectedItem);
-                                        toolCallItem = existingProjectedItem ?? new SessionItem
-                                        {
-                                            Id = SessionIdGenerator.NewItemId(NextItemSeq()),
-                                            TurnId = turn.Id,
-                                            CreatedAt = DateTimeOffset.UtcNow
-                                        };
-                                        var projectedArguments = fc.Arguments != null
-                                            ? JsonNode.Parse(System.Text.Json.JsonSerializer.Serialize(fc.Arguments)) as JsonObject
-                                            : null;
-                                        ApplyStartedProjection(
-                                            toolCallItem,
-                                            projectedRegistration,
-                                            invocationSnapshot.ProviderFlatNames.GetValueOrDefault(canonicalToolName)
-                                                ?? throw new InvalidOperationException(
-                                                    $"Missing flat provider alias for tool '{canonicalToolName}'."),
-                                            invocationSnapshot.Revision,
-                                            fc.CallId,
-                                            projectedArguments ?? []);
-                                        if (existingProjectedItem is null)
-                                            turn.Items.Add(toolCallItem);
-                                        if (emitProjection)
-                                            eventChannel.EmitItemStarted(toolCallItem);
-                                        if (!string.IsNullOrWhiteSpace(fc.CallId))
-                                        {
-                                            streamingToolCallItemsByCallId?.Remove(fc.CallId);
-                                            TryRemoveStreamingToolCallIndexByItemReference(
-                                                streamingToolCallItemsByIndex,
-                                                toolCallItem);
-                                        }
-                                    }
-
-                                    if (toolCallItem is null && !string.IsNullOrWhiteSpace(fc.CallId)
-                                        && streamingToolCallItemsByCallId != null
-                                        && streamingToolCallItemsByCallId.TryGetValue(fc.CallId, out var existingStreamingToolCallItem))
-                                    {
-                                        toolCallItem = existingStreamingToolCallItem;
-                                        toolCallItem.Status = ItemStatus.Completed;
-                                        toolCallItem.CompletedAt = DateTimeOffset.UtcNow;
-                                        toolCallItem.Payload = new ToolCallPayload
-                                        {
-                                            ToolName = fc.Name,
-                                            ProviderFlatName = fc.Name,
-                                            Arguments = fc.Arguments != null
-                                                ? JsonNode.Parse(
-                                                    System.Text.Json.JsonSerializer.Serialize(
-                                                        fc.Arguments)) as JsonObject
-                                                : null,
-                                            CallId = fc.CallId
-                                        };
-                                        eventChannel.EmitItemCompleted(toolCallItem);
-                                        streamingToolCallItemsByCallId.Remove(fc.CallId);
-                                        TryRemoveStreamingToolCallIndexByItemReference(
-                                            streamingToolCallItemsByIndex,
-                                            existingStreamingToolCallItem);
-                                    }
-                                    else if (toolCallItem is null)
-                                    {
-                                        toolCallItem = new SessionItem
-                                        {
-                                            Id = SessionIdGenerator.NewItemId(NextItemSeq()),
-                                            TurnId = turn.Id,
-                                            Type = ItemType.ToolCall,
-                                            Status = ItemStatus.Completed,
-                                            CreatedAt = DateTimeOffset.UtcNow,
-                                            CompletedAt = DateTimeOffset.UtcNow,
-                                            Payload = new ToolCallPayload
-                                            {
-                                                ToolName = fc.Name,
-                                                ProviderFlatName = fc.Name,
-                                                Arguments = fc.Arguments != null
-                                                    ? JsonNode.Parse(
-                                                        System.Text.Json.JsonSerializer.Serialize(
-                                                            fc.Arguments)) as JsonObject
-                                                    : null,
-                                                CallId = fc.CallId
-                                            }
-                                        };
-                                        turn.Items.Add(toolCallItem);
-                                        eventChannel.EmitItemStarted(toolCallItem);
-                                        eventChannel.EmitItemCompleted(toolCallItem);
-                                    }
 
                                     if (string.Equals(fc.Name, "SpawnAgent", StringComparison.Ordinal)
                                         && fc.Arguments != null)
@@ -1658,158 +1424,20 @@ public sealed partial class SessionService
                                 }
 
                                 case FunctionResultContent fr:
-                                {
-                                    FinalizeStreamingReasoning();
-                                    if (!string.IsNullOrWhiteSpace(fr.CallId)
-                                        && turnRuntime?.ToolInvocationItems.ContainsKey(fr.CallId) == true)
-                                    {
-                                        break;
-                                    }
-                                    var resultText = ImageContentSanitizingChatClient.DescribeResult(fr.Result);
-                                    var toolResultErrorCode = StreamingFunctionInvokingChatClient.GetToolResultErrorCode(fr);
-                                    var contentItems = ExtractToolResultContentItems(fr.Result);
-                                    var persistedCall = turn.Items
-                                        .Select(static item => item.Payload as ToolCallPayload)
-                                        .LastOrDefault(payload => string.Equals(
-                                            payload?.CallId,
-                                            fr.CallId,
-                                            StringComparison.Ordinal));
-                                    var toolResultItem = new SessionItem
-                                    {
-                                        Id = SessionIdGenerator.NewItemId(NextItemSeq()),
-                                        TurnId = turn.Id,
-                                        Type = ItemType.ToolResult,
-                                        Status = ItemStatus.Completed,
-                                        CreatedAt = DateTimeOffset.UtcNow,
-                                        CompletedAt = DateTimeOffset.UtcNow,
-                                        Payload = new ToolResultPayload
-                                        {
-                                            CallId = fr.CallId,
-                                            Namespace = persistedCall?.Namespace,
-                                            ToolName = persistedCall?.ToolName ?? string.Empty,
-                                            ProviderFlatName = persistedCall?.ProviderFlatName ?? string.Empty,
-                                            Result = resultText,
-                                            ContentItems = contentItems,
-                                            Success = fr.Exception == null
-                                                && toolResultErrorCode == null
-                                                && !StreamingFunctionInvokingChatClient.IsInvalidToolArgumentsResult(fr),
-                                            ErrorCode = toolResultErrorCode,
-                                            ErrorMessage = toolResultErrorCode == null ? null : resultText
-                                        }
-                                    };
-                                    turn.Items.Add(toolResultItem);
-                                    eventChannel.EmitItemStarted(toolResultItem);
-                                    eventChannel.EmitItemCompleted(toolResultItem);
+                                    itemProjector.AppendToolResult(fr);
                                     break;
-                                }
 
                                 case UsageContent usage:
-                                {
-                                    var snapshot = TokenUsageExtractor.FromUsageContent(usage);
-                                    var curIn = snapshot.InputTokens;
-                                    var curOut = snapshot.OutputTokens;
-                                    if (snapshot.InputTokens > 0 || snapshot.OutputTokens > 0)
-                                    {
-                                        var usageDelta = usageAccumulator.ApplySnapshot(snapshot, currentUsageRequestIndex);
-                                        var delta = usageDelta.Usage;
-                                        if (delta.InputTokens > 0
-                                            || delta.OutputTokens > 0
-                                            || delta.CachedInputTokens > 0
-                                            || delta.CacheWriteInputTokens > 0
-                                            || delta.ReasoningOutputTokens > 0)
-                                        {
-                                            llmCallCount += usageDelta.LlmCallDelta;
-                                            turnCost.AddUsage(delta, usageDelta.IsNewRequest, currentUsageRequestIndex);
-                                            inputTokens += delta.InputTokens;
-                                            outputTokens += delta.OutputTokens;
-                                            cachedInputTokens += delta.CachedInputTokens;
-                                            cacheWriteInputTokens += delta.CacheWriteInputTokens;
-                                            reasoningOutputTokens += delta.ReasoningOutputTokens;
-                                            var requestDelta = new TokenUsageInfo
-                                            {
-                                                InputTokens = delta.InputTokens,
-                                                OutputTokens = delta.OutputTokens,
-                                                CachedInputTokens = delta.CachedInputTokens,
-                                                CacheWriteInputTokens = delta.CacheWriteInputTokens,
-                                                ReasoningOutputTokens = delta.ReasoningOutputTokens,
-                                                LlmCallCount = usageDelta.LlmCallDelta,
-                                                TotalTokens = delta.InputTokens + delta.OutputTokens
-                                            };
-                                            requestUsage = usageDelta.IsNewRequest || requestUsage is null
-                                                ? requestDelta
-                                                : requestUsage + requestDelta;
-                                            tokenTracker.UpdateWithStreamingDeltas(
-                                                delta.InputTokens,
-                                                delta.OutputTokens,
-                                                delta.CachedInputTokens,
-                                                delta.CacheWriteInputTokens,
-                                                delta.ReasoningOutputTokens,
-                                                curIn,
-                                                curOut);
-                                            var anchor = UpdateContextUsageAnchor(threadId, tokenTracker.LastInputTokens);
-                                            var contextUsage = await SaveContextUsageSnapshotAsync(
-                                                threadId,
-                                                tokenTracker.LastContextTokens,
-                                                anchor,
-                                                source: "provider_context",
-                                                isEstimate: false,
-                                                ct: CancellationToken.None,
-                                                pipeline: admittedCompactionPipeline);
-                                            eventChannel.EmitUsageDelta(
-                                                delta.InputTokens,
-                                                delta.OutputTokens,
-                                                cachedInputTokens: delta.CachedInputTokens,
-                                                cacheWriteInputTokens: delta.CacheWriteInputTokens,
-                                                reasoningOutputTokens: delta.ReasoningOutputTokens,
-                                                llmCallDelta: usageDelta.LlmCallDelta,
-                                                totalInputTokens: tokenTracker.LastInputTokens,
-                                                totalOutputTokens: outputTokens,
-                                                contextInputTokens: tokenTracker.LastInputTokens,
-                                                turnInputTokens: inputTokens,
-                                                turnOutputTokens: outputTokens,
-                                                turnLlmCalls: llmCallCount,
-                                                contextUsage: contextUsage,
-                                                requestTiming: TokenUsageRequestTiming.TryGet(usage) is { } timing
-                                                    ? new UsageRequestTiming(timing.FirstOutputLatencyMs, timing.GenerationMs)
-                                                    : null);
-                                            turn.TokenUsage = CombineTurnUsage(
-                                                inputTokens,
-                                                outputTokens,
-                                                cachedInputTokens,
-                                                cacheWriteInputTokens,
-                                                reasoningOutputTokens,
-                                                llmCallCount,
-                                                tokenTracker);
-                                            PublishThreadTokenUsage(
-                                                thread,
-                                                turn,
-                                                turn.TokenUsage,
-                                                requestUsage,
-                                                contextUsage.ContextWindow > 0 ? contextUsage.ContextWindow : null);
-                                            await RecordGoalUsageAsync(
-                                                turnKey,
-                                                new TokenUsageInfo
-                                                {
-                                                    InputTokens = inputTokens,
-                                                    OutputTokens = outputTokens,
-                                                    CachedInputTokens = cachedInputTokens,
-                                                    CacheWriteInputTokens = cacheWriteInputTokens,
-                                                    ReasoningOutputTokens = reasoningOutputTokens,
-                                                    LlmCallCount = llmCallCount,
-                                                    TotalTokens = inputTokens + outputTokens
-                                                },
-                                                CancellationToken.None);
-                                        }
-                                    }
-
+                                    if (await turnUsageAccounting.RecordAsync(
+                                            usage, tokenTracker, session, admittedCompactionPipeline) is { } requestDelta)
+                                        await RecordGoalUsageAsync(turnKey, requestDelta, CancellationToken.None);
                                     break;
-                                }
                             }
                         }
 
-                        if (AgentMessagePhases.IsResponseBoundary(chatResponseUpdate.FinishReason))
+                        if (AgentMessagePhases.IsResponseBoundary(update.FinishReason))
                             itemProjector.FinalizeAgentMessage(AgentMessagePhases.ResponseEnded(
-                                chatResponseUpdate.FinishReason, executionCt.IsCancellationRequested));
+                                update.FinishReason, executionCt.IsCancellationRequested));
                     }
                 }
                 finally
@@ -1828,17 +1456,7 @@ public sealed partial class SessionService
                     lastFinishReason, executionCt.IsCancellationRequested));
                 FinalizeStreamingReasoning();
 
-                var mainTraceUsageDelta = Math.Max(
-                    0,
-                    (traceCollector?.GetTokenUsageCount(threadId) ?? mainTraceUsageBaseline) - mainTraceUsageBaseline);
-                var turnUsage = CombineTurnUsage(
-                    inputTokens,
-                    outputTokens,
-                    cachedInputTokens,
-                    cacheWriteInputTokens,
-                    reasoningOutputTokens,
-                    Math.Max(llmCallCount, mainTraceUsageDelta),
-                    tokenTracker);
+                var turnUsage = turnUsageAccounting.CompleteUsage(tokenTracker);
                 if (turnUsage.InputTokens > 0 || turnUsage.OutputTokens > 0)
                 {
                     turn.TokenUsage = turnUsage;
@@ -1933,7 +1551,7 @@ public sealed partial class SessionService
                     },
                     async () =>
                     {
-                        RecordTurnTokenUsage(thread, turn, turnCost);
+                        turnUsageAccounting.RecordCompletedUsage();
                         RecordTurnDurationTrace(threadId, turn);
                         await PersistCurrentTurnCommitAsync();
                         await CheckOffTurnTodosAsync(threadId, turn);
@@ -1950,16 +1568,7 @@ public sealed partial class SessionService
                 FinalizeStreamingReasoning();
                 await AccountGoalUsageAsync(
                     turnKey,
-                    new TokenUsageInfo
-                    {
-                        InputTokens = inputTokens,
-                        OutputTokens = outputTokens,
-                        CachedInputTokens = cachedInputTokens,
-                        CacheWriteInputTokens = cacheWriteInputTokens,
-                        ReasoningOutputTokens = reasoningOutputTokens,
-                        LlmCallCount = llmCallCount,
-                        TotalTokens = inputTokens + outputTokens
-                    },
+                    turnUsageAccounting.MainUsage,
                     turn.Id,
                     GoalAccountingMode.ActiveOrStopped,
                     CancellationToken.None);

@@ -126,10 +126,19 @@ public sealed class TokenTracker
         long cumulativeInputSnapshot,
         long cumulativeOutputSnapshot)
     {
-        Interlocked.Exchange(ref _lastInputTokens, cumulativeInputSnapshot);
-        Interlocked.Exchange(
-            ref _lastContextTokens,
-            Math.Max(0, cumulativeInputSnapshot) + Math.Max(0, cumulativeOutputSnapshot));
+        SetContextUsage(cumulativeInputSnapshot, Math.Max(0, cumulativeInputSnapshot) + Math.Max(0, cumulativeOutputSnapshot));
+        RecordStreamingUsage(deltaInput, deltaOutput, deltaCachedInput, deltaCacheWriteInput, deltaReasoningOutput);
+    }
+
+    internal void SetContextUsage(long? inputTokens, long occupiedTokens)
+    {
+        Interlocked.Exchange(ref _lastInputTokens, Math.Max(0, inputTokens ?? 0));
+        Interlocked.Exchange(ref _lastContextTokens, Math.Max(0, occupiedTokens));
+    }
+
+    internal void RecordStreamingUsage(long deltaInput, long deltaOutput, long deltaCachedInput,
+        long deltaCacheWriteInput, long deltaReasoningOutput)
+    {
         Interlocked.Add(ref _totalInputTokens, deltaInput);
         Interlocked.Add(ref _totalOutputTokens, deltaOutput);
         Interlocked.Add(ref _totalCachedInputTokens, deltaCachedInput);

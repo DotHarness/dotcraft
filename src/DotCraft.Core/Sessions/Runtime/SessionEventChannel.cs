@@ -148,10 +148,6 @@ internal sealed class SessionEventChannel(
     // Usage delta events
     // -------------------------------------------------------------------------
 
-    /// <summary>
-    /// Emits an incremental token usage event. Called by <see cref="SessionService"/>
-    /// when a streaming <c>UsageContent</c> snapshot yields a positive delta (see <see cref="UsageSnapshotDelta"/>).
-    /// </summary>
     public void EmitUsageDelta(
         long inputTokens,
         long outputTokens,
