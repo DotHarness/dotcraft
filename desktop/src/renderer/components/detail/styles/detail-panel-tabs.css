@@ -64,7 +64,8 @@
   isolation: isolate;
   display: flex;
   align-items: stretch;
-  flex: 1 1 168px;
+  width: 168px;
+  flex: 0 1 168px;
   min-width: 108px;
   max-width: 168px;
   height: 28px;

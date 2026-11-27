@@ -630,11 +630,11 @@ on its own, keeps the mark in `--text-primary`, and uses the bulb's yellow as it
 only colour; reduced motion keeps only the bulb.
 
 When the conversation, or the workspace default, runs on a plugin model backend or a
-subscription sign-in, the header pairs the wordmark with that backend: a `14px` rule one
-device pixel wide in 28% `--text-primary`, then the backend's icon fitted by its visible shape to the
-mark's `18px x 14px` ink, with its name in a tooltip. API-key providers show nothing.
-A change of backend, from any thread or workspace switch, only fades the pairing in; the
-mark moves only when pressed. Below `150px` of header the
+subscription sign-in, hovering or focusing the brand reveals that backend after a `14px`
+rule one device pixel wide in 28% `--text-primary`: the backend's icon fitted by its
+visible shape to the mark's `18px x 14px` ink, with its name in a tooltip. At rest only
+the DotCraft mark and wordmark show so the header never dilutes brand identity. API-key
+providers show nothing, the mark moves only when pressed, and below `150px` of header the
 pairing hides.
 
 ### Sidebar selection

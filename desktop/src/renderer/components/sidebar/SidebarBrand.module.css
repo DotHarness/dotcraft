@@ -54,9 +54,19 @@
 .partner {
   display: inline-flex;
   min-width: 0;
-  animation: brand-fade-in 160ms ease-out;
   align-items: center;
   gap: 8px;
+  opacity: 0;
+  transform: translateX(-4px);
+  pointer-events: none;
+  transition: opacity 150ms ease-out, transform 150ms ease-out;
+}
+
+.brand:hover .partner,
+.brand:focus-within .partner {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
 }
 
 .rule {
@@ -228,11 +238,6 @@
   100% { transform: translateY(0); }
 }
 
-@keyframes brand-fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .mark[data-beat],
   .mark[data-beat] .ball,
@@ -242,5 +247,10 @@
   .partner,
   .partner * {
     animation: none !important;
+    transition: none !important;
+  }
+
+  .partner {
+    transform: none;
   }
 }
