@@ -160,7 +160,9 @@
   inset: -6px;
   background: repeating-conic-gradient(color-mix(in srgb, var(--gift-rarity) 55%, transparent) 0 8deg, transparent 8deg 30deg);
   mask: radial-gradient(circle, transparent 30%, #000 42%, transparent 72%);
-  animation: gift-rays 900ms ease-out both;
+  animation:
+    gift-rays 750ms ease-out both,
+    gift-rays-spin 20s linear infinite;
 }
 
 .artItem {
@@ -238,9 +240,14 @@
 }
 
 @keyframes gift-rays {
-  0% { opacity: 0; transform: scale(0.4) rotate(0); }
-  30% { opacity: 1; }
-  100% { opacity: 0.55; transform: scale(1) rotate(40deg); }
+  0% { opacity: 0; scale: 0.4; }
+  30% { opacity: 0.95; }
+  100% { opacity: 0.52; scale: 1; }
+}
+
+@keyframes gift-rays-spin {
+  from { rotate: 0deg; }
+  to { rotate: 360deg; }
 }
 
 @keyframes gift-item-rise {
