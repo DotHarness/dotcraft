@@ -12,7 +12,7 @@
   background-color: color-mix(in srgb, var(--accent) 6%, var(--sidebar-control-hover));
 }
 
-.dotcraft-automation-viewer-tab[aria-selected='true'] {
+.dotcraft-automation-viewer-tab[data-active='true'] {
   background-color: var(--sidebar-control-active);
 }
 
@@ -38,7 +38,7 @@
   animation: dotcraft-automation-tab-shimmer 2.1s linear infinite;
 }
 
-.dotcraft-automation-viewer-tab > * {
+.dotcraft-automation-viewer-tab > :not(.dotcraft-detail-panel-tab__close) {
   position: relative;
   z-index: 1;
 }

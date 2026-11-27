@@ -1,4 +1,4 @@
-import { useRef, useState, lazy, Suspense, type CSSProperties, type ReactNode } from 'react'
+import { useRef, useState, lazy, Suspense } from 'react'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import type { SystemDetailTab } from '../../stores/detailPanelStore'
 import { useDetailPanelPresentation } from '../../stores/detailPanelPresentation'
@@ -7,7 +7,7 @@ import { useConversationStore } from '../../stores/conversationStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { latestTurnDiff, turnPatchTotals } from '../../stores/turnDiffs'
-import { FilePlus2, FolderOpen, ListChecks, Plus, X, Globe, MousePointer2, Bot, MessagesSquare, Workflow, CalendarClock, Maximize2, Minimize2, Link } from 'lucide-react'
+import { FilePlus2, FolderOpen, ListChecks, Plus, Globe, MousePointer2, Bot, MessagesSquare, Workflow, CalendarClock, Maximize2, Minimize2, Link } from 'lucide-react'
 import { TerminalGlyph } from '../ui/TerminalGlyph'
 import { ChangesTab } from '../detail/ChangesTab'
 import { PlanTab } from '../detail/PlanTab'
@@ -28,11 +28,11 @@ import {
   type AddTabPopupPayload,
   type AddTabMenuRequest
 } from '../../../shared/addTabMenu'
-import { ActionTooltip } from '../ui/ActionTooltip'
 import { ACTION_SHORTCUTS, formatShortcutParts, type ShortcutSpec } from '../ui/shortcutKeys'
 import { performAddTabAction } from '../../utils/detailTabActions'
 import { IconButton } from '../ui/IconButton'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
+import { DetailPanelTab } from './DetailPanelTab'
 import { useDetailPanelTabClose, type DetailTabRef } from './useDetailPanelTabClose'
 import { useDetailTabMenuItems } from './detailTabMenu'
 import { useTabStripOverflow } from './useTabStripOverflow'
@@ -298,7 +298,6 @@ export function DetailPanel({
                   onActivate={() => setActiveViewerTab(tab.id)}
                   onClose={() => { void closeTab({ kind: 'viewer', id: tab.id }) }}
                   onContextMenu={(position) => setTabMenu({ ref: { kind: 'viewer', id: tab.id }, position })}
-                  maxWidth={160}
                 />
               )
             })}
@@ -397,97 +396,6 @@ export function DetailPanel({
       </div>
 
     </div>
-  )
-}
-
-function DetailPanelTab({
-  tabKey,
-  active,
-  title,
-  icon,
-  label,
-  badge,
-  closeLabel,
-  onActivate,
-  onClose,
-  onContextMenu,
-  className,
-  style,
-  maxWidth
-}: {
-  tabKey: string
-  active: boolean
-  title: string
-  icon: ReactNode
-  label?: string
-  badge?: number
-  closeLabel: string
-  onActivate: () => void
-  onClose: () => void
-  onContextMenu: (position: ContextMenuPosition) => void
-  className?: string
-  style?: CSSProperties
-  maxWidth?: number
-}): JSX.Element {
-  const [hovered, setHovered] = useState(false)
-  const tab = (
-    <div
-      className={className ? `dotcraft-detail-panel-tab ${className}` : 'dotcraft-detail-panel-tab'}
-      role="tab"
-      aria-selected={active}
-      data-tab-key={tabKey}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      onClick={onActivate}
-      onContextMenu={(e) => {
-        e.preventDefault()
-        onContextMenu({ x: e.clientX, y: e.clientY })
-      }}
-      onAuxClick={(e) => {
-        if (e.button === 1) {
-          e.preventDefault()
-          onClose()
-        }
-      }}
-      style={{
-        padding: label === undefined ? '0 8px' : undefined,
-        ...(maxWidth ? { maxWidth: `${maxWidth}px` } : {}),
-        ...style
-      }}
-    >
-      <span className="dotcraft-detail-panel-tab__leading">
-        {hovered ? (
-          <IconButton
-            size={16}
-            radius={3}
-            aria-label={closeLabel}
-            label={closeLabel}
-            onClick={(e) => {
-              e.stopPropagation()
-              onClose()
-            }}
-            icon={<X size={12} aria-hidden style={{ display: 'block' }} />}
-          />
-        ) : icon}
-      </span>
-      {label !== undefined && (
-        <span className="dotcraft-detail-panel-tab__label">
-          {label}
-        </span>
-      )}
-      {badge !== undefined && (
-        <span className="dotcraft-detail-panel-tab__badge">
-          {badge}
-        </span>
-      )}
-    </div>
-  )
-
-  if (!title) return tab
-  return (
-    <ActionTooltip label={title} placement="bottom" wrapperStyle={{ height: '100%' }}>
-      {tab}
-    </ActionTooltip>
   )
 }
 
