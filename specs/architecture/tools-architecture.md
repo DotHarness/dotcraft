@@ -9,14 +9,14 @@
 
 ## 1. Purpose
 
-This specification defines the architecture for every tool that can be made available to a DotCraft agent. It is the source of truth for shared behavior across native tool providers, MCP, Runtime Dynamic Tools, App Binding, Plugin Functions, social channels, and client presentation boundaries.
+This specification defines the architecture for every tool that can be made available to a DotCraft agent. It is the source of truth for shared behavior across native tool providers, MCP, Runtime Dynamic Tools, Plugin Functions, social channels, and client presentation boundaries.
 
 The architecture has four goals:
 
 1. one source-neutral registration and dispatch pipeline;
 2. explicit authority, exposure, identity, and audience boundaries;
 3. consistent AppServer tool semantics across server and clients;
-4. standards-based interactive tool UI through MCP Apps, while retaining App Binding as a small authorization and connection control plane.
+4. standards-based interactive tool UI through MCP Apps.
 
 ### 1.1 Specification ownership
 
@@ -25,7 +25,6 @@ The architecture has four goals:
 | this document | cross-source identity, layer boundaries, exposure, authority, execution, result audiences, presentation invariants, and the semantics of built-in tools |
 | [Session Core](session-core.md) | Thread/Turn/Item persistence, generic lifecycle, event ordering, archive/resume/fork semantics |
 | the AppServer protocol | JSON-RPC method names, DTOs, capability negotiation, notifications, and transport serialization |
-| the App Binding protocol | app discovery, principal/connection handoff, thread binding state, capability authorization, revoke/rebind/audit |
 | MCP and MCP Apps standards | MCP capability, tool/resource/result, Apps metadata, and bridge wire contracts |
 
 Consumers reference these semantics rather than redefining them.
@@ -37,8 +36,8 @@ This specification does not:
 - define general app discovery, marketplace, or plugin installation UX;
 - make every tool source use the same transport or session item type;
 - require interactive UI for a tool to be correct;
-- expose App Binding credentials or external app executables to the agent runtime;
-- provide aliases for Runtime Dynamic Tool or App Binding execution protocols.
+- expose external server credentials to the agent runtime;
+- provide aliases for Runtime Dynamic Tool execution protocols.
 
 ## 3. Normative language
 
@@ -96,7 +95,7 @@ The runtime registry retains executable registrations that are hidden from the m
 
 ### 5.3 Binding and authority
 
-Authority determines whether a registration is usable by a thread and whether a particular invocation can dispatch. Inputs include thread configuration, plugin state, App Binding state, mode policy, approval policy, MCP annotations, and connection health. Source-owned business invariants remain the native service's execution-boundary responsibility.
+Authority determines whether a registration is usable by a thread and whether a particular invocation can dispatch. Inputs include thread configuration, plugin state, mode policy, approval policy, MCP annotations, and connection health. Source-owned business invariants remain the native service's execution-boundary responsibility.
 
 The common dispatcher evaluates operational mode from the current runtime authority. A running Turn retains its captured mode; committed changes apply to subsequent Turns without rebuilding tools or rediscovering plugins.
 
@@ -202,12 +201,12 @@ MCP is normalized as one deterministic batch:
 2. Every Unicode scalar value outside ASCII letters, digits, and underscore becomes one `_` (hyphen included, so one identity works across providers). No Unicode normalization precedes sanitization or hashing.
 3. A namespace is limited to 49 ASCII bytes; a longer one becomes its first 36 bytes, `_`, and the first 12 lowercase hex characters of SHA-1 over the UTF-8 unsanitized seed.
 4. The child limit is `64 - namespaceLength - 2`; a longer child is truncated with the same `prefix + "_" + 12-hex` form.
-5. Distinct source identities that sanitize to the same namespace each receive a suffix from SHA-1 of the full source identity; distinct raw tools in one source that collide receive a suffix from SHA-1 of `sourceIdentity + NUL + rawToolName`. Truncation is reapplied after suffixing. Ordinary catalogs scope source identity to the server source family; binding catalogs use the binding id.
+5. Distinct source identities that sanitize to the same namespace each receive a suffix from SHA-1 of the full source identity; distinct raw tools in one source that collide receive a suffix from SHA-1 of `sourceIdentity + NUL + rawToolName`. Truncation is reapplied after suffixing. Catalogs scope source identity to the server source family.
 6. Collision groups are computed from ordinally sorted full seeds, so results do not depend on enumeration order. A remaining duplicate is quarantined, not resolved by last-write-wins.
 
 For MCP, `runtimeName` identifies the effective connection and `SourceToolId` is the exact raw name sent to `tools/call`; neither is a model namespace. The snapshot keeps the exact mapping `ToolName -> (ToolDefinitionId, RuntimeBindingId, runtimeName, SourceToolId)`. Clients, Views, and provider adapters MUST NOT reconstruct the MCP route by parsing or prefixing `ToolName`.
 
-Ordinary and approved App Binding catalogs share this normalization. Binding definitions retain identity, descriptions, schemas, annotations, audiences, and exposure across connection loss; only executor and lease change. Candidate binding catalogs are withheld. Persisted MCP items and MCP App resource operations record the executor's routing name and generation separately from the binding's authority revision.
+Persisted MCP items and MCP App resource operations record the executor's routing name and generation.
 
 Direct publication, deferred indexes, native tool-search results, and provider callbacks all use the same canonical namespace. In a namespace-capable search result, the container name is the canonical namespace and each child is the canonical local name; a `ProviderFlatName` is never nested as a child. A namespace appears at most once per projection or search result. Raw MCP server, runtime, and source identities are restricted to routing, authority, generation lookup, and provenance. A deferred descriptor's namespace equals its definition's canonical namespace. Callbacks with an invalid or unknown namespace fail closed as an unresolved tool call and never fail the Turn.
 
@@ -260,7 +259,7 @@ Every first-party tool whose model-visible contract is known at compile time der
 
 Generated parameter objects are closed by default, including nested DTOs; explicitly open JSON values remain open. CLR enum parameters are model-visible camelCase strings unless `JsonStringEnumMemberName` overrides a value; invocation deserializes with the same rules and rejects numeric enum values.
 
-Schemas discovered or supplied at runtime are exempt: MCP servers, plugins, channel adapters, App Bindings, Runtime Dynamic tools, and provider translation layers.
+Schemas discovered or supplied at runtime are exempt: MCP servers, plugins, channel adapters, Runtime Dynamic tools, and provider translation layers.
 
 ### 7.2 Strongly typed tool implementations
 
@@ -556,9 +555,9 @@ A View may save a widget state snapshot `{ modelContent, privateContent }`, each
 
 Saving never starts a Turn. `modelContent` reaches the model as the `visualization_state` [world-state section](world-state.md): before a model request, each visualization whose `modelContent` differs from what the model last saw is delivered keyed by path, and one that became `null` or was removed is delivered once as cleared. The section labels `modelContent` as untrusted data, not instructions. `privateContent` restores View presentation only and never reaches the model. A follow-up may carry explicit View context, appended to the user's message as a visible JSON block.
 
-## 15. App Binding boundary
+## 15. Credential and authority boundary
 
-An application binding supplies independently revocable authority for its tool registrations. Binding identity, approved capability revision, live executor health, and model exposure are separate facts. Capability expansion requires accepted authority before dispatch; revocation blocks existing snapshots immediately. Offline definitions may remain visible as non-executable stubs.
+External tool registrations do not grant ambient authority. Approval policy, connection health, and model exposure remain distinct checks at dispatch time.
 
 Credentials never enter model content, tool arguments, persisted definitions, or client-private result metadata.
 

@@ -368,7 +368,7 @@ Create a thread from a source thread's persisted history. Requires `capabilities
 Semantics:
 
 - The source is not mutated. The fork has a new id and `forkedFromId = threadId`, copies the selected history prefix, and terminates copied active or partial turns with an interrupted boundary.
-- Forks do not inherit queued inputs, pending approvals or user-input requests, app bindings, active goals, or durable plan state.
+- Forks do not inherit queued inputs, pending approvals or user-input requests, active goals, or durable plan state.
 - A persistent `systemNotice` item with `kind = "forked"` and `sourceThreadId` marks the copied-history boundary.
 - The response and the `thread/started` broadcast contain only the new header; clients read copied history through the paged history methods.
 
@@ -569,7 +569,7 @@ Interrupt active thread maintenance such as manual compaction. Gated by `capabil
 
 ### 4.17 Worktree Methods
 
-Gated by `capabilities.gitWorktrees`. These methods create, inspect, switch, and remove DotCraft-managed Git worktrees ([Session Core §4.1.1.2](../architecture/session-core.md#4112-worktrees)). Thread state (rollout, memory, goals, plans, app bindings, metadata) stays in the original workspace; the worktree is only the execution workspace. Managed worktree paths must resolve under `<workspace>/.craft/worktrees/`.
+Gated by `capabilities.gitWorktrees`. These methods create, inspect, switch, and remove DotCraft-managed Git worktrees ([Session Core §4.1.1.2](../architecture/session-core.md#4112-worktrees)). Thread state (rollout, memory, goals, plans, metadata) stays in the original workspace; the worktree is only the execution workspace. Managed worktree paths must resolve under `<workspace>/.craft/worktrees/`.
 
 Creation methods share `branchName` (allocated from `Worktrees.BranchPrefix` when omitted; an existing branch is rejected), `baseRef` (defaults to the source execution workspace `HEAD`), `path`, and `copyDirtyChanges` (default `true`: tracked and non-ignored untracked changes). Creation is atomic: the thread is created or moved only after the worktree and its changes are in place, and a failure leaves no worktree or branch behind. `worktree/createAndStart` and `worktree/createAndFork` also accept `environmentPath` and `operationId` ([Section 4.17.7](#4177-environments)).
 
@@ -1474,7 +1474,6 @@ Params `id`, optional `marketplaceName`. Result `{ plugin, snapshotRevision }`.
 | `functions` | Metadata for in-process Tools published by the current active .NET generation; empty otherwise. |
 | `skills` | Declared skills (`name`, `description`, `displayName`, `shortDescription`, `enabled`, optional icons from that skill's own interface metadata, available for catalog previews too). Enablement is managed through `skills/setEnabled` on the matching `skills/list` entry. |
 | `workflows` | Safe workflow summaries (`name`, namespaced `command`, `description`, optional `whenToUse`); never script source or paths. |
-| `apps` | App Binding descriptors (`appId`, `displayName`, `developerName`, `description`, optional `category`, `icon`, `nativeApplication`). Catalog metadata only: execution fields (`toolNamespace`, `scopes`, `toolCatalog`, `dynamicToolCatalog`) are invalid; binding capabilities come solely from the binding-scoped MCP session. |
 | `desktop` | Validated Desktop module metadata: optional `description`, manifest-relative `entry` and `styles`, and executable content `revision`. |
 | `channel` | Safe, static metadata for a validated channel contribution, including `moduleId`, `channelName`, localized display metadata, variant, setup steps, interactive setup requirement, configuration descriptors, and host compatibility. Present for catalog entries as well as installed plugins. It contains no launcher path, configuration values, or credentials. |
 | `hooks` | Hook `key` (correlates with `hooks/list`) and `eventName`. |
@@ -1573,7 +1572,7 @@ Params `id`, `trusted`. Grants or revokes the trust confirmation that lets a `do
 
 ### 18B.2 Plugin Configuration Methods
 
-Gated by `capabilities.pluginConfiguration`. [Plugin Architecture](../architecture/plugin-architecture.md) defines the schema and storage. Channel settings are workspace-only and require a workspace management connection. Channel adapters and App Binding principals cannot read or mutate them.
+Gated by `capabilities.pluginConfiguration`. [Plugin Architecture](../architecture/plugin-architecture.md) defines the schema and storage. Channel settings are workspace-only and require a workspace management connection. Channel adapters cannot read or mutate them.
 
 #### `plugin/config/get`
 
@@ -1668,7 +1667,6 @@ Execute one built-in or workflow slash command.
 **Result**: `handled`; `message` and `isMarkdown`; `expandedPrompt` (when non-null, the command expanded to a prompt the caller may submit with `turn/start`); `thread` (the conversation's new current thread, when the command changed it); `choices` (follow-ups `{ label, command }`).
 
 - When `thread` is present the caller switches its current thread immediately (`/new` and `/resume` return it). A thread created by `/new` may not be materialized until its first Turn.
-- On a thread with a non-revoked App Binding channel binding, `/new`, `/resume`, and `/sessions` change nothing and answer that the chat must first be unbound in DotCraft.
 - A choice's `command` is a complete slash command executed through `command/execute` as if typed; choices accompany `message`.
 - Each built-in command has a busy behavior while the thread has an active Turn: `run`, `interruptFirst` (cancel the Turn, then execute), or `reject` (busy reply). The in-chat command set and busy behaviors are owned by the channel messaging feature.
 - Admin-only commands fail with `CommandPermissionDenied` unless `sender.senderRole` is `"admin"`; a request without `sender` from a non-adapter connection acts as admin.
@@ -1941,7 +1939,7 @@ Validates and probes a temporary configuration without persisting it. Result `{ 
 
 ### 22.10 MCP Apps opaque View methods
 
-These methods implement the MCP Apps `io.modelcontextprotocol/ui` `2026-01-26` host boundary. Both server and client must advertise `mcpApps`. They are separate from App Binding methods and from the runtime methods in Section 22.8.
+These methods implement the MCP Apps `io.modelcontextprotocol/ui` `2026-01-26` host boundary. Both server and client must advertise `mcpApps`. They are separate from the runtime methods in Section 22.8.
 
 - Only a terminal `mcpToolCall` whose persisted UI association still matches the current MCP registration and authority is eligible; `view/open` loads the thread when needed and rejects other items.
 - Every `viewHandle` is random and connection-owned, and internally binds thread, Turn, Item, server and origin, MCP generation, binding identity, authority revision, raw source tool identity, and resource URI. None of these appear as request parameters.
@@ -2080,7 +2078,7 @@ Both mutation methods rebuild the runtime hook snapshot immediately, invalidate 
 ## 23. Channel Management Methods
 
 These methods require `capabilities.channelManagement` and a workspace management connection.
-A channel adapter or App Binding principal cannot use them.
+A channel adapter cannot use them.
 
 ### 23.1 `channel/setEnabled`
 

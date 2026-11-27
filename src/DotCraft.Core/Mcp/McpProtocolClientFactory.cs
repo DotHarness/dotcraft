@@ -73,7 +73,7 @@ internal static class McpProtocolClientFactory
 
             var environmentVariables = McpStdioEnvironment.CreateOverlay(server);
             var isDotNetAssembly = server.Command.EndsWith(".dll", StringComparison.OrdinalIgnoreCase);
-            var command = isDotNetAssembly ? "dotnet" : server.Command;
+            var command = isDotNetAssembly ? ResolveDotNetHost() : server.Command;
             List<string>? arguments = isDotNetAssembly
                 ? [server.Command, .. server.Arguments]
                 : server.Arguments is { Count: > 0 } ? server.Arguments : null;
@@ -97,6 +97,15 @@ internal static class McpProtocolClientFactory
         var client = await McpClient.CreateAsync(transport, clientOptions, cancellationToken: cancellationToken);
         McpInvocationScope.AttachClient(client, activeInvocations);
         return client;
+    }
+
+    internal static string ResolveDotNetHost(string? processPath = null)
+    {
+        processPath ??= Environment.ProcessPath;
+        return !string.IsNullOrWhiteSpace(processPath)
+            && Path.GetFileNameWithoutExtension(processPath).Equals("dotnet", StringComparison.OrdinalIgnoreCase)
+            ? processPath
+            : "dotnet";
     }
 
     internal static bool HasConfiguredBearerToken(McpServerConfig server) =>

@@ -132,7 +132,7 @@ Wire JSON-RPC failures are `JsonRpcException` with the numeric JSON-RPC code and
 ## 13. Security and compatibility
 
 - Raw request methods never log credentials or bearer tokens.
-- App Binding credential and bearer fields are opaque secrets.
+- Hub tokens and token-bearing WebSocket URLs are opaque secrets.
 - Unknown fields are preserved where Contracts types inherit `ExtensibleJsonObject`.
 - Open status, role, and kind values remain strings when future server values are valid.
 - Adding a known notification or payload kind is additive; removing or retyping one is breaking.

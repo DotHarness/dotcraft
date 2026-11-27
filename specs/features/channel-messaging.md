@@ -24,7 +24,7 @@ This specification owns:
 - the channel state the model receives;
 - the chat context an adapter attaches to inbound messages;
 - what an adapter shows in the chat while a Turn runs;
-- how automations and App Binding deliver through the tool;
+- how automations deliver through the tool;
 - the in-chat command set, its scopes, busy behavior, authority and platform presentation.
 
 Wire shapes belong to [AppServer Protocol](../protocols/appserver-protocol.md) (§3.2, §7, §11.2,
@@ -132,9 +132,8 @@ reachable targets (§5). The section is sent again only when that snapshot chang
   channel declares `history`.
 
 While the binding exists but its facts are unavailable, the section takes no snapshot and sends
-nothing, so the model keeps what it was last told. This covers a channel that is not connected, a
-chat whose details the adapter has not yet stated on its current connection, and an App Binding
-binding that is not `active`. A non-root thread takes no snapshot either, so a SubAgent neither
+nothing, so the model keeps what it was last told. This covers a channel that is not connected and a
+chat whose details the adapter has not yet stated on its current connection. A non-root thread takes no snapshot either, so a SubAgent neither
 restates nor retracts a section it inherited.
 
 When the thread has no binding, the section follows the capability rules of
@@ -189,7 +188,7 @@ attachment's caption instead of a separate message.
 
 The host validates the whole call before sending anything:
 
-- the target channel is connected, an App Binding binding is `active`, and, for a target other than
+- the target channel is connected and, for a target other than
   the bound chat, its `targets` capability allows the target's kind;
 - every attachment exists, is readable under the Turn's file access policy (its workspace roots,
   outside-workspace rule and path blacklist, as for file tools), and fits the target's `media`
@@ -223,7 +222,7 @@ and the parts delivered before the failure:
 | `unsupportedTarget` | The target channel cannot reach that kind of chat. |
 | `unsupportedKind` | An attachment kind the target cannot accept, even as a file. |
 | `tooLarge` | An attachment exceeds the target's limit. |
-| `channelUnavailable` | The target channel is not connected, or the App Binding binding is not `active`. |
+| `channelUnavailable` | The target channel is not connected. |
 | `deliveryFailed` | The platform rejected or failed a part. |
 | `declined` | The approval was declined. |
 
@@ -328,10 +327,6 @@ context. It has one current thread: the newest active thread for its identity. `
 `/resume` keep that invariant by archiving the thread they replace. When a command result names a
 thread, the adapter switches its current thread to it.
 
-A chat bound to a thread through App Binding (§4.1) belongs to that thread. While the binding is not
-revoked, `/new`, `/resume` and `/sessions` archive nothing and answer that the chat is bound to a
-DotCraft conversation and must be unbound in DotCraft first.
-
 `/sessions` and `/tasks` number entries in creation order, so a number never moves when a newer thread
 or task appears; `/resume` and `/tasks stop` accept that number or the entry's id, and the choices
 they return carry the id. `/model`, `/mode`, `/sessions` and `/tasks` return choices (§12.5) that
@@ -400,5 +395,5 @@ On failure the tool returns an error with one of these codes:
 |------|------|
 | `invalidArguments` | `limit` out of range or a malformed `before`. |
 | `unsupported` | The bound chat's channel does not declare `history`. |
-| `channelUnavailable` | The channel is not connected, or the App Binding binding is not `active`. |
+| `channelUnavailable` | The channel is not connected. |
 | `historyUnavailable` | The platform refused or failed the read, for example for a missing permission. |

@@ -144,7 +144,7 @@ Catalog order is independent of source order: methods sort by wire name, directi
 
 ### 6.2 Modules
 
-Each descriptor has a stable module identifier. Core and bundled first-party contracts (core AppServer, App Binding, Automations, ACP, Node REPL, External Channel) live in the Contracts assembly but remain separate modules in the Manifest, even when their runtime implementations live in separate assemblies. The default package represents the complete bundled AppServer surface; module filtering may produce a subset for validation.
+Each descriptor has a stable module identifier. Core and bundled first-party contracts (core AppServer, Automations, ACP, Node REPL, External Channel) live in the Contracts assembly but remain separate modules in the Manifest, even when their runtime implementations live in separate assemblies. The default package represents the complete bundled AppServer surface; module filtering may produce a subset for validation.
 
 Third-party extensions that do not ship a contract module declare string method names and accept raw JSON; dynamic third-party contract discovery is outside this package. Hub endpoints are not AppServer modules and do not enter the catalog, Manifest, or OpenRPC.
 

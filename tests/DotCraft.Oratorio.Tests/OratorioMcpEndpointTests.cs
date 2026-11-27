@@ -39,10 +39,29 @@ public sealed class OratorioMcpEndpointTests
     }
 
     [Fact]
-    public async Task McpEndpoint_ServesToolsResourcesAndBoardToolCalls()
+    public async Task McpEndpoint_IsNotExposed_WhenManagedServiceTokenIsUnconfigured()
     {
         await using var app = new TestOratorioApp();
         using var client = app.CreateClient();
+
+        using var response = await PostMcpAsync(client, "initialize", new
+        {
+            protocolVersion = "2025-03-26",
+            capabilities = new { },
+            clientInfo = new { name = "test", version = "1.0" }
+        });
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task McpEndpoint_ServesToolsResourcesAndBoardToolCalls()
+    {
+        await using var app = new TestOratorioApp(settings: new Dictionary<string, string?>
+        {
+            [ServiceTokenKey] = "secret-mcp-token"
+        });
+        using var client = app.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "secret-mcp-token");
 
         using var initResponse = await PostMcpAsync(client, "initialize", new
         {

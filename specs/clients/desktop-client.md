@@ -574,8 +574,7 @@ If the request fails before being accepted, Desktop clears the stopping state an
 ### 5.11 Cross-Channel Visibility
 
 - Desktop requests workspace-scoped thread discovery for foreground, secondary-project, archived, and Desktop-tool thread lists.
-- Every non-internal thread whose state workspace exactly matches the selected workspace is visible regardless of origin channel, user id, or channel context, including automations, App Binding origins, and unknown origins.
-- App Binding origin declarations provide attribution and branding; they are not a visibility allowlist.
+- Every non-internal thread whose state workspace exactly matches the selected workspace is visible regardless of origin channel, user id, or channel context, including automations and unknown origins.
 - Origin may be shown when useful; unsupported actions are disabled rather than failing; read and resume follow server capabilities and thread status.
 
 ### 5.11.1 Thread Fork and Worktree Handoff
@@ -588,7 +587,7 @@ If the request fails before being accepted, Desktop clears the stopping state an
 
 **Worktree execution**
 
-- `thread.effectiveWorkspacePath` is the file, shell, editor, and Git root for the selected thread. Thread list, provider settings, skill/plugin management, app bindings, memory, and workspace configuration stay scoped to the main workspace.
+- `thread.effectiveWorkspacePath` is the file, shell, editor, and Git root for the selected thread. Thread list, provider settings, skill/plugin management, memory, and workspace configuration stay scoped to the main workspace.
 - Main-workspace file and Git surfaces hide `.craft/worktrees/**`; worktree-bound surfaces operate inside the worktree.
 - Git status and branch detection run Git scoped to `effectiveWorkspacePath` rather than parsing `.git/HEAD`, because linked worktrees use `.git` files.
 - Branch state is cached per effective Git directory and shared across composers; a refresh keeps the previous snapshot visible until it settles.

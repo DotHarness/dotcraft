@@ -401,7 +401,7 @@ Verified cache entries survive disconnects; superseded revisions and removed plu
 
 ## Host and compatibility contract
 
-Every Desktop extension receives the same Host contract: the four primitives plus stable product operations for metadata, locale and theme, session state, SubAgent state, navigation, open targets, project actions, notifications, AppServer, MCP tool calls, App Binding, App Surfaces, workspaces, owned threads and linked chats, Oratorio, satellites, thread routes, and screen sessions. It is a supported authoring API, not a security membrane. Main-process validation remains a service invariant rather than a plugin permission.
+Every Desktop extension receives the same Host contract: the four primitives plus stable product operations for metadata, locale and theme, session state, SubAgent state, navigation, open targets, project actions, notifications, AppServer, MCP tool calls, workspaces, owned threads and linked chats, Oratorio, satellites, thread routes, and screen sessions. It is a supported authoring API, not a security membrane. Main-process validation remains a service invariant rather than a plugin permission.
 
 Every `onChange` subscription below is generation-owned, carries a complete snapshot, and fires only when a value actually changes.
 

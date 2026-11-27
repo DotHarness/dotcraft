@@ -13,7 +13,7 @@ TypeScript channel module contract.
 ## 1. Architecture Overview
 
 DotCraft plugins are host-integrated capability bundles. They distribute skills, Dynamic Workflows,
-MCP server declarations, App Binding descriptors, and optional client-facing metadata without
+MCP server declarations and optional client-facing metadata without
 requiring the agent pipeline to know each integration's implementation details.
 
 Contributions:
@@ -22,12 +22,11 @@ Contributions:
 2. **MCP Servers**: plugin-contained MCP server declarations loaded into DotCraft's MCP runtime.
 3. **Lifecycle Hooks**: plugin-contained hook declarations.
 4. **LSP Servers**: plugin-contained language server descriptors.
-5. **App Descriptors**: App Binding descriptors that make app connection and thread binding flows visible.
-6. **Desktop extensions**: optional trusted Desktop modules that contribute views, actions, commands, and tool presentation.
-7. **Dynamic Workflows**: plugin-contained JavaScript workflows registered under the plugin namespace.
-8. **.NET extensions**: plugin-contained managed assemblies admitted by the host runtime.
-9. **Channels**: plugin-contained messaging adapters run as workspace-owned child processes.
-10. **Interface Metadata**: optional client-facing plugin metadata.
+5. **Desktop extensions**: optional trusted Desktop modules that contribute views, actions, commands, and tool presentation.
+6. **Dynamic Workflows**: plugin-contained JavaScript workflows registered under the plugin namespace.
+7. **.NET extensions**: plugin-contained managed assemblies admitted by the host runtime.
+8. **Channels**: plugin-contained messaging adapters run as workspace-owned child processes.
+9. **Interface Metadata**: optional client-facing plugin metadata.
 
 Plugin manifests do not declare model-callable native tools. External reusable services use MCP.
 Thread-scoped client callbacks use the Runtime Dynamic Tool contract in

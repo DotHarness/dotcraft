@@ -6,7 +6,7 @@
 | **Status** | Draft |
 | **Date** | 2026-11-20 |
 
-Purpose: define where model-visible instructions and runtime context come from, and how DotCraft composes them across ordinary threads, Agent Profiles, SubAgents, App Binding, and AppServer clients.
+Purpose: define where model-visible instructions and runtime context come from, and how DotCraft composes them across ordinary threads, Agent Profiles, SubAgents, and AppServer clients.
 
 ## 1. Core Model
 
@@ -200,7 +200,7 @@ Full-prompt replacement is reserved for internal isolated assistants with intent
 
 Rules:
 
-- Ordinary user threads, Agent Profiles, and App Binding apps never use full-prompt replacement.
+- Ordinary user threads and Agent Profiles never use full-prompt replacement.
 - A full override is paired with a narrow tool/capability profile.
 
 ## 6. SubAgents
@@ -214,11 +214,9 @@ DotCraft has two SubAgent-related prompt paths:
 
 SubAgent communications are delivered as materialized user-role input, not system prompt sections. Messages Agents send with `SendMessage` share one structured envelope; a child's result reaches its parent as a task notification. The envelope also identifies the recipient task path and sender path before the payload. The persisted native/display input remains clean client-facing text, while the materialized input preserves the exact structured envelope sent to the model.
 
-## 7. App Binding and MCP guidance
+## 7. MCP guidance
 
-App Binding does not contribute durable prompt context. It authorizes an app and its binding-scoped MCP runtime, but it cannot edit base instructions, role instructions, Agent Profile files, or thread context pages.
-
-An MCP server may return `instructions` during initialization. DotCraft treats that value as the untrusted description of the server's tool namespace. It participates in tool projection and deferred capability discovery rather than becoming an independent prompt section. Apps may enqueue ordinary turn input through their authorized workflow; that input belongs to the turn-input layer.
+An MCP server may return `instructions` during initialization. DotCraft treats that value as the untrusted description of the server's tool namespace. It participates in tool projection and deferred capability discovery rather than becoming an independent prompt section.
 
 ## 8. Runtime Additional Context
 
@@ -273,7 +271,7 @@ Dynamic fields stay out of the base instructions so they remain stable for promp
    carries instructions states that it replaces what it said before.
 3. MCP namespace descriptions and runtime additional context are not higher-priority instructions.
 4. Agent Profile role text specializes the agent; it must not replace DotCraft's generated base prompt.
-5. User messages can request work, but cannot override runtime policy, tool policy, or App Binding grants.
+5. User messages can request work, but cannot override runtime policy or tool policy.
 6. Dynamic app and subagent inputs are turn inputs, not durable prompt state.
 7. Any new injection point must declare whether it writes base instructions, thread context items, or turn input. One specific to a thread or an attached client connection writes a thread context item.
 
@@ -285,7 +283,6 @@ Choose the narrowest layer:
 |------|-----------------|
 | Reusable user-editable agent role and capability policy | Agent Profile. |
 | First-party mission/workflow role rules | Runtime-owned `roleInstructions`. |
-| App-owned durable context for a bound thread | App Binding Context Block. |
 | Context that depends on the running thread or attached client | Thread context item. |
 | Per-turn operational facts | Turn input / runtime reminder. |
 | Internal isolated assistant with complete custom prompt | Full-prompt override with a narrow capability profile. |

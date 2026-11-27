@@ -35,7 +35,8 @@ public static partial class OratorioApplication
 
         app.MapOratorioApi();
         app.MapBoardStream();
-        app.MapMcp("/mcp");
+        if (!string.IsNullOrWhiteSpace(managedServiceToken))
+            app.MapMcp("/mcp");
     }
 
     private static async Task AuthorizeManagedServiceApiAsync(HttpContext context, RequestDelegate next, string? expectedToken)

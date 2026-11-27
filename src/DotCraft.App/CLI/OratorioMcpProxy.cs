@@ -13,6 +13,9 @@ namespace DotCraft.CLI;
 
 internal sealed class OratorioMcpProxy : IAsyncDisposable
 {
+    internal const string OratorioUrlEnvVar = "ORATORIO_URL";
+    internal const string OratorioServiceTokenEnvVar = "ORATORIO_SERVICE_TOKEN";
+
     private readonly string? _explicitUrl;
     private readonly string? _explicitToken;
     private readonly OratorioDynamicToolCatalog _catalog = new(NullLogger<OratorioDynamicToolCatalog>.Instance);
@@ -21,8 +24,29 @@ internal sealed class OratorioMcpProxy : IAsyncDisposable
 
     public OratorioMcpProxy(string? explicitUrl = null, string? explicitToken = null)
     {
-        _explicitUrl = string.IsNullOrWhiteSpace(explicitUrl) ? null : explicitUrl.Trim().TrimEnd('/');
-        _explicitToken = string.IsNullOrWhiteSpace(explicitToken) ? null : explicitToken.Trim();
+        (_explicitUrl, _explicitToken) = ResolveConfiguredTarget(
+            explicitUrl,
+            explicitToken,
+            Environment.GetEnvironmentVariable);
+    }
+
+    internal static (string? Url, string? Token) ResolveConfiguredTarget(
+        string? explicitUrl,
+        string? explicitToken,
+        Func<string, string?> getEnvironmentVariable)
+    {
+        var rawUrl = string.IsNullOrWhiteSpace(explicitUrl)
+            ? getEnvironmentVariable(OratorioUrlEnvVar)
+            : explicitUrl;
+        var url = string.IsNullOrWhiteSpace(rawUrl) ? null : rawUrl.Trim().TrimEnd('/');
+        if (url is null)
+            return (null, null);
+
+        var rawToken = string.IsNullOrWhiteSpace(explicitToken)
+            ? getEnvironmentVariable(OratorioServiceTokenEnvVar)
+            : explicitToken;
+        var token = string.IsNullOrWhiteSpace(rawToken) ? null : rawToken.Trim();
+        return (url, token);
     }
 
     public static async Task<int> RunStdioAsync(
@@ -92,42 +116,43 @@ internal sealed class OratorioMcpProxy : IAsyncDisposable
         CancellationToken cancellationToken) =>
         OratorioMcpCatalog.ReadUiResourceAsync(request.Params?.Uri, cancellationToken);
 
-    public async ValueTask<CallToolResult> CallToolAsync(
+    public ValueTask<CallToolResult> CallToolAsync(
         RequestContext<CallToolRequestParams> request,
+        CancellationToken cancellationToken) =>
+        CallToolAsync(request.Params, cancellationToken);
+
+    internal async ValueTask<CallToolResult> CallToolAsync(
+        CallToolRequestParams? parameters,
         CancellationToken cancellationToken)
     {
-        var parameters = request.Params
-            ?? throw new McpProtocolException("Missing tools/call parameters.", McpErrorCode.InvalidParams);
+        if (parameters is null)
+            throw new McpProtocolException("Missing tools/call parameters.", McpErrorCode.InvalidParams);
         var arguments = parameters.Arguments?.ToDictionary(
             static pair => pair.Key,
             static pair => (object?)pair.Value,
             StringComparer.Ordinal);
 
-        for (var attempt = 0; attempt < 2; attempt++)
+        var client = await EnsureUpstreamAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
-            var client = await EnsureUpstreamAsync(forceReconnect: attempt > 0, cancellationToken).ConfigureAwait(false);
-            try
-            {
-                return await client.CallToolAsync(
-                    parameters.Name,
-                    arguments,
-                    cancellationToken: cancellationToken).ConfigureAwait(false);
-            }
-            catch (Exception) when (attempt == 0 && !cancellationToken.IsCancellationRequested)
-            {
-                await ResetUpstreamAsync().ConfigureAwait(false);
-            }
+            return await client.CallToolAsync(
+                parameters.Name,
+                arguments,
+                cancellationToken: cancellationToken).ConfigureAwait(false);
         }
-
-        throw new McpProtocolException("Oratorio MCP service is unavailable.", McpErrorCode.InternalError);
+        catch (Exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            await ResetUpstreamAsync().ConfigureAwait(false);
+            throw;
+        }
     }
 
-    private async Task<McpClient> EnsureUpstreamAsync(bool forceReconnect, CancellationToken cancellationToken)
+    private async Task<McpClient> EnsureUpstreamAsync(CancellationToken cancellationToken)
     {
         await _connectLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (!forceReconnect && _upstream is not null)
+            if (_upstream is not null)
                 return _upstream;
 
             await DisposeUpstreamLockedAsync().ConfigureAwait(false);

@@ -267,7 +267,7 @@ source write retries only that write and never creates a new decision.
 
 Server configuration writes are a local-admin capability, not a general remote
 administration API; they require a trusted local boundary, operator
-authentication, or an active App Binding grant (§5.4). Writable settings are the source provider connections and
+authentication, or the authenticated MCP endpoint (§5.4). Writable settings are the source provider connections and
 credentials, the DotCraft bridge, workspace routing, managed worktrees,
 concurrency, retry, timeout and cleanup policy, implementation auto-dispatch
 policy, the repository Auto Review list, and the Implementation Follow-up
@@ -425,10 +425,10 @@ hidden unless the archived view is selected.
 Local tasks may take part in implementation auto-dispatch. They are still not a
 general cron or reminder system.
 
-### 5.4 Source Setup Through the App Binding
+### 5.4 Source Setup Through MCP
 
-An active App Binding exposes source setup tools, so a user can connect a
-repository by talking to the agent instead of opening Settings:
+The authenticated Oratorio MCP endpoint exposes source setup tools, so a user
+can connect a repository by talking to the agent instead of opening Settings:
 
 - **Read setup** returns the provider connections, every connected project with
   its workspace, automatic review, credential readiness and last sync, and the
@@ -455,16 +455,14 @@ repository by talking to the agent instead of opening Settings:
 Secrets therefore never enter model context or thread history, and a GitHub
 key file is referenced by its server path, never by its content.
 
-The setup tools exist only where the App Binding does, which is a Desktop-local
-Oratorio: its binding endpoint is loopback only. A server deployment has no App
-Binding, so an agent never changes its configuration; the server is configured
-through its own configuration.
+The `/mcp` endpoint is exposed only when Oratorio is configured with a managed
+service token, and every MCP request must present that bearer token.
 
-Binding writes are authorized by the binding grant instead of the loopback rule
-for direct configuration writes. Approving the tool call confirms the change's
-impact. Binding writes still respect a deployment that disables configuration
-writes, are recorded in the redacted change audit as App Binding changes, and
-apply immediately like any Settings save.
+MCP configuration writes are authorized by the managed service bearer instead
+of the loopback rule for direct Settings writes. Approving the tool call
+confirms the change's impact. MCP writes still respect a deployment that
+disables configuration writes, are recorded in the redacted change audit as
+MCP changes, and apply immediately like any Settings save.
 
 ## 6. Review Draft Contract
 
@@ -885,9 +883,6 @@ Oratorio uses DotCraft AppServer as the runtime boundary. It:
 - supplies versioned, thread-stable Oratorio guidance as runtime context when a
   thread starts, and supplies the same guidance again when resuming a reused
   thread;
-- for an accepted App Binding board-tool grant, attaches the board tools and
-  tells DotCraft to search for and load them before answering board or task
-  requests;
 - attaches external MCP tools only for reusable services that never submit
   back into a specific run;
 - submits the rendered prompt as a turn and follows thread and turn events,

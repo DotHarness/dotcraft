@@ -35,6 +35,10 @@ public sealed class StackDeploymentTemplateTests
             Assert.DoesNotContain(volumes, mount => mount.Contains(":/root/.craft", StringComparison.Ordinal));
             Assert.False(oratorio.Children.ContainsKey(new YamlScalarNode("env_file")));
 
+            var dotcraftEnvironment = Mapping(dotcraft, "environment");
+            Assert.Equal("http://oratorio:5087", Scalar(dotcraftEnvironment, "ORATORIO_URL"));
+            Assert.Equal("${ORATORIO_SERVICE_TOKEN:?set ORATORIO_SERVICE_TOKEN in .env}", Scalar(dotcraftEnvironment, "ORATORIO_SERVICE_TOKEN"));
+
             var environment = Mapping(oratorio, "environment");
             Assert.Equal("${ORATORIO_SERVICE_TOKEN:?set ORATORIO_SERVICE_TOKEN in .env}", Scalar(environment, "DOTCRAFT_MANAGED_SERVICE_TOKEN"));
             Assert.Equal("${APPSERVER_TOKEN:?set APPSERVER_TOKEN in .env}", Scalar(environment, "Oratorio__DotCraft__AppServerToken"));

@@ -69,7 +69,7 @@ Logical layers do not require one published package per layer, provided the depe
 
 ### 2.3 AppServer And Hub Are Authoritative
 
-SDKs are clients. They must not duplicate server-side thread state machines, queue semantics, approval policy, App Binding validation, model catalog resolution, or persistence rules.
+SDKs are clients. They must not duplicate server-side thread state machines, queue semantics, approval policy, model catalog resolution, or persistence rules.
 
 ### 2.4 Raw Escape Hatch Is Required
 
@@ -292,7 +292,7 @@ SDKs must not assume that a downstream messaging platform, gateway, or helper pr
 
 ## 5. Profile coverage
 
-Every general-purpose binding implements Core, Hub Bootstrap, Application, Run, and App Binding profiles. Channel Adapter is required only for bindings that ship external channel adapters; hosted Node module authoring remains a TypeScript-specific profile.
+Every general-purpose binding implements Core, Hub Bootstrap, Application, and Run profiles. Channel Adapter is required only for bindings that ship external channel adapters; hosted Node module authoring remains a TypeScript-specific profile.
 
 Typed wrappers may cover a subset of optional management methods. Explicit raw APIs provide access to the remaining protocol without changing server semantics.
 
@@ -313,7 +313,7 @@ SDKs must:
 - Avoid logging full token-bearing URLs.
 - Document explicit approval handlers for production use.
 - Avoid sandboxing claims for dynamic tool handlers. Tool handlers execute in the application process.
-- Preserve App Binding authority boundaries. DotCraft validation is not a substitute for app-side authorization.
+- Preserve server-owned authority boundaries. Client-side validation is not a substitute for server authorization.
 
 ## 9. Versioning And Compatibility
 
@@ -322,7 +322,7 @@ SDK changes are classified by the shared semantic contract, not by identical lan
 Breaking changes include:
 
 - Changing a stable SDK error code.
-- Removing a required Core, Hub, Application, Run, or App Binding capability from a language that had advertised the profile.
+- Removing a required Core, Hub, Application, or Run capability from a language that had advertised the profile.
 - Changing a typed wrapper's wire method or payload shape incompatibly.
 - Changing callback fallback behavior in a way that can block non-interactive clients.
 - Adding a broad string overload to a typed method.
