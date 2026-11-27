@@ -290,6 +290,81 @@ public sealed class McpToolHookTests : IDisposable
         Assert.Equal(2, (await File.ReadAllLinesAsync(sessionEndMarker)).Length);
     }
 
+    [Fact]
+    public async Task ArchiveThreadAsync_StillDispatchesSessionEndWhenPostArchiveCleanupThrows()
+    {
+        var sessionEndMarker = Path.Combine(_tempDir, "archive-fail-session-end.txt");
+        var hookConfig = new HooksFileConfig
+        {
+            Hooks =
+            {
+                [nameof(HookEvent.SessionEnd)] =
+                [
+                    new HookMatcherGroup
+                    {
+                        Hooks =
+                        [
+                            new HookEntry
+                            {
+                                Type = "command",
+                                Command = TestHookCommands.AppendLine("archive-fail-session-end.txt", "ended"),
+                                Shell = TestHookCommands.Shell,
+                                Timeout = 10
+                            }
+                        ]
+                    }
+                ]
+            }
+        };
+
+        var runner = new HookRunner(hookConfig, _tempDir);
+        var dataDir = Path.Combine(_tempDir, ".craft");
+        Directory.CreateDirectory(dataDir);
+        var chatClient = new CancellingChatClient();
+        await using var factory = new AgentFactory(
+            dotcraftPath: dataDir,
+            workspacePath: _tempDir,
+            config: AppConfigTestFactory.CreateOpenAI(),
+            memoryStore: new MemoryStore(dataDir),
+            skillsLoader: new SkillsLoader(_tempDir),
+            approvalService: new AutoApproveApprovalService(),
+            blacklist: null,
+            hookRunner: runner,
+            chatClientRegistry: DotCraft.Tests.TestModelProviderRegistry.Create(),
+            chatClient: chatClient,
+            toolSources: [new ThrowingReleaseToolSource()]);
+        var service = new SessionService(
+            factory,
+            chatClient.AsAIAgent(),
+            new SessionPersistenceService(new ThreadStore(dataDir)),
+            new SessionGate(),
+            hookRunner: runner);
+
+        var thread = await service.CreateThreadAsync(new SessionIdentity
+        {
+            ChannelName = "test",
+            UserId = "user1",
+            WorkspacePath = _tempDir
+        });
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.ArchiveThreadAsync(thread.Id));
+        Assert.Single(await File.ReadAllLinesAsync(sessionEndMarker));
+    }
+
+    private sealed class ThrowingReleaseToolSource : IToolSource, IThreadScopedToolSource
+    {
+        public string SourceId => "test-throwing-release";
+        public int Priority => 100;
+
+        public ValueTask<IReadOnlyList<ToolRegistration>> GetRegistrationsAsync(
+            ToolPlanningContext context,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult<IReadOnlyList<ToolRegistration>>([]);
+
+        public ValueTask ReleaseThreadAsync(string threadId, CancellationToken cancellationToken = default) =>
+            ValueTask.FromException(new InvalidOperationException("Simulated cleanup failure."));
+    }
+
     private static void WriteBrowserPlugin(string pluginDir, string toolName, string pluginId = "browser")
     {
         Directory.CreateDirectory(Path.Combine(pluginDir, ".craft-plugin"));

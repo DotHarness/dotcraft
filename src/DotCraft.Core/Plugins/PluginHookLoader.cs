@@ -26,10 +26,7 @@ public static class PluginHookLoader
         var discovery = new PluginDiscoveryService(builtInPluginSourceRoots: builtInPluginSourceRoots).Discover(config, workspacePath, botPath);
         allDiagnostics.AddRange(discovery.Diagnostics);
 
-        var bundledFingerprints = BuildHostBundledFingerprints(builtInPluginSourceRoots);
-        var sources = new List<PluginHookSource>();
-        foreach (var plugin in discovery.Plugins)
-            sources.AddRange(LoadPluginHooks(plugin, allDiagnostics, isManagedBuiltIn: IsVerifiedHostBundledPlugin(plugin, bundledFingerprints)));
+        var sources = LoadDiscoveredPluginHooks(discovery.Plugins, builtInPluginSourceRoots, null, allDiagnostics);
 
         diagnostics = allDiagnostics;
         return sources;
@@ -136,37 +133,57 @@ public static class PluginHookLoader
             isManagedBuiltIn));
     }
 
-    private static Dictionary<string, string> BuildHostBundledFingerprints(IReadOnlyList<string>? builtInPluginSourceRoots)
+    private static List<PluginHookSource> LoadDiscoveredPluginHooks(
+        IReadOnlyList<DiscoveredPlugin> plugins,
+        IReadOnlyList<string>? builtInPluginSourceRoots,
+        DotCraft.Workspaces.DotCraftPaths? paths,
+        List<PluginDiagnostic> diagnostics)
     {
-        var fingerprints = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var source in BuiltInPluginSourceResolver.DiscoverHostBundled(builtInPluginSourceRoots))
+        var hasUserGlobalHookCandidates = plugins.Any(static plugin =>
+            plugin.SourceKind == PluginDiscoverySourceKind.UserGlobal && plugin.Manifest.Hooks?.HasAny == true);
+        var bundledSources = hasUserGlobalHookCandidates
+            ? BuiltInPluginSourceResolver.DiscoverHostBundled(builtInPluginSourceRoots)
+                .ToDictionary(static s => s.Manifest.Id, StringComparer.OrdinalIgnoreCase)
+            : null;
+
+        var sources = new List<PluginHookSource>();
+        foreach (var plugin in plugins)
         {
-            fingerprints[source.Manifest.Id] = BuiltInPluginDeployer.BuildFingerprint(
-                source.PluginRoot,
-                source.Manifest.Channel != null);
+            var dataPath = paths is null ? null : PluginDataPaths.Resolve(paths, plugin.Manifest.Id);
+            var isManagedBuiltIn = bundledSources is not null
+                && IsVerifiedHostBundledPlugin(plugin, bundledSources);
+            sources.AddRange(LoadPluginHooks(plugin, diagnostics, dataPath, isManagedBuiltIn));
         }
-        return fingerprints;
+
+        return sources;
     }
 
     private static bool IsVerifiedHostBundledPlugin(
         DiscoveredPlugin plugin,
-        IReadOnlyDictionary<string, string> bundledFingerprints)
+        IReadOnlyDictionary<string, BuiltInPluginSource> bundledSources)
     {
-        if (plugin.SourceKind != PluginDiscoverySourceKind.UserGlobal)
+        if (plugin.SourceKind != PluginDiscoverySourceKind.UserGlobal || plugin.Manifest.Hooks?.HasAny != true)
             return false;
-        if (!bundledFingerprints.TryGetValue(plugin.Manifest.Id, out var expectedFingerprint))
+        if (!bundledSources.TryGetValue(plugin.Manifest.Id, out var bundledSource))
             return false;
 
+        var expectedFingerprint = TryBuildFingerprint(bundledSource.PluginRoot, bundledSource.Manifest.Channel != null);
+        if (expectedFingerprint is null)
+            return false;
+
+        var actualFingerprint = TryBuildFingerprint(plugin.Manifest.RootPath, plugin.Manifest.Channel != null);
+        return string.Equals(actualFingerprint, expectedFingerprint, StringComparison.Ordinal);
+    }
+
+    private static string? TryBuildFingerprint(string pluginRoot, bool channel)
+    {
         try
         {
-            var actualFingerprint = BuiltInPluginDeployer.BuildFingerprint(
-                plugin.Manifest.RootPath,
-                plugin.Manifest.Channel != null);
-            return string.Equals(actualFingerprint, expectedFingerprint, StringComparison.Ordinal);
+            return BuiltInPluginDeployer.BuildFingerprint(pluginRoot, channel);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
-            return false;
+            return null;
         }
     }
 
@@ -210,16 +227,7 @@ public static class PluginHookLoader
             .Discover(config, paths.WorkspacePath, paths.Data.RootPath);
         allDiagnostics.AddRange(discovery.Diagnostics);
 
-        var bundledFingerprints = BuildHostBundledFingerprints(builtInPluginSourceRoots);
-        var sources = new List<PluginHookSource>();
-        foreach (var plugin in discovery.Plugins)
-        {
-            sources.AddRange(LoadPluginHooks(
-                plugin,
-                allDiagnostics,
-                PluginDataPaths.Resolve(paths, plugin.Manifest.Id),
-                IsVerifiedHostBundledPlugin(plugin, bundledFingerprints)));
-        }
+        var sources = LoadDiscoveredPluginHooks(discovery.Plugins, builtInPluginSourceRoots, paths, allDiagnostics);
 
         diagnostics = allDiagnostics;
         return sources;
