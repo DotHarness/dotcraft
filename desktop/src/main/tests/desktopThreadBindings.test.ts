@@ -4,6 +4,8 @@ import {
   type AppServerRequestClient
 } from '../desktopRuntimeThreadTools'
 import { CREATOR_CONTEXT_KEY, setCreatorThread } from '../creatorMode'
+import { DESKTOP_LINKED_CHATS_CONTEXT_KEY, setDesktopLinkedChatsSource } from '../threadTasks/linkedChatsContext'
+import type { LinkedChat } from '../threadTasks/linkedChatStore'
 
 function client(handler?: (method: string) => Promise<unknown>): AppServerRequestClient {
   return { sendRequest: vi.fn(handler ?? (async (method) => method === 'thread/start' || method === 'thread/resume'
@@ -108,5 +110,46 @@ describe('Desktop connection-local thread bindings', () => {
     pending.resolve({ thread: { id: 'same-thread' } })
     await Promise.all([first, second])
     expect(vi.mocked(connection.sendRequest).mock.calls.map(([method]) => method)).toEqual(['thread/resume', 'turn/start', 'turn/enqueue'])
+  })
+
+  it('injects and rebinds desktop.linkedChats before turns and turn/notify as linked chat states change', async () => {
+    let links: LinkedChat[] = []
+    setDesktopLinkedChatsSource({ listForThread: (threadId) => (threadId === 'same-thread' ? links : []) })
+    try {
+      const connection = client()
+      const resumedPayloads = () => vi.mocked(connection.sendRequest).mock.calls
+        .filter(([method]) => method === 'thread/resume')
+        .map(([, params]) => (params as { additionalContext: Record<string, { value: string }> }).additionalContext)
+
+      await sendDesktopAppServerRequest(connection, 'thread/start', {})
+      await sendDesktopAppServerRequest(connection, 'turn/start', { threadId: 'same-thread' }, undefined, rebind)
+      expect(resumedPayloads()).toEqual([])
+
+      links = [{
+        parent: { threadId: 'same-thread', projectId: 'chats', workspacePath: '/chats' },
+        child: { threadId: 'child-1', projectId: 'dotcraft', workspacePath: '/dotcraft', projectName: 'dotcraft', title: 'Fix tests' },
+        status: 'running',
+        followed: true,
+        createdAt: '2026-11-27T01:00:00Z'
+      }]
+      await sendDesktopAppServerRequest(connection, 'turn/start', { threadId: 'same-thread' }, undefined, rebind)
+      expect(resumedPayloads()).toHaveLength(1)
+      expect(resumedPayloads()[0]?.[DESKTOP_LINKED_CHATS_CONTEXT_KEY]?.value).toContain('"Fix tests" (id: child-1, project: dotcraft [dotcraft]): working, followed')
+
+      await sendDesktopAppServerRequest(connection, 'turn/start', { threadId: 'same-thread' }, undefined, rebind)
+      expect(resumedPayloads()).toHaveLength(1)
+
+      links = [{ ...links[0]!, status: 'waitingForInput', waitingFor: 'approval' }]
+      await sendDesktopAppServerRequest(connection, 'turn/notify', { threadId: 'same-thread' }, undefined, rebind)
+      expect(resumedPayloads()).toHaveLength(2)
+      expect(resumedPayloads()[1]?.[DESKTOP_LINKED_CHATS_CONTEXT_KEY]?.value).toContain('needs the user (approval)')
+
+      links = []
+      await sendDesktopAppServerRequest(connection, 'turn/start', { threadId: 'same-thread' }, undefined, rebind)
+      expect(resumedPayloads()).toHaveLength(3)
+      expect(resumedPayloads()[2]).not.toHaveProperty(DESKTOP_LINKED_CHATS_CONTEXT_KEY)
+    } finally {
+      setDesktopLinkedChatsSource(null)
+    }
   })
 })

@@ -4,6 +4,7 @@ import { devServerToolDefinitions, devServerToolNames, handleDevServerToolCall }
 import devServerGuidance from './prompts/devServers.md?raw'
 import cdpDebuggingGuidance from './prompts/cdpDebugging.md?raw'
 import { creatorAdditionalContext, creatorContextRevision } from './creatorMode'
+import { linkedChatsAdditionalContext, linkedChatsContextFingerprint } from './threadTasks/linkedChatsContext'
 import { handleThreadManagementTool, MAX_LIST_THREADS_LIMIT, requestClient, resolveTargetThread } from './threadTasks/threadManagementTools'
 import { PROJECT_PROPERTY, ThreadProjectError, type ThreadProject, type ThreadProjectHost } from './threadTasks/threadProjects'
 import { themeToolDefinition, themeTool, type DesktopThemeHost } from './themes/themeTools'
@@ -172,10 +173,14 @@ const DESKTOP_THREAD_COORDINATION_CONTEXT: RuntimeAdditionalContextEntry = {
   value: THREAD_COORDINATION_GUIDANCE
 }
 
+function desktopThreadContextRevision(threadId: string): string {
+  return `${creatorContextRevision(threadId)}\0${linkedChatsContextFingerprint(threadId)}`
+}
+
 const bindings = new DesktopThreadBindings({
   withTools: withDesktopThreadDynamicTools,
   includesTools: requestIncludesDesktopThreadTools,
-  contextRevision: creatorContextRevision
+  contextRevision: desktopThreadContextRevision
 })
 
 export function resetDesktopThreadToolBindings(client: AppServerRequestClient): void {
@@ -277,7 +282,7 @@ export function buildDesktopThreadDynamicTools(local = true): DynamicToolSpec[] 
     {
       namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
       name: 'FollowThread',
-      description: 'When the user asks, follow an existing chat for automatic reports without messaging it.',
+      description: 'Follow an existing chat for automatic reports without messaging it.',
       inputSchema: {
         type: 'object',
         properties: { threadId: { type: 'string' }, project: PROJECT_PROPERTY },
@@ -289,7 +294,7 @@ export function buildDesktopThreadDynamicTools(local = true): DynamicToolSpec[] 
     {
       namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
       name: 'UnfollowThread',
-      description: 'When the user asks, stop following a chat added with FollowThread.',
+      description: 'Stop following a chat added with FollowThread.',
       inputSchema: {
         type: 'object',
         properties: { threadId: { type: 'string' }, project: PROJECT_PROPERTY },
@@ -312,12 +317,13 @@ export function buildDesktopThreadDynamicTools(local = true): DynamicToolSpec[] 
     {
       namespace: DESKTOP_THREAD_TOOL_NAMESPACE,
       name: 'ListThreads',
-      description: 'List recent chats in a project or chats linked to this chat.',
+      description: 'List recent chats in a project, active chats across running projects, or chats linked to this chat.',
       inputSchema: {
         type: 'object',
         properties: {
           project: PROJECT_PROPERTY,
           linked: { type: 'boolean', description: 'List chats started or followed by this chat across projects, newest first. Ignores project.' },
+          activeOnly: { type: 'boolean', description: 'Return only active chats (running, waiting for the user, or with background work). With linked false and project omitted, aggregates active chats across running projects without starting stopped ones.' },
           query: { type: 'string', description: 'Optional local text filter for thread id, title, or origin.' },
           limit: { type: 'integer', minimum: 1, maximum: MAX_LIST_THREADS_LIMIT },
           cursor: { type: 'string', description: 'Opaque cursor from a previous ListThreads result.' },
@@ -606,7 +612,8 @@ function withDesktopThreadDynamicTools(params: unknown, local: boolean): unknown
     additionalContext: {
       ...existingAdditionalContext,
       ...buildDesktopThreadAdditionalContext(local),
-      ...creatorAdditionalContext(typeof params.threadId === 'string' ? params.threadId : null)
+      ...creatorAdditionalContext(typeof params.threadId === 'string' ? params.threadId : null),
+      ...linkedChatsAdditionalContext(typeof params.threadId === 'string' ? params.threadId : null)
     },
     dynamicTools: [
       ...existing,

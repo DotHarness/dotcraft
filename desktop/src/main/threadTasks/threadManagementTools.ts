@@ -3,6 +3,7 @@ import { submitThreadMessage } from '../desktopThreadMessageTool'
 import { normalizeWorkspaceProjectKey } from '../../shared/workspaceProjectKey'
 import { desktopIdentity, type ThreadTaskConnection } from './childThreads'
 import type { DesktopLinkedChats, LinkedChatChild, LinkedChatRef, LinkedTurn, ThreadHeaderResult } from './linkedChats'
+import { listActiveThreadsAcrossProjects } from './activeThreads'
 import { callingThread, connectThreadProject, currentThreadProject, readProjectArgument, resolveThreadProject } from './threadProjects'
 
 export const MAX_LIST_THREADS_LIMIT = 100
@@ -47,12 +48,37 @@ export async function handleThreadManagementTool(
   if (tool === 'ListThreads') {
     const linked = optionalBoolean(args, 'linked', false)
     if (!linked.ok) return linked.error
+    const activeOnly = optionalBoolean(args, 'activeOnly', false)
+    if (!activeOnly.ok) return activeOnly.error
     if (linked.value) {
-      const threads = parent && linkedChats ? linkedChats.list(parent).map(({ child, createdAt, followed, status }) => ({
+      const all = parent && linkedChats ? linkedChats.list(parent) : []
+      const filtered = activeOnly.value
+        ? all.filter(({ status }) => status === 'running' || status === 'waitingForInput')
+        : all
+      const threads = filtered.map(({ child, createdAt, followed, status, waitingFor }) => ({
         id: child.threadId, displayName: child.title, project: child.projectId, projectName: child.projectName,
-        workspacePath: child.workspacePath, createdAt, status, startedHere: !followed
-      })) : []
+        workspacePath: child.workspacePath, createdAt, status,
+        ...(waitingFor ? { waitingFor } : {}),
+        startedHere: !followed
+      }))
       return threadListResult(threads, threads.length, null)
+    }
+    if (activeOnly.value) {
+      const query = optionalString(args, 'query')
+      if (query?.ok === false) return query.error
+      const limit = optionalInteger(args, 'limit', DEFAULT_LIST_THREADS_LIMIT, MAX_LIST_THREADS_LIMIT)
+      if (limit.ok === false) return limit.error
+      const projectId = readProjectArgument(args.project)
+      const project = projectId ? await resolveThreadProject(connection, projectId) : undefined
+      const result = await listActiveThreadsAcrossProjects({
+        connection, linkedChats, parent, project,
+        query: query?.value,
+        limit: limit.value,
+        maxPerProjectLimit: MAX_LIST_THREADS_LIMIT,
+        summarize: summarizeThread,
+        requestClient
+      })
+      return threadListResult(result.threads, result.totalMatched, null)
     }
     const target = await connectThreadProject(connection, await resolveThreadProject(connection, readProjectArgument(args.project)))
     return listThreadsTool(requestClient(target), args, target.workspacePath)
@@ -483,7 +509,20 @@ function formatThreadSummaryLine(thread: JsonObject): string {
   const title = typeof thread.displayName === 'string' && thread.displayName.trim()
     ? thread.displayName.trim()
     : '(untitled)'
-  return `- ${thread.id}: ${title} [${thread.status ?? 'unknown'}]${thread.projectName ? ` · ${thread.projectName}` : ''}`
+  const state = formatThreadSummaryState(thread)
+  const linkLabel = thread.linked === true
+    ? (thread.startedHere === true ? ' (started here)' : ' (followed)')
+    : ''
+  return `- ${thread.id}: ${title} [${state}]${thread.projectName ? ` · ${thread.projectName}` : ''}${linkLabel}`
+}
+
+function formatThreadSummaryState(thread: JsonObject): string {
+  const wait = typeof thread.waitingFor === 'string' ? thread.waitingFor : null
+  if (thread.activeState === 'needsUser' || thread.status === 'waitingForInput') {
+    return wait ? `needs user: ${wait}` : 'needs user'
+  }
+  if (thread.activeState === 'working') return 'working'
+  return String(thread.status ?? 'unknown')
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

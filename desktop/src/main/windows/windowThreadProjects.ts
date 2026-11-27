@@ -2,6 +2,7 @@ import { basename } from 'node:path'
 import { normalizeSshMachines } from '../../shared/sshMachines'
 import { isRemoteProjectKey } from '../../shared/workspaceProjectKey'
 import { isDefaultChatWorkspace, resolveDefaultChatWorkspacePath } from '../defaultChatWorkspace'
+import { sendDesktopAppServerRequest } from '../desktopRuntimeThreadTools'
 import { getLocalProjectDetails } from '../settings'
 import type { LinkedChatConnection } from '../threadTasks/linkedChats'
 import { notConnectedMessage, ThreadProjectError, type ThreadProject, type ThreadProjectLocation } from '../threadTasks/threadProjects'
@@ -163,7 +164,12 @@ export function connectLinkedChats(ctx: DesktopWindowRuntime, entry: WorkspaceCo
     connection = {
       projectId: entry.projectId,
       workspacePath: entry.workspacePath,
-      request: (method, params) => entry.client.sendRequest(method, params)
+      request: (method, params) => method === 'turn/notify'
+        ? sendDesktopAppServerRequest(entry.client, method, params, undefined, {
+            supportsDynamicToolRebind: entry.initializeResult?.capabilities?.dynamicToolRebind === true,
+            remote: entry.kind === 'remote'
+          })
+        : entry.client.sendRequest(method, params)
     }
     observed.set(entry, connection)
     const wrapper = connection

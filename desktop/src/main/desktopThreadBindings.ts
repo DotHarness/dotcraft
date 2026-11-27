@@ -12,7 +12,7 @@ interface BindingOptions {
 
 interface ConnectionBindings {
   /** Threads bound with tools, mapped to the context revision they were bound with. */
-  bound: Map<string, number>
+  bound: Map<string, string | number>
   helpers: Set<string>
   visualizations: Set<string>
   pending: Map<string, Promise<void>>
@@ -21,7 +21,7 @@ interface ConnectionBindings {
 interface ToolDeclaration {
   withTools(params: unknown, local: boolean): unknown
   includesTools(params: unknown): boolean
-  contextRevision(threadId: string): number
+  contextRevision(threadId: string): string | number
 }
 
 export class DesktopThreadBindings {
@@ -46,7 +46,7 @@ export class DesktopThreadBindings {
   ): Promise<T> {
     const state = this.forClient(client)
     const threadId = stringProperty(params, 'threadId')
-    if (threadId && (method === 'turn/start' || method === 'turn/enqueue' || method === 'turn/startOrEnqueue')) {
+    if (threadId && (method === 'turn/start' || method === 'turn/enqueue' || method === 'turn/startOrEnqueue' || method === 'turn/notify')) {
       await this.ensureTools(client, state, threadId, options)
     }
     if (threadId && method === 'visualization/view/open') {

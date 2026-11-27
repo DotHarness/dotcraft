@@ -204,6 +204,87 @@ describe('cross-project Desktop thread tools', () => {
     expect(target).toHaveBeenLastCalledWith('turn/interrupt', { threadId: child.threadId, turnId: 'turn-1' })
   })
 
+  it('aggregates active chats across running projects with activeOnly without starting stopped projects', async () => {
+    const appProject = { id: 'app', name: 'App', path: '/projects/app', running: true }
+    const stoppedProject = { id: 'stopped', name: 'Stopped', path: '/projects/stopped', running: false }
+    const appSend = vi.fn(async (method: string) => {
+      if (method === 'thread/list') {
+        return {
+          data: [
+            { id: 'app-idle', displayName: 'Done work', status: 'active', lastActiveAt: '2026-11-27T04:00:00Z', runtime: {} },
+            { id: 'app-wait', displayName: 'Needs OK', status: 'active', lastActiveAt: '2026-11-27T02:00:00Z', runtime: { waitingOnApproval: true } },
+            { id: 'app-run', displayName: 'Refactor', status: 'active', lastActiveAt: '2026-11-27T03:30:00Z', runtime: { running: true, activeTurnId: 't1' } }
+          ]
+        }
+      }
+      return {}
+    })
+    const chatsSend = vi.fn(async (method: string) => {
+      if (method === 'thread/list') {
+        return {
+          data: [
+            { id: parent.threadId, displayName: 'Oratorio', status: 'active', lastActiveAt: '2026-11-27T05:00:00Z', runtime: { running: true } },
+            { id: 'chat-bg', displayName: 'Background check', status: 'active', lastActiveAt: '2026-11-27T03:00:00Z', runtime: { hasBackgroundWork: true } }
+          ]
+        }
+      }
+      return {}
+    })
+    const connect = vi.fn(async (project: ThreadProjectLocation) => ({
+      workspacePath: project.path,
+      project: { ...project, running: true },
+      request: project.id === appProject.id ? appSend : chatsSend
+    }))
+    const links = new DesktopLinkedChats(null)
+    links.follow(parent, { threadId: 'app-run', projectId: appProject.id, workspacePath: appProject.path, projectName: appProject.name, title: 'Refactor' })
+    const tasks = new DesktopThreadTasks({ linkedChats: links, store: new ThreadTaskStore(null), getNewTaskPrompt: () => 'ask' })
+    const result = await handleDesktopRuntimeThreadToolCall(
+      { sendRequest: chatsSend },
+      { threadId: parent.threadId, namespace: DESKTOP_THREAD_TOOL_NAMESPACE, tool: 'ListThreads', arguments: { activeOnly: true } },
+      chats.path,
+      {
+        project: chats,
+        projects: { list: async () => [chats, appProject, stoppedProject], connect },
+        tasks
+      }
+    )
+
+    expect(result.success).toBe(true)
+    expect(connect).toHaveBeenCalledTimes(1)
+    expect(connect).toHaveBeenCalledWith(appProject)
+    expect(result.structuredContent).toMatchObject({
+      count: 3,
+      totalMatched: 3,
+      nextCursor: null,
+      threads: [
+        { id: 'app-wait', project: appProject.id, projectName: appProject.name, activeState: 'needsUser', waitingFor: 'approval', linked: false },
+        { id: 'app-run', project: appProject.id, projectName: appProject.name, activeState: 'working', linked: true, startedHere: false },
+        { id: 'chat-bg', project: chats.id, projectName: chats.name, activeState: 'working', linked: false }
+      ]
+    })
+  })
+
+  it('filters linked chats with activeOnly and includes waitingFor metadata', async () => {
+    const { call, links } = fixture()
+    links.follow(parent, child, { id: 'done-1', status: 'completed' })
+    const waitingChild = { ...child, threadId: 'waiting-child', title: 'Waiting task' }
+    links.link(parent, waitingChild)
+    const conn = { projectId: library.id, workspacePath: library.path, request: vi.fn(async (method: string) => method === 'thread/read' ? { thread: { status: 'active', runtime: { activeTurnId: 'turn-w', waitingOnApproval: true } } } : { data: [] }) }
+    links.connected(conn)
+    links.handleNotification(conn, 'thread/status/changed', {
+      threadId: waitingChild.threadId,
+      runtime: { activeTurnId: 'turn-w', waitingOnApproval: true }
+    })
+    const res = await call('ListThreads', { linked: true, activeOnly: true })
+    expect(res).toMatchObject({
+      success: true,
+      structuredContent: {
+        count: 1,
+        threads: [{ id: 'waiting-child', status: 'waitingForInput', waitingFor: 'approval', startedHere: true }]
+      }
+    })
+  })
+
   it('queues a follow-up to a busy linked chat and changes reasoning without taking over its binding', async () => {
     const { call, target, links } = fixture()
     links.link(parent, child)

@@ -39,6 +39,7 @@ import { createWindowAttentionNotifier } from './windowAttentionNotifier'
 import type { DesktopWindowRuntime } from './windows/windowRuntime'
 import { applyNativeChromeTheme, resolveInitialTheme, resolveThemeSurface } from './windowTheme'
 import { DesktopLinkedChats } from './threadTasks/linkedChats'
+import { setDesktopLinkedChatsSource } from './threadTasks/linkedChatsContext'
 import { DesktopOwnedThreads } from './threadTasks/ownedThreads'
 import { registerCreatorModeIpc } from './creatorMode'
 import { LINKED_CHATS_CHANGED_CHANNEL, OWNED_THREADS_CHANGED_CHANNEL } from '../shared/ownedThreads'
@@ -102,6 +103,7 @@ export class DesktopApplication implements DesktopApplicationServices {
       updateSettings: this.updateSharedSettings
     })
     setComputerUseRuntimeHost({ getSettings: () => this.settings, updateSettings: this.updateSharedSettings })
+    setDesktopLinkedChatsSource(this.tasks.linkedChats ?? null)
   }
 
   async start(argv: string[]): Promise<void> {

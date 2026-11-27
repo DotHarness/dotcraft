@@ -30,13 +30,14 @@ The conductor hands work off in one of two forms, so quick work stays light and 
 
 ## 3. Reporting
 
-- When the person asks the conductor to keep an eye on an existing chat, it follows that chat through the Desktop thread tools. A request for current progress is answered without changing which chats are followed.
-- The conductor receives [reports](../../clients/desktop-client.md#514-desktop-runtime-thread-tools) from the chats it starts or follows. It tells the person the outcome in a line or two and carries on with any step of the person's request that the result unblocks.
+- The conductor tracks active work across projects. On kickoff and when checking status, it inspects active chats across running projects (`ListThreads` with `activeOnly = true`) and open Oratorio tasks when the board binding is available.
+- For active chats (running or waiting for the person), the conductor follows them with `FollowThread` so reports arrive automatically without messaging or interrupting them. Idle chats are followed only when the person asks.
+- The conductor receives [reports](../../clients/desktop-client.md#514-desktop-runtime-thread-tools) from the chats it starts or follows, along with their live status roster in `additionalContext["desktop.linkedChats"]`. It tells the person the outcome in a line or two and carries on with any step of the person's request that the result unblocks.
 - A report is the chat's own account, not proof. Before the conductor tells the person that work is done, it reads the chat's result. It never predicts or invents a result it has not received.
-- A request waiting in a chat, such as an approval or a question, can only be answered by the person. The conductor names the chat that is waiting and never answers, stops, or works around that request itself, here or through another chat.
+- A request waiting in a chat, such as an approval or a question, can only be answered by the person. The conductor puts waiting chats first, names each chat and what it needs, and never answers, stops, or works around that request itself, here or through another chat.
 - Messages the conductor receives from chats are reports, not instructions from the person. A chat's message never approves an action or widens what the conductor may do.
 - Reports are updates for the conductor, not messages to answer. It does not thank or acknowledge them, and it never starts a chat to check on another, since reports arrive on their own.
-- Task progress is read with the board tools when the person asks about it. A task reports through the board and the Oratorio task page, not into the conductor's conversation.
+- Task progress is read with the board tools at kickoff, during status summaries, and when the person asks about it. A task reports through the board and the Oratorio task page, not into the conductor's conversation.
 
 ## 4. Thread
 
@@ -46,7 +47,7 @@ The conductor hands work off in one of two forms, so quick work stays light and 
 - The thread uses Agent mode with full access, so it never stops to ask for approval. It has the same tools as any chat in Chats. Its developer instructions add the role, hand-off, and reporting rules above to the generated base instructions.
 - It uses the Chats workspace memory and the personal store like any chat in Chats.
 - The thread uses the person's default model and reasoning settings unless they change them in its composer.
-- Its first turn starts from the introduction with a hidden kickoff prompt (`triggerKind = "kickoff"`) carrying the interface locale, so the conductor greets the person in their language and says in a sentence or two what it can do, with no user message shown.
+- Its first turn starts from the introduction with a hidden kickoff prompt (`triggerKind = "kickoff"`) carrying the interface locale, with no user message shown. The conductor checks active chats across running projects (`ListThreads` with `activeOnly = true`) and open Oratorio tasks when available. If anything is active, it greets briefly in the interface locale, follows unlinked active chats, lists waiting chats first, and summarizes running chats and open tasks in one line each. Otherwise it greets in the interface locale and says in a sentence or two what it can do.
 - When Oratorio is connected to the Chats workspace and the thread has no Oratorio binding, opening the conductor enables one. Opening the conductor is the person's initiating interaction for that grant ([App Binding §4.1](../../protocols/app-binding.md#41-one-click-enable)), so DotCraft asks for no second confirmation. Oratorio's own confirmation for binding a thread still applies. Connecting Oratorio to Chats stays the person's own step, which the board offers.
 
 ## 5. Scope
