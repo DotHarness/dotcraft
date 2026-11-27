@@ -177,9 +177,12 @@ describe('responses spanning turns', () => {
       .toMatchObject({ card: activeTodo })
 
     const finished = history([...opening, ...wake, item('t2', 'agentMessage', { text: 'Done.', phase: 'final' })], [['t1', 0, 10], ['t2', 30, 5]])
-    expect(projector.project(finished, null, options).find((entry) => entry.kind === 'assistant'))
+    const waitingFinished = projector.project(finished, null, options)
+    expect(waitingFinished.find((entry) => entry.kind === 'activity')).toMatchObject({ children: [] })
+    expect(waitingFinished.findLast((entry) => entry.kind === 'assistant'))
       .toMatchObject({ copy: false, changes: [], todos: activeTodo })
     const settled = projector.project(finished, null, { ...options, hasBackgroundWork: false })
+    expect((settled.find((entry) => entry.kind === 'activity') as Extract<(typeof settled)[number], { kind: 'activity' }>).children.length).toBeGreaterThan(0)
     const reply = settled.find((entry) => entry.kind === 'assistant')
     expect(reply).toMatchObject({ copy: true, changes: [{ turnId: 't1' }] })
     expect(reply).not.toHaveProperty('todos')
@@ -196,5 +199,22 @@ describe('responses spanning turns', () => {
 
     expect(transcript.filter((entry) => entry.kind === 'activity')).toMatchObject([{ children: [] }])
     expect(transcript.map((entry) => entry.kind)).toEqual(['user', 'activity', 'tool', 'wake', 'tool'])
+  })
+
+  it('keeps a single turn expanded while background work is running and folds once it ends', () => {
+    const chat = history([
+      item('t1', 'userMessage', { text: 'Verify build' }),
+      ...read('t1', 'r1'),
+      item('t1', 'agentMessage', { text: 'Subagent is verifying.', phase: 'final' }),
+    ], [['t1', 0, 10]])
+    const projector = createTranscriptProjector()
+
+    const waiting = projector.project(chat, null, { hasBackgroundWork: true })
+    expect(waiting.map((entry) => entry.kind)).toEqual(['user', 'activity', 'tool', 'assistant'])
+    expect(waiting[1]).toMatchObject({ children: [] })
+
+    const settled = projector.project(chat, null, { hasBackgroundWork: false })
+    expect(settled.map((entry) => entry.kind)).toEqual(['user', 'activity', 'assistant'])
+    expect((settled[1] as Extract<(typeof settled)[number], { kind: 'activity' }>).children.map((entry) => entry.kind)).toEqual(['tool'])
   })
 })

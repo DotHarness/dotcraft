@@ -55,6 +55,7 @@ interface TurnProjection {
   stopped: boolean
   retry: number | null | undefined
   changes: TurnChanges | null
+  awaitingTasks: boolean
   entries: TranscriptEntry[]
   piece: TurnPiece
 }
@@ -107,6 +108,8 @@ export function createTranscriptProjector(sharedChanges?: ChangesProjector): Tra
       const superseded = supersededTurns(history)
       const capacity = capacityRetry(history)
       const turns = new Map(history.turns.map((turn) => [turn.id, turn]))
+      const latestTurn = history.turns.at(-1)
+      const hasBackgroundWork = options.hasBackgroundWork === true
       const nextCache = new Map<string, TurnProjection>()
       const pieces: TurnPiece[] = []
       const occurrences = new Map<string, number>()
@@ -121,9 +124,10 @@ export function createTranscriptProjector(sharedChanges?: ChangesProjector): Tra
         const fallbackOrigin = chunk.id === firstTurn ? threadOrigin : null
         const retry = capacity?.turnId === chunk.id ? capacity.delay : undefined
         const wasStopped = stopped.has(chunk.id)
+        const awaitingTasks = hasBackgroundWork && chunk.id === latestTurn?.id
         const old = turnsCache.get(key)
         const inputs = relatedItems.get(chunk.id)!
-        if (old && old.turn === turn && old.fallbackOrigin === fallbackOrigin && old.stopped === wasStopped && old.retry === retry && old.changes === turnChanges && old.workingAgentPaths === options.workingAgentPaths && sameReferences(old.items, inputs)) {
+        if (old && old.turn === turn && old.fallbackOrigin === fallbackOrigin && old.stopped === wasStopped && old.retry === retry && old.changes === turnChanges && old.workingAgentPaths === options.workingAgentPaths && old.awaitingTasks === awaitingTasks && sameReferences(old.items, inputs)) {
           nextCache.set(key, old)
           if (old.consumesOrigin) threadOrigin = null
           pieces.push(old.piece)
@@ -171,11 +175,11 @@ export function createTranscriptProjector(sharedChanges?: ChangesProjector): Tra
         body.push(...actions)
         const summarized = !!turn?.summary && turn.summary.itemCount > chunk.items.length
         const ended = turn !== undefined && DONE.has(turn.status)
-        const entries = stabilizeEntries(layoutTurn(chunk.id, turn, body, turn ? !ended : live, turnChanges, wake, heading, wasStopped, summarized), old?.entries ?? [])
+        const entries = stabilizeEntries(layoutTurn(chunk.id, turn, body, turn ? !ended : live, turnChanges, wake, heading, wasStopped, summarized, awaitingTasks), old?.entries ?? [])
         const completed = turn?.status === 'completed'
         const replied = turn?.status !== 'failed' && replyIndex(entries.filter((entry) => entry.kind !== 'thinking'), completed) >= 0
         const piece: TurnPiece = { turnId: chunk.id, entries, wake, wakeEntry, completed, ended, replied, changes: turnChanges }
-        const next: TurnProjection = { items: inputs, turn, fallbackOrigin, consumesOrigin: body.some((entry) => entry.kind === 'user'), workingAgentPaths: options.workingAgentPaths, stopped: wasStopped, retry, changes: turnChanges, entries, piece }
+        const next: TurnProjection = { items: inputs, turn, fallbackOrigin, consumesOrigin: body.some((entry) => entry.kind === 'user'), workingAgentPaths: options.workingAgentPaths, stopped: wasStopped, retry, changes: turnChanges, awaitingTasks, entries, piece }
         nextCache.set(key, next)
         pieces.push(piece)
       }
@@ -188,8 +192,6 @@ export function createTranscriptProjector(sharedChanges?: ChangesProjector): Tra
           return segments.length > 0 || images.length > 0 ? [{ kind: 'user', id: `echo-${echo.clientId}`, text: echo.text, segments, images, added: echo.added, origin: null, goal: false }] : []
         })
       }
-      const latestTurn = history.turns.at(-1)
-      const hasBackgroundWork = options.hasBackgroundWork === true
       const joined = joinResponses(pieces, {
         workspacePath,
         latestTurnId: latestTurn?.id,

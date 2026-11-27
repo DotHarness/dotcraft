@@ -340,7 +340,8 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
   const showsStatusSeat = isLastVisibleTurn && !readOnly && !embedded
   const replyStatusSeat = showsStatusSeat && footerAgentMessageId ? <TurnStatusSeat turn={turn} leadingTurns={leadingTurns} running={isRunning} inReply /> : null
   const omitsWork = turn.summary != null && turn.summary.itemCount > turn.items.length
-  const collapsesIntermediate = activity.status === 'worked'
+  const collapsesIntermediate = !awaitingTasks
+    && activity.status === 'worked'
     && (lastFinalAgentMessageIndex > 0 || omitsWork || (leadingTurns.length > 0 && lastFinalAgentMessageIndex === 0))
   const taskWake = leadingTurns.length > 0 || embedded?.wakeLine ? getTaskWake(turn) : null
   const continuationWake = taskWake?.message ? null : taskWake
@@ -390,7 +391,7 @@ export const AgentResponseBlock = memo(function AgentResponseBlock({
 
   if (activity.status && !embedded) {
     const splitIndex = collapsesIntermediate ? Math.max(lastFinalAgentMessageIndex, 0)
-      : activity.status === 'worked' ? 0 : renderableItems.length
+      : activity.status === 'worked' && !awaitingTasks ? 0 : renderableItems.length
     const pinnedIndices = collapsesIntermediate ? collectPinnedIntermediateIndices(renderableItems, splitIndex) : []
     const intermediateNodes: ConversationRenderNode[] = []
     let segmentStart = 0

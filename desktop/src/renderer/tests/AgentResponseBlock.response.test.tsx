@@ -90,6 +90,30 @@ describe('AgentResponseBlock responses spanning turns', () => {
     expect(screen.getByTestId('completion-turn-woken')).toBeInTheDocument()
   })
 
+  it.each([
+    ['a single turn', { ...asked, items: [...asked.items, woken.items[1]] }, []],
+    ['a continued response', woken, [asked]]
+  ])('keeps %s expanded while background work is running and folds once it ends', (_label, turn, leadingTurns) => {
+    useThreadStore.getState().applyRuntimeSnapshot('thread-1', { hasBackgroundWork: true }, { isDesktopOrigin: false })
+    const { container } = render(
+      <LocaleProvider>
+        <AgentResponseBlock turn={turn} leadingTurns={leadingTurns} isLastTurn isLastVisibleTurn />
+      </LocaleProvider>
+    )
+
+    expect(screen.getByText('waiting for the build')).toBeInTheDocument()
+    expect(screen.getByText('the build passed')).toBeInTheDocument()
+    expect(container.querySelectorAll('button[aria-expanded]')).toHaveLength(0)
+
+    act(() => {
+      useThreadStore.getState().applyRuntimeSnapshot('thread-1', { hasBackgroundWork: false }, { isDesktopOrigin: false })
+    })
+
+    const toggles = container.querySelectorAll('button[aria-expanded]')
+    expect(toggles).toHaveLength(1)
+    expect(toggles[0]).toHaveAttribute('aria-expanded', 'false')
+  })
+
   it('opens Changes for every turn in the settled response', () => {
     const conversation = useConversationStore.getState()
     conversation.setWorkspacePath('/workspace')

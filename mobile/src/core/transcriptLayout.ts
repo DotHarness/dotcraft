@@ -77,6 +77,7 @@ export function layoutTurn(
   heading: string | null = null,
   stoppedByYou = false,
   summarized = false,
+  awaitingTasks = false,
 ): TranscriptEntry[] {
   let start = 0
   while (start < entries.length && entries[start].kind === 'user' && !(entries[start] as { added: boolean }).added) start += 1
@@ -105,7 +106,7 @@ export function layoutTurn(
     origin,
   }
   const pending = summarized
-  if (status !== 'worked' || (final <= 0 && !pending)) return [...opening, { ...activity, children: [], ...(pending ? { pendingTurnId: turnId } : {}) }, ...body, ...tail]
+  if (status !== 'worked' || awaitingTasks || (final <= 0 && !pending)) return [...opening, { ...activity, children: [], ...(pending ? { pendingTurnId: turnId } : {}) }, ...body, ...tail]
   const split = final >= 0 ? final : body.length
   const before = body.slice(0, split)
   const plan = lastIndex(before, (entry) => entry.kind === 'plan')

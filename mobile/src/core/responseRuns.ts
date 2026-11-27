@@ -49,13 +49,13 @@ function work(piece: TurnPiece, first: boolean): TranscriptEntry[] {
   ]
 }
 
-function joinRun(run: TurnPiece[]): TranscriptEntry[] {
+function joinRun(run: TurnPiece[], awaitingTasks: boolean): TranscriptEntry[] {
   if (run.length < 2) return run[0]?.entries ?? []
   const leading = run.slice(0, -1)
   const last = run[run.length - 1]
   const head = split(leading[0])
   const tail = split(last)
-  const folds = tail.activity?.status === 'worked' && (last.replied || tail.activity.pendingTurnId !== undefined)
+  const folds = !awaitingTasks && tail.activity?.status === 'worked' && (last.replied || tail.activity.pendingTurnId !== undefined)
   const earlier = leading.flatMap((piece, index) => work(piece, index === 0))
   if (!tail.activity) return [...head.opening, ...earlier, ...wakeLine(last), ...tail.rest]
   const started = Date.parse(tail.activity.startedAt ?? '')
@@ -96,8 +96,9 @@ export function joinResponses(pieces: readonly TurnPiece[], options: {
     const last = run.at(-1)
     if (!last) return
     const latest = last.turnId === options.latestTurnId
-    const settled = last.completed && !(latest && options.hasBackgroundWork)
-    const joined = joinRun(run.filter((piece) => piece.entries.length > 0))
+    const awaitingTasks = latest && options.hasBackgroundWork
+    const settled = last.completed && !awaitingTasks
+    const joined = joinRun(run.filter((piece) => piece.entries.length > 0), awaitingTasks)
     const entries = latest ? withTodoCard(joined, options.latestTodoCard(run)) : joined
     if (run.length === 1 && (settled || !last.completed)) {
       output.push(...entries)
