@@ -5009,6 +5009,10 @@ public sealed class ThreadForkParams : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyDictionary<string, RuntimeAdditionalContextEntry>?> AdditionalContext { get; init; }
 
+    [JsonPropertyName("additionalMcpServers")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<ThreadMcpServerConfig>?> AdditionalMcpServers { get; init; }
+
     [JsonPropertyName("config")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<ThreadConfiguration?> Config { get; init; }
@@ -6480,6 +6484,10 @@ public sealed class WorktreeCreateAndForkParams : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyDictionary<string, RuntimeAdditionalContextEntry>?> AdditionalContext { get; init; }
 
+    [JsonPropertyName("additionalMcpServers")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<ThreadMcpServerConfig>?> AdditionalMcpServers { get; init; }
+
     [JsonPropertyName("baseRef")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> BaseRef { get; init; }
@@ -6551,6 +6559,10 @@ public sealed class WorktreeCreateAndStartParams : ExtensibleJsonObject
     [JsonPropertyName("additionalContext")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyDictionary<string, RuntimeAdditionalContextEntry>?> AdditionalContext { get; init; }
+
+    [JsonPropertyName("additionalMcpServers")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<ThreadMcpServerConfig>?> AdditionalMcpServers { get; init; }
 
     [JsonPropertyName("baseRef")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

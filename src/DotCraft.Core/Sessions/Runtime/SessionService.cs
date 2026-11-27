@@ -354,9 +354,10 @@ public sealed partial class SessionService(
         CancellationToken ct = default,
         ThreadSource? source = null,
         bool ephemeral = false,
-        IReadOnlyList<ThreadDynamicToolDeclaration>? dynamicToolDeclarations = null)
+        IReadOnlyList<ThreadDynamicToolDeclaration>? dynamicToolDeclarations = null,
+        IReadOnlyList<DotCraft.Mcp.McpServerConfig>? additionalMcpServers = null)
         => await ThreadCreation.CreateAsync(identity, config, historyMode, threadId, displayName, ct, source, ephemeral,
-            ThreadDynamicToolDeclaration.Freeze(dynamicToolDeclarations));
+            ThreadDynamicToolDeclaration.Freeze(dynamicToolDeclarations), additionalMcpServers);
 
     public bool IsHiddenThread(string threadId) =>
         _runtimeRegistry.TryGetThread(threadId, out var thread) && ThreadVisibility.IsHidden(thread);

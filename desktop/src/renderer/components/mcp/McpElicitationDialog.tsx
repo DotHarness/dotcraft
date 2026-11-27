@@ -15,6 +15,8 @@ export interface McpElicitationRequest {
   message?: string
   url?: string
   requestedSchema?: unknown
+  trustedComputerUse?: boolean
+  meta?: Record<string, unknown>
 }
 
 interface FormField {
@@ -69,6 +71,55 @@ export function McpElicitationDialog({ request, onRespond, submitting }: Props):
     : fields != null && validateValues(fields, values)
 
   const unsupported = request.mode === 'url' ? safeUrl == null : fields == null
+  const computerUseAppLabel = request.trustedComputerUse === true
+    && request.mode === 'form'
+    && request.meta?.approvalKind === 'computerUse'
+    && typeof request.meta.target === 'string' && request.meta.target.trim().length > 0
+    ? (typeof request.meta.targetLabel === 'string' && request.meta.targetLabel.trim()
+        ? request.meta.targetLabel.trim()
+        : request.meta.target)
+    : null
+
+  if (computerUseAppLabel != null) {
+    return (
+      <ModalDialog
+        titleId="mcp-elicitation-title"
+        width={440}
+        scrimStyle={{ zIndex: 10020 }}
+        bodyClassName={styles.body}
+        header={(
+          <h2 id="mcp-elicitation-title" className={styles.title}>
+            {translate(locale, 'approval.type.computerUse')}
+          </h2>
+        )}
+        footer={(
+          <ModalFooter>
+            <Button ref={cancelRef} variant="ghost" disabled={submitting} onClick={() => onRespond({ action: 'decline' })}>
+              {translate(locale, 'mcp.elicitation.decline')}
+            </Button>
+            <Button
+              variant="secondary"
+              disabled={submitting}
+              onClick={() => onRespond({ action: 'accept', content: { decision: 'acceptForSession' } })}
+            >
+              {translate(locale, 'approval.computerUse.allowThread.label')}
+            </Button>
+            <Button
+              variant="primary"
+              disabled={submitting}
+              onClick={() => onRespond({ action: 'accept', content: { decision: 'acceptAlways' } })}
+            >
+              {translate(locale, 'approval.computerUse.alwaysAllow.label')}
+            </Button>
+          </ModalFooter>
+        )}
+      >
+        <p className={styles.message}>
+          {translate(locale, 'approval.question.computerUse', { app: computerUseAppLabel })}
+        </p>
+      </ModalDialog>
+    )
+  }
 
   return (
     <ModalDialog

@@ -115,6 +115,80 @@ public sealed partial class McpElicitationInvocationTests
     }
 
     [Fact]
+    public async Task ReverseRequestWithMatchingCallId_AttributesToActiveHttpInvocationAndHonorsDenyPolicy()
+    {
+        await using var server = await McpFixtureProcess.StartHttpAsync(legacy: true);
+        var handler = new InputHandler();
+        await using var manager = await ConnectAsync(Config(server), handler);
+
+        var activeCall = manager.CallToolAsync(
+            "inputs",
+            "choose",
+            new Dictionary<string, object?> { ["owner"] = "A", ["echoCallId"] = true },
+            context: Context("A", "turn-A"));
+        var pending = await handler.ReadAsync();
+        Assert.Equal("A", pending.Context.ThreadId);
+        Assert.Equal("turn-A", pending.Context.TurnId);
+        Assert.Equal("call-A", pending.Context.CallId);
+        pending.Answer("approved");
+        var accepted = await activeCall.WaitAsync(Deadline);
+        Assert.Contains("\"action\":\"accept\"", Assert.IsType<TextContentBlock>(Assert.Single(accepted.Content)).Text);
+        Assert.Equal(1, handler.Count);
+
+        var denyContext = Context("B", "turn-B") with
+        {
+            TurnServices = new TurnToolServices
+            {
+                IsTopLevelThread = true,
+                GetApprovalPolicy = () => DotCraft.Sessions.ApprovalPolicy.Deny
+            }
+        };
+        var denied = await manager.CallToolAsync(
+            "inputs",
+            "choose",
+            new Dictionary<string, object?> { ["owner"] = "B", ["echoCallId"] = true, ["approvalKind"] = "computerUse" },
+            context: denyContext).WaitAsync(Deadline);
+        Assert.Contains("\"action\":\"decline\"", Assert.IsType<TextContentBlock>(Assert.Single(denied.Content)).Text);
+        Assert.Equal(1, handler.Count);
+
+        var ordinaryUnderDeny = manager.CallToolAsync(
+            "inputs",
+            "choose",
+            new Dictionary<string, object?> { ["owner"] = "C", ["echoCallId"] = true },
+            context: denyContext with { CallId = "call-C" });
+        var ordinaryInput = await handler.ReadAsync();
+        Assert.Equal("call-C", ordinaryInput.Context.CallId);
+        ordinaryInput.Answer("ordinary-ok");
+        var ordinaryResult = await ordinaryUnderDeny.WaitAsync(Deadline);
+        Assert.Contains("\"action\":\"accept\"", Assert.IsType<TextContentBlock>(Assert.Single(ordinaryResult.Content)).Text);
+        Assert.Equal(2, handler.Count);
+    }
+
+    [Fact]
+    public async Task ReverseRequest_CancelsPendingInputWhenOriginatingCallReturnsEarly()
+    {
+        await using var server = await McpFixtureProcess.StartHttpAsync(legacy: true);
+        var handler = new InputHandler();
+        await using var manager = await ConnectAsync(Config(server), handler);
+
+        var call = manager.CallToolAsync(
+            "inputs",
+            "choose",
+            new Dictionary<string, object?> { ["owner"] = "early", ["echoCallId"] = true, ["returnBeforeAnswer"] = true },
+            context: Context("early", "turn-early"));
+        var orphaned = await handler.ReadAsync();
+        Assert.False(orphaned.CancellationToken.IsCancellationRequested);
+
+        using var http = new HttpClient();
+        using var releaseResponse = await http.PostAsync(new Uri(new Uri(server.Endpoint), "/release-early"), content: null);
+        releaseResponse.EnsureSuccessStatusCode();
+
+        var result = await call.WaitAsync(Deadline);
+        Assert.Equal("early-return", Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text);
+        Assert.True(orphaned.CancellationToken.IsCancellationRequested);
+    }
+
+    [Fact]
     public async Task MissingHostHandler_PreservesStableToolFailure()
     {
         await using var manager = await ConnectAsync(Config(null), null);

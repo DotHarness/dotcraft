@@ -15,8 +15,6 @@ export interface ServerRequestMethods {
   "ext/channel/history": { params: Models.ExtChannelHistoryParams; result: Models.ExtChannelHistoryResult };
   "ext/channel/send": { params: Models.ExtChannelSendParams; result: Models.ExtChannelSendResult };
   "ext/channel/toolCall": { params: Models.ExtChannelToolCallParams; result: Models.ExtChannelToolCallResult };
-  "ext/nodeRepl/cancel": { params: Models.NodeReplCancelParams; result: Models.RpcEmpty };
-  "ext/nodeRepl/evaluate": { params: Models.NodeReplEvaluateParams; result: Models.NodeReplEvaluateResult };
   "item/approval/request": { params: Models.ApprovalRequestParams; result: Models.ApprovalResponseResult };
   "item/resource/read": { params: Models.UiResourceReadParams; result: Models.UiResourceReadResult };
   "item/tool/call": { params: Models.DynamicToolCallParams; result: Models.DynamicToolCallResult };

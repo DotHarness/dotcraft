@@ -3608,122 +3608,6 @@
         "isBackground"
       ]
     },
-    "BrowserUseCapability": {
-      "title": "BrowserUseCapability",
-      "type": "object",
-      "properties": {
-        "backend": {
-          "type": "string"
-        },
-        "backends": {
-          "anyOf": [
-            {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "browserSessionProtocolVersion": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "defaultCommandTimeoutMs": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "maxBrowserResultBytes": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "maxCommandTimeoutMs": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "protocolVersion": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "supportsCancel": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "supportsChromeDiagnostics": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "supportsCommandCancel": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "supportsTypedFinalize": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "additionalProperties": true,
-      "required": [
-        "backend"
-      ]
-    },
     "ChannelAdapterCapability": {
       "title": "ChannelAdapterCapability",
       "type": "object",
@@ -4668,16 +4552,6 @@
             }
           ]
         },
-        "browserUse": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/BrowserUseCapability"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
         "channelAdapter": {
           "anyOf": [
             {
@@ -4692,16 +4566,6 @@
           "anyOf": [
             {
               "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "computerUse": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ComputerUseCapability"
             },
             {
               "type": "null"
@@ -4763,16 +4627,6 @@
           "anyOf": [
             {
               "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "nodeRepl": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/NodeReplCapability"
             },
             {
               "type": "null"
@@ -5217,19 +5071,6 @@
         }
       },
       "additionalProperties": true
-    },
-    "ComputerUseCapability": {
-      "title": "ComputerUseCapability",
-      "type": "object",
-      "properties": {
-        "backend": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true,
-      "required": [
-        "backend"
-      ]
     },
     "ConfigBatchWriteParams": {
       "title": "ConfigBatchWriteParams",
@@ -10528,249 +10369,6 @@
         }
       },
       "additionalProperties": true
-    },
-    "NodeReplBrowserSessionParams": {
-      "title": "NodeReplBrowserSessionParams",
-      "type": "object",
-      "properties": {
-        "evaluationId": {
-          "type": "string"
-        },
-        "isSubagent": {
-          "type": "boolean"
-        },
-        "protocolVersion": {
-          "type": "integer"
-        },
-        "sessionId": {
-          "type": "string"
-        },
-        "threadId": {
-          "type": "string"
-        },
-        "turnId": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "additionalProperties": true
-    },
-    "NodeReplCancelParams": {
-      "title": "NodeReplCancelParams",
-      "type": "object",
-      "properties": {
-        "evaluationId": {
-          "type": "string"
-        },
-        "threadId": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "NodeReplCapability": {
-      "title": "NodeReplCapability",
-      "type": "object",
-      "properties": {
-        "backend": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true,
-      "required": [
-        "backend"
-      ]
-    },
-    "NodeReplEvaluateParams": {
-      "title": "NodeReplEvaluateParams",
-      "type": "object",
-      "properties": {
-        "browserSession": {
-          "$ref": "#/$defs/NodeReplBrowserSessionParams"
-        },
-        "code": {
-          "type": "string"
-        },
-        "evaluationId": {
-          "type": "string"
-        },
-        "threadId": {
-          "type": "string"
-        },
-        "timeoutMs": {
-          "type": "integer"
-        },
-        "turnId": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "additionalProperties": true
-    },
-    "NodeReplEvaluateResult": {
-      "title": "NodeReplEvaluateResult",
-      "type": "object",
-      "properties": {
-        "error": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "images": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/NodeReplImageResult"
-          }
-        },
-        "logs": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "resultText": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "surface": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "text": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "additionalProperties": true
-    },
-    "NodeReplImageResult": {
-      "title": "NodeReplImageResult",
-      "type": "object",
-      "properties": {
-        "dataBase64": {
-          "type": "string"
-        },
-        "mediaType": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "NodeReplRequestApprovalParams": {
-      "title": "NodeReplRequestApprovalParams",
-      "type": "object",
-      "properties": {
-        "approvalType": {
-          "type": "string"
-        },
-        "evaluationId": {
-          "type": "string"
-        },
-        "operation": {
-          "type": "string"
-        },
-        "target": {
-          "type": "string"
-        },
-        "targetLabel": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "threadId": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": true
-    },
-    "NodeReplRequestApprovalResult": {
-      "title": "NodeReplRequestApprovalResult",
-      "type": "object",
-      "properties": {
-        "approved": {
-          "type": "boolean"
-        }
-      },
-      "additionalProperties": true,
-      "required": [
-        "approved"
-      ]
-    },
-    "NodeReplTurnEndedParams": {
-      "title": "NodeReplTurnEndedParams",
-      "type": "object",
-      "properties": {
-        "disposeSession": {
-          "type": "boolean"
-        },
-        "isSubagent": {
-          "type": "boolean"
-        },
-        "threadId": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "turnId": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "additionalProperties": true,
-      "required": [
-        "threadId"
-      ]
     },
     "PerforceConnection": {
       "title": "PerforceConnection",
@@ -17538,6 +17136,19 @@
             }
           ]
         },
+        "additionalMcpServers": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ThreadMcpServerConfig"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "config": {
           "anyOf": [
             {
@@ -18943,6 +18554,19 @@
             }
           ]
         },
+        "additionalMcpServers": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ThreadMcpServerConfig"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "chat": {
           "anyOf": [
             {
@@ -19542,6 +19166,19 @@
               "type": "object",
               "additionalProperties": {
                 "$ref": "#/$defs/RuntimeAdditionalContextEntry"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "additionalMcpServers": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ThreadMcpServerConfig"
               }
             },
             {
@@ -23709,6 +23346,19 @@
             }
           ]
         },
+        "additionalMcpServers": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ThreadMcpServerConfig"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "baseRef": {
           "anyOf": [
             {
@@ -23852,6 +23502,19 @@
               "type": "object",
               "additionalProperties": {
                 "$ref": "#/$defs/RuntimeAdditionalContextEntry"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "additionalMcpServers": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ThreadMcpServerConfig"
               }
             },
             {

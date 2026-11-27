@@ -158,7 +158,7 @@ public sealed partial class McpClientManager : IMcpToolInvocationCoordinator, IA
         await using var session = await GetProtocolSessionAsync(serverName, expectedGeneration, cancellationToken);
         if (string.IsNullOrWhiteSpace(hookEvent))
             session.State.HasBeenInvoked = true;
-        using var invocation = new McpInvocationScope(context, session.Client.Completion);
+        using var invocation = new McpInvocationScope(context, session.Client, session.CancellationToken);
         var requestMeta = McpToolCallMetaBuilder.Build(context, meta, hookEvent);
         Dictionary<string, JsonElement>? serializedArguments = null;
         if (arguments is { Count: > 0 })

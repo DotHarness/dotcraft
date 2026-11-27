@@ -64,6 +64,7 @@ export class ComputerUseManager {
   private driver: CuaDriverClient | null = null
   private turn: TurnState | null = null
   private readonly stoppedTurns = new Map<string, StopReason>()
+  private readonly threadApproved = new Map<string, Set<string>>()
   private busy = false
   private idleWaiters: Array<() => void> = []
 
@@ -119,9 +120,14 @@ export class ComputerUseManager {
     if (this.turn?.key === key) void this.closeTurn()
   }
 
+  clearThreadApprovals(threadId: string): void {
+    this.threadApproved.delete(threadId)
+  }
+
   async dispose(): Promise<void> {
     this.turn = null
     this.stoppedTurns.clear()
+    this.threadApproved.clear()
     this.deps.indicator.hide()
     this.driver?.kill()
     this.driver = null
@@ -193,7 +199,10 @@ export class ComputerUseManager {
 
   private async authorize(turn: TurnState, app: AppRef): Promise<void> {
     const id = app.id.toLowerCase()
-    if (turn.approved.has(id)) return
+    if (turn.approved.has(id) || this.threadApproved.get(turn.threadId)?.has(id)) {
+      turn.approved.add(id)
+      return
+    }
     if (this.deps.settings.getAlwaysAllowedApps().some((allowed) => allowed.id.toLowerCase() === id)) {
       turn.approved.add(id)
       return
@@ -209,6 +218,12 @@ export class ComputerUseManager {
     if (stopped) throw stoppedError(stopped)
     if (!approved) throw new Error(`app_not_approved: the user did not allow DotCraft to use ${app.displayName}.`)
     turn.approved.add(id)
+    let scoped = this.threadApproved.get(turn.threadId)
+    if (!scoped) {
+      scoped = new Set()
+      this.threadApproved.set(turn.threadId, scoped)
+    }
+    scoped.add(id)
     turn.userInput.rebase()
   }
 }

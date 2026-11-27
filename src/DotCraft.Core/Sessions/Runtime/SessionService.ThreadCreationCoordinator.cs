@@ -17,7 +17,8 @@ public sealed partial class SessionService
             CancellationToken ct,
             ThreadSource? source,
             bool ephemeral,
-            IReadOnlyList<ThreadDynamicToolDeclaration> dynamicToolDeclarations)
+            IReadOnlyList<ThreadDynamicToolDeclaration> dynamicToolDeclarations,
+            IReadOnlyList<DotCraft.Mcp.McpServerConfig>? additionalMcpServers = null)
         {
             await owner.RefreshRuntimeResourcesAsync(ct).ConfigureAwait(false);
             var capturedConfig = owner.CaptureThreadConfigurationForNewThread(config);
@@ -58,6 +59,17 @@ public sealed partial class SessionService
             var runtime = owner._runtimeRegistry.SetThread(thread);
             if (ephemeral)
                 runtime.EphemeralHistory = [];
+            if (additionalMcpServers is { Count: > 0 })
+            {
+                runtime.SetAdditionalMcpServers(additionalMcpServers);
+            }
+            else if (thread.Source.SubAgent?.ParentThreadId is { } parentThreadId
+                && owner._runtimeRegistry.TryGetRuntime(parentThreadId, out var parentRuntime))
+            {
+                var inheritedAdditional = parentRuntime.GetAdditionalMcpServers();
+                if (inheritedAdditional.Count > 0)
+                    runtime.SetAdditionalMcpServers(inheritedAdditional);
+            }
             owner._runtimeRegistry.ClearPendingPermanentDeletion(thread.Id);
             var broker = owner.GetOrCreateBroker(thread.Id);
 

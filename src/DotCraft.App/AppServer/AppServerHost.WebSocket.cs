@@ -47,7 +47,7 @@ public sealed partial class AppServerHost
         {
             await RunLoopAsync(
                 transport, connection, handler,
-                WireAcpExtensionProxy, WireNodeReplProxy, WireDynamicToolProxy,
+                WireAcpExtensionProxy, WireDynamicToolProxy,
                 _services.GetService<WireRuntimeAdditionalContextProvider>(),
                 _services.GetService<VisualizationRuntimeRegistry>(),
                 _services.GetService<GenerativeUiRuntimeRegistry>(),
@@ -195,7 +195,7 @@ public sealed partial class AppServerHost
 
                         await RunLoopAsync(
                             wsTransport, wsConnection, wsHandler,
-                            WireAcpExtensionProxy, WireNodeReplProxy, WireDynamicToolProxy,
+                            WireAcpExtensionProxy, WireDynamicToolProxy,
                             _services.GetService<WireRuntimeAdditionalContextProvider>(),
                             _services.GetService<VisualizationRuntimeRegistry>(),
                             _services.GetService<GenerativeUiRuntimeRegistry>(),
@@ -218,7 +218,7 @@ public sealed partial class AppServerHost
 
                 await RunLoopAsync(
                     wsTransport, wsConnection, wsHandler,
-                    WireAcpExtensionProxy, WireNodeReplProxy, WireDynamicToolProxy,
+                    WireAcpExtensionProxy, WireDynamicToolProxy,
                     _services.GetService<WireRuntimeAdditionalContextProvider>(),
                     _services.GetService<VisualizationRuntimeRegistry>(),
                     _services.GetService<GenerativeUiRuntimeRegistry>(),

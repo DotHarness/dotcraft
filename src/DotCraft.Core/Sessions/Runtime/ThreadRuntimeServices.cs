@@ -115,6 +115,12 @@ public interface IThreadMcpRuntimeService
         IReadOnlyList<McpServerConfig> servers,
         CancellationToken cancellationToken = default) =>
         throw new NotSupportedException("Binding MCP sessions are not supported by this session service.");
+
+    Task SetAdditionalMcpServersAsync(
+        string threadId,
+        IReadOnlyList<McpServerConfig> servers,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("Runtime additional MCP servers are not supported by this session service.");
 }
 
 public interface ISubAgentThreadLifecycleService

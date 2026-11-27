@@ -293,18 +293,6 @@ function buildInitializeCapabilities(): Record<string, unknown> {
     visualizations: true,
     generativeUi: true,
     appBindingVersion: 1,
-    mcpElicitation: true,
-    nodeRepl: { backend: 'desktop-node' },
-    browserUse: {
-      backend: 'desktop-iab',
-      backends: ['desktop-iab', 'chrome-extension'],
-      protocolVersion: 2,
-      supportsCancel: true,
-      browserSessionProtocolVersion: 1,
-      defaultCommandTimeoutMs: 10_000,
-      maxCommandTimeoutMs: 120_000,
-      supportsTypedFinalize: true
-    },
-    ...(process.platform === 'win32' ? { computerUse: { backend: 'cua-driver' } } : {})
+    mcpElicitation: true
   }
 }

@@ -1,41 +1,83 @@
 import { EventEmitter } from 'node:events'
-import { createInterface } from 'node:readline'
-import { PassThrough } from 'node:stream'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { DesktopAppServerClient } from '../DesktopAppServerClient'
+import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
+import { ElicitRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import type { DesktopWindowRuntime } from '../windows/windowRuntime'
 import type { WorkspaceConnectionEntry } from '../windows/windowTypes'
 
-const runtime = vi.hoisted(() => ({ evaluate: vi.fn(), cancel: vi.fn(), reset: vi.fn(), handleTool: vi.fn(), hasTools: vi.fn(), createBridge: vi.fn(), broadcast: vi.fn() }))
+const runtime = vi.hoisted(() => ({
+  evaluate: vi.fn(),
+  cancel: vi.fn(),
+  reset: vi.fn(),
+  handleTool: vi.fn(),
+  hasTools: vi.fn(),
+  createBridge: vi.fn(),
+  broadcast: vi.fn(),
+  computerHandleTurnEnded: vi.fn(),
+  computerClearApprovals: vi.fn()
+}))
 vi.mock('../nodeReplManager', () => ({ nodeReplManager: runtime }))
 vi.mock('../browserUseManager', () => ({ browserUseManager: { handleTurnNotification: vi.fn() } }))
 vi.mock('../browserUseManagers', () => ({ browserUseManagers: { handleTurnNotification: vi.fn() } }))
 vi.mock('electron', () => ({ BrowserWindow: vi.fn() }))
 vi.mock('../chatFoldersIpc', () => ({ createChatFolderFromSettings: vi.fn() }))
-vi.mock('../computerUse/runtime', () => ({ computerUseManager: { handleTurnEnded: vi.fn() }, rememberAlwaysAllowedApp: vi.fn() }))
+vi.mock('../computerUse/runtime', () => ({
+  computerUseManager: {
+    hasActiveTurn: vi.fn(() => false),
+    handleTurnEnded: runtime.computerHandleTurnEnded,
+    clearThreadApprovals: runtime.computerClearApprovals
+  },
+  rememberAlwaysAllowedApp: vi.fn(async () => {})
+}))
 vi.mock('../desktopRuntimeThreadTools', () => ({ handleDesktopRuntimeThreadToolCall: runtime.handleTool, hasDesktopThreadTools: runtime.hasTools, resetDesktopThreadToolBindings: vi.fn() }))
 vi.mock('../ipcBridge', () => ({ broadcastServerRequest: runtime.broadcast, createServerRequestBridge: runtime.createBridge }))
 vi.mock('../viewerTerminal', () => ({ viewerTerminalManager: {} }))
 vi.mock('../windowAttentionNotifier', () => ({ NEW_TASK_OFFER_ATTENTION: 'offer' }))
 
-import { bridgeServerRequestToRenderer, handleServerRequestInMain, handleWorkspaceServerRequest, observeComputerUseApproval } from '../windows/windowRequests'
-import { handleWorkspaceNodeReplNotification } from '../windows/windowNodeReplRequests'
+import {
+  getClientAdditionalMcpRevision,
+  getClientAdditionalMcpServers,
+  prepareClientAdditionalMcpServers
+} from '../repl/nodeReplMcpBindings'
+import { nodeReplMcpServer } from '../repl/nodeReplMcpServer'
+import {
+  handleWorkspaceNodeReplNotification,
+  registerWorkspaceNodeReplClient
+} from '../windows/windowNodeReplMcp'
+import {
+  bridgeServerRequestToRenderer,
+  handleServerRequestInMain,
+  handleWorkspaceServerRequest,
+  observeComputerUseApproval
+} from '../windows/windowRequests'
 
 const clients: EventEmitter[] = []
-function entry(key: string): WorkspaceConnectionEntry {
+const mcpClients: Client[] = []
+
+function entry(key: string, kind: 'local' | 'remote' | 'chat' = 'local', enabledPlugins: string[] = ['browser']): WorkspaceConnectionEntry {
+  let plugins = [...enabledPlugins]
   const client = Object.assign(new EventEmitter(), {
     connectionId: `connection-${key}`,
+    isDisposed: false,
     retainBrowserTurn: vi.fn(async () => true),
     releaseBrowserTurn: vi.fn(async () => {}),
-    sendRequest: vi.fn(async () => ({ approved: true }))
+    sendRequest: vi.fn(async (method: string) => {
+      if (method === 'plugin/list') {
+        return { plugins: plugins.map(id => ({ id, installed: true, enabled: true })) }
+      }
+      return {}
+    }),
+    setEnabledPlugins: (next: string[]) => { plugins = [...next] }
   })
   clients.push(client)
   return {
-    key, projectId: key, kind: 'local', workspacePath: `/identity/${key}`, localWorkspacePath: `/local/${key}`,
+    key, projectId: key, kind, workspacePath: `/identity/${key}`, localWorkspacePath: `/local/${key}`,
     wsUrl: `ws://${key}`, client: client as unknown as WorkspaceConnectionEntry['client'], role: 'foreground',
     connected: true, connecting: false, lastUsedAt: 0, threads: []
   }
 }
+
 function fixture(windowId = 1) {
   const a = entry('a')
   const b = entry('b')
@@ -48,11 +90,20 @@ function fixture(windowId = 1) {
   } as unknown as DesktopWindowRuntime
   const request = (source: WorkspaceConnectionEntry, method: string, params: unknown) =>
     handleWorkspaceServerRequest(ctx, method, params, source, source.role === 'foreground' && ctx.wireClient === source.client, true, 1, new AbortController().signal)
-  const evaluate = (source = a, evaluationId = 'eval', threadId = 'thread') => request(source, 'ext/nodeRepl/evaluate', {
-    threadId, turnId: 'turn', evaluationId, code: '42'
-  })
   const promoteB = () => { a.role = 'secondary'; b.role = 'foreground'; ctx.wireClient = b.client; ctx.currentWorkspacePath = '/local/b' }
-  return { a, b, owner, ctx, request, evaluate, promoteB }
+  return { a, b, owner, ctx, request, promoteB }
+}
+
+async function connectMcp(source: WorkspaceConnectionEntry, capabilities: Record<string, unknown> = {}): Promise<Client> {
+  await prepareClientAdditionalMcpServers(source.client)
+  const config = getClientAdditionalMcpServers(source.client)?.find(s => s.name === 'node_repl')
+  expect(config).toBeDefined()
+  const mcpClient = new Client({ name: 'test', version: '1' }, { capabilities })
+  await mcpClient.connect(new StreamableHTTPClientTransport(new URL(config!.url), {
+    requestInit: { headers: config!.headers }
+  }))
+  mcpClients.push(mcpClient)
+  return mcpClient
 }
 
 beforeEach(() => {
@@ -61,152 +112,123 @@ beforeEach(() => {
   runtime.hasTools.mockReturnValue(false)
   runtime.handleTool.mockResolvedValue({ success: true })
 })
-afterEach(() => {
+
+afterEach(async () => {
+  for (const mcpClient of mcpClients.splice(0)) await mcpClient.close().catch(() => {})
   for (const client of clients.splice(0)) client.emit('disposed')
+  await nodeReplMcpServer.dispose()
   vi.clearAllMocks()
 })
 
-describe('source-bound Node REPL routing', () => {
-  it('continues A after promotion of B and sends workspace, leases and approvals to A', async () => {
-    const { a, b, owner, evaluate, promoteB } = fixture()
-    await evaluate(a, 'first')
-    let retained!: () => void
-    vi.mocked(a.client.retainBrowserTurn).mockReturnValueOnce(new Promise<boolean>(resolve => { retained = () => resolve(true) }))
-    const pending = evaluate(a, 'second')
-    promoteB()
-    retained()
-    await pending
-    expect(runtime.evaluate).toHaveBeenLastCalledWith(owner, expect.objectContaining({
-      threadId: 'thread', evaluationId: 'second', workspacePath: '/local/a', projectKey: a.projectId
+describe('workspace NodeRepl MCP mounting and source-bound routing', () => {
+  it('mounts node_repl only for local workspaces with enabled REPL plugins and updates revision on plugin toggles', async () => {
+    const { a, ctx } = fixture()
+    const remote = entry('r', 'remote', ['browser'])
+    ctx.workspaceConnections.set(remote.key, remote)
+
+    registerWorkspaceNodeReplClient(ctx, a)
+    registerWorkspaceNodeReplClient(ctx, remote)
+
+    await prepareClientAdditionalMcpServers(a.client)
+    await prepareClientAdditionalMcpServers(remote.client)
+
+    const localServers = getClientAdditionalMcpServers(a.client)
+    expect(localServers).toHaveLength(1)
+    expect(localServers?.[0]).toMatchObject({
+      name: 'node_repl',
+      enabled: true,
+      transport: 'streamableHttp'
+    })
+    expect(getClientAdditionalMcpServers(remote.client)).toBeUndefined()
+
+    const revBefore = getClientAdditionalMcpRevision(a.client)
+    ;(a.client as unknown as { setEnabledPlugins(next: string[]): void }).setEnabledPlugins([])
+    handleWorkspaceNodeReplNotification(ctx, a, 'plugin/snapshot/updated', {})
+    await prepareClientAdditionalMcpServers(a.client)
+
+    expect(getClientAdditionalMcpServers(a.client)).toEqual([])
+    expect(getClientAdditionalMcpRevision(a.client)).not.toBe(revBefore)
+  })
+
+  it('restores the node_repl MCP provider after a transient close and reconnect on the same client', async () => {
+    const { a, ctx } = fixture()
+    registerWorkspaceNodeReplClient(ctx, a)
+
+    a.client.emit('ready')
+    await prepareClientAdditionalMcpServers(a.client)
+    const firstUrl = getClientAdditionalMcpServers(a.client)?.[0]?.url
+    expect(firstUrl).toBeDefined()
+
+    a.client.emit('close')
+    expect(getClientAdditionalMcpServers(a.client)).toBeUndefined()
+
+    a.client.emit('reconnected')
+    await prepareClientAdditionalMcpServers(a.client)
+    const secondUrl = getClientAdditionalMcpServers(a.client)?.[0]?.url
+    expect(secondUrl).toBeDefined()
+    expect(secondUrl).not.toBe(firstUrl)
+  })
+
+  it('marks pending Computer Use elicitations as trusted on Default Chat (chat) connections', async () => {
+    const { ctx, owner } = fixture()
+    const chat = entry('chat', 'chat', ['browser', 'computer'])
+    ctx.workspaceConnections.set(chat.key, chat)
+    registerWorkspaceNodeReplClient(ctx, chat)
+    const mcpChat = await connectMcp(chat, { elicitation: { form: {} } })
+    let resolveElicit!: (value: { action: 'decline' }) => void
+    let notifyElicitStarted!: () => void
+    const elicitStarted = new Promise<void>(resolve => { notifyElicitStarted = resolve })
+    mcpChat.setRequestHandler(ElicitRequestSchema, () => {
+      notifyElicitStarted()
+      return new Promise(resolve => { resolveElicit = resolve })
+    })
+    Object.assign(ctx, {
+      userInputAutoResolution: { remove: vi.fn() },
+      settings: {},
+      app: { notifyWindowAttention: vi.fn(async () => {}) },
+      observeComputerUseApproval: vi.fn()
+    })
+    runtime.createBridge.mockReturnValue({ bridgeId: 'cu-chat', promise: Promise.resolve({ action: 'decline' }) })
+
+    runtime.evaluate.mockImplementationOnce(async (_win, params) => {
+      await params.requestApproval({
+        evaluationId: params.evaluationId,
+        approvalType: 'computerUse',
+        operation: 'focus_app',
+        target: 'notepad.exe',
+        targetLabel: 'Notepad'
+      })
+      return { resultText: 'ok', images: [], logs: [] }
+    })
+
+    const evalCall = mcpChat.callTool({
+      name: 'NodeReplJs',
+      arguments: { code: '1' },
+      _meta: { 'dotcraft/callContext': { threadId: 'chat-thread', turnId: 'turn-1', callId: 'c1' } }
+    })
+    await elicitStarted
+
+    await bridgeServerRequestToRenderer(
+      ctx,
+      'mcpServer/elicitation/request',
+      {
+        threadId: 'chat-thread',
+        turnId: 'turn-1',
+        serverName: 'node_repl',
+        mode: 'form',
+        _meta: { approvalKind: 'computerUse', target: 'notepad.exe', targetLabel: 'Notepad' }
+      },
+      chat,
+      1,
+      new AbortController().signal
+    )
+    expect(runtime.broadcast).toHaveBeenLastCalledWith(owner, expect.objectContaining({
+      bridgeId: 'cu-chat',
+      trustedComputerUse: true
     }))
-    const params = runtime.evaluate.mock.calls[1][1]
-    await expect(params.requestApproval({ evaluationId: 'second', approvalType: 'computerUse', target: 'app' })).resolves.toBe(true)
-    expect(a.client.sendRequest).toHaveBeenCalledWith('ext/nodeRepl/requestApproval', expect.objectContaining({ threadId: 'thread' }), null)
-    expect(a.client.retainBrowserTurn).toHaveBeenCalledWith('thread', 'turn')
-    expect(b.client.sendRequest).not.toHaveBeenCalled()
-    expect(b.client.retainBrowserTurn).not.toHaveBeenCalled()
-  })
 
-  it('admits the first background evaluation through the source client after its view detaches', async () => {
-    const { a, b, owner, ctx, request, promoteB } = fixture()
-    const fromServer = new PassThrough()
-    const toServer = new PassThrough()
-    const output = createInterface({ input: toServer, crlfDelay: Infinity })
-    const outbound = output[Symbol.asyncIterator]()
-    const client = new DesktopAppServerClient(fromServer, toServer)
-    a.client = client
-    ctx.wireClient = client
-    client.onServerRequest((method, params) => request(a, method, params))
-    const read = async () => {
-      const line = await outbound.next()
-      expect(line.done).toBe(false)
-      return JSON.parse(line.value!) as Record<string, unknown>
-    }
-    const push = (message: Record<string, unknown>) => fromServer.write(`${JSON.stringify(message)}\n`)
-    const snapshot = { currentState: { turnId: 'turn', turnStatus: 'running' } }
-
-    try {
-      const resume = client.sendRequest('thread/resume', { threadId: 'thread' })
-      const initial = await read()
-      push({ jsonrpc: '2.0', id: initial.id, result: snapshot })
-      await resume
-      promoteB()
-      const detach = client.releaseViewAttachments()
-      const unsubscribe = await read()
-      expect(unsubscribe).toMatchObject({ method: 'thread/unsubscribe', params: { threadId: 'thread' } })
-      push({ jsonrpc: '2.0', id: unsubscribe.id, result: {} })
-      await detach
-
-      for (const evaluationId of ['first', 'second']) {
-        push({
-          jsonrpc: '2.0', id: evaluationId, method: 'ext/nodeRepl/evaluate',
-          params: { threadId: 'thread', turnId: 'turn', evaluationId, code: '42' }
-        })
-        if (evaluationId === 'first') {
-          const retained = await read()
-          expect(retained).toMatchObject({ method: 'thread/resume', params: { threadId: 'thread' } })
-          push({ jsonrpc: '2.0', id: retained.id, result: snapshot })
-        }
-        expect(await read()).toEqual({
-          jsonrpc: '2.0', id: evaluationId, result: { resultText: '42', images: [], logs: [] }
-        })
-      }
-
-      expect(runtime.evaluate).toHaveBeenCalledTimes(2)
-      expect(runtime.evaluate).toHaveBeenLastCalledWith(owner, expect.objectContaining({
-        workspacePath: '/local/a', projectKey: a.projectId
-      }))
-      expect(b.client.retainBrowserTurn).not.toHaveBeenCalled()
-    } finally {
-      client.dispose()
-      output.close()
-    }
-  })
-
-  it('rejects a replaced connection before evaluation admission, including a late subscription', async () => {
-    const { a, ctx, evaluate } = fixture()
-    let retained!: () => void
-    vi.mocked(a.client.retainBrowserTurn).mockReturnValue(new Promise<boolean>(resolve => { retained = () => resolve(true) }))
-    const pending = evaluate()
-    ctx.workspaceConnections.set(a.key, entry('a'))
-    retained()
-    await expect(pending).rejects.toThrow('source changed')
-    await expect(evaluate()).rejects.toThrow('source is no longer active')
-    expect(runtime.evaluate).not.toHaveBeenCalled()
-  })
-
-  it('rejects colliding workspace ids and prevents foreign or completed evaluation cancellation', async () => {
-    const { a, b, evaluate, request, promoteB } = fixture()
-    let finish!: (value: unknown) => void
-    let start!: () => void
-    const started = new Promise<void>(resolve => { start = resolve })
-    runtime.evaluate.mockImplementationOnce(() => {
-      start()
-      return new Promise(resolve => { finish = resolve })
-    })
-    const pending = evaluate(a, 'one')
-    await started
-    promoteB()
-    await expect(evaluate(b, 'two')).rejects.toThrow('another workspace or window')
-    await expect(request(b, 'ext/nodeRepl/cancel', { threadId: 'thread', evaluationId: 'one' })).resolves.toEqual({ ok: false })
-    expect(runtime.cancel).not.toHaveBeenCalled()
-    await expect(request(a, 'ext/nodeRepl/cancel', { threadId: 'thread', evaluationId: 'one' })).resolves.toEqual({ ok: true })
-    expect(runtime.cancel).toHaveBeenCalledExactlyOnceWith('thread', 'one')
-    finish({ resultText: '42' })
-    await pending
-    await expect(request(a, 'ext/nodeRepl/cancel', { threadId: 'thread', evaluationId: 'one' })).resolves.toEqual({ ok: false })
-    expect(runtime.cancel).toHaveBeenCalledOnce()
-  })
-
-  it('allows cancelling source-owned work after remote promotion without admitting another evaluation', async () => {
-    const { a, b, ctx, evaluate, request, promoteB } = fixture()
-    let finish!: (value: unknown) => void
-    let start!: () => void
-    const started = new Promise<void>(resolve => { start = resolve })
-    runtime.evaluate.mockImplementationOnce(() => {
-      start()
-      return new Promise(resolve => { finish = resolve })
-    })
-    const pending = evaluate(a, 'running')
-    await started
-    promoteB()
-    b.kind = 'remote'
-    ctx.activeRemoteProject = { projectId: b.projectId } as NonNullable<DesktopWindowRuntime['activeRemoteProject']>
-    await expect(evaluate(a, 'new')).rejects.toThrow('active local workspace')
-    await expect(request(b, 'ext/nodeRepl/cancel', { threadId: 'thread', evaluationId: 'running' })).resolves.toEqual({ ok: false })
-    await expect(request(a, 'ext/nodeRepl/cancel', { threadId: 'thread', evaluationId: 'running' })).resolves.toEqual({ ok: true })
-    expect(runtime.cancel).toHaveBeenCalledExactlyOnceWith('thread', 'running')
-    expect(runtime.evaluate).toHaveBeenCalledOnce()
-    finish({ resultText: '42' })
-    await pending
-  })
-
-  it('does not route a duplicate browser session or mismatched metadata into another runtime', async () => {
-    const { a, request } = fixture()
-    await request(a, 'ext/nodeRepl/evaluate', { threadId: 'one', evaluationId: '1', code: '42', browserSession: { sessionId: 'shared', threadId: 'one' } })
-    await expect(request(a, 'ext/nodeRepl/evaluate', { threadId: 'two', evaluationId: '2', code: '42', browserSession: { sessionId: 'shared' } })).rejects.toThrow('another thread')
-    await expect(request(a, 'ext/nodeRepl/evaluate', { threadId: 'two', code: '42', browserSession: { threadId: 'one' } })).resolves.toMatchObject({ error: 'Invalid Node REPL evaluate request.' })
-    expect(runtime.evaluate).toHaveBeenCalledOnce()
+    resolveElicit({ action: 'decline' })
+    await evalCall
   })
 
   it('keeps background interactions source-bound and promotes their project only on notification click', async () => {
@@ -222,8 +244,8 @@ describe('source-bound Node REPL routing', () => {
       observeComputerUseApproval: vi.fn(),
       promoteWorkspaceConnection: vi.fn(async () => { a.role = 'foreground'; ctx.wireClient = a.client; return true })
     })
-    runtime.createBridge.mockReturnValue({ bridgeId: 'approval', promise: Promise.resolve({ decision: 'accept' }) })
-    await bridgeServerRequestToRenderer(ctx, 'item/approval/request', { threadId: 'thread', turnId: 'turn' }, a, 1, new AbortController().signal)
+    runtime.createBridge.mockReturnValue({ bridgeId: 'approval', promise: Promise.resolve({ action: 'accept', content: { decision: 'acceptForSession' } }) })
+    await bridgeServerRequestToRenderer(ctx, 'mcpServer/elicitation/request', { threadId: 'thread', turnId: 'turn' }, a, 1, new AbortController().signal)
     expect(runtime.broadcast).toHaveBeenCalledWith(owner, expect.objectContaining({
       connectionKey: a.key, connectionId: 'connection-a', bridgeId: 'approval'
     }))
@@ -250,75 +272,46 @@ describe('source-bound Node REPL routing', () => {
     expect(b.client.sendRequest).not.toHaveBeenCalled()
   })
 
-  it('does not broaden other background tools or allow background remote evaluations', async () => {
-    const { a, promoteB, request, evaluate, ctx } = fixture()
+  it('does not broaden other background tools', async () => {
+    const { a, promoteB, request, ctx } = fixture()
     promoteB()
     await expect(request(a, 'item/tool/call', {})).rejects.toThrow('foreground workspace')
     expect(ctx.handleServerRequestInMain).not.toHaveBeenCalled()
     await expect(request(a, 'item/tool/requestUserInput', {})).resolves.toEqual({ bridged: true })
-    a.kind = 'remote'
-    await expect(evaluate()).rejects.toThrow('active local workspace')
-    expect(runtime.evaluate).not.toHaveBeenCalled()
   })
 
-  it('cleans only the source binding on deletion/disposal and does not reset a foreign thread', async () => {
-    const { a, b, ctx, evaluate } = fixture()
-    await evaluate(a, '1', 'first')
-    await evaluate(b, '2', 'second')
-    handleWorkspaceNodeReplNotification(b, 'thread/deleted', { threadId: 'first' })
+  it('cleans only the source binding on deletion/disposal and disposes subagent tabs on client disposal', async () => {
+    const { a, b, ctx } = fixture()
+    registerWorkspaceNodeReplClient(ctx, a)
+    registerWorkspaceNodeReplClient(ctx, b)
+    const mcpA = await connectMcp(a)
+    const mcpB = await connectMcp(b)
+
+    await mcpA.callTool({
+      name: 'NodeReplJs',
+      arguments: { code: '42' },
+      _meta: { 'dotcraft/callContext': { threadId: 'first', turnId: 'turn', callId: '1' } }
+    })
+    await mcpA.callTool({
+      name: 'NodeReplJs',
+      arguments: { code: '42' },
+      _meta: { 'dotcraft/callContext': { threadId: 'sub-1', turnId: 'turn-sub', callId: '2', isSubagent: true } }
+    })
+    await mcpB.callTool({
+      name: 'NodeReplJs',
+      arguments: { code: '42' },
+      _meta: { 'dotcraft/callContext': { threadId: 'second', turnId: 'turn', callId: '3' } }
+    })
+
+    handleWorkspaceNodeReplNotification(ctx, b, 'thread/deleted', { threadId: 'first' })
     expect(runtime.reset).not.toHaveBeenCalled()
+
     a.client.emit('disposed')
-    expect(runtime.reset).toHaveBeenCalledExactlyOnceWith('first', { preserveBrowserTabs: true })
-    handleWorkspaceNodeReplNotification(b, 'thread/deleted', { threadId: 'second' })
+    expect(runtime.reset).toHaveBeenCalledWith('first', { preserveBrowserTabs: true })
+    expect(runtime.reset).toHaveBeenCalledWith('sub-1', { preserveBrowserTabs: false })
+
+    handleWorkspaceNodeReplNotification(ctx, b, 'thread/deleted', { threadId: 'second' })
     expect(runtime.reset).toHaveBeenLastCalledWith('second')
     expect(b.client.releaseBrowserTurn).toHaveBeenCalledWith('second', 'turn')
-    const replacement = entry('c')
-    ctx.workspaceConnections.set(replacement.key, replacement)
-    await expect(evaluate(replacement, '3', 'second')).resolves.toMatchObject({ resultText: '42' })
-  })
-
-  it('rejects a disposed client even before its wire-close status arrives', async () => {
-    const { a, evaluate } = fixture()
-    Object.defineProperty(a.client, 'isDisposed', { value: true })
-    await expect(evaluate()).rejects.toThrow('source is no longer active')
-    expect(runtime.evaluate).not.toHaveBeenCalled()
-  })
-
-  it('rejects cross-window reuse even if the source project and thread ids match', async () => {
-    const first = fixture()
-    const second = fixture(2)
-    await first.evaluate()
-    await expect(second.evaluate()).rejects.toThrow('another workspace or window')
-    expect(runtime.evaluate).toHaveBeenCalledOnce()
-  })
-
-  it('disposes subagent browser tabs on ext/nodeRepl/turnEnded and on client disposal', async () => {
-    const { a, request } = fixture()
-    await request(a, 'ext/nodeRepl/evaluate', {
-      threadId: 'sub-1',
-      turnId: 'turn-sub-1',
-      evaluationId: 'eval-sub-1',
-      code: '42',
-      browserSession: { sessionId: 'sub-1', threadId: 'sub-1', turnId: 'turn-sub-1', isSubagent: true }
-    })
-
-    handleWorkspaceNodeReplNotification(a, 'ext/nodeRepl/turnEnded', {
-      threadId: 'sub-1',
-      turnId: 'turn-sub-1',
-      isSubagent: true,
-      disposeSession: true
-    })
-    expect(runtime.reset).toHaveBeenLastCalledWith('sub-1', { preserveBrowserTabs: false })
-    expect(a.client.releaseBrowserTurn).toHaveBeenCalledWith('sub-1', 'turn-sub-1')
-
-    await request(a, 'ext/nodeRepl/evaluate', {
-      threadId: 'sub-2',
-      turnId: 'turn-sub-2',
-      evaluationId: 'eval-sub-2',
-      code: '42',
-      browserSession: { sessionId: 'sub-2', threadId: 'sub-2', turnId: 'turn-sub-2', isSubagent: true }
-    })
-    a.client.emit('disposed')
-    expect(runtime.reset).toHaveBeenLastCalledWith('sub-2', { preserveBrowserTabs: false })
   })
 })

@@ -1112,6 +1112,7 @@ public sealed partial class SessionService
                 var turnToolServices = new TurnToolServices
                 {
                     IsTopLevelThread = isTopLevelThread,
+                    GetApprovalPolicy = () => ResolveLiveApprovalPolicy(thread),
                     UserCoordination = ToolPlanningThreadClassifier.Classify(thread) != ToolPlanningThreadKind.Internal
                         ? new UserCoordinationRuntimeContext(SendUserMessageAsync)
                         : null,

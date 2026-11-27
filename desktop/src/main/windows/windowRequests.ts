@@ -8,7 +8,7 @@ import {
 import { type ThreadTask } from '../../shared/threadTasks'
 import { createChatFolderFromSettings } from '../chatFoldersIpc'
 import { isDefaultChatWorkspace } from '../defaultChatWorkspace'
-import { computerUseManager, rememberAlwaysAllowedApp } from '../computerUse/runtime'
+import { computerUseManager } from '../computerUse/runtime'
 import {
   handleDesktopRuntimeThreadToolCall,
   hasDesktopThreadTools,
@@ -43,7 +43,10 @@ import {
   openThreadProject,
   threadProjectForEntry
 } from './windowThreadProjects'
-import { handleWorkspaceNodeReplRequest, isCurrentWorkspaceRequestSource, isWorkspaceNodeReplRequest } from './windowNodeReplRequests'
+import {
+  hasPendingWorkspaceComputerUseApproval,
+  isCurrentWorkspaceRequestSource
+} from './windowNodeReplMcp'
 
 export function desktopThreadToolOptions(ctx: DesktopWindowRuntime, source?: WorkspaceConnectionEntry): DesktopAppServerRequestOptions {
   const entry = source ?? [...ctx.workspaceConnections.values()].find(candidate => candidate.client === ctx.wireClient)
@@ -233,7 +236,7 @@ export function observeComputerUseApproval(
   ctx: DesktopWindowRuntime,
   win: BrowserWindow,
   params: unknown,
-  response: Promise<unknown>,
+  _response: Promise<unknown>,
   foreground: boolean
 ): void {
   const request = (params ?? {}) as Record<string, unknown>
@@ -246,17 +249,24 @@ export function observeComputerUseApproval(
     ctx.showWindowSafely(win)
     ctx.sendOpenThread(win, request.threadId)
   }
-  if (request.approvalType !== 'computerUse' || typeof request.target !== 'string') return
-  const target = request.target
-  const displayName =
-    typeof request.targetLabel === 'string' && request.targetLabel ? request.targetLabel : target
-  void response
-    .then((result) => {
-      if ((result as { decision?: unknown } | undefined)?.decision === 'acceptAlways') {
-        return rememberAlwaysAllowedApp({ id: target, displayName })
-      }
-    })
-    .catch(() => {})
+}
+
+function isTrustedComputerUseElicitation(
+  entry: WorkspaceConnectionEntry,
+  method: string,
+  params: unknown
+): boolean {
+  if (method !== 'mcpServer/elicitation/request' || entry.kind === 'remote' || !params || typeof params !== 'object') {
+    return false
+  }
+  const request = params as Record<string, unknown>
+  const meta = request._meta != null && typeof request._meta === 'object' && !Array.isArray(request._meta)
+    ? request._meta as Record<string, unknown>
+    : undefined
+  return request.serverName === 'node_repl'
+    && meta?.approvalKind === 'computerUse'
+    && typeof request.threadId === 'string'
+    && hasPendingWorkspaceComputerUseApproval(entry, request.threadId)
 }
 
 export async function bridgeServerRequestToRenderer(
@@ -294,7 +304,14 @@ export async function bridgeServerRequestToRenderer(
       })
     }
   }
-  broadcastServerRequest(win, { bridgeId, method, params, ...source })
+  const trustedComputerUse = isTrustedComputerUseElicitation(entry, method, params)
+  broadcastServerRequest(win, {
+    bridgeId,
+    method,
+    params,
+    ...source,
+    ...(trustedComputerUse ? { trustedComputerUse: true } : {})
+  })
   void ctx.app
     .notifyWindowAttention(method, params, {
       connectionKind: entry.kind,
@@ -304,7 +321,7 @@ export async function bridgeServerRequestToRenderer(
       openThread: (threadId) => openSourceThread(ctx, entry, win, threadId)
     })
     .catch(console.warn)
-  if (method === 'item/approval/request') {
+  if (method === 'item/approval/request' || method === 'mcpServer/elicitation/request') {
     ctx.observeComputerUseApproval(win, params, promise, entry.role === 'foreground' && ctx.wireClient === entry.client)
   }
   return promise
@@ -323,7 +340,6 @@ export async function handleWorkspaceServerRequest(
   if (!isCurrentWorkspaceRequestSource(ctx, entry)) {
     throw new Error('Workspace request source is no longer active.')
   }
-  if (isWorkspaceNodeReplRequest(method)) return handleWorkspaceNodeReplRequest(ctx, entry, method, params)
   canUseForegroundMainHandlers = canUseForegroundMainHandlers && entry.role === 'foreground' && ctx.wireClient === entry.client
   const isInteractive = isRendererInteractiveServerRequest(method)
   const threadId = (params as { threadId?: string } | null)?.threadId

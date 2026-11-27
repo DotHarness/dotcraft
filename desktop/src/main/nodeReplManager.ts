@@ -23,6 +23,7 @@ export interface NodeReplEvaluateParams {
   timeoutMs?: number
   workspacePath?: string
   projectKey?: string
+  allowComputerUse?: boolean
   requestApproval?: (request: NodeReplApprovalRequest) => Promise<boolean>
 }
 
@@ -219,6 +220,9 @@ export class NodeReplManager {
           if (method === 'emitImage') return await browserRuntime!.display(value)
           if (method === 'createElicitation') return await this.browserManager.handleBrowserUseElicitation(params.threadId, value)
           if (method.startsWith('computer.')) {
+            if (params.allowComputerUse === false) {
+              throw new Error('computer_use_unavailable: enable the Computer plugin in Settings to use dotcraft.computer.')
+            }
             surface = 'computer'
             return await this.computerUse.handleHostCall(method.slice('computer.'.length), value, {
               threadId: params.threadId,

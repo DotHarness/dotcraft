@@ -17,8 +17,8 @@ public sealed class AppServerServiceCollectionExtensionsTests
         using var provider = services.BuildServiceProvider();
 
         Assert.Same(
-            provider.GetRequiredService<WireNodeReplProxy>(),
-            provider.GetRequiredService<INodeReplProxy>());
+            provider.GetRequiredService<WireAcpExtensionProxy>(),
+            provider.GetRequiredService<IAcpExtensionProxy>());
         Assert.Single(provider.GetServices<WireDynamicToolProxy>());
         Assert.Same(
             provider.GetRequiredService<AppServerPluginManagementState>(),

@@ -1,9 +1,13 @@
+using DotCraft.Sessions;
+
 namespace DotCraft.Tools;
 
 /// <summary>Operations of the invoking thread's active Turn, handed to tools through <see cref="ToolInvocationContext"/>.</summary>
 public sealed record TurnToolServices
 {
     public required bool IsTopLevelThread { get; init; }
+
+    public Func<ApprovalPolicy>? GetApprovalPolicy { get; init; }
 
     public UserCoordinationRuntimeContext? UserCoordination { get; init; }
 

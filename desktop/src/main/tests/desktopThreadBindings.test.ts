@@ -4,6 +4,7 @@ import {
   type AppServerRequestClient
 } from '../desktopRuntimeThreadTools'
 import { CREATOR_CONTEXT_KEY, setCreatorThread } from '../creatorMode'
+import { registerClientAdditionalMcpProvider, unregisterClientAdditionalMcpProvider } from '../repl/nodeReplMcpBindings'
 import { DESKTOP_LINKED_CHATS_CONTEXT_KEY, setDesktopLinkedChatsSource } from '../threadTasks/linkedChatsContext'
 import type { LinkedChat } from '../threadTasks/linkedChatStore'
 
@@ -150,6 +151,34 @@ describe('Desktop connection-local thread bindings', () => {
       expect(resumedPayloads()[2]).not.toHaveProperty(DESKTOP_LINKED_CHATS_CONTEXT_KEY)
     } finally {
       setDesktopLinkedChatsSource(null)
+    }
+  })
+
+  it('rebinds on the next turn when MCP revision changes while thread/start is in flight', async () => {
+    const startResponse = deferred<unknown>()
+    const connection = client(async (method) => {
+      if (method === 'thread/start') return startResponse.promise
+      return { thread: { id: 'same-thread' } }
+    })
+    let enabled = false
+    registerClientAdditionalMcpProvider(connection, {
+      prepare: () => undefined,
+      getServers: () => (enabled ? [{ name: 'node_repl', enabled: true, transport: 'streamableHttp', url: 'http://127.0.0.1:9999/mcp/r' }] : []),
+      getRevision: () => (enabled ? '1:r:browser' : '0::')
+    })
+    try {
+      const starting = sendDesktopAppServerRequest(connection, 'thread/start', {})
+      enabled = true
+      startResponse.resolve({ thread: { id: 'same-thread' } })
+      await starting
+
+      await sendDesktopAppServerRequest(connection, 'turn/start', { threadId: 'same-thread' }, undefined, rebind)
+      const resumes = vi.mocked(connection.sendRequest).mock.calls.filter(([method]) => method === 'thread/resume')
+      expect(resumes).toHaveLength(1)
+      expect((resumes[0]?.[1] as { additionalMcpServers?: Array<{ name: string }> }).additionalMcpServers)
+        .toEqual([expect.objectContaining({ name: 'node_repl' })])
+    } finally {
+      unregisterClientAdditionalMcpProvider(connection)
     }
   })
 })

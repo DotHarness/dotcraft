@@ -124,6 +124,10 @@ internal static class ThreadConfigurationContractMapper
         ToolTimeoutSec = OmitIfNull(value.ToolTimeoutSec)
     };
 
+    internal static IReadOnlyList<McpServerConfig>? FromAdditionalMcpServers(
+        IReadOnlyList<Contract.ThreadMcpServerConfig>? servers) =>
+        servers?.Select(server => FromContract(server)).ToArray();
+
     private static McpServerConfig FromContract(Contract.ThreadMcpServerConfig value, McpServerConfig? existing = null) => new()
     {
         Name = ValueOrDefault(value.Name) ?? string.Empty,

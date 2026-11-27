@@ -39,10 +39,11 @@ internal sealed class WorktreeRequestHandler(
             throw AppServerErrors.InvalidParams("'excludeTurns' is no longer supported.");
         var dynamicTools = WorktreeContractMapper.ToDynamicTools(ValueOrDefault(p.DynamicTools));
         var additionalContext = WorktreeContractMapper.ToAdditionalContext(ValueOrDefault(p.AdditionalContext));
+        var additionalMcpServers = ThreadConfigurationContractMapper.FromAdditionalMcpServers(ValueOrDefault(p.AdditionalMcpServers));
         var config = ValueOrDefault(p.Config) is { } contractConfig
             ? ThreadConfigurationContractMapper.FromContract(contractConfig)
             : null;
-        threadBinder.ValidateRuntimeInputs(dynamicTools, additionalContext);
+        threadBinder.ValidateRuntimeInputs(dynamicTools, additionalContext, additionalMcpServers);
         ValidateRuntimeConfiguration(config);
 
         var identity = WorktreeContractMapper.ToDomain(ValueOrDefault(p.Identity));
@@ -77,7 +78,8 @@ internal sealed class WorktreeRequestHandler(
         }
 
         var thread = result.Thread;
-        await threadBinder.BindThreadRuntimeAsync(thread, dynamicTools, additionalContext, ct);
+        await threadBinder.BindThreadRuntimeAsync(thread, dynamicTools, additionalContext, ct,
+            additionalMcpServers: additionalMcpServers);
 
         await attachCreatedThreadAsync(thread, async responseWire =>
         {
@@ -104,10 +106,11 @@ internal sealed class WorktreeRequestHandler(
         var p = request.Params;
         var dynamicTools = WorktreeContractMapper.ToDynamicTools(ValueOrDefault(p.DynamicTools));
         var additionalContext = WorktreeContractMapper.ToAdditionalContext(ValueOrDefault(p.AdditionalContext));
+        var additionalMcpServers = ThreadConfigurationContractMapper.FromAdditionalMcpServers(ValueOrDefault(p.AdditionalMcpServers));
         var config = ValueOrDefault(p.Config) is { } contractConfig
             ? ThreadConfigurationContractMapper.FromContract(contractConfig)
             : null;
-        threadBinder.ValidateRuntimeInputs(dynamicTools, additionalContext);
+        threadBinder.ValidateRuntimeInputs(dynamicTools, additionalContext, additionalMcpServers);
         var identity = NormalizeIdentityWorkspace(
             WorktreeContractMapper.ToDomain(ValueOrDefault(p.Identity))
             ?? throw AppServerErrors.InvalidParams("'identity' is required."));
@@ -148,7 +151,8 @@ internal sealed class WorktreeRequestHandler(
         }
 
         var thread = result.Thread;
-        await threadBinder.BindThreadRuntimeAsync(thread, dynamicTools, additionalContext, ct);
+        await threadBinder.BindThreadRuntimeAsync(thread, dynamicTools, additionalContext, ct,
+            additionalMcpServers: additionalMcpServers);
 
         await attachCreatedThreadAsync(thread, async startedWire =>
         {

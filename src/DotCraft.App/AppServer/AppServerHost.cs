@@ -55,9 +55,6 @@ public sealed partial class AppServerHost(
     private WireAcpExtensionProxy WireAcpExtensionProxy =>
         _services.GetRequiredService<WireAcpExtensionProxy>();
 
-    private WireNodeReplProxy WireNodeReplProxy =>
-        _services.GetRequiredService<WireNodeReplProxy>();
-
     private WireDynamicToolProxy WireDynamicToolProxy =>
         _services.GetRequiredService<WireDynamicToolProxy>();
 
@@ -232,7 +229,6 @@ public sealed partial class AppServerHost(
                     ? ManagedAppServerEnvironment.GetDashboardUrl(runtime.Config)?.AbsoluteUri
                     : _appServerFeature?.DashboardUrl,
                 WireAcpExtensionProxy = WireAcpExtensionProxy,
-                WireNodeReplProxy = WireNodeReplProxy,
                 WireDynamicToolProxy = WireDynamicToolProxy,
                 ChannelStatusProvider = _appServerFeature?.ChannelStatusProvider,
                 McpClientManager = runtime.McpClientManager,
@@ -291,7 +287,7 @@ public sealed partial class AppServerHost(
         {
             await RunLoopAsync(
                 transport, connection, handler,
-                WireAcpExtensionProxy, WireNodeReplProxy, WireDynamicToolProxy,
+                WireAcpExtensionProxy, WireDynamicToolProxy,
                 _services.GetService<WireRuntimeAdditionalContextProvider>(),
                 _services.GetService<VisualizationRuntimeRegistry>(),
                 _services.GetService<GenerativeUiRuntimeRegistry>(),
@@ -314,7 +310,6 @@ public sealed partial class AppServerHost(
         AppServerConnection connection,
         AppServerRequestHandler handler,
         WireAcpExtensionProxy? wireAcpProxy,
-        WireNodeReplProxy? wireNodeReplProxy,
         WireDynamicToolProxy? wireDynamicToolProxy,
         WireRuntimeAdditionalContextProvider? wireRuntimeAdditionalContextProvider,
         VisualizationRuntimeRegistry? visualizationRuntimeRegistry,
@@ -329,7 +324,6 @@ public sealed partial class AppServerHost(
         // Active persisted turns are drained independently by the request handler.
         connection.CancelAllSubscriptions();
         wireAcpProxy?.UnbindTransport(transport);
-        wireNodeReplProxy?.UnbindTransport(transport);
         wireDynamicToolProxy?.UnbindTransport(transport);
         if (visualizationRuntimeRegistry != null)
         {

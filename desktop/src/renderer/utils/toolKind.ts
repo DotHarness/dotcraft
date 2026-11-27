@@ -1,4 +1,5 @@
 import type { ConversationItem } from '../types/conversation'
+import { isNodeReplToolCall } from './nodeReplToolDisplay'
 import { resolveCoreToolRenderPlan } from './toolRendererRegistry'
 
 /**
@@ -35,6 +36,7 @@ const SUBAGENT_KINDS: Readonly<Record<string, ToolKind>> = {
 
 export function resolveToolKind(item: ToolKindSource): ToolKind | null {
   if (item.toolName === WORKFLOW_TOOL_NAME) return 'workflow'
+  if (isNodeReplToolCall(item)) return 'nodeRepl'
   const plan = resolveCoreToolRenderPlan(item as ConversationItem)
   if (!plan) return null
   const operation = plan.options.operation
@@ -67,7 +69,6 @@ export function resolveToolKind(item: ToolKindSource): ToolKind | null {
     case 'board':
     case 'automation':
     case 'agentBuilder':
-    case 'nodeRepl':
       return plan.family
   }
 }

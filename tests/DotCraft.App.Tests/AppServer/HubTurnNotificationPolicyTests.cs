@@ -121,7 +121,8 @@ public sealed class HubTurnNotificationPolicyTests
         public Action<string, SessionThreadRuntimeSignal, SessionTurn?>? ThreadRuntimeSignalForBroadcast { get; set; }
 
         public Task<SessionThread> CreateThreadAsync(SessionIdentity identity, ThreadConfiguration? config = null, HistoryMode historyMode = HistoryMode.Server, string? threadId = null, string? displayName = null, CancellationToken ct = default, ThreadSource? source = null, bool ephemeral = false,
-            IReadOnlyList<ThreadDynamicToolDeclaration>? dynamicToolDeclarations = null) => throw new NotImplementedException();
+            IReadOnlyList<ThreadDynamicToolDeclaration>? dynamicToolDeclarations = null,
+            IReadOnlyList<DotCraft.Mcp.McpServerConfig>? additionalMcpServers = null) => throw new NotImplementedException();
         public Task<SessionThread> ResumeThreadAsync(string threadId, CancellationToken ct = default) => throw new NotImplementedException();
         public Task<bool> ArchiveThreadAsync(string threadId, CancellationToken ct = default) => throw new NotImplementedException();
         public Task UnarchiveThreadAsync(string threadId, CancellationToken ct = default) => throw new NotImplementedException();

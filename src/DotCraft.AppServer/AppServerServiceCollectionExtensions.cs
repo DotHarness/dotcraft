@@ -36,9 +36,6 @@ public static class AppServerServiceCollectionExtensions
         services.TryAddSingleton<WireRuntimeAdditionalContextProvider>();
         services.TryAddSingleton<WireAcpExtensionProxy>();
         services.TryAddSingleton<IAcpExtensionProxy>(provider => provider.GetRequiredService<WireAcpExtensionProxy>());
-        services.TryAddSingleton<WireNodeReplProxy>();
-        services.TryAddSingleton<INodeReplProxy>(provider => provider.GetRequiredService<WireNodeReplProxy>());
-        services.AddSingleton<IThreadLifecycleObserver>(provider => provider.GetRequiredService<WireNodeReplProxy>());
         services.TryAddSingleton<VisualizationRuntimeRegistry>();
         services.AddSingleton<IThreadSystemPromptContextProvider>(provider =>
             provider.GetRequiredService<VisualizationRuntimeRegistry>());
@@ -50,7 +47,6 @@ public static class AppServerServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IThreadSystemPromptContextProvider,
             ProfileBuilderSystemPromptProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppServerProtocolExtension, AppBindingProtocolExtension>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppServerProtocolExtension, NodeReplProtocolExtension>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IMcpToolCatalogContributor, AppBindingToolCatalogContributor>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IToolSource, ManagedChannelToolSource>());
         return services;

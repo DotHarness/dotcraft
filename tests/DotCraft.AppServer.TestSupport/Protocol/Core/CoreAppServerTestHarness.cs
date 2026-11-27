@@ -65,7 +65,6 @@ internal sealed class CoreAppServerTestHarness : IDisposable
         SkillsLoader? skillsLoader = null,
         MemoryStore? memoryStore = null,
         McpClientManager? mcpClientManager = null,
-        WireNodeReplProxy? wireNodeReplProxy = null,
         WireDynamicToolProxy? wireDynamicToolProxy = null,
         IBackgroundTerminalService? backgroundTerminalService = null,
         IAppServerChannelListContributor? channelListContributor = null,
@@ -137,7 +136,6 @@ internal sealed class CoreAppServerTestHarness : IDisposable
                 AppConfigMonitor = Monitor,
                 SkillsLoader = skillsLoader,
                 McpClientManager = mcpClientManager,
-                WireNodeReplProxy = wireNodeReplProxy,
                 WireDynamicToolProxy = wireDynamicToolProxy,
                 BackgroundTerminalService = backgroundTerminalService,
                 DreamsService = dreamsService,
@@ -180,9 +178,7 @@ internal sealed class CoreAppServerTestHarness : IDisposable
         bool interactiveToolUi = false,
         bool backgroundTerminals = false,
         bool? configChange = null,
-        List<string>? optOutMethods = null,
-        bool nodeReplBrowserUse = false,
-        List<string>? browserUseBackends = null)
+        List<string>? optOutMethods = null)
     {
         var caps = new
         {
@@ -193,29 +189,7 @@ internal sealed class CoreAppServerTestHarness : IDisposable
             interactiveToolUi,
             backgroundTerminals,
             configChange,
-            optOutNotificationMethods = optOutMethods ?? [],
-            nodeRepl = nodeReplBrowserUse
-                ? new
-                {
-                    backend = "desktop-node"
-                }
-                : null,
-            browserUse = nodeReplBrowserUse
-                ? new
-                {
-                    backend = "desktop-iab",
-                    backends = browserUseBackends,
-                    protocolVersion = 2,
-                    supportsCancel = true,
-                    browserSessionProtocolVersion = 1,
-                    supportsCommandCancel = true,
-                    maxBrowserResultBytes = 1048576,
-                    defaultCommandTimeoutMs = 15000,
-                    maxCommandTimeoutMs = 120000,
-                    supportsTypedFinalize = true,
-                    supportsChromeDiagnostics = true
-                }
-                : null
+            optOutNotificationMethods = optOutMethods ?? []
         };
         var initMsg = BuildRequest(DotCraft.Protocol.AppServer.AppServerMethodNames.Initialize, new
         {

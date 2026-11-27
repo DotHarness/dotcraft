@@ -41,41 +41,24 @@ The [Node REPL contract](node-repl.md) owns evaluation, lexical state, imports, 
 
 The runtime has five layers:
 
-1. **AppServer binding**: binds browser automation to a client connection that declared both `capabilities.nodeRepl` and `capabilities.browserUse`, advertises the backend as `desktop-iab`, and forwards `threadId`, `turnId`, `evaluationId`, and `browserSession` through `ext/nodeRepl/evaluate`.
+1. **Desktop MCP mounting**: Desktop runs an in-process `node_repl` Streamable HTTP MCP server and attaches it to local threads via runtime-only `additionalMcpServers` whenever a local Node REPL plugin (`browser`, `chrome`, or on Windows `computer`) is enabled. AppServer invokes `NodeReplJs` via standard MCP `tools/call` carrying `_meta["dotcraft/callContext"]` (`threadId`, `turnId`, `callId`, `workspacePath`, `isSubagent`, `parentThreadId`).
 2. **Desktop Node REPL manager**: routes each bound thread to a lazy persistent utility process while the Desktop connection is active, exposes `nodeRepl` and `dotcraft` (including `dotcraft.browserClientPath` and the active `dotcraft.browserSession`), and preserves REPL state across recoverable browser errors. It never pre-installs `agent`, `agent.browser`, `agent.browsers`, or `browser` globals; the browser client owns those APIs.
 3. **DotCraft browser client**: provides `setupBrowserRuntime()`, discovers backends through `nodeRepl.nativePipe`, and returns an agent exposing `agent.browsers`, browser and tab handles, capabilities, and browser-use helpers. The in-app backend appears as `iab` and the Chrome backend as `extension`.
 4. **Desktop IAB backend server**: runs in the Desktop main process, listens on a local native pipe, speaks length-prefixed JSON-RPC, and maps backend commands to viewer tabs, page CDP sessions, Desktop browser policy, virtual cursor state, and diagnostics.
 5. **Viewer browser surface**: hosts in-app browser tabs as persistent page guests. Tab creation waits for guest readiness, including hidden automation tabs. Switching tasks or hiding the panel changes presentation without closing protected pages. [Thread Panels](desktop-thread-panels.md) defines browser snapshot restoration, detached-page suspension budgets, source-connection routing and file-authority isolation; ordinary inactive pages may suspend after checkpointing, while active automation remains protected. Explicit tab closure removes its durable entry; window closure disposes live pages after preserving snapshots. Ordinary menus never hide the page, and page viewport dimensions remain available while automation runs in the background. The viewer shows automation state, session name, last action hints, and the virtual cursor (§12), and keeps user focus stable after the initial agent-created tab open.
 
-## 4. AppServer and Session Metadata
+## 4. MCP Integration and Session Metadata
 
-Desktop identifies the embedded backend to AppServer as `desktop-iab`:
-
-```json
-{
-  "capabilities": {
-    "nodeRepl": { "backend": "desktop-node" },
-    "browserUse": {
-      "backend": "desktop-iab",
-      "backends": ["desktop-iab", "chrome-extension"],
-      "protocolVersion": 2,
-      "browserSessionProtocolVersion": 1,
-      "supportsCancel": true,
-      "supportsCommandCancel": true
-    }
-  }
-}
-```
+Desktop mounts its local `node_repl` MCP server onto local threads through runtime `additionalMcpServers` (isolated from remote workspaces) with a per-connection bearer-authenticated loopback endpoint.
 
 Rules:
 
-- `browserUse.backend` is the AppServer-visible backend id; inside Node REPL the backend id is `iab`.
-- `browserSession.sessionId` is the isolation key and normally equals the thread id. `turnId` is forwarded when known, and `isSubagent: true` marks SubAgent threads.
+- Inside Node REPL the in-app backend id is `iab` and the Chrome backend id is `extension`.
+- `browserSession.sessionId` is the isolation key and normally equals `threadId` from `_meta["dotcraft/callContext"]`. `turnId` is forwarded when known, and `isSubagent: true` marks SubAgent threads.
 - `evaluationId` changes for every Node REPL evaluation and drives command cancellation and late-result suppression.
-- When a turn that used Node REPL ends or a bound SubAgent closes, AppServer sends `ext/nodeRepl/turnEnded` on the bound connection so cleanup does not depend solely on thread observation subscriptions.
+- Bundled `browser`, `chrome`, and `computer` plugins declare `Stop`, `Interrupt`, and `SubagentStop` `mcp_tool` hooks invoking the app-only `node_repl` tool `turn_ended` (`skipIfDormant: true`), so turn cleanup and SubAgent disposal run idempotently without custom AppServer RPCs.
 - The backend `getInfo` result includes `metadata.dotcraftSessionId` equal to the active `browserSession.sessionId`, so the browser client selects the current session's backend.
 - Missing `sessionId` or `evaluationId` fails backend commands with `SessionMetadataMissing`.
-- Unknown `browserUse` capability fields are optional and forward-compatible.
 
 ## 5. Node REPL Environment
 
@@ -230,7 +213,7 @@ Snapshots and frames:
 - Bounding boxes and locator click points from any frame are top-level viewport CSS pixels, mapped through each frame owner's current content quad when the snapshot or action completes, so moved, scrolled, and transformed frames map correctly.
 - Virtual clipboard copy, cut, and paste act in the focused frame, following the active element through frames the page cannot enter.
 
-Result limits: page text, DOM snapshots, console logs, and evaluate results are size-limited before crossing the REPL boundary, by default 1 MB unless `capabilities.browserUse.maxBrowserResultBytes` advertises a lower cap. `ResultTooLarge` includes the limit and coarse size metadata when known, never the content.
+Result limits: page text, DOM snapshots, console logs, and evaluate results are size-limited before crossing the REPL boundary, by default 1 MB. `ResultTooLarge` includes the limit and coarse size metadata when known, never the content.
 
 ## 11. Viewport and Screenshots
 
@@ -304,7 +287,7 @@ Rules:
 - Browser commands carry a command id and the active `sessionId`, `turnId`, and `evaluationId`. Timeouts are clamped to `1..120000` ms.
 - `CommandTimeout` errors include safe structured data such as operation, command type, CDP method, tab id, and URL summary when available.
 - Operations that cannot safely overlap on one page or CDP session run through an ordered per-tab queue.
-- `ext/nodeRepl/cancel` and outer evaluation timeout first cancel pending backend commands for the matching `evaluationId`; late results are ignored.
+- MCP `notifications/cancelled` and outer evaluation timeout first cancel pending backend commands for the matching `evaluationId`, and late results are ignored.
 - Debugger CDP events and detachment are forwarded as `onCDPEvent` notifications with `{ tabId, sessionId? }` source metadata.
 - Recoverable browser errors never clear `browser`, `tab`, or unrelated user-defined bindings.
 - Outer process ownership and recovery follow [Node REPL](node-repl.md#process-ownership-and-cancellation).

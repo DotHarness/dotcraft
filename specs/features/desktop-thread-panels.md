@@ -17,7 +17,7 @@ React presentation, durable routes and running resources are separate. Hiding a 
 
 ## 2. Local Background Work
 
-A local connection demoted to secondary continues handling its bound `ext/nodeRepl/evaluate` and `ext/nodeRepl/cancel` requests in the originating client, workspace and window context. Browser approvals and turn subscriptions use that same client. New browser tabs requested by a retained page use the opener's verified project and primary root, not the foreground project's root. Disposed or replaced connections cannot admit work. Process-wide runtime identifiers cannot be rebound to another project/window while live: a colliding thread or browser session id is rejected rather than sharing its runtime. This exception does not enable arbitrary background dynamic tools or foreground renderer streams.
+A local connection demoted to secondary continues serving its bound `node_repl` MCP server route in the originating client, workspace and window context. Browser approvals and turn subscriptions use that same client. New browser tabs requested by a retained page use the opener's verified project and primary root, not the foreground project's root. Disposed or replaced connections cannot admit work. Process-wide runtime identifiers cannot be rebound to another project/window while live: a colliding thread or browser session id is rejected rather than sharing its runtime. This exception does not enable arbitrary background dynamic tools or foreground renderer streams.
 
 Browser turns retain their originating connection until completion, failure or cancellation. Active leases are exempt from the idle secondary connection limit; idle connections remain bounded. Transcript warm-cache eviction is independent of panel and browser ownership.
 

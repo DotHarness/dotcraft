@@ -6,6 +6,7 @@
   "description": "Inspect and interact with existing Chrome tabs through DotCraft's first-party browser extension.",
   "capabilities": ["interactive", "read", "write", "browser", "chrome", "javascript", "native-messaging"],
   "skills": "./skills/",
+  "hooks": "./hooks/hooks.json",
   "paths": {
     "extensionId": "./scripts/extension-id.json",
     "checkExtensionInstalled": "./scripts/check-extension-installed.js",

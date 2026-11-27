@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.9.5 |
+| **Version** | 0.10.0 |
 | **Status** | Draft |
-| **Date** | 2026-10-26 |
+| **Date** | 2026-11-27 |
 | **Parent Specs** | [Desktop Node REPL](node-repl.md), [Plugin Architecture](../architecture/plugin-architecture.md) |
 
 Purpose: define how DotCraft Desktop lets the agent observe and operate native desktop applications on the user's Windows computer through the thread-bound Node REPL.
@@ -16,7 +16,7 @@ This spec covers:
 - The `dotcraft.computer` host API exposed inside `NodeReplJs` on Windows Desktop.
 - The Desktop-owned computer use runtime: driver process lifecycle, request admission, timeouts, turn cleanup, lock handling and the stop affordance.
 - Application identity, blocked applications and per-application authorization.
-- The AppServer approval round trip used when an application has not been authorized.
+- The MCP elicitation approval round trip used when an application has not been authorized.
 - The bundled `computer` plugin and the Computer use settings surface.
 
 This spec does not define:
@@ -38,17 +38,17 @@ This spec does not define:
 ## 3. Architecture
 
 ```text
-NodeReplJs ──ext/nodeRepl/evaluate──► Desktop main ──► thread REPL worker
-                                                          └─ dotcraft.computer.* (host calls)
+NodeReplJs ──MCP tools/call──► Desktop node_repl MCP server ──► thread REPL worker
+                                                                  └─ dotcraft.computer.* (host calls)
 Desktop main: computer use runtime (one per Desktop process)
   ├─ API adapter ──► cua-driver (stdio MCP child process)
   ├─ application identity, blocked applications, authorization
-  ├─ ext/nodeRepl/requestApproval ──► AppServer turn approval service
+  ├─ MCP elicitation/create ──► AppServer mcpServer/elicitation/request ──► Desktop UI
   └─ status pill and edge glow, Escape stop, lock handling
 ```
 
-- **AppServer** exposes `NodeReplJs` to connections that declared `capabilities.nodeRepl` together with `capabilities.browserUse` or `capabilities.computerUse`, subject to plugin enablement (Section 8). It owns approval policy, approval items and the evaluate deadline.
-- **Desktop main** owns the driver process, the application authorization state and all user-facing computer use surfaces. The REPL worker only relays host calls; it never receives the driver path.
+- **Desktop main** mounts the local `node_repl` MCP server onto local threads via runtime `additionalMcpServers` whenever a local Node REPL plugin is enabled, enforces `computer` plugin enablement on Windows, and owns the driver process, application authorization state, and all user-facing computer use surfaces. The REPL worker only relays host calls and never receives the driver path.
+- **AppServer** bridges standard MCP `tools/call` (with `_meta["dotcraft/callContext"]`), `elicitation/create` (with `_meta` passthrough), and lifecycle `mcp_tool` hooks (`turn_ended`) without computer-use-specific protocol extensions.
 - **cua-driver** is the execution layer. It is an external MIT-licensed binary pinned to one version and shipped with the Windows Desktop package.
 
 The Node REPL is not an OS sandbox. The skill forbids launching the driver or native input tools directly; the authorization boundary applies to `dotcraft.computer`.
@@ -122,30 +122,28 @@ For each gated call, Desktop main:
 
 1. Resolves the application and rejects blocked applications with `app_blocked`.
 2. Allows applications listed in `computerUse.alwaysAllowedApps` in Desktop settings.
-3. Allows applications already approved in the current turn.
-4. Otherwise sends `ext/nodeRepl/requestApproval` for the evaluation (Section 7) and allows or fails with `app_not_approved` according to the result.
+3. Allows applications already approved in the current thread or turn.
+4. Otherwise sends an MCP `elicitation/create` form request for the evaluation (Section 7) and allows or fails with `app_not_approved` according to the result.
 
 ### 6.3 Persistence
 
-- **Always**: Desktop settings `computerUse.alwaysAllowedApps` is the only persistent store: `[{ id, displayName }]`. Desktop adds an entry when the user answers a computer use approval with `acceptAlways`. The Settings page lists entries and can remove them; it cannot add them.
-- **This thread**: `acceptForSession` is recorded by the AppServer session approval scope of the thread.
-- The AppServer does not persist `acceptAlways` for `approvalType = "computerUse"`.
+- **Always**: Desktop settings `computerUse.alwaysAllowedApps` is the only persistent store: `[{ id, displayName }]`. Desktop adds an entry when the user answers a computer use elicitation with `acceptAlways`. The Settings page lists entries and can remove them, but cannot add them.
+- **This thread**: `acceptForSession` is recorded in memory by the Desktop computer use runtime for the owning thread until the thread is reset, deleted, or Desktop restarts.
 
 ## 7. Approval Round Trip
 
-- `ext/nodeRepl/requestApproval` is a client-to-server request tied to an in-flight evaluation. It carries the owning thread, turn and evaluation identities.
-- The AppServer uses the approval service of the turn that issued the evaluation. The approval request uses `approvalType = "computerUse"`, `operation = "use"`, `target = <application id>` and `targetLabel = <display name>`; `scopeKey` is derived from the application id.
-- Thread approval policy applies unchanged: `autoApprove` allows, `deny` declines, hooks may decide, and a prior `acceptForSession` for the same application in the thread allows without a new request.
-- While the approval is pending, the evaluate deadline is paused on both the AppServer and Desktop. The approval has no timeout; it stays pending until answered or until the turn ends, which declines it.
-- When an approval request arrives for the thread and turn that currently own computer use, Desktop brings its main window to the front and shows that thread.
-- The approval UI offers three choices: always allow, allow for this thread, and decline. They map to `acceptAlways`, `acceptForSession` and `decline`.
+- The `node_repl` MCP server sends a standard MCP `elicitation/create` (`mode: "form"`) request tied to the active `NodeReplJs` tool call. Its `requestedSchema` offers `decision` (`acceptForSession` or `acceptAlways`) and its `_meta` carries `{ approvalKind: "computerUse", operation: "use", target, targetLabel }`.
+- AppServer forwards the elicitation via `mcpServer/elicitation/request` with `_meta` preserved to subscribed clients supporting `mcpElicitation`. When no capable subscriber exists, elicitation fails closed with `app_not_approved`.
+- While the elicitation is pending, the evaluation deadline is paused on Desktop. The elicitation stays pending until answered or until the tool call is cancelled, which declines it.
+- When a computer-use elicitation arrives for the thread and turn that currently own computer use, Desktop brings its main window to the front and shows that thread.
+- The Desktop elicitation dialog recognizes `_meta.approvalKind === "computerUse"` and offers three choices: always allow, allow for this thread, and decline. They map to `{ action: "accept", content: { decision: "acceptAlways" } }`, `{ action: "accept", content: { decision: "acceptForSession" } }`, and `{ action: "decline" }`.
 
 ## 8. Runtime
 
 ### 8.1 Enablement
 
-- Desktop declares `capabilities.computerUse` only on Windows.
-- The bundled `computer` plugin contributes the computer use skill. `NodeReplJs` counts the `computer` plugin as a runtime plugin only for connections with `capabilities.computerUse`.
+- Computer use is available only on Windows Desktop.
+- The bundled `computer` plugin contributes the computer use skill and lifecycle `mcp_tool` hooks (`Stop`, `Interrupt`, `SubagentStop` → `node_repl.turn_ended` with `skipIfDormant: true`). Desktop attaches `node_repl` to local threads when any of `browser`, `chrome`, or (on Windows) `computer` is enabled, and admits `dotcraft.computer.*` host calls only when the `computer` plugin is enabled for the workspace.
 - The Settings page's "Any app" toggle installs the plugin when missing and enables or disables it.
 
 ### 8.2 Driver process

@@ -6,6 +6,7 @@
   "description": "Operate native desktop applications on this Windows computer with the user's per-app permission.",
   "capabilities": ["interactive", "read", "write", "desktop", "javascript"],
   "skills": "./skills/",
+  "hooks": "./hooks/hooks.json",
   "interface": {
     "displayName": "Computer",
     "shortDescription": "Control desktop apps on this computer",

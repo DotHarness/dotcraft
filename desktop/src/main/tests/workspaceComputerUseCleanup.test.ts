@@ -1,13 +1,20 @@
 import { EventEmitter } from 'node:events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { ComputerUseManager, type ComputerUseCallContext } from '../computerUse/ComputerUseManager'
 import type { CuaDriverClient, DriverToolResult } from '../computerUse/cuaDriverClient'
+import { getClientAdditionalMcpServers, prepareClientAdditionalMcpServers } from '../repl/nodeReplMcpBindings'
+import { nodeReplMcpServer } from '../repl/nodeReplMcpServer'
 import type { DesktopWindowRuntime } from '../windows/windowRuntime'
 import type { WorkspaceConnectionEntry } from '../windows/windowTypes'
 
 const host = vi.hoisted(() => ({ manager: null as unknown, client: null as unknown }))
-vi.mock('../nodeReplManager', () => ({ nodeReplManager: { evaluate: async () => ({ images: [], logs: [] }), reset: () => {} } }))
-vi.mock('../computerUse/runtime', () => ({ get computerUseManager() { return host.manager } }))
+vi.mock('../nodeReplManager', () => ({ nodeReplManager: { evaluate: async () => ({ images: [], logs: [] }), cancel: () => ({ ok: true }), reset: () => {} } }))
+vi.mock('../computerUse/runtime', () => ({
+  get computerUseManager() { return host.manager },
+  rememberAlwaysAllowedApp: vi.fn(async () => {})
+}))
 vi.mock('../browserUseManager', () => ({ browserUseManager: { handleTurnNotification: vi.fn() } }))
 vi.mock('../browserUseManagers', () => ({ browserUseManagers: { handleTurnNotification: vi.fn() } }))
 vi.mock('../DesktopAppServerClient', () => ({ DesktopAppServerClient: { fromWebSocket: () => host.client } }))
@@ -16,7 +23,6 @@ vi.mock('../localProjectRecovery', () => ({ bindLocalProjectRecovery: vi.fn() })
 vi.mock('../voice/voiceIpc', () => ({ refreshVoiceChatGptAvailability: vi.fn() }))
 vi.mock('../threadPanelStateIpc', () => ({ forgetThreadPanelState: vi.fn() }))
 import { connectViaWebSocket } from '../windows/windowConnections'
-import { handleWorkspaceNodeReplRequest } from '../windows/windowNodeReplRequests'
 
 class FakeDriver {
   running = false
@@ -26,12 +32,19 @@ class FakeDriver {
   async close(): Promise<void> { this.closed++; this.running = false }
   kill(): void { this.running = false }
 }
+
 class SourceClient extends EventEmitter {
   isDisposed = false
   private notifyHandler!: (method: string, params: unknown) => void
   onNotification(handler: (method: string, params: unknown) => void): void { this.notifyHandler = handler }
   onServerRequest(): void {}
-  async retainBrowserTurn(): Promise<void> {}
+  async sendRequest(method: string): Promise<unknown> {
+    if (method === 'plugin/list') {
+      return { plugins: [{ id: 'browser', installed: true, enabled: true }] }
+    }
+    return {}
+  }
+  async retainBrowserTurn(): Promise<boolean> { return true }
   async releaseBrowserTurn(): Promise<void> {}
   notify(method: string, params: unknown): void { this.notifyHandler(method, params) }
   dispose(): void { this.isDisposed = true; this.emit('disposed') }
@@ -39,6 +52,7 @@ class SourceClient extends EventEmitter {
 
 const initialized = { serverInfo: { name: 'fixture', version: '1' }, capabilities: {} }
 const clients: SourceClient[] = []
+const mcpClients: Client[] = []
 let manager: ComputerUseManager
 let driver: FakeDriver
 let visible: boolean
@@ -59,33 +73,57 @@ beforeEach(() => {
   host.manager = manager
   ctx = {
     mainWindow: { id: 1, webContents: { id: 101 }, isDestroyed: () => false },
+    app: { toolConfirm: { observeNotification: () => {} } },
     settings: { locale: 'en' }, workspaceConnections: new Map(), startupProjectStates: new Map(),
     runtimeIsStopping: () => false, resetThreadToolState: () => {}, emitConnectionStatus: () => {},
     reregisterIpcForWorkspace: () => {}, localProjectId: (path: string) => path,
     clearPendingDeviceOpenRetry: () => {}, flushPendingWorkspaceOpenThread: () => {},
     emitWorkspaceProjects: () => {}, resolveConnectionMode: () => 'local',
     scheduleSecondaryWorkspaceRefresh: () => {}, desktopThreadToolOptions: () => ({ ownerId: 101 }),
-    schedulePendingDeviceOpenRetry: () => {}, getThreadTasks: () => ({ handleNotification: () => {} }),
+    schedulePendingDeviceOpenRetry: () => {}, getThreadTasks: () => ({ handleNotification: () => {}, linkedChats: { observeNotification: () => {} } }),
     applyWorkspaceThreadNotification: () => {}
   } as unknown as DesktopWindowRuntime
 })
+
 afterEach(async () => {
+  for (const mcpClient of mcpClients.splice(0)) await mcpClient.close().catch(() => {})
   for (const client of clients.splice(0)) client.dispose()
+  await nodeReplMcpServer.dispose()
   await manager.dispose()
 })
 
-async function source(key: string): Promise<{ client: SourceClient; entry: WorkspaceConnectionEntry }> {
+async function source(key: string): Promise<{ client: SourceClient; entry: WorkspaceConnectionEntry; mcpClient: Client }> {
   const client = new SourceClient()
   clients.push(client)
   host.client = client
   await connectViaWebSocket(ctx, `/workspace/${key}`, `ws://example.invalid/${key}`)
   client.emit('ready', initialized)
-  return { client, entry: ctx.workspaceConnections.get(`/workspace/${key}`)! }
+  await prepareClientAdditionalMcpServers(client)
+  const servers = getClientAdditionalMcpServers(client)
+  const config = servers?.find(s => s.name === 'node_repl')
+  expect(config).toBeDefined()
+  const mcpClient = new Client({ name: 'test', version: '1' }, { capabilities: {} })
+  const transport = new StreamableHTTPClientTransport(new URL(config!.url), {
+    requestInit: { headers: config!.headers }
+  })
+  await mcpClient.connect(transport)
+  mcpClients.push(mcpClient)
+  return { client, entry: ctx.workspaceConnections.get(`/workspace/${key}`)!, mcpClient }
 }
-async function use(entry: WorkspaceConnectionEntry, request: Record<string, unknown>, effectiveTurnId: string): Promise<void> {
-  await handleWorkspaceNodeReplRequest(ctx, entry, 'ext/nodeRepl/evaluate', { code: '42', ...request })
+
+async function use(
+  mcpClient: Client,
+  callContext: { threadId: string; turnId?: string; callId: string },
+  effectiveTurnId: string
+): Promise<void> {
+  const result = await mcpClient.callTool({
+    name: 'NodeReplJs',
+    arguments: { code: '42' },
+    _meta: { 'dotcraft/callContext': callContext }
+  })
+  expect(result.isError).toBeUndefined()
   const context: ComputerUseCallContext = {
-    threadId: request.threadId as string, turnId: effectiveTurnId, evaluationId: request.evaluationId as string,
+    threadId: callContext.threadId, turnId: effectiveTurnId, evaluationId: callContext.callId,
     signal: new AbortController().signal, requestApproval: async () => true,
     pauseTimeout: () => () => {}, emitImage: async () => {}
   }
@@ -93,6 +131,7 @@ async function use(entry: WorkspaceConnectionEntry, request: Record<string, unkn
   expect(driver.running).toBe(true)
   expect(visible).toBe(true)
 }
+
 function expectClosed(threadId: string, turnId: string): void {
   expect(manager.hasActiveTurn(threadId, turnId)).toBe(false)
   expect(driver.running).toBe(false)
@@ -100,25 +139,21 @@ function expectClosed(threadId: string, turnId: string): void {
   expect(visible).toBe(false)
 }
 
-describe('source-owned Computer Use cleanup', () => {
+describe('source-owned Computer Use cleanup via NodeRepl MCP', () => {
   it.each([
-    { event: 'close', turnId: 'explicit', sessionTurnId: 'other', effectiveTurnId: 'explicit' },
-    { event: 'disposed', turnId: undefined, sessionTurnId: ' session-turn ', effectiveTurnId: 'session-turn' },
-    { event: 'disposed', turnId: undefined, sessionTurnId: '   ', effectiveTurnId: 'evaluation' }
-  ])('ends $effectiveTurnId on $event', async ({ event, turnId, sessionTurnId, effectiveTurnId }) => {
+    { event: 'close', turnId: 'explicit' },
+    { event: 'disposed', turnId: 'explicit' }
+  ])('ends $turnId on $event', async ({ event, turnId }) => {
     const a = await source('a')
-    await use(a.entry, {
-      threadId: 'thread', evaluationId: 'evaluation', turnId,
-      browserSession: { turnId: sessionTurnId }
-    }, effectiveTurnId)
+    await use(a.mcpClient, { threadId: 'thread', turnId, callId: 'evaluation' }, turnId)
     if (event === 'disposed') a.client.dispose()
     else a.client.emit(event)
-    expectClosed('thread', effectiveTurnId)
+    expectClosed('thread', turnId)
   })
 
   it('stays closed when reconnect delivers a terminal notification without another evaluation', async () => {
     const a = await source('a')
-    await use(a.entry, { threadId: 'thread', turnId: 'turn', evaluationId: 'evaluation' }, 'turn')
+    await use(a.mcpClient, { threadId: 'thread', turnId: 'turn', callId: 'evaluation' }, 'turn')
     a.client.emit('close')
     expectClosed('thread', 'turn')
     a.client.emit('reconnected', initialized)
@@ -128,12 +163,14 @@ describe('source-owned Computer Use cleanup', () => {
 
   it('does not close another source current turn on deletion or connection disposal', async () => {
     const a = await source('a')
-    await handleWorkspaceNodeReplRequest(ctx, a.entry, 'ext/nodeRepl/evaluate', {
-      code: '42', threadId: 'a-thread', turnId: 'a-turn', evaluationId: 'a-evaluation'
+    await a.mcpClient.callTool({
+      name: 'NodeReplJs',
+      arguments: { code: '42' },
+      _meta: { 'dotcraft/callContext': { threadId: 'a-thread', turnId: 'a-turn', callId: 'a-eval' } }
     })
     a.entry.role = 'secondary'
     const b = await source('b')
-    await use(b.entry, { threadId: 'b-thread', turnId: 'b-turn', evaluationId: 'b-evaluation' }, 'b-turn')
+    await use(b.mcpClient, { threadId: 'b-thread', turnId: 'b-turn', callId: 'b-eval' }, 'b-turn')
     a.client.notify('thread/deleted', { threadId: 'b-thread' })
     a.client.dispose()
     expect(manager.hasActiveTurn('b-thread', 'b-turn')).toBe(true)
@@ -144,10 +181,10 @@ describe('source-owned Computer Use cleanup', () => {
     expectClosed('b-thread', 'b-turn')
   })
 
-  it('ends the evaluation-owned Computer Use turn when metadata is absent and its thread is deleted', async () => {
+  it('ends the active Computer Use turn when its thread is deleted', async () => {
     const a = await source('a')
-    await use(a.entry, { threadId: 'thread', evaluationId: 'evaluation' }, 'evaluation')
+    await use(a.mcpClient, { threadId: 'thread', turnId: 'turn-del', callId: 'evaluation' }, 'turn-del')
     a.client.notify('thread/deleted', { threadId: 'thread' })
-    expectClosed('thread', 'evaluation')
+    expectClosed('thread', 'turn-del')
   })
 })

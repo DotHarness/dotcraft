@@ -36,10 +36,7 @@ internal static class InitializeContractMapper
             McpElicitation = value.McpElicitation,
             RemoteHost = value.RemoteHost,
             ChannelAdapter = ToChannelAdapter(value.ChannelAdapter),
-            AcpExtensions = ToAcp(value.AcpExtensions),
-            NodeRepl = value.NodeRepl is null ? null : new NodeReplClientCapability { Backend = value.NodeRepl.Backend },
-            BrowserUse = ToBrowserUse(value.BrowserUse),
-            ComputerUse = value.ComputerUse is null ? null : new ComputerUseClientCapability { Backend = value.ComputerUse.Backend }
+            AcpExtensions = ToAcp(value.AcpExtensions)
         };
     }
 
@@ -192,23 +189,5 @@ internal static class InitializeContractMapper
                 FsWriteTextFile = value.FsWriteTextFile,
                 TerminalCreate = value.TerminalCreate,
                 Extensions = value.Extensions?.ToList()
-            };
-
-    private static BrowserUseClientCapability? ToBrowserUse(Contract.BrowserUseCapability? value) =>
-        value is null
-            ? null
-            : new BrowserUseClientCapability
-            {
-                Backend = value.Backend,
-                Backends = value.Backends?.ToList(),
-                ProtocolVersion = value.ProtocolVersion,
-                SupportsCancel = value.SupportsCancel,
-                BrowserSessionProtocolVersion = value.BrowserSessionProtocolVersion,
-                SupportsCommandCancel = value.SupportsCommandCancel,
-                MaxBrowserResultBytes = value.MaxBrowserResultBytes,
-                DefaultCommandTimeoutMs = value.DefaultCommandTimeoutMs,
-                MaxCommandTimeoutMs = value.MaxCommandTimeoutMs,
-                SupportsTypedFinalize = value.SupportsTypedFinalize,
-                SupportsChromeDiagnostics = value.SupportsChromeDiagnostics
             };
 }
