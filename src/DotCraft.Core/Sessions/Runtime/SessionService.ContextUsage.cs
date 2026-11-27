@@ -326,8 +326,9 @@ public sealed partial class SessionService
         if (measurement is { OccupiedTokens: >= 0 } context)
         {
             tracker.SetContextUsage(context.InputTokens, context.OccupiedTokens);
-            var anchor = UpdateContextUsageAnchor(threadId, context.InputTokens ?? context.OccupiedTokens,
-                ContextUsageAnchorBoundary.ProviderMeasurement);
+            var anchor = context.InputTokens is { } inputTokens
+                ? UpdateContextUsageAnchor(threadId, inputTokens, ContextUsageAnchorBoundary.ProviderMeasurement)
+                : null;
             if (anchor is null)
                 ClearContextUsageAnchor(threadId);
             return await SaveContextUsageSnapshotAsync(

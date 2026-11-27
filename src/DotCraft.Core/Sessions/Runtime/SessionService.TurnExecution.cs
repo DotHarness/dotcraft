@@ -1429,8 +1429,8 @@ public sealed partial class SessionService
 
                                 case UsageContent usage:
                                     if (await turnUsageAccounting.RecordAsync(
-                                            usage, tokenTracker, session, admittedCompactionPipeline) is { } requestDelta)
-                                        await RecordGoalUsageAsync(turnKey, requestDelta, CancellationToken.None);
+                                            usage, tokenTracker, session, admittedCompactionPipeline))
+                                        await RecordGoalUsageAsync(turnKey, turnUsageAccounting.MainUsage, CancellationToken.None);
                                     break;
                             }
                         }

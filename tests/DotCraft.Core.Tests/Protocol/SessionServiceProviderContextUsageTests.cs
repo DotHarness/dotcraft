@@ -65,6 +65,34 @@ public sealed class SessionServiceProviderContextUsageTests : SessionServiceRunt
     }
 
     [Fact]
+    public async Task OccupancyWithoutInputTokensDoesNotCountTheResponseTwice()
+    {
+        const long occupiedTokens = 8_400;
+        var answer = string.Join(' ', Enumerable.Range(0, 500).Select(i => $"detail{i}"));
+        var model = new FakeChatClient(
+        [
+            new(ChatRole.Assistant, [new TextContent(answer)]),
+            Usage(new UsageDetails(), new(occupiedTokens))
+        ]);
+        await using var factory = CreateAgentFactory(model, configureConfig: config =>
+        {
+            ConfigureSmallCompaction(config);
+            config.Compaction.PostTurnCompactThresholdPercent = 85;
+        }, compactionChatClient: new SummaryChatClient("<summary>unexpected compaction</summary>"));
+        var service = CreateService(factory, model, useStreamingFunctionInvoker: true);
+        var thread = await service.CreateThreadAsync(MakeIdentity());
+
+        var events = await CollectAsync(service.SubmitInputAsync(thread.Id, [new TextContent("Read the fixture.")]));
+
+        Assert.DoesNotContain(events, e => e.SystemEventPayload?.Kind is "compacting" or "compacted");
+        var snapshot = Assert.IsType<DotCraft.Sessions.Wire.ContextUsageSnapshot>(service.TryGetContextUsageSnapshot(thread.Id));
+        Assert.Equal(occupiedTokens, snapshot.Tokens);
+        Assert.False(snapshot.IsEstimate);
+        await using var store = new ThreadStore(_tempDir);
+        Assert.Null(store.LoadContextUsageAnchor(thread.Id));
+    }
+
+    [Fact]
     public async Task UnknownOccupancyDiscardsAnOldBillingDerivedAnchor()
     {
         var legacy = new FakeChatClient(

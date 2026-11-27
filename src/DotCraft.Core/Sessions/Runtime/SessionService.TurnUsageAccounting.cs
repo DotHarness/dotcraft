@@ -39,7 +39,7 @@ public sealed partial class SessionService
             _cost.ObserveUpdate(update, _requestIndex);
         }
 
-        public async Task<TokenUsageInfo?> RecordAsync(
+        public async Task<bool> RecordAsync(
             UsageContent usage,
             TokenTracker tracker,
             IReadOnlyList<ChatMessage> history,
@@ -61,14 +61,13 @@ public sealed partial class SessionService
                 || delta.CachedInputTokens > 0 || delta.CacheWriteInputTokens > 0
                 || delta.ReasoningOutputTokens > 0;
             if (!billed && !contextChanged)
-                return null;
+                return false;
 
             var contextUsage = _explicitContextUsage;
             var usesExplicitContext = contextUsage is not null;
-            TokenUsageInfo? requestDelta = null;
             if (billed)
             {
-                requestDelta = new TokenUsageInfo
+                var requestDelta = new TokenUsageInfo
                 {
                     InputTokens = delta.InputTokens,
                     OutputTokens = delta.OutputTokens,
@@ -126,7 +125,7 @@ public sealed partial class SessionService
                     contextUsage?.ContextWindow is > 0 ? contextUsage.ContextWindow : null);
             }
 
-            return requestDelta;
+            return billed;
         }
 
         public TokenUsageInfo CompleteUsage(TokenTracker tracker)

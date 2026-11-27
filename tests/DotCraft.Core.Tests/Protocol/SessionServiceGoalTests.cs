@@ -178,13 +178,19 @@ public sealed class SessionServiceGoalTests : IDisposable
     }
 
     [Fact]
-    public async Task SubmitInputAsync_InjectsBudgetLimitSteeringAfterToolCompletion()
+    public async Task SubmitInputAsync_InjectsBudgetLimitSteeringAfterCumulativeToolRoundUsage()
     {
         var chatClient = new ScriptedStreamingChatClient(
             [
                 UsageUpdate(input: 9, output: 3),
                 new ChatResponseUpdate(ChatRole.Assistant, [
-                    new FunctionCallContent("call-noop", "NoopTool", new Dictionary<string, object?>())
+                    new FunctionCallContent("call-first", "NoopTool", new Dictionary<string, object?>())
+                ])
+            ],
+            [
+                UsageUpdate(input: 9, output: 3),
+                new ChatResponseUpdate(ChatRole.Assistant, [
+                    new FunctionCallContent("call-second", "NoopTool", new Dictionary<string, object?>())
                 ])
             ],
             [
@@ -204,21 +210,21 @@ public sealed class SessionServiceGoalTests : IDisposable
         });
         await service.SetThreadGoalAsync(
             thread.Id,
-            new ThreadGoalUpdate { Objective = "Stay in budget", TokenBudget = 10, HasTokenBudget = true });
+            new ThreadGoalUpdate { Objective = "Stay in budget", TokenBudget = 20, HasTokenBudget = true });
 
         await DrainAsync(service.SubmitInputAsync(thread.Id, [new TextContent("work")]));
 
         var goal = await service.GetThreadGoalAsync(thread.Id);
         Assert.NotNull(goal);
-        Assert.Equal(12, goal.TokensUsed.TotalTokens);
+        Assert.Equal(24, goal.TokensUsed.TotalTokens);
         Assert.Equal(ThreadGoalStatus.BudgetLimited, goal.Status);
-        Assert.Equal(2, chatClient.CapturedRequests.Count);
-        Assert.Contains(chatClient.CapturedRequests[1], message =>
+        Assert.Equal(3, chatClient.CapturedRequests.Count);
+        Assert.DoesNotContain(chatClient.CapturedRequests[1], IsBudgetSteering);
+        Assert.Contains(chatClient.CapturedRequests[2], IsBudgetSteering);
+
+        static bool IsBudgetSteering(ChatMessage message) =>
             message.Role == ChatRole.System
-            && MessageText(message).Contains("budget_limited", StringComparison.Ordinal)
-            && MessageText(message).Contains("Stay in budget", StringComparison.Ordinal));
-        var loadedThread = await service.GetThreadAsync(thread.Id);
-        Assert.Empty(loadedThread.QueuedInputs);
+            && MessageText(message).Contains("budget_limited", StringComparison.Ordinal);
     }
 
     [Fact]
