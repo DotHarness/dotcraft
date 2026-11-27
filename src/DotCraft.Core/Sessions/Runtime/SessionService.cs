@@ -1327,7 +1327,7 @@ public sealed partial class SessionService(
             var estimate = PrepareContextTokenEstimate(
                 threadId,
                 history,
-                tokenTracker?.LastContextTokens ?? 0,
+                tokenTracker?.LastRequestContextTokens ?? 0,
                 TryGetLastPromptRequestSnapshot(threadId)).Estimate;
             var threshold = GetCompactionPipelineForThread(threadId).EvaluateThreshold(estimate.Tokens);
             return threshold.AboveWarning

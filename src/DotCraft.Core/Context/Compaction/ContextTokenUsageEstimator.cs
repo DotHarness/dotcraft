@@ -2,7 +2,8 @@ using Microsoft.Extensions.AI;
 
 namespace DotCraft.Context.Compaction;
 
-internal sealed record ContextTokenUsageEstimate(long Tokens, string Source, bool EligibleForAutoCompact, bool IsEstimate);
+internal sealed record ContextTokenUsageEstimate(
+    long Tokens, string Source, bool EligibleForAutoCompact, bool IsEstimate, bool PreserveMeasuredDisplay = false);
 
 internal static class ContextTokenUsageEstimator
 {

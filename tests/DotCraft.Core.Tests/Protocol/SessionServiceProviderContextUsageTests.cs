@@ -92,6 +92,50 @@ public sealed class SessionServiceProviderContextUsageTests : SessionServiceRunt
         Assert.Null(store.LoadContextUsageAnchor(thread.Id));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task OccupancyWithoutInputTokensAllowsHistoryCompaction(bool coldResume)
+    {
+        const long occupiedTokens = 2_400;
+        var thread = await SeedCompactableThreadAsync(forceHighEstimate: false);
+        var answer = string.Join(' ', Enumerable.Repeat("fixture", 2_800));
+        var model = new FakeChatClient(
+        [
+            new(ChatRole.Assistant, [new TextContent(answer)]),
+            Usage(new UsageDetails(), new(occupiedTokens))
+        ]);
+        await using var factory = CreateAgentFactory(model, configureConfig: config =>
+        {
+            ConfigureSmallCompaction(config);
+            config.Compaction.PostTurnCompactThresholdPercent = coldResume ? 0 : 85;
+        }, compactionChatClient: new SummaryChatClient("<summary>Earlier fixture history.</summary>"));
+        var service = CreateService(factory, model, useStreamingFunctionInvoker: true);
+        await service.ResumeThreadAsync(thread.Id);
+
+        var events = await CollectAsync(service.SubmitInputAsync(thread.Id, [new TextContent("Read the fixture.")]));
+        Assert.Contains(events, e => e.UsageDeltaPayload?.ContextUsage is { Tokens: occupiedTokens, IsEstimate: false });
+
+        if (coldResume)
+        {
+            Assert.DoesNotContain(events, e => e.SystemEventPayload?.Kind == "compacted");
+            Assert.Equal(occupiedTokens, service.TryGetContextUsageSnapshot(thread.Id)?.Tokens);
+            var next = new RecordingChatClient("Continued.");
+            await using var nextFactory = CreateAgentFactory(next, configureConfig: ConfigureSmallCompaction,
+                compactionChatClient: new SummaryChatClient("<summary>Earlier fixture history.</summary>"));
+            var resumed = CreateService(nextFactory, next, useStreamingFunctionInvoker: true);
+            await resumed.ResumeThreadAsync(thread.Id);
+            events = await CollectAsync(resumed.SubmitInputAsync(thread.Id, [new TextContent("Continue.")]));
+
+            await resumed.RollbackThreadAsync(thread.Id, 1);
+            await using var store = new ThreadStore(_tempDir);
+            var history = await new SessionPersistenceService(store).LoadModelHistoryAsync(thread.Id, CancellationToken.None);
+            Assert.Contains(history, message => message.Text.Contains("Earlier fixture history.", StringComparison.Ordinal));
+        }
+
+        Assert.Contains(events, e => e.SystemEventPayload?.Kind == "compacted");
+    }
+
     [Fact]
     public async Task UnknownOccupancyDiscardsAnOldBillingDerivedAnchor()
     {

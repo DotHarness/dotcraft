@@ -10,6 +10,8 @@ namespace DotCraft.Sessions;
 
 public sealed partial class SessionService
 {
+    private const string ProviderOccupancySource = "provider_occupancy";
+
     public ContextUsageSnapshot? TryGetContextUsageSnapshot(string threadId)
         => ThreadAccess.TryGetContextUsageSnapshot(threadId);
 
@@ -297,12 +299,15 @@ public sealed partial class SessionService
         return snapshot;
     }
 
-    private Task<ContextUsageSnapshot> SavePreparedContextEstimateAsync(
+    private Task SavePreparedContextEstimateAsync(
         string threadId,
         ContextTokenUsageEstimate estimate,
         CancellationToken ct,
         CompactionPipeline? pipeline)
     {
+        if (estimate.PreserveMeasuredDisplay)
+            return Task.CompletedTask;
+
         var compacted = string.Equals(estimate.Source, "provider_compacted_estimate", StringComparison.Ordinal);
         var anchor = compacted ? null : TryGetInMemoryContextUsageAnchor(threadId)
             ?? persistence.LoadContextUsageAnchor(threadId);
@@ -331,8 +336,9 @@ public sealed partial class SessionService
                 : null;
             if (anchor is null)
                 ClearContextUsageAnchor(threadId);
+            var source = context.InputTokens is null ? ProviderOccupancySource : "provider_context";
             return await SaveContextUsageSnapshotAsync(
-                threadId, context.OccupiedTokens, anchor, "provider_context", isEstimate: false, pipeline: pipeline);
+                threadId, context.OccupiedTokens, anchor, source, isEstimate: false, pipeline: pipeline);
         }
 
         var request = TryGetLastPromptRequestSnapshot(threadId);
@@ -391,19 +397,21 @@ public sealed partial class SessionService
         PromptRequestSnapshot? requestSnapshot = null)
     {
         var persistedSnapshot = persistence.LoadContextUsageSnapshot(threadId);
-        var persistedAnchor = persistence.LoadContextUsageAnchor(threadId);
-        return ContextTokenUsageEstimator.Estimate(
+        var displayOnly = persistedSnapshot?.Source is ProviderOccupancySource;
+        var persistedEstimate = displayOnly ? null : persistedSnapshot;
+        var estimate = ContextTokenUsageEstimator.Estimate(
             modelVisibleHistory,
             TryGetInMemoryContextUsageAnchor(threadId),
-            persistedAnchor,
+            persistence.LoadContextUsageAnchor(threadId),
             latestContextTokens,
-            persistedSnapshot?.Tokens,
+            persistedEstimate?.Tokens,
             requestSnapshot?.RequestFingerprint,
             requestSnapshot?.ContextUsageFingerprint,
             requestSnapshot?.BaseInstructionsTokenEstimate,
-            persistedSnapshot?.Source,
-            persistedSnapshot?.IsEstimate ?? false,
+            persistedEstimate?.Source,
+            persistedEstimate?.IsEstimate ?? false,
             requestSnapshot?.EstimateRequestOverheadTokens() ?? 0);
+        return displayOnly ? estimate with { PreserveMeasuredDisplay = true } : estimate;
     }
 
     private static IReadOnlyList<ChatMessage> PrepareProviderVisibleHistory(IReadOnlyList<ChatMessage> history) =>

@@ -78,7 +78,7 @@ public sealed partial class SessionService
                 var preparedEstimate = owner.PrepareContextTokenEstimate(
                     threadId,
                     historyForEstimate,
-                    tokenTracker.LastContextTokens,
+                    tokenTracker.LastRequestContextTokens,
                     manualPromptSnapshot);
                 historyForEstimate = preparedEstimate.History.ToList();
                 manualPromptSnapshot = preparedEstimate.RequestSnapshot;

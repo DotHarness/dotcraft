@@ -457,7 +457,7 @@ public sealed partial class SessionService
                 var preparedEstimate = PrepareContextTokenEstimate(
                     threadId,
                     modelVisibleHistory,
-                    tokenTracker.LastContextTokens,
+                    tokenTracker.LastRequestContextTokens,
                     requestSnapshot);
                 var compactHistory = preparedEstimate.History;
                 var compactSnapshot = preparedEstimate.RequestSnapshot;
@@ -1256,7 +1256,7 @@ public sealed partial class SessionService
                         var preflightEstimate = PrepareContextTokenEstimate(
                             threadId,
                             [userMessage],
-                            tokenTracker.LastContextTokens).Estimate;
+                            tokenTracker.LastRequestContextTokens).Estimate;
                         await SavePreparedContextEstimateAsync(
                             threadId,
                             preflightEstimate,
@@ -1281,7 +1281,7 @@ public sealed partial class SessionService
                                 var preparedEstimate = PrepareContextTokenEstimate(
                                     threadId,
                                     snapshot.Messages,
-                                    tokenTracker.LastContextTokens,
+                                    tokenTracker.LastRequestContextTokens,
                                     snapshot);
                                 if (_runtimeRegistry.TryGetRuntime(threadId, out var runtime))
                                 {
