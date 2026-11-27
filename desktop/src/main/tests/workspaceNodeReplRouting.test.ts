@@ -171,7 +171,7 @@ describe('workspace NodeRepl MCP mounting and source-bound routing', () => {
 
   it('marks pending Computer Use elicitations as trusted on Default Chat (chat) connections', async () => {
     const { ctx, owner } = fixture()
-    const chat = entry('chat', 'chat', ['computer'])
+    const chat = entry('chat', 'chat', ['browser', 'computer'])
     ctx.workspaceConnections.set(chat.key, chat)
     registerWorkspaceNodeReplClient(ctx, chat)
     const mcpChat = await connectMcp(chat, { elicitation: { form: {} } })

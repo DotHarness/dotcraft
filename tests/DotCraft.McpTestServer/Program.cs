@@ -25,7 +25,13 @@ if (args.Contains("http"))
     builder.WebHost.ConfigureKestrel(options => options.Listen(IPAddress.Loopback, 0));
     var app = builder.Build();
     var legacyResponses = new ConcurrentDictionary<string, TaskCompletionSource<JsonObject>>(StringComparer.Ordinal);
+    var releaseEarly = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
     var legacyInputSeq = 0;
+    app.MapPost("/release-early", () =>
+    {
+        releaseEarly.TrySetResult();
+        return Results.Ok();
+    });
     app.MapPost("/", async context =>
     {
         var request = (await JsonNode.ParseAsync(context.Request.Body))!.AsObject();
@@ -63,6 +69,7 @@ if (args.Contains("http"))
             await context.Response.Body.FlushAsync(context.RequestAborted);
             if (returnBeforeAnswer)
             {
+                await releaseEarly.Task.WaitAsync(context.RequestAborted);
                 legacyResponses.TryRemove(inputId, out _);
                 var early = McpFixtureProtocol.Result(request, new JsonObject
                 {

@@ -171,13 +171,20 @@ public sealed partial class McpElicitationInvocationTests
         var handler = new InputHandler();
         await using var manager = await ConnectAsync(Config(server), handler);
 
-        var result = await manager.CallToolAsync(
+        var call = manager.CallToolAsync(
             "inputs",
             "choose",
             new Dictionary<string, object?> { ["owner"] = "early", ["echoCallId"] = true, ["returnBeforeAnswer"] = true },
-            context: Context("early", "turn-early")).WaitAsync(Deadline);
-        Assert.Equal("early-return", Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text);
+            context: Context("early", "turn-early"));
         var orphaned = await handler.ReadAsync();
+        Assert.False(orphaned.CancellationToken.IsCancellationRequested);
+
+        using var http = new HttpClient();
+        using var releaseResponse = await http.PostAsync(new Uri(new Uri(server.Endpoint), "/release-early"), content: null);
+        releaseResponse.EnsureSuccessStatusCode();
+
+        var result = await call.WaitAsync(Deadline);
+        Assert.Equal("early-return", Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text);
         Assert.True(orphaned.CancellationToken.IsCancellationRequested);
     }
 
