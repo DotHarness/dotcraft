@@ -671,7 +671,7 @@ The row and its hit target never move; one part of the glyph does, for 340–720
 | Oratorio (plugin) | The mark dips into one downbeat about its ring and rebounds |
 | Conductor (Oratorio space) | The front bubble gives a cue and the back bubble answers, each moving apart and back |
 | Board (Oratorio space) | The columns dip one after another and settle |
-| Memory (plugin) | The recall spark inside the bookmark turns one quarter-turn and settles |
+| Memory (plugin) | The spark lifts from the bookmark corner, turns one quarter-turn, and settles |
 
 - Every motion starts and ends on the static drawing, so leaving mid-motion
   returns the glyph to rest and reduced motion leaves it still.

@@ -4,13 +4,45 @@
   overflow: visible;
 }
 
-.memory-studio-icon__spark {
-  transform-origin: 12px 9.75px;
+.memory-studio-icon__spin {
+  transform-origin: 17.5px 6.5px;
 }
 
 :is([data-nav-icon-host]:hover:not(:disabled), [data-nav-icon-host]:focus-visible, [data-nav-icon-play])
-  .memory-studio-icon__spark {
-  animation: memory-studio-spark-turn 560ms;
+  .memory-studio-icon__pop {
+  animation: memory-studio-spark-pop 580ms;
+}
+
+:is([data-nav-icon-host]:hover:not(:disabled), [data-nav-icon-host]:focus-visible, [data-nav-icon-play])
+  .memory-studio-icon__spin {
+  animation: memory-studio-spark-turn 580ms;
+}
+
+@keyframes memory-studio-spark-pop {
+  0% {
+    translate: 0 0;
+    animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+  }
+  34% {
+    translate: 1.8px -2.2px;
+    animation-timing-function: linear;
+  }
+  46% {
+    translate: 1.8px -2.2px;
+    animation-timing-function: cubic-bezier(0.6, 0, 0.8, 0.6);
+  }
+  74% {
+    translate: 0 0;
+    animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+  }
+  85% {
+    translate: 0.35px -0.45px;
+    animation-timing-function: cubic-bezier(0.6, 0, 1, 1);
+  }
+  95%,
+  100% {
+    translate: 0 0;
+  }
 }
 
 @keyframes memory-studio-spark-turn {

@@ -20,13 +20,16 @@ export function MemoryIcon({
       strokeLinejoin="round"
       {...props}
     >
-      <path d="M5 5.5A2.5 2.5 0 0 1 7.5 3h9A2.5 2.5 0 0 1 19 5.5V21l-7-4.2L5 21Z" />
-      <path
-        className="memory-studio-icon__spark"
-        d="M12 6c0 2.6 1.15 3.75 3.75 3.75-2.6 0-3.75 1.15-3.75 3.75 0-2.6-1.15-3.75-3.75-3.75 2.6 0 3.75-1.15 3.75-3.75Z"
-        fill="currentColor"
-        stroke="none"
-      />
+      <path d="M12 4H7a2.5 2.5 0 0 0-2.5 2.5V21l7-4.1 7 4.1V12" />
+      <g className="memory-studio-icon__pop">
+        <g className="memory-studio-icon__spin">
+          <path
+            d="M17.5 2.1c0 3 1.4 4.4 4.4 4.4-3 0-4.4 1.4-4.4 4.4 0-3-1.4-4.4-4.4-4.4 3 0 4.4-1.4 4.4-4.4Z"
+            fill="currentColor"
+            stroke="none"
+          />
+        </g>
+      </g>
     </svg>
   )
 }
