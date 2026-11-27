@@ -42,9 +42,11 @@ internal sealed class OratorioMcpProxy : IAsyncDisposable
         if (url is null)
             return (null, null);
 
-        var rawToken = string.IsNullOrWhiteSpace(explicitToken)
-            ? getEnvironmentVariable(OratorioServiceTokenEnvVar)
-            : explicitToken;
+        var rawToken = !string.IsNullOrWhiteSpace(explicitToken)
+            ? explicitToken
+            : string.IsNullOrWhiteSpace(explicitUrl)
+                ? getEnvironmentVariable(OratorioServiceTokenEnvVar)
+                : null;
         var token = string.IsNullOrWhiteSpace(rawToken) ? null : rawToken.Trim();
         return (url, token);
     }

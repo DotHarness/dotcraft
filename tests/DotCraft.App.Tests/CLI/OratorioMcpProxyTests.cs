@@ -29,6 +29,9 @@ public sealed class OratorioMcpProxyTests
         var fromExplicit = OratorioMcpProxy.ResolveConfiguredTarget("http://127.0.0.1:5087/", "explicit-token", key => env.GetValueOrDefault(key));
         Assert.Equal(("http://127.0.0.1:5087", "explicit-token"), fromExplicit);
 
+        var explicitUrlWithoutToken = OratorioMcpProxy.ResolveConfiguredTarget("http://127.0.0.1:5087/", null, key => env.GetValueOrDefault(key));
+        Assert.Equal(("http://127.0.0.1:5087", null), explicitUrlWithoutToken);
+
         var hubFallback = OratorioMcpProxy.ResolveConfiguredTarget(null, null, _ => null);
         Assert.Equal((null, null), hubFallback);
     }
