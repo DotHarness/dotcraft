@@ -21,7 +21,7 @@ internal sealed class AppServerMcpElicitationHandler(AppServerThreadSubscribers 
         if (!TryGetSchema(request, out var schema))
             return new ElicitResult { Action = "decline" };
 
-        var recipients = subscribers.GetElicitationRecipients(context.ThreadId, context.ParentThreadId);
+        var recipients = subscribers.GetElicitationRecipients(context.ThreadId);
         if (recipients.Count == 0)
             throw new McpElicitationUnavailableException("no_client");
 

@@ -22,14 +22,21 @@ public sealed partial class SessionService
 
     private DotCraft.Mcp.McpClientManager? ResolveActiveMcpManagerForHook(string? threadId)
     {
-        if (!string.IsNullOrWhiteSpace(threadId)
-            && _runtimeRegistry.TryGetRuntime(threadId, out var runtime)
-            && runtime.McpManager is not null)
-        {
-            return runtime.McpManager;
-        }
+        if (string.IsNullOrWhiteSpace(threadId))
+            return agentFactory.RuntimeContext.McpClientManager;
 
-        return agentFactory.RuntimeContext.McpClientManager;
+        return _runtimeRegistry.TryGetRuntime(threadId, out var runtime)
+            ? runtime.McpManager
+            : null;
+    }
+
+    private (bool IsSubagent, string? ParentThreadId) ResolveSubagentIdentity(string? threadId)
+    {
+        if (string.IsNullOrWhiteSpace(threadId) || !_runtimeRegistry.TryGetThread(threadId, out var thread))
+            return (false, null);
+
+        var isSubagent = IsSubAgentThread(thread);
+        return (isSubagent, isSubagent ? thread.Source.SubAgent?.ParentThreadId ?? thread.ChannelContext : null);
     }
 
     private async Task RunInterruptHookAsync(
@@ -108,13 +115,16 @@ public sealed partial class SessionService
 
         try
         {
+            var (isSubagent, parentThreadId) = ResolveSubagentIdentity(threadId);
             var hookInput = new HookInput
             {
                 SessionId = threadId,
                 TurnId = turnId,
                 Cwd = workspacePath,
                 Prompt = prompt,
-                StopHookActive = stopHookActive
+                StopHookActive = stopHookActive,
+                IsSubagent = isSubagent,
+                ParentThreadId = parentThreadId
             };
             return await hookRunner.RunAsync(evt, hookInput, ct).ConfigureAwait(false);
         }
@@ -144,12 +154,15 @@ public sealed partial class SessionService
 
         try
         {
+            var (isSubagent, parentThreadId) = ResolveSubagentIdentity(threadId);
             var hookInput = new HookInput
             {
                 SessionId = threadId,
                 TurnId = turnId,
                 Cwd = workspacePath,
-                StopHookActive = stopHookActive
+                StopHookActive = stopHookActive,
+                IsSubagent = isSubagent,
+                ParentThreadId = parentThreadId
             };
             return await hookRunner.RunAsync(HookEvent.SessionStart, hookInput, ct).ConfigureAwait(false);
         }
@@ -177,6 +190,7 @@ public sealed partial class SessionService
 
         try
         {
+            var (isSubagent, parentThreadId) = ResolveSubagentIdentity(threadId);
             var hookInput = new HookInput
             {
                 SessionId = threadId,
@@ -184,7 +198,9 @@ public sealed partial class SessionService
                 Cwd = workspacePath,
                 ToolName = evt.ToString(),
                 ToolArgs = context,
-                StopHookActive = string.Equals(TurnTriggerScope.Current?.Kind, "hook", StringComparison.Ordinal)
+                StopHookActive = string.Equals(TurnTriggerScope.Current?.Kind, "hook", StringComparison.Ordinal),
+                IsSubagent = isSubagent,
+                ParentThreadId = parentThreadId
             };
             return await hookRunner.RunAsync(evt, hookInput, ct).ConfigureAwait(false);
         }

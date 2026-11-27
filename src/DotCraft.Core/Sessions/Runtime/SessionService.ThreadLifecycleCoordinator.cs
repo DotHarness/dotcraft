@@ -225,13 +225,13 @@ public sealed partial class SessionService
                 interruptedTurn = InterruptArchiveTurns(thread, runtime);
                 terminalCleanup = StopArchivedThreadTerminalsAsync(thread.Id);
                 owner.ClearThreadAgentCaches(thread.Id);
-                await owner.RunSessionEndHookAsync(thread);
                 if (runtime != null)
                     await runtime.ReleaseMcpAsync();
             }
             owner.ToolDispatchPolicyRegistry?.Remove(thread.Id);
             await owner.AgentFactory.ReleaseThreadToolResourcesAsync(thread.Id, ct);
             owner.ForgetContextPages(thread.Id);
+            await owner.RunSessionEndHookAsync(thread);
 
             PublishThreadStatusChanged(thread.Id, previousStatus, thread.Status);
 

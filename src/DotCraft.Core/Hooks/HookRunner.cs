@@ -240,7 +240,7 @@ public sealed class HookRunner
         var outputParts = new List<string>();
         var contextParts = new List<string>();
         var blockReasonParts = new List<string>();
-        var executedMcpHooks = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var executedMcpHooks = new HashSet<string>(StringComparer.Ordinal);
         var tool = HookToolAdapter.Build(input.ToolName, input.ToolArgs);
 
         foreach (var group in matcherGroups)
@@ -268,6 +268,9 @@ public sealed class HookRunner
 
                 if (isMcpTool)
                 {
+                    if (evt == HookEvent.SessionEnd)
+                        continue;
+
                     var dedupeKey = BuildMcpDedupeKey(hookEntry);
                     if (!executedMcpHooks.Add(dedupeKey))
                     {
@@ -303,7 +306,7 @@ public sealed class HookRunner
                 if (isDebug)
                     WriteDebug($"[Hooks] {eventName}: executing '{hookEntry.Command}' (matcher='{group.Matcher}', tool='{input.ToolName}')");
 
-                if (hookEntry.Async || hookEntry.AsyncRewake)
+                if (evt != HookEvent.SessionEnd && (hookEntry.Async || hookEntry.AsyncRewake))
                 {
                     _ = Task.Run(async () =>
                     {
@@ -452,10 +455,11 @@ public sealed class HookRunner
                 await WriteHookStdinAsync(process, stdinJson, timeoutCts.Token);
                 await process.WaitForExitAsync(timeoutCts.Token);
             }
-            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            catch (OperationCanceledException)
             {
-                // Timeout — kill the process
                 try { process.Kill(entireProcessTree: true); } catch { /* best effort */ }
+                if (ct.IsCancellationRequested)
+                    throw;
                 result.StdErr = $"Hook timed out after {hookEntry.Timeout} seconds";
                 return result;
             }
@@ -543,7 +547,7 @@ public sealed class HookRunner
     }
 
     private static string BuildMcpDedupeKey(HookEntry hookEntry) =>
-        $"{hookEntry.Server?.Trim() ?? string.Empty}\0{hookEntry.Tool?.Trim() ?? string.Empty}\0{hookEntry.Input?.ToJsonString() ?? string.Empty}";
+        $"{hookEntry.Server?.Trim().ToLowerInvariant() ?? string.Empty}\0{hookEntry.Tool?.Trim() ?? string.Empty}\0{hookEntry.Input?.ToJsonString() ?? string.Empty}";
 
     private async Task<HookResult> ExecuteMcpHookAsync(
         HookEvent evt,

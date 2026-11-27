@@ -251,6 +251,12 @@ public sealed class HooksLoader
 
                     if (isMcpTool)
                     {
+                        if (string.Equals(eventName, nameof(HookEvent.SessionEnd), StringComparison.OrdinalIgnoreCase))
+                        {
+                            warnings.Add($"Skipping unsupported SessionEnd mcp_tool hook in {sourcePath}.");
+                            continue;
+                        }
+
                         if (string.IsNullOrWhiteSpace(hook.Server) || string.IsNullOrWhiteSpace(hook.Tool))
                         {
                             warnings.Add($"Skipping mcp_tool hook missing 'server' or 'tool' in {sourcePath}.");
@@ -262,6 +268,14 @@ public sealed class HooksLoader
                             warnings.Add($"Skipping mcp_tool hook with non-empty 'command' in {sourcePath}.");
                             continue;
                         }
+                    }
+
+                    var isSessionEnd = string.Equals(eventName, nameof(HookEvent.SessionEnd), StringComparison.OrdinalIgnoreCase);
+                    var effectiveAsync = !isSessionEnd && hook.Async;
+                    var effectiveAsyncRewake = !isSessionEnd && isCommand && hook.AsyncRewake;
+                    if (isSessionEnd && (hook.Async || hook.AsyncRewake))
+                    {
+                        warnings.Add($"Running async SessionEnd hook synchronously in {sourcePath}.");
                     }
 
                     var handlerType = isMcpTool ? "mcp_tool" : "command";
@@ -312,8 +326,8 @@ public sealed class HooksLoader
                         Shell = isCommand ? hook.Shell : null,
                         Timeout = timeout,
                         StatusMessage = hook.StatusMessage,
-                        Async = hook.Async,
-                        AsyncRewake = isCommand && hook.AsyncRewake,
+                        Async = effectiveAsync,
+                        AsyncRewake = effectiveAsyncRewake,
                         RewakeMessage = hook.RewakeMessage,
                         RewakeSummary = hook.RewakeSummary,
                         Once = hook.Once,

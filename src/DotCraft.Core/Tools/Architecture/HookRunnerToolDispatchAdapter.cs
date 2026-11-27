@@ -26,8 +26,11 @@ public sealed class HookRunnerToolDispatchAdapter(HookRunner hookRunner) : ITool
             new HookInput
             {
                 SessionId = context.ThreadId,
+                TurnId = context.TurnId,
                 ToolName = registration.Definition.Name.ToString(),
-                ToolArgs = values
+                ToolArgs = values,
+                IsSubagent = context.IsSubagent,
+                ParentThreadId = context.ParentThreadId
             },
             cancellationToken).ConfigureAwait(false);
         return hookResult.Blocked
@@ -51,10 +54,13 @@ public sealed class HookRunnerToolDispatchAdapter(HookRunner hookRunner) : ITool
             new HookInput
             {
                 SessionId = context.ThreadId,
+                TurnId = context.TurnId,
                 ToolName = registration.Definition.Name.ToString(),
                 ToolArgs = values,
                 ToolResult = result.Success ? result.Content : null,
-                Error = result.Success ? null : result.Error?.Message
+                Error = result.Success ? null : result.Error?.Message,
+                IsSubagent = context.IsSubagent,
+                ParentThreadId = context.ParentThreadId
             },
             cancellationToken).ConfigureAwait(false);
         ToolHookFeedbackScope.Record(hookEvent, hookResult);

@@ -39,10 +39,11 @@ commands through hook-management APIs. Clients may only write user-local state:
 ```
 
 Config and plugin hooks are unmanaged and do not run until trusted, with one
-exception: `mcp_tool` hooks declared by bundled built-in plugins
-(`dotcraft-bundled`) are trusted as `managed` hooks because they invoke
-host-managed MCP tools rather than arbitrary local shell commands. Installing or
-enabling a third-party plugin does not trust its hooks. Any behavior-changing
+exception: `mcp_tool` hooks declared by verified host-bundled plugins
+(`dotcraft-bundled`, matched by content fingerprint against the host's bundled
+plugin roots) are trusted as `managed` hooks because they invoke host-managed
+MCP tools rather than arbitrary local shell commands. Installing or enabling a
+third-party or workspace plugin does not trust its hooks. Any behavior-changing
 edit changes the hook hash and returns the hook to `modified` until the user
 trusts the new hash. State lives in user-global config so personal trust and
 disable choices are never committed to a workspace. Plugin hooks are trusted as
@@ -137,9 +138,11 @@ Supported handler fields:
 `mcp_tool` handlers invoke the named tool on the thread's effective MCP runtime
 with standard `_meta` call context plus `"dotcraft/hookEvent"`. They may invoke
 app-only / model-hidden tools on enabled, ready MCP servers, while strictly
-respecting server enablement and plugin gating. Within a single event dispatch,
-identical `(server, tool, input)` `mcp_tool` hooks are deduplicated. Failures
-and timeouts are logged and fail open without blocking turn or session teardown.
+respecting server enablement and plugin gating. `mcp_tool` handlers are not
+supported on `SessionEnd` (skipped with a warning), and `SessionEnd` hooks
+always run synchronously. Within a single event dispatch, identical
+`(server, tool, input)` `mcp_tool` hooks are deduplicated. Failures and timeouts
+are logged and fail open without blocking turn or session teardown.
 
 Handler types `prompt`, `agent`, and `http` are reserved: they are listed with
 diagnostics and not executed.

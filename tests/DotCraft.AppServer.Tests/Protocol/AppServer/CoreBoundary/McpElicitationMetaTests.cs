@@ -12,7 +12,7 @@ namespace DotCraft.Tests.Sessions.Protocol.AppServer;
 public sealed class McpElicitationMetaTests
 {
     [Fact]
-    public async Task ElicitationHandler_ForwardsMetaAndFallsBackToParentThreadSubscriberForSubagent()
+    public async Task ElicitationHandler_ForwardsMetaOnRequestAndResponse()
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         var ct = timeout.Token;
@@ -23,22 +23,20 @@ public sealed class McpElicitationMetaTests
             new ClientConnectionInfo { Name = "desktop", Version = "1" },
             new ClientConnectionCapabilities { McpElicitation = true });
         connection.MarkClientReady();
-        connection.TryAddSubscription("parent-thread", new CancellationTokenSource());
+        connection.TryAddSubscription("thread-1", new CancellationTokenSource());
         subscribers.Register(peer.Transport, connection);
 
         var handler = new AppServerMcpElicitationHandler(subscribers);
         var context = new ToolInvocationContext(
-            ThreadId: "child-thread",
-            TurnId: "child-turn",
+            ThreadId: "thread-1",
+            TurnId: "turn-1",
             CallId: "call-1",
             Audience: ToolInvocationAudience.Model,
             ToolName: new ToolName("NodeReplJs", "node_repl"),
             DefinitionId: new ToolDefinitionId(ToolSourceKind.Mcp, "node_repl", new SourceToolId("NodeReplJs")),
             RuntimeBindingId: new RuntimeBindingId("mcp:node_repl:NodeReplJs:1"),
             SnapshotRevision: 1,
-            StartedAt: DateTimeOffset.UtcNow,
-            IsSubagent: true,
-            ParentThreadId: "parent-thread");
+            StartedAt: DateTimeOffset.UtcNow);
 
         var request = new ElicitRequestParams
         {
@@ -65,7 +63,7 @@ public sealed class McpElicitationMetaTests
         using var wireRequest = await peer.ReadAsync(ct);
         Assert.Equal("mcpServer/elicitation/request", wireRequest.RootElement.GetProperty("method").GetString());
         var reqParams = wireRequest.RootElement.GetProperty("params");
-        Assert.Equal("child-thread", reqParams.GetProperty("threadId").GetString());
+        Assert.Equal("thread-1", reqParams.GetProperty("threadId").GetString());
         var wireMeta = reqParams.GetProperty("_meta");
         Assert.Equal("computerUse", wireMeta.GetProperty("approvalKind").GetString());
         Assert.Equal("click", wireMeta.GetProperty("operation").GetString());

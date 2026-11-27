@@ -18,26 +18,13 @@ public sealed class AppServerThreadSubscribers
             TaskScheduler.Default);
     }
 
-    internal IReadOnlyList<(AppServerConnection Connection, IAppServerTransport Transport)> GetElicitationRecipients(
-        string threadId,
-        string? parentThreadId = null)
-    {
-        var direct = _connections
+    internal IReadOnlyList<(AppServerConnection Connection, IAppServerTransport Transport)> GetElicitationRecipients(string threadId) =>
+        _connections
             .Where(pair => pair.Key.IsClientReady && !pair.Key.IsClosed
                            && pair.Key.HasSubscription(threadId)
                            && pair.Key.ClientCapabilities?.McpElicitation == true)
             .Select(pair => (pair.Key, pair.Value))
             .ToArray();
-        if (direct.Length > 0 || string.IsNullOrWhiteSpace(parentThreadId))
-            return direct;
-
-        return _connections
-            .Where(pair => pair.Key.IsClientReady && !pair.Key.IsClosed
-                           && pair.Key.HasSubscription(parentThreadId)
-                           && pair.Key.ClientCapabilities?.McpElicitation == true)
-            .Select(pair => (pair.Key, pair.Value))
-            .ToArray();
-    }
 
     public void NotifyOthers<TParams>(
         RpcNotification<TParams> notification,
