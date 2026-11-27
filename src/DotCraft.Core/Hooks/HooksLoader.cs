@@ -128,6 +128,7 @@ public sealed class HooksLoader
                 source.SourceRelativePath,
                 source.PluginRoot,
                 source.PluginDataPath,
+                source.IsManagedBuiltIn,
                 config,
                 hooksGloballyEnabled,
                 runtimeConfig,
@@ -198,6 +199,7 @@ public sealed class HooksLoader
             sourceRelativePath: null,
             pluginRoot: null,
             pluginDataPath: null,
+            isManagedBuiltInPlugin: false,
             config,
             hooksGloballyEnabled,
             runtimeConfig,
@@ -214,6 +216,7 @@ public sealed class HooksLoader
         string? sourceRelativePath,
         string? pluginRoot,
         string? pluginDataPath,
+        bool isManagedBuiltInPlugin,
         AppConfig appConfig,
         bool hooksGloballyEnabled,
         HooksFileConfig runtimeConfig,
@@ -232,58 +235,85 @@ public sealed class HooksLoader
                 for (var hookIndex = 0; hookIndex < group.Hooks.Count; hookIndex++)
                 {
                     var hook = group.Hooks[hookIndex] ?? new HookEntry();
-                    if (!string.Equals(hook.Type, "command", StringComparison.OrdinalIgnoreCase))
+                    var isCommand = string.Equals(hook.Type, "command", StringComparison.OrdinalIgnoreCase);
+                    var isMcpTool = string.Equals(hook.Type, "mcp_tool", StringComparison.OrdinalIgnoreCase);
+                    if (!isCommand && !isMcpTool)
                     {
                         warnings.Add($"Skipping unsupported hook type '{hook.Type}' in {sourcePath}.");
                         continue;
                     }
 
-                    if (string.IsNullOrWhiteSpace(hook.Command))
+                    if (isCommand && string.IsNullOrWhiteSpace(hook.Command))
                     {
                         warnings.Add($"Skipping empty hook command in {sourcePath}.");
                         continue;
                     }
 
+                    if (isMcpTool)
+                    {
+                        if (string.IsNullOrWhiteSpace(hook.Server) || string.IsNullOrWhiteSpace(hook.Tool))
+                        {
+                            warnings.Add($"Skipping mcp_tool hook missing 'server' or 'tool' in {sourcePath}.");
+                            continue;
+                        }
+
+                        if (!string.IsNullOrWhiteSpace(hook.Command))
+                        {
+                            warnings.Add($"Skipping mcp_tool hook with non-empty 'command' in {sourcePath}.");
+                            continue;
+                        }
+                    }
+
+                    var handlerType = isMcpTool ? "mcp_tool" : "command";
                     var timeout = Math.Max(1, hook.Timeout);
                     var key = source == HookSources.Plugin && pluginId != null && sourceRelativePath != null
                         ? HookKeys.ForPlugin(pluginId, sourceRelativePath, eventName, groupIndex, hookIndex)
                         : HookKeys.ForConfig(sourcePath, eventName, groupIndex, hookIndex);
-                    var currentHash = ComputeHash(eventName, group.Matcher, hook, timeout);
+                    var currentHash = ComputeHash(eventName, group.Matcher, hook, handlerType, timeout);
                     appConfig.Hooks.State.TryGetValue(key, out var state);
-                    var isManaged = false;
+                    var isManaged = isMcpTool && source == HookSources.Plugin && isManagedBuiltInPlugin;
                     var stateEnabled = state?.Enabled != false;
                     var enabled = hooksGloballyEnabled && stateEnabled;
                     var trustStatus = ResolveTrustStatus(isManaged, currentHash, state?.TrustedHash);
-                    var command = ExpandPluginVariables(hook.Command, pluginRoot, pluginDataPath);
+                    var command = isCommand ? ExpandPluginVariables(hook.Command, pluginRoot, pluginDataPath) : string.Empty;
+                    var mcpServer = isMcpTool ? hook.Server!.Trim() : null;
+                    var mcpTool = isMcpTool ? hook.Tool!.Trim() : null;
                     var environment = new Dictionary<string, string>(StringComparer.Ordinal);
-                    foreach (var (envKey, value) in hook.EnvironmentVariables)
+                    if (isCommand)
                     {
-                        if (!string.IsNullOrWhiteSpace(envKey) && value != null)
-                            environment[envKey] = ExpandPluginVariables(value, pluginRoot, pluginDataPath);
-                    }
-                    foreach (var (envKey, value) in BuildHookEnvironment(pluginRoot, pluginDataPath))
-                    {
-                        if (OperatingSystem.IsWindows())
+                        foreach (var (envKey, value) in hook.EnvironmentVariables)
                         {
-                            foreach (var existingKey in environment.Keys
-                                         .Where(existingKey => existingKey.Equals(envKey, StringComparison.OrdinalIgnoreCase))
-                                         .ToList())
-                                environment.Remove(existingKey);
+                            if (!string.IsNullOrWhiteSpace(envKey) && value != null)
+                                environment[envKey] = ExpandPluginVariables(value, pluginRoot, pluginDataPath);
                         }
-                        environment[envKey] = value;
+                        foreach (var (envKey, value) in BuildHookEnvironment(pluginRoot, pluginDataPath))
+                        {
+                            if (OperatingSystem.IsWindows())
+                            {
+                                foreach (var existingKey in environment.Keys
+                                             .Where(existingKey => existingKey.Equals(envKey, StringComparison.OrdinalIgnoreCase))
+                                             .ToList())
+                                    environment.Remove(existingKey);
+                            }
+                            environment[envKey] = value;
+                        }
                     }
 
                     var entry = new HookEntry
                     {
                         Key = key,
-                        Type = "command",
+                        Type = handlerType,
                         Command = command,
+                        Server = mcpServer,
+                        Tool = mcpTool,
+                        Input = hook.Input?.DeepClone() as System.Text.Json.Nodes.JsonObject,
+                        SkipIfDormant = isMcpTool && hook.SkipIfDormant,
                         If = hook.If,
-                        Shell = hook.Shell,
+                        Shell = isCommand ? hook.Shell : null,
                         Timeout = timeout,
                         StatusMessage = hook.StatusMessage,
                         Async = hook.Async,
-                        AsyncRewake = hook.AsyncRewake,
+                        AsyncRewake = isCommand && hook.AsyncRewake,
                         RewakeMessage = hook.RewakeMessage,
                         RewakeSummary = hook.RewakeSummary,
                         Once = hook.Once,
@@ -297,16 +327,19 @@ public sealed class HooksLoader
                     {
                         Key = key,
                         EventName = eventName,
-                        HandlerType = "command",
+                        HandlerType = handlerType,
                         Matcher = string.IsNullOrEmpty(group.Matcher) ? null : group.Matcher,
                         Condition = hook.If,
-                        Command = command,
+                        Command = isCommand ? command : null,
+                        McpServer = mcpServer,
+                        McpTool = mcpTool,
+                        SkipIfDormant = isMcpTool && hook.SkipIfDormant,
                         TimeoutSec = timeout,
-                        ExecutionMode = hook.Async || hook.AsyncRewake ? "async" : "sync",
-                        AsyncRewake = hook.AsyncRewake,
+                        ExecutionMode = entry.Async || entry.AsyncRewake ? "async" : "sync",
+                        AsyncRewake = entry.AsyncRewake,
                         RewakeMessage = hook.RewakeMessage,
                         RewakeSummary = hook.RewakeSummary,
-                        Shell = hook.Shell,
+                        Shell = entry.Shell,
                         Once = hook.Once,
                         StatusMessage = hook.StatusMessage,
                         SourcePath = sourcePath,
@@ -358,22 +391,37 @@ public sealed class HooksLoader
             : HookTrustStatuses.Modified;
     }
 
-    private static string ComputeHash(string eventName, string? matcher, HookEntry hook, int timeout)
+    private static string ComputeHash(string eventName, string? matcher, HookEntry hook, string handlerType, int timeout)
     {
-        var normalized = string.Join(
-            "\n",
-            HookKeys.ToSnakeCase(eventName),
-            matcher ?? string.Empty,
-            hook.If ?? string.Empty,
-            hook.Command,
-            hook.Shell ?? string.Empty,
-            timeout.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            hook.StatusMessage ?? string.Empty,
-            hook.Async ? "async" : "sync",
-            hook.AsyncRewake ? "rewake" : string.Empty,
-            hook.RewakeMessage ?? string.Empty,
-            hook.RewakeSummary ?? string.Empty,
-            hook.Once ? "once" : string.Empty);
+        var normalized = handlerType == "mcp_tool"
+            ? string.Join(
+                "\n",
+                HookKeys.ToSnakeCase(eventName),
+                "mcp_tool",
+                matcher ?? string.Empty,
+                hook.If ?? string.Empty,
+                hook.Server?.Trim() ?? string.Empty,
+                hook.Tool?.Trim() ?? string.Empty,
+                hook.Input?.ToJsonString() ?? string.Empty,
+                hook.SkipIfDormant ? "skip_if_dormant" : string.Empty,
+                timeout.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                hook.StatusMessage ?? string.Empty,
+                hook.Async ? "async" : "sync",
+                hook.Once ? "once" : string.Empty)
+            : string.Join(
+                "\n",
+                HookKeys.ToSnakeCase(eventName),
+                matcher ?? string.Empty,
+                hook.If ?? string.Empty,
+                hook.Command,
+                hook.Shell ?? string.Empty,
+                timeout.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                hook.StatusMessage ?? string.Empty,
+                hook.Async ? "async" : "sync",
+                hook.AsyncRewake ? "rewake" : string.Empty,
+                hook.RewakeMessage ?? string.Empty,
+                hook.RewakeSummary ?? string.Empty,
+                hook.Once ? "once" : string.Empty);
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(normalized));
         return "sha256:" + Convert.ToHexString(bytes).ToLowerInvariant();
     }

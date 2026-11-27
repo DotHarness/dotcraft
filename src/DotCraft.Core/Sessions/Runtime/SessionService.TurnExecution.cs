@@ -1164,7 +1164,9 @@ public sealed partial class SessionService
                         EmitItemDelta = eventChannel.EmitItemDelta,
                         EmitItemCompleted = eventChannel.EmitItemCompleted,
                         SupportsToolExecutionLifecycle = supportsToolExecutionLifecycle,
-                        TurnServices = turnToolServices
+                        TurnServices = turnToolServices,
+                        IsSubagent = currentSubAgentSource is not null,
+                        ParentThreadId = currentSubAgentSource?.ParentThreadId ?? (IsSubAgentThread(thread) ? thread.ChannelContext : null)
                     });
                 using var turnDiffScope = TurnDiffTrackerScope.Set(turnRuntime.DiffTracker);
                 if (turnRuntime != null)
@@ -1860,6 +1862,8 @@ public sealed partial class SessionService
 
                 if (hookRunner != null)
                 {
+                    EnsureHookRewakeHandler();
+                    var isSubagent = IsSubAgentThread(thread);
                     var stopInput = new HookInput
                     {
                         SessionId = threadId,
@@ -1867,7 +1871,9 @@ public sealed partial class SessionService
                         Cwd = turnContext.Workspace.Cwd,
                         Response = itemProjector.AgentText,
                         LastAssistantMessage = itemProjector.AgentText,
-                        StopHookActive = string.Equals(turnContext.Trigger?.Kind, "hook", StringComparison.Ordinal)
+                        StopHookActive = string.Equals(turnContext.Trigger?.Kind, "hook", StringComparison.Ordinal),
+                        IsSubagent = isSubagent,
+                        ParentThreadId = isSubagent ? thread.Source.SubAgent?.ParentThreadId ?? thread.ChannelContext : null
                     };
                     await hookRunner.RunAsync(HookEvent.Stop, stopInput, CancellationToken.None);
                 }
@@ -1964,6 +1970,7 @@ public sealed partial class SessionService
                     GoalAccountingMode.ActiveOrStopped,
                     CancellationToken.None);
                 await PauseActiveGoalForInterruptAsync(turnKey, CancellationToken.None);
+                await RunInterruptHookAsync(thread, turn.Id, turnContext.Workspace.Cwd, turnContext.Trigger?.Kind);
                 await RestoreUndrainedGuidanceAsync(() =>
                 {
                     turn.Status = TurnStatus.Cancelled;
@@ -1979,6 +1986,7 @@ public sealed partial class SessionService
             {
                 itemProjector.FinalizeAgentMessage(AgentMessagePhases.PartialAnswer);
                 FinalizeStreamingReasoning();
+                await RunInterruptHookAsync(thread, turn.Id, turnContext.Workspace.Cwd, turnContext.Trigger?.Kind);
                 await RestoreUndrainedGuidanceAsync(() =>
                 {
                     turn.Status = TurnStatus.Cancelled;
@@ -1999,6 +2007,7 @@ public sealed partial class SessionService
             {
                 itemProjector.FinalizeAgentMessage(AgentMessagePhases.PartialAnswer);
                 FinalizeStreamingReasoning();
+                await RunInterruptHookAsync(thread, turn.Id, turnContext.Workspace.Cwd, turnContext.Trigger?.Kind);
                 await RestoreUndrainedGuidanceAsync(() =>
                 {
                     turn.Status = TurnStatus.Cancelled;

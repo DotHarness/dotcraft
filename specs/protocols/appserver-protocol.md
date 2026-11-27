@@ -1909,6 +1909,8 @@ Params: required `scope` and `name`. Removes a non-plugin server definition. Rem
 
 Runtime operations resolve an effective server by optional `threadId`. Origins are `workspace`, `plugin`, `thread`, or `binding`. Status carries both `declaredName` and the collision-safe `runtimeName` with safe provenance. `runtimeName` selects the effective connection; it may contain source delimiters and must never be exposed as or parsed into a model tool namespace. Model-visible identity is the separately normalized tool name, while dispatch keeps the exact `runtimeName` and raw source tool id. Binding servers are additive and cannot shadow another runtime name. Thread `mcpServers` follows the three-state contract in [Section 4.1.1](#411-threadconfiguration-wire-shape).
 
+All MCP `tools/call` requests attach structured call context under `_meta["dotcraft/callContext"]` (`protocolVersion`, `threadId`, `turnId`, `sessionId`, `callId`, `isSubagent`, and `parentThreadId`). Hook-triggered MCP calls additionally attach `_meta["dotcraft/hookEvent"]`.
+
 ### 22.8 MCP runtime/control methods
 
 These method names and base shapes are fixed; DotCraft may add optional safe provenance fields but never renames them.
@@ -1959,7 +1961,7 @@ Notification `{ name, threadId, success, error? }`.
 - Form mode adds a standard MCP `requestedSchema`; the server validates accepted content against it. Unsupported schema shapes are safely declined.
 - URL mode adds an HTTPS-or-loopback `url` and `elicitationId`; the client opens it only after explicit user action and does not copy page data into `content`.
 - Elicitation belongs to the originating invocation: `threadId` is required, `turnId` may be null for Host calls outside a Turn. It creates no additional tool Item. Its identity is the AppServer JSON-RPC request ID, not the MCP input key, URL `elicitationId`, or a client's local UI bridge ID.
-- At dispatch, the server captures the ready connections subscribed to that thread with `mcpElicitation`. The first valid response resolves the invocation's input and cancels the other waits. An invalid response or one disconnected recipient does not answer for remaining recipients. No eligible recipient, or losing all recipients, produces `mcp_elicitation_unavailable`, with structured reason `no_client` or `disconnected`, never user approval or decline.
+- At dispatch, the server captures the ready connections subscribed to that thread (or, for a SubAgent thread with no direct subscribers, its parent thread) with `mcpElicitation`. The first valid response resolves the invocation's input and cancels the other waits. An invalid response or one disconnected recipient does not answer for remaining recipients. No eligible recipient, or losing all recipients, produces `mcp_elicitation_unavailable`, with structured reason `no_client` or `disconnected`, never user approval or decline.
 - Inputs without a reliable originating invocation, including unassociated legacy MCP reverse requests, fail with `mcp_elicitation_unavailable` and reason `unattributed`; the server never infers ownership from the active thread. Ordinary legacy tool calls remain supported by SDK negotiation.
 - Inputs are transient, not persisted or replayed on resume/reconnect. New connections do not take over an outstanding input. Switching foreground threads does not cancel it. Invocation cancellation or MCP connection termination ends its waits. A late response is ignored and cannot affect a later invocation.
 
@@ -2086,14 +2088,15 @@ These methods expose lifecycle hook metadata discovered from user config, worksp
 Non-obvious fields:
 
 - `key`: stable identity. Config hooks use `<absoluteSourcePath>:<snake_case_event>:<groupIndex>:<handlerIndex>`; plugin hooks use `<pluginId>:<sourceRelativePath>:<snake_case_event>:<groupIndex>:<handlerIndex>`.
-- `handlerType`: `command`, or a reserved unsupported type reported with diagnostics.
+- `handlerType`: `command`, `mcp_tool`, or a reserved unsupported type reported with diagnostics.
 - `matcher`: tool matcher for tool events; empty or null matches all. `condition`: optional command condition such as `Bash(git commit:*)`.
-- `command`: declared command, with runtime variables expanded for plugin hooks.
+- `command`: declared command (for `command` hooks), with runtime variables expanded for plugin hooks.
+- `mcpServer`, `mcpTool`, `skipIfDormant`: target MCP server name, tool name, and dormant-skip flag for `mcp_tool` hooks.
 - `executionMode` (`sync`, `async`), `asyncRewake` (may enqueue hook-origin follow-up feedback), `rewakeMessage`, `rewakeSummary`.
 - `source`: `user`, `workspace`, `plugin`, or `unknown`; `pluginId` for plugin hooks.
 - `displayOrder`: effective execution order.
 - `enabled`: effective state after global enablement, per-hook disable, and trust.
-- `isManaged`: reserved for runtime-managed hooks.
+- `isManaged`: `true` for runtime-managed hooks (including `mcp_tool` hooks contributed by bundled built-in plugins).
 - `currentHash`: normalized hash over behavior-affecting fields, excluding machine-specific expanded paths. `trustStatus`: `trusted`, `untrusted`, `modified`, or `managed`.
 
 ### 22A.3 `hooks/list`

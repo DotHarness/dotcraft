@@ -124,7 +124,9 @@ public sealed class ToolDispatcher(
             DateTimeOffset.UtcNow,
             request.Origin,
             request.WorkspacePath,
-            TurnServices: request.TurnServices);
+            TurnServices: request.TurnServices,
+            IsSubagent: request.IsSubagent,
+            ParentThreadId: request.ParentThreadId);
 
         // Resolved once per dispatch so a concurrent mutation cannot split the started and terminal projections across different recorders.
         var recorder = ResolveRecorder(request.ThreadId);

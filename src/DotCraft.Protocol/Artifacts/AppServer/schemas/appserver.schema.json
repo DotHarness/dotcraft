@@ -7350,6 +7350,26 @@
             }
           ]
         },
+        "mcpServer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "mcpTool": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "once": {
           "type": "boolean"
         },
@@ -7392,6 +7412,9 @@
               "type": "null"
             }
           ]
+        },
+        "skipIfDormant": {
+          "type": "boolean"
         },
         "source": {
           "type": "string"
@@ -9373,6 +9396,7 @@
       "title": "McpServerElicitationRequestParams",
       "type": "object",
       "properties": {
+        "_meta": {},
         "elicitationId": {
           "anyOf": [
             {
@@ -9433,6 +9457,7 @@
       "title": "McpServerElicitationResponse",
       "type": "object",
       "properties": {
+        "_meta": {},
         "action": {
           "type": "string"
         },

@@ -9142,6 +9142,20 @@
           "const": null
         },
         {
+          "name": "mcpServer",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "mcpTool",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "once",
           "type": "boolean",
           "required": false,
@@ -9174,6 +9188,13 @@
           "type": "string",
           "required": false,
           "nullable": true,
+          "const": null
+        },
+        {
+          "name": "skipIfDormant",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
           "const": null
         },
         {
@@ -11677,6 +11698,13 @@
       "additionalProperties": true,
       "fields": [
         {
+          "name": "_meta",
+          "type": "json",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "elicitationId",
           "type": "string",
           "required": false,
@@ -11743,6 +11771,13 @@
       "schema": "schemas/core/McpServerElicitationResponse.schema.json",
       "additionalProperties": true,
       "fields": [
+        {
+          "name": "_meta",
+          "type": "json",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
         {
           "name": "action",
           "type": "string",

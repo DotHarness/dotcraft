@@ -9,10 +9,89 @@ namespace DotCraft.Sessions;
 
 public sealed partial class SessionService
 {
+    private static readonly TimeSpan TeardownHookTimeout = TimeSpan.FromSeconds(5);
+
     private void EnsureHookRewakeHandler()
     {
-        if (hookRunner != null)
-            hookRunner.RewakeHandler ??= EnqueueHookRewakeAsync;
+        if (hookRunner == null)
+            return;
+
+        hookRunner.RewakeHandler ??= EnqueueHookRewakeAsync;
+        hookRunner.McpExecutor ??= new SessionHookMcpExecutor(ResolveActiveMcpManagerForHook);
+    }
+
+    private DotCraft.Mcp.McpClientManager? ResolveActiveMcpManagerForHook(string? threadId)
+    {
+        if (!string.IsNullOrWhiteSpace(threadId)
+            && _runtimeRegistry.TryGetRuntime(threadId, out var runtime)
+            && runtime.McpManager is not null)
+        {
+            return runtime.McpManager;
+        }
+
+        return agentFactory.RuntimeContext.McpClientManager;
+    }
+
+    private async Task RunInterruptHookAsync(
+        SessionThread thread,
+        string turnId,
+        string? workspacePath,
+        string? triggerKind)
+    {
+        if (hookRunner == null)
+            return;
+
+        EnsureHookRewakeHandler();
+        try
+        {
+            using var timeoutCts = new CancellationTokenSource(TeardownHookTimeout);
+            var isSubagent = IsSubAgentThread(thread);
+            var parentThreadId = isSubagent
+                ? thread.Source.SubAgent?.ParentThreadId ?? thread.ChannelContext
+                : null;
+            var input = new HookInput
+            {
+                SessionId = thread.Id,
+                TurnId = turnId,
+                Cwd = workspacePath,
+                StopHookActive = string.Equals(triggerKind, "hook", StringComparison.Ordinal),
+                IsSubagent = isSubagent,
+                ParentThreadId = parentThreadId
+            };
+            await hookRunner.RunAsync(HookEvent.Interrupt, input, timeoutCts.Token).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "Interrupt hook failed for thread {ThreadId}", thread.Id);
+        }
+    }
+
+    private async Task RunSessionEndHookAsync(SessionThread thread)
+    {
+        if (hookRunner == null)
+            return;
+
+        EnsureHookRewakeHandler();
+        try
+        {
+            using var timeoutCts = new CancellationTokenSource(TeardownHookTimeout);
+            var isSubagent = IsSubAgentThread(thread);
+            var parentThreadId = isSubagent
+                ? thread.Source.SubAgent?.ParentThreadId ?? thread.ChannelContext
+                : null;
+            var input = new HookInput
+            {
+                SessionId = thread.Id,
+                Cwd = thread.WorkspacePath,
+                IsSubagent = isSubagent,
+                ParentThreadId = parentThreadId
+            };
+            await hookRunner.RunAsync(HookEvent.SessionEnd, input, timeoutCts.Token).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "SessionEnd hook failed for thread {ThreadId}", thread.Id);
+        }
     }
 
     private async Task<HookResult> RunPromptLifecycleHookAsync(
@@ -188,13 +267,34 @@ public sealed partial class SessionService
             ["message"] = request.Message
         };
 
-        await RunLifecycleHookAsync(
-            request.Event,
-            child.Id,
-            turnId,
-            child.WorkspacePath,
-            context,
-            ct).ConfigureAwait(false);
+        var parentThreadId = source?.ParentThreadId ?? child.ChannelContext;
+        if (hookRunner == null)
+            return;
+
+        EnsureHookRewakeHandler();
+        try
+        {
+            var hookInput = new HookInput
+            {
+                SessionId = child.Id,
+                TurnId = turnId,
+                Cwd = child.WorkspacePath,
+                ToolName = request.Event.ToString(),
+                ToolArgs = context,
+                StopHookActive = string.Equals(TurnTriggerScope.Current?.Kind, "hook", StringComparison.Ordinal),
+                IsSubagent = true,
+                ParentThreadId = parentThreadId
+            };
+            await hookRunner.RunAsync(request.Event, hookInput, ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "{EventName} hook failed for thread {ThreadId}", request.Event, child.Id);
+        }
     }
 
     private static string BuildHookBlockedMessage(string action, HookResult result)

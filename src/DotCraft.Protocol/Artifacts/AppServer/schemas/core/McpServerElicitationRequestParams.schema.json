@@ -4,6 +4,7 @@
   "title": "McpServerElicitationRequestParams",
   "type": "object",
   "properties": {
+    "_meta": {},
     "elicitationId": {
       "anyOf": [
         {
