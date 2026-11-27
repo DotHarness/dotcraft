@@ -793,7 +793,10 @@ public sealed class AgentFactory : IAsyncDisposable
                 invocation.CallContent.CallId,
                 ToolInvocationAudience.Model,
                 WorkspacePath: planningContext.Location?.Directory ?? planningContext.WorkspacePath,
-                TurnServices: executionContext?.TurnServices),
+                TurnServices: executionContext?.TurnServices,
+                IsSubagent: executionContext?.IsSubagent ?? false,
+                ParentThreadId: executionContext?.ParentThreadId,
+                EnabledPlugins: executionContext?.EnabledPlugins),
             cancellationToken).ConfigureAwait(false);
         if (result.Success && result.Directive == ToolExecutionDirective.TerminateTurn)
             invocation.Terminate = true;

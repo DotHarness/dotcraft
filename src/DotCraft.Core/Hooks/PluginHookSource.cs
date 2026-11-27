@@ -10,7 +10,8 @@ public sealed record PluginHookSource(
     string PluginDataPath,
     string SourcePath,
     string SourceRelativePath,
-    HooksFileConfig Hooks);
+    HooksFileConfig Hooks,
+    bool IsManagedBuiltIn = false);
 
 /// <summary>
 /// Minimal hook declaration surfaced on plugin detail/list responses.

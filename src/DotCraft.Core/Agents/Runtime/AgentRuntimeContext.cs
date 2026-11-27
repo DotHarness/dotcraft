@@ -66,6 +66,7 @@ public sealed class AgentRuntimeContext
         PathBlacklist = source.PathBlacklist;
         BackgroundTerminalService = source.BackgroundTerminalService;
         McpClientManager = source.McpClientManager;
+        RuntimeMcpRegistry = source.RuntimeMcpRegistry;
         LspServerManager = source.LspServerManager;
         DeferredToolActivationIndex = source.DeferredToolActivationIndex;
         TraceCollector = source.TraceCollector;
@@ -270,6 +271,8 @@ public sealed class AgentRuntimeContext
     /// Optional MCP client manager for external tool integration.
     /// </summary>
     public McpClientManager? McpClientManager { get; init; }
+
+    public RuntimeMcpRegistry? RuntimeMcpRegistry { get; init; }
 
     /// <summary>
     /// Optional LSP server manager for language-intelligence tools.

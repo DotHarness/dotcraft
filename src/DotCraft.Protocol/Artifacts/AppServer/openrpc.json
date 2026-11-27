@@ -4133,6 +4133,72 @@
       ]
     },
     {
+      "name": "mcpServer/runtime/register",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "params",
+          "required": true,
+          "schema": {
+            "$ref": "./schemas/core/McpServerRuntimeRegisterParams.schema.json"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "./schemas/core/McpServerRuntimeRegisterResult.schema.json"
+        }
+      },
+      "x-dotcraft-direction": "clientToServer",
+      "x-dotcraft-kind": "request",
+      "x-dotcraft-module": "core",
+      "x-dotcraft-capability": "mcpRuntime",
+      "x-dotcraft-scope": "connection",
+      "x-dotcraft-notification-opt-out": false,
+      "x-dotcraft-stability": "stable",
+      "x-dotcraft-since": "1",
+      "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
+      "x-dotcraft-errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ]
+    },
+    {
+      "name": "mcpServer/runtime/unregister",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "params",
+          "required": true,
+          "schema": {
+            "$ref": "./schemas/core/McpServerRuntimeUnregisterParams.schema.json"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "./schemas/core/McpServerRuntimeUnregisterResult.schema.json"
+        }
+      },
+      "x-dotcraft-direction": "clientToServer",
+      "x-dotcraft-kind": "request",
+      "x-dotcraft-module": "core",
+      "x-dotcraft-capability": "mcpRuntime",
+      "x-dotcraft-scope": "connection",
+      "x-dotcraft-notification-opt-out": false,
+      "x-dotcraft-stability": "stable",
+      "x-dotcraft-since": "1",
+      "x-dotcraft-spec-ref": "specs/protocols/appserver-protocol.md",
+      "x-dotcraft-errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ]
+    },
+    {
       "name": "mcpServer/tool/call",
       "paramStructure": "by-name",
       "params": [

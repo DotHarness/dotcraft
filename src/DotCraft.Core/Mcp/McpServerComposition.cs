@@ -25,7 +25,8 @@ public static class McpServerComposition
         string threadId,
         IReadOnlyList<McpServerConfig>? threadServers,
         IEnumerable<McpServerConfig> inheritedServers,
-        IEnumerable<McpServerConfig> bindingServers)
+        IEnumerable<McpServerConfig> bindingServers,
+        IEnumerable<McpServerConfig>? hostRuntimeServers = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
         ArgumentNullException.ThrowIfNull(inheritedServers);
@@ -49,6 +50,20 @@ public static class McpServerComposition
                 var clone = server.Clone();
                 var declaredName = clone.Origin.DeclaredName ?? clone.Name;
                 clone.Origin = McpServerOrigin.Thread(threadId, declaredName);
+                AddIfNamed(result, runtimeNames, clone);
+            }
+        }
+
+        if (hostRuntimeServers is not null)
+        {
+            foreach (var server in hostRuntimeServers)
+            {
+                if (string.IsNullOrWhiteSpace(server.Name))
+                    continue;
+
+                var clone = server.Clone();
+                if (!clone.Origin.IsHostRuntime)
+                    clone.Origin = McpServerOrigin.HostRuntime(clone.Origin.BindingId ?? "host", clone.Origin.DeclaredName ?? clone.Name);
                 AddIfNamed(result, runtimeNames, clone);
             }
         }

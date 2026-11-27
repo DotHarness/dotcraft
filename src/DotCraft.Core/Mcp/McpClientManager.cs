@@ -1,7 +1,10 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
+using DotCraft.Sessions.Wire;
 using DotCraft.Workspaces;
 using DotCraft.Tools;
 
@@ -56,6 +59,7 @@ public sealed partial class McpClientManager : IMcpToolInvocationCoordinator, IA
         public long Generation { get; set; }
         public Task<McpToolInvocationTarget?>? StaleSessionRefreshTask { get; set; }
         public int ActiveOperations { get; set; }
+        public bool HasBeenInvoked { get; set; }
         public List<IAsyncDisposable> RetiredClients { get; } = [];
     }
 
@@ -147,16 +151,57 @@ public sealed partial class McpClientManager : IMcpToolInvocationCoordinator, IA
         IReadOnlyDictionary<string, object?>? arguments = null,
         long? expectedGeneration = null,
         CancellationToken cancellationToken = default,
-        ToolInvocationContext? context = null)
+        ToolInvocationContext? context = null,
+        JsonObject? meta = null,
+        string? hookEvent = null)
     {
         await using var session = await GetProtocolSessionAsync(serverName, expectedGeneration, cancellationToken);
+        if (string.IsNullOrWhiteSpace(hookEvent))
+            session.State.HasBeenInvoked = true;
         using var invocation = new McpInvocationScope(context, session.Client.Completion);
-        return await session.Client.CallToolAsync(
-            toolName,
-            arguments,
-            progress: null,
-            options: null,
-            session.CancellationToken);
+        var requestMeta = McpToolCallMetaBuilder.Build(
+            context,
+            meta,
+            hookEvent,
+            session.State.Config.RequiredPlugins);
+        Dictionary<string, JsonElement>? serializedArguments = null;
+        if (arguments is { Count: > 0 })
+        {
+            serializedArguments = new Dictionary<string, JsonElement>(arguments.Count, StringComparer.Ordinal);
+            foreach (var (key, value) in arguments)
+            {
+                serializedArguments[key] = value is JsonElement element
+                    ? element.Clone()
+                    : JsonSerializer.SerializeToElement(value, SessionWireJsonOptions.Default);
+            }
+        }
+
+        var request = new CallToolRequestParams
+        {
+            Name = toolName,
+            Arguments = serializedArguments,
+            Meta = requestMeta
+        };
+        return await session.Client.CallToolAsync(request, session.CancellationToken);
+    }
+
+    public async Task<(bool Exists, bool Enabled, bool IsReady, bool HasBeenInvoked)> TryGetServerInvocationStateAsync(
+        string serverName,
+        CancellationToken cancellationToken = default)
+    {
+        await _mutex.WaitAsync(cancellationToken);
+        try
+        {
+            if (_disposed || !_servers.TryGetValue(serverName, out var state))
+                return (false, false, false, false);
+            var isReady = string.Equals(state.Status.StartupState, "ready", StringComparison.Ordinal)
+                          && state.ProtocolClient is not null;
+            return (true, state.Config.Enabled, isReady, state.HasBeenInvoked);
+        }
+        finally
+        {
+            _mutex.Release();
+        }
     }
 
     public async Task<ReadResourceResult> ReadResourceAsync(

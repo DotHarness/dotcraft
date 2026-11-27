@@ -21,7 +21,7 @@ internal sealed class AppServerMcpElicitationHandler(AppServerThreadSubscribers 
         if (!TryGetSchema(request, out var schema))
             return new ElicitResult { Action = "decline" };
 
-        var recipients = subscribers.GetElicitationRecipients(context.ThreadId);
+        var recipients = subscribers.GetElicitationRecipients(context.ThreadId, context.ParentThreadId);
         if (recipients.Count == 0)
             throw new McpElicitationUnavailableException("no_client");
 
@@ -34,7 +34,8 @@ internal sealed class AppServerMcpElicitationHandler(AppServerThreadSubscribers 
             ElicitationId = request.ElicitationId,
             Message = request.Message,
             Url = request.Url,
-            RequestedSchema = schema is null ? null : JsonSerializer.SerializeToElement(schema, SessionWireJsonOptions.Default)
+            RequestedSchema = schema is null ? null : JsonSerializer.SerializeToElement(schema, SessionWireJsonOptions.Default),
+            Meta = request.Meta is null ? null : JsonSerializer.SerializeToElement(request.Meta, SessionWireJsonOptions.Default)
         };
         using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var tasks = recipients.Select(recipient => RequestAsync(
@@ -126,8 +127,11 @@ internal sealed class AppServerMcpElicitationHandler(AppServerThreadSubscribers 
         var content = result!.Content.IsSet
             ? result.Content.Value?.ToDictionary(static pair => pair.Key, static pair => pair.Value)
             : null;
+        var meta = result!.Meta.IsSet && result.Meta.Value is { } metaEl
+            ? JsonNode.Parse(metaEl.GetRawText()) as JsonObject
+            : null;
         if (action != "accept")
-            return content is null ? new ElicitResult { Action = action } : null;
+            return content is null ? new ElicitResult { Action = action, Meta = meta } : null;
         if (schema is null && content is not null)
             return null;
         if (schema is not null && !McpElicitationSchemaValidator.TryValidateContent(schema, content))
@@ -135,7 +139,8 @@ internal sealed class AppServerMcpElicitationHandler(AppServerThreadSubscribers 
         return new ElicitResult
         {
             Action = action,
-            Content = content
+            Content = content,
+            Meta = meta
         };
     }
 

@@ -24,6 +24,12 @@ public sealed class ToolExecutionRuntimeContext
 
     public TurnToolServices? TurnServices { get; init; }
 
+    public bool IsSubagent { get; init; }
+
+    public string? ParentThreadId { get; init; }
+
+    public IReadOnlyList<string>? EnabledPlugins { get; init; }
+
     private readonly ConcurrentDictionary<string, PendingToolExecutionRegistration> _pending =
         new(StringComparer.Ordinal);
 

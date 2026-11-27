@@ -236,6 +236,7 @@ public sealed partial class AppServerHost(
                 WireDynamicToolProxy = WireDynamicToolProxy,
                 ChannelStatusProvider = _appServerFeature?.ChannelStatusProvider,
                 McpClientManager = runtime.McpClientManager,
+                RuntimeMcpRegistry = _services.GetService<RuntimeMcpRegistry>(),
                 McpAppTransientContextStore = _services.GetService<McpAppTransientContextStore>(),
                 VisualizationAssetStore = _services.GetService<VisualizationAssetStore>(),
                 VisualizationRuntimeRegistry = _services.GetService<VisualizationRuntimeRegistry>(),

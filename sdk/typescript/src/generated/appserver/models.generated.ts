@@ -1867,11 +1867,14 @@ export interface HookMetadata {
   isManaged?: boolean;
   key?: string;
   matcher?: string | null;
+  mcpServer?: string | null;
+  mcpTool?: string | null;
   once?: boolean;
   pluginId?: string | null;
   rewakeMessage?: string | null;
   rewakeSummary?: string | null;
   shell?: string | null;
+  skipIfDormant?: boolean;
   source?: string;
   sourcePath?: string;
   statusMessage?: string | null;
@@ -2392,6 +2395,7 @@ export interface McpServerConfig {
 }
 
 export interface McpServerElicitationRequestParams {
+  _meta?: JsonValue;
   elicitationId?: string | null;
   message?: string | null;
   mode?: string;
@@ -2404,6 +2408,7 @@ export interface McpServerElicitationRequestParams {
 }
 
 export interface McpServerElicitationResponse {
+  _meta?: JsonValue;
   action?: string;
   content?: Record<string, JsonValue> | null;
   [key: string]: unknown;
@@ -2456,6 +2461,23 @@ export interface McpServerResourceReadResult {
   [key: string]: unknown;
 }
 
+export interface McpServerRuntimeRegisterParams {
+  headers?: Record<string, string> | null;
+  name: string;
+  requiredPlugins?: string[] | null;
+  startupTimeoutSec?: number | null;
+  toolApprovalMode?: string | null;
+  toolTimeoutSec?: number | null;
+  url: string;
+  [key: string]: unknown;
+}
+
+export interface McpServerRuntimeRegisterResult {
+  name: string;
+  registered: boolean;
+  [key: string]: unknown;
+}
+
 export interface McpServerRuntimeStatus {
   authState?: string;
   authStatus?: string;
@@ -2477,6 +2499,16 @@ export interface McpServerRuntimeStatus {
   toolCount?: number;
   tools?: Record<string, McpRuntimeTool>;
   transport?: string;
+  [key: string]: unknown;
+}
+
+export interface McpServerRuntimeUnregisterParams {
+  name: string;
+  [key: string]: unknown;
+}
+
+export interface McpServerRuntimeUnregisterResult {
+  removed: boolean;
   [key: string]: unknown;
 }
 

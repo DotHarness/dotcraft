@@ -107,6 +107,8 @@ export interface ClientRequestMethods {
   "mcpApp/view/tools/list": { params: Models.McpAppViewToolsListParams; result: Models.McpAppViewToolsListResult };
   "mcpServer/oauth/login": { params: Models.McpServerOAuthLoginParams; result: Models.McpServerOAuthLoginResult };
   "mcpServer/resource/read": { params: Models.McpServerResourceReadParams; result: Models.McpServerResourceReadResult };
+  "mcpServer/runtime/register": { params: Models.McpServerRuntimeRegisterParams; result: Models.McpServerRuntimeRegisterResult };
+  "mcpServer/runtime/unregister": { params: Models.McpServerRuntimeUnregisterParams; result: Models.McpServerRuntimeUnregisterResult };
   "mcpServer/tool/call": { params: Models.McpServerToolCallParams; result: Models.McpServerToolCallResult };
   "mcpServerStatus/list": { params: Models.McpServerStatusListParams; result: Models.McpServerStatusListResult };
   "memory/listStores": { params: Models.RpcEmpty; result: Models.MemoryListStoresResult };

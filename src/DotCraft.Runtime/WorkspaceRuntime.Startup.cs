@@ -145,6 +145,7 @@ public sealed partial class WorkspaceRuntime
                         PathBlacklist = PathBlacklist,
                         BackgroundTerminalService = backgroundTerminalService,
                         McpClientManager = McpClientManager,
+                        RuntimeMcpRegistry = Services.GetService<RuntimeMcpRegistry>(),
                         LspServerManager = LspServerManager,
                         TraceCollector = traceCollector,
                         AcpExtensionProxy = acpExtensionProxy,

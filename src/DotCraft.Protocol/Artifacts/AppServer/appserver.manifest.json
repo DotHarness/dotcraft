@@ -9142,6 +9142,20 @@
           "const": null
         },
         {
+          "name": "mcpServer",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "mcpTool",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "once",
           "type": "boolean",
           "required": false,
@@ -9174,6 +9188,13 @@
           "type": "string",
           "required": false,
           "nullable": true,
+          "const": null
+        },
+        {
+          "name": "skipIfDormant",
+          "type": "boolean",
+          "required": false,
+          "nullable": false,
           "const": null
         },
         {
@@ -11677,6 +11698,13 @@
       "additionalProperties": true,
       "fields": [
         {
+          "name": "_meta",
+          "type": "json",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "elicitationId",
           "type": "string",
           "required": false,
@@ -11743,6 +11771,13 @@
       "schema": "schemas/core/McpServerElicitationResponse.schema.json",
       "additionalProperties": true,
       "fields": [
+        {
+          "name": "_meta",
+          "type": "json",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
         {
           "name": "action",
           "type": "string",
@@ -11970,6 +12005,91 @@
       "variants": []
     },
     {
+      "id": "core.McpServerRuntimeRegisterParams",
+      "name": "McpServerRuntimeRegisterParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/McpServerRuntimeRegisterParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "headers",
+          "type": "map<string>",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "requiredPlugins",
+          "type": "array<string>",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "startupTimeoutSec",
+          "type": "number",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "toolApprovalMode",
+          "type": "string",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "toolTimeoutSec",
+          "type": "number",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "url",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.McpServerRuntimeRegisterResult",
+      "name": "McpServerRuntimeRegisterResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/McpServerRuntimeRegisterResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        },
+        {
+          "name": "registered",
+          "type": "boolean",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
       "id": "core.McpServerRuntimeStatus",
       "name": "McpServerRuntimeStatus",
       "module": "core",
@@ -12116,6 +12236,42 @@
           "name": "transport",
           "type": "string",
           "required": false,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.McpServerRuntimeUnregisterParams",
+      "name": "McpServerRuntimeUnregisterParams",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/McpServerRuntimeUnregisterParams.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.McpServerRuntimeUnregisterResult",
+      "name": "McpServerRuntimeUnregisterResult",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/McpServerRuntimeUnregisterResult.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "removed",
+          "type": "boolean",
+          "required": true,
           "nullable": false,
           "const": null
         }
@@ -32560,6 +32716,46 @@
       "direction": "clientToServer",
       "paramsType": "core.McpServerResourceReadParams",
       "resultType": "core.McpServerResourceReadResult",
+      "module": "core",
+      "capability": "mcpRuntime",
+      "scope": "connection",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "mcpServer/runtime/register",
+      "descriptorMember": "McpServerRuntimeRegister",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.McpServerRuntimeRegisterParams",
+      "resultType": "core.McpServerRuntimeRegisterResult",
+      "module": "core",
+      "capability": "mcpRuntime",
+      "scope": "connection",
+      "notificationOptOut": false,
+      "errors": [
+        "InvalidParams",
+        "InvalidRequest",
+        "MethodNotFound"
+      ],
+      "since": "1",
+      "specRef": "specs/protocols/appserver-protocol.md",
+      "stability": "stable"
+    },
+    {
+      "name": "mcpServer/runtime/unregister",
+      "descriptorMember": "McpServerRuntimeUnregister",
+      "kind": "request",
+      "direction": "clientToServer",
+      "paramsType": "core.McpServerRuntimeUnregisterParams",
+      "resultType": "core.McpServerRuntimeUnregisterResult",
       "module": "core",
       "capability": "mcpRuntime",
       "scope": "connection",

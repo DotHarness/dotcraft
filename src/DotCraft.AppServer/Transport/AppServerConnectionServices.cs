@@ -66,6 +66,7 @@ public sealed record AppServerConnectionServices
     public CommandRegistry? CommandRegistry { get; init; }
     public IChannelStatusProvider? ChannelStatusProvider { get; init; }
     public McpClientManager? McpClientManager { get; init; }
+    public RuntimeMcpRegistry? RuntimeMcpRegistry { get; init; }
     public McpAppTransientContextStore? McpAppTransientContextStore { get; init; }
     public VisualizationAssetStore? VisualizationAssetStore { get; init; }
     public VisualizationRuntimeRegistry? VisualizationRuntimeRegistry { get; init; }

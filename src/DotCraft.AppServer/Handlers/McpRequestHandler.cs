@@ -20,8 +20,12 @@ internal sealed class McpRequestHandler(
     IThreadToolDispatchService? threadToolDispatcher,
     IThreadToolSnapshotService? threadToolSnapshots,
     IThreadMcpRuntimeService? threadMcpRuntimeService,
-    IThreadAgentRefreshService? threadAgentRefreshService) : IAppServerDomainHandler
+    IThreadAgentRefreshService? threadAgentRefreshService,
+    AppServerConnection? connection = null,
+    RuntimeMcpRegistry? runtimeMcpRegistry = null) : IAppServerDomainHandler
 {
+    private int _runtimeCleanupRegistered;
+
     public void RegisterMethods(AppServerMethodTable table)
     {
         table.Map(Protocol.AppServer.AppServerRpc.McpList, HandleMcpListAsync);
@@ -32,6 +36,8 @@ internal sealed class McpRequestHandler(
         table.Map(Protocol.AppServer.AppServerRpc.McpServerStatusList, HandleMcpServerStatusListAsync);
         table.Map(Protocol.AppServer.AppServerRpc.McpServerResourceRead, HandleMcpServerResourceReadAsync);
         table.Map(Protocol.AppServer.AppServerRpc.McpServerToolCall, HandleMcpServerToolCallAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.McpServerRuntimeRegister, HandleMcpServerRuntimeRegisterAsync);
+        table.Map(Protocol.AppServer.AppServerRpc.McpServerRuntimeUnregister, HandleMcpServerRuntimeUnregisterAsync);
         table.Map(Protocol.AppServer.AppServerRpc.McpServerOAuthLogin, HandleMcpServerOAuthLoginAsync);
         table.Map(Protocol.AppServer.AppServerRpc.ConfigMcpServerReload, HandleMcpServerReloadAsync);
     }
@@ -289,6 +295,87 @@ internal sealed class McpRequestHandler(
             IsError = result?.IsError ?? !dispatched.Success,
             Meta = ToElement(result != null ? result.Meta : dispatched.Meta)
         };
+    }
+
+    private Task<object?> HandleMcpServerRuntimeRegisterAsync(
+        AppServerTypedRequest<Contract.McpServerRuntimeRegisterParams> request,
+        CancellationToken ct)
+    {
+        _ = ct;
+        EnsureRuntimeMcpRegistrationAllowed(Protocol.AppServer.AppServerRpc.McpServerRuntimeRegister.Name);
+        var p = request.Params;
+        var approvalMode = p.ToolApprovalMode.IsSet && !string.IsNullOrWhiteSpace(p.ToolApprovalMode.Value)
+            ? McpContractMapper.ParseToolApprovalMode(p.ToolApprovalMode.Value)
+            : McpToolApprovalMode.Auto;
+        var config = new McpServerConfig
+        {
+            Name = p.Name,
+            Enabled = true,
+            Transport = "streamableHttp",
+            Url = p.Url,
+            Headers = ValueOrDefault(p.Headers)?.ToDictionary(StringComparer.Ordinal) ?? new Dictionary<string, string>(StringComparer.Ordinal),
+            RequiredPlugins = ValueOrDefault(p.RequiredPlugins)?.ToList() ?? [],
+            StartupTimeoutSec = ValueOrDefault(p.StartupTimeoutSec),
+            ToolTimeoutSec = ValueOrDefault(p.ToolTimeoutSec),
+            ToolApprovalMode = approvalMode
+        };
+
+        McpServerConfig registered;
+        try
+        {
+            registered = runtimeMcpRegistry!.Register(connection!.ConnectionId.ToString("N"), config);
+        }
+        catch (ArgumentException ex)
+        {
+            throw AppServerErrors.McpServerValidationFailed(ex.Message);
+        }
+
+        EnsureRuntimeCleanupHook();
+        threadAgentRefreshService?.InvalidateThreadAgents();
+        return Task.FromResult<object?>(new Contract.McpServerRuntimeRegisterResult
+        {
+            Registered = true,
+            Name = registered.Name
+        });
+    }
+
+    private Task<object?> HandleMcpServerRuntimeUnregisterAsync(
+        AppServerTypedRequest<Contract.McpServerRuntimeUnregisterParams> request,
+        CancellationToken ct)
+    {
+        _ = ct;
+        EnsureRuntimeMcpRegistrationAllowed(Protocol.AppServer.AppServerRpc.McpServerRuntimeUnregister.Name);
+        var name = request.Params.Name;
+        if (string.IsNullOrWhiteSpace(name))
+            throw AppServerErrors.InvalidParams("'name' is required.");
+
+        var removed = runtimeMcpRegistry!.Unregister(connection!.ConnectionId.ToString("N"), name);
+        if (removed)
+            threadAgentRefreshService?.InvalidateThreadAgents();
+        return Task.FromResult<object?>(new Contract.McpServerRuntimeUnregisterResult { Removed = removed });
+    }
+
+    private void EnsureRuntimeMcpRegistrationAllowed(string methodName)
+    {
+        if (runtimeMcpRegistry is null || connection is null)
+            throw AppServerErrors.MethodNotFound(methodName);
+        if (connection.IsChannelAdapter || connection.IsAppPrincipalAuthenticated)
+            throw AppServerErrors.InvalidRequest("Runtime MCP server registration is only allowed for trusted workspace clients.");
+    }
+
+    private void EnsureRuntimeCleanupHook()
+    {
+        if (connection is null || runtimeMcpRegistry is null)
+            return;
+        if (Interlocked.Exchange(ref _runtimeCleanupRegistered, 1) != 0)
+            return;
+
+        var ownerId = connection.ConnectionId.ToString("N");
+        _ = connection.Closed.ContinueWith(_ =>
+        {
+            if (runtimeMcpRegistry.UnregisterOwner(ownerId))
+                threadAgentRefreshService?.InvalidateThreadAgents();
+        }, TaskScheduler.Default);
     }
 
     private async Task<object?> HandleMcpServerReloadAsync(AppServerTypedRequest<Protocol.RpcEmpty> request, CancellationToken ct)

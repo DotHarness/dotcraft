@@ -64,10 +64,10 @@ internal static class McpProtocolClientFactory
             if (headers.Count > 0)
                 options.AdditionalHeaders = headers;
 
-            if (server.Origin.IsBinding)
+            if (server.Origin.IsBinding || server.Origin.IsHostRuntime)
             {
-                // A binding endpoint is an authority boundary. Following a redirect could move the
-                // one-time bearer to a different origin without a fresh activation decision.
+                // A binding or host-runtime endpoint is an authority boundary. Following a redirect could
+                // move the one-time bearer token to a different origin without a fresh activation decision.
                 var handler = new HttpClientHandler { AllowAutoRedirect = false };
                 transport = new HttpClientTransport(options, new HttpClient(handler), loggerFactory: null, ownsHttpClient: true);
             }

@@ -7350,6 +7350,26 @@
             }
           ]
         },
+        "mcpServer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "mcpTool": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "once": {
           "type": "boolean"
         },
@@ -7392,6 +7412,9 @@
               "type": "null"
             }
           ]
+        },
+        "skipIfDormant": {
+          "type": "boolean"
         },
         "source": {
           "type": "string"
@@ -9373,6 +9396,7 @@
       "title": "McpServerElicitationRequestParams",
       "type": "object",
       "properties": {
+        "_meta": {},
         "elicitationId": {
           "anyOf": [
             {
@@ -9433,6 +9457,7 @@
       "title": "McpServerElicitationResponse",
       "type": "object",
       "properties": {
+        "_meta": {},
         "action": {
           "type": "string"
         },
@@ -9633,6 +9658,96 @@
       },
       "additionalProperties": true
     },
+    "McpServerRuntimeRegisterParams": {
+      "title": "McpServerRuntimeRegisterParams",
+      "type": "object",
+      "properties": {
+        "headers": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "requiredPlugins": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "startupTimeoutSec": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "toolApprovalMode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "toolTimeoutSec": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "name",
+        "url"
+      ]
+    },
+    "McpServerRuntimeRegisterResult": {
+      "title": "McpServerRuntimeRegisterResult",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "registered": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "name",
+        "registered"
+      ]
+    },
     "McpServerRuntimeStatus": {
       "title": "McpServerRuntimeStatus",
       "type": "object",
@@ -9730,6 +9845,32 @@
         }
       },
       "additionalProperties": true
+    },
+    "McpServerRuntimeUnregisterParams": {
+      "title": "McpServerRuntimeUnregisterParams",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "name"
+      ]
+    },
+    "McpServerRuntimeUnregisterResult": {
+      "title": "McpServerRuntimeUnregisterResult",
+      "type": "object",
+      "properties": {
+        "removed": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true,
+      "required": [
+        "removed"
+      ]
     },
     "McpServerStartupStatusUpdatedNotification": {
       "title": "McpServerStartupStatusUpdatedNotification",

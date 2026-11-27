@@ -1093,6 +1093,14 @@ public sealed class HookMetadata : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> Matcher { get; init; }
 
+    [JsonPropertyName("mcpServer")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> McpServer { get; init; }
+
+    [JsonPropertyName("mcpTool")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> McpTool { get; init; }
+
     [JsonPropertyName("once")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> Once { get; init; }
@@ -1112,6 +1120,10 @@ public sealed class HookMetadata : ExtensibleJsonObject
     [JsonPropertyName("shell")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> Shell { get; init; }
+
+    [JsonPropertyName("skipIfDormant")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<bool> SkipIfDormant { get; init; }
 
     [JsonPropertyName("source")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1987,6 +1999,10 @@ public sealed class McpServerConfig : ExtensibleJsonObject
 
 public sealed class McpServerElicitationRequestParams : ExtensibleJsonObject
 {
+    [JsonPropertyName("_meta")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<JsonElement?> Meta { get; init; }
+
     [JsonPropertyName("elicitationId")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> ElicitationId { get; init; }
@@ -2031,6 +2047,10 @@ public sealed class ServerRequestResolvedNotification : ExtensibleJsonObject
 
 public sealed class McpServerElicitationResponse : ExtensibleJsonObject
 {
+    [JsonPropertyName("_meta")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<JsonElement?> Meta { get; init; }
+
     [JsonPropertyName("action")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string> Action { get; init; }
@@ -2039,6 +2059,56 @@ public sealed class McpServerElicitationResponse : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<IReadOnlyDictionary<string, JsonElement>?> Content { get; init; }
 
+}
+
+public sealed class McpServerRuntimeRegisterParams : ExtensibleJsonObject
+{
+    [JsonPropertyName("headers")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyDictionary<string, string>?> Headers { get; init; }
+
+    [JsonPropertyName("name")]
+    public required string Name { get; init; }
+
+    [JsonPropertyName("requiredPlugins")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>?> RequiredPlugins { get; init; }
+
+    [JsonPropertyName("startupTimeoutSec")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<double?> StartupTimeoutSec { get; init; }
+
+    [JsonPropertyName("toolApprovalMode")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> ToolApprovalMode { get; init; }
+
+    [JsonPropertyName("toolTimeoutSec")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<double?> ToolTimeoutSec { get; init; }
+
+    [JsonPropertyName("url")]
+    public required string Url { get; init; }
+}
+
+public sealed class McpServerRuntimeRegisterResult : ExtensibleJsonObject
+{
+    [JsonPropertyName("name")]
+    public required string Name { get; init; }
+
+    [JsonPropertyName("registered")]
+    public bool Registered { get; init; }
+}
+
+public sealed class McpServerRuntimeUnregisterParams : ExtensibleJsonObject
+{
+    [JsonPropertyName("name")]
+    public required string Name { get; init; }
+}
+
+public sealed class McpServerRuntimeUnregisterResult : ExtensibleJsonObject
+{
+    [JsonPropertyName("removed")]
+    public bool Removed { get; init; }
 }
 
 public sealed class McpServerOAuthLoginCompletedNotification : ExtensibleJsonObject

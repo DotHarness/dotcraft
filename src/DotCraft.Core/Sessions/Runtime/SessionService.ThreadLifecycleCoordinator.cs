@@ -225,6 +225,7 @@ public sealed partial class SessionService
                 interruptedTurn = InterruptArchiveTurns(thread, runtime);
                 terminalCleanup = StopArchivedThreadTerminalsAsync(thread.Id);
                 owner.ClearThreadAgentCaches(thread.Id);
+                await owner.RunSessionEndHookAsync(thread);
                 if (runtime != null)
                     await runtime.ReleaseMcpAsync();
             }
@@ -320,6 +321,7 @@ public sealed partial class SessionService
             {
                 if (IsSubAgentThread(deletingThread))
                     SubAgentSessionControl.InterruptRunningChild(threadId);
+                await owner.RunSessionEndHookAsync(deletingThread);
                 await owner.ContributionLifecycle.ThreadDeletingAsync(deletingThread, ct);
             }
 

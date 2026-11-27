@@ -1,23 +1,32 @@
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 
 namespace DotCraft.Hooks;
 
 /// <summary>
-/// A single hook entry: a shell command to execute when triggered.
+/// A single hook entry: a shell command or MCP tool call to execute when triggered.
 /// </summary>
 public sealed class HookEntry
 {
     /// <summary>
-    /// Hook type. Currently only "command" (shell command) is supported.
+    /// Hook type: "command" (shell command) or "mcp_tool" (MCP tool invocation).
     /// </summary>
     public string Type { get; set; } = "command";
 
     /// <summary>
-    /// The shell command to execute.
+    /// The shell command to execute (required for "command", empty for "mcp_tool").
     /// Defaults to /bin/bash on Linux/macOS and pwsh, Windows PowerShell, then cmd on Windows.
     /// Receives JSON context on stdin.
     /// </summary>
     public string Command { get; set; } = string.Empty;
+
+    public string? Server { get; set; }
+
+    public string? Tool { get; set; }
+
+    public JsonObject? Input { get; set; }
+
+    public bool SkipIfDormant { get; set; }
 
     /// <summary>
     /// Optional command condition, such as <c>Bash(git commit:*)</c>.

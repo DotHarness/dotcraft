@@ -79,11 +79,16 @@ public sealed partial class SessionService
         var inheritedMcpServers = !config.UseToolProfileOnly && config.McpServers is null && workspaceManager is not null
             ? await workspaceManager.ListConfigsAsync(ct)
             : [];
+        var enabledPluginIds = ResolveEnabledPluginIdSet();
+        var hostRuntimeServers = !config.UseToolProfileOnly
+            ? agentFactory.RuntimeContext.RuntimeMcpRegistry?.ListActive(enabledPluginIds) ?? []
+            : [];
         var effectiveMcpServers = McpServerComposition.Compose(
             thread.Id,
             config.UseToolProfileOnly ? [] : config.McpServers,
             inheritedMcpServers,
-            bindingMcpServers);
+            bindingMcpServers,
+            hostRuntimeServers);
         if (effectiveMcpServers.Count > 0
             || (!config.UseToolProfileOnly && (config.McpServers is not null || workspaceManager is not null)))
         {
@@ -136,6 +141,23 @@ public sealed partial class SessionService
 
         return toolContext;
     }
+
+    private IReadOnlySet<string> ResolveEnabledPluginIdSet()
+    {
+        var currentConfig = _appConfigMonitor?.Current ?? agentFactory.RuntimeContext.Config;
+        var enabled = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (dotCraftPaths is not null)
+        {
+            var discovery = new DotCraft.Plugins.PluginDiscoveryService(dotCraftPaths)
+                .Discover(currentConfig, dotCraftPaths.WorkspacePath, dotCraftPaths.Data.RootPath);
+            foreach (var plugin in discovery.Plugins)
+                enabled.Add(plugin.Manifest.Id);
+        }
+        return enabled;
+    }
+
+    private IReadOnlyList<string> ResolveEnabledPluginIds() =>
+        ResolveEnabledPluginIdSet().OrderBy(static id => id, StringComparer.OrdinalIgnoreCase).ToArray();
 
     private void AddMcpToolSource(List<IToolSource> sources, AgentRuntimeContext context, AppConfig config, bool profileOnly)
     {

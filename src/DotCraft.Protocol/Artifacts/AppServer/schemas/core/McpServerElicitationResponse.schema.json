@@ -4,6 +4,7 @@
   "title": "McpServerElicitationResponse",
   "type": "object",
   "properties": {
+    "_meta": {},
     "action": {
       "type": "string"
     },

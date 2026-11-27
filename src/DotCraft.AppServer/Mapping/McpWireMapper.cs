@@ -22,7 +22,9 @@ internal static class McpContractMapper
         Url = string.IsNullOrWhiteSpace(config.Url) ? null : config.Url,
         BearerTokenEnvVar = config.BearerTokenEnvVar,
         OAuth = McpOAuthContractMapper.ToContract(config.OAuth),
-        HttpHeaders = config.Headers.Count > 0 ? new Dictionary<string, string>(config.Headers) : null,
+        HttpHeaders = !config.HasSensitiveHeaders && !config.Origin.IsHostRuntime && config.Headers.Count > 0
+            ? new Dictionary<string, string>(config.Headers)
+            : null,
         EnvHttpHeaders = config.EnvHttpHeaders.Count > 0 ? new Dictionary<string, string>(config.EnvHttpHeaders) : null,
         StartupTimeoutSec = config.StartupTimeoutSec,
         ToolTimeoutSec = config.ToolTimeoutSec,
@@ -119,7 +121,7 @@ internal static class McpContractMapper
         _ => "auto"
     };
 
-    private static McpToolApprovalMode ParseToolApprovalMode(string? value) => value switch
+    internal static McpToolApprovalMode ParseToolApprovalMode(string? value) => value switch
     {
         "auto" => McpToolApprovalMode.Auto,
         "approve" => McpToolApprovalMode.Approve,

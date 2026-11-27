@@ -31,6 +31,9 @@ public sealed class McpServerOrigin
     public bool IsBinding => string.Equals(Kind, "binding", StringComparison.OrdinalIgnoreCase);
 
     [JsonIgnore]
+    public bool IsHostRuntime => string.Equals(Kind, "hostRuntime", StringComparison.OrdinalIgnoreCase);
+
+    [JsonIgnore]
     public bool IsWorkspace => string.Equals(Kind, "workspace", StringComparison.OrdinalIgnoreCase);
 
     public static McpServerOrigin Workspace() => new() { Kind = "workspace" };
@@ -54,6 +57,9 @@ public sealed class McpServerOrigin
 
     public static McpServerOrigin Binding(string bindingId, string declaredName) =>
         new() { Kind = "binding", BindingId = bindingId, DeclaredName = declaredName };
+
+    public static McpServerOrigin HostRuntime(string ownerId, string declaredName) =>
+        new() { Kind = "hostRuntime", BindingId = ownerId, DeclaredName = declaredName };
 
     public McpServerOrigin Clone() =>
         new()
@@ -173,6 +179,12 @@ public sealed class McpServerConfig
     public bool ReadOnly => !Origin.IsWorkspace && Origin.Kind != "user";
 
     [JsonIgnore]
+    public List<string> RequiredPlugins { get; set; } = [];
+
+    [JsonIgnore]
+    public bool HasSensitiveHeaders { get; set; }
+
+    [JsonIgnore]
     public string NormalizedTransport =>
         Transport.Equals("streamableHttp", StringComparison.OrdinalIgnoreCase) ||
         Transport.Equals("streamable-http", StringComparison.OrdinalIgnoreCase) ||
@@ -201,7 +213,9 @@ public sealed class McpServerConfig
             StartupTimeoutSec = StartupTimeoutSec,
             ToolTimeoutSec = ToolTimeoutSec,
             ToolApprovalMode = ToolApprovalMode,
-            Origin = Origin.Clone()
+            Origin = Origin.Clone(),
+            RequiredPlugins = [.. RequiredPlugins],
+            HasSensitiveHeaders = HasSensitiveHeaders
         };
 }
 

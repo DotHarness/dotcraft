@@ -156,6 +156,7 @@ public static class ServiceRegistration
         services.AddSingleton(sp =>
             new McpClientManager(paths, sp.GetService<ILoggerFactory>()?.CreateLogger<McpClientManager>(),
                 sp.GetService<IMcpElicitationHandler>()));
+        services.AddSingleton<RuntimeMcpRegistry>();
         services.AddSingleton<LspServerManager>();
         services.AddSingleton(new SessionGate(config.MaxSessionQueueSize));
         services.AddSingleton(sp => new ThreadStore(

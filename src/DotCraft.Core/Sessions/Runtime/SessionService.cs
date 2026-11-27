@@ -852,6 +852,7 @@ public sealed partial class SessionService(
         var thread = await GetOrLoadThreadAsync(threadId, cancellationToken).ConfigureAwait(false);
         var snapshot = await GetEffectiveToolSnapshotAsync(threadId, cancellationToken).ConfigureAwait(false);
 
+        var isSubagent = IsSubAgentThread(thread);
         return await agentFactory.DispatchToolAsync(
             snapshot,
             toolName,
@@ -862,7 +863,10 @@ public sealed partial class SessionService(
                 callId,
                 audience,
                 origin,
-                ThreadWorkspaceResolver.Resolve(thread).Cwd),
+                ThreadWorkspaceResolver.Resolve(thread).Cwd,
+                IsSubagent: isSubagent,
+                ParentThreadId: isSubagent ? thread.Source.SubAgent?.ParentThreadId ?? thread.ChannelContext : null,
+                EnabledPlugins: ResolveEnabledPluginIds()),
             cancellationToken).ConfigureAwait(false);
     }
 

@@ -64,7 +64,8 @@ public static class PluginHookLoader
                 pluginDataPath,
                 manifest.ManifestPath,
                 $"plugin.json#hooks[{i}]",
-                NormalizeHookConfig(inline)));
+                NormalizeHookConfig(inline),
+                IsManagedBuiltInPlugin(plugin)));
         }
 
         return sources;
@@ -128,8 +129,14 @@ public static class PluginHookLoader
             pluginDataPath,
             path,
             ToPluginRelativePath(manifest.RootPath, path),
-            NormalizeHookConfig(parsed)));
+            NormalizeHookConfig(parsed),
+            IsManagedBuiltInPlugin(plugin)));
     }
+
+    private static bool IsManagedBuiltInPlugin(DiscoveredPlugin plugin) =>
+        plugin.SourceKind == PluginDiscoverySourceKind.BuiltIn
+        || string.Equals(plugin.MarketplaceName, PluginIds.BundledMarketplace, StringComparison.OrdinalIgnoreCase)
+        || BuiltInPluginDeployer.IsManagedBuiltInPluginRoot(plugin.Manifest.RootPath);
 
     private static HooksFileConfig NormalizeHookConfig(HooksFileConfig config)
     {
