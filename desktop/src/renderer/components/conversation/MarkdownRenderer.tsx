@@ -16,7 +16,7 @@ import { ReplyMarkdownImage } from './ReplyMarkdownImage'
 import { mathSyntax } from './mathSyntax'
 import { copySelectionWithMathSource } from './mathCopy'
 import { rehypeStreamingFade } from './streamingFade'
-import { repairStreamingMarkdown } from './streamingMarkdown'
+import { findTrailingOpenFenceLine, repairStreamingMarkdown } from './streamingMarkdown'
 
 interface MarkdownRendererProps {
   content: string
@@ -43,12 +43,14 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
   const basePlugins = useKatexPlugins()
   const rehypePlugins = useMemo(() => streaming ? [...basePlugins, rehypeStreamingFade] : basePlugins, [basePlugins, streaming])
   const markdown = useMemo(() => streaming ? repairStreamingMarkdown(content) : content, [content, streaming])
+  const openFenceLine = useMemo(() => streaming ? findTrailingOpenFenceLine(markdown) : null, [markdown, streaming])
 
   const customComponents = useMemo<Components>(() => ({
     ...baseComponents,
     ...(workspaceImages ? { img: ReplyMarkdownImage } : {}),
-    pre({ children, ...props }) {
-      return <CodeBlock enableMermaid={enableMermaid} {...props}>{children}</CodeBlock>
+    pre({ node, children, ...props }) {
+      const isFenceOpen = openFenceLine !== null && node?.position?.start?.line === openFenceLine
+      return <CodeBlock enableMermaid={enableMermaid} isFenceOpen={isFenceOpen} {...props}>{children}</CodeBlock>
     },
     a({ href, children, ...props }) {
       return (
@@ -65,7 +67,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
         </InlineReferenceLink>
       )
     }
-  }), [activeThreadId, enableMermaid, linkMode, remoteWorkspaceActive, t, workspaceImages, workspacePath])
+  }), [activeThreadId, enableMermaid, linkMode, openFenceLine, remoteWorkspaceActive, t, workspaceImages, workspacePath])
 
   return (
     <div

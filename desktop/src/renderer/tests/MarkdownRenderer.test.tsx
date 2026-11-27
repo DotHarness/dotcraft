@@ -4,6 +4,7 @@ import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentProps } from 'react'
 import { MarkdownRenderer } from '../components/conversation/MarkdownRenderer'
+import { clearMermaidSvgCache } from '../components/conversation/MermaidDiagram'
 import { sanitizeMermaidSvg } from '../components/conversation/mermaidSanitize'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { useConversationStore } from '../stores/conversationStore'
@@ -90,6 +91,7 @@ describe('MarkdownRenderer', () => {
     document.documentElement.removeAttribute('style')
     mermaidMock.initialize.mockReset()
     mermaidMock.render.mockReset()
+    clearMermaidSvgCache()
     mermaidMock.render.mockResolvedValue({
       svg: '<svg xmlns="http://www.w3.org/2000/svg"><text>Rendered Mermaid</text></svg>',
       diagramType: 'flowchart-v2'
@@ -175,6 +177,87 @@ describe('MarkdownRenderer', () => {
     expect(wrapper.querySelector('a')).toBeNull()
     expect(wrapper.querySelector('[onclick]')).toBeNull()
     expect(wrapper.innerHTML).not.toContain('javascript:')
+  })
+
+  it('defers Mermaid rendering while the fence is open and renders once closed', async () => {
+    const partial = 'Intro\n\n```merm\nflowchart LR\n  A -->'
+    const { rerender } = renderWithLocale(partial, { streaming: true })
+
+    expect(mermaidMock.render).not.toHaveBeenCalled()
+    expect(screen.getByRole('status')).toBeTruthy()
+    expect(screen.queryByTestId('markdown-code-block')).toBeNull()
+
+    const stillOpen = 'Intro\n\n```mermaid\nflowchart LR\n  A --> B'
+    rerender(
+      <LocaleProvider>
+        <MarkdownRenderer content={stillOpen} streaming />
+      </LocaleProvider>
+    )
+    expect(mermaidMock.render).not.toHaveBeenCalled()
+
+    const closedWithTrailingText = `${stillOpen}\n\`\`\`\n\nFollowing text`
+    rerender(
+      <LocaleProvider>
+        <MarkdownRenderer content={closedWithTrailingText} streaming />
+      </LocaleProvider>
+    )
+    expect(await screen.findByTestId('mermaid-diagram')).toHaveTextContent('Rendered Mermaid')
+    expect(mermaidMock.render).toHaveBeenCalledTimes(1)
+
+    rerender(
+      <LocaleProvider>
+        <MarkdownRenderer content={`${closedWithTrailingText} more tokens`} streaming />
+      </LocaleProvider>
+    )
+    expect(screen.getByTestId('mermaid-diagram')).toHaveTextContent('Rendered Mermaid')
+    expect(mermaidMock.render).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders a closed first Mermaid block while a second Mermaid block is still streaming', async () => {
+    const content = [
+      '```mermaid',
+      'flowchart LR',
+      '  A --> B',
+      '```',
+      '',
+      '```mermaid',
+      'sequenceDiagram',
+      '  A->>B'
+    ].join('\n')
+    renderWithLocale(content, { streaming: true })
+
+    expect(await screen.findByTestId('mermaid-diagram')).toHaveTextContent('Rendered Mermaid')
+    expect(mermaidMock.render).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('status')).toBeTruthy()
+  })
+
+  it('falls back to source when streaming stops on an invalid Mermaid block', async () => {
+    mermaidMock.render.mockRejectedValueOnce(new Error('Syntax error'))
+    const incomplete = '```mermaid\nflowchart LR\n  A -->'
+    const { rerender } = renderWithLocale(incomplete, { streaming: true })
+
+    expect(mermaidMock.render).not.toHaveBeenCalled()
+    rerender(
+      <LocaleProvider>
+        <MarkdownRenderer content={incomplete} streaming={false} />
+      </LocaleProvider>
+    )
+
+    expect(await screen.findByTestId('markdown-code-block')).toHaveTextContent('flowchart LR')
+    expect(screen.getByRole('status')).toBeTruthy()
+  })
+
+  it('toggles between rendered diagram and source view', async () => {
+    renderWithLocale('```mermaid\nflowchart LR\n  A --> B\n```')
+
+    expect(await screen.findByTestId('mermaid-diagram')).toHaveTextContent('Rendered Mermaid')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show source' }))
+    expect(screen.queryByTestId('mermaid-diagram')).toBeNull()
+    expect(screen.getByTestId('markdown-code-block')).toHaveTextContent('flowchart LR')
+
+    fireEvent.click(screen.getByRole('button', { name: 'View diagram' }))
+    expect(screen.getByTestId('mermaid-diagram')).toHaveTextContent('Rendered Mermaid')
   })
 
   it('does not open unsupported schemes in external link mode', () => {

@@ -1,10 +1,35 @@
 const FENCE = /^ {0,3}(`{3,}|~{3,})(.*)$/
+const NESTED_FENCE = /^(?: {0,3}> ?)*(?: {0,3}(?:[-+*]|\d+[.)])[ \t]+)? {0,3}(`{3,}|~{3,})(.*)$/
 const BLANK_LINE = /^[ \t]*$/
 const LIST_MARKER = /^([ \t]*)[-+*](?=[ \t]|$)/
 const TASK_BOX = /^\[[ xX]\]/
 const PARTIAL_IMAGE = /(^|\n)[^\S\n]*!\[[^\]\n]*(?:\](?:\([^)\n]*)?)?\s*$/
 
 interface Fence { marker: string; length: number }
+
+export function findTrailingOpenFenceLine(text: string): number | null {
+  let fence: (Fence & { startLine: number }) | null = null
+  const lines = text.split('\n')
+
+  for (let index = 0; index < lines.length; index++) {
+    const rawLine = lines[index]
+    const line = rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine
+    const match = NESTED_FENCE.exec(line)
+    if (fence) {
+      if (match && match[1][0] === fence.marker && match[1].length >= fence.length && match[2].trim() === '') {
+        fence = null
+      }
+    } else if (match && !(match[1][0] === '`' && match[2].includes('`'))) {
+      fence = {
+        marker: match[1][0],
+        length: match[1].length,
+        startLine: index + 1
+      }
+    }
+  }
+
+  return fence?.startLine ?? null
+}
 
 export function repairStreamingMarkdown(text: string): string {
   const tailStart = findOpenTail(text)

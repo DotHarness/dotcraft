@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState, type HTMLAttributes } from 'react'
+import { Fragment, useMemo, useState, type HTMLAttributes, type ReactNode } from 'react'
 import { WrapText } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { CopyButton } from '../ui/CopyButton'
@@ -17,14 +17,20 @@ import { extractText, getCodeBlockLanguage, isMermaidLanguage } from './markdown
 export function CodeBlock({
   children,
   enableMermaid,
+  isFenceOpen = false,
   ...props
-}: HTMLAttributes<HTMLPreElement> & { enableMermaid?: boolean }): JSX.Element {
+}: HTMLAttributes<HTMLPreElement> & { enableMermaid?: boolean; isFenceOpen?: boolean }): JSX.Element {
   const language = getCodeBlockLanguage(children)
-  if (enableMermaid && language && isMermaidLanguage(language)) {
+  if (enableMermaid && language && isMermaidLanguage(language, isFenceOpen)) {
     return (
       <MermaidDiagram
         source={extractText(children)}
-        fallback={<PlainCodeBlock {...props}>{children}</PlainCodeBlock>}
+        streaming={isFenceOpen}
+        renderSource={(leadingActions) => (
+          <PlainCodeBlock leadingActions={leadingActions} {...props}>
+            {children}
+          </PlainCodeBlock>
+        )}
       />
     )
   }
@@ -34,9 +40,10 @@ export function CodeBlock({
 
 export function PlainCodeBlock({
   children,
+  leadingActions,
   style,
   ...props
-}: HTMLAttributes<HTMLPreElement>): JSX.Element {
+}: HTMLAttributes<HTMLPreElement> & { leadingActions?: ReactNode }): JSX.Element {
   const t = useT()
   const [wordWrap, setWordWrap] = useState(true)
   const [hovered, setHovered] = useState(false)
@@ -66,7 +73,7 @@ export function PlainCodeBlock({
           backgroundColor: 'var(--code-block-bg)',
           borderRadius: '10px',
           padding: '12px 14px',
-          paddingRight: '72px',
+          paddingRight: leadingActions ? '100px' : '72px',
           overflowX: wordWrap ? 'hidden' : 'auto',
           whiteSpace: wordWrap ? 'pre-wrap' : 'pre',
           overflowWrap: wordWrap ? 'anywhere' : 'normal',
@@ -94,6 +101,7 @@ export function PlainCodeBlock({
           transition: 'opacity 120ms ease'
         }}
       >
+        {leadingActions}
         <IconButton
           size={24}
           radius={6}

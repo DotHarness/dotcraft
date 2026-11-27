@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { repairStreamingMarkdown } from '../components/conversation/streamingMarkdown'
+import { findTrailingOpenFenceLine, repairStreamingMarkdown } from '../components/conversation/streamingMarkdown'
 
 describe('repairStreamingMarkdown', () => {
   it('closes an open code span and drops a lone opening backtick', () => {
@@ -37,5 +37,26 @@ describe('repairStreamingMarkdown', () => {
     expect(repairStreamingMarkdown('- [ ] task')).toBe('- [ ] task')
     expect(repairStreamingMarkdown('text\n![alt](http')).toBe('text\n')
     expect(repairStreamingMarkdown('`arr[0` is')).toBe('`arr[0` is')
+  })
+})
+
+describe('findTrailingOpenFenceLine', () => {
+  it('returns the opening line for an unclosed fence and null once closed', () => {
+    expect(findTrailingOpenFenceLine('Intro\n\n```mermaid\nflowchart LR\n  A --> B')).toBe(3)
+    expect(findTrailingOpenFenceLine('```me')).toBe(1)
+    expect(findTrailingOpenFenceLine('```mermaid\nflowchart LR\n``')).toBe(1)
+    expect(findTrailingOpenFenceLine('```mermaid\nflowchart LR\n  A --> B\n```')).toBeNull()
+    expect(
+      findTrailingOpenFenceLine([
+        '```mermaid',
+        'flowchart LR',
+        '  A --> B',
+        '```',
+        '',
+        '```mermaid',
+        'sequenceDiagram',
+        '  A->>B'
+      ].join('\n'))
+    ).toBe(6)
   })
 })

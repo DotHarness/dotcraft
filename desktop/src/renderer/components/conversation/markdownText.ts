@@ -30,6 +30,11 @@ export function getCodeBlockLanguage(node: ReactNode): string | null {
   return match?.[1]?.toLowerCase() ?? getCodeBlockLanguage(node.props.children)
 }
 
-export function isMermaidLanguage(language: string): boolean {
-  return language === 'mermaid' || language === 'mmd'
+export function isMermaidLanguage(language: string, isFenceOpen = false): boolean {
+  const normalized = language.trim().toLowerCase()
+  return (
+    normalized === 'mermaid' ||
+    normalized === 'mmd' ||
+    (isFenceOpen && normalized.length >= 2 && 'mermaid'.startsWith(normalized))
+  )
 }
