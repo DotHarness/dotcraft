@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "memory-studio",
-  "version": "0.14.4",
+  "version": "0.15.0",
   "displayName": "Memory Studio",
   "description": "Browse and edit what DotCraft remembers, and tailor what it saves.",
   "capabilities": ["desktop"],

@@ -1,6 +1,6 @@
 <Project>
   <PropertyGroup>
-    <Version>0.14.4</Version>
+    <Version>0.15.0</Version>
     <IsPackable>true</IsPackable>
     <Authors>DotHarness</Authors>
     <PackageProjectUrl>https://github.com/DotHarness/dotcraft</PackageProjectUrl>
