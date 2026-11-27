@@ -1,0 +1,28 @@
+.memory-studio-icon {
+  display: block;
+  flex-shrink: 0;
+  overflow: visible;
+}
+
+.memory-studio-icon__spark {
+  transform-origin: 12px 9.75px;
+}
+
+:is([data-nav-icon-host]:hover:not(:disabled), [data-nav-icon-host]:focus-visible, [data-nav-icon-play])
+  .memory-studio-icon__spark {
+  animation: memory-studio-spark-turn 560ms;
+}
+
+@keyframes memory-studio-spark-turn {
+  0% {
+    rotate: 0deg;
+    animation-timing-function: cubic-bezier(0.45, 0, 0.2, 1);
+  }
+  72% {
+    rotate: 98deg;
+    animation-timing-function: cubic-bezier(0.333, 0, 0.667, 1);
+  }
+  100% {
+    rotate: 90deg;
+  }
+}
