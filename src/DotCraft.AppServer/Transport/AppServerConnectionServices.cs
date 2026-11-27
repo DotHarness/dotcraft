@@ -61,7 +61,6 @@ public sealed record AppServerConnectionServices
     public ICommitMessageSuggester? CommitMessageSuggest { get; init; }
     public string? DashboardUrl { get; init; }
     public WireAcpExtensionProxy? WireAcpExtensionProxy { get; init; }
-    public WireNodeReplProxy? WireNodeReplProxy { get; init; }
     public WireDynamicToolProxy? WireDynamicToolProxy { get; init; }
     public CommandRegistry? CommandRegistry { get; init; }
     public IChannelStatusProvider? ChannelStatusProvider { get; init; }

@@ -6,6 +6,7 @@
   "description": "Test and interact with local or approved pages in DotCraft's in-app browser.",
   "capabilities": ["interactive", "read", "write", "browser", "javascript", "desktop"],
   "skills": "./skills/",
+  "hooks": "./hooks/hooks.json",
   "interface": {
     "displayName": "Browser",
     "shortDescription": "Test pages in DotCraft's in-app browser",

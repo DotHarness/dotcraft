@@ -774,34 +774,6 @@
       ]
     },
     {
-      "name": "node-repl-callback",
-      "tags": ["serverRequest", "firstPartyExtension", "nodeRepl"],
-      "messages": [
-        {
-          "jsonrpc": "2.0",
-          "id": "node_repl_fixture",
-          "method": "ext/nodeRepl/evaluate",
-          "params": {
-            "threadId": "thread_fixture",
-            "evaluationId": "evaluation_fixture",
-            "code": "1 + 1",
-            "timeoutMs": 1000,
-            "browserSession": {
-              "protocolVersion": 1,
-              "sessionId": "session_fixture",
-              "threadId": "thread_fixture",
-              "evaluationId": "evaluation_fixture"
-            }
-          }
-        },
-        {
-          "jsonrpc": "2.0",
-          "id": "node_repl_fixture",
-          "result": { "resultText": "2", "logs": [], "images": [], "futureField": true }
-        }
-      ]
-    },
-    {
       "name": "external-channel",
       "tags": ["clientRequest", "serverRequest", "firstPartyExtension", "externalChannel"],
       "messages": [

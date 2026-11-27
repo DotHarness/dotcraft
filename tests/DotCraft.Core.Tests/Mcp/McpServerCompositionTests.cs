@@ -71,6 +71,34 @@ public sealed class McpServerCompositionTests
         Assert.Contains(configs, server => server.Origin.IsBinding && server.Name == "binding:board-binding:board~2");
     }
 
+    [Fact]
+    public void Compose_AdditionalServers_MergeAdditivelyWithoutReplacingInheritedServers()
+    {
+        var additional = new McpServerConfig
+        {
+            Name = "node_repl",
+            Enabled = true,
+            Transport = "streamableHttp",
+            Url = "http://127.0.0.1:43210/mcp/route-1"
+        };
+
+        var effective = McpServerComposition.Compose(
+            "thread-1",
+            null,
+            [Server("workspace"), PluginServer("plugin:review", "review")],
+            [BindingServer("board-binding", "board")],
+            [additional]);
+
+        Assert.Equal(4, effective.Count);
+        Assert.Contains(effective, server => server.Name == "workspace" && server.Origin.IsWorkspace);
+        Assert.Contains(effective, server => server.Name == "plugin:review" && server.Origin.IsPlugin);
+        var runtimeServer = Assert.Single(effective, server => server.Name == "node_repl");
+        Assert.True(runtimeServer.Origin.IsThread);
+        Assert.Equal("thread-1", runtimeServer.Origin.ThreadId);
+        Assert.Equal("node_repl", runtimeServer.Origin.DeclaredName);
+        Assert.Contains(effective, server => server.Origin.IsBinding);
+    }
+
     private static McpServerConfig Server(string name) => new() { Name = name, Enabled = false };
 
     private static McpServerConfig PluginServer(string name, string declaredName) => new()

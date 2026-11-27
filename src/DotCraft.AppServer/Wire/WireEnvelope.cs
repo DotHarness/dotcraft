@@ -131,23 +131,6 @@ public sealed class ClientConnectionCapabilities
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public AcpClientCapability? AcpExtensions { get; set; }
-
-    /// <summary>
-    /// Node REPL runtime capability. When set with <see cref="BrowserUse"/> or <see cref="ComputerUse"/>,
-    /// the client can receive server-initiated <c>ext/nodeRepl/*</c> requests for thread-bound automation.
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NodeReplClientCapability? NodeRepl { get; set; }
-
-    /// <summary>
-    /// Browser IAB capability. When set with <see cref="NodeRepl"/>, the client can back
-    /// the persistent Node REPL with Desktop embedded browser automation.
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public BrowserUseClientCapability? BrowserUse { get; set; }
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ComputerUseClientCapability? ComputerUse { get; set; }
 }
 
 /// <summary>
@@ -163,48 +146,6 @@ public sealed class AcpClientCapability
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<string>? Extensions { get; set; }
-}
-
-/// <summary>
-/// Client-declared Desktop Node REPL support during <c>initialize</c>.
-/// </summary>
-public sealed class NodeReplClientCapability
-{
-    public string Backend { get; set; } = string.Empty;
-}
-
-public sealed class ComputerUseClientCapability
-{
-    public string Backend { get; set; } = string.Empty;
-}
-
-/// <summary>
-/// Client-declared Desktop browser IAB support during <c>initialize</c>.
-/// </summary>
-public sealed class BrowserUseClientCapability
-{
-    public string Backend { get; set; } = string.Empty;
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public List<string>? Backends { get; set; }
-
-    public int? ProtocolVersion { get; set; }
-
-    public bool? SupportsCancel { get; set; }
-
-    public int? BrowserSessionProtocolVersion { get; set; }
-
-    public bool? SupportsCommandCancel { get; set; }
-
-    public int? MaxBrowserResultBytes { get; set; }
-
-    public int? DefaultCommandTimeoutMs { get; set; }
-
-    public int? MaxCommandTimeoutMs { get; set; }
-
-    public bool? SupportsTypedFinalize { get; set; }
-
-    public bool? SupportsChromeDiagnostics { get; set; }
 }
 
 public sealed class ServerCapabilitySnapshot

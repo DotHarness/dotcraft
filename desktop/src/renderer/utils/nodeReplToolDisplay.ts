@@ -1,19 +1,26 @@
 import { translate, type AppLocale } from '../../shared/locales'
 import type { ConversationItem } from '../types/conversation'
-import { resolveCoreToolRenderPlan } from './toolRendererRegistry'
 import type { ToolKindSource } from './toolKind'
 
 const TITLE_LIMIT = 80
 
 export type NodeReplSurface = 'browser' | 'chrome' | 'computer'
 
-type NodeReplSource = ToolKindSource & Pick<ConversationItem, 'structuredResult'>
+type NodeReplSource = ToolKindSource & Partial<Pick<ConversationItem, 'structuredResult' | 'type' | 'pluginNamespace'>>
+
+export function isNodeReplToolCall(item: NodeReplSource): boolean {
+  return item.source?.kind === 'Mcp'
+    && item.source.sourceId === 'node_repl'
+    && (item.source.sourceToolId === 'NodeReplJs' || item.toolName === 'NodeReplJs')
+}
 
 export function getNodeReplSurface(item: NodeReplSource): NodeReplSurface | null {
-  const plan = resolveCoreToolRenderPlan(item as ConversationItem)
-  if (plan?.family !== 'nodeRepl') return null
+  if (!isNodeReplToolCall(item)) return null
   const result = item.structuredResult as { surface?: unknown } | null | undefined
-  return result?.surface === 'computer' ? 'computer' : plan.options.surface as NodeReplSurface
+  if (result?.surface === 'computer' || result?.surface === 'chrome' || result?.surface === 'browser') {
+    return result.surface
+  }
+  return null
 }
 
 export function normalizeNodeReplTitle(value: unknown): string | null {

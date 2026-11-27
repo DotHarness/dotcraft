@@ -149,7 +149,9 @@ public sealed partial class SessionService
             || agentFactory.RuntimeContext.McpClientManager != null
             || agentFactory.ToolSources.Any(source => source is IThreadScopedToolSource)
             || pluginToolSourceProviders?.Any() == true
-            || mcpToolCatalogContributors?.Any() == true)
+            || mcpToolCatalogContributors?.Any() == true
+            || (_runtimeRegistry.TryGetRuntime(thread.Id, out var threadRuntime)
+                && threadRuntime.GetAdditionalMcpServers().Count > 0))
         {
             return true;
         }

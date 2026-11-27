@@ -112,7 +112,6 @@ public sealed class AppServerRequestHandler(
             connection,
             transport,
             services.WireAcpExtensionProxy,
-            services.WireNodeReplProxy,
             services.WireDynamicToolProxy,
             services.WireRuntimeAdditionalContextProvider,
             services.VisualizationRuntimeRegistry,

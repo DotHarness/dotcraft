@@ -155,6 +155,7 @@ internal sealed class ThreadRuntime(SessionThread thread, ThreadEventBroker brok
     private readonly object _bindingMcpLock = new();
     private readonly Dictionary<string, IReadOnlyList<McpServerConfig>> _bindingMcpServers =
         new(StringComparer.Ordinal);
+    private IReadOnlyList<McpServerConfig> _additionalMcpServers = [];
     private ThreadMaintenanceState? _maintenance;
     private int _goalContinuationStarting;
     private readonly ConcurrentDictionary<string, byte> _goalBudgetLimitReported = new(StringComparer.Ordinal);
@@ -225,6 +226,44 @@ internal sealed class ThreadRuntime(SessionThread thread, ThreadEventBroker brok
                 _bindingMcpServers[bindingId] = servers.Select(static server => server.Clone()).ToArray();
         }
         MarkToolSnapshotDirty();
+    }
+
+    public IReadOnlyList<McpServerConfig> GetAdditionalMcpServers()
+    {
+        lock (_bindingMcpLock)
+            return _additionalMcpServers.Select(static server => server.Clone()).ToArray();
+    }
+
+    public bool SetAdditionalMcpServers(IReadOnlyList<McpServerConfig> servers)
+    {
+        var next = servers.Select(static server => server.Clone()).ToArray();
+        lock (_bindingMcpLock)
+        {
+            if (AreMcpServerListsEquivalent(_additionalMcpServers, next))
+                return false;
+            _additionalMcpServers = next;
+        }
+        MarkToolSnapshotDirty();
+        return true;
+    }
+
+    private static bool AreMcpServerListsEquivalent(
+        IReadOnlyList<McpServerConfig> left,
+        IReadOnlyList<McpServerConfig> right)
+    {
+        if (left.Count != right.Count)
+            return false;
+        for (var i = 0; i < left.Count; i++)
+        {
+            if (!string.Equals(
+                    System.Text.Json.JsonSerializer.Serialize(left[i], Wire.SessionWireJsonOptions.Default),
+                    System.Text.Json.JsonSerializer.Serialize(right[i], Wire.SessionWireJsonOptions.Default),
+                    StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+        return true;
     }
 
     public AgentModeManager? ModeManager { get; set; }

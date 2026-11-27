@@ -68,7 +68,6 @@ export interface ClientRequestMethods {
   "dreams/list": { params: Models.DreamsListParams; result: Models.DreamsListResult };
   "dreams/run": { params: Models.DreamsRunParams; result: Models.DreamsStatusResult };
   "dreams/status": { params: Models.DreamsStatusParams; result: Models.DreamsStatusResult };
-  "ext/nodeRepl/requestApproval": { params: Models.NodeReplRequestApprovalParams; result: Models.NodeReplRequestApprovalResult };
   "fs/copy": { params: Models.FsCopyParams; result: Models.RpcEmpty };
   "fs/createDirectory": { params: Models.FsCreateDirectoryParams; result: Models.RpcEmpty };
   "fs/getMetadata": { params: Models.FsGetMetadataParams; result: Models.FsGetMetadataResult };

@@ -40,6 +40,7 @@ vi.mock('../codexRemote/codexRemoteHubBridge', () => ({ disposeCodexRemoteHubBri
 vi.mock('../mobile/mobileHubBridge', () => ({ disposeMobileHubBridge: vi.fn() }))
 vi.mock('../nativeThemeSource', () => ({ applyNativeThemeSource: vi.fn() }))
 vi.mock('../nodeReplManager', () => ({ nodeReplManager: { disposeAll: vi.fn() } }))
+vi.mock('../repl/nodeReplMcpServer', () => ({ nodeReplMcpServer: { dispose: vi.fn(async () => {}) } }))
 vi.mock('../satellites/satellitesHubBridge', () => ({ disposeSatellitesHubBridge: vi.fn() }))
 vi.mock('../screenView/screenViewManager', () => ({ closeAllScreenViews: vi.fn() }))
 vi.mock('../settings', () => ({

@@ -108,4 +108,47 @@ describe('MCP input presentation', () => {
     expect(useThreadElicitationStore.getState().requests).toHaveLength(0)
     expect(respond).toHaveBeenCalledWith('bridge-1', { action: 'decline' })
   })
+
+  it('renders Computer Use approval choices for computerUse elicitation metadata', async () => {
+    applyThreadServerRequest({
+      bridgeId: 'bridge-cu',
+      wireRequestId: 99,
+      connectionId: 'connection',
+      connectionKey: 'workspace',
+      method: 'mcpServer/elicitation/request',
+      params: {
+        threadId: 'A',
+        turnId: 'turn-A',
+        serverName: 'node_repl',
+        mode: 'form',
+        message: 'Allow DotCraft to use Notepad?',
+        requestedSchema: {
+          type: 'object',
+          properties: {
+            decision: {
+              type: 'string',
+              oneOf: [
+                { const: 'acceptForSession', title: 'Allow in this chat' },
+                { const: 'acceptAlways', title: 'Always allow' }
+              ]
+            }
+          },
+          required: ['decision']
+        },
+        _meta: {
+          approvalKind: 'computerUse',
+          operation: 'focus_app',
+          target: 'notepad.exe',
+          targetLabel: 'Notepad'
+        }
+      }
+    })
+    mount()
+    expect(screen.getByText('Allow DotCraft to use Notepad?')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Always allow' }))
+    await waitFor(() => expect(respond).toHaveBeenCalledWith('bridge-cu', {
+      action: 'accept',
+      content: { decision: 'acceptAlways' }
+    }))
+  })
 })

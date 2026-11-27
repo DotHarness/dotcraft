@@ -39,9 +39,7 @@ describe('DesktopAppServerClient', () => {
       capabilities: {
         approvalSupport: true,
         requestUserInputSupport: true,
-        backgroundTerminals: true,
-        nodeRepl: { backend: 'desktop-node' },
-        browserUse: { backend: 'desktop-iab', supportsCancel: true }
+        backgroundTerminals: true
       }
     })
     push({

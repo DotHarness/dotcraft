@@ -30,10 +30,6 @@
     {
       "name": "external-channel",
       "stability": "stable"
-    },
-    {
-      "name": "node-repl",
-      "stability": "stable"
     }
   ],
   "types": [
@@ -4694,94 +4690,6 @@
       "variants": []
     },
     {
-      "id": "core.BrowserUseCapability",
-      "name": "BrowserUseCapability",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/BrowserUseCapability.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "backend",
-          "type": "string",
-          "required": true,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "backends",
-          "type": "array<string>",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "browserSessionProtocolVersion",
-          "type": "integer",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "defaultCommandTimeoutMs",
-          "type": "integer",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "maxBrowserResultBytes",
-          "type": "integer",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "maxCommandTimeoutMs",
-          "type": "integer",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "protocolVersion",
-          "type": "integer",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "supportsCancel",
-          "type": "boolean",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "supportsChromeDiagnostics",
-          "type": "boolean",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "supportsCommandCancel",
-          "type": "boolean",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "supportsTypedFinalize",
-          "type": "boolean",
-          "required": false,
-          "nullable": true,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
       "id": "core.ChannelAdapterCapability",
       "name": "ChannelAdapterCapability",
       "module": "core",
@@ -5870,13 +5778,6 @@
           "const": null
         },
         {
-          "name": "browserUse",
-          "type": "core.BrowserUseCapability",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
           "name": "channelAdapter",
           "type": "core.ChannelAdapterCapability",
           "required": false,
@@ -5886,13 +5787,6 @@
         {
           "name": "commandExecutionStreaming",
           "type": "boolean",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "computerUse",
-          "type": "core.ComputerUseCapability",
           "required": false,
           "nullable": true,
           "const": null
@@ -5935,13 +5829,6 @@
         {
           "name": "mcpElicitation",
           "type": "boolean",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "nodeRepl",
-          "type": "core.NodeReplCapability",
           "required": false,
           "nullable": true,
           "const": null
@@ -6419,24 +6306,6 @@
           "name": "commands",
           "type": "array<core.CommandInfo>",
           "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.ComputerUseCapability",
-      "name": "ComputerUseCapability",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/ComputerUseCapability.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "backend",
-          "type": "string",
-          "required": true,
           "nullable": false,
           "const": null
         }
@@ -13093,343 +12962,6 @@
           "type": "array<string>",
           "required": false,
           "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "node-repl.NodeReplBrowserSessionParams",
-      "name": "NodeReplBrowserSessionParams",
-      "module": "node-repl",
-      "kind": "object",
-      "schema": "schemas/node-repl/NodeReplBrowserSessionParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "evaluationId",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "isSubagent",
-          "type": "boolean",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "protocolVersion",
-          "type": "integer",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "sessionId",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "threadId",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "turnId",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "node-repl.NodeReplCancelParams",
-      "name": "NodeReplCancelParams",
-      "module": "node-repl",
-      "kind": "object",
-      "schema": "schemas/node-repl/NodeReplCancelParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "evaluationId",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "threadId",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "core.NodeReplCapability",
-      "name": "NodeReplCapability",
-      "module": "core",
-      "kind": "object",
-      "schema": "schemas/core/NodeReplCapability.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "backend",
-          "type": "string",
-          "required": true,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "node-repl.NodeReplEvaluateParams",
-      "name": "NodeReplEvaluateParams",
-      "module": "node-repl",
-      "kind": "object",
-      "schema": "schemas/node-repl/NodeReplEvaluateParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "browserSession",
-          "type": "node-repl.NodeReplBrowserSessionParams",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "code",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "evaluationId",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "threadId",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "timeoutMs",
-          "type": "integer",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "turnId",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "node-repl.NodeReplEvaluateResult",
-      "name": "NodeReplEvaluateResult",
-      "module": "node-repl",
-      "kind": "object",
-      "schema": "schemas/node-repl/NodeReplEvaluateResult.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "error",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "images",
-          "type": "array<node-repl.NodeReplImageResult>",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "logs",
-          "type": "array<string>",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "resultText",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "surface",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "text",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "node-repl.NodeReplImageResult",
-      "name": "NodeReplImageResult",
-      "module": "node-repl",
-      "kind": "object",
-      "schema": "schemas/node-repl/NodeReplImageResult.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "dataBase64",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "mediaType",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "node-repl.NodeReplRequestApprovalParams",
-      "name": "NodeReplRequestApprovalParams",
-      "module": "node-repl",
-      "kind": "object",
-      "schema": "schemas/node-repl/NodeReplRequestApprovalParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "approvalType",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "evaluationId",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "operation",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "target",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "targetLabel",
-          "type": "string",
-          "required": false,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "threadId",
-          "type": "string",
-          "required": false,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "node-repl.NodeReplRequestApprovalResult",
-      "name": "NodeReplRequestApprovalResult",
-      "module": "node-repl",
-      "kind": "object",
-      "schema": "schemas/node-repl/NodeReplRequestApprovalResult.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "approved",
-          "type": "boolean",
-          "required": true,
-          "nullable": false,
-          "const": null
-        }
-      ],
-      "variants": []
-    },
-    {
-      "id": "node-repl.NodeReplTurnEndedParams",
-      "name": "NodeReplTurnEndedParams",
-      "module": "node-repl",
-      "kind": "object",
-      "schema": "schemas/node-repl/NodeReplTurnEndedParams.schema.json",
-      "additionalProperties": true,
-      "fields": [
-        {
-          "name": "disposeSession",
-          "type": "boolean",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "isSubagent",
-          "type": "boolean",
-          "required": false,
-          "nullable": false,
-          "const": null
-        },
-        {
-          "name": "threadId",
-          "type": "string",
-          "required": true,
-          "nullable": true,
-          "const": null
-        },
-        {
-          "name": "turnId",
-          "type": "string",
-          "required": false,
-          "nullable": true,
           "const": null
         }
       ],
@@ -21852,6 +21384,13 @@
           "const": null
         },
         {
+          "name": "additionalMcpServers",
+          "type": "array<core.ThreadMcpServerConfig>",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "config",
           "type": "core.ThreadConfiguration",
           "required": false,
@@ -23369,6 +22908,13 @@
           "const": null
         },
         {
+          "name": "additionalMcpServers",
+          "type": "array<core.ThreadMcpServerConfig>",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "chat",
           "type": "core.ChannelChat",
           "required": false,
@@ -24027,6 +23573,13 @@
         {
           "name": "additionalContext",
           "type": "map<core.RuntimeAdditionalContextEntry>",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "additionalMcpServers",
+          "type": "array<core.ThreadMcpServerConfig>",
           "required": false,
           "nullable": true,
           "const": null
@@ -29068,6 +28621,13 @@
           "const": null
         },
         {
+          "name": "additionalMcpServers",
+          "type": "array<core.ThreadMcpServerConfig>",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "baseRef",
           "type": "string",
           "required": false,
@@ -29197,6 +28757,13 @@
         {
           "name": "additionalContext",
           "type": "map<core.RuntimeAdditionalContextEntry>",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "additionalMcpServers",
+          "type": "array<core.ThreadMcpServerConfig>",
           "required": false,
           "nullable": true,
           "const": null
@@ -31322,82 +30889,6 @@
       ],
       "since": "1",
       "specRef": "specs/protocols/external-channel-adapter.md",
-      "stability": "stable"
-    },
-    {
-      "name": "ext/nodeRepl/cancel",
-      "descriptorMember": "ExtNodeReplCancel",
-      "kind": "request",
-      "direction": "serverToClient",
-      "paramsType": "node-repl.NodeReplCancelParams",
-      "resultType": "core.RpcEmpty",
-      "module": "node-repl",
-      "capability": "nodeRepl",
-      "scope": "connection",
-      "notificationOptOut": false,
-      "errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ],
-      "since": "1",
-      "specRef": "specs/protocols/appserver-protocol.md",
-      "stability": "stable"
-    },
-    {
-      "name": "ext/nodeRepl/evaluate",
-      "descriptorMember": "ExtNodeReplEvaluate",
-      "kind": "request",
-      "direction": "serverToClient",
-      "paramsType": "node-repl.NodeReplEvaluateParams",
-      "resultType": "node-repl.NodeReplEvaluateResult",
-      "module": "node-repl",
-      "capability": "nodeRepl",
-      "scope": "connection",
-      "notificationOptOut": false,
-      "errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ],
-      "since": "1",
-      "specRef": "specs/protocols/appserver-protocol.md",
-      "stability": "stable"
-    },
-    {
-      "name": "ext/nodeRepl/requestApproval",
-      "descriptorMember": "ExtNodeReplRequestApproval",
-      "kind": "request",
-      "direction": "clientToServer",
-      "paramsType": "node-repl.NodeReplRequestApprovalParams",
-      "resultType": "node-repl.NodeReplRequestApprovalResult",
-      "module": "node-repl",
-      "capability": "nodeRepl",
-      "scope": "connection",
-      "notificationOptOut": false,
-      "errors": [
-        "InvalidParams",
-        "InvalidRequest",
-        "MethodNotFound"
-      ],
-      "since": "1",
-      "specRef": "specs/protocols/appserver-protocol.md",
-      "stability": "stable"
-    },
-    {
-      "name": "ext/nodeRepl/turnEnded",
-      "descriptorMember": "ExtNodeReplTurnEnded",
-      "kind": "notification",
-      "direction": "serverToClient",
-      "paramsType": "node-repl.NodeReplTurnEndedParams",
-      "resultType": "core.RpcEmpty",
-      "module": "node-repl",
-      "capability": "nodeRepl",
-      "scope": "connection",
-      "notificationOptOut": false,
-      "errors": [],
-      "since": "1",
-      "specRef": "specs/protocols/appserver-protocol.md",
       "stability": "stable"
     },
     {

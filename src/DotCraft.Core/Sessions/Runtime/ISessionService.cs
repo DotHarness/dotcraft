@@ -27,7 +27,8 @@ public interface ISessionService
         CancellationToken ct = default,
         ThreadSource? source = null,
         bool ephemeral = false,
-        IReadOnlyList<ThreadDynamicToolDeclaration>? dynamicToolDeclarations = null);
+        IReadOnlyList<ThreadDynamicToolDeclaration>? dynamicToolDeclarations = null,
+        IReadOnlyList<DotCraft.Mcp.McpServerConfig>? additionalMcpServers = null);
 
     Task<SessionThread> ForkThreadAsync(
         string threadId,

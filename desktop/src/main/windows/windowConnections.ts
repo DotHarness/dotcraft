@@ -8,7 +8,11 @@ import { broadcastNotification } from '../ipcBridge'
 import { cancelConnectionServerRequests } from '../ipcServerRequests'
 import { resetDesktopThreadToolBindings } from '../desktopRuntimeThreadTools'
 import { bindLocalProjectRecovery } from '../localProjectRecovery'
-import { handleWorkspaceNodeReplNotification, ownsWorkspaceNodeReplThread } from './windowNodeReplRequests'
+import {
+  handleWorkspaceNodeReplNotification,
+  ownsWorkspaceNodeReplThread,
+  registerWorkspaceNodeReplClient
+} from './windowNodeReplMcp'
 import { handleWorkspaceThreadPanelDeletion } from './windowThreadPanelDeletion'
 import { handleDevServerThreadNotification } from '../devServers/devServerThreadEvents'
 import { recoverThreadQuestions } from './windowThreadQuestionRecovery'
@@ -79,6 +83,7 @@ export async function connectViaWebSocket(
     reconnectAttempt: options.existingEntry?.reconnectAttempt ?? 0
   }
   ctx.workspaceConnections.set(connectionKey, entry)
+  registerWorkspaceNodeReplClient(ctx, entry)
   ctx.startupProjectStates.delete(connectionKey)
   if (role === 'foreground') ctx.wireClient = client
   const deviceGeneration = entry.device?.generation
@@ -104,7 +109,7 @@ export async function connectViaWebSocket(
     const ownsThread = turn && ownsWorkspaceNodeReplThread(entry, turn.threadId)
     handleWorkspaceThreadPanelDeletion(entry, method, params, ctx.mainWindow)
     handleDevServerThreadNotification(method, params)
-    handleWorkspaceNodeReplNotification(entry, method, params)
+    handleWorkspaceNodeReplNotification(ctx, entry, method, params)
     if (ownsThread) {
       if (turn.terminal) computerUseManager.handleTurnEnded(turn.threadId, turn.turnId)
       browserUseManagers.handleTurnNotification(method, params, entry.localWorkspacePath ?? entry.workspacePath)

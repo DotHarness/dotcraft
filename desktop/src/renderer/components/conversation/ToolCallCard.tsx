@@ -108,7 +108,7 @@ function formatRunningToolLabel(
   if (rendererFamily === 'skillView' && args) {
     return formatSkillViewRunningLabel(args, locale)
   }
-  if (rendererFamily === 'nodeRepl' && args) {
+  if (kind === 'nodeRepl' && args) {
     return normalizeNodeReplTitle(args.title) ?? streamingLabel
   }
   if (isWebToolKind(kind) && kind !== 'toolSearch' && args && !invocationNeedsCallingPrefix(kind, args)) {

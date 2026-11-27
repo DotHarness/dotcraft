@@ -509,7 +509,7 @@ public sealed partial class SessionService
             Status = result.Success ? "completed" : "failed",
             DurationMs = durationMs,
             Content = content,
-            ModelContentItems = ToModelContentItems(result.Content),
+            ModelContentItems = ToModelContentItems(result.ContentItems, result.Content),
             StructuredContent = ToJsonNode(result.StructuredContent),
             Meta = ToJsonNode(result.Meta),
             IsError = isError,

@@ -77,7 +77,6 @@ public sealed partial class WorkspaceRuntime
                 .Create();
             var planStore = new PlanStore(Paths.Data.RootPath, Services.GetRequiredService<WorkspaceStateDatabase>());
             var acpExtensionProxy = Services.GetService<IAcpExtensionProxy>();
-            var nodeReplProxy = Services.GetService<INodeReplProxy>();
             var toolSources = new ToolSourceCollector(moduleRegistry, Services, Config)
                 .CollectWithOrigins()
                 .ToList();
@@ -104,12 +103,6 @@ public sealed partial class WorkspaceRuntime
             toolSources.Add(new CollectedToolSource(
                 new WebSearchToolSource(Config, chatClientRegistry),
                 ContributionOrigin.Builtin));
-            if (nodeReplProxy != null)
-            {
-                toolSources.Add(new CollectedToolSource(
-                    new NodeReplPluginToolSource(Config, nodeReplProxy, Paths.Data.RootPath),
-                    ContributionOrigin.Builtin));
-            }
 
             var effectiveToolSources = _contributionScope.RegisterToolSources(toolSources);
 
@@ -147,8 +140,7 @@ public sealed partial class WorkspaceRuntime
                         McpClientManager = McpClientManager,
                         LspServerManager = LspServerManager,
                         TraceCollector = traceCollector,
-                        AcpExtensionProxy = acpExtensionProxy,
-                        NodeReplProxy = nodeReplProxy
+                        AcpExtensionProxy = acpExtensionProxy
                     },
                     traceCollector: traceCollector,
                     planStore: planStore,

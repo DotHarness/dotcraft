@@ -1,0 +1,40 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "mcp_tool",
+            "server": "node_repl",
+            "tool": "turn_ended",
+            "skipIfDormant": true
+          }
+        ]
+      }
+    ],
+    "Interrupt": [
+      {
+        "hooks": [
+          {
+            "type": "mcp_tool",
+            "server": "node_repl",
+            "tool": "turn_ended",
+            "skipIfDormant": true
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "mcp_tool",
+            "server": "node_repl",
+            "tool": "turn_ended",
+            "skipIfDormant": true
+          }
+        ]
+      }
+    ]
+  }
+}

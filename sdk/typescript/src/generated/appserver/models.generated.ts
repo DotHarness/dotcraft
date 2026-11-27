@@ -953,21 +953,6 @@ export interface BackgroundTerminalSnapshot {
   [key: string]: unknown;
 }
 
-export interface BrowserUseCapability {
-  backend: string;
-  backends?: string[] | null;
-  browserSessionProtocolVersion?: number | null;
-  defaultCommandTimeoutMs?: number | null;
-  maxBrowserResultBytes?: number | null;
-  maxCommandTimeoutMs?: number | null;
-  protocolVersion?: number | null;
-  supportsCancel?: boolean | null;
-  supportsChromeDiagnostics?: boolean | null;
-  supportsCommandCancel?: boolean | null;
-  supportsTypedFinalize?: boolean | null;
-  [key: string]: unknown;
-}
-
 export interface ChannelAdapterCapability {
   channelName: string;
   channelTools?: ChannelToolDescriptor[] | null;
@@ -1198,17 +1183,14 @@ export interface ClientCapabilities {
   appBindingVersion?: number | null;
   approvalSupport?: boolean | null;
   backgroundTerminals?: boolean | null;
-  browserUse?: BrowserUseCapability | null;
   channelAdapter?: ChannelAdapterCapability | null;
   commandExecutionStreaming?: boolean | null;
-  computerUse?: ComputerUseCapability | null;
   configChange?: boolean | null;
   extensions?: Record<string, JsonValue> | null;
   generativeUi?: boolean | null;
   interactiveToolUi?: boolean | null;
   mcpApps?: boolean | null;
   mcpElicitation?: boolean | null;
-  nodeRepl?: NodeReplCapability | null;
   optOutNotificationMethods?: string[] | null;
   remoteHost?: boolean | null;
   requestUserInputSupport?: boolean | null;
@@ -1301,11 +1283,6 @@ export interface CommandListParams {
 
 export interface CommandListResult {
   commands?: CommandInfo[];
-  [key: string]: unknown;
-}
-
-export interface ComputerUseCapability {
-  backend: string;
   [key: string]: unknown;
 }
 
@@ -2664,76 +2641,6 @@ export interface ModelReasoningEffortOption {
 export interface ModelSpeedCapability {
   defaultMode?: string;
   supportedModes?: string[];
-  [key: string]: unknown;
-}
-
-export interface NodeReplBrowserSessionParams {
-  evaluationId?: string;
-  isSubagent?: boolean;
-  protocolVersion?: number;
-  sessionId?: string;
-  threadId?: string;
-  turnId?: string | null;
-  [key: string]: unknown;
-}
-
-export interface NodeReplCancelParams {
-  evaluationId?: string;
-  threadId?: string;
-  [key: string]: unknown;
-}
-
-export interface NodeReplCapability {
-  backend: string;
-  [key: string]: unknown;
-}
-
-export interface NodeReplEvaluateParams {
-  browserSession?: NodeReplBrowserSessionParams;
-  code?: string;
-  evaluationId?: string;
-  threadId?: string;
-  timeoutMs?: number;
-  turnId?: string | null;
-  [key: string]: unknown;
-}
-
-export interface NodeReplEvaluateResult {
-  error?: string | null;
-  images?: NodeReplImageResult[];
-  logs?: string[];
-  resultText?: string | null;
-  surface?: string | null;
-  text?: string | null;
-  [key: string]: unknown;
-}
-
-export interface NodeReplImageResult {
-  dataBase64?: string;
-  mediaType?: string;
-  [key: string]: unknown;
-}
-
-export interface NodeReplRequestApprovalParams {
-  approvalType?: string;
-  evaluationId?: string;
-  operation?: string;
-  target?: string;
-  targetLabel?: string | null;
-  threadId?: string;
-  [key: string]: unknown;
-}
-
-export interface NodeReplRequestApprovalResult {
-  approved: boolean;
-  [key: string]: unknown;
-}
-
-export interface NodeReplTurnEndedParams {
-  disposeSession?: boolean;
-  isSubagent?: boolean;
-  threadId: string | null;
-  turnId?: string | null;
   [key: string]: unknown;
 }
 
@@ -4394,6 +4301,7 @@ export interface ThreadFirstUnreadTurn {
 
 export interface ThreadForkParams {
   additionalContext?: Record<string, RuntimeAdditionalContextEntry> | null;
+  additionalMcpServers?: ThreadMcpServerConfig[] | null;
   config?: ThreadConfiguration | null;
   cwd?: string | null;
   displayName?: string | null;
@@ -4718,6 +4626,7 @@ export interface ThreadResumeInitialTurnsPageParams {
 
 export interface ThreadResumeParams {
   additionalContext?: Record<string, RuntimeAdditionalContextEntry> | null;
+  additionalMcpServers?: ThreadMcpServerConfig[] | null;
   chat?: ChannelChat | null;
   cwd?: string | null;
   dynamicTools?: RuntimeDynamicToolDeclaration[] | null;
@@ -4854,6 +4763,7 @@ export interface ThreadSpawnEdge {
 
 export interface ThreadStartParams {
   additionalContext?: Record<string, RuntimeAdditionalContextEntry> | null;
+  additionalMcpServers?: ThreadMcpServerConfig[] | null;
   chat?: ChannelChat | null;
   config?: ThreadConfiguration | null;
   cwd?: string | null;
@@ -5827,6 +5737,7 @@ export interface WorktreeCancelCreateParams {
 
 export interface WorktreeCreateAndForkParams {
   additionalContext?: Record<string, RuntimeAdditionalContextEntry> | null;
+  additionalMcpServers?: ThreadMcpServerConfig[] | null;
   baseRef?: string | null;
   branchName?: string | null;
   config?: ThreadConfiguration | null;
@@ -5851,6 +5762,7 @@ export interface WorktreeCreateAndForkResult {
 
 export interface WorktreeCreateAndStartParams {
   additionalContext?: Record<string, RuntimeAdditionalContextEntry> | null;
+  additionalMcpServers?: ThreadMcpServerConfig[] | null;
   baseRef?: string | null;
   branchName?: string | null;
   config?: ThreadConfiguration | null;

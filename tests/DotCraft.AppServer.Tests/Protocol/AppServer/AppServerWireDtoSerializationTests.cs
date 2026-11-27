@@ -82,23 +82,6 @@ public sealed class AppServerWireDtoSerializationTests
                 InputSchema = input.RootElement.Clone(),
                 OutputSchema = output.RootElement.Clone()
             }));
-
-        Assert.Equal(
-            "{\"threadId\":\"thread-1\",\"evaluationId\":\"eval-1\",\"browserSession\":{\"protocolVersion\":1,\"sessionId\":\"session-1\",\"threadId\":\"thread-1\",\"evaluationId\":\"eval-1\"},\"code\":\"1 + 1\",\"timeoutMs\":30000}",
-            Serialize(new Contract.NodeReplEvaluateParams
-            {
-                ThreadId = "thread-1",
-                EvaluationId = "eval-1",
-                BrowserSession = new Contract.NodeReplBrowserSessionParams
-                {
-                    ProtocolVersion = 1,
-                    SessionId = "session-1",
-                    ThreadId = "thread-1",
-                    EvaluationId = "eval-1"
-                },
-                Code = "1 + 1",
-                TimeoutMs = 30_000
-            }));
     }
 
     private static string Serialize<T>(T value) =>

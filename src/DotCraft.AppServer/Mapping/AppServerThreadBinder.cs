@@ -16,7 +16,6 @@ internal sealed class AppServerThreadBinder(
     AppServerConnection connection,
     IAppServerTransport transport,
     WireAcpExtensionProxy? wireAcpExtensionProxy,
-    WireNodeReplProxy? wireNodeReplProxy,
     WireDynamicToolProxy? wireDynamicToolProxy,
     WireRuntimeAdditionalContextProvider? wireRuntimeAdditionalContextProvider,
     VisualizationRuntimeRegistry? visualizationRuntimeRegistry,
@@ -27,7 +26,8 @@ internal sealed class AppServerThreadBinder(
 
     public void ValidateRuntimeInputs(
         IReadOnlyList<RuntimeDynamicToolDeclarationSpec>? dynamicTools,
-        IReadOnlyDictionary<string, RuntimeAdditionalContextValue>? additionalContext)
+        IReadOnlyDictionary<string, RuntimeAdditionalContextValue>? additionalContext,
+        IReadOnlyList<DotCraft.Mcp.McpServerConfig>? additionalMcpServers = null)
     {
         if (!WireDynamicToolProxy.TryValidateSpecs(dynamicTools, out var dynamicToolError))
             throw AppServerErrors.InvalidParams(dynamicToolError);
@@ -37,6 +37,16 @@ internal sealed class AppServerThreadBinder(
             throw AppServerErrors.InvalidParams(additionalContextError);
         if (additionalContext != null && wireRuntimeAdditionalContextProvider == null)
             throw AppServerErrors.InvalidParams("additionalContext is not supported by this AppServer host.");
+        if (additionalMcpServers != null)
+        {
+            foreach (var server in additionalMcpServers)
+            {
+                if (string.IsNullOrWhiteSpace(server.Name))
+                    throw AppServerErrors.InvalidParams("'additionalMcpServers[].name' is required.");
+                try { server.ValidateOAuth(); }
+                catch (InvalidOperationException ex) { throw AppServerErrors.McpServerValidationFailed(ex.Message); }
+            }
+        }
     }
 
     /// <summary>
@@ -50,8 +60,6 @@ internal sealed class AppServerThreadBinder(
     {
         if (wireAcpExtensionProxy != null && connection.HasAcpExtensions)
             wireAcpExtensionProxy.BindThread(threadId, transport, connection);
-        if (wireNodeReplProxy != null && connection.HasNodeRepl && (connection.HasBrowserUse || connection.HasComputerUse))
-            wireNodeReplProxy.BindThread(threadId, transport, connection);
         if (toolDeclarations is { Count: > 0 })
             wireDynamicToolProxy?.BindThread(threadId, transport, connection, toolDeclarations);
         wireRuntimeAdditionalContextProvider?.BindThread(threadId, transport, connection, additionalContext);
@@ -60,7 +68,6 @@ internal sealed class AppServerThreadBinder(
     public void UnbindThreadRuntimeInputs(string threadId)
     {
         wireAcpExtensionProxy?.UnbindThread(threadId);
-        wireNodeReplProxy?.UnbindThread(threadId);
         wireDynamicToolProxy?.UnbindThread(threadId);
         wireRuntimeAdditionalContextProvider?.BindThread(threadId, transport, connection, EmptyAdditionalContext);
     }
@@ -102,7 +109,8 @@ internal sealed class AppServerThreadBinder(
         IReadOnlyList<RuntimeDynamicToolDeclarationSpec>? dynamicTools,
         IReadOnlyDictionary<string, RuntimeAdditionalContextValue>? additionalContext,
         CancellationToken ct,
-        bool bindConnectionTools = true)
+        bool bindConnectionTools = true,
+        IReadOnlyList<DotCraft.Mcp.McpServerConfig>? additionalMcpServers = null)
     {
         var canBind = bindConnectionTools || thread.Source.SubAgent is null;
         var shouldRefreshAgent = canBind && wireAcpExtensionProxy?.BindThread(
@@ -113,9 +121,10 @@ internal sealed class AppServerThreadBinder(
         if (canBind)
         {
             BindThreadAssets(thread, bindConnectionTools);
-            if (wireNodeReplProxy?.BindThread(thread.Id, transport, connection, bindConnectionTools) == true)
-                shouldRefreshAgent = true;
         }
+
+        if (additionalMcpServers != null && sessionService is IThreadMcpRuntimeService mcpRuntime)
+            await mcpRuntime.SetAdditionalMcpServersAsync(thread.Id, additionalMcpServers, ct);
 
         if (dynamicTools != null && wireDynamicToolProxy is { } proxy
             && sessionService is IThreadDynamicToolDeclarationService declarations)

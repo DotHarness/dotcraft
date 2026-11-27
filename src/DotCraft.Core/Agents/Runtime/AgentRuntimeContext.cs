@@ -83,7 +83,6 @@ public sealed class AgentRuntimeContext
         CurrentOriginChannel = source.CurrentOriginChannel;
         CurrentChannelContext = source.CurrentChannelContext;
         AcpExtensionProxy = source.AcpExtensionProxy;
-        NodeReplProxy = source.NodeReplProxy;
         AgentFileSystem = source.AgentFileSystem;
     }
 
@@ -358,12 +357,6 @@ public sealed class AgentRuntimeContext
     /// Available when running in ACP mode (connected to an editor or IDE client).
     /// </summary>
     public IAcpExtensionProxy? AcpExtensionProxy { get; init; }
-
-    /// <summary>
-    /// Optional Node REPL proxy for Desktop-hosted browser and computer use automation.
-    /// Available only when the current AppServer thread is bound to a client that declared nodeRepl with browserUse or computerUse support.
-    /// </summary>
-    public INodeReplProxy? NodeReplProxy { get; init; }
 
     /// <summary>
     /// Collection of disposable resources created by tool providers.

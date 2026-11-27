@@ -409,7 +409,8 @@ public sealed class AppServerWorkspaceRuntimeFeatureTests
         public Action<string, SessionThreadRuntimeSignal, SessionTurn?>? ThreadRuntimeSignalForBroadcast { get; set; }
 
         public Task<SessionThread> CreateThreadAsync(SessionIdentity identity, ThreadConfiguration? config = null, HistoryMode historyMode = HistoryMode.Server, string? threadId = null, string? displayName = null, CancellationToken ct = default, ThreadSource? source = null, bool ephemeral = false,
-            IReadOnlyList<ThreadDynamicToolDeclaration>? dynamicToolDeclarations = null)
+            IReadOnlyList<ThreadDynamicToolDeclaration>? dynamicToolDeclarations = null,
+            IReadOnlyList<DotCraft.Mcp.McpServerConfig>? additionalMcpServers = null)
         {
             LastIdentity = identity;
             return Task.FromResult(new SessionThread { Id = "scheduled-thread" });

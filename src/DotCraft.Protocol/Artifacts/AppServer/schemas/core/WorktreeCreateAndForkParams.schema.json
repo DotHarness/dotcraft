@@ -17,6 +17,19 @@
         }
       ]
     },
+    "additionalMcpServers": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "$ref": "./ThreadMcpServerConfig.schema.json"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "baseRef": {
       "anyOf": [
         {

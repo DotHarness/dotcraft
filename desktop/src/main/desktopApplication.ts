@@ -27,6 +27,7 @@ import { createFileStorage, createSafeStorageVault } from './pairedComputers/pai
 import { openPinnedWebSocket, pinnedRequest } from './pairedComputers/pinnedTransport'
 import { applyNativeThemeSource } from './nativeThemeSource'
 import { nodeReplManager } from './nodeReplManager'
+import { nodeReplMcpServer } from './repl/nodeReplMcpServer'
 import { devServerManager } from './devServers/devServerManager'
 import { disposeSatellitesHubBridge } from './satellites/satellitesHubBridge'
 import { closeAllScreenViews } from './screenView/screenViewManager'
@@ -343,6 +344,7 @@ export class DesktopApplication implements DesktopApplicationServices {
       await Promise.allSettled([
         this.manager.dispose(),
         shutdownVoiceService(),
+        nodeReplMcpServer.dispose(),
         nodeReplManager.disposeAll(),
         devServerManager.disposeAll(),
         disposeComputerUse()

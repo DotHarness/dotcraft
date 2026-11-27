@@ -134,9 +134,6 @@ After the `initialize` response the client sends the `initialized` notification.
 | `optOutNotificationMethods` | none | Exact notification methods to suppress ([Section 10](#10-notification-opt-out)). |
 | `channelAdapter` | omitted | Connection is the remote backend of one unified channel runtime ([Section 11.2](#112-unified-channel-runtime-remote-projection)). |
 | `acpExtensions` | omitted | Client handles server-initiated `ext/acp/*` requests ([Section 11.4](#114-acp-tool-proxy)). |
-| `nodeRepl` | omitted | With `browserUse` or `computerUse`, client handles `ext/nodeRepl/*` for thread-bound browser or desktop automation. `backend` names the runtime (Desktop reports `desktop-node`). |
-| `browserUse` | omitted | Browser backends behind the Node REPL. |
-| `computerUse` | omitted | Desktop application automation behind the Node REPL; `backend` names the runtime (Windows Desktop reports `cua-driver`). |
 | `remoteHost` | `false` | The user's device is not the machine running this server, for example Desktop attached to a remote workspace. |
 
 **Client surface**: the server resolves one client surface per connection from `initialize`, never from turn input:
@@ -154,8 +151,6 @@ After the `initialize` response the client sends the `initialized` notification.
 The surface id is the channel of every Turn the connection starts, enqueues, or steers (`turn.originChannel`, `initiator.channelName`). The tools run on the server's machine. That is the user's device unless the surface is chat or mobile, or the client declares `remoteHost`. What differs from the defaults the base instructions assume reaches the model as the `client_surface` WorldState section ([Prompt Composition §9](../architecture/prompt-composition.md#9-turn-input-layer)).
 
 **`acpExtensions`**: `fsReadTextFile`, `fsWriteTextFile`, and `terminalCreate` declare support for the corresponding `ext/acp/*` families; `extensions` lists custom families (for example `["_unity"]`) for which the server may send `ext/acp/<family>/<method>`.
-
-**`browserUse`**: `backend` is the preferred backend; `backends` optionally lists all supported backends (`desktop-iab`, `chrome-extension`); when omitted, `backend` is the only one. `protocolVersion` is the browser IAB protocol version (currently `2`). Optional flags declare cooperative cancellation of evaluations (`supportsCancel`) and of individual browser commands (`supportsCommandCancel`), typed tab finalization (`supportsTypedFinalize`), Chrome diagnostics, browser session metadata version, and result-size and timeout limits the client enforces.
 
 **`channelAdapter`**:
 
@@ -254,6 +249,7 @@ Create a thread. The server generates the id and persists initial state unless t
 - `config`: `ThreadConfiguration` ([Section 4.1.1](#411-threadconfiguration-wire-shape)); null means workspace defaults.
 - `dynamicTools`: Runtime Dynamic Tools ([Section 4.1.0](#410-runtime-dynamic-tools)).
 - `additionalContext`: Runtime additional context ([Section 4.1.0.2](#4102-runtime-additional-context)); requires `capabilities.runtimeAdditionalContext`.
+- `additionalMcpServers`: Runtime-only additive MCP servers (`ThreadMcpServerConfig[]`) merged on top of inherited workspace/plugin or configured thread MCP servers for this thread's live runtime without being persisted to thread state. SubAgent child threads inherit their parent's current `additionalMcpServers` in memory.
 - `chat`: channel chat binding; adapter connections only ([Section 4.1.0.3](#4103-channel-chat)).
 - `historyMode`: `"server"` (default) or `"client"`.
 - `displayName`: explicit display name.
@@ -331,7 +327,7 @@ Approval policy:
 
 ### 4.2 `thread/resume`
 
-Prepare or reuse an active (non-archived) thread's runtime and attach the requesting connection at an ordered current-state boundary. Params: `threadId`, plus optional `dynamicTools`, `additionalContext`, `chat`, `cwd`, `runtimeWorkspaceRoots`, and `initialTurnsPage`. Resume is an execution-preparation operation even when no transcript page is requested. A warm resume without binding overrides reuses the loaded runtime, configuration, instruction sources, Agent and tool resources rather than rebuilding them.
+Prepare or reuse an active (non-archived) thread's runtime and attach the requesting connection at an ordered current-state boundary. Params: `threadId`, plus optional `dynamicTools`, `additionalContext`, `additionalMcpServers`, `chat`, `cwd`, `runtimeWorkspaceRoots`, and `initialTurnsPage`. Resume is an execution-preparation operation even when no transcript page is requested. A warm resume without binding overrides reuses the loaded runtime, configuration, instruction sources, Agent and tool resources rather than rebuilding them.
 
 `initialTurnsPage?: { limit?, itemsView?: "none" | "summary" | "full", summaryTools? }` requests the newest descending Turn page under the normal Turn-page limits and summary-tool rules. Its default view is `summary`. Omitting this parameter requests header/current metadata and attachment without materializing completed Turn history; only Started/Streaming baselines needed for continuation are copied into currentState. View selection happens before database payload reads, hydration, copying, and serialization, including for a running Turn. `full` covers selected Turns, not the complete thread history.
 
@@ -353,6 +349,7 @@ The snapshot and observation are captured in the same thread-event order. The su
 
 - `dynamicTools` (requires `capabilities.dynamicToolRebind`): updates declarations or rebinds the callback lease under the [Runtime Dynamic Tool lifetime rules](../architecture/tools-architecture.md#112-lifetime). A successful update applies to the next Turn snapshot.
 - `additionalContext`: omitted keeps the binding; `{}` clears it; otherwise replaces it for this connection.
+- `additionalMcpServers`: when omitted, keeps the thread's runtime additional MCP servers. Pass `[]` to clear them, or pass a server list to replace the additive runtime servers and reconcile the thread's MCP runtime.
 - `chat`: replaces the adapter chat binding; omission preserves it.
 
 **Cold-load recovery**: resume restores the required execution context and resources, reusing a valid model-context checkpoint and required newer suffix when available rather than reconstructing full display history for a small page. A Turn abandoned by a prior process is persisted as `cancelled` with interrupted state before the response. It is restored as state, not emitted as a new user-visible execution result. Existing Items, usage and errors are retained; dead interactive requests are not restored. Persistence failure fails resume without caching a partially recovered thread. Loaded runtimes are unaffected.
@@ -585,7 +582,7 @@ Create a worktree, then fork `sourceThreadId` into it. Also accepts `forkPoint`,
 
 #### 4.17.2 `worktree/createAndStart`
 
-Create a worktree, then start a new empty thread in it. Accepts `identity` (required), `config`, `dynamicTools`, `additionalContext`, `historyMode`, `displayName`, and the top-level `cwd` and `runtimeWorkspaceRoots` with `thread/start` semantics. The ordinary `cwd` selects the source repository without changing the thread's state workspace. The new worktree is the effective execution directory and replaces the ordinary `cwd` in the effective runtime roots when present, leaving other roots unchanged.
+Create a worktree, then start a new empty thread in it. Accepts `identity` (required), `config`, `dynamicTools`, `additionalContext`, `additionalMcpServers`, `historyMode`, `displayName`, and the top-level `cwd` and `runtimeWorkspaceRoots` with `thread/start` semantics. The ordinary `cwd` selects the source repository without changing the thread's state workspace. The new worktree is the effective execution directory and replaces the ordinary `cwd` in the effective runtime roots when present, leaving other roots unchanged.
 
 Agent Profile resolution precedes workspace overrides and worktree creation. A profile failure creates neither worktree nor thread. Result: `{ thread, worktree }`. The server emits `thread/started`.
 
@@ -1039,9 +1036,9 @@ When the agent hits an operation that requires consent (file write, shell comman
 
 | Field | Semantics |
 |-------|-------------|
-| `approvalType` | `shell`, `file`, `computerUse`, `channelMessage`, or another resource kind contributed by a tool. |
+| `approvalType` | `shell`, `file`, `channelMessage`, or another resource kind contributed by a tool. |
 | `operation` | Shell: the command. File: `read`, `write`, `edit`, `list`. Channel message: `send`. |
-| `target` | Shell: working directory. File: path. Computer use: target application identity reported by the client backend. Channel message: `<channelName>:<target>`. |
+| `target` | Shell: working directory. File: path. Channel message: `<channelName>:<target>`. |
 | `targetLabel` | Optional display label for `target`. |
 | `callId` | Optional actual source tool invocation id, also persisted on the approval request item. Present for approvals within tool dispatch, including its hooks and approval evaluation; absent for unlinked requests. It is not the logical `requestId` or the approval item's id. |
 | `scopeKey` | Session cache key applied when the client returns `acceptForSession`. Shell uses `"shell:" + approvalKey` (this command, shell, and directory only); channel messages use `"channelmessage:send:" + target` (later sends to the same address). |
@@ -1056,7 +1053,7 @@ The result is `{ decision }`:
 |-------|---------|
 | `accept` | Approve this operation. |
 | `acceptForSession` | Approve this and matching operations (by `scopeKey`) for the rest of the thread's lifetime. |
-| `acceptAlways` | Approve permanently; the server persists the approval and suppresses prompts for the current session. For `computerUse` the server records only the session scope; the client owning the computer-use runtime persists the permanent grant. |
+| `acceptAlways` | Approve permanently; the server persists the approval and suppresses prompts for the current session. |
 | `decline` | Reject; the tool receives a rejection and the agent may try another approach. |
 | `cancel` | Reject and cancel the turn, like `turn/interrupt`. |
 
@@ -1281,37 +1278,7 @@ The ACP (Agent Client Protocol) integration lets agent tools use the IDE client'
 
 **ACP bridge runtime tools**: an ACP client may declare DotCraft runtime tool descriptors through the private ACP extension `clientCapabilities._meta.dotcraft.runtimeTools` (`version` must be `1`, plus `tools`). A missing or unsupported version, or an invalid descriptor, fails ACP `initialize` with `-32602`. Custom descriptor methods start with `_`; `fs/*` and `terminal/*` descriptors stay gated by standard ACP capabilities. The bridge derives custom families from validated methods, must not add custom fields to the root ACP capability object, and translates descriptors into `dynamicTools` on `thread/start` and `thread/resume`. Callbacks return the `item/tool/call` result envelope inside the ACP JSON-RPC `result`, validated with the Runtime Dynamic rules; a callback's non-empty `errorCode`/`errorMessage` are preserved, and a JSON-RPC `error` maps to the corresponding Runtime Dynamic failure category.
 
-### 11.5 Node REPL Runtime
-
-Browser and computer-use tools run through a **server → client** Node REPL backend. Requests go only to the thread-bound client that declared `capabilities.nodeRepl` with `browserUse` or `computerUse`; the client selects a declared backend. A SubAgent full-history fork snapshots the parent's live Node REPL binding onto the child before its first sampling (fresh and bounded forks do not); evaluations use the child's identity and later parent rebinding does not propagate. The binding is ephemeral and is re-established through thread resume after process recovery.
-
-#### `ext/nodeRepl/evaluate`
-
-**Direction**: server → client (request). **Params**: `threadId`, optional `turnId`, `evaluationId` (for cancellation and late-result suppression), `code` (JavaScript evaluated in the thread's persistent REPL), optional `timeoutMs` (client may clamp), and optional `browserSession` (`protocolVersion` 1, `sessionId` — the browser isolation key, normally the thread id — plus `threadId`, `turnId`, `evaluationId`, and optional `isSubagent` when the calling thread is a SubAgent).
-
-**Result**: optional `text`, `resultText` (serialized final expression), `images` (`mediaType`, `dataBase64`), `logs`, `error` (user-readable), and `surface` (`computer` when the evaluation called `dotcraft.computer`).
-
-The client should return before `timeoutMs`, using shorter internal timeouts for browser sub-operations and returning a readable `error` rather than leaving the request pending. The deadline does not advance while an `ext/nodeRepl/requestApproval` for the evaluation is pending.
-
-#### `ext/nodeRepl/cancel`
-
-**Direction**: server → client (request). **Params**: `threadId`, `evaluationId`. **Result**: `{ ok }` — `false` when no matching evaluation is in flight. Best-effort: the client aborts pending browser operations, rebuilds the REPL context if needed, and ignores late results.
-
-#### `ext/nodeRepl/turnEnded`
-
-**Direction**: server → client (notification). **Params**: `threadId`, optional `turnId`, optional `isSubagent`, optional `disposeSession`.
-
-Sent on the bound connection when a turn that used Node REPL reaches a terminal state, or when a bound thread or SubAgent closes or is deleted. Clients run normal turn cleanup idempotently. When `disposeSession` (or `isSubagent`) is `true`, the client unconditionally closes agent-created tabs, clears automation control state, and disposes that thread's browser and Node REPL runtime.
-
-#### `ext/nodeRepl/requestApproval`
-
-**Direction**: client → server (request). Asks the user, through the turn that issued an in-flight evaluation, to approve a client-runtime operation (computer use uses it for application authorization).
-
-**Params**: `threadId`, `evaluationId`, `approvalType` (currently `computerUse`), `operation` (computer use sends `use`), `target` (application identity), optional `targetLabel`. **Result**: `{ approved }`.
-
-The server resolves it with that turn's approval service, so policy, hooks, session scopes, approval items, and replay behave as for any tool approval. The evaluation deadline pauses until resolution. The request fails with a JSON-RPC error when the evaluation is not in flight on this connection or the thread does not match.
-
-### 11.6 Dynamic Workflow Control
+### 11.5 Dynamic Workflow Control
 
 The Dynamic Workflows module exposes a trusted control and projection surface under `workflow/run/*`, gated by `capabilities.extensions.dynamicWorkflows`. It does not expose workflow definition CRUD or arbitrary script execution; the workflow feature owns lifecycle, replay, and progress semantics.
 

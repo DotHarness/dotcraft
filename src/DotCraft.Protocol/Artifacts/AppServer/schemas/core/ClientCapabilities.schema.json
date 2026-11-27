@@ -44,16 +44,6 @@
         }
       ]
     },
-    "browserUse": {
-      "anyOf": [
-        {
-          "$ref": "./BrowserUseCapability.schema.json"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
     "channelAdapter": {
       "anyOf": [
         {
@@ -68,16 +58,6 @@
       "anyOf": [
         {
           "type": "boolean"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
-    "computerUse": {
-      "anyOf": [
-        {
-          "$ref": "./ComputerUseCapability.schema.json"
         },
         {
           "type": "null"
@@ -139,16 +119,6 @@
       "anyOf": [
         {
           "type": "boolean"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
-    "nodeRepl": {
-      "anyOf": [
-        {
-          "$ref": "./NodeReplCapability.schema.json"
         },
         {
           "type": "null"

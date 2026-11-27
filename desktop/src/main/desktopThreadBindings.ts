@@ -19,9 +19,10 @@ interface ConnectionBindings {
 }
 
 interface ToolDeclaration {
-  withTools(params: unknown, local: boolean): unknown
+  prepareClient?(client: DesktopBindingClient, local: boolean): Promise<void> | undefined
+  withTools(params: unknown, local: boolean, client: DesktopBindingClient): unknown
   includesTools(params: unknown): boolean
-  contextRevision(threadId: string): string | number
+  contextRevision(threadId: string, client: DesktopBindingClient): string | number
 }
 
 export class DesktopThreadBindings {
@@ -67,8 +68,15 @@ export class DesktopThreadBindings {
     }
 
     const startsThread = method === 'thread/start' || method === 'thread/fork' || method === 'worktree/createAndStart'
+    if (startsThread && this.tools.prepareClient) {
+      const preparing = this.tools.prepareClient(client, options.remote !== true)
+      if (preparing) {
+        await preparing
+        this.assertCurrent(client, state)
+      }
+    }
     const nextParams = startsThread
-      ? this.tools.withTools(params, options.remote !== true)
+      ? this.tools.withTools(params, options.remote !== true, client)
       : params
     const apply = (result: T): void => {
       this.assertCurrent(client, state)
@@ -76,7 +84,7 @@ export class DesktopThreadBindings {
         const id = resultThreadId(result) ?? (method === 'thread/resume' ? threadId : null)
         if (id) {
           state.visualizations.add(id)
-          if (this.tools.includesTools(nextParams)) state.bound.set(id, this.tools.contextRevision(id))
+          if (this.tools.includesTools(nextParams)) state.bound.set(id, this.tools.contextRevision(id, client))
         }
       }
       options.onResponse?.(result)
@@ -88,7 +96,14 @@ export class DesktopThreadBindings {
 
   private async ensureTools(client: DesktopBindingClient, state: ConnectionBindings, threadId: string, options: BindingOptions): Promise<void> {
     if (options.supportsDynamicToolRebind !== true || state.helpers.has(threadId)) return
-    if (state.bound.get(threadId) === this.tools.contextRevision(threadId)) return
+    if (this.tools.prepareClient) {
+      const preparing = this.tools.prepareClient(client, options.remote !== true)
+      if (preparing) {
+        await preparing
+        this.assertCurrent(client, state)
+      }
+    }
+    if (state.bound.get(threadId) === this.tools.contextRevision(threadId, client)) return
     const pending = state.pending.get(threadId)
     if (pending) {
       await pending
@@ -111,8 +126,8 @@ export class DesktopThreadBindings {
 
   private async bind(client: DesktopBindingClient, state: ConnectionBindings, threadId: string, dynamicTools: boolean, options: BindingOptions): Promise<void> {
     this.assertCurrent(client, state)
-    const revision = this.tools.contextRevision(threadId)
-    const params = dynamicTools ? this.tools.withTools({ threadId }, options.remote !== true) : { threadId }
+    const revision = this.tools.contextRevision(threadId, client)
+    const params = dynamicTools ? this.tools.withTools({ threadId }, options.remote !== true, client) : { threadId }
     const binding = request(client, 'thread/resume', params, undefined, options.attachmentOwner).then(() => {
       this.assertCurrent(client, state)
       state.visualizations.add(threadId)

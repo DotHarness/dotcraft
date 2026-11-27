@@ -69,22 +69,28 @@ describe('formatToolGroupLabel', () => {
 })
 
 describe('Node REPL labels', () => {
-  const repl = (id: string, surface: string, title?: string): ConversationItem => ({
-    ...makeCall(id, CORE_TOOL_PRESENTATION_IDS.nodeRepl, { surface }),
+  const repl = (id: string, surface?: string, title?: string): ConversationItem => ({
+    id,
+    type: 'mcpToolCall',
+    status: 'completed',
     toolName: 'NodeReplJs',
-    arguments: { code: 'await tab.goto(url)', ...(title ? { title } : {}) }
+    source: { kind: 'Mcp', sourceId: 'node_repl', sourceToolId: 'NodeReplJs' },
+    arguments: { code: 'await tab.goto(url)', ...(title ? { title } : {}) },
+    ...(surface ? { structuredResult: { surface } } : {}),
+    createdAt: new Date().toISOString()
   })
 
   it('shows the run title, or what the run used, and names the surface in a group', () => {
     expect(formatCollapsedToolLabel(repl('1', 'browser', '  Open   the pricing page '), repl('1', 'browser', '  Open   the pricing page ').arguments, 'en'))
       .toBe('Open the pricing page')
     expect(formatCollapsedToolLabel(repl('2', 'computer'), repl('2', 'computer').arguments, 'en')).toBe('Used the computer')
+    expect(formatCollapsedToolLabel(repl('3'), repl('3').arguments, 'en')).toBe('Ran JavaScript')
     expect(formatToolGroupLabel([repl('1', 'chrome'), makeCall('2', CORE_TOOL_PRESENTATION_IDS.shell, {})], 'en', new Map()))
       .toBe('Used Chrome, ran a command')
   })
 
-  it('names a call by the surface it used rather than the plugin that registered the tool', () => {
-    const computer = { ...repl('1', 'browser'), structuredResult: { surface: 'computer' } }
+  it('names a call by the surface returned in structuredResult', () => {
+    const computer = repl('1', 'computer')
 
     expect(formatCollapsedToolLabel(computer, computer.arguments, 'en')).toBe('Used the computer')
     expect(formatToolGroupLabel([computer, repl('2', 'browser')], 'en', new Map())).toBe('Used the browser, used the computer')

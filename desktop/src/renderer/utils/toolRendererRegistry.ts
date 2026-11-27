@@ -22,7 +22,6 @@ export type ToolRendererFamily =
   | 'todo'
   | 'deferredSearch'
   | 'agentBuilder'
-  | 'nodeRepl'
 
 export interface ToolRendererPlan {
   family: ToolRendererFamily
@@ -117,11 +116,6 @@ function hasBuilderField(options: Readonly<Record<string, unknown>>): boolean {
     && isBuilderField(options.field)
 }
 
-function hasSurface(options: Readonly<Record<string, unknown>>): boolean {
-  return Object.keys(options).length === 1
-    && (options.surface === 'browser' || options.surface === 'chrome' || options.surface === 'computer')
-}
-
 function hasOperation(...allowed: readonly string[]) {
   return (options: Readonly<Record<string, unknown>>): boolean => (
     Object.keys(options).length === 1
@@ -195,8 +189,7 @@ export const CORE_TOOL_PRESENTATION_IDS = {
   commitSuggest: 'core.commit-suggest',
   todo: 'core.todo',
   deferredSearch: 'core.deferred-search',
-  agentBuilder: 'core.agent-builder',
-  nodeRepl: 'core.node-repl'
+  agentBuilder: 'core.agent-builder'
 } as const
 
 export const coreToolRendererRegistry = new ToolRendererRegistry([
@@ -241,8 +234,7 @@ export const coreToolRendererRegistry = new ToolRendererRegistry([
   }),
   registration(CORE_TOOL_PRESENTATION_IDS.agentBuilder, 'agentBuilder', {
     mode: 'standalone'
-  }, hasBuilderField),
-  registration(CORE_TOOL_PRESENTATION_IDS.nodeRepl, 'nodeRepl', { mode: 'collapsible' }, hasSurface)
+  }, hasBuilderField)
 ])
 
 export function resolveCoreToolRenderPlan(item: ConversationItem): ToolRendererPlan | null {

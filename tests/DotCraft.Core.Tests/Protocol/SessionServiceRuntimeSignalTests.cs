@@ -538,33 +538,6 @@ public abstract class SessionServiceRuntimeSignalTestBase : IDisposable
         }
     }
 
-    protected sealed class ImageNodeReplProxy(byte[] imageBytes) : INodeReplProxy
-    {
-        public bool IsAvailable => true;
-
-        public NodeReplEvaluationMetadata? LastMetadata { get; private set; }
-
-        public Task<NodeReplEvaluation?> EvaluateAsync(
-            string code,
-            int? timeoutSeconds = null,
-            CancellationToken ct = default,
-            NodeReplEvaluationMetadata? metadata = null)
-        {
-            LastMetadata = metadata;
-            return Task.FromResult<NodeReplEvaluation?>(new NodeReplEvaluation
-            {
-                Images =
-                [
-                    new NodeReplImage
-                    {
-                        MediaType = "image/png",
-                        DataBase64 = Convert.ToBase64String(imageBytes)
-                    }
-                ]
-            });
-        }
-    }
-
     protected sealed class CapturingImageToolChatClient(string toolName) : IChatClient
     {
         private int _requestCount;
@@ -1413,89 +1386,6 @@ public sealed partial class SessionServiceRuntimeSignalTests : SessionServiceRun
         Assert.True(succeeded.Success);
         Assert.Null(succeeded.ErrorCode);
         Assert.Null(succeeded.ErrorMessage);
-    }
-
-    [Fact]
-    public async Task SubmitInputAsync_NodeReplImageReachesModel_AndIsResentAfterRestore()
-    {
-        var imageBytes = Convert.FromBase64String(
-            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
-        var proxy = new ImageNodeReplProxy(imageBytes);
-        var seedChatClient = new CapturingImageToolChatClient("node_repl__NodeReplJs");
-        var recorder = new ToolInvocationRecorderRouter();
-        var dispatcher = new ToolDispatcher(recorder: recorder);
-        var source = new NodeReplPluginToolSource(
-            new AppConfig(),
-            proxy,
-            _tempDir,
-            (_, _) => true);
-        await using var seedFactory = CreateAgentFactory(
-            seedChatClient,
-            [source],
-            toolDispatcher: dispatcher);
-        var seedService = CreateService(seedFactory, seedChatClient, useStreamingFunctionInvoker: true);
-        recorder.Bind(seedService);
-        var thread = await seedService.CreateThreadAsync(MakeIdentity());
-        await seedService.RefreshThreadAgentAsync(thread.Id);
-
-        var seedEvents = await CollectAsync(seedService.SubmitInputAsync(
-            thread.Id,
-            [new TextContent("capture screenshot")]));
-
-        var modelImage = Assert.IsType<DataContent>(seedChatClient.ImageContent);
-        Assert.Equal("image/png", modelImage.MediaType);
-        Assert.Equal(imageBytes, modelImage.Data.ToArray());
-        Assert.Equal(thread.Id, proxy.LastMetadata?.ThreadId);
-        var seedTurn = Assert.Single((await seedService.GetThreadAsync(thread.Id)).Turns);
-        Assert.True(seedTurn.Status == TurnStatus.Completed, seedTurn.Error);
-        var persistedResult = Assert.IsType<ToolResultPayload>(
-            Assert.Single(seedTurn.Items, item => item.Type == ItemType.ToolResult).Payload);
-        var contentItems = Assert.IsAssignableFrom<IReadOnlyList<DotCraft.Plugins.PluginFunctionContentItem>>(
-            persistedResult.ContentItems);
-        Assert.Equal("text", contentItems[0].Type);
-        Assert.Equal("image", contentItems[1].Type);
-        Assert.Equal("image/png", contentItems[1].MediaType);
-        Assert.Equal(Convert.ToBase64String(imageBytes), contentItems[1].DataBase64);
-        var completedResult = Assert.IsType<ToolResultPayload>(Assert.Single(seedEvents, item =>
-            item.EventType == SessionEventType.ItemCompleted
-            && item.ItemPayload?.Payload is ToolResultPayload).ItemPayload!.Payload);
-        Assert.Equal(Convert.ToBase64String(imageBytes), completedResult.ContentItems?[1].DataBase64);
-
-        var followUpChatClient = new HistoricalImageUsageChatClient();
-        await using var followUpFactory = CreateAgentFactory(followUpChatClient);
-        var followUpService = CreateService(followUpFactory, followUpChatClient);
-        await followUpService.ResumeThreadAsync(thread.Id);
-        await followUpService.RefreshThreadAgentAsync(thread.Id);
-
-        await DrainAsync(followUpService.SubmitInputAsync(
-            thread.Id,
-            [new TextContent("continue")]));
-
-        var followUpMessages = followUpChatClient.LastMessages.ToList();
-        var toolMessageIndex = followUpMessages.FindIndex(message => message.Role == ChatRole.Tool);
-        var providerResult = Assert.Single(followUpMessages[toolMessageIndex].Contents.OfType<FunctionResultContent>());
-        Assert.IsType<string>(providerResult.Result);
-        var resentImage = Assert.Single(followUpMessages[toolMessageIndex + 1].Contents.OfType<DataContent>());
-        Assert.Equal(imageBytes, resentImage.Data.ToArray());
-
-        var snapshot = Assert.IsType<PromptRequestSnapshot>(
-            followUpService.TryGetLastPromptRequestSnapshot(thread.Id));
-        var snapshotResult = Assert.Single(snapshot.Messages
-            .SelectMany(message => message.Contents)
-            .OfType<FunctionResultContent>());
-        Assert.Contains(
-            Assert.IsAssignableFrom<IEnumerable<AIContent>>(snapshotResult.Result),
-            content => content is DataContent);
-        Assert.Equal(
-            MessageTokenEstimator.ComputePrefixFingerprint(snapshot.Messages, snapshot.Messages.Count),
-            snapshot.MessageFingerprint);
-
-        var anchor = Assert.IsType<ContextUsageAnchor>(
-            new ThreadStore(_tempDir).LoadContextUsageAnchor(thread.Id));
-        Assert.Equal(snapshot.Messages.Count, anchor.MessageCount);
-        Assert.Equal(snapshot.MessageFingerprint, anchor.PrefixFingerprint);
-        Assert.Equal(snapshot.RequestFingerprint, anchor.RequestFingerprint);
-        Assert.Equal(snapshot.ContextUsageFingerprint, anchor.ContextUsageFingerprint);
     }
 
     [Fact]

@@ -1,5 +1,10 @@
 import { handleDesktopThreadHistoryTool, threadHistoryToolDefinitions, threadHistoryToolNames } from './desktopThreadHistoryTools'
-import { DesktopThreadBindings } from './desktopThreadBindings'
+import { DesktopThreadBindings, type DesktopBindingClient } from './desktopThreadBindings'
+import {
+  getClientAdditionalMcpRevision,
+  getClientAdditionalMcpServers,
+  prepareClientAdditionalMcpServers
+} from './repl/nodeReplMcpBindings'
 import { devServerToolDefinitions, devServerToolNames, handleDevServerToolCall } from './devServers/devServerTools'
 import devServerGuidance from './prompts/devServers.md?raw'
 import cdpDebuggingGuidance from './prompts/cdpDebugging.md?raw'
@@ -173,11 +178,12 @@ const DESKTOP_THREAD_COORDINATION_CONTEXT: RuntimeAdditionalContextEntry = {
   value: THREAD_COORDINATION_GUIDANCE
 }
 
-function desktopThreadContextRevision(threadId: string): string {
-  return `${creatorContextRevision(threadId)}\0${linkedChatsContextFingerprint(threadId)}`
+function desktopThreadContextRevision(threadId: string, client: DesktopBindingClient): string {
+  return `${creatorContextRevision(threadId)}\0${linkedChatsContextFingerprint(threadId)}\0${getClientAdditionalMcpRevision(client)}`
 }
 
 const bindings = new DesktopThreadBindings({
+  prepareClient: (client, local) => (local ? prepareClientAdditionalMcpServers(client) : undefined),
   withTools: withDesktopThreadDynamicTools,
   includesTools: requestIncludesDesktopThreadTools,
   contextRevision: desktopThreadContextRevision
@@ -588,7 +594,7 @@ export function hasDesktopThreadTools(client: AppServerRequestClient | null, thr
   return bindings.hasTools(client, threadId, options)
 }
 
-function withDesktopThreadDynamicTools(params: unknown, local: boolean): unknown {
+function withDesktopThreadDynamicTools(params: unknown, local: boolean, client: DesktopBindingClient): unknown {
   if (!isRecord(params)) return params
 
   const existing = Array.isArray(params.dynamicTools)
@@ -597,6 +603,18 @@ function withDesktopThreadDynamicTools(params: unknown, local: boolean): unknown
   const existingAdditionalContext = isRecord(params.additionalContext)
     ? params.additionalContext
     : {}
+  const runtimeAdditionalMcpServers = local ? getClientAdditionalMcpServers(client) : undefined
+  const existingAdditionalMcpServers = Array.isArray(params.additionalMcpServers)
+    ? params.additionalMcpServers
+    : undefined
+  const mergedAdditionalMcpServers = runtimeAdditionalMcpServers !== undefined
+    ? [
+        ...(existingAdditionalMcpServers ?? []).filter(
+          (server) => !isRecord(server) || !runtimeAdditionalMcpServers.some((added) => added.name === server.name)
+        ),
+        ...runtimeAdditionalMcpServers
+      ]
+    : existingAdditionalMcpServers
 
   const startsThread = !('threadId' in params)
   return {
@@ -615,6 +633,7 @@ function withDesktopThreadDynamicTools(params: unknown, local: boolean): unknown
       ...creatorAdditionalContext(typeof params.threadId === 'string' ? params.threadId : null),
       ...linkedChatsAdditionalContext(typeof params.threadId === 'string' ? params.threadId : null)
     },
+    ...(mergedAdditionalMcpServers !== undefined ? { additionalMcpServers: mergedAdditionalMcpServers } : {}),
     dynamicTools: [
       ...existing,
       ...buildDesktopThreadDynamicTools(local)

@@ -75,7 +75,8 @@ internal sealed partial class ThreadRequestHandler(
         var p = request.Params;
         var dynamicTools = WorktreeContractMapper.ToDynamicTools(p.DynamicTools);
         var additionalContext = WorktreeContractMapper.ToAdditionalContext(p.AdditionalContext);
-        threadBinder.ValidateRuntimeInputs(dynamicTools, additionalContext);
+        var additionalMcpServers = ThreadConfigurationContractMapper.FromAdditionalMcpServers(p.AdditionalMcpServers);
+        threadBinder.ValidateRuntimeInputs(dynamicTools, additionalContext, additionalMcpServers);
         var chat = threadBinder.ValidateChat(p.Chat);
 
         var identity = NormalizeIdentityWorkspace(WorktreeContractMapper.ToDomain(p.Identity)!);
@@ -110,7 +111,8 @@ internal sealed partial class ThreadRequestHandler(
                 ct: ct,
                 source: spawnSource,
                 ephemeral: p.Ephemeral ?? false,
-                dynamicToolDeclarations: dynamicToolDeclarations);
+                dynamicToolDeclarations: dynamicToolDeclarations,
+                additionalMcpServers: additionalMcpServers);
         }
         catch
         {
@@ -154,10 +156,11 @@ internal sealed partial class ThreadRequestHandler(
         var threadId = Require(p.ThreadId, "'threadId' is required.");
         var dynamicTools = WorktreeContractMapper.ToDynamicTools(ValueOrDefault(p.DynamicTools));
         var additionalContext = WorktreeContractMapper.ToAdditionalContext(ValueOrDefault(p.AdditionalContext));
+        var additionalMcpServers = ThreadConfigurationContractMapper.FromAdditionalMcpServers(ValueOrDefault(p.AdditionalMcpServers));
         var config = ValueOrDefault(p.Config) is { } contractConfig
             ? ThreadConfigurationContractMapper.FromContract(contractConfig)
             : null;
-        threadBinder.ValidateRuntimeInputs(dynamicTools, additionalContext);
+        threadBinder.ValidateRuntimeInputs(dynamicTools, additionalContext, additionalMcpServers);
         ValidateRuntimeConfiguration(config);
 
         var identity = WorktreeContractMapper.ToDomain(ValueOrDefault(p.Identity));
@@ -184,7 +187,8 @@ internal sealed partial class ThreadRequestHandler(
         if (promptSuggestion || sideChat)
             threadBinder.ForkAdditionalContext(threadId, thread.Id);
 
-        await threadBinder.BindThreadRuntimeAsync(thread, dynamicTools, additionalContext, ct);
+        await threadBinder.BindThreadRuntimeAsync(thread, dynamicTools, additionalContext, ct,
+            additionalMcpServers: additionalMcpServers);
 
         var instructionSources = await sessionService.GetInstructionSourcesAsync(thread.Id, ct);
         await AttachCreatedThreadAsync(thread, async responseWire =>

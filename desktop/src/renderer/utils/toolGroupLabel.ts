@@ -13,7 +13,7 @@ import {
   resolveDesktopToolOperation,
   type DesktopToolOperation
 } from './desktopToolDisplay'
-import { formatNodeReplSurfaceLabel, getNodeReplSurface } from './nodeReplToolDisplay'
+import { formatNodeReplSurfaceLabel, getNodeReplSurface, isNodeReplToolCall } from './nodeReplToolDisplay'
 import { formatWebSearchLabel } from './webSearchDisplay'
 import { isToolExecutionFailure } from './toolCallDisplay'
 
@@ -89,7 +89,7 @@ function getActivityPart(item: ConversationItem): ActivityPart | null {
   if (resolveSkillOperation(item)) return 'skill'
   const plan = resolveCoreToolRenderPlan(item)
   if (plan?.family === 'skillView') return 'skill'
-  if (plan?.family === 'nodeRepl') return getNodeReplSurface(item) ?? 'shell'
+  if (isNodeReplToolCall(item)) return getNodeReplSurface(item) ?? 'shell'
   if (plan?.family === 'subagent' && plan.options.operation === 'sendMessage') return 'message'
   switch (plan?.groupCategory) {
     case 'write': return 'write'

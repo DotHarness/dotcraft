@@ -19,7 +19,8 @@ internal sealed partial class ThreadRequestHandler
         var p = request.Params;
         var dynamicTools = WorktreeContractMapper.ToDynamicTools(p.DynamicTools);
         var additionalContext = WorktreeContractMapper.ToAdditionalContext(p.AdditionalContext);
-        threadBinder.ValidateRuntimeInputs(dynamicTools, additionalContext);
+        var additionalMcpServers = ThreadConfigurationContractMapper.FromAdditionalMcpServers(p.AdditionalMcpServers);
+        threadBinder.ValidateRuntimeInputs(dynamicTools, additionalContext, additionalMcpServers);
         var chat = threadBinder.ValidateChat(p.Chat);
         if (p.InitialTurnsPage is { } pageOptions)
             _ = ParseRestorationView(pageOptions);
@@ -29,7 +30,8 @@ internal sealed partial class ThreadRequestHandler
         if (p.Cwd != null || p.RuntimeWorkspaceRoots != null)
             thread = await sessionService.UpdateThreadWorkspaceAsync(p.ThreadId, p.Cwd, p.RuntimeWorkspaceRoots, ct);
         await threadBinder.BindThreadRuntimeAsync(
-            thread, dynamicTools, additionalContext, ct, bindConnectionTools: !wasLoaded);
+            thread, dynamicTools, additionalContext, ct, bindConnectionTools: !wasLoaded,
+            additionalMcpServers: additionalMcpServers);
         threadBinder.BindChat(thread.Id, chat);
         var instructionSources = await sessionService.GetInstructionSourcesAsync(thread.Id, ct);
         var preparedPage = PrepareThreadRestorePage(p.ThreadId, p.InitialTurnsPage, ct);

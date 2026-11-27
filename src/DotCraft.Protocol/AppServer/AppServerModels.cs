@@ -54,67 +54,6 @@ public sealed class AcpExtensionCapability : ExtensibleJsonObject
     public IReadOnlyList<string>? Extensions { get; init; }
 }
 
-/// <summary>Node REPL support declared by a client.</summary>
-public sealed class NodeReplCapability : ExtensibleJsonObject
-{
-    [JsonPropertyName("backend")]
-    public required string Backend { get; init; }
-}
-
-/// <summary>Desktop application automation support declared by a client.</summary>
-public sealed class ComputerUseCapability : ExtensibleJsonObject
-{
-    [JsonPropertyName("backend")]
-    public required string Backend { get; init; }
-}
-
-/// <summary>Browser runtime support declared by a client.</summary>
-public sealed class BrowserUseCapability : ExtensibleJsonObject
-{
-    [JsonPropertyName("backend")]
-    public required string Backend { get; init; }
-
-    [JsonPropertyName("backends")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public IReadOnlyList<string>? Backends { get; init; }
-
-    [JsonPropertyName("protocolVersion")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public int? ProtocolVersion { get; init; }
-
-    [JsonPropertyName("supportsCancel")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public bool? SupportsCancel { get; init; }
-
-    [JsonPropertyName("browserSessionProtocolVersion")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public int? BrowserSessionProtocolVersion { get; init; }
-
-    [JsonPropertyName("supportsCommandCancel")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public bool? SupportsCommandCancel { get; init; }
-
-    [JsonPropertyName("maxBrowserResultBytes")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public int? MaxBrowserResultBytes { get; init; }
-
-    [JsonPropertyName("defaultCommandTimeoutMs")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public int? DefaultCommandTimeoutMs { get; init; }
-
-    [JsonPropertyName("maxCommandTimeoutMs")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public int? MaxCommandTimeoutMs { get; init; }
-
-    [JsonPropertyName("supportsTypedFinalize")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public bool? SupportsTypedFinalize { get; init; }
-
-    [JsonPropertyName("supportsChromeDiagnostics")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public bool? SupportsChromeDiagnostics { get; init; }
-}
-
 /// <summary>Capabilities declared by an AppServer client.</summary>
 public sealed class ClientCapabilities : ExtensibleJsonObject
 {
@@ -185,18 +124,6 @@ public sealed class ClientCapabilities : ExtensibleJsonObject
     [JsonPropertyName("acpExtensions")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public AcpExtensionCapability? AcpExtensions { get; init; }
-
-    [JsonPropertyName("nodeRepl")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public NodeReplCapability? NodeRepl { get; init; }
-
-    [JsonPropertyName("browserUse")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public BrowserUseCapability? BrowserUse { get; init; }
-
-    [JsonPropertyName("computerUse")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ComputerUseCapability? ComputerUse { get; init; }
 
     [JsonPropertyName("extensions")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -561,6 +488,10 @@ public sealed class ThreadStartParams : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public IReadOnlyDictionary<string, RuntimeAdditionalContextEntry>? AdditionalContext { get; init; }
 
+    [JsonPropertyName("additionalMcpServers")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<ThreadMcpServerConfig>? AdditionalMcpServers { get; init; }
+
     [JsonPropertyName("chat")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ChannelChat? Chat { get; init; }
@@ -607,6 +538,10 @@ public sealed class ThreadResumeParams : ExtensibleJsonObject
     [JsonPropertyName("additionalContext")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public IReadOnlyDictionary<string, RuntimeAdditionalContextEntry>? AdditionalContext { get; init; }
+
+    [JsonPropertyName("additionalMcpServers")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<ThreadMcpServerConfig>? AdditionalMcpServers { get; init; }
 
     [JsonPropertyName("chat")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

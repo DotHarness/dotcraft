@@ -25,7 +25,8 @@ public static class McpServerComposition
         string threadId,
         IReadOnlyList<McpServerConfig>? threadServers,
         IEnumerable<McpServerConfig> inheritedServers,
-        IEnumerable<McpServerConfig> bindingServers)
+        IEnumerable<McpServerConfig> bindingServers,
+        IEnumerable<McpServerConfig>? additionalServers = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(threadId);
         ArgumentNullException.ThrowIfNull(inheritedServers);
@@ -50,6 +51,20 @@ public static class McpServerComposition
                 var declaredName = clone.Origin.DeclaredName ?? clone.Name;
                 clone.Origin = McpServerOrigin.Thread(threadId, declaredName);
                 AddIfNamed(result, runtimeNames, clone);
+            }
+        }
+
+        if (additionalServers is not null)
+        {
+            foreach (var server in additionalServers)
+            {
+                if (string.IsNullOrWhiteSpace(server.Name))
+                    continue;
+
+                var clone = server.Clone();
+                var declaredName = clone.Origin.DeclaredName ?? clone.Name;
+                clone.Origin = McpServerOrigin.Thread(threadId, declaredName);
+                UpsertByName(result, runtimeNames, clone);
             }
         }
 
@@ -81,6 +96,25 @@ public static class McpServerComposition
         McpServerConfig server)
     {
         if (!string.IsNullOrWhiteSpace(server.Name) && runtimeNames.Add(server.Name))
+            result.Add(server);
+    }
+
+    private static void UpsertByName(
+        List<McpServerConfig> result,
+        ISet<string> runtimeNames,
+        McpServerConfig server)
+    {
+        if (runtimeNames.Add(server.Name))
+        {
+            result.Add(server);
+            return;
+        }
+
+        var existingIndex = result.FindIndex(candidate =>
+            string.Equals(candidate.Name, server.Name, StringComparison.OrdinalIgnoreCase));
+        if (existingIndex >= 0)
+            result[existingIndex] = server;
+        else
             result.Add(server);
     }
 
