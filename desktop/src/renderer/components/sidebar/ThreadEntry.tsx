@@ -485,7 +485,7 @@ export function ThreadEntry({ thread }: ThreadEntryProps): JSX.Element {
                     aria-label={t('threadEntry.unread')}
                     data-testid={`thread-unread-${thread.id}`}
                   >
-                    <span className="dc-status-indicator__dot" data-tone="success" />
+                    <span className="dc-status-indicator__dot" data-tone="unread" />
                   </span>
                 </ActionTooltip>
               ) : hasThreadScheduledTask(scheduledTasks) ? (

@@ -10,7 +10,7 @@ import './oratorio-intro.css'
 
 const KICKOFF_PROMPT = kickoffPrompt.trimEnd()
 
-const GREETINGS: readonly OratorioMessageKey[] = ['introGreetingHello', 'introGreetingAsk', 'introGreetingChat', 'introGreetingBoard', 'introGreetingReport']
+const GREETINGS: readonly OratorioMessageKey[] = ['introGreetingHello', 'introGreetingAsk', 'introGreetingChat', 'introGreetingReport']
 const MASCOT_SIZE = 112
 const SCALE = 0.9
 // Where the baton tip sits in the mascot's box, from the avatar's rig geometry.

@@ -64,8 +64,8 @@ import { Sidebar } from './components/layout/Sidebar'
 import { SettingsSidebar } from './components/layout/SettingsSidebar'
 import { SettingsDialog } from './components/settings/SettingsDialog'
 import { SettingsPendingRestartBanner } from './components/settings/SettingsPendingRestartBanner'
-import { SpaceSidebar } from './components/layout/SpaceSidebar'
 import { startOwnedThreadsSync } from './stores/ownedThreadsStore'
+import { startOwnedThreadActivityTracking } from './stores/ownedThreadActivityStore'
 import { startSpaceTracking, useActiveSpace } from './stores/spaceStore'
 import { ConversationPanel } from './components/layout/ConversationPanel'
 import { DetailPanel } from './components/layout/DetailPanel'
@@ -440,6 +440,7 @@ export function App(): JSX.Element {
   }, [])
 
   useEffect(() => startOwnedThreadsSync(), [])
+  useEffect(() => startOwnedThreadActivityTracking(), [])
   useEffect(() => startSpaceTracking(), [])
   const activeSpace = useActiveSpace()
 
@@ -1355,16 +1356,13 @@ export function App(): JSX.Element {
         )}
         <ThreePanel
           sidebar={
-            activeSpace
-                ? <SpaceSidebar active={activeSpace} />
-                : (
-                  <Sidebar
-                    showFeatureGuides={showMainWorkspaceUi}
-                    workspaceName={displayWorkspaceName}
-                    workspacePath={workspaceStatus.remote?.workspaceDir?.trim() || workspacePath}
-                    workspaceOpening={workspaceOpening}
-                  />
-                )
+            <Sidebar
+              activeSpace={activeSpace}
+              showFeatureGuides={showMainWorkspaceUi}
+              workspaceName={displayWorkspaceName}
+              workspacePath={workspaceStatus.remote?.workspaceDir?.trim() || workspacePath}
+              workspaceOpening={workspaceOpening}
+            />
           }
           conversation={
             <MainViewOutlet

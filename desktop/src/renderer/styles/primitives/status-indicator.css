@@ -18,10 +18,29 @@
   background: var(--text-dimmed);
 }
 
+.dc-status-indicator__dot[data-tone="unread"] { background: var(--text-secondary); }
 .dc-status-indicator__dot[data-tone="success"] { background: var(--success); }
 .dc-status-indicator__dot[data-tone="warning"] { background: var(--warning); }
 .dc-status-indicator__dot[data-tone="error"] { background: var(--error); }
 .dc-status-indicator__dot[data-tone="info"] { background: var(--info); }
+
+.dc-unread-count-pill {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 18px;
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-primary) 12%, transparent);
+  color: var(--text-primary);
+  font-size: var(--type-hint-size);
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
 
 /* The state as the whole content: a tinted badge, never with an indicator inside. */
 .dc-status-badge {

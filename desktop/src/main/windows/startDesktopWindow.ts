@@ -22,6 +22,7 @@ import { installThemeNavigationGuard } from '../themes/themeNavigation'
 import { hasRemoteEndpointArg, NO_WORKSPACE_ARG, resolveStartupWorkspacePath } from '../workspaceArgs'
 import { createWindowRuntime, type DesktopWindowRuntime } from './windowRuntime'
 import { ensureOwnedThread } from '../threadTasks/ownedThreadsWindow'
+import { attachConductorProactiveLifecycle } from '../threadTasks/conductorProactive'
 import { remoteViewerFilesFor } from '../remoteViewerFiles'
 
 export function startDesktopWindow(
@@ -146,6 +147,7 @@ export function startDesktopWindow(
   )
     ctx.prewarmLocalAppServer(workspace)
   win.on('focus', application.refreshAppMenu)
+  ctx.disposers.push(attachConductorProactiveLifecycle(ctx))
   win.webContents.once('did-finish-load', () => {
     ctx.emitWorkspaceStatus(win, status)
     ctx.getSshMachinesManager().connectAutoMachines()

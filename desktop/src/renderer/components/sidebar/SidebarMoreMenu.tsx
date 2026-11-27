@@ -246,9 +246,14 @@ export function SidebarMoreMenu({ destinations }: { destinations: SidebarDestina
               }}
             >
               <span style={SIDEBAR_NAV_ICON_SLOT}>{destination.icon}</span>
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {destination.label}
               </span>
+              {destination.status && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', flexShrink: 0 }}>
+                  {destination.status}
+                </span>
+              )}
             </button>
             <IconButton
               icon={<PinIcon filled={false} />}

@@ -154,7 +154,7 @@ export function ReadonlyThreadRow({
             aria-label={t('threadEntry.unread')}
             data-testid={`project-thread-unread-${rowProjectKey}-${thread.id}`}
           >
-            <span className="dc-status-indicator__dot" data-tone="success" />
+            <span className="dc-status-indicator__dot" data-tone="unread" />
           </span>
         </ActionTooltip>
       ) : hasThreadScheduledTask(scheduledTasks) ? (

@@ -2031,8 +2031,10 @@ and drops the scroll. Marks about the thread sit at the trailing end of the titl
 area, 6px before the status slot, so they line up down the list: a thread running
 in a worktree carries the 14px worktree glyph in `--text-dimmed`. The
 status slot holds one item, in priority order: pending request, running spinner,
-unread dot, the 14px scheduled-task clock in `--text-dimmed`, then the branch's
-pull request glyph.
+neutral unread dot (`--text-secondary`, never `--success` or `--accent`), the 14px scheduled-task clock in `--text-dimmed`, then the branch's
+pull request glyph. Space destinations with unread owned-thread updates use a
+compact neutral count pill (`12%` `--text-primary` tint, `--text-primary` label,
+`99+` cap) and never roll badges onto the `More` row.
 
 ### Settings dialog
 

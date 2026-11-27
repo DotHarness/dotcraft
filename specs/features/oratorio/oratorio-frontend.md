@@ -130,14 +130,9 @@ so Oratorio adds one place to Desktop instead of a chat and a separate view.
 - **Opening.** Selecting the entry opens the space on the conductor the first
   time and on the destination last open in it afterwards. An Oratorio link to
   the board, a task or a run opens the space on the board.
-- **Sidebar.** While the space is open, the sidebar shows Back, Conductor and
-  Board in place of the projects and chats. Conductor carries the conductor
-  thread's status as a thread row does. A chat it started that needs the person
-  reaches that row through the conductor's report. Back returns to the
-  project, chat or view that was open before the space, switching workspace
-  when the conductor's Chats workspace replaced it.
-- **Leaving.** Opening anything outside the space, such as a chat from a task
-  card, closes the space as Back does, without returning.
+- **Sidebar.** While the space is open, the sidebar keeps DotCraft's persistent top chrome (brand header with search, `New chat`, pinned destinations with `Oratorio` active, and `More`) and footer, replacing only the lower thread-list region with the space section (`Oratorio`), `Conductor`, `Board`, and the `Following` list of chats the conductor is currently tracking. There is no `Back to app` row: selecting `Oratorio` again returns to the project, chat, or view open before the space (switching workspace when the conductor's Chats workspace replaced it), and opening `New chat`, `More`, or any chat in `Following` leaves the space directly.
+- **Presence & Notifications.** Both the `Oratorio` sidebar destination (when pinned or inside the `More` menu, never rolled up onto the `More` row itself) and the `Conductor` row reflect the conductor thread's live state across workspaces in priority order: waiting badge (`Approval` / `Input` / `Plan`), failed dot, running spinner, then a restrained neutral unread count pill (`1`–`99+`, never `--accent`). No in-app toast is shown for conductor updates. When the window is unfocused and a new unread conductor update arrives, Desktop shows a deduplicated OS notification that opens Conductor on click and clears once read.
+- **Leaving.** Opening anything outside the space, such as a chat from `Following` or a task card, closes the space without returning.
 - **Conductor.** The conductor is Desktop's conversation panel with its usual
   Composer and Detail Panel, without the approval control, since the conductor
   runs with full access. On the Composer, the person's own mascot holds

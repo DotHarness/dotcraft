@@ -5,17 +5,20 @@ import { useLocale, useT } from '../../contexts/LocaleContext'
 import { prefetchCoreMainView } from '../../core/coreMainViewRoutes'
 import { compareContribution, resolveDesktopPluginLabel, useDesktopPluginRegistry, type ActiveDesktopPluginSpace } from '../../plugins/desktopPluginRegistry'
 import { useConnectionStore } from '../../stores/connectionStore'
+import { useOwnedThreadsStore } from '../../stores/ownedThreadsStore'
 import { useSidebarDestinationsStore } from '../../stores/sidebarDestinationsStore'
-import { enterSpace } from '../../stores/spaceStore'
+import { enterSpace, leaveSpace, useActiveSpace } from '../../stores/spaceStore'
 import { useUIStore } from '../../stores/uiStore'
 import { resolveDesktopPluginIcon } from '../desktopPlugins/DesktopPluginIcon'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
 import { SidebarNavIcon } from './SidebarNavIcon'
+import { ThreadStatusIndicator } from './ThreadStatusIndicator'
 
 export interface SidebarDestination {
   id: string
   label: string
   icon: JSX.Element
+  status?: JSX.Element
   active: boolean
   testId: string
   select: () => void
@@ -33,6 +36,8 @@ export function useSidebarDestinations(): { pinned: SidebarDestination[]; more: 
   const automationsAvailable = useConnectionStore((s) => s.capabilities?.automations === true)
   const desktopMainViews = useDesktopPluginRegistry((s) => s.mainViews)
   const spaces = useDesktopPluginRegistry((s) => s.spaces)
+  const activeSpace = useActiveSpace()
+  const ownedThreads = useOwnedThreadsStore((s) => s.records)
   const spaceViews = new Set(spaces.flatMap((space) => space.viewKeys))
   const pins = useSidebarDestinationsStore((s) => s.pins)
 
@@ -47,18 +52,34 @@ export function useSidebarDestinations(): { pinned: SidebarDestination[]; more: 
   })
 
   const pluginEntries = [
-    ...spaces.map((space) => ({
-      ...space,
-      destination: {
-        id: space.spaceKey,
-        label: resolveDesktopPluginLabel(space.label, locale),
-        icon: <DesktopPluginIcon icon={space.icon} />,
-        active: false,
-        testId: `nav-space-${space.pluginId}-${space.id}`,
-        select: () => enterSpace(space),
-        space
+    ...spaces.map((space) => {
+      const active = activeSpace?.space.spaceKey === space.spaceKey
+      const owned = ownedThreads.find((record) => record.pluginId === space.pluginId && record.space === space.id)
+      const viewingOwnedThread = active && activeSpace?.location.kind === 'thread' && activeSpace.location.threadId === owned?.threadId
+      return {
+        ...space,
+        destination: {
+          id: space.spaceKey,
+          label: resolveDesktopPluginLabel(space.label, locale),
+          icon: <DesktopPluginIcon icon={space.icon} />,
+          status: owned ? (
+            <ThreadStatusIndicator
+              threadId={owned.threadId}
+              active={viewingOwnedThread}
+              unreadVariant="count"
+              includeLinkedChats
+            />
+          ) : undefined,
+          active,
+          testId: `nav-space-${space.pluginId}-${space.id}`,
+          select: () => {
+            if (active) void leaveSpace()
+            else enterSpace(space)
+          },
+          space
+        }
       }
-    })),
+    }),
     ...desktopMainViews.filter((entry) => !spaceViews.has(entry.viewKey)).map((entry) => ({
       ...entry,
       destination: {

@@ -9,6 +9,8 @@ type Row = readonly [string, string, string, string, string, string, string]
 const rows = {
   conductor: ['Conductor', '指挥家', '指揮者', '지휘자', 'Director', 'Chef d’orchestre', 'Dirigent'],
   board: ['Board', '看板', 'ボード', '보드', 'Tablero', 'Tableau', 'Board'],
+  following: ['Following', '正在跟进', 'フォロー中', '팔로우 중', 'Siguiendo', 'Suivi', 'Verfolgt'],
+  waitingOnYou: ['Waiting', '待处理', '待機中', '대기 중', 'Pendiente', 'En attente', 'Wartet'],
   introTitle: ['Meet your conductor', '认识你的指挥家', '指揮者に会いましょう', '지휘자를 만나 보세요', 'Conoce a tu director', 'Voici votre chef d’orchestre', 'Lerne deinen Dirigenten kennen'],
   introDescription: ['Hand out work across all of your projects from one conversation, and hear back when it is done.', '在一个对话里把工作分派到所有项目，完成后会回来告诉你。', 'ひとつの会話からすべてのプロジェクトに作業を任せ、終わったら報告を受け取れます。', '하나의 대화에서 모든 프로젝트에 작업을 맡기고, 끝나면 결과를 전해 받으세요.', 'Reparte trabajo en todos tus proyectos desde una conversación y recibe noticias cuando esté hecho.', 'Confiez du travail à tous vos projets depuis une seule conversation, et soyez informé une fois terminé.', 'Verteile Arbeit auf alle deine Projekte aus einem Gespräch und erfahre, wenn sie erledigt ist.'],
   guideTitle: ['Run all your projects from one chat', '在一个对话里推进所有项目', 'ひとつのチャットですべてのプロジェクトを進める', '하나의 채팅으로 모든 프로젝트 진행하기', 'Lleva todos tus proyectos desde un chat', 'Pilotez tous vos projets depuis une discussion', 'Alle Projekte aus einem Chat steuern'],
@@ -18,7 +20,6 @@ const rows = {
   introGreetingHello: ['Hi there!', '你好！', 'こんにちは！', '안녕하세요!', '¡Hola!', 'Bonjour !', 'Hallo!'],
   introGreetingAsk: ['What should we get moving?', '先推进哪件事？', '何から進めましょう？', '무엇부터 진행할까요?', '¿Qué ponemos en marcha?', 'Que lançons-nous ?', 'Was bringen wir ins Rollen?'],
   introGreetingChat: ['I can start a chat in the right project', '我可以在对应的项目里开对话', '適切なプロジェクトでチャットを始められます', '알맞은 프로젝트에서 채팅을 시작할 수 있어요', 'Puedo abrir un chat en el proyecto adecuado', 'Je peux ouvrir une discussion dans le bon projet', 'Ich kann einen Chat im richtigen Projekt starten'],
-  introGreetingBoard: ['I can put work that needs review on the board', '需要审阅的工作，我可以放到看板上', 'レビューが必要な作業をボードに載せられます', '검토가 필요한 작업을 보드에 올릴 수 있어요', 'Puedo llevar al tablero el trabajo que necesita revisión', 'Je peux mettre au tableau le travail à relire', 'Ich kann Arbeit, die geprüft werden muss, aufs Board bringen'],
   introGreetingReport: ['I can tell you what came back', '结果回来了我会告诉你', '戻ってきた結果をお知らせします', '돌아온 결과를 알려 드릴게요', 'Te cuento lo que vuelve', 'Je vous dis ce qui est revenu', 'Ich sage dir, was zurückkam'],
   boardLabel: ['Oratorio task board', 'Oratorio 任务看板', 'Oratorio タスクボード', 'Oratorio 작업 보드', 'Tablero de tareas de Oratorio', 'Tableau des tâches Oratorio', 'Oratorio-Aufgabenboard'],
   boardControls: ['Board controls', '看板控件', 'ボードの操作', '보드 컨트롤', 'Controles del tablero', 'Commandes du tableau', 'Board-Steuerung'],

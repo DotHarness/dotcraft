@@ -1,4 +1,5 @@
-import { useId, type MouseEvent as ReactMouseEvent } from 'react'
+import { useId, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react'
+import type { ActiveSpace } from '../../stores/spaceStore'
 import { SpaceFeatureGuide } from '../featureGuides/SpaceFeatureGuide'
 import { NewThreadButton } from '../sidebar/NewThreadButton'
 import { SidebarHeader } from '../sidebar/SidebarHeader'
@@ -12,8 +13,10 @@ import {
 } from '../sidebar/sidebarNavRowStyles'
 import { SidebarMoreMenu } from '../sidebar/SidebarMoreMenu'
 import { useSidebarDestinations, useUnpinContextMenu, type SidebarDestination } from '../sidebar/sidebarDestinations'
+import { SpaceSidebar } from './SpaceSidebar'
 
 interface SidebarProps {
+  activeSpace?: ActiveSpace | null
   showFeatureGuides?: boolean
   workspaceName: string
   workspacePath: string
@@ -21,6 +24,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({
+  activeSpace = null,
   showFeatureGuides = false,
   workspaceName,
   workspacePath,
@@ -63,11 +67,15 @@ export function Sidebar({
         {unpinMenu.menu}
       </div>
 
-      <ThreadList
-        workspacePath={workspacePath}
-        foregroundOpening={workspaceOpening}
-        openingWorkspacePath={workspaceOpening ? workspacePath : undefined}
-      />
+      {activeSpace ? (
+        <SpaceSidebar active={activeSpace} />
+      ) : (
+        <ThreadList
+          workspacePath={workspacePath}
+          foregroundOpening={workspaceOpening}
+          openingWorkspacePath={workspaceOpening ? workspacePath : undefined}
+        />
+      )}
 
       <SidebarFooter />
     </div>
@@ -84,7 +92,7 @@ function PinnedDestination({
   onContextMenu: (event: ReactMouseEvent) => void
 }): JSX.Element {
   const anchorName = `--dc-space-${useId()}`
-  const { label, active, select, prefetch, icon, testId, space } = destination
+  const { label, active, select, prefetch, icon, status, testId, space } = destination
   return (
     <>
       <button
@@ -100,9 +108,18 @@ function PinnedDestination({
         style={{ ...SIDEBAR_NAV_ROW_OUTER, ...SIDEBAR_NAV_BORDER_INACTIVE, anchorName: space?.guide ? anchorName : undefined }}
       >
         <span style={SIDEBAR_NAV_ICON_SLOT}>{icon}</span>
-        <span style={{ ...SIDEBAR_NAV_LABEL, overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+        <span style={{ ...SIDEBAR_NAV_LABEL, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+        {status && <span style={statusSlotStyle}>{status}</span>}
       </button>
       {showFeatureGuides && space?.guide && <SpaceFeatureGuide space={space} anchorName={anchorName} />}
     </>
   )
+}
+
+const statusSlotStyle: CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'flex-end',
+  flexShrink: 0,
+  marginInlineEnd: '2px'
 }

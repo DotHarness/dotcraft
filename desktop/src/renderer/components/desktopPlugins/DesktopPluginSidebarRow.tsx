@@ -22,7 +22,7 @@ export function DesktopPluginSidebarRow({ icon, label, active = false, threadId,
       <span style={labelStyle}>{label}</span>
       {threadId && (
         <span style={statusStyle}>
-          <ThreadStatusIndicator threadId={threadId} active={active} />
+          <ThreadStatusIndicator threadId={threadId} active={active} unreadVariant="count" includeLinkedChats />
         </span>
       )}
     </button>

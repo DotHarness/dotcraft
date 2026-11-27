@@ -6,7 +6,7 @@ import type {
 import { OratorioSettingsSurface } from './OratorioSettingsSurface'
 import { OratorioView } from './OratorioView'
 import { OratorioBatonIcon } from './OratorioBatonIcon'
-import { ConductorMascot, ConductorPermissions, conductorSpace, requestConductorGuide, settleConductorOpen } from './conductor'
+import { ConductorMascot, ConductorPermissions, conductorSpace, requestConductorGuide } from './conductor'
 import { ConductorIntro } from './ConductorIntro'
 import { parseOratorioNavigationUrl, requestOratorioNavigation } from './oratorio-navigation'
 import { installOratorioHost } from './runtime'
@@ -68,7 +68,6 @@ export const activate: DesktopPluginActivate = (host) => {
   host.ui.wrap('composer.toolbar.permissions', ConductorPermissions)
   host.ui.add('conversation.empty', ConductorIntro)
   const onSessionChange = (): void => {
-    settleConductorOpen(host)
     void requestConductorGuide(host).catch(() => {})
   }
   host.session.onChange(onSessionChange)

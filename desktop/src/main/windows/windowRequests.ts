@@ -191,7 +191,7 @@ function notifyThreadAttention(ctx: DesktopWindowRuntime, kind: string, threadId
     .catch(console.warn)
 }
 
-function openSourceThread(ctx: DesktopWindowRuntime, entry: WorkspaceConnectionEntry, win: BrowserWindow, threadId: string): void {
+export function openSourceThread(ctx: DesktopWindowRuntime, entry: WorkspaceConnectionEntry, win: BrowserWindow, threadId: string): void {
   void (async () => {
     if (!isCurrentWorkspaceRequestSource(ctx, entry)) return
     if (entry.role !== 'foreground' || ctx.wireClient !== entry.client) {
