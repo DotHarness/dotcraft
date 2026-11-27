@@ -146,10 +146,39 @@ public sealed partial class McpElicitationInvocationTests
         var denied = await manager.CallToolAsync(
             "inputs",
             "choose",
-            new Dictionary<string, object?> { ["owner"] = "B", ["echoCallId"] = true },
+            new Dictionary<string, object?> { ["owner"] = "B", ["echoCallId"] = true, ["approvalKind"] = "computerUse" },
             context: denyContext).WaitAsync(Deadline);
         Assert.Contains("\"action\":\"decline\"", Assert.IsType<TextContentBlock>(Assert.Single(denied.Content)).Text);
         Assert.Equal(1, handler.Count);
+
+        var ordinaryUnderDeny = manager.CallToolAsync(
+            "inputs",
+            "choose",
+            new Dictionary<string, object?> { ["owner"] = "C", ["echoCallId"] = true },
+            context: denyContext with { CallId = "call-C" });
+        var ordinaryInput = await handler.ReadAsync();
+        Assert.Equal("call-C", ordinaryInput.Context.CallId);
+        ordinaryInput.Answer("ordinary-ok");
+        var ordinaryResult = await ordinaryUnderDeny.WaitAsync(Deadline);
+        Assert.Contains("\"action\":\"accept\"", Assert.IsType<TextContentBlock>(Assert.Single(ordinaryResult.Content)).Text);
+        Assert.Equal(2, handler.Count);
+    }
+
+    [Fact]
+    public async Task ReverseRequest_CancelsPendingInputWhenOriginatingCallReturnsEarly()
+    {
+        await using var server = await McpFixtureProcess.StartHttpAsync(legacy: true);
+        var handler = new InputHandler();
+        await using var manager = await ConnectAsync(Config(server), handler);
+
+        var result = await manager.CallToolAsync(
+            "inputs",
+            "choose",
+            new Dictionary<string, object?> { ["owner"] = "early", ["echoCallId"] = true, ["returnBeforeAnswer"] = true },
+            context: Context("early", "turn-early")).WaitAsync(Deadline);
+        Assert.Equal("early-return", Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text);
+        var orphaned = await handler.ReadAsync();
+        Assert.True(orphaned.CancellationToken.IsCancellationRequested);
     }
 
     [Fact]

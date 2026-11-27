@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
+import { ElicitRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import type { DesktopWindowRuntime } from '../windows/windowRuntime'
 import type { WorkspaceConnectionEntry } from '../windows/windowTypes'
 
@@ -54,7 +55,7 @@ import {
 const clients: EventEmitter[] = []
 const mcpClients: Client[] = []
 
-function entry(key: string, kind: 'local' | 'remote' = 'local', enabledPlugins: string[] = ['browser']): WorkspaceConnectionEntry {
+function entry(key: string, kind: 'local' | 'remote' | 'chat' = 'local', enabledPlugins: string[] = ['browser']): WorkspaceConnectionEntry {
   let plugins = [...enabledPlugins]
   const client = Object.assign(new EventEmitter(), {
     connectionId: `connection-${key}`,
@@ -93,11 +94,11 @@ function fixture(windowId = 1) {
   return { a, b, owner, ctx, request, promoteB }
 }
 
-async function connectMcp(source: WorkspaceConnectionEntry): Promise<Client> {
+async function connectMcp(source: WorkspaceConnectionEntry, capabilities: Record<string, unknown> = {}): Promise<Client> {
   await prepareClientAdditionalMcpServers(source.client)
   const config = getClientAdditionalMcpServers(source.client)?.find(s => s.name === 'node_repl')
   expect(config).toBeDefined()
-  const mcpClient = new Client({ name: 'test', version: '1' }, { capabilities: {} })
+  const mcpClient = new Client({ name: 'test', version: '1' }, { capabilities })
   await mcpClient.connect(new StreamableHTTPClientTransport(new URL(config!.url), {
     requestInit: { headers: config!.headers }
   }))
@@ -166,6 +167,68 @@ describe('workspace NodeRepl MCP mounting and source-bound routing', () => {
     const secondUrl = getClientAdditionalMcpServers(a.client)?.[0]?.url
     expect(secondUrl).toBeDefined()
     expect(secondUrl).not.toBe(firstUrl)
+  })
+
+  it('marks pending Computer Use elicitations as trusted on Default Chat (chat) connections', async () => {
+    const { ctx, owner } = fixture()
+    const chat = entry('chat', 'chat', ['computer'])
+    ctx.workspaceConnections.set(chat.key, chat)
+    registerWorkspaceNodeReplClient(ctx, chat)
+    const mcpChat = await connectMcp(chat, { elicitation: { form: {} } })
+    let resolveElicit!: (value: { action: 'decline' }) => void
+    let notifyElicitStarted!: () => void
+    const elicitStarted = new Promise<void>(resolve => { notifyElicitStarted = resolve })
+    mcpChat.setRequestHandler(ElicitRequestSchema, () => {
+      notifyElicitStarted()
+      return new Promise(resolve => { resolveElicit = resolve })
+    })
+    Object.assign(ctx, {
+      userInputAutoResolution: { remove: vi.fn() },
+      settings: {},
+      app: { notifyWindowAttention: vi.fn(async () => {}) },
+      observeComputerUseApproval: vi.fn()
+    })
+    runtime.createBridge.mockReturnValue({ bridgeId: 'cu-chat', promise: Promise.resolve({ action: 'decline' }) })
+
+    runtime.evaluate.mockImplementationOnce(async (_win, params) => {
+      await params.requestApproval({
+        evaluationId: params.evaluationId,
+        approvalType: 'computerUse',
+        operation: 'focus_app',
+        target: 'notepad.exe',
+        targetLabel: 'Notepad'
+      })
+      return { resultText: 'ok', images: [], logs: [] }
+    })
+
+    const evalCall = mcpChat.callTool({
+      name: 'NodeReplJs',
+      arguments: { code: '1' },
+      _meta: { 'dotcraft/callContext': { threadId: 'chat-thread', turnId: 'turn-1', callId: 'c1' } }
+    })
+    await elicitStarted
+
+    await bridgeServerRequestToRenderer(
+      ctx,
+      'mcpServer/elicitation/request',
+      {
+        threadId: 'chat-thread',
+        turnId: 'turn-1',
+        serverName: 'node_repl',
+        mode: 'form',
+        _meta: { approvalKind: 'computerUse', target: 'notepad.exe', targetLabel: 'Notepad' }
+      },
+      chat,
+      1,
+      new AbortController().signal
+    )
+    expect(runtime.broadcast).toHaveBeenLastCalledWith(owner, expect.objectContaining({
+      bridgeId: 'cu-chat',
+      trustedComputerUse: true
+    }))
+
+    resolveElicit({ action: 'decline' })
+    await evalCall
   })
 
   it('keeps background interactions source-bound and promotes their project only on notification click', async () => {

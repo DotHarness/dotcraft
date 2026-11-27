@@ -256,7 +256,7 @@ function isTrustedComputerUseElicitation(
   method: string,
   params: unknown
 ): boolean {
-  if (method !== 'mcpServer/elicitation/request' || entry.kind !== 'local' || !params || typeof params !== 'object') {
+  if (method !== 'mcpServer/elicitation/request' || entry.kind === 'remote' || !params || typeof params !== 'object') {
     return false
   }
   const request = params as Record<string, unknown>

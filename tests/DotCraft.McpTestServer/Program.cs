@@ -39,10 +39,17 @@ if (args.Contains("http"))
         if (legacy && request["method"]?.GetValue<string>() == "tools/call")
         {
             var echoCallId = request["params"]?["arguments"]?["echoCallId"]?.GetValue<bool>() == true;
+            var approvalKind = request["params"]?["arguments"]?["approvalKind"]?.GetValue<string>();
+            var returnBeforeAnswer = request["params"]?["arguments"]?["returnBeforeAnswer"]?.GetValue<bool>() == true;
             var callId = request["params"]?["_meta"]?["dotcraft/callContext"]?["callId"]?.GetValue<string>();
             var elicitationParams = McpFixtureProtocol.Input("legacy");
+            var meta = new JsonObject();
             if (echoCallId && !string.IsNullOrWhiteSpace(callId))
-                elicitationParams["_meta"] = new JsonObject { ["callId"] = callId };
+                meta["callId"] = callId;
+            if (!string.IsNullOrWhiteSpace(approvalKind))
+                meta["approvalKind"] = approvalKind;
+            if (meta.Count > 0)
+                elicitationParams["_meta"] = meta;
             var inputId = $"legacy-input-{Interlocked.Increment(ref legacyInputSeq)}";
             var responseTcs = new TaskCompletionSource<JsonObject>(TaskCreationOptions.RunContinuationsAsynchronously);
             legacyResponses[inputId] = responseTcs;
@@ -54,6 +61,16 @@ if (args.Contains("http"))
             };
             await context.Response.WriteAsync($"event: message\ndata: {input.ToJsonString()}\n\n");
             await context.Response.Body.FlushAsync(context.RequestAborted);
+            if (returnBeforeAnswer)
+            {
+                legacyResponses.TryRemove(inputId, out _);
+                var early = McpFixtureProtocol.Result(request, new JsonObject
+                {
+                    ["content"] = new JsonArray(new JsonObject { ["type"] = "text", ["text"] = "early-return" })
+                });
+                await context.Response.WriteAsync($"event: message\ndata: {early.ToJsonString()}\n\n");
+                return;
+            }
             var answer = await responseTcs.Task.WaitAsync(context.RequestAborted);
             var completed = McpFixtureProtocol.Result(request, new JsonObject
             {

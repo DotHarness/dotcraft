@@ -36,6 +36,7 @@ internal sealed class McpInvocationScope : IDisposable
     private readonly ActiveInvocationTable? _table;
     private readonly string? _callId;
     private readonly Invocation? _current;
+    private readonly CancellationTokenSource? _callLifetime;
 
     public McpInvocationScope(
         ToolInvocationContext? context,
@@ -49,7 +50,8 @@ internal sealed class McpInvocationScope : IDisposable
             return;
         }
 
-        var invocation = new Invocation(context, client?.Completion ?? Task.CompletedTask, callCancellation);
+        _callLifetime = CancellationTokenSource.CreateLinkedTokenSource(callCancellation);
+        var invocation = new Invocation(context, client?.Completion ?? Task.CompletedTask, _callLifetime.Token);
         _current = invocation;
         Current.Value = invocation;
 
@@ -71,6 +73,8 @@ internal sealed class McpInvocationScope : IDisposable
         if (_table is not null && _callId is not null && _current is not null)
             _table.Unregister(_callId, _current);
         Current.Value = _previous;
+        using var callLifetime = _callLifetime;
+        callLifetime?.Cancel();
     }
 
     public static async ValueTask<ElicitResult> HandleAsync(
@@ -85,7 +89,8 @@ internal sealed class McpInvocationScope : IDisposable
             ?? throw new McpElicitationUnavailableException("unattributed");
         if (request is null)
             throw new McpElicitationUnavailableException("unattributed");
-        if (invocation.Context.TurnServices?.GetApprovalPolicy?.Invoke() == ApprovalPolicy.Deny)
+        if (IsApprovalElicitation(request)
+            && invocation.Context.TurnServices?.GetApprovalPolicy?.Invoke() == ApprovalPolicy.Deny)
             return new ElicitResult { Action = "decline" };
         if (handler is null)
             throw new McpElicitationUnavailableException("no_client");
@@ -109,6 +114,11 @@ internal sealed class McpInvocationScope : IDisposable
             await watcher.ConfigureAwait(false);
         }
     }
+
+    private static bool IsApprovalElicitation(ElicitRequestParams request) =>
+        request.Meta?["approvalKind"] is JsonValue value
+        && value.TryGetValue<string>(out var kind)
+        && !string.IsNullOrWhiteSpace(kind);
 
     private static Invocation? TryResolveActiveInvocation(
         ActiveInvocationTable? activeInvocations,
