@@ -253,7 +253,7 @@ function Update-AntigravitySkillsManifest {
             continue
         }
 
-        if ($entryPath -match '/\.craft/cache/plugin-registries/[^/]+/snapshot/plugins/dotharness/skills$') {
+        if ($entryPath -match '/\.craft/cache/(?:plugin-registries|link-skills-registries)/[^/]+/snapshot(?:/[^/]+)?/plugins/dotharness/skills$') {
             Write-Host "  - removed stale DotHarness registry entry: $entryPath" -ForegroundColor Yellow
             $removedCount++
             continue

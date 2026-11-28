@@ -10,7 +10,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $RefreshInterval = [TimeSpan]::FromHours(6)
-$DownloadTimeout = [TimeSpan]::FromSeconds(2)
+$DownloadTimeout = [TimeSpan]::FromSeconds(30)
 $StaleTemporaryDirectoryAge = [TimeSpan]::FromMinutes(10)
 $CacheMetadataSchemaVersion = 1
 $CacheMetadataFileName = "metadata.json"
@@ -76,7 +76,7 @@ function Get-CacheBaseRoot {
         $userHome = [System.IO.Path]::GetTempPath()
     }
 
-    return Join-Path $userHome ".craft\cache\plugin-registries"
+    return Join-Path $userHome ".craft\cache\link-skills-registries"
 }
 
 function Get-DefaultRegistryUrl {
@@ -405,10 +405,11 @@ function Expand-ArchiveToCache {
     $sourceKey = [System.IO.Path]::GetFileName($sourceCacheRoot)
     $transactionKey = [Guid]::NewGuid().ToString("N").Substring(0, 12)
     $tempRoot = Join-Path $cacheParent ("." + $transactionKey + ".stage")
+    $tempExtractRoot = Join-Path $tempRoot "extract"
     $tempSnapshotRoot = Join-Path $tempRoot "snapshot"
 
     try {
-        [System.IO.Directory]::CreateDirectory($tempSnapshotRoot) | Out-Null
+        [System.IO.Directory]::CreateDirectory($tempExtractRoot) | Out-Null
         $memoryStream = [System.IO.MemoryStream]::new($ArchiveBytes)
         try {
             $archive = [System.IO.Compression.ZipArchive]::new($memoryStream, [System.IO.Compression.ZipArchiveMode]::Read)
@@ -418,8 +419,8 @@ function Expand-ArchiveToCache {
                         continue
                     }
 
-                    $destination = [System.IO.Path]::GetFullPath((Join-Path $tempSnapshotRoot $entry.FullName))
-                    if (-not (Test-PathWithin -PathValue $destination -RootPath $tempSnapshotRoot)) {
+                    $destination = [System.IO.Path]::GetFullPath((Join-Path $tempExtractRoot $entry.FullName))
+                    if (-not (Test-PathWithin -PathValue $destination -RootPath $tempExtractRoot)) {
                         throw "Zip entry '$($entry.FullName)' escapes the registry snapshot root."
                     }
 
@@ -460,9 +461,13 @@ function Expand-ArchiveToCache {
         }
 
         $identity = Read-MarketplaceIdentity `
-            -SnapshotRoot $tempSnapshotRoot `
+            -SnapshotRoot $tempExtractRoot `
             -MarketplacePathValue $MarketplacePathValue `
             -SourceName $SourceUrl
+        Move-Item -LiteralPath $identity.Root -Destination $tempSnapshotRoot
+        if (Test-Path -LiteralPath $tempExtractRoot) {
+            Remove-Item -LiteralPath $tempExtractRoot -Recurse -Force
+        }
         $activatedAt = [DateTimeOffset]::UtcNow
         Write-RegistryCacheMetadata `
             -SourceCacheRoot $tempRoot `
