@@ -7,9 +7,9 @@ import { useThreadStore } from '../../stores/threadStore'
 import type { ConversationTurn } from '../../types/conversation'
 import { resolveToolKind } from '../../utils/toolKind'
 import { readPlanApprovalInput } from '../../utils/planApprovalInput'
-import { useRunningTaskCount } from './summary/store'
+import { openRunningWork } from './runningWorkFormat'
+import { useRunningWork } from './summary/store'
 import { desktopSummaryServices } from './summary/summaryServices'
-import { setSummaryShown } from './summary/view'
 import { claimTurnTasks } from './turnTaskClaims'
 import styles from './TurnStatusSeat.module.css'
 import { TurnTodoCard } from './TurnTodoCard'
@@ -30,16 +30,16 @@ export function TurnStatusSeat({ turn, leadingTurns, running, inReply = false }:
   const approvalInput = readPlanApprovalInput(threadId)
   const implementsPlan = executesPlan(turn, approvalInput)
   const updatedTodos = wroteTodos(turn)
-  const taskCount = useRunningTaskCount(desktopSummaryServices, threadId, status === 'running')
+  const work = useRunningWork(desktopSummaryServices, threadId, status === 'running')
   const backgroundWork = useThreadStore((state) => state.runtimeSnapshots.get(threadId)?.hasBackgroundWork === true)
   const settled = status !== 'running' && !backgroundWork
   const context = useMemo<DesktopPluginTurnStatusContext>(
     () => ({
       workspacePath, threadId, turnId, status, settled,
       plan: snapshot && { title: snapshot.title, todos: snapshot.todos, implementsPlan, updatedTodos },
-      runningTasks: { count: taskCount, open: () => setSummaryShown(true), claim: () => claimTurnTasks(turnId) }
+      runningTasks: { count: work.total, open: () => openRunningWork(work), claim: () => claimTurnTasks(turnId) }
     }),
-    [workspacePath, threadId, turnId, status, settled, snapshot, implementsPlan, updatedTodos, taskCount]
+    [workspacePath, threadId, turnId, status, settled, snapshot, implementsPlan, updatedTodos, work]
   )
   const checklist = context.plan && {
     ...context.plan,

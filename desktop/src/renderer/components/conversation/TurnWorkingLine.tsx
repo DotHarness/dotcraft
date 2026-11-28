@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
-import { useT } from '../../contexts/LocaleContext'
+import { useLocale, useT } from '../../contexts/LocaleContext'
 import { RunningShimmer } from '../ui/RunningShimmer'
 import { ThinkingGlyph } from './ThinkingGlyph'
-import { useRunningTaskCount } from './summary/store'
+import { useRunningWork, type RunningWork } from './summary/store'
 import { desktopSummaryServices } from './summary/summaryServices'
-import { setSummaryShown } from './summary/view'
+import { formatRunningWorkCompact, formatRunningWorkDetailed, openRunningWork } from './runningWorkFormat'
 import type { TurnThinkingLabel } from './turnThinkingStatus'
 import { useTurnTasksClaimed } from './turnTaskClaims'
 import styles from './TurnWorkingLine.module.css'
@@ -26,7 +26,7 @@ export function TurnWorkingLine({ turnId, working, label, keepSpace, afterTool, 
   const [faded, setFaded] = useState(!working)
   if (working && !engaged) setEngaged(true)
   if (working && faded) setFaded(false)
-  const tasks = useRunningTaskCount(desktopSummaryServices, tasksThreadId, working)
+  const work = useRunningWork(desktopSummaryServices, tasksThreadId, working)
   const tasksClaimed = useTurnTasksClaimed(turnId)
 
   const current: ShownLabel | null = label == null ? null
@@ -41,14 +41,14 @@ export function TurnWorkingLine({ turnId, working, label, keepSpace, afterTool, 
     return () => clearTimeout(timer)
   }, [working])
 
-  const showTasks = tasks > 0 && keepSpace && !tasksClaimed
+  const showTasks = work.total > 0 && keepSpace && !tasksClaimed
   if (!showTasks && (!engaged || (!working && !keepSpace))) return null
   return (
     <div className={styles.line} data-after-tool={afterTool || undefined} data-exited={!working || undefined} data-testid="turn-working-line">
-      {showTasks && faded ? <RunningTasksIndicator count={tasks} /> : (
+      {showTasks && faded ? <RunningTasksIndicator work={work} /> : (
         <>
           <span className={styles.glyph}><ThinkingGlyph thinking={!faded} /></span>
-          {showTasks ? <RunningTasksButton count={tasks} /> : null}
+          {showTasks ? <RunningTasksButton work={work} detailed={false} /> : null}
         </>
       )}
       {showTasks && current ? <span className={styles.separator} aria-hidden="true">·</span> : null}
@@ -63,20 +63,22 @@ export function TurnWorkingLine({ turnId, working, label, keepSpace, afterTool, 
   )
 }
 
-export function RunningTasksIndicator({ count }: { count: number }): JSX.Element {
+export function RunningTasksIndicator({ work }: { work: RunningWork }): JSX.Element {
   return (
     <span className={styles.taskIndicator}>
       <span className={styles.pulseSlot} aria-hidden="true"><span className={styles.pulse} /></span>
-      <RunningTasksButton count={count} />
+      <RunningTasksButton work={work} detailed />
     </span>
   )
 }
 
-function RunningTasksButton({ count }: { count: number }): JSX.Element {
+function RunningTasksButton({ work, detailed }: { work: RunningWork; detailed: boolean }): JSX.Element {
   const t = useT()
+  const locale = useLocale()
+  const label = detailed ? formatRunningWorkDetailed(t, locale, work) : formatRunningWorkCompact(t, work)
   return (
-    <button type="button" className={`dc-quiet-action ${styles.tasks}`} onClick={() => setSummaryShown(true)}>
-      {t(count === 1 ? 'conversation.runningTasks.one' : 'conversation.runningTasks.other', { count })}
+    <button type="button" className={`dc-quiet-action ${styles.tasks}`} onClick={() => openRunningWork(work)}>
+      {label}
     </button>
   )
 }

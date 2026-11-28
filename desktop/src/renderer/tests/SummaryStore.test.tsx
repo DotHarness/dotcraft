@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { disposeSummaryFeeds, useRunningTaskCount, useSummaryState } from '../components/conversation/summary/store'
+import { disposeSummaryFeeds, useRunningWork, useSummaryState } from '../components/conversation/summary/store'
 import { desktopSummaryServices, type SummaryServices } from '../components/conversation/summary/summaryServices'
 import { useConversationStore } from '../stores/conversationStore'
 import { useWorkspaceProjectsStore } from '../stores/workspaceProjectsStore'
@@ -71,7 +71,7 @@ describe('Summary feed cache', () => {
     const { services, request } = createHost()
     let terminals = [{ sessionId: 'npx', threadId: 'thread-1', turnId: 't1', status: 'running', isBackground: true }]
     request.mockImplementation(async (method) => method === 'terminal/list' ? { terminals } : {})
-    const badge = renderHook(() => useRunningTaskCount(services, 'thread-1', true))
+    const badge = renderHook(() => useRunningWork(services, 'thread-1', true).total)
     const first = renderHook(() => useSummaryState(services, 'thread-1'))
     await settle()
     expect(badge.result.current).toBe(1)
@@ -91,8 +91,8 @@ describe('Summary feed cache', () => {
       }
       return {}
     })
-    const running = renderHook(() => useRunningTaskCount(services, 'thread-1', true))
-    const ended = renderHook(() => useRunningTaskCount(services, 'thread-1', false))
+    const running = renderHook(() => useRunningWork(services, 'thread-1', true).total)
+    const ended = renderHook(() => useRunningWork(services, 'thread-1', false).total)
     await settle()
     expect(running.result.current).toBe(1)
     expect(ended.result.current).toBe(0)
@@ -125,7 +125,7 @@ describe('Summary feed cache', () => {
     first.unmount()
     const cached = renderHook(() => ({
       state: useSummaryState(services, 'thread-1'),
-      count: useRunningTaskCount(services, 'thread-1', true)
+      count: useRunningWork(services, 'thread-1', true).total
     }))
     expect(cached.result.current.state!.ready).toBe(true)
     await settle()

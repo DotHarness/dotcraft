@@ -249,7 +249,7 @@ function BuildStatus({ context }: DesktopPluginSurfaceProps<"conversation.turn.s
 host.ui.add("conversation.turn.status", BuildStatus);
 ```
 
-`context.runningTasks.count` is the number of background tasks the working line shows: every running task while the turn runs, and only Agents and Workflows after it ends, and `open()` opens the Summary that lists them. To show the count inside your own content, call `claim()` while you show it and call the returned dispose function when you stop. While a claim is live, the working line leaves the count out.
+`context.runningTasks.count` is the number of background tasks the working line shows: every running task while the turn runs, and only Agents and Workflows after it ends, and `open()` opens the Subagents detail panel when only subagents are working or shows the Summary otherwise. To show the count inside your own content, call `claim()` while you show it and call the returned dispose function when you stop. While a claim is live, the working line leaves the count out.
 
 ### Add a section to the Summary
 

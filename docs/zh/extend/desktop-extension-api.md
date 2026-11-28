@@ -245,7 +245,7 @@ function BuildStatus({ context }: DesktopPluginSurfaceProps<"conversation.turn.s
 host.ui.add("conversation.turn.status", BuildStatus);
 ```
 
-`context.runningTasks.count` 是工作行显示的后台任务数：轮次运行时计入所有运行中的任务，轮次结束后只计 Agent 和 Workflow，`open()` 会打开列出这些任务的 Summary。要在自己的内容里显示这个数，请在显示期间调用 `claim()`，不再显示时调用它返回的 dispose 函数。只要还有 claim，工作行就不再显示这个数。
+`context.runningTasks.count` 是工作行显示的后台任务数：轮次运行时计入所有运行中的任务，轮次结束后只计 Agent 和 Workflow，`open()` 在仅有子智能体运行时打开 Subagents 详情面板，其余情况打开 Summary。要在自己的内容里显示这个数，请在显示期间调用 `claim()`，不再显示时调用它返回的 dispose 函数。只要还有 claim，工作行就不再显示这个数。
 
 ### 在摘要中添加分区
 

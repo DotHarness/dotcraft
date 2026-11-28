@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { BackgroundTasksSection } from '../components/conversation/summary/BackgroundTasksSection'
 import { SubagentRunningTasks } from '../components/detail/SubagentRunningTasks'
 import { reportLayout, setPopoverOpen, useSummaryView } from '../components/conversation/summary/view'
-import { disposeSummaryFeeds, useRunningTaskCount } from '../components/conversation/summary/store'
+import { disposeSummaryFeeds, useRunningWork } from '../components/conversation/summary/store'
 import type { SummaryServices } from '../components/conversation/summary/summaryServices'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { useConnectionStore } from '../stores/connectionStore'
@@ -38,7 +38,7 @@ function Tasks() {
 }
 
 function Count() {
-  const count = useRunningTaskCount(services, 'root', true)
+  const count = useRunningWork(services, 'root', true).total
   return <output aria-label="Task count">{count}</output>
 }
 
@@ -114,10 +114,10 @@ describe('Subagent background task tree', () => {
       <section aria-label="Child detail"><SubagentRunningTasks threadId="child" /></section>
     </LocaleProvider>)
     const detail = within(screen.getByRole('region', { name: 'Child detail' }))
-    fireEvent.click(await detail.findByRole('button', { name: '2 running tasks' }))
+    fireEvent.click(await detail.findByRole('button', { name: '2 background tasks running' }))
     expect(summary.result.current.popoverOpen).toBe(true)
     act(() => { notify('terminal/completed', { terminal: { ...terminal, status: 'completed' } }) })
-    expect(detail.getByRole('button', { name: '1 running task' })).toBeInTheDocument()
+    expect(detail.getByRole('button', { name: '1 background workflow running' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Stop workflow' }))
     await waitFor(() => expect(detail.queryByRole('button')).toBeNull())
   })

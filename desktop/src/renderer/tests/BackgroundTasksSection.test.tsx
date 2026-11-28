@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { BackgroundTasksSection } from '../components/conversation/summary/BackgroundTasksSection'
-import { disposeSummaryFeeds, useRunningTaskCount, useSummaryState } from '../components/conversation/summary/store'
+import { disposeSummaryFeeds, useRunningWork, useSummaryState } from '../components/conversation/summary/store'
 import type { SummaryServices } from '../components/conversation/summary/summaryServices'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { workflowRunsFor, selectWorkflowRunEntry } from '../stores/workflowRunCache'
@@ -38,7 +38,7 @@ function createHost(ids: string[]) {
 
 function Tasks({ services }: { services: SummaryServices }) {
   const state = useSummaryState(services, 'thread-1')
-  const count = useRunningTaskCount(services, 'thread-1', true)
+  const count = useRunningWork(services, 'thread-1', true).total
   return <>
     <output aria-label="Running tasks">{count}</output>
     <BackgroundTasksSection services={services} threadId="thread-1" terminals={state?.terminals ?? []}

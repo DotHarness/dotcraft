@@ -47,6 +47,13 @@ export function projectThreadActivity(threadId: string | null, sources: Activity
     for (const terminal of owner.terminals) terminals.add(owner.threadId + '\0' + terminal.sessionId)
     for (const workflow of owner.workflows) workflows.add(owner.threadId + '\0' + workflow.runId)
   }
-  const delegates = activeAgents + workflows.size
-  return { children, owners, ownTasks, activeAgents, delegates, count: delegates + terminals.size }
+  return {
+    children,
+    owners,
+    ownTasks,
+    activeAgents,
+    workflows: workflows.size,
+    terminals: terminals.size,
+    count: activeAgents + workflows.size + terminals.size
+  }
 }

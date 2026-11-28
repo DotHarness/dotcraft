@@ -1,9 +1,9 @@
 import { Circle, CircleCheck, CircleDot, CircleX } from 'lucide-react'
 import { useEffect, type JSX } from 'react'
 import { useT } from '../../contexts/LocaleContext'
-import { useRunningTaskCount } from './summary/store'
+import { formatRunningWorkCompact, openRunningWork } from './runningWorkFormat'
+import { useRunningWork } from './summary/store'
 import { desktopSummaryServices } from './summary/summaryServices'
-import { setSummaryShown } from './summary/view'
 import { claimTurnTasks } from './turnTaskClaims'
 import styles from './TurnTodoCard.module.css'
 
@@ -64,28 +64,27 @@ export function TurnTodoCard({ threadId, turnId, status, waitingOnTasks, plan }:
   plan: TurnTodoPlan | null
 }): JSX.Element | null {
   const t = useT()
-  const taskCount = useRunningTaskCount(desktopSummaryServices, threadId, false)
+  const work = useRunningWork(desktopSummaryServices, threadId, false)
   const shown = plan != null && showsTodoCard(plan, status, waitingOnTasks)
-  const showsTasks = shown && status !== 'running' && taskCount > 0
+  const showsTasks = shown && status !== 'running' && work.total > 0
   useEffect(() => (showsTasks ? claimTurnTasks(turnId) : undefined), [showsTasks, turnId])
   if (!shown) return null
 
   const { done, total } = progressOf(plan.todos)
   const live = status === 'running' || waitingOnTasks
-  const tasksLabel = showsTasks
-    ? t(taskCount === 1 ? 'conversation.runningTasks.one' : 'conversation.runningTasks.other', { count: taskCount })
-    : null
+  const tasksLabel = showsTasks ? formatRunningWorkCompact(t, work) : null
   return (
     <section className={styles.card} data-turn-todo-card aria-label={`${t('conversation.todo.label')}, ${t('conversation.todo.progress', { done, total })}`}>
-      <TodoChecklist todos={plan.todos} live={live} tasksLabel={tasksLabel} />
+      <TodoChecklist todos={plan.todos} live={live} tasksLabel={tasksLabel} onOpenTasks={() => openRunningWork(work)} />
     </section>
   )
 }
 
-function TodoChecklist({ todos, live, tasksLabel }: {
+function TodoChecklist({ todos, live, tasksLabel, onOpenTasks }: {
   todos: readonly TurnTodo[]
   live: boolean
   tasksLabel: string | null
+  onOpenTasks: () => void
 }): JSX.Element {
   const t = useT()
   const { visible, hiddenBefore, openAfter } = todoWindow(todos)
@@ -104,7 +103,7 @@ function TodoChecklist({ todos, live, tasksLabel }: {
           <span className={styles.text}>{live && todo.status === 'in_progress' ? todo.activeForm ?? todo.content : todo.content}</span>
           <span className={styles.sr}>, {statusLabel(t, todo.status, live)}</span>
           {tasksLabel && todo.id === tasksAnchor ? (
-            <button type="button" className={`dc-quiet-action ${styles.tasks}`} onClick={() => setSummaryShown(true)}>{tasksLabel}</button>
+            <button type="button" className={`dc-quiet-action ${styles.tasks}`} onClick={onOpenTasks}>{tasksLabel}</button>
           ) : null}
         </li>
       ))}

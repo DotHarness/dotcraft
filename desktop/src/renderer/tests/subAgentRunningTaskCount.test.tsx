@@ -1,7 +1,7 @@
 import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { RawNotificationPayload } from '../../shared/appServerBoundary'
-import { disposeSummaryFeeds, useRunningTaskCount } from '../components/conversation/summary/store'
+import { disposeSummaryFeeds, useRunningWork } from '../components/conversation/summary/store'
 import type { SummaryServices } from '../components/conversation/summary/summaryServices'
 import { listDesktopPluginSubAgents, onDesktopPluginSubAgentsChange } from '../plugins/desktopPluginSubAgents'
 import { useConnectionStore } from '../stores/connectionStore'
@@ -86,7 +86,7 @@ async function discover(): Promise<void> {
 
 describe('subagent activity in the running task count', () => {
   it('settles live completions and reconciles missed completions on idle without leaving the conversation', async () => {
-    const count = renderHook(() => useRunningTaskCount(services, parent, true))
+    const count = renderHook(() => useRunningWork(services, parent, true).total)
     await act(discover)
     expect(count.result.current).toBe(1)
     expect(listDesktopPluginSubAgents(parent)[0].state).toBe('done')
@@ -118,14 +118,14 @@ describe('subagent activity in the running task count', () => {
   })
 
   it('reconciles tasks on reopening a cached parent without reloading child identities', async () => {
-    const first = renderHook(() => useRunningTaskCount(services, parent, true))
+    const first = renderHook(() => useRunningWork(services, parent, true).total)
     await act(discover)
     expect(first.result.current).toBe(1)
     first.unmount()
     const childReads = request.mock.calls.filter(([, method]) => method === 'subagent/children/list').length
     terminals = []
 
-    const reopened = renderHook(() => useRunningTaskCount(services, parent, true))
+    const reopened = renderHook(() => useRunningWork(services, parent, true).total)
     await act(async () => { await useSubAgentStore.getState().ensureChildren(parent) })
     expect(reopened.result.current).toBe(0)
     expect(listDesktopPluginSubAgents(parent)[0].state).toBe('done')

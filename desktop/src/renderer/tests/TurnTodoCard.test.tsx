@@ -4,9 +4,12 @@ import { LocaleProvider } from '../contexts/LocaleContext'
 import { todoWindow, TurnTodoCard, type TurnTodo, type TurnTodoPlan, type TurnTodoStatus } from '../components/conversation/TurnTodoCard'
 import { useTurnTasksClaimed } from '../components/conversation/turnTaskClaims'
 import { useSummaryView, setPopoverOpen } from '../components/conversation/summary/view'
+import type { RunningWork } from '../components/conversation/summary/store'
+import { useDetailPanelStore } from '../stores/detailPanelStore'
 
-const taskCount = vi.hoisted(() => ({ value: 0 }))
-vi.mock('../components/conversation/summary/store', () => ({ useRunningTaskCount: () => taskCount.value }))
+const EMPTY_WORK: RunningWork = { total: 0, subagents: 0, others: 0, othersKind: 'task' }
+const runningWork = vi.hoisted(() => ({ value: { total: 0, subagents: 0, others: 0, othersKind: 'task' } as RunningWork }))
+vi.mock('../components/conversation/summary/store', () => ({ useRunningWork: () => runningWork.value }))
 
 const PLAN: TurnTodoPlan = {
   title: '',
@@ -39,8 +42,11 @@ function card(status: TurnTodoStatus, plan: TurnTodoPlan, waitingOnTasks = false
 
 afterEach(() => {
   cleanup()
-  taskCount.value = 0
-  act(() => setPopoverOpen(false))
+  runningWork.value = EMPTY_WORK
+  act(() => {
+    setPopoverOpen(false)
+    useDetailPanelStore.setState({ byThread: new Map() })
+  })
 })
 
 it.each([
@@ -69,34 +75,42 @@ it('does not show a proposed plan as execution progress', () => {
 })
 
 it('takes the running task count from the working line while it shows it', () => {
-  taskCount.value = 2
+  runningWork.value = { total: 2, subagents: 1, others: 1, othersKind: 'workflow' }
   const { rerender } = render(card('failed', PLAN))
   expect(screen.getByRole('status', { name: 'Claimed' })).toHaveTextContent('true')
   fireEvent.click(screen.getByRole('button'))
   expect(screen.getByRole('status', { name: 'Summary' })).toHaveTextContent('true')
 
-  taskCount.value = 0
+  runningWork.value = EMPTY_WORK
   rerender(card('failed', PLAN))
   expect(screen.getByRole('status', { name: 'Claimed' })).toHaveTextContent('false')
   expect(screen.queryByRole('button')).not.toBeInTheDocument()
 })
 
+it('opens the Subagents detail panel when only subagents are working', () => {
+  runningWork.value = { total: 1, subagents: 1, others: 0, othersKind: 'task' }
+  render(card('completed', PLAN, true))
+  fireEvent.click(screen.getByRole('button'))
+  expect(useDetailPanelStore.getState().getCurrentPanel().activeDetailTab).toEqual({ kind: 'system', id: 'subagents' })
+  expect(screen.getByRole('status', { name: 'Summary' })).toHaveTextContent('false')
+})
+
 it('keeps the background tasks button reachable when every step of a long list is complete', () => {
-  taskCount.value = 1
+  runningWork.value = { total: 1, subagents: 0, others: 1, othersKind: 'workflow' }
   const { rerender } = render(card('completed', { ...PLAN, todos: Array.from({ length: 14 }, (_, i) => ({
     id: String(i), content: `Step ${i + 1}`, status: 'completed'
   })) }, true))
-  fireEvent.click(screen.getByRole('button', { name: '1 running task' }))
+  fireEvent.click(screen.getByRole('button'))
   expect(screen.getByRole('status', { name: 'Summary' })).toHaveTextContent('true')
   rerender(card('completed', PLAN))
   expect(screen.getByRole('status', { name: 'Claimed' })).toHaveTextContent('false')
 })
 
 it('leaves the running task count to the working line while the turn runs', () => {
-  taskCount.value = 1
+  runningWork.value = { total: 1, subagents: 1, others: 0, othersKind: 'task' }
   render(card('running', { ...PLAN, updatedTodos: true }))
   expect(screen.getByRole('status', { name: 'Claimed' })).toHaveTextContent('false')
-  expect(screen.queryByRole('button', { name: '1 running task' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button')).not.toBeInTheDocument()
 })
 
 function steps(done: number, total: number): TurnTodo[] {

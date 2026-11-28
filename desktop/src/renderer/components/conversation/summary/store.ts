@@ -85,7 +85,24 @@ export function useSummaryState(services: SummaryServices, threadId: string): Su
   return state
 }
 
-export function useRunningTaskCount(services: SummaryServices, threadId: string | null, turnRunning: boolean): number {
+export type RunningOtherKind = 'shell' | 'workflow' | 'task'
+
+export interface RunningWork {
+  readonly total: number
+  readonly subagents: number
+  readonly others: number
+  readonly othersKind: RunningOtherKind
+}
+
+export function runningWorkOf(subagents: number, workflows: number, shells: number): RunningWork {
+  const others = workflows + shells
+  const othersKind: RunningOtherKind = workflows > 0 && shells === 0 ? 'workflow'
+    : shells > 0 && workflows === 0 ? 'shell'
+      : 'task'
+  return { total: subagents + others, subagents, others, othersKind }
+}
+
+export function useRunningWork(services: SummaryServices, threadId: string | null, turnRunning: boolean): RunningWork {
   const scope = useSummaryScope(services)
   useEffect(() => {
     if (!threadId) return
@@ -93,6 +110,6 @@ export function useRunningTaskCount(services: SummaryServices, threadId: string 
     void tasks.ensure()
     return tasks.release
   }, [services, threadId, scope])
-  const { count, delegates } = useSubAgentTaskTree(threadId)
-  return turnRunning ? count : delegates
+  const { activeAgents, workflows, terminals } = useSubAgentTaskTree(threadId)
+  return runningWorkOf(activeAgents, workflows, turnRunning ? terminals : 0)
 }
