@@ -168,8 +168,18 @@ function normalizeStatus(value: unknown): string {
   return typeof value === 'string' ? value.trim().toLowerCase() : ''
 }
 
+const MAX_SHELL_COMMAND_SUMMARY_CHARS = 500
+
 function normalizeSummary(content: string): string {
   return content.replace(/\s+/g, ' ').trim()
+}
+
+export function formatShellCommandSummary(command: string | null | undefined): string {
+  if (!command) return ''
+  const collapsed = normalizeSummary(command)
+  return collapsed.length <= MAX_SHELL_COMMAND_SUMMARY_CHARS
+    ? collapsed
+    : `${collapsed.slice(0, MAX_SHELL_COMMAND_SUMMARY_CHARS - 1)}…`
 }
 
 function asObjectArray(value: unknown): Array<Record<string, unknown>> {
@@ -284,9 +294,9 @@ export function formatCollapsedToolLabel(
     }
     case 'exec':
     case 'shell': {
-      const cmd = (args?.command as string | undefined) ?? toolName
-      const firstLine = cmd.split(/\r?\n/, 1)[0] ?? cmd
-      return translate(locale, 'toolCall.ran', { cmd: firstLine })
+      const rawCommand = typeof args?.command === 'string' ? args.command : undefined
+      const cmd = formatShellCommandSummary(rawCommand) || toolName
+      return translate(locale, 'toolCall.ran', { cmd })
     }
     case 'skillView':
       return formatSkillViewLabel(args, locale)

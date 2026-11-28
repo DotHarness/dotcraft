@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { extractPartialJsonStringValue } from '../utils/toolCallDisplay'
+import {
+  extractPartialJsonStringValue,
+  formatCollapsedToolLabel,
+  formatShellCommandSummary
+} from '../utils/toolCallDisplay'
 import { getStreamingToolDisplay } from '../utils/streamingToolDisplay'
 import { coreToolFields } from './testToolPresentation'
 
@@ -39,12 +43,44 @@ describe('getStreamingToolDisplay', () => {
     expect(display.label).not.toContain('rm -rf')
   })
 
+  it('collapses multiline Exec commands instead of truncating at the first newline', () => {
+    const display = getStreamingToolDisplay(
+      tool('Exec'),
+      '{"command":"node -e \'\\n  const x = 1;\\n  console.log(x);\\n\'',
+      'en'
+    )
+    expect(display.label).toBe("Running node -e ' const x = 1; console.log(x); '")
+    expect(display.parsedPreview?.command).toBe("node -e '\n  const x = 1;\n  console.log(x);\n'")
+
+    const whitespaceOnly = getStreamingToolDisplay(tool('Exec'), '{"command":"\\n   ', 'en')
+    expect(whitespaceOnly.label).toBe('Running command')
+  })
+
   it('does not expose SendMessage targets', () => {
     const display = getStreamingToolDisplay(tool('SendMessage'),
       '{"target":"thread_20260503_child"',
       'en'
     )
     expect(display.label).not.toContain('thread_20260503_child')
+  })
+})
+
+describe('formatShellCommandSummary', () => {
+  it('collapses newlines and repeated whitespace into a single line', () => {
+    const command = "node -e '\r\n  const fs = require(\"fs\");\n  console.log(1);\n'"
+    const expected = `node -e ' const fs = require("fs"); console.log(1); '`
+    expect(formatShellCommandSummary(command)).toBe(expected)
+    expect(formatCollapsedToolLabel(tool('Exec'), { command }, 'en')).toBe(`Ran ${expected}`)
+  })
+
+  it('returns empty string for empty or whitespace-only commands and caps at 500 chars', () => {
+    expect(formatShellCommandSummary('')).toBe('')
+    expect(formatShellCommandSummary('  \n\t  ')).toBe('')
+
+    const exact = 'a'.repeat(500)
+    expect(formatShellCommandSummary(exact)).toBe(exact)
+
+    expect(formatShellCommandSummary('a'.repeat(520))).toBe(`${'a'.repeat(499)}…`)
   })
 })
 

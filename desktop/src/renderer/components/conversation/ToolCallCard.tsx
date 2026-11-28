@@ -16,6 +16,7 @@ import { RunningShimmer } from '../ui/RunningShimmer'
 import {
   formatCollapsedToolLabel,
   formatExpandedInvocation,
+  formatShellCommandSummary,
   formatWorkflowFailureLabel,
   getToolRowIcon,
   isToolExecutionFailure
@@ -100,9 +101,9 @@ function formatRunningToolLabel(
   shellCommand?: string
 ): string {
   if (rendererFamily === 'shell') {
-    const firstLine = shellCommand?.split(/\r?\n/, 1)[0]
-    return firstLine
-      ? translate(locale, 'toolCall.streaming.runningCommand', { command: firstLine })
+    const summary = formatShellCommandSummary(shellCommand)
+    return summary
+      ? translate(locale, 'toolCall.streaming.runningCommand', { command: summary })
       : translate(locale, 'toolCall.runningCommand')
   }
   if (rendererFamily === 'skillView' && args) {
@@ -122,14 +123,14 @@ function formatShellBackgroundLabel(
   locale: AppLocale,
   shellCommand?: string
 ): string {
-  const firstLine = shellCommand?.split(/\r?\n/, 1)[0]
+  const summary = formatShellCommandSummary(shellCommand)
   if (state === 'backgroundRunning') {
-    return firstLine
-      ? translate(locale, 'toolCall.backgroundTerminalStartedWith', { command: firstLine })
+    return summary
+      ? translate(locale, 'toolCall.backgroundTerminalStartedWith', { command: summary })
       : translate(locale, 'toolCall.backgroundTerminalStarted')
   }
-  return firstLine
-    ? translate(locale, 'toolCall.backgroundTerminalStoppedWith', { command: firstLine })
+  return summary
+    ? translate(locale, 'toolCall.backgroundTerminalStoppedWith', { command: summary })
     : translate(locale, 'toolCall.backgroundTerminalStopped')
 }
 

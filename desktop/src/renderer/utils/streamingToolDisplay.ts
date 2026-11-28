@@ -7,6 +7,7 @@ import {
   extractBoardArguments,
   extractPartialJsonStringValue,
   extractPlanTitle,
+  formatShellCommandSummary,
   getFilename,
   getRequestUserInputQuestionCount
 } from './toolCallDisplay'
@@ -175,10 +176,10 @@ function getTrustedStreamingToolDisplay(
     case 'exec':
     case 'shell': {
       const command = extractPartialJsonStringValue(rawArgs, 'command')
-      if (command) {
-        const firstLine = command.split('\n')[0] ?? command
+      const summary = formatShellCommandSummary(command)
+      if (summary) {
         return {
-          label: translate(locale, 'toolCall.streaming.runningCommand', { command: firstLine }),
+          label: translate(locale, 'toolCall.streaming.runningCommand', { command: summary }),
           parsedPreview: { command }
         }
       }

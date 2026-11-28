@@ -5,6 +5,7 @@ import { useT } from '../../../contexts/LocaleContext'
 import { IconButton } from '../../ui/IconButton'
 import { Spinner } from '../../ui/Spinner'
 import { formatDurationShort } from '../../../utils/formatDurationShort'
+import { formatShellCommandSummary } from '../../../utils/toolCallDisplay'
 import type { SummaryTerminal, SummaryWorkflow } from './feed'
 import type { SummaryServices } from './summaryServices'
 import { GLYPH, Row, Section } from './SummaryRows'
@@ -130,12 +131,12 @@ export function BackgroundTasksSection({ services, threadId, terminals: ownTermi
         />
       ))}
       {terminals.map((terminal) => {
-        const firstLine = terminal.command.split(/\r?\n/, 1)[0]?.trim()
+        const commandLabel = formatShellCommandSummary(terminal.command)
         return (
           <Row
             key={terminal.sessionId}
             leading={<TerminalGlyph {...GLYPH} />}
-            label={firstLine || t('summary.backgroundTerminal')}
+            label={commandLabel || t('summary.backgroundTerminal')}
             title={terminal.command || undefined}
             meta={elapsed(terminal.startedAt, now)}
             onClick={reveal(terminal.ownerThreadId, terminal.callId)}
