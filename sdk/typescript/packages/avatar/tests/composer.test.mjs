@@ -50,3 +50,53 @@ test('Composer swaps only at the midpoint, cancels superseded names and disposes
     for (const key of keys) if (previous[key] === undefined) delete globalThis[key]; else globalThis[key] = previous[key]
   }
 })
+
+test('Composer listening suppresses active idle and sleep and cancels an active trip', async t => {
+  const dom = new JSDOM('<div id="root"></div>', { pretendToBeVisual: true })
+  const keys = ['window', 'document', 'MutationObserver', 'requestAnimationFrame', 'cancelAnimationFrame', 'IS_REACT_ACT_ENVIRONMENT']
+  const previous = Object.fromEntries(keys.map(key => [key, globalThis[key]]))
+  Object.assign(globalThis, { window: dom.window, document: dom.window.document, MutationObserver: dom.window.MutationObserver, requestAnimationFrame: dom.window.requestAnimationFrame.bind(dom.window), cancelAnimationFrame: dom.window.cancelAnimationFrame.bind(dom.window), IS_REACT_ACT_ENVIRONMENT: true })
+  window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} })
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1_000_000 })
+  t.mock.method(window, 'setTimeout', globalThis.setTimeout)
+  t.mock.method(window, 'clearTimeout', globalThis.clearTimeout)
+  t.mock.method(Math, 'random', () => 0)
+  const root = createRoot(document.querySelector('#root'))
+  const render = props => act(async () => root.render(createElement(ComposerMascot, { motion: 'on', ...props })))
+  const advance = duration => act(async () => t.mock.timers.tick(duration))
+  const mascot = () => document.querySelector('[data-composer-avatar-pose]')
+  try {
+    await render({ listening: true })
+    await advance(120_000)
+    assert.equal(mascot().dataset.mascotActiveIdle, undefined)
+    assert.equal(mascot().dataset.composerAvatarPose, 'idle')
+
+    await render({ listening: false })
+    await advance(34_999)
+    assert.equal(mascot().dataset.mascotActiveIdle, undefined)
+    await advance(1)
+    assert.equal(mascot().dataset.mascotActiveIdle, 'hop')
+
+    await render({ listening: true })
+    assert.equal(mascot().dataset.mascotActiveIdle, undefined)
+
+    await render({ listening: false })
+    await advance(35_000)
+    assert.equal(mascot().dataset.mascotActiveIdle, 'rocket')
+    await advance(1_960)
+    await advance(1_400)
+    await advance(1_960)
+    assert.equal(mascot().dataset.mascotActiveIdle, undefined)
+    await advance(90_000)
+    assert.equal(mascot().dataset.composerAvatarPose, 'sleep')
+
+    await render({ listening: true })
+    assert.equal(mascot().dataset.composerAvatarPose, 'idle')
+  } finally {
+    await act(async () => root.unmount())
+    t.mock.restoreAll()
+    t.mock.timers.reset()
+    dom.window.close()
+    for (const key of keys) if (previous[key] === undefined) delete globalThis[key]; else globalThis[key] = previous[key]
+  }
+})

@@ -31,7 +31,7 @@ export function DesktopPet(): JSX.Element | null {
   const open = settled && activity.view !== 'hidden'
   const idle = usePetIdle({
     activity: petActivity(snapshot?.activity),
-    available: settled && !open && !reaction.dragging && reaction.state === 'idle',
+    available: settled && !open && !dictating && !reaction.dragging && reaction.state === 'idle',
     reduced: snapshot?.reducedMotion ?? false,
     position
   })

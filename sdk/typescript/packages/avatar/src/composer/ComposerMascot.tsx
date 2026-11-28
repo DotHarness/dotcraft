@@ -65,6 +65,7 @@ export function ComposerMascot({ name, catalog, appearance, appearanceOf, motion
   const ambient =
     !focused &&
     !dragOver &&
+    !listening &&
     !bubble &&
     !holdSign &&
     menuPos == null &&
