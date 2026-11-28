@@ -20,7 +20,6 @@
 
     <!-- Keep the exact framework compilation references inside the self-contained bundle. -->
     <PreserveCompilationContext>true</PreserveCompilationContext>
-    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
 
     <!-- Emit compiler generated files for debugging -->
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
