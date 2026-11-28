@@ -142,15 +142,11 @@ public sealed class AcpBridgeProtocolRegressionTests
         var newCommandsFrame = await fixture.ReadAsync();
         AssertAvailableCommandsUpdate(newCommandsFrame, "session", "deploy");
 
-        await fixture.SendAsync(3, "session/load", new
-        {
-            sessionId = "session",
-            cwd = "/workspace",
-            mcpServers = Array.Empty<object>()
-        });
+        await fixture.SendRawAsync(
+            "{\"jsonrpc\":\"2.0\",\"id\":\"\\u0061\",\"method\":\"session/load\",\"params\":{\"sessionId\":\"session\",\"cwd\":\"/workspace\",\"mcpServers\":[]}}");
         var firstLoadFrame = await fixture.ReadAsync();
         Assert.False(firstLoadFrame.TryGetProperty("method", out _));
-        Assert.Equal(3, firstLoadFrame.GetProperty("id").GetInt32());
+        Assert.Equal("a", firstLoadFrame.GetProperty("id").GetString());
         Assert.True(firstLoadFrame.TryGetProperty("result", out _));
 
         var loadCommandsFrame = await fixture.ReadAsync();
@@ -219,6 +215,8 @@ public sealed class AcpBridgeProtocolRegressionTests
 
         public Task SendAsync(int id, string method, object parameters) =>
             _ideWriter.WriteLineAsync(JsonSerializer.Serialize(new { jsonrpc = "2.0", id, method, @params = parameters }));
+
+        public Task SendRawAsync(string json) => _ideWriter.WriteLineAsync(json);
 
         public Task SendNotificationAsync(string method, object parameters) =>
             _ideWriter.WriteLineAsync(JsonSerializer.Serialize(new { jsonrpc = "2.0", method, @params = parameters }));

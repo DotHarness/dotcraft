@@ -244,6 +244,15 @@ public sealed partial class AcpBridgeHandler(
 
         public ValueTask DisposeAsync() => inner.DisposeAsync();
 
+        private static string? GetRequestKey(JsonElement id) =>
+            id.ValueKind switch
+            {
+                JsonValueKind.String => "s:" + id.GetString(),
+                JsonValueKind.Number when id.TryGetInt64(out var number) =>
+                    "n:" + number.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                _ => null
+            };
+
         private void TrackIncomingSessionInit(ReadOnlyMemory<byte> frame)
         {
             try
@@ -252,7 +261,7 @@ public sealed partial class AcpBridgeHandler(
                 var root = doc.RootElement;
                 if (root.ValueKind != JsonValueKind.Object
                     || !root.TryGetProperty("id", out var idEl)
-                    || idEl.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined
+                    || GetRequestKey(idEl) is not { } requestKey
                     || !root.TryGetProperty("method", out var methodEl)
                     || methodEl.ValueKind != JsonValueKind.String)
                 {
@@ -262,7 +271,7 @@ public sealed partial class AcpBridgeHandler(
                 var method = methodEl.GetString();
                 if (method == "session/new")
                 {
-                    _pendingSessionInits[idEl.GetRawText()] = null;
+                    _pendingSessionInits[requestKey] = null;
                 }
                 else if (method == "session/load"
                     && root.TryGetProperty("params", out var paramsEl)
@@ -270,7 +279,7 @@ public sealed partial class AcpBridgeHandler(
                     && paramsEl.TryGetProperty("sessionId", out var sidEl)
                     && sidEl.ValueKind == JsonValueKind.String)
                 {
-                    _pendingSessionInits[idEl.GetRawText()] = sidEl.GetString();
+                    _pendingSessionInits[requestKey] = sidEl.GetString();
                 }
             }
             catch (JsonException)
@@ -287,12 +296,12 @@ public sealed partial class AcpBridgeHandler(
                 if (root.ValueKind != JsonValueKind.Object
                     || root.TryGetProperty("method", out _)
                     || !root.TryGetProperty("id", out var idEl)
-                    || idEl.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
+                    || GetRequestKey(idEl) is not { } requestKey)
                 {
                     return;
                 }
 
-                if (!_pendingSessionInits.TryRemove(idEl.GetRawText(), out var trackedSessionId))
+                if (!_pendingSessionInits.TryRemove(requestKey, out var trackedSessionId))
                     return;
 
                 var succeeded = root.TryGetProperty("result", out var resultEl);

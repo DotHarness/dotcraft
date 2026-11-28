@@ -48,7 +48,7 @@ public static class AcpToolKindMapper
         return ToolKindMap.GetValueOrDefault(toolName, ToolKind.Other);
     }
 
-    public static List<string>? ExtractFilePaths(string toolName, JsonElement arguments, string? basePath = null)
+    public static List<string>? ExtractFilePaths(string toolName, JsonElement arguments)
     {
         if (arguments.ValueKind != JsonValueKind.Object)
             return null;
@@ -63,35 +63,12 @@ public static class AcpToolKindMapper
             if (arguments.TryGetProperty(key, out var val)
                 && val.ValueKind == JsonValueKind.String
                 && val.GetString() is { Length: > 0 } path
-                && TryResolveAbsolutePath(path, basePath) is { } resolved)
+                && Path.IsPathFullyQualified(path))
             {
-                paths.Add(resolved);
+                paths.Add(path);
             }
         }
 
         return paths.Count > 0 ? paths : null;
-    }
-
-    private static string? TryResolveAbsolutePath(string path, string? basePath)
-    {
-        if (Path.IsPathFullyQualified(path))
-            return path;
-
-        if (!string.IsNullOrEmpty(Path.GetPathRoot(path))
-            || string.IsNullOrWhiteSpace(basePath)
-            || !Path.IsPathFullyQualified(basePath))
-        {
-            return null;
-        }
-
-        try
-        {
-            var resolved = Path.GetFullPath(path, basePath);
-            return Path.IsPathFullyQualified(resolved) ? resolved : null;
-        }
-        catch
-        {
-            return null;
-        }
     }
 }

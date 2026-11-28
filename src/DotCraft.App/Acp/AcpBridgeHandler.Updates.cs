@@ -119,7 +119,7 @@ public sealed partial class AcpBridgeHandler
 
                 var declaredKind = ResolveRuntimeToolKind(payload, toolName);
                 var kind = AcpToolKindMapper.GetKind(toolName, declaredKind);
-                var filePaths = AcpToolKindMapper.ExtractFilePaths(toolName, argsElement, workspacePath);
+                var filePaths = AcpToolKindMapper.ExtractFilePaths(toolName, argsElement);
                 var payloadUpdate = new SessionUpdateCase4Payload
                 {
                     ToolCallId = new(callId),

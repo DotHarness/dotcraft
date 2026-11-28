@@ -136,21 +136,14 @@ public sealed class AcpBridgeHandlerCapabilityTests
     [Fact]
     public void ToolKindMapper_ExtractFilePaths_EmitsOnlyAbsolutePaths()
     {
-        var baseDir = Path.GetFullPath(Path.GetTempPath());
-        var expectedResolved = Path.GetFullPath(Path.Combine("src", "Program.cs"), baseDir);
-        var relArgs = JsonSerializer.SerializeToElement(new { path = "src/Program.cs" });
+        var absolutePath = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "Program.cs"));
 
-        var resolved = AcpToolKindMapper.ExtractFilePaths("ReadFile", relArgs, baseDir);
-        Assert.NotNull(resolved);
-        Assert.Equal([expectedResolved], resolved);
+        Assert.Null(AcpToolKindMapper.ExtractFilePaths("ReadFile", JsonSerializer.SerializeToElement(new { path = "src/Program.cs" })));
+        Assert.Null(AcpToolKindMapper.ExtractFilePaths("ReadFile", JsonSerializer.SerializeToElement(new { path = "~/notes.txt" })));
 
-        Assert.Null(AcpToolKindMapper.ExtractFilePaths("ReadFile", relArgs));
-        Assert.Null(AcpToolKindMapper.ExtractFilePaths("ReadFile", relArgs, "relative/workspace"));
-
-        var absArgs = JsonSerializer.SerializeToElement(new { path = expectedResolved });
-        var abs = AcpToolKindMapper.ExtractFilePaths("EditFile", absArgs);
+        var abs = AcpToolKindMapper.ExtractFilePaths("EditFile", JsonSerializer.SerializeToElement(new { path = absolutePath }));
         Assert.NotNull(abs);
-        Assert.Equal([expectedResolved], abs);
+        Assert.Equal([absolutePath], abs);
     }
 
     private static ClientCapabilities CreateRuntimeToolsCapabilities(
