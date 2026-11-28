@@ -176,6 +176,35 @@ public sealed class McpToolApprovalModeTests
         }
     }
 
+    [Fact]
+    public void Reconnect_ExpandsEnvironmentReferencesLikeStartupWhileScopedReadsKeepThem()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"mcp_scope_expand_{Guid.NewGuid():N}");
+        var variable = $"DOTCRAFT_TEST_TOOL_{Guid.NewGuid():N}";
+        Directory.CreateDirectory(root);
+        Environment.SetEnvironmentVariable(variable, "export");
+        try
+        {
+            var workspacePath = Path.Combine(root, "workspace.json");
+            File.WriteAllText(workspacePath, $$"""
+                { "McpServers": { "inventory": { "Command": "inventory-mcp-server", "DisabledTools": ["${{{variable}}}"] } } }
+                """);
+
+            var loaded = Assert.Single(AppConfig.LoadWithGlobalFallback(workspacePath, Path.Combine(root, "user.json")).McpServers);
+            var reconnected = Assert.Single(McpScopeStore.Effective(workspacePath, userPath: null));
+            var stored = Assert.Single(McpScopeStore.Read(workspacePath, "workspace"));
+
+            Assert.Equal(["export"], loaded.DisabledTools!);
+            Assert.Equal(["export"], reconnected.DisabledTools!);
+            Assert.Equal([$"${{{variable}}}"], stored.DisabledTools!);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(variable, null);
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     private sealed class FakeClient : IAsyncDisposable
     {
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
