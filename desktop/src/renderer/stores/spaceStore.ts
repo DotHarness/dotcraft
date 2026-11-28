@@ -169,6 +169,14 @@ export function startSpaceTracking(): () => void {
         : { kind: 'thread' }
       const last = state.last[active.space.spaceKey]
       const sameLast = JSON.stringify(last) === JSON.stringify(location)
+      const enteredConductor =
+        active.space.pluginId === 'oratorio' &&
+        active.space.id === 'conductor' &&
+        active.location.kind === 'thread' &&
+        (previous?.space.spaceKey !== active.space.spaceKey || previous.location.kind !== 'thread')
+      if (enteredConductor) {
+        void window.api?.threadTasks?.conductorEntered?.().catch(() => {})
+      }
       if (state.entering || (!state.returnTo && state.outside) || !sameLast) {
         useSpaceStore.setState({
           entering: false,

@@ -6,6 +6,7 @@ import { useConversationStore } from '../../stores/conversationStore'
 import { writtenFileSummaries } from '../../stores/turnDiffs'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useSourceControlStore } from '../../stores/sourceControlStore'
+import { useOwnedThread } from '../../stores/ownedThreadsStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { addToast, useToastStore } from '../../stores/toastStore'
 import { CommitDialog } from '../detail/CommitDialog'
@@ -23,6 +24,7 @@ import { isSubAgentThread } from '../../utils/subAgentThreads'
 import { canForkThread, canForkWorktree, runThreadFork } from '../../utils/threadFork'
 import { openSideChat, useCanOpenSideChat } from '../../utils/sideChat'
 import { archiveThreadWithUndo } from '../../utils/threadArchive'
+import { buildOwnedThreadMenuEntries } from '../../utils/ownedThreadLifecycle'
 import { buildOpenInSubmenu, useOpenTargets } from '../../utils/openTargets'
 import { isDefaultChatWorkspacePathCandidate } from '../../../shared/defaultChatWorkspace'
 import { SummaryHeaderAction } from './summary/SummaryHeaderAction'
@@ -50,6 +52,7 @@ export function ThreadHeader({
   const [renameValue, setRenameValue] = useState(threadName)
   const renameInputRef = useRef<HTMLInputElement>(null)
   const hasWrittenFiles = useConversationStore((s) => writtenFileSummaries(s.turnDiffs).length > 0)
+  const ownedThread = useOwnedThread(threadId)
   const activeThread = useThreadStore((s) => s.activeThread)
   const pinnedThreadIds = useThreadStore((s) => s.pinnedThreadIds)
   const togglePinnedThread = useThreadStore((s) => s.togglePinnedThread)
@@ -289,7 +292,9 @@ export function ThreadHeader({
         ? t('threadHeader.noCommitTitle')
         : undefined
   const showOpenIn = !remoteWorkspace && Boolean(workspacePath)
-  const menuItems: ContextMenuEntry[] = [
+  const menuItems: ContextMenuEntry[] = ownedThread
+    ? buildOwnedThreadMenuEntries(ownedThread, t, () => setMenuPosition(null))
+    : [
     ...(showOpenIn
       ? [buildOpenInSubmenu({
           view: openTargets,
@@ -410,12 +415,12 @@ export function ThreadHeader({
             }}
           >
             <ActionTooltip
-              label={t('threadHeader.renameTitle')}
+              label={ownedThread ? '' : t('threadHeader.renameTitle')}
               placement="bottom"
               wrapperStyle={{ flex: '0 1 auto', minWidth: 0, maxWidth: '100%' }}
             >
               <h1
-                onDoubleClick={startRename}
+                onDoubleClick={ownedThread ? undefined : startRename}
                 style={{
                   margin: 0,
                   minWidth: 0,

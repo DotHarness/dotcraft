@@ -5030,4 +5030,12 @@ export const MESSAGES_ZH_HANS = {
   "devServers.failure.exited": "开发服务器已退出。",
   "devServers.startFailed": "无法启动开发服务器。",
   "devServers.stopFailed": "无法停止开发服务器。",
+  "conductor.pause": "暂停",
+  "conductor.resume": "恢复",
+  "conductor.paused": "已暂停",
+  "conductor.archive": "归档",
+  "conductor.archiveConfirm.title": "归档指挥家？",
+  "conductor.archiveConfirm.message": "这会归档当前指挥家对话并清空跟进列表，它发起的普通对话会保留。下次打开将从头启动新的指挥家。",
+  "conductor.archiveConfirm.confirm": "归档",
+  "conductor.lifecycle.actionFailed": "指挥家操作失败：{{error}}",
 } satisfies Partial<Record<MessageId, string>>

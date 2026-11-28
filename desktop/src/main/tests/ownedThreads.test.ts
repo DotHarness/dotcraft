@@ -100,4 +100,23 @@ describe('DesktopOwnedThreads', () => {
     expect(configuration.developerInstructions).toContain('Coordinate better.')
     expect(server.threads.size).toBe(1)
   })
+
+  it('persists paused state and removes owned records by thread id', async () => {
+    const path = statePath()
+    const server = appServer()
+    const owned = new DesktopOwnedThreads(path)
+    const created = await owned.ensure(REQUEST, server.connection)
+    expect(owned.isPaused(created.threadId)).toBe(false)
+
+    expect(owned.setPaused(created.threadId, true)).toMatchObject({ threadId: created.threadId, paused: true })
+    expect(owned.isPaused(created.threadId)).toBe(true)
+
+    const reopened = new DesktopOwnedThreads(path)
+    expect(reopened.isPaused(created.threadId)).toBe(true)
+    expect(reopened.setPaused(created.threadId, false)?.paused).toBeUndefined()
+    expect(reopened.isPaused(created.threadId)).toBe(false)
+
+    expect(reopened.removeByThreadId(created.threadId)).toMatchObject({ threadId: created.threadId })
+    expect(new DesktopOwnedThreads(path).list()).toEqual([])
+  })
 })

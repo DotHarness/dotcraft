@@ -1,6 +1,7 @@
 import { useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { PinOff } from 'lucide-react'
 import type { DesktopPluginContributionIcon } from '@dotcraft/plugin'
+import type { OwnedThreadRecord } from '../../../shared/ownedThreads'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { prefetchCoreMainView } from '../../core/coreMainViewRoutes'
 import { compareContribution, resolveDesktopPluginLabel, useDesktopPluginRegistry, type ActiveDesktopPluginSpace } from '../../plugins/desktopPluginRegistry'
@@ -9,8 +10,9 @@ import { useOwnedThreadsStore } from '../../stores/ownedThreadsStore'
 import { useSidebarDestinationsStore } from '../../stores/sidebarDestinationsStore'
 import { enterSpace, leaveSpace, useActiveSpace } from '../../stores/spaceStore'
 import { useUIStore } from '../../stores/uiStore'
+import { buildOwnedThreadMenuEntries } from '../../utils/ownedThreadLifecycle'
 import { resolveDesktopPluginIcon } from '../desktopPlugins/DesktopPluginIcon'
-import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
+import { ContextMenu, type ContextMenuEntry, type ContextMenuPosition } from '../ui/ContextMenu'
 import { SidebarNavIcon } from './SidebarNavIcon'
 import { ThreadStatusIndicator } from './ThreadStatusIndicator'
 
@@ -24,6 +26,7 @@ export interface SidebarDestination {
   select: () => void
   prefetch?: () => void
   space?: ActiveDesktopPluginSpace
+  ownedThread?: OwnedThreadRecord
 }
 
 const PINNED_BY_DEFAULT = new Set<string>(['agents', 'skills'])
@@ -55,17 +58,16 @@ export function useSidebarDestinations(): { pinned: SidebarDestination[]; more: 
     ...spaces.map((space) => {
       const active = activeSpace?.space.spaceKey === space.spaceKey
       const owned = ownedThreads.find((record) => record.pluginId === space.pluginId && record.space === space.id)
-      const viewingOwnedThread = active && activeSpace?.location.kind === 'thread' && activeSpace.location.threadId === owned?.threadId
       return {
         ...space,
         destination: {
           id: space.spaceKey,
           label: resolveDesktopPluginLabel(space.label, locale),
           icon: <DesktopPluginIcon icon={space.icon} />,
-          status: owned ? (
+          status: owned && !active ? (
             <ThreadStatusIndicator
               threadId={owned.threadId}
-              active={viewingOwnedThread}
+              active={false}
               unreadVariant="count"
               includeLinkedChats
             />
@@ -76,7 +78,8 @@ export function useSidebarDestinations(): { pinned: SidebarDestination[]; more: 
             if (active) void leaveSpace()
             else enterSpace(space)
           },
-          space
+          space,
+          ownedThread: owned
         }
       }
     }),
@@ -109,27 +112,44 @@ export function useSidebarDestinations(): { pinned: SidebarDestination[]; more: 
 }
 
 export function useUnpinContextMenu(): {
-  open: (event: ReactMouseEvent, id: string) => void
+  open: (event: ReactMouseEvent, destination: Pick<SidebarDestination, 'id' | 'ownedThread'>) => void
   menu: JSX.Element | null
 } {
   const t = useT()
   const setPinned = useSidebarDestinationsStore((s) => s.setPinned)
-  const [target, setTarget] = useState<{ id: string; position: ContextMenuPosition } | null>(null)
+  const ownedThreads = useOwnedThreadsStore((s) => s.records)
+  const [target, setTarget] = useState<{ id: string; ownedThreadId?: string; position: ContextMenuPosition } | null>(null)
+
+  const liveOwned = target?.ownedThreadId
+    ? ownedThreads.find((record) => record.threadId === target.ownedThreadId)
+    : undefined
+  const items: ContextMenuEntry[] = target
+    ? [
+        ...(liveOwned
+          ? [...buildOwnedThreadMenuEntries(liveOwned, t, () => setTarget(null)), { type: 'separator' as const }]
+          : []),
+        {
+          label: t('sidebar.unpinFromSidebar'),
+          icon: <PinOff size={14} aria-hidden />,
+          onClick: () => setPinned(target.id, false)
+        }
+      ]
+    : []
 
   return {
-    open: (event, id) => {
+    open: (event, destination) => {
       event.preventDefault()
-      setTarget({ id, position: { x: event.clientX, y: event.clientY } })
+      setTarget({
+        id: destination.id,
+        ownedThreadId: destination.ownedThread?.threadId,
+        position: { x: event.clientX, y: event.clientY }
+      })
     },
     menu: target && (
       <ContextMenu
         position={target.position}
         onClose={() => setTarget(null)}
-        items={[{
-          label: t('sidebar.unpinFromSidebar'),
-          icon: <PinOff size={14} aria-hidden />,
-          onClick: () => setPinned(target.id, false)
-        }]}
+        items={items}
       />
     )
   }

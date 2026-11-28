@@ -98,6 +98,9 @@ export function installDesktopApiMock(overrides: ApiOverrides<Api>): Api {
       linkedChats: async () => [],
       onLinkedChatsChanged: () => () => undefined,
       listOwned: async () => [],
+      setOwnedPaused: async () => null,
+      archiveOwned: async () => true,
+      conductorEntered: async () => false,
       onOwnedChanged: () => () => undefined,
       ...overrides.threadTasks
     },

@@ -54,10 +54,20 @@ interface Observation {
   refreshHeader: boolean
   inspectLatest: boolean
   endedTurns: Set<string>
+  pendingWaits: Map<string, { turnId: string; kind: LinkedChatWait; timer: ReturnType<typeof setTimeout> }>
   observing: boolean
   observeAgain: boolean
   delivering: boolean
   deliverAgain: boolean
+}
+
+export const DEFAULT_WAIT_SETTLE_MS = 10_000
+export const DEFAULT_COMPLETION_BATCH_MS = 1_500
+
+export interface DesktopLinkedChatsOptions {
+  waitSettleMs?: number
+  completionBatchMs?: number
+  isParentPaused?: (parent: LinkedChatRef) => boolean
 }
 
 const WAIT_ACTION: Record<LinkedChatWait, string> = {
@@ -70,8 +80,21 @@ export class DesktopLinkedChats {
   private readonly store: LinkedChatStore
   private readonly projects = new Map<string, Map<LinkedChatConnection, ProjectConnection>>()
   private readonly observations = new WeakMap<StoredLinkedChat, Observation>()
-  constructor(filePath: string | null, private readonly onConnectionNeedsChanged?: () => void, onLinksChanged?: () => void) {
+  private readonly completionBatches = new Map<string, ReturnType<typeof setTimeout>>()
+  private readonly waitSettleMs: number
+  private readonly completionBatchMs: number
+  private readonly isParentPaused?: (parent: LinkedChatRef) => boolean
+
+  constructor(
+    filePath: string | null,
+    private readonly onConnectionNeedsChanged?: () => void,
+    onLinksChanged?: () => void,
+    options?: DesktopLinkedChatsOptions
+  ) {
     this.store = new LinkedChatStore(filePath, onLinksChanged)
+    this.waitSettleMs = options?.waitSettleMs ?? DEFAULT_WAIT_SETTLE_MS
+    this.completionBatchMs = options?.completionBatchMs ?? DEFAULT_COMPLETION_BATCH_MS
+    this.isParentPaused = options?.isParentPaused
   }
 
   link(parent: LinkedChatRef, child: LinkedChatChild): void {
@@ -96,9 +119,38 @@ export class DesktopLinkedChats {
   }
 
   unfollow(link: LinkedChat): boolean {
+    const stored = this.store.get(link)
     if (!this.store.removeFollow(link)) return false
+    if (stored) this.clearPendingWaits(stored)
     this.onConnectionNeedsChanged?.()
     return true
+  }
+
+  removeForParent(parentThreadId: string): boolean {
+    for (const link of this.store.all()) {
+      if (link.parent.threadId !== parentThreadId) continue
+      this.clearPendingWaits(link)
+      this.clearCompletionBatch(link.parent)
+    }
+    const changed = this.store.removeForParent(parentThreadId)
+    if (changed) this.onConnectionNeedsChanged?.()
+    return changed
+  }
+
+  flushParent(parentThreadId: string): void {
+    const parents = new Map<string, LinkedChatRef>()
+    for (const link of this.store.all()) {
+      if (link.parent.threadId === parentThreadId && link.pending.length > 0) {
+        parents.set(linkedChatRefKey(link.parent), link.parent)
+      }
+    }
+    for (const parent of parents.values()) {
+      this.clearCompletionBatch(parent)
+      this.flushCompletionBatch(parent)
+      for (const link of this.store.all()) {
+        if (sameChat(link.parent, parent) && link.pending.length > 0) this.deliver(link)
+      }
+    }
   }
 
   private track(link: StoredLinkedChat): void {
@@ -152,7 +204,8 @@ export class DesktopLinkedChats {
       const state = this.observations.get(link)
       return (link.child.projectId === connection.projectId &&
         (holdsForStatus(link.status) || state?.observing)) ||
-        (link.parent.projectId === connection.projectId && state?.delivering)
+        (link.parent.projectId === connection.projectId &&
+          (state?.delivering || this.completionBatches.has(linkedChatRefKey(link.parent))))
     })
   }
 
@@ -227,11 +280,27 @@ export class DesktopLinkedChats {
     if (!state) {
       state = {
         revision: 0, refreshHeader: false, inspectLatest: false, endedTurns: new Set(),
+        pendingWaits: new Map(),
         observing: false, observeAgain: false, delivering: false, deliverAgain: false
       }
       this.observations.set(link, state)
     }
     return state
+  }
+
+  private clearPendingWaits(link: StoredLinkedChat): void {
+    const state = this.observations.get(link)
+    if (!state) return
+    for (const pending of state.pendingWaits.values()) clearTimeout(pending.timer)
+    state.pendingWaits.clear()
+  }
+
+  private clearCompletionBatch(parent: LinkedChatRef): void {
+    const key = linkedChatRefKey(parent)
+    const timer = this.completionBatches.get(key)
+    if (!timer) return
+    clearTimeout(timer)
+    this.completionBatches.delete(key)
   }
 
   private primary(projectId: string): ProjectConnection | undefined {
@@ -290,6 +359,7 @@ export class DesktopLinkedChats {
     const previous = state.runtime
     state.revision++
     state.runtime = runtime
+    this.pruneResolvedPendingWaits(state, runtime)
     const ended = previous?.activeTurnId
     if (ended && ended !== runtime.activeTurnId && ended !== link.lastReportedTurnId) state.endedTurns.add(ended)
     if ((!runtime.activeTurnId && !runtime.hasBackgroundWork) ||
@@ -301,7 +371,16 @@ export class DesktopLinkedChats {
       if (runtime.waitingOnInput) this.stageWait(link, runtime.activeTurnId, 'input')
     }
     this.updateStatus(link, state)
-    if (link.pending.length) this.deliver(link)
+    if (link.pending.length && !this.completionBatches.has(linkedChatRefKey(link.parent))) this.deliver(link)
+  }
+
+  private pruneResolvedPendingWaits(state: Observation, runtime: RuntimeSnapshot): void {
+    for (const [key, entry] of state.pendingWaits.entries()) {
+      if (!isWaitStillActive(runtime, entry.turnId, entry.kind)) {
+        clearTimeout(entry.timer)
+        state.pendingWaits.delete(key)
+      }
+    }
   }
 
   private async inspectTurns(project: ProjectConnection, link: StoredLinkedChat, state: Observation): Promise<void> {
@@ -386,11 +465,28 @@ export class DesktopLinkedChats {
 
   private stageWait(link: StoredLinkedChat, turnId: string, kind: LinkedChatWait, result?: string): void {
     if (link.reportedWaits?.turnId === turnId && link.reportedWaits.kinds.includes(kind)) return
-    this.stage(link, {
-      notificationId: reportId(link, turnId, kind), turnId, status: 'waitingForInput', wait: kind,
+    const notificationId = reportId(link, turnId, kind)
+    if (link.pending.some(candidate => candidate.notificationId === notificationId)) return
+    const report: ChatReport = {
+      notificationId, turnId, status: 'waitingForInput', wait: kind,
       summary: `${describeChat(link)} is waiting for ${WAIT_ACTION[kind]}.`,
       result
-    })
+    }
+    if (this.waitSettleMs <= 0) {
+      this.stage(link, report)
+      return
+    }
+    const state = this.observation(link)
+    const waitKey = `${turnId}:${kind}`
+    if (state.pendingWaits.has(waitKey)) return
+    const timer = setTimeout(() => {
+      state.pendingWaits.delete(waitKey)
+      if (this.store.get(link) !== link) return
+      if (!isWaitStillActive(state.runtime, turnId, kind)) return
+      this.stage(link, report)
+    }, this.waitSettleMs)
+    timer.unref?.()
+    state.pendingWaits.set(waitKey, { turnId, kind, timer })
   }
 
   private stageEnding(link: StoredLinkedChat, turn: LinkedTurn): void {
@@ -411,12 +507,84 @@ export class DesktopLinkedChats {
     if (link.pending.some(candidate => candidate.notificationId === report.notificationId)) return
     link.pending.push(report)
     this.store.save()
+    if (!report.wait && this.shouldBatchCompletion(link)) {
+      this.scheduleCompletionBatch(link.parent)
+      this.onConnectionNeedsChanged?.()
+      return
+    }
     this.deliver(link)
     this.onConnectionNeedsChanged?.()
   }
 
+  private shouldBatchCompletion(link: StoredLinkedChat): boolean {
+    if (this.completionBatchMs <= 0 || this.isParentPaused?.(link.parent)) return false
+    const parentKey = linkedChatRefKey(link.parent)
+    if (this.completionBatches.has(parentKey)) return true
+    return this.store.all().some(sibling =>
+      sibling !== link &&
+      sameChat(sibling.parent, link.parent) &&
+      (sibling.status === 'running' || sibling.pending.some(report => !report.wait))
+    )
+  }
+
+  private scheduleCompletionBatch(parent: LinkedChatRef): void {
+    const key = linkedChatRefKey(parent)
+    if (this.completionBatches.has(key)) return
+    const timer = setTimeout(() => {
+      this.completionBatches.delete(key)
+      this.flushCompletionBatch(parent)
+    }, this.completionBatchMs)
+    timer.unref?.()
+    this.completionBatches.set(key, timer)
+  }
+
+  private flushCompletionBatch(parent: LinkedChatRef): void {
+    if (this.isParentPaused?.(parent)) return
+    const project = this.primary(parent.projectId)
+    if (!project) return
+    const ready = this.store.all().filter(link =>
+      sameChat(link.parent, parent) &&
+      this.current(project, link) &&
+      !this.observation(link).delivering &&
+      link.pending.length > 0 &&
+      !link.pending[0].wait
+    )
+    if (ready.length === 0) return
+    if (ready.length === 1) {
+      this.deliver(ready[0])
+      return
+    }
+    const entries = ready.map(link => ({ link, state: this.observation(link), report: link.pending[0] }))
+    for (const { state } of entries) state.delivering = true
+    void (async () => {
+      const sent = await this.sendBatchedReports(project, parent, entries)
+      if (sent === true) {
+        for (const { link, report } of entries) {
+          if (this.store.get(link) !== link || link.pending[0] !== report) continue
+          link.pending.shift()
+          if (!isEarlier(report.turnStartedAt, link.lastReportedTurnStartedAt)) {
+            link.lastReportedTurnId = report.turnId
+            link.lastReportedTurnStartedAt = report.turnStartedAt
+          }
+        }
+        this.store.save()
+      } else if (sent === 'retry') {
+        for (const { state } of entries) state.deliverAgain = true
+      }
+    })().finally(() => {
+      for (const { link, state } of entries) {
+        const again = state.deliverAgain || link.pending.length > 0
+        state.delivering = false
+        state.deliverAgain = false
+        if (again && this.store.get(link) === link) this.deliver(link)
+      }
+      this.onConnectionNeedsChanged?.()
+    })
+  }
+
   private deliver(link: StoredLinkedChat): void {
     if (!link.pending.length) return
+    if (this.isParentPaused?.(link.parent)) return
     const state = this.observation(link)
     if (state.delivering) {
       state.deliverAgain = true
@@ -427,7 +595,7 @@ export class DesktopLinkedChats {
     state.delivering = true
     void (async () => {
       let retryDelayMs = 1000
-      while (this.current(project, link) && link.pending.length) {
+      while (this.current(project, link) && link.pending.length && !this.isParentPaused?.(link.parent)) {
         const report = link.pending[0]
         const sent = await this.sendReport(project, link, report)
         if (!this.current(project, link) || sent === false) return
@@ -454,6 +622,39 @@ export class DesktopLinkedChats {
       if (again) this.deliver(link)
       this.onConnectionNeedsChanged?.()
     })
+  }
+
+  private async sendBatchedReports(
+    project: ProjectConnection,
+    parent: LinkedChatRef,
+    entries: Array<{ link: StoredLinkedChat; report: ChatReport }>
+  ): Promise<boolean | 'retry'> {
+    const parentOk = await this.checkParent(project, parent)
+    if (parentOk !== true) return parentOk
+    if (this.primary(parent.projectId) !== project) return false
+    const notificationId = JSON.stringify(['batch', ...entries.map(e => e.report.notificationId).sort()])
+    const status: LinkedChatOutcome = entries.some(e => e.report.status === 'failed')
+      ? 'failed'
+      : entries.some(e => e.report.status === 'completed')
+        ? 'completed'
+        : 'stopped'
+    const summary = entries.map(e => e.report.summary).join(' ')
+    const combinedResult = formatBatchedResult(entries)
+    try {
+      await project.connection.request('turn/notify', {
+        threadId: parent.threadId,
+        notificationId,
+        refId: entries[0].link.child.threadId,
+        label: `${entries.length} chats finished`,
+        status,
+        summary,
+        ...(combinedResult ? { result: combinedResult } : {})
+      })
+      return true
+    } catch (error) {
+      if (this.primary(parent.projectId) === project && isThreadNotFound(error)) this.remove(parent)
+      return isTransientDeliveryError(error) ? 'retry' : false
+    }
   }
 
   private async sendReport(project: ProjectConnection, link: StoredLinkedChat, report: ChatReport): Promise<boolean | 'retry'> {
@@ -510,9 +711,31 @@ export class DesktopLinkedChats {
   }
 
   private remove(ref: LinkedChatRef): void {
-    this.primary(ref.projectId)?.parentChecks.delete(linkedChatRefKey(ref))
+    const refKey = linkedChatRefKey(ref)
+    for (const link of this.store.all()) {
+      if (linkedChatRefKey(link.parent) === refKey || linkedChatRefKey(link.child) === refKey) {
+        this.clearPendingWaits(link)
+      }
+    }
+    this.clearCompletionBatch(ref)
+    this.primary(ref.projectId)?.parentChecks.delete(refKey)
     if (this.store.remove(ref)) this.onConnectionNeedsChanged?.()
   }
+}
+
+function isWaitStillActive(runtime: RuntimeSnapshot | undefined, turnId: string, kind: LinkedChatWait): boolean {
+  if (!runtime) return false
+  if (kind === 'approval') return runtime.waitingOnApproval === true && runtime.activeTurnId === turnId
+  if (kind === 'input') return runtime.waitingOnInput === true && runtime.activeTurnId === turnId
+  return runtime.waitingOnPlanConfirmation === true
+}
+
+function formatBatchedResult(entries: Array<{ link: StoredLinkedChat; report: ChatReport }>): string | undefined {
+  const parts = entries
+    .filter(e => Boolean(e.report.result))
+    .map(e => `[${e.link.child.projectName} · ${e.link.child.title}]\n${e.report.result}`)
+  if (parts.length === 0) return undefined
+  return parts.join('\n\n').slice(0, 2000).replace(/[\uD800-\uDBFF]$/u, '')
 }
 
 function sameChat(left: LinkedChatRef, right: LinkedChatRef): boolean {

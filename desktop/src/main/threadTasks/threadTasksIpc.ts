@@ -50,6 +50,9 @@ export interface ThreadTasksIpcHost {
   ownedThreads: DesktopOwnedThreads
   getConnection(threadId?: string): ThreadTaskConnection | null
   ensureOwnedThread(request: OwnedThreadRequest): Promise<OwnedThreadRecord>
+  setOwnedThreadPaused?(threadId: string, paused: boolean): OwnedThreadRecord | null
+  archiveOwnedThread?(threadId: string): Promise<boolean>
+  notifyConductorEntered?(): Promise<boolean>
 }
 
 export function registerThreadTasksIpc(host: ThreadTasksIpcHost, ipc: WindowIpcMain): void {
@@ -102,6 +105,22 @@ export function registerThreadTasksIpc(host: ThreadTasksIpcHost, ipc: WindowIpcM
 
   ipc.handle('threadTasks:owned-ensure', (_event, value: unknown): Promise<OwnedThreadRecord> => {
     return host.ensureOwnedThread(readOwnedThreadRequest(value))
+  })
+
+  ipc.handle('threadTasks:owned-set-paused', (_event, params: unknown): OwnedThreadRecord | null => {
+    const record = isRecord(params) ? params : {}
+    const threadId = requireString(record.threadId, 'threadId')
+    if (typeof record.paused !== 'boolean') throw new Error('paused must be a boolean.')
+    return host.setOwnedThreadPaused?.(threadId, record.paused) ?? null
+  })
+
+  ipc.handle('threadTasks:owned-archive', async (_event, value: unknown): Promise<boolean> => {
+    const threadId = requireString(value, 'threadId')
+    return (await host.archiveOwnedThread?.(threadId)) ?? false
+  })
+
+  ipc.handle('threadTasks:conductor-entered', async (): Promise<boolean> => {
+    return (await host.notifyConductorEntered?.()) ?? false
   })
 
   ipc.handle('threadTasks:answer-offer', async (_event, params: unknown): Promise<ThreadTaskActionResult> => {

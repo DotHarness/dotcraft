@@ -10,6 +10,11 @@
   flex-shrink: 0;
 }
 
+.dc-status-indicator__icon {
+  display: block;
+  color: var(--text-dimmed);
+}
+
 .dc-status-indicator__dot {
   width: 8px;
   height: 8px;

@@ -1436,6 +1436,15 @@ const api = {
     ensureOwned(request: OwnedThreadRequest): Promise<OwnedThreadRecord> {
       return ipcRenderer.invoke('threadTasks:owned-ensure', request)
     },
+    setOwnedPaused(threadId: string, paused: boolean): Promise<OwnedThreadRecord | null> {
+      return ipcRenderer.invoke('threadTasks:owned-set-paused', { threadId, paused })
+    },
+    archiveOwned(threadId: string): Promise<boolean> {
+      return ipcRenderer.invoke('threadTasks:owned-archive', threadId)
+    },
+    conductorEntered(): Promise<boolean> {
+      return ipcRenderer.invoke('threadTasks:conductor-entered')
+    },
     onOwnedChanged(listener: (records: OwnedThreadRecord[]) => void): UnsubscribeFn {
       const wrapped = (_event: Electron.IpcRendererEvent, records: OwnedThreadRecord[]): void => listener(records)
       ipcRenderer.on(OWNED_THREADS_CHANGED_CHANNEL, wrapped)

@@ -60,7 +60,7 @@ export function Sidebar({
             key={destination.id}
             destination={destination}
             showFeatureGuides={showFeatureGuides}
-            onContextMenu={(event) => unpinMenu.open(event, destination.id)}
+            onContextMenu={(event) => unpinMenu.open(event, destination)}
           />
         ))}
         <SidebarMoreMenu destinations={more} />

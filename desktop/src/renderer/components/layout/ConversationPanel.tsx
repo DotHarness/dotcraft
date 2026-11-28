@@ -7,11 +7,13 @@ import type {
 } from '@dotcraft/plugin'
 import { useT } from '../../contexts/LocaleContext'
 import { useThreadStore } from '../../stores/threadStore'
+import { useOwnedThread } from '../../stores/ownedThreadsStore'
 import { selectLatestCreatePlanTurnId, useConversationStore, type PendingApproval } from '../../stores/conversationStore'
 import { useConnectionStore } from '../../stores/connectionStore'
 import { useThreadRestorationStore } from '../../stores/threadRestoration'
 import { useUIStore } from '../../stores/uiStore'
 import { ThreadHeader } from '../conversation/ThreadHeader'
+import { OwnedThreadPausedBar } from '../conversation/OwnedThreadPausedBar'
 import { MessageStream } from '../conversation/MessageStream'
 import { InputComposer, type InputComposerSubmitPayload } from '../conversation/InputComposer'
 import { PlanApprovalComposer } from '../conversation/PlanApprovalComposer'
@@ -77,6 +79,7 @@ export function ConversationPanel({
   const [composerPrefillRequest, setComposerPrefillRequest] = useState<{ id: number; text: string } | null>(null)
   const activeThread = useThreadStore((s) => s.activeThread?.id === s.activeThreadId ? s.activeThread : null)
   const activeThreadId = useThreadStore((s) => s.activeThreadId)
+  const ownedThread = useOwnedThread(activeThreadId)
   const conversationReady = useConversationStore.useThreadId() === activeThreadId
   const activeThreadLoadError = useThreadStore((s) => s.activeThreadLoadError)
   const openingSummary = useThreadStore((s) =>
@@ -392,6 +395,41 @@ export function ConversationPanel({
             desktopPluginSurfaceContext={desktopPluginSurfaceContext}
           />
         </DesktopPluginSurface>
+      ) : ownedThread?.paused ? (
+        <OwnedThreadPausedBar record={ownedThread}>
+          <InputComposer
+            threadId={thread.id}
+            submitOverride={creating ? parkWhileCreating : worktreeCreation ? waitForWorktree : openingThread || interactionLoading ? waitForThread : undefined}
+            placeholder={worktreeCreation ? t('worktreeCreation.composerPlaceholder') : undefined}
+            workspacePath={threadStateWorkspacePath}
+            fileWorkspacePath={activeEffectiveWorkspacePath}
+            remoteWorkspace={remoteWorkspace}
+            minimalChrome={minimalComposer || isAgentBuilder}
+            mascotName={mascotName}
+            variant={variant}
+            prefillRequest={composerPrefillRequest}
+            onBeforeSend={onBeforeSend}
+            captureTurnSettings={modelControls.captureTurnSettings}
+            onOptimisticEcho={onOptimisticEcho}
+            modelName={modelControls.modelName}
+            providerId={modelControls.providerId}
+            providerOptions={modelControls.providerOptions}
+            modelOptions={modelControls.modelOptions}
+            modelCatalog={modelControls.modelCatalog}
+            reasoningValue={modelControls.reasoningValue}
+            speedValue={modelControls.speedValue}
+            modelLoading={modelControls.modelLoading}
+            modelDisabled={modelControls.modelDisabled}
+            modelListUnsupportedEndpoint={modelControls.modelListUnsupportedEndpoint}
+            modelCatalogError={modelControls.modelCatalogError}
+            modelCatalogErrorMessage={modelControls.modelCatalogErrorMessage}
+            onModelChange={modelControls.onModelChange}
+            onProviderChange={modelControls.onProviderChange}
+            onReasoningChange={modelControls.onReasoningChange}
+            onSpeedChange={modelControls.onSpeedChange}
+            onModelCatalogRetry={modelControls.onModelCatalogRetry}
+          />
+        </OwnedThreadPausedBar>
       ) : (
         <InputComposer
           threadId={thread.id}

@@ -36,6 +36,42 @@ export class DesktopOwnedThreads {
     return [...this.records.values()].map((record) => ({ ...record }))
   }
 
+  findByThreadId(threadId: string): OwnedThreadRecord | undefined {
+    for (const record of this.records.values()) {
+      if (record.threadId === threadId) return { ...record }
+    }
+    return undefined
+  }
+
+  isPaused(threadId: string): boolean {
+    for (const record of this.records.values()) {
+      if (record.threadId === threadId) return record.paused === true
+    }
+    return false
+  }
+
+  setPaused(threadId: string, paused: boolean): OwnedThreadRecord | null {
+    for (const record of this.records.values()) {
+      if (record.threadId !== threadId) continue
+      const next: OwnedThreadRecord = paused
+        ? { ...record, paused: true }
+        : stripPaused(record)
+      return this.save(next)
+    }
+    return null
+  }
+
+  removeByThreadId(threadId: string): OwnedThreadRecord | null {
+    for (const [key, record] of this.records.entries()) {
+      if (record.threadId !== threadId) continue
+      this.records.delete(key)
+      this.persist()
+      this.onChanged?.(this.list())
+      return { ...record }
+    }
+    return null
+  }
+
   ensure(request: OwnedThreadRequest, connection: OwnedThreadConnection): Promise<OwnedThreadRecord> {
     const key = recordKey(request)
     const existing = this.pending.get(key)
@@ -85,19 +121,27 @@ export class DesktopOwnedThreads {
     const previous = this.records.get(recordKey(record))
     this.records.set(recordKey(record), record)
     if (JSON.stringify(previous) === JSON.stringify(record)) return { ...record }
-    if (this.filePath) {
-      try {
-        mkdirSync(dirname(this.filePath), { recursive: true })
-        const temporary = `${this.filePath}.tmp`
-        writeFileSync(temporary, JSON.stringify({ records: this.list() }), 'utf8')
-        renameSync(temporary, this.filePath)
-      } catch (error) {
-        console.warn('[ownedThreads] failed to save owned threads', error)
-      }
-    }
+    this.persist()
     this.onChanged?.(this.list())
     return { ...record }
   }
+
+  private persist(): void {
+    if (!this.filePath) return
+    try {
+      mkdirSync(dirname(this.filePath), { recursive: true })
+      const temporary = `${this.filePath}.tmp`
+      writeFileSync(temporary, JSON.stringify({ records: this.list() }), 'utf8')
+      renameSync(temporary, this.filePath)
+    } catch (error) {
+      console.warn('[ownedThreads] failed to save owned threads', error)
+    }
+  }
+}
+
+function stripPaused(record: OwnedThreadRecord): OwnedThreadRecord {
+  const { paused: _ignored, ...rest } = record
+  return rest
 }
 
 function ownedConfig(config: OwnedThreadConfig): Record<string, unknown> {

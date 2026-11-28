@@ -66,4 +66,30 @@ describe('conductorProactive', () => {
     expect(waitingA.noteworthy).toBe(true)
     expect(waitingA.fingerprint).toBe(waitingB.fingerprint)
   })
+
+  it('flags newly finished unread chats in running projects and deduplicates them by fingerprint', () => {
+    const finished = buildProactiveSignal(
+      [],
+      [],
+      'conductor-1',
+      [{ id: 't-finished', projectId: 'repo', lastActiveAt: '2026-11-28T13:00:00.000Z' }]
+    )
+    expect(finished.noteworthy).toBe(true)
+
+    const repeated = buildProactiveSignal(
+      [],
+      [],
+      'conductor-1',
+      [{ id: 't-finished', projectId: 'repo', lastActiveAt: '2026-11-28T13:00:00.000Z' }]
+    )
+    expect(repeated.fingerprint).toBe(finished.fingerprint)
+
+    const ignoredSelf = buildProactiveSignal(
+      [],
+      [],
+      'conductor-1',
+      [{ id: 'conductor-1', projectId: 'chats', lastActiveAt: '2026-11-28T13:00:00.000Z' }]
+    )
+    expect(ignoredSelf.noteworthy).toBe(false)
+  })
 })

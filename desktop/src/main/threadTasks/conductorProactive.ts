@@ -13,9 +13,13 @@ import type { LinkedChat } from './linkedChatStore'
 
 export const CONDUCTOR_PLUGIN_ID = 'oratorio'
 export const CONDUCTOR_KEY = 'conductor'
-export const AWAY_THRESHOLD_MS = 30 * 60 * 1000
-export const CHECKIN_COOLDOWN_MS = 15 * 60 * 1000
-const STARTUP_CHECKIN_DELAY_MS = 4_000
+export const AWAY_THRESHOLD_MS = 3 * 60 * 1000
+export const CHECKIN_COOLDOWN_MS = 45 * 1000
+const STARTUP_SETTLE_MS = 1_500
+const STARTUP_WINDOW_MS = 30_000
+const RECENT_FINISHED_LOOKBACK_MS = 30 * 60 * 1000
+
+export type ProactiveCheckInReason = 'startup' | 'return' | 'enter' | 'resume'
 
 export interface ProactiveSignal {
   noteworthy: boolean
@@ -29,6 +33,16 @@ export interface ActiveThreadDigest {
   waitingFor?: string
 }
 
+export interface RecentFinishedThreadDigest {
+  id: string
+  projectId: string
+  lastActiveAt: string
+}
+
+interface ProactiveThreadSummaryWire extends ActiveThreadSummaryWire {
+  readState?: { firstUnread?: unknown } | null
+}
+
 export function isSilentProactiveReply(text: string | null | undefined): boolean {
   const trimmed = text?.trim()
   if (!trimmed) return true
@@ -39,40 +53,51 @@ export function isSilentProactiveReply(text: string | null | undefined): boolean
 export function buildProactiveSignal(
   activeThreads: readonly ActiveThreadDigest[],
   linkedChats: readonly LinkedChat[],
-  conductorThreadId: string
+  conductorThreadId: string,
+  recentFinished: readonly RecentFinishedThreadDigest[] = []
 ): ProactiveSignal {
   const linkedIds = new Set(linkedChats.map((link) => link.child.threadId))
   const relevantActive = activeThreads
     .filter((thread) => thread.id !== conductorThreadId)
     .sort((a, b) => `${a.projectId}:${a.id}`.localeCompare(`${b.projectId}:${b.id}`))
+  const activeIds = new Set(relevantActive.map((thread) => thread.id))
   const sortedLinked = [...linkedChats].sort((a, b) =>
     `${a.child.projectId}:${a.child.threadId}`.localeCompare(`${b.child.projectId}:${b.child.threadId}`)
   )
+  const sortedFinished = recentFinished
+    .filter((thread) => thread.id !== conductorThreadId && !activeIds.has(thread.id) && !linkedIds.has(thread.id))
+    .sort((a, b) => `${a.projectId}:${a.id}`.localeCompare(`${b.projectId}:${b.id}`))
 
   const hasUnfollowedActive = relevantActive.some((thread) => !linkedIds.has(thread.id))
   const hasWaiting = relevantActive.some((thread) => thread.activeState === 'needsUser')
     || sortedLinked.some((link) => link.status === 'waitingForInput')
   const hasTerminalLinked = sortedLinked.some((link) => link.status === 'completed' || link.status === 'failed')
+  const hasRecentFinished = sortedFinished.length > 0
 
   const fingerprint = JSON.stringify({
     active: relevantActive.map((thread) => [thread.projectId, thread.id, thread.activeState, thread.waitingFor ?? '', linkedIds.has(thread.id)]),
-    linked: sortedLinked.map((link) => [link.child.projectId, link.child.threadId, link.status, link.waitingFor ?? '', link.createdAt])
+    linked: sortedLinked.map((link) => [link.child.projectId, link.child.threadId, link.status, link.waitingFor ?? '', link.createdAt]),
+    finished: sortedFinished.map((thread) => [thread.projectId, thread.id, thread.lastActiveAt])
   })
 
   return {
-    noteworthy: (relevantActive.length > 0 || sortedLinked.length > 0) && (hasUnfollowedActive || hasWaiting || hasTerminalLinked),
+    noteworthy: hasUnfollowedActive || hasWaiting || hasTerminalLinked || hasRecentFinished,
     fingerprint
   }
 }
 
-export function buildProactiveCheckInPrompt(locale: string, reason: 'startup' | 'return'): string {
+export function buildProactiveCheckInPrompt(locale: string, reason: ProactiveCheckInReason): string {
   const arrival = reason === 'startup'
     ? 'The person opened DotCraft'
-    : 'The person returned to DotCraft after being away'
+    : reason === 'enter'
+      ? 'The person opened Oratorio Conductor'
+      : reason === 'resume'
+        ? 'The person resumed Oratorio Conductor'
+        : 'The person returned to DotCraft after being away'
   return [
     `${arrival} (interface locale: ${locale}).`,
     'Check active chats across running projects with ListThreads (activeOnly: true) and follow any unlinked active chats with FollowThread.',
-    'Read active or newly completed chats with ReadThread as needed to verify their status.',
+    'Also check recent unread completed chats in running projects with ListThreads and ReadThread as needed so newly finished work is not missed.',
     `If there is something new worth telling the person, reply concisely in ${locale} in 1-3 lines, listing chats waiting on the person first and summarizing completed, failed, or running updates.`,
     'If nothing new requires the person’s attention or warrants interrupting them, reply with exactly DONT_NOTIFY.'
   ].join(' ')
@@ -90,11 +115,14 @@ export function formatNotificationPreview(text: string): string {
 interface ConductorRuntimeState {
   blurredAtMs: number | null
   lastCheckInAtMs: number
+  lastCheckedAtMs: number
   lastFingerprint: string | null
   checkingIn: boolean
   proactiveTurnIds: Set<string>
   activeNotifications: Map<string, Notification>
   startupTimer: ReturnType<typeof setTimeout> | null
+  startupWindowUntilMs: number
+  startupChecked: boolean
 }
 
 const states = new WeakMap<DesktopWindowRuntime, ConductorRuntimeState>()
@@ -105,11 +133,14 @@ function stateFor(ctx: DesktopWindowRuntime): ConductorRuntimeState {
     state = {
       blurredAtMs: null,
       lastCheckInAtMs: 0,
+      lastCheckedAtMs: 0,
       lastFingerprint: null,
       checkingIn: false,
       proactiveTurnIds: new Set(),
       activeNotifications: new Map(),
-      startupTimer: null
+      startupTimer: null,
+      startupWindowUntilMs: 0,
+      startupChecked: false
     }
     states.set(ctx, state)
   }
@@ -120,6 +151,36 @@ function findConductorRecord(ctx: DesktopWindowRuntime): OwnedThreadRecord | und
   return ctx.app?.ownedThreads?.list().find(
     (record) => record.pluginId === CONDUCTOR_PLUGIN_ID && record.key === CONDUCTOR_KEY
   )
+}
+
+export function notifyConductorProjectConnected(ctx: DesktopWindowRuntime): void {
+  if (ctx.runtimeIsStopping()) return
+  const state = stateFor(ctx)
+  if (state.startupChecked || (state.startupWindowUntilMs > 0 && Date.now() > state.startupWindowUntilMs)) return
+  if (state.startupTimer) clearTimeout(state.startupTimer)
+  state.startupTimer = setTimeout(() => {
+    state.startupTimer = null
+    state.startupChecked = true
+    void runConductorProactiveCheckIn(ctx, 'startup').catch(() => {})
+  }, STARTUP_SETTLE_MS)
+  state.startupTimer.unref?.()
+}
+
+export function notifyConductorEntered(ctx: DesktopWindowRuntime): Promise<boolean> {
+  return runConductorProactiveCheckIn(ctx, 'enter').catch(() => false)
+}
+
+export function resetConductorProactiveState(ctx: DesktopWindowRuntime): void {
+  const state = states.get(ctx)
+  if (!state) return
+  if (state.startupTimer) clearTimeout(state.startupTimer)
+  state.startupTimer = null
+  state.lastCheckInAtMs = 0
+  state.lastCheckedAtMs = 0
+  state.lastFingerprint = null
+  state.proactiveTurnIds.clear()
+  for (const notification of state.activeNotifications.values()) notification.close()
+  state.activeNotifications.clear()
 }
 
 export function attachConductorProactiveLifecycle(ctx: DesktopWindowRuntime): () => void {
@@ -138,11 +199,10 @@ export function attachConductorProactiveLifecycle(ctx: DesktopWindowRuntime): ()
     }
   }
   const onLoad = (): void => {
-    if (state.startupTimer) clearTimeout(state.startupTimer)
-    state.startupTimer = setTimeout(() => {
-      state.startupTimer = null
-      void runConductorProactiveCheckIn(ctx, 'startup').catch(() => {})
-    }, STARTUP_CHECKIN_DELAY_MS)
+    state.startupWindowUntilMs = Date.now() + STARTUP_WINDOW_MS
+    if ([...ctx.workspaceConnections.values()].some((entry) => entry.connected)) {
+      notifyConductorProjectConnected(ctx)
+    }
   }
 
   win.on('blur', onBlur)
@@ -163,22 +223,29 @@ export function attachConductorProactiveLifecycle(ctx: DesktopWindowRuntime): ()
 
 export async function runConductorProactiveCheckIn(
   ctx: DesktopWindowRuntime,
-  reason: 'startup' | 'return'
+  reason: ProactiveCheckInReason
 ): Promise<boolean> {
   const state = stateFor(ctx)
   if (state.checkingIn || ctx.runtimeIsStopping()) return false
   const now = Date.now()
-  if (state.lastCheckInAtMs > 0 && now - state.lastCheckInAtMs < CHECKIN_COOLDOWN_MS) return false
+  if (reason !== 'resume' && state.lastCheckInAtMs > 0 && now - state.lastCheckInAtMs < CHECKIN_COOLDOWN_MS) {
+    return false
+  }
 
   const conductor = findConductorRecord(ctx)
-  if (!conductor) return false
+  if (!conductor || conductor.paused) return false
 
   state.checkingIn = true
   try {
     const linkedChats = ctx.app.tasks.linkedChats?.listForThread(conductor.threadId) ?? []
-    const activeThreads = await collectRunningActiveThreads(ctx)
-    const signal = buildProactiveSignal(activeThreads, linkedChats, conductor.threadId)
-    if (!signal.noteworthy || signal.fingerprint === state.lastFingerprint) return false
+    const sinceMs = state.lastCheckedAtMs > 0 ? state.lastCheckedAtMs : now - RECENT_FINISHED_LOOKBACK_MS
+    const { activeThreads, recentFinished } = await collectRunningThreads(ctx, conductor.threadId, sinceMs)
+    const signal = buildProactiveSignal(activeThreads, linkedChats, conductor.threadId, recentFinished)
+    if (!signal.noteworthy) {
+      state.lastCheckedAtMs = now
+      return false
+    }
+    if (reason !== 'resume' && signal.fingerprint === state.lastFingerprint) return false
 
     const chatPath = resolveDefaultChatWorkspacePath()
     const chatEntry = await openThreadProject(ctx, { id: ctx.localProjectId(chatPath), name: 'Chats', path: chatPath })
@@ -210,6 +277,7 @@ export async function runConductorProactiveCheckIn(
     )
     state.lastFingerprint = signal.fingerprint
     state.lastCheckInAtMs = Date.now()
+    state.lastCheckedAtMs = state.lastCheckInAtMs
     if (started.turn?.id) state.proactiveTurnIds.add(started.turn.id)
     return true
   } catch {
@@ -219,32 +287,49 @@ export async function runConductorProactiveCheckIn(
   }
 }
 
-async function collectRunningActiveThreads(ctx: DesktopWindowRuntime): Promise<ActiveThreadDigest[]> {
+async function collectRunningThreads(
+  ctx: DesktopWindowRuntime,
+  conductorThreadId: string,
+  sinceMs: number
+): Promise<{ activeThreads: ActiveThreadDigest[]; recentFinished: RecentFinishedThreadDigest[] }> {
   const projects = (await listThreadProjects(ctx)).filter((project) => project.running)
-  const collected: ActiveThreadDigest[] = []
+  const activeThreads: ActiveThreadDigest[] = []
+  const recentFinished: RecentFinishedThreadDigest[] = []
   await Promise.allSettled(
     projects.map(async (project) => {
       const entry = ctx.workspaceConnections.get(project.id)
       if (!entry?.connected) return
       const connection = threadTaskConnection(entry.client, entry.workspacePath, ctx.desktopThreadToolOptions(entry))
-      const result = await connection.request<{ data?: ActiveThreadSummaryWire[] }>('thread/list', {
+      const result = await connection.request<{ data?: ProactiveThreadSummaryWire[] }>('thread/list', {
         status: 'active',
         limit: 50
       })
       for (const thread of result.data ?? []) {
-        if (!thread.id) continue
+        if (!thread.id || thread.id === conductorThreadId) continue
         const classified = classifyActiveThread(thread)
-        if (!classified) continue
-        collected.push({
-          id: thread.id,
-          projectId: project.id,
-          activeState: classified.activeState,
-          waitingFor: classified.waitingFor
-        })
+        if (classified) {
+          activeThreads.push({
+            id: thread.id,
+            projectId: project.id,
+            activeState: classified.activeState,
+            waitingFor: classified.waitingFor
+          })
+          continue
+        }
+        if (thread.readState?.firstUnread != null && typeof thread.lastActiveAt === 'string') {
+          const updatedMs = Date.parse(thread.lastActiveAt)
+          if (Number.isFinite(updatedMs) && updatedMs >= sinceMs) {
+            recentFinished.push({
+              id: thread.id,
+              projectId: project.id,
+              lastActiveAt: thread.lastActiveAt
+            })
+          }
+        }
       }
     })
   )
-  return collected
+  return { activeThreads, recentFinished }
 }
 
 export function observeConductorNotification(

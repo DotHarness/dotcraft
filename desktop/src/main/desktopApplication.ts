@@ -73,12 +73,20 @@ export class DesktopApplication implements DesktopApplicationServices {
     { isActive: () => !this.lifecycle.isStopping }
   )
   readonly toolConfirm = new DesktopToolConfirmManager()
+  readonly ownedThreads = new DesktopOwnedThreads(join(app.getPath('userData'), 'owned-threads.json'), (records) => {
+    this.broadcast(OWNED_THREADS_CHANGED_CHANNEL, records)
+  })
   readonly tasks = createDesktopThreadTasks({
-    linkedChats: new DesktopLinkedChats(join(app.getPath('userData'), 'linked-chats.json'), () => {
-      for (const window of this.windows.values()) {
-        if (!window.runtimeIsStopping()) window.scheduleSecondaryWorkspaceRefresh()
-      }
-    }, () => this.broadcast(LINKED_CHATS_CHANGED_CHANNEL, null)),
+    linkedChats: new DesktopLinkedChats(
+      join(app.getPath('userData'), 'linked-chats.json'),
+      () => {
+        for (const window of this.windows.values()) {
+          if (!window.runtimeIsStopping()) window.scheduleSecondaryWorkspaceRefresh()
+        }
+      },
+      () => this.broadcast(LINKED_CHATS_CHANGED_CHANNEL, null),
+      { isParentPaused: (parent) => this.ownedThreads.isPaused(parent.threadId) }
+    ),
     filePath: join(app.getPath('userData'), 'thread-tasks.json'),
     getNewTaskPrompt: () => normalizeNewTaskPromptMode(this.settings.newTaskPrompt),
     notifyOffer: (task, ownerId) => {
@@ -87,9 +95,6 @@ export class DesktopApplication implements DesktopApplicationServices {
     notifyWrapUpQuestion: (threadId, turnId, callId, ownerId) => {
       if (ownerId !== undefined) this.windows.get(ownerId)?.notifyWrapUpQuestion(threadId, turnId, callId)
     }
-  })
-  readonly ownedThreads = new DesktopOwnedThreads(join(app.getPath('userData'), 'owned-threads.json'), (records) => {
-    this.broadcast(OWNED_THREADS_CHANGED_CHANNEL, records)
   })
   private readonly hubs = new Map<string, DesktopHubClient>()
   private updater: AppUpdateService | null = null

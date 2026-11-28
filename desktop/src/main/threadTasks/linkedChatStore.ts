@@ -139,6 +139,17 @@ export class LinkedChatStore {
     return changed
   }
 
+  removeForParent(parentThreadId: string): boolean {
+    let changed = false
+    for (const [id, link] of this.links) {
+      if (link.parent.threadId !== parentThreadId) continue
+      this.links.delete(id)
+      changed = true
+    }
+    if (changed) this.save()
+    return changed
+  }
+
   save(): void {
     this.onSaved?.()
     if (!this.filePath) return

@@ -21,8 +21,8 @@ import { registerThemeIpc } from '../themes/themeIpc'
 import { installThemeNavigationGuard } from '../themes/themeNavigation'
 import { hasRemoteEndpointArg, NO_WORKSPACE_ARG, resolveStartupWorkspacePath } from '../workspaceArgs'
 import { createWindowRuntime, type DesktopWindowRuntime } from './windowRuntime'
-import { ensureOwnedThread } from '../threadTasks/ownedThreadsWindow'
-import { attachConductorProactiveLifecycle } from '../threadTasks/conductorProactive'
+import { archiveOwnedThread, ensureOwnedThread, setOwnedThreadPaused } from '../threadTasks/ownedThreadsWindow'
+import { attachConductorProactiveLifecycle, notifyConductorEntered } from '../threadTasks/conductorProactive'
 import { remoteViewerFilesFor } from '../remoteViewerFiles'
 
 export function startDesktopWindow(
@@ -90,6 +90,9 @@ export function startDesktopWindow(
       tasks: application.tasks,
       ownedThreads: application.ownedThreads,
       ensureOwnedThread: (request) => ensureOwnedThread(ctx, application.ownedThreads, request),
+      setOwnedThreadPaused: (threadId, paused) => setOwnedThreadPaused(ctx, application.ownedThreads, threadId, paused),
+      archiveOwnedThread: (threadId) => archiveOwnedThread(ctx, application.ownedThreads, threadId),
+      notifyConductorEntered: () => notifyConductorEntered(ctx),
       getConnection: (threadId) => {
         const entry = threadId
           ? [...ctx.workspaceConnections.values()].find(

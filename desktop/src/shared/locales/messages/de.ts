@@ -5004,4 +5004,12 @@ export const MESSAGES_DE = {
   "devServers.failure.exited": "Der Entwicklungsserver wurde beendet.",
   "devServers.startFailed": "Der Entwicklungsserver konnte nicht gestartet werden.",
   "devServers.stopFailed": "Der Entwicklungsserver konnte nicht beendet werden.",
+  "conductor.pause": "Pausieren",
+  "conductor.resume": "Fortsetzen",
+  "conductor.paused": "Pausiert",
+  "conductor.archive": "Archivieren",
+  "conductor.archiveConfirm.title": "Dirigent archivieren?",
+  "conductor.archiveConfirm.message": "Dies archiviert die Dirigenten-Unterhaltung und leert die verfolgte Liste. Gestartete Chats bleiben erhalten. Beim nächsten Öffnen startet ein neuer Dirigent.",
+  "conductor.archiveConfirm.confirm": "Archivieren",
+  "conductor.lifecycle.actionFailed": "Dirigenten-Aktion fehlgeschlagen: {{error}}",
 } satisfies Partial<Record<MessageId, string>>

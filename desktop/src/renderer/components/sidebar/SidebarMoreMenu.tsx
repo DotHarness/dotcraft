@@ -249,27 +249,54 @@ export function SidebarMoreMenu({ destinations }: { destinations: SidebarDestina
               <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {destination.label}
               </span>
+            </button>
+            <span
+              style={{
+                display: 'inline-grid',
+                placeItems: 'center end',
+                flexShrink: 0,
+                minWidth: '22px'
+              }}
+            >
               {destination.status && (
-                <span style={{ display: 'inline-flex', alignItems: 'center', flexShrink: 0 }}>
+                <span
+                  style={{
+                    gridArea: '1 / 1',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    minWidth: '22px',
+                    opacity: rowActive ? 0 : 1,
+                    pointerEvents: 'none',
+                    transition: 'opacity 120ms ease'
+                  }}
+                >
                   {destination.status}
                 </span>
               )}
-            </button>
-            <IconButton
-              icon={<PinIcon filled={false} />}
-              label={t('sidebar.pinToSidebar')}
-              tooltipLabel={t('sidebar.pinToSidebar')}
-              tooltipPlacement="right"
-              size={22}
-              radius={6}
-              className="dc-sidebar-icon-button"
-              onClick={() => setPinned(destination.id, true)}
-              style={{
-                flexShrink: 0,
-                opacity: rowActive ? 1 : 0,
-                transition: 'opacity 120ms ease'
-              }}
-            />
+              <span
+                style={{
+                  gridArea: '1 / 1',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  opacity: rowActive ? 1 : 0,
+                  pointerEvents: rowActive ? 'auto' : 'none',
+                  transition: 'opacity 120ms ease'
+                }}
+              >
+                <IconButton
+                  icon={<PinIcon filled={false} />}
+                  label={t('sidebar.pinToSidebar')}
+                  tooltipLabel={t('sidebar.pinToSidebar')}
+                  tooltipPlacement="right"
+                  size={22}
+                  radius={6}
+                  className="dc-thread-list-icon-button"
+                  onClick={() => setPinned(destination.id, true)}
+                />
+              </span>
+            </span>
           </div>
         )
       })}

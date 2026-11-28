@@ -62,8 +62,10 @@ function runtime(chats: DesktopLinkedChats, child: ReturnType<typeof appServer>,
   chats.handleNotification(child.connection, 'thread/status/changed', { threadId: CHILD.threadId, runtime: value })
 }
 
+const IMMEDIATE = { waitSettleMs: 0, completionBatchMs: 0 } as const
+
 async function fixture(filePath: string | null = null) {
-  const chats = new DesktopLinkedChats(filePath)
+  const chats = new DesktopLinkedChats(filePath, undefined, undefined, IMMEDIATE)
   const parent = appServer(PARENT)
   const child = appServer(CHILD)
   chats.link(PARENT, CHILD)
@@ -83,7 +85,7 @@ describe('linked chat registry', () => {
     first.link(otherParent, nextChild)
     first.link(PARENT, nextChild)
 
-    const reopened = new DesktopLinkedChats(filePath)
+    const reopened = new DesktopLinkedChats(filePath, undefined, undefined, IMMEDIATE)
     expect(reopened.list(PARENT).map(({ child }) => child.threadId)).toEqual(['second-child', 'child'])
     expect(reopened.find(otherParent, CHILD.threadId)).toBeUndefined()
     expect(reopened.linkedProjectBetween(PARENT, CHILD.threadId)).toBe(CHILD.projectId)
@@ -126,7 +128,7 @@ describe('following an existing chat', () => {
     child.state.turns = [finished]
     new DesktopLinkedChats(filePath).follow(PARENT, CHILD, finished)
 
-    const reopened = new DesktopLinkedChats(filePath)
+    const reopened = new DesktopLinkedChats(filePath, undefined, undefined, IMMEDIATE)
     reopened.connected(parent.connection)
     reopened.connected(child.connection)
     await settle()
@@ -235,7 +237,7 @@ describe('following linked chats', () => {
     expect(withoutAck.needsProjectConnection(PARENT.projectId)).toBe(true)
     expect(disconnectedParent.notify).toHaveBeenCalledOnce()
 
-    const reopened = new DesktopLinkedChats(filePath)
+    const reopened = new DesktopLinkedChats(filePath, undefined, undefined, IMMEDIATE)
     const parent = appServer(PARENT)
     reopened.connected(parent.connection)
     await settle()
@@ -312,7 +314,7 @@ describe('following linked chats', () => {
   })
 
   it('does not replace live waiting state with an older reconnect header', async () => {
-    const chats = new DesktopLinkedChats(null)
+    const chats = new DesktopLinkedChats(null, undefined, undefined, IMMEDIATE)
     const parent = appServer(PARENT)
     const child = appServer(CHILD)
     let finish!: () => void
@@ -369,5 +371,115 @@ describe('following linked chats', () => {
 
     expect(parent.notify).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ status: 'failed' }))
     expect(chats.find(PARENT, CHILD.threadId)?.status).toBe('failed')
+  })
+
+  it('settles waiting-for-user notifications before waking parent and cancels if resolved quickly', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      const chats = new DesktopLinkedChats(null, undefined, undefined, { waitSettleMs: 10_000, completionBatchMs: 0 })
+      const parent = appServer(PARENT)
+      const child = appServer(CHILD)
+      chats.link(PARENT, CHILD)
+      chats.connected(parent.connection)
+      chats.connected(child.connection)
+      await settle()
+
+      runtime(chats, child, { activeTurnId: 't-quick', waitingOnApproval: true })
+      await vi.advanceTimersByTimeAsync(4_000)
+      expect(parent.notify).not.toHaveBeenCalled()
+
+      runtime(chats, child, { activeTurnId: 't-quick', running: true })
+      await vi.advanceTimersByTimeAsync(10_000)
+      expect(parent.notify).not.toHaveBeenCalled()
+
+      runtime(chats, child, { activeTurnId: 't-stuck', waitingOnInput: true })
+      await vi.advanceTimersByTimeAsync(10_000)
+      await settle()
+      expect(parent.notify).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ status: 'waitingForInput' }))
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('batches parallel sibling completions into a single parent wake-up', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      const chats = new DesktopLinkedChats(null, undefined, undefined, { waitSettleMs: 0, completionBatchMs: 1_500 })
+      const parent = appServer(PARENT)
+      const childA = appServer(CHILD)
+      const childBRef: LinkedChatChild = {
+        threadId: 'child-b', projectId: 'repo-b', workspacePath: '/repo-b', projectName: 'Repo B', title: 'Task B'
+      }
+      const childB = appServer(childBRef)
+      chats.link(PARENT, CHILD)
+      chats.link(PARENT, childBRef)
+      chats.connected(parent.connection)
+      chats.connected(childA.connection)
+      chats.connected(childB.connection)
+      await settle()
+
+      runtime(chats, childA, { activeTurnId: 'a1', running: true })
+      childB.state.header.runtime = { activeTurnId: 'b1', running: true }
+      chats.handleNotification(childB.connection, 'thread/status/changed', {
+        threadId: childBRef.threadId, runtime: { activeTurnId: 'b1', running: true }
+      })
+      await settle()
+
+      childA.state.turns = [turn('a1', 'completed', [agentMessage('Done A')])]
+      runtime(chats, childA, { running: false })
+      await settle()
+      expect(parent.notify).not.toHaveBeenCalled()
+
+      childB.state.turns = [turn('b1', 'completed', [agentMessage('Done B')])]
+      childB.state.header.runtime = { running: false }
+      chats.handleNotification(childB.connection, 'thread/status/changed', {
+        threadId: childBRef.threadId, runtime: { running: false }
+      })
+      await settle()
+      expect(parent.notify).not.toHaveBeenCalled()
+
+      await vi.advanceTimersByTimeAsync(1_500)
+      await settle()
+      expect(parent.notify).toHaveBeenCalledOnce()
+      expect(parent.notify.mock.calls[0][0]).toMatchObject({
+        threadId: PARENT.threadId,
+        status: 'completed',
+        label: '2 chats finished',
+        result: expect.stringContaining('Done A')
+      })
+      expect((parent.notify.mock.calls[0][0] as { result?: string }).result).toContain('Done B')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('holds reports while parent is paused and drains them on resume, and clears links on removeForParent', async () => {
+    let paused = true
+    const chats = new DesktopLinkedChats(null, undefined, undefined, {
+      ...IMMEDIATE,
+      isParentPaused: (p) => p.threadId === PARENT.threadId && paused
+    })
+    const parent = appServer(PARENT)
+    const child = appServer(CHILD)
+    chats.link(PARENT, CHILD)
+    chats.connected(parent.connection)
+    chats.connected(child.connection)
+    await settle()
+
+    child.state.turns = [turn('done-while-paused', 'completed', [agentMessage('Queued reply')])]
+    runtime(chats, child, { running: false })
+    await settle()
+    expect(parent.notify).not.toHaveBeenCalled()
+
+    paused = false
+    chats.flushParent(PARENT.threadId)
+    await settle()
+    expect(parent.notify).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      status: 'completed',
+      result: 'Queued reply'
+    }))
+
+    expect(chats.removeForParent(PARENT.threadId)).toBe(true)
+    expect(chats.list(PARENT)).toEqual([])
   })
 })

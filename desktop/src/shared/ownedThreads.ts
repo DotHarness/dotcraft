@@ -22,6 +22,7 @@ export interface OwnedThreadRecord {
   threadId: string
   workspacePath: string
   fingerprint: string
+  paused?: boolean
 }
 
 let ownedThreadIds: ReadonlySet<string> = new Set()

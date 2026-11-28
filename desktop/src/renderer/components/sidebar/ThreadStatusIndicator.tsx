@@ -1,5 +1,7 @@
+import { Pause } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useLinkedChats } from '../../stores/linkedChatsStore'
+import { useOwnedThread } from '../../stores/ownedThreadsStore'
 import { useOwnedThreadUnreadCount, useThreadAcrossWorkspaces } from '../../stores/ownedThreadActivityStore'
 import { useThreadStore } from '../../stores/threadStore'
 import { isThreadUnread } from '../../utils/threadReadState'
@@ -21,6 +23,7 @@ export function ThreadStatusIndicator({
   includeLinkedChats?: boolean
 }): JSX.Element | null {
   const t = useT()
+  const ownedThread = useOwnedThread(threadId)
   const thread = useThreadAcrossWorkspaces(threadId)
   const turnStarted = useThreadStore((s) => s.runningTurnThreadIds.has(threadId))
   const snapshot = useThreadStore((s) => s.runtimeSnapshots.get(threadId))
@@ -44,6 +47,21 @@ export function ThreadStatusIndicator({
   const waiting = ownWaiting ?? linkedWaiting
   const linkedFailed = includeLinkedChats && linkedChats.some((chat) => chat.status === 'failed')
   const running = turnStarted || isThreadRuntimeActive(runtime)
+
+  if (ownedThread?.paused) {
+    return (
+      <ActionTooltip label={t('conductor.paused')}>
+        <span
+          className="dc-status-indicator"
+          role="img"
+          aria-label={t('conductor.paused')}
+          data-testid={`thread-paused-${threadId}`}
+        >
+          <Pause size={13} strokeWidth={2} className="dc-status-indicator__icon" aria-hidden />
+        </span>
+      </ActionTooltip>
+    )
+  }
 
   if (waiting) return <ThreadWaitingBadge status={waiting} quiet={active} />
   if (linkedFailed) {

@@ -5049,6 +5049,14 @@ export const MESSAGES_EN = {
   "devServers.failure.exited": "The dev server exited.",
   "devServers.startFailed": "Couldn’t start the dev server.",
   "devServers.stopFailed": "Couldn’t stop the dev server.",
+  "conductor.pause": "Pause",
+  "conductor.resume": "Resume",
+  "conductor.paused": "Paused",
+  "conductor.archive": "Archive",
+  "conductor.archiveConfirm.title": "Archive conductor?",
+  "conductor.archiveConfirm.message": "This archives your conductor conversation and clears its tracked list. Chats it started will be kept. Your next visit starts a fresh conductor.",
+  "conductor.archiveConfirm.confirm": "Archive",
+  "conductor.lifecycle.actionFailed": "Conductor action failed: {{error}}",
 } as const
 
 export type MessageId = keyof typeof MESSAGES_EN
