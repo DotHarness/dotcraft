@@ -165,6 +165,62 @@ public sealed class ToolSchemaSanitizerTests
         Assert.Equal([PromptCacheChangedFields.Tools], session.LastPromptCacheChangedFields);
     }
 
+    [Fact]
+    public async Task DynamicToolInjection_PreservesActivatedToolsAcrossCallsInAppendOnlyOrder()
+    {
+        const string sessionKey = "dynamic-tool-injection-multi-call";
+        var baseTool = AIFunctionFactory.Create(NullableStringTool, name: "BaseAction");
+        var alphaTool = AIFunctionFactory.Create(NullableStringTool, name: "AlphaQuery");
+        var zetaTool = AIFunctionFactory.Create(NullableStringTool, name: "ZetaLookup");
+        var registry = new DeferredToolRegistry([alphaTool, zetaTool]);
+
+        var store = new TraceStore();
+        var collector = new TraceCollector(store);
+        var inner = new CapturingChatClient();
+        var client = new DynamicToolInjectionChatClient(inner, registry, traceCollector: collector);
+        var sharedOptions = new ChatOptions { Tools = [baseTool] };
+        ChatMessage[] messages = [new(ChatRole.User, "hello")];
+
+        TracingChatClient.CurrentSessionKey = sessionKey;
+        try
+        {
+            await foreach (var _ in client.GetStreamingResponseAsync(messages, sharedOptions))
+            {
+            }
+
+            registry.SearchAndActivate("ZetaLookup");
+            await foreach (var _ in client.GetStreamingResponseAsync(messages, sharedOptions))
+            {
+            }
+
+            await foreach (var _ in client.GetStreamingResponseAsync(messages, sharedOptions))
+            {
+            }
+
+            registry.SearchAndActivate("AlphaQuery");
+            await client.GetResponseAsync(messages, sharedOptions);
+        }
+        finally
+        {
+            TracingChatClient.ResetCallState(sessionKey);
+            TracingChatClient.CurrentSessionKey = null;
+        }
+
+        Assert.Equal(4, inner.Options.Count);
+        Assert.Same(sharedOptions, inner.Options[0]);
+        Assert.Equal(["BaseAction"], sharedOptions.Tools!.Select(t => t.Name).ToArray());
+        Assert.Equal(["BaseAction", "ZetaLookup"], inner.Options[1]!.Tools!.Select(t => t.Name).ToArray());
+        Assert.Equal(["BaseAction", "ZetaLookup"], inner.Options[2]!.Tools!.Select(t => t.Name).ToArray());
+        Assert.Equal(["BaseAction", "ZetaLookup", "AlphaQuery"], inner.Options[3]!.Tools!.Select(t => t.Name).ToArray());
+
+        var injectionEvents = store.GetEvents(sessionKey)
+            .Where(e => e.Type == TraceEventType.ToolInjection)
+            .ToArray();
+        Assert.Equal(2, injectionEvents.Length);
+        Assert.Equal(["ZetaLookup"], injectionEvents[0].ChangedToolNames ?? []);
+        Assert.Equal(["AlphaQuery"], injectionEvents[1].ChangedToolNames ?? []);
+    }
+
     private static string NullableStringTool(
         [System.ComponentModel.Description("Required string.")] string required,
         [System.ComponentModel.Description("Optional nullable string.")] string? optional = null,
