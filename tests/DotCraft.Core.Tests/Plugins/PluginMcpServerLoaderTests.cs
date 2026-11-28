@@ -240,6 +240,36 @@ public sealed class PluginMcpServerLoaderTests : IDisposable
         Assert.Equal(["oratorio", "mcp"], server.Arguments);
     }
 
+    [Fact]
+    public void LoadPluginServers_AcceptsToolSettingsAndStillRejectsUnknownFields()
+    {
+        var plugin = WritePlugin(new
+        {
+            command = "node",
+            toolApprovalMode = "writes",
+            tools = new { delete_item = new { approvalMode = "prompt" } },
+            enabledTools = new[] { "list_items", "delete_item" },
+            disabledTools = new[] { "delete_item" }
+        });
+
+        var server = Assert.Single(PluginMcpServerLoader.LoadPluginServers(plugin, [], Path.Combine(_root, "data")));
+
+        Assert.Equal(McpToolApprovalMode.Writes, server.ToolApprovalMode);
+        Assert.Equal(McpToolApprovalMode.Prompt, server.Tools!["delete_item"].ApprovalMode);
+        Assert.Equal(["list_items", "delete_item"], server.EnabledTools);
+        Assert.Equal(["delete_item"], server.DisabledTools);
+
+        var invalid = WritePlugin(new
+        {
+            command = "node",
+            tools = new { delete_item = new { approvalMode = "prompt", outputTokenLimit = 100 } }
+        }, "invalid plugin");
+        var diagnostics = new List<PluginDiagnostic>();
+
+        Assert.Empty(PluginMcpServerLoader.LoadPluginServers(invalid, diagnostics, Path.Combine(_root, "data")));
+        Assert.Contains(diagnostics, diagnostic => diagnostic.Code == "InvalidPluginMcpConfig");
+    }
+
     private DiscoveredPlugin WritePlugin(object server, string directory = "plugin with spaces")
     {
         var root = Path.Combine(_root, directory);

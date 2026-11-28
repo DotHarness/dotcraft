@@ -7640,6 +7640,19 @@
         },
         "hasClientSecret": {
           "type": "boolean"
+        },
+        "scopes": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": true
@@ -7749,8 +7762,34 @@
             }
           ]
         },
+        "disabledTools": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "enabled": {
           "type": "boolean"
+        },
+        "enabledTools": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "env": {
           "anyOf": [
@@ -7841,12 +7880,32 @@
           ]
         },
         "toolApprovalMode": {
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "toolTimeoutSec": {
           "anyOf": [
             {
               "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tools": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/$defs/McpToolConfig"
+              }
             },
             {
               "type": "null"
@@ -8658,6 +8717,23 @@
         "status",
         "toolName"
       ]
+    },
+    "McpToolConfig": {
+      "title": "McpToolConfig",
+      "type": "object",
+      "properties": {
+        "approvalMode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true
     },
     "McpUpsertParams": {
       "title": "McpUpsertParams",

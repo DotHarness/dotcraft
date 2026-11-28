@@ -9384,6 +9384,13 @@
           "required": false,
           "nullable": false,
           "const": null
+        },
+        {
+          "name": "scopes",
+          "type": "array<string>",
+          "required": false,
+          "nullable": true,
+          "const": null
         }
       ],
       "variants": []
@@ -9514,10 +9521,24 @@
           "const": null
         },
         {
+          "name": "disabledTools",
+          "type": "array<string>",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
           "name": "enabled",
           "type": "boolean",
           "required": false,
           "nullable": false,
+          "const": null
+        },
+        {
+          "name": "enabledTools",
+          "type": "array<string>",
+          "required": false,
+          "nullable": true,
           "const": null
         },
         {
@@ -9587,12 +9608,19 @@
           "name": "toolApprovalMode",
           "type": "string",
           "required": false,
-          "nullable": false,
+          "nullable": true,
           "const": null
         },
         {
           "name": "toolTimeoutSec",
           "type": "number",
+          "required": false,
+          "nullable": true,
+          "const": null
+        },
+        {
+          "name": "tools",
+          "type": "map<core.McpToolConfig>",
           "required": false,
           "nullable": true,
           "const": null
@@ -10544,6 +10572,24 @@
           "type": "string",
           "required": true,
           "nullable": false,
+          "const": null
+        }
+      ],
+      "variants": []
+    },
+    {
+      "id": "core.McpToolConfig",
+      "name": "McpToolConfig",
+      "module": "core",
+      "kind": "object",
+      "schema": "schemas/core/McpToolConfig.schema.json",
+      "additionalProperties": true,
+      "fields": [
+        {
+          "name": "approvalMode",
+          "type": "string",
+          "required": false,
+          "nullable": true,
           "const": null
         }
       ],

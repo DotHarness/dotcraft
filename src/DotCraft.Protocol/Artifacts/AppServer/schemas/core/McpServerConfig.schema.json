@@ -57,8 +57,34 @@
         }
       ]
     },
+    "disabledTools": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "enabled": {
       "type": "boolean"
+    },
+    "enabledTools": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "env": {
       "anyOf": [
@@ -149,12 +175,32 @@
       ]
     },
     "toolApprovalMode": {
-      "type": "string"
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "toolTimeoutSec": {
       "anyOf": [
         {
           "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "tools": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "./McpToolConfig.schema.json"
+          }
         },
         {
           "type": "null"

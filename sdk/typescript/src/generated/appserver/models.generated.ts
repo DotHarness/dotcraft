@@ -1931,6 +1931,7 @@ export interface McpOAuthConfig {
   clientSecret?: string | null;
   clientSecretEnvVar?: string | null;
   hasClientSecret?: boolean;
+  scopes?: string[] | null;
   [key: string]: unknown;
 }
 
@@ -1959,7 +1960,9 @@ export interface McpServerConfig {
   builtinModule?: string | null;
   command?: string | null;
   cwd?: string | null;
+  disabledTools?: string[] | null;
   enabled?: boolean;
+  enabledTools?: string[] | null;
   env?: Record<string, string> | null;
   envHttpHeaders?: Record<string, string> | null;
   envVars?: string[] | null;
@@ -1969,8 +1972,9 @@ export interface McpServerConfig {
   origin?: McpServerOrigin | null;
   readOnly?: boolean;
   startupTimeoutSec?: number | null;
-  toolApprovalMode?: string;
+  toolApprovalMode?: string | null;
   toolTimeoutSec?: number | null;
+  tools?: Record<string, McpToolConfig> | null;
   transport?: string;
   url?: string | null;
   [key: string]: unknown;
@@ -2149,6 +2153,11 @@ export interface McpToolCallPayload {
   success?: boolean | null;
   toolDefinitionId?: string | null;
   toolName: string;
+  [key: string]: unknown;
+}
+
+export interface McpToolConfig {
+  approvalMode?: string | null;
   [key: string]: unknown;
 }
 

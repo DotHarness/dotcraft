@@ -217,11 +217,11 @@ public sealed partial class McpClientManager
                 if (result.RecoveredFromStaleSession)
                     _logger?.LogInformation("MCP connection to {ServerName} recovered from stale session during startup/listTools", config.Name);
                 status = CreateStatus(config, "ready");
-                status.ToolCount = result.Tools.Count;
+                status.ToolCount = result.Tools.Count(tool => config.ContributesTool(tool.Name));
                 status.AuthStatus = result.AuthStatus;
                 status.FailureReason = result.FailureReason;
                 _logger?.LogInformation("MCP connected to {ServerName} with {ToolCount} tools",
-                    config.Name, result.Tools.Count);
+                    config.Name, status.ToolCount);
             }
             catch (OperationCanceledException) when (lifetimeToken.IsCancellationRequested)
             {

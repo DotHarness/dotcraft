@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.14.0 |
+| **Version** | 0.15.1 |
 | **Status** | Living |
-| **Date** | 2026-11-21 |
+| **Date** | 2026-11-28 |
 
 Purpose: define the durable architecture for DotCraft plugins, including plugin-contained skills and
 workflows, local plugin manifests, plugin-bundled MCP servers, client-facing plugin metadata, and the
@@ -90,9 +90,9 @@ Disabling or removing a plugin withdraws all of its contributions.
 DotCraft looks for `./.mcp.json`. The file may use `{ "mcpServers": { ... } }` or a direct server
 map, with the canonical DotCraft fields `arguments`, `environmentVariables`, and `headers`; unknown
 server properties are rejected. Relative `cwd` values resolve under the plugin root. A declaration
-may set `toolApprovalMode` as defined in [Tool Architecture](tools-architecture.md) (see §12.3);
-enabling the plugin accepts the declared mode, since the plugin already supplies the server it
-launches.
+may set `toolApprovalMode`, per-tool modes in `tools`, and the `enabledTools` / `disabledTools`
+filters as defined in [Tool Architecture](tools-architecture.md) (see §12.3); enabling the plugin
+accepts the declared modes, since the plugin already supplies the server it launches.
 
 Plugin stdio MCP declarations expand `${PLUGIN_ROOT}` (absolute plugin root),
 `${PLUGIN_DATA}` (the shared plugin data directory in §2.5), and `${DOTCRAFT_BIN}` (the active DotCraft host executable or entry assembly) in `command`, `arguments`,

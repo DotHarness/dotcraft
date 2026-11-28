@@ -99,7 +99,7 @@ public sealed partial class McpClientManager : IMcpToolInvocationCoordinator, IA
                 state.ProtocolClient?.ServerInfo,
                 state.ProtocolClient?.ServerCapabilities,
                 state.ProtocolClient?.ServerInstructions,
-                state.CachedTools.ToArray(),
+                ContributedTools(state).ToArray(),
                 state.CachedResources.ToArray(),
                 state.CachedResourceTemplates.ToArray(),
                 state.Generation);
@@ -156,6 +156,8 @@ public sealed partial class McpClientManager : IMcpToolInvocationCoordinator, IA
         string? hookEvent = null)
     {
         await using var session = await GetProtocolSessionAsync(serverName, expectedGeneration, cancellationToken);
+        if (!session.State.Config.ContributesTool(toolName))
+            throw new KeyNotFoundException($"MCP tool '{toolName}' was not found on server '{serverName}'.");
         if (string.IsNullOrWhiteSpace(hookEvent))
             session.State.HasBeenInvoked = true;
         using var invocation = new McpInvocationScope(context, session.Client, session.CancellationToken);
@@ -348,7 +350,7 @@ public sealed partial class McpClientManager : IMcpToolInvocationCoordinator, IA
             var result = await _connectServer(config, timeoutCts.Token);
             client = result.Client;
             status.StartupState = "ready";
-            status.ToolCount = result.Tools.Count;
+            status.ToolCount = result.Tools.Count(tool => config.ContributesTool(tool.Name));
             status.AuthStatus = result.AuthStatus;
             status.FailureReason = result.FailureReason;
             return status;
@@ -661,7 +663,7 @@ public sealed partial class McpClientManager : IMcpToolInvocationCoordinator, IA
         if (state.Status.StartupState != "ready")
             return null;
 
-        var tool = state.CachedTools.FirstOrDefault(tool => string.Equals(tool.Name, toolName, StringComparison.Ordinal));
+        var tool = ContributedTools(state).FirstOrDefault(tool => string.Equals(tool.Name, toolName, StringComparison.Ordinal));
         return tool == null
             ? null
             : new McpToolInvocationTarget(
@@ -674,6 +676,9 @@ public sealed partial class McpClientManager : IMcpToolInvocationCoordinator, IA
                 GetToolTimeout(state.Config));
     }
 
+    private static IEnumerable<AIFunction> ContributedTools(ServerRuntimeState state) =>
+        state.CachedTools.Where(tool => state.Config.ContributesTool(tool.Name));
+
     private void RebuildToolIndexUnsafe()
     {
         var nextTools = new List<AITool>();
@@ -683,12 +688,13 @@ public sealed partial class McpClientManager : IMcpToolInvocationCoordinator, IA
                      .Where(s => s.Status.StartupState == "ready")
                      .OrderBy(s => s.Config.Name, StringComparer.OrdinalIgnoreCase))
         {
-            foreach (var tool in state.CachedTools)
+            var tools = ContributedTools(state).ToArray();
+            foreach (var tool in tools)
             {
                 nextTools.Add(new McpSessionRecoveringTool(this, state.Config.Name, tool));
                 nextToolServerMap[tool.Name] = state.Config.Name;
             }
-            state.Status.ToolCount = state.CachedTools.Count;
+            state.Status.ToolCount = tools.Length;
         }
 
         Volatile.Write(ref _toolsSnapshot, nextTools);

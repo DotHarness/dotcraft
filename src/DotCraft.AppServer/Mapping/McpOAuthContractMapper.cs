@@ -18,7 +18,8 @@ internal static class McpOAuthContractMapper
             HasClientSecret = !string.IsNullOrEmpty(config.ClientSecret),
             ClientSecretEnvVar = config.ClientSecretEnvVar,
             CallbackUrl = config.CallbackUrl,
-            CallbackPort = config.CallbackPort
+            CallbackPort = config.CallbackPort,
+            Scopes = config.Scopes is null ? default : new Optional<IReadOnlyList<string>?>(config.Scopes.ToArray())
         };
 
     public static Domain.McpOAuthConfig? FromContract(Optional<Contract.McpOAuthConfig?> wire, Domain.McpOAuthConfig? existing = null)
@@ -34,7 +35,8 @@ internal static class McpOAuthContractMapper
             ClientSecret = string.IsNullOrWhiteSpace(secret) ? null : secret,
             ClientSecretEnvVar = Value(value.ClientSecretEnvVar)?.Trim(),
             CallbackUrl = Value(value.CallbackUrl)?.Trim(),
-            CallbackPort = Value(value.CallbackPort)
+            CallbackPort = Value(value.CallbackPort),
+            Scopes = Value(value.Scopes)?.ToList()
         };
     }
 

@@ -228,7 +228,7 @@ public sealed class McpPreRegisteredOAuthIntegrationTests : IAsyncLifetime
         finally { Environment.SetEnvironmentVariable(key, null); }
         config.OAuth.ClientSecretEnvVar = null;
         config.OAuth.ClientSecret = "wrong-secret";
-        Assert.False(await LoginResultAsync(config));
+        Assert.False((await LoginResultAsync(config)).Success);
     }
 
     [Fact]
@@ -252,9 +252,13 @@ public sealed class McpPreRegisteredOAuthIntegrationTests : IAsyncLifetime
         await using var manager = Manager();
         using var harness = new AppServerTestHarness(mcpClientManager: manager, workspaceCraftPath: craft);
         await harness.InitializeAsync();
+        using var scoped = await RpcAsync(harness, "mcp/upsert", new { scope = "workspace", server = new
+        { name = config.Name, enabled = false, transport = "http", url = config.Url, oauth = new { clientId = "client-a", scopes = new[] { "tools:read" } } } });
+        Assert.Equal("tools:read", scoped.RootElement.GetProperty("result").GetProperty("server").GetProperty("oauth").GetProperty("scopes")[0].GetString());
         using var omitted = await RpcAsync(harness, "mcp/upsert", new { scope = "workspace", server = new
         { name = config.Name, enabled = false, transport = "http", url = config.Url } });
         Assert.Equal("secret-a", McpScopeStore.Read(Path.Combine(craft, "config.json"), "workspace").Single().OAuth!.ClientSecret);
+        Assert.Equal(["tools:read"], McpScopeStore.Read(Path.Combine(craft, "config.json"), "workspace").Single().OAuth!.Scopes!);
         using var masked = await RpcAsync(harness, "mcp/upsert", new { scope = "workspace", server = new
         { name = config.Name, enabled = false, transport = "http", url = config.Url, oauth = new { clientId = "client-a", clientSecret = "********", hasClientSecret = true } } });
         Assert.Equal("secret-a", McpScopeStore.Read(Path.Combine(craft, "config.json"), "workspace").Single().OAuth!.ClientSecret);
@@ -266,17 +270,34 @@ public sealed class McpPreRegisteredOAuthIntegrationTests : IAsyncLifetime
         Assert.Null(McpScopeStore.Read(Path.Combine(craft, "config.json"), "workspace").Single().OAuth);
     }
 
-    private async Task LoginAsync(McpServerConfig config) => Assert.True(await LoginResultAsync(config));
+    [Fact]
+    public async Task Login_RequestsExplicitScopes_ElseConfiguredScopes_ElseAdvertisedScopes()
+    {
+        var config = Config();
+        Assert.Contains("tools:read", (await LoginScopeAsync(config, null))!.Split(' '));
+        config.OAuth!.Scopes = ["configured:read"];
+        Assert.Equal("configured:read", await LoginScopeAsync(config, null));
+        Assert.Equal("explicit:write", await LoginScopeAsync(config, ["explicit:write"]));
+    }
 
-    private async Task<bool> LoginResultAsync(McpServerConfig config)
+    private async Task<string?> LoginScopeAsync(McpServerConfig config, IReadOnlyList<string>? scopes)
+    {
+        var (success, url) = await LoginResultAsync(config, scopes);
+        Assert.True(success);
+        return System.Web.HttpUtility.ParseQueryString(new Uri(url).Query)["scope"];
+    }
+
+    private async Task LoginAsync(McpServerConfig config) => Assert.True((await LoginResultAsync(config)).Success);
+
+    private async Task<(bool Success, string Url)> LoginResultAsync(McpServerConfig config, IReadOnlyList<string>? scopes = null)
     {
         var completed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var url = await McpOAuthLoginCoordinator.BeginAsync(config, null, 10, Path.Combine(_root, "user-data"),
+        var url = await McpOAuthLoginCoordinator.BeginAsync(config, scopes, 10, Path.Combine(_root, "user-data"),
             (success, _) => { completed.TrySetResult(success); return Task.CompletedTask; }, CancellationToken.None);
         using var browser = new HttpClient();
         using var result = await browser.GetAsync(url);
         result.EnsureSuccessStatusCode();
-        return await completed.Task.WaitAsync(TimeSpan.FromSeconds(15));
+        return (await completed.Task.WaitAsync(TimeSpan.FromSeconds(15)), url);
     }
 
     private McpClientManager Manager() => new(DotCraftPaths.Create(_root, Path.Combine(_root, ".craft"), Path.Combine(_root, "user-data")));

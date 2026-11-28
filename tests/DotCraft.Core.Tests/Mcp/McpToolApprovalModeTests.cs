@@ -53,6 +53,53 @@ public sealed class McpToolApprovalModeTests
         Assert.True(McpLiveToolCatalogReader.RequiresApproval(McpToolApprovalMode.Prompt, hints));
     }
 
+    [Theory]
+    [InlineData(true, null, false)]
+    [InlineData(true, true, false)]
+    [InlineData(false, false, true)]
+    [InlineData(null, false, true)]
+    public void WritesMode_RequiresApprovalUnlessReadOnly(bool? readOnly, bool? destructive, bool requiresApproval)
+    {
+        var hints = new ToolAnnotations { ReadOnlyHint = readOnly, DestructiveHint = destructive, OpenWorldHint = false };
+
+        Assert.Equal(requiresApproval, McpLiveToolCatalogReader.RequiresApproval(McpToolApprovalMode.Writes, hints));
+        Assert.True(McpLiveToolCatalogReader.RequiresApproval(McpToolApprovalMode.Writes, null));
+    }
+
+    [Theory]
+    [InlineData("workspace", McpToolApprovalMode.Approve, "write", McpToolApprovalMode.Prompt, false, true)]
+    [InlineData("plugin", McpToolApprovalMode.Prompt, "read", McpToolApprovalMode.Approve, false, true)]
+    [InlineData("thread", McpToolApprovalMode.Approve, "read", McpToolApprovalMode.Approve, true, true)]
+    public async Task ToolMode_OverridesServerModeExceptForThreadOrigin(
+        string origin,
+        McpToolApprovalMode serverMode,
+        string tool,
+        McpToolApprovalMode toolMode,
+        bool readRequiresApproval,
+        bool writeRequiresApproval)
+    {
+        await using var manager = new McpClientManager((_, _) => Task.FromResult(
+            new McpConnectionResult(new FakeClient(), [new FakeFunction("read"), new FakeFunction("write")])));
+        await manager.ConnectAsync(
+        [
+            new McpServerConfig
+            {
+                Name = "inventory",
+                Command = "inventory-mcp-server",
+                ToolApprovalMode = serverMode,
+                Tools = new() { [tool] = new McpToolConfig { ApprovalMode = toolMode } },
+                Origin = new McpServerOrigin { Kind = origin, DeclaredName = "inventory" }
+            }
+        ]);
+        await manager.WaitForStartupCompletionAsync();
+
+        var approvals = (await new McpToolSource(manager, new AppConfig()).GetRegistrationsAsync(Context))
+            .ToDictionary(r => r.Definition.Id.SourceToolId.Value, r => r.Definition.PolicyHints.RequiresApproval);
+
+        Assert.Equal(readRequiresApproval, approvals["read"]);
+        Assert.Equal(writeRequiresApproval, approvals["write"]);
+    }
+
     [Fact]
     public void WorkspaceAuto_OverridesUserApproveAfterMergedLoad()
     {

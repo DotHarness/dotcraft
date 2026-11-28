@@ -111,7 +111,40 @@ A call to an MCP tool asks for approval unless the server marks that tool as rea
 }
 ```
 
-Calls to that server then run without asking, and the agent's other approvals stay as they are. Set `prompt` to ask for every call whatever the tools declare. The default, `auto`, follows the tools' own markings. A plugin can set the same field in its `.mcp.json`.
+Calls to that server then run without asking, and the agent's other approvals stay as they are. Set `writes` to ask for every tool the server does not mark read-only, or `prompt` to ask for every call whatever the tools declare. The default, `auto`, follows the tools' own markings.
+
+To treat one tool differently from the rest of its server, set its mode under `tools`, keyed by the server's tool name. The tool's mode takes precedence over the server's:
+
+```json
+{
+  "McpServers": {
+    "inventory": {
+      "command": "inventory-mcp-server",
+      "toolApprovalMode": "approve",
+      "tools": {
+        "delete_item": { "approvalMode": "prompt" }
+      }
+    }
+  }
+}
+```
+
+### Limit the tools a server offers
+
+Set `enabledTools` to list the only tools a server offers the agent, and `disabledTools` to remove tools from what remains. Both take the server's own tool names. The agent cannot see or call a removed tool.
+
+```json
+{
+  "McpServers": {
+    "inventory": {
+      "command": "inventory-mcp-server",
+      "disabledTools": ["delete_item"]
+    }
+  }
+}
+```
+
+A plugin can set `toolApprovalMode`, `tools`, `enabledTools`, and `disabledTools` in its `.mcp.json` the same way.
 
 ### Pre-registered OAuth clients
 
@@ -133,7 +166,7 @@ For an HTTP MCP service that requires an existing OAuth application, open the se
 }
 ```
 
-Set the referenced variable before starting the DotCraft host. `clientSecretEnvVar` takes precedence over `clientSecret`; a missing or empty referenced value fails instead of using the literal secret. `callbackPort` is optional when the URL already includes a port. A fixed callback port must be available. Leave OAuth configuration absent to use the existing automatic registration flow. Save the server, then use Authenticate to authorize it.
+Set the referenced variable before starting the DotCraft host. `clientSecretEnvVar` takes precedence over `clientSecret`; a missing or empty referenced value fails instead of using the literal secret. `callbackPort` is optional when the URL already includes a port. A fixed callback port must be available. Set `scopes` to request specific OAuth scopes instead of the ones the service advertises. Leave OAuth configuration absent to use the existing automatic registration flow. Save the server, then use Authenticate to authorize it.
 
 ## LSP
 

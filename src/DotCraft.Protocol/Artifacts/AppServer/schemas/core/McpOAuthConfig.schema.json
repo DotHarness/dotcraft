@@ -56,6 +56,19 @@
     },
     "hasClientSecret": {
       "type": "boolean"
+    },
+    "scopes": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "additionalProperties": true

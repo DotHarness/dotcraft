@@ -2,6 +2,7 @@ using Contract = DotCraft.Protocol.AppServer;
 using McpServerConfig = DotCraft.Mcp.McpServerConfig;
 using McpServerOrigin = DotCraft.Mcp.McpServerOrigin;
 using McpToolApprovalMode = DotCraft.Mcp.McpToolApprovalMode;
+using McpToolConfig = DotCraft.Mcp.McpToolConfig;
 
 namespace DotCraft.AppServer;
 
@@ -27,32 +28,50 @@ internal static class McpContractMapper
         StartupTimeoutSec = config.StartupTimeoutSec,
         ToolTimeoutSec = config.ToolTimeoutSec,
         ToolApprovalMode = ToContract(config.ToolApprovalMode),
+        Tools = config.Tools is null
+            ? default
+            : new Protocol.Optional<IReadOnlyDictionary<string, Contract.McpToolConfig>?>(config.Tools.ToDictionary(
+                static pair => pair.Key,
+                static pair => new Contract.McpToolConfig
+                {
+                    ApprovalMode = pair.Value.ApprovalMode is { } mode ? ToContract(mode) : default
+                },
+                StringComparer.Ordinal)),
+        EnabledTools = ToolNames(config.EnabledTools),
+        DisabledTools = ToolNames(config.DisabledTools),
         Origin = ToContract(config.Origin),
         ReadOnly = config.ReadOnly
     };
 
-    public static McpServerConfig FromContract(Contract.McpServerConfig wire, McpServerConfig? existing = null) => new()
+    public static McpServerConfig FromContract(Contract.McpServerConfig wire, McpServerConfig? existing = null)
     {
-        Name = ValueOrDefault(wire.Name)?.Trim() ?? string.Empty,
-        Enabled = ValueOrDefault(wire.Enabled),
-        Transport = NormalizeTransport(ValueOrDefault(wire.Transport)),
-        Command = ValueOrDefault(wire.Command)?.Trim() ?? string.Empty,
-        Arguments = ValueOrDefault(wire.Args)?.ToList() ?? [],
-        EnvironmentVariables = ValueOrDefault(wire.Env)?.ToDictionary() ?? new Dictionary<string, string>(),
-        EnvVars = ValueOrDefault(wire.EnvVars)?.ToList() ?? [],
-        Cwd = string.IsNullOrWhiteSpace(ValueOrDefault(wire.Cwd)) ? null : ValueOrDefault(wire.Cwd)!.Trim(),
-        Url = ValueOrDefault(wire.Url)?.Trim() ?? string.Empty,
-        BearerTokenEnvVar = string.IsNullOrWhiteSpace(ValueOrDefault(wire.BearerTokenEnvVar)) ? null : ValueOrDefault(wire.BearerTokenEnvVar)!.Trim(),
-        Headers = ValueOrDefault(wire.HttpHeaders)?.ToDictionary() ?? new Dictionary<string, string>(),
-        EnvHttpHeaders = ValueOrDefault(wire.EnvHttpHeaders)?.ToDictionary() ?? new Dictionary<string, string>(),
-        StartupTimeoutSec = ValueOrDefault(wire.StartupTimeoutSec),
-        ToolTimeoutSec = ValueOrDefault(wire.ToolTimeoutSec),
-        ToolApprovalMode = wire.ToolApprovalMode.IsSet
-            ? ParseToolApprovalMode(wire.ToolApprovalMode.Value)
-            : existing?.ToolApprovalMode ?? McpToolApprovalMode.Auto,
-        OAuth = NormalizeTransport(ValueOrDefault(wire.Transport)) == "stdio" ? null : McpOAuthContractMapper.FromContract(wire.OAuth, existing?.OAuth),
-        Origin = McpServerOrigin.Workspace()
-    };
+        var kept = existing?.Clone();
+        return new()
+        {
+            Name = ValueOrDefault(wire.Name)?.Trim() ?? string.Empty,
+            Enabled = ValueOrDefault(wire.Enabled),
+            Transport = NormalizeTransport(ValueOrDefault(wire.Transport)),
+            Command = ValueOrDefault(wire.Command)?.Trim() ?? string.Empty,
+            Arguments = ValueOrDefault(wire.Args)?.ToList() ?? [],
+            EnvironmentVariables = ValueOrDefault(wire.Env)?.ToDictionary() ?? new Dictionary<string, string>(),
+            EnvVars = ValueOrDefault(wire.EnvVars)?.ToList() ?? [],
+            Cwd = string.IsNullOrWhiteSpace(ValueOrDefault(wire.Cwd)) ? null : ValueOrDefault(wire.Cwd)!.Trim(),
+            Url = ValueOrDefault(wire.Url)?.Trim() ?? string.Empty,
+            BearerTokenEnvVar = string.IsNullOrWhiteSpace(ValueOrDefault(wire.BearerTokenEnvVar)) ? null : ValueOrDefault(wire.BearerTokenEnvVar)!.Trim(),
+            Headers = ValueOrDefault(wire.HttpHeaders)?.ToDictionary() ?? new Dictionary<string, string>(),
+            EnvHttpHeaders = ValueOrDefault(wire.EnvHttpHeaders)?.ToDictionary() ?? new Dictionary<string, string>(),
+            StartupTimeoutSec = ValueOrDefault(wire.StartupTimeoutSec),
+            ToolTimeoutSec = ValueOrDefault(wire.ToolTimeoutSec),
+            ToolApprovalMode = wire.ToolApprovalMode.IsSet
+                ? ParseToolApprovalMode(wire.ToolApprovalMode.Value, "server.toolApprovalMode")
+                : kept?.ToolApprovalMode ?? McpToolApprovalMode.Auto,
+            Tools = wire.Tools.IsSet ? ParseTools(wire.Tools.Value) : kept?.Tools,
+            EnabledTools = wire.EnabledTools.IsSet ? wire.EnabledTools.Value?.ToList() : kept?.EnabledTools,
+            DisabledTools = wire.DisabledTools.IsSet ? wire.DisabledTools.Value?.ToList() : kept?.DisabledTools,
+            OAuth = NormalizeTransport(ValueOrDefault(wire.Transport)) == "stdio" ? null : McpOAuthContractMapper.FromContract(wire.OAuth, kept?.OAuth),
+            Origin = McpServerOrigin.Workspace()
+        };
+    }
 
     public static void ValidateContract(Contract.McpServerConfig server)
     {
@@ -113,18 +132,34 @@ internal static class McpContractMapper
 
     private static string ToContract(McpToolApprovalMode mode) => mode switch
     {
+        McpToolApprovalMode.Writes => "writes",
         McpToolApprovalMode.Approve => "approve",
         McpToolApprovalMode.Prompt => "prompt",
         _ => "auto"
     };
 
-    private static McpToolApprovalMode ParseToolApprovalMode(string? value) => value switch
+    private static McpToolApprovalMode ParseToolApprovalMode(string? value, string field) => value switch
     {
-        "auto" => McpToolApprovalMode.Auto,
+        null or "auto" => McpToolApprovalMode.Auto,
+        "writes" => McpToolApprovalMode.Writes,
         "approve" => McpToolApprovalMode.Approve,
         "prompt" => McpToolApprovalMode.Prompt,
-        _ => throw AppServerErrors.McpServerValidationFailed("'server.toolApprovalMode' must be 'auto', 'approve', or 'prompt'.")
+        _ => throw AppServerErrors.McpServerValidationFailed($"'{field}' must be 'auto', 'writes', 'approve', or 'prompt'.")
     };
+
+    private static Dictionary<string, McpToolConfig>? ParseTools(IReadOnlyDictionary<string, Contract.McpToolConfig>? tools) =>
+        tools?.ToDictionary(
+            static pair => pair.Key,
+            static pair => new McpToolConfig
+            {
+                ApprovalMode = pair.Value?.ApprovalMode is { IsSet: true, Value: { } mode }
+                    ? ParseToolApprovalMode(mode, $"server.tools.{pair.Key}.approvalMode")
+                    : null
+            },
+            StringComparer.Ordinal);
+
+    private static Protocol.Optional<IReadOnlyList<string>?> ToolNames(List<string>? names) =>
+        names is null ? default : new Protocol.Optional<IReadOnlyList<string>?>(names.ToArray());
 
     private static T? ValueOrDefault<T>(Protocol.Optional<T> value) =>
         value.IsSet ? value.Value : default;

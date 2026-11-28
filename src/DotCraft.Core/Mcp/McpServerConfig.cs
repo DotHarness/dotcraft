@@ -62,12 +62,22 @@ public sealed class McpServerOrigin
 public enum McpToolApprovalMode
 {
     Auto,
+    Writes,
     Approve,
     Prompt
 }
 
 public sealed class McpToolApprovalModeJsonConverter()
     : JsonStringEnumConverter<McpToolApprovalMode>(JsonNamingPolicy.CamelCase, allowIntegerValues: false);
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed class McpToolConfig
+{
+    [JsonConverter(typeof(McpToolApprovalModeJsonConverter))]
+    public McpToolApprovalMode? ApprovalMode { get; set; }
+
+    public McpToolConfig Clone() => new() { ApprovalMode = ApprovalMode };
+}
 
 [ConfigSection(
     "McpServers",
@@ -149,9 +159,21 @@ public sealed class McpServerConfig
     /// </summary>
     public double? ToolTimeoutSec { get; set; }
 
-    [ConfigField(FieldType = "select", Options = new[] { "auto", "approve", "prompt" })]
+    [ConfigField(FieldType = "select", Options = new[] { "auto", "writes", "approve", "prompt" })]
     [JsonConverter(typeof(McpToolApprovalModeJsonConverter))]
     public McpToolApprovalMode ToolApprovalMode { get; set; }
+
+    /// <summary>
+    /// Per-tool settings keyed by the server's own tool name.
+    /// </summary>
+    public Dictionary<string, McpToolConfig>? Tools { get; set; }
+
+    /// <summary>
+    /// When set, the only tools this server contributes. An empty list contributes none.
+    /// </summary>
+    public List<string>? EnabledTools { get; set; }
+
+    public List<string>? DisabledTools { get; set; }
 
     [JsonIgnore]
     public McpServerOrigin Origin
@@ -173,6 +195,18 @@ public sealed class McpServerConfig
 
     public void ValidateOAuth() => McpOAuthOptionsFactory.Validate(this);
 
+    public bool ContributesTool(string toolName) =>
+        (EnabledTools is null || EnabledTools.Contains(toolName, StringComparer.Ordinal))
+        && DisabledTools?.Contains(toolName, StringComparer.Ordinal) != true;
+
+    /// <summary>
+    /// Thread-origin servers always use <see cref="McpToolApprovalMode.Auto"/> because the thread's client supplies them.
+    /// </summary>
+    public McpToolApprovalMode ApprovalModeFor(string toolName) =>
+        Origin.IsThread
+            ? McpToolApprovalMode.Auto
+            : Tools?.GetValueOrDefault(toolName)?.ApprovalMode ?? ToolApprovalMode;
+
     public McpServerConfig Clone() =>
         new()
         {
@@ -192,6 +226,9 @@ public sealed class McpServerConfig
             StartupTimeoutSec = StartupTimeoutSec,
             ToolTimeoutSec = ToolTimeoutSec,
             ToolApprovalMode = ToolApprovalMode,
+            Tools = Tools?.ToDictionary(static pair => pair.Key, static pair => pair.Value.Clone(), StringComparer.Ordinal),
+            EnabledTools = EnabledTools is null ? null : [.. EnabledTools],
+            DisabledTools = DisabledTools is null ? null : [.. DisabledTools],
             Origin = Origin.Clone()
         };
 }

@@ -44,13 +44,23 @@ internal static class McpOAuthOptionsFactory
         return string.IsNullOrWhiteSpace(oauth.ClientSecret) ? null : oauth.ClientSecret;
     }
 
-    public static ClientOAuthOptions Create(McpServerConfig server, string? userDataPath, Uri? redirectUri = null) => new()
+    public static ClientOAuthOptions Create(
+        McpServerConfig server,
+        string? userDataPath,
+        Uri? redirectUri = null,
+        IReadOnlyList<string>? scopes = null)
     {
-        ClientId = string.IsNullOrWhiteSpace(server.OAuth?.ClientId) ? null : server.OAuth.ClientId.Trim(),
-        ClientSecret = ResolveSecret(server),
-        RedirectUri = redirectUri ?? ResolveCallback(server, allocatePort: false),
-        TokenCache = McpOAuthTokenStore.Create(server, userDataPath)
-    };
+        var requestedScopes = scopes ?? server.OAuth?.Scopes;
+        return new()
+        {
+            ClientId = string.IsNullOrWhiteSpace(server.OAuth?.ClientId) ? null : server.OAuth.ClientId.Trim(),
+            ClientSecret = ResolveSecret(server),
+            RedirectUri = redirectUri ?? ResolveCallback(server, allocatePort: false),
+            TokenCache = McpOAuthTokenStore.Create(server, userDataPath),
+            // The SDK's Scopes option only applies when the server advertises none, so requested scopes replace its choice.
+            ScopeSelector = requestedScopes is null ? null : _ => requestedScopes
+        };
+    }
 
     public static Uri ResolveCallback(McpServerConfig server, bool allocatePort)
     {
