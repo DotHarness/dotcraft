@@ -3,8 +3,8 @@ import { FolderOpen, Store } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { usePluginStore, type MarketplaceEntry } from '../../stores/pluginStore'
 import { Button } from '../ui/Button'
-import { IconButton } from '../ui/IconButton'
 import { Input, Textarea } from '../ui/Input'
+import { InputWithAction } from '../ui/InputWithAction'
 import { ModalDialog, ModalFooter } from '../ui/ModalDialog'
 import { ModalHeader } from '../ui/ModalHeader'
 import styles from './AddMarketplaceDialog.module.css'
@@ -110,7 +110,19 @@ export function AddMarketplaceDialog({
     >
       <div className={styles.field}>
         <label htmlFor={sourceId} className={styles.label}>{t('plugins.marketplace.add.source')}</label>
-        <div className={styles.sourceRow}>
+        {allowLocalFolder ? (
+          <InputWithAction
+            inputRef={sourceRef}
+            id={sourceId}
+            value={source}
+            disabled={busy}
+            placeholder={t('plugins.marketplace.add.sourcePlaceholder')}
+            onChange={(event) => setSource(event.target.value)}
+            actionIcon={<FolderOpen size={16} aria-hidden />}
+            actionLabel={t('plugins.marketplace.add.browse')}
+            onAction={() => void handlePickFolder()}
+          />
+        ) : (
           <Input
             ref={sourceRef}
             id={sourceId}
@@ -118,18 +130,8 @@ export function AddMarketplaceDialog({
             disabled={busy}
             placeholder={t('plugins.marketplace.add.sourcePlaceholder')}
             onChange={(event) => setSource(event.target.value)}
-            className={styles.grow}
           />
-          {allowLocalFolder && (
-            <IconButton
-              label={t('plugins.marketplace.add.browse')}
-              tooltipLabel={t('plugins.marketplace.add.browse')}
-              disabled={busy}
-              icon={<FolderOpen size={16} aria-hidden />}
-              onClick={() => void handlePickFolder()}
-            />
-          )}
-        </div>
+        )}
       </div>
 
       <div className={styles.field}>

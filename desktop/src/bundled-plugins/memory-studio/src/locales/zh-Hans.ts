@@ -39,6 +39,7 @@ export const messages: Record<MessageKey, string> = {
   'editor.body': '记忆',
   'editor.namePlaceholder': 'memory-name',
   'editor.descriptionPlaceholder': '用一句话说明这条记忆何时适用',
+  'editor.bodyPlaceholder': '写下需要记住的内容…',
   'editor.viewSource': '查看源码',
   'editor.viewPreview': '查看预览',
   'editor.previewEmpty': '没有可预览的内容',

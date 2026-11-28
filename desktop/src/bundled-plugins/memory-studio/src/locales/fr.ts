@@ -39,6 +39,7 @@ export const messages: Record<MessageKey, string> = {
   'editor.body': 'Mémoire',
   'editor.namePlaceholder': 'memory-name',
   'editor.descriptionPlaceholder': 'Une ligne sur le moment où cette mémoire s’applique',
+  'editor.bodyPlaceholder': 'Écrire ce qu’il faut retenir…',
   'editor.viewSource': 'Afficher la source',
   'editor.viewPreview': 'Afficher l’aperçu',
   'editor.previewEmpty': 'Rien à prévisualiser',

@@ -39,6 +39,7 @@ export const messages: Record<MessageKey, string> = {
   'editor.body': 'Erinnerung',
   'editor.namePlaceholder': 'memory-name',
   'editor.descriptionPlaceholder': 'Eine Zeile dazu, wann diese Erinnerung gilt',
+  'editor.bodyPlaceholder': 'Aufschreiben, was gemerkt werden soll…',
   'editor.viewSource': 'Quelltext anzeigen',
   'editor.viewPreview': 'Vorschau anzeigen',
   'editor.previewEmpty': 'Nichts zur Vorschau',

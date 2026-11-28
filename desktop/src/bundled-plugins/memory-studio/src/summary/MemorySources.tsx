@@ -1,7 +1,7 @@
 import { SummaryRow, type DesktopPluginSurfaceProps } from '@dotcraft/plugin'
 import { BookOpen } from 'lucide-react'
 import { useEffect, useState, type JSX } from 'react'
-import { requestOpen } from '../state/openRequests'
+import { openMemoryDialog } from '../state/memoryDialog'
 import { collectThreadMemories, readThreadMemoryItems, type ThreadMemory } from './threadMemories'
 
 export const MEMORY_VIEW_ID = 'memory'
@@ -30,10 +30,13 @@ export function MemorySources({ host, context }: DesktopPluginSurfaceProps<'summ
           label={memory.fileName}
           meta={memory.store?.name}
           title={memory.path}
-          onClick={() => {
-            requestOpen({ kind: 'entry', fileName: memory.fileName, path: memory.path, storeId: memory.store?.id ?? null, workspacePath })
-            host.navigation.openMainView(MEMORY_VIEW_ID)
-          }}
+          onClick={() => openMemoryDialog({
+            mode: 'existing',
+            fileName: memory.fileName,
+            path: memory.path,
+            storeId: memory.store?.id ?? null,
+            workspacePath
+          })}
         />
       ))}
     </>

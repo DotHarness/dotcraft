@@ -30,6 +30,7 @@ import { Combobox } from '../components/ui/Combobox'
 import { IconButton } from '../components/ui/IconButton'
 import { Input, Textarea } from '../components/ui/Input'
 import { LayerBoundary } from '../contexts/LayerContext'
+import { ModalDialog, ModalFooter } from '../components/ui/ModalDialog'
 import { ModalHeader } from '../components/ui/ModalHeader'
 import { PillSwitch } from '../components/ui/PillSwitch'
 import { Select } from '../components/ui/Select'
@@ -67,6 +68,8 @@ export function startDesktopPluginRuntime(): () => void {
       ActionTooltip,
       Combobox,
       LayerBoundary,
+      ModalDialog,
+      ModalFooter,
       ModalHeader,
       PillSwitch,
       SettingsPanelShell,

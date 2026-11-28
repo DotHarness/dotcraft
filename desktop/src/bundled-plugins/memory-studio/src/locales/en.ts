@@ -37,6 +37,7 @@ export const messages = {
   'editor.body': 'Memory',
   'editor.namePlaceholder': 'memory-name',
   'editor.descriptionPlaceholder': 'One line on when this memory applies',
+  'editor.bodyPlaceholder': 'Write what to remember…',
   'editor.viewSource': 'View source',
   'editor.viewPreview': 'View preview',
   'editor.previewEmpty': 'Nothing to preview',

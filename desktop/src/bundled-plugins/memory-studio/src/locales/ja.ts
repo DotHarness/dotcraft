@@ -39,6 +39,7 @@ export const messages: Record<MessageKey, string> = {
   'editor.body': 'メモリ',
   'editor.namePlaceholder': 'memory-name',
   'editor.descriptionPlaceholder': 'このメモリがいつ役立つかを一行で',
+  'editor.bodyPlaceholder': '覚えておく内容を書く…',
   'editor.viewSource': 'ソースを表示',
   'editor.viewPreview': 'プレビューを表示',
   'editor.previewEmpty': 'プレビューする内容がありません',

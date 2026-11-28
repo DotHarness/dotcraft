@@ -136,6 +136,29 @@ export interface ComboboxProps {
   readonly disabled?: boolean;
 }
 
+export interface ModalDialogProps {
+  readonly titleId?: string;
+  readonly ariaLabel?: string;
+  readonly role?: "dialog" | "alertdialog";
+  readonly width?: number | string;
+  readonly maxHeight?: number | string;
+  readonly onDismiss?: () => void;
+  readonly onSubmit?: () => void;
+  readonly header?: ReactNode;
+  readonly error?: ReactNode;
+  readonly footer?: ReactNode;
+  readonly children?: ReactNode;
+  readonly className?: string;
+  readonly bodyClassName?: string;
+  readonly scrimStyle?: CSSProperties;
+  readonly frameStyle?: CSSProperties;
+}
+
+export interface ModalFooterProps {
+  readonly leading?: ReactNode;
+  readonly children: ReactNode;
+}
+
 export interface ModalHeaderProps {
   readonly icon: ReactNode;
   readonly title: string;
@@ -433,6 +456,8 @@ export interface DesktopPluginUiComponents {
   readonly Slider: ComponentType<SliderProps>;
   readonly ActionTooltip: ComponentType<ActionTooltipProps>;
   readonly Combobox: ComponentType<ComboboxProps>;
+  readonly ModalDialog: ComponentType<ModalDialogProps>;
+  readonly ModalFooter: ComponentType<ModalFooterProps>;
   readonly ModalHeader: ComponentType<ModalHeaderProps>;
   readonly PillSwitch: ComponentType<PillSwitchProps>;
   readonly SettingsPanelShell: ComponentType<SettingsPanelShellProps>;

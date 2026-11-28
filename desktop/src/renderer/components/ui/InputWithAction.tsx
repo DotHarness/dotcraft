@@ -1,6 +1,5 @@
 import type {
   ChangeEvent,
-  CSSProperties,
   JSX,
   MouseEvent as ReactMouseEvent,
   MouseEventHandler,
@@ -53,20 +52,19 @@ export function InputWithAction({
       className="dc-input-with-action"
       data-invalid={invalid || undefined}
       data-disabled={disabled || undefined}
-      style={containerStyle()}
     >
       <Input
         id={id}
         ref={inputRef}
         bare
         mono={mono}
+        className="dc-input-with-action__input"
         value={value}
         onChange={onChange}
         onClick={onInputClick}
         placeholder={placeholder}
         disabled={disabled}
         aria-describedby={ariaDescribedby}
-        style={innerInputStyle()}
       />
       <ActionTooltip
         label={actionLabel}
@@ -84,27 +82,5 @@ export function InputWithAction({
       </ActionTooltip>
     </div>
   )
-}
-
-function containerStyle(): CSSProperties {
-  return {
-    display: 'flex',
-    alignItems: 'stretch',
-    width: '100%',
-    boxSizing: 'border-box',
-    borderRadius: '8px',
-    border: '1px solid var(--border-default)',
-    background: 'var(--bg-primary)',
-    overflow: 'hidden',
-    transition: 'border-color 120ms ease, box-shadow 120ms ease'
-  }
-}
-
-function innerInputStyle(): CSSProperties {
-  return {
-    flex: 1,
-    minWidth: 0,
-    padding: '8px 10px'
-  }
 }
 

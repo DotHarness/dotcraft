@@ -1,3 +1,23 @@
+.dc-input-with-action {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  height: var(--button-height);
+  box-sizing: border-box;
+  border-radius: var(--button-radius);
+  border: 1px solid var(--border-default);
+  background: var(--bg-primary);
+  overflow: hidden;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.dc-input-with-action .dc-field.dc-input-with-action__input[data-bare] {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0 10px;
+}
+
 .dc-input-with-action:focus-within {
   border-color: var(--border-active);
 }
@@ -33,8 +53,9 @@
 
 .dc-input-with-action button {
   display: inline-flex;
-  width: 34px;
-  min-width: 34px;
+  width: 32px;
+  min-width: 32px;
+  height: 100%;
   align-items: center;
   justify-content: center;
   padding: 0;
@@ -55,6 +76,11 @@
 .dc-input-with-action button:hover:not(:disabled) {
   background: var(--bg-hover);
   color: var(--text-primary);
+}
+
+.dc-input-with-action button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
+  outline-offset: -2px;
 }
 
 .dc-input-with-action button:active:not(:disabled) {

@@ -39,6 +39,7 @@ export const messages: Record<MessageKey, string> = {
   'editor.body': '메모리',
   'editor.namePlaceholder': 'memory-name',
   'editor.descriptionPlaceholder': '이 메모리가 언제 쓰이는지 한 줄로',
+  'editor.bodyPlaceholder': '기억할 내용을 작성하세요…',
   'editor.viewSource': '소스 보기',
   'editor.viewPreview': '미리 보기',
   'editor.previewEmpty': '미리 볼 내용이 없습니다',

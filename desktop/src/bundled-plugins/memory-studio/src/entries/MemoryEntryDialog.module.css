@@ -1,0 +1,232 @@
+.body {
+  gap: 12px;
+}
+
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 240px;
+  height: 26px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--type-secondary-size);
+  font-weight: 500;
+  line-height: var(--type-secondary-line-height);
+  white-space: nowrap;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+button.pill {
+  cursor: pointer;
+}
+
+.pillTinted {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+button.pill:hover:not(:disabled),
+button.pill[aria-expanded='true'] {
+  background: var(--bg-hover-strong);
+  color: var(--text-primary);
+}
+
+button.pill:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+button.pill:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
+  outline-offset: 1px;
+}
+
+.pillText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pillChevron {
+  flex-shrink: 0;
+  opacity: 0.65;
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-inline: 2px;
+}
+
+.titleInput,
+.descriptionInput {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  outline: none;
+}
+
+.titleInput {
+  color: var(--text-primary);
+  font-size: var(--type-page-title-size);
+  font-weight: 600;
+  line-height: var(--type-page-title-line-height);
+}
+
+.titleInput::placeholder {
+  color: var(--text-dimmed);
+}
+
+.descriptionInput {
+  color: var(--text-secondary);
+  font-size: var(--type-ui-size);
+  line-height: var(--type-ui-line-height);
+}
+
+.descriptionInput::placeholder {
+  color: var(--text-dimmed);
+}
+
+.titleInput:disabled,
+.descriptionInput:disabled {
+  opacity: 0.5;
+}
+
+.fieldError {
+  color: var(--warning-text);
+  font-size: var(--type-hint-size);
+  line-height: var(--type-hint-line-height);
+}
+
+.bodySurface {
+  position: relative;
+  min-width: 0;
+}
+
+.textarea[data-multiline] {
+  min-height: 120px;
+  max-height: 260px;
+  padding: 12px 14px;
+  line-height: 1.55;
+  resize: none;
+}
+
+.textareaWithToggle[data-multiline] {
+  padding-right: 40px;
+}
+
+.previewBox {
+  min-height: 120px;
+  max-height: 260px;
+  padding: 12px 40px 12px 14px;
+  overflow-y: auto;
+  border-radius: 10px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: var(--type-ui-size);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.previewEmpty {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-dimmed);
+  font: inherit;
+}
+
+button.previewEmpty {
+  cursor: text;
+}
+
+button.previewEmpty:hover {
+  color: var(--text-secondary);
+}
+
+.bodyToggle {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+  opacity: 0.65;
+  transition: opacity 120ms ease;
+}
+
+.bodySurface:hover .bodyToggle,
+.bodyToggle:focus-within,
+.bodySurface[data-mode='source'] .bodyToggle {
+  opacity: 1;
+}
+
+.deleteButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--button-height);
+  padding: 0 10px;
+  margin-left: -10px;
+  border: 0;
+  border-radius: var(--button-radius);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--type-ui-size);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.deleteButton:hover:not(:disabled) {
+  background: var(--error-bg);
+  color: var(--error-text);
+}
+
+.deleteButton:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.deleteButton:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
+  outline-offset: 2px;
+}
+
+.current {
+  max-height: 180px;
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  overflow: auto;
+  border-radius: 8px;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--type-secondary-size);
+  line-height: var(--type-secondary-prose-line-height);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.conflictActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}

@@ -145,6 +145,8 @@ export type {
   MenuLabel,
   MenuProps,
   MenuSeparator,
+  ModalDialogProps,
+  ModalFooterProps,
   ModalHeaderProps,
   PillSwitchProps,
   PluginSurfaceComponent,
@@ -190,6 +192,8 @@ export const Skeleton = ui.Skeleton;
 export const Slider = ui.Slider;
 export const ActionTooltip = ui.ActionTooltip;
 export const Combobox = ui.Combobox;
+export const ModalDialog = ui.ModalDialog;
+export const ModalFooter = ui.ModalFooter;
 export const ModalHeader = ui.ModalHeader;
 export const PillSwitch = ui.PillSwitch;
 export const SettingsPanelShell = ui.SettingsPanelShell;

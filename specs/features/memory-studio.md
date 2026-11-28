@@ -14,9 +14,10 @@ Purpose: Define **Memory Studio**, a bundled Desktop plugin where the user brows
 | Surface | Contribution |
 |---------|--------------|
 | **Memory** main view | **Memory** and **Dreams** views, switched at the left of the top bar, with a settings action that opens Settings › Personalization. |
+| App overlay (`app.overlay`) | Compact memory modal dialog for creating, viewing, editing, and deleting a memory from Memory Studio, **Remember**, or thread **Sources** (§2, §5, §6). |
 | Settings (`settings.personalization`) | **Memory policy** settings under Settings › Personalization (§3). |
 | Summary | The memories a thread used, listed under **Sources** (§5). |
-| Assistant message action | **Remember**, which starts a memory entry from the message (§6). |
+| Assistant message action | **Remember**, which opens the **New memory** dialog over the current conversation (§6). |
 
 Every read and write goes through the connected AppServer: memory files through the file system methods, the policy through configuration methods, and stores and Dreams through their memory and Dreams methods. Memory Studio therefore works the same against local and remote workspaces, and it shows a notice instead of a view whose server capability is missing.
 
@@ -26,7 +27,7 @@ The main view follows Desktop's catalog pages. Memory and Dreams share one hero 
 
 The Memory view lists the stores from `memory/listStores` and the memory files in each, with search over name, description, and body, and filters by store, type, and age. The workspace store is titled by the foreground workspace's name, as in "dotcraft memory", and that name switches the workspace in place. Memories show as cards: the type and the last-modified date on the first line, then the name and up to two lines of description. A memory not modified for more than 30 days is marked as possibly stale with a warning indicator beside its date.
 
-Opening an entry shows it as a page: `name` is the page title and `description` its subtitle, both edited in place. Under them, the type is a tag that opens a menu of the effective policy's types, plus the entry's current type when the policy does not declare it. The body is Markdown. An existing entry opens with the body rendered directly on the page, without a frame or fill. One icon button, or a double-click on the body, switches to the source in a framed field that grows with its content, and Escape returns to the preview. A new entry opens in the source. The page's actions sit in its top bar, so switching between preview and source never moves them. **Delete** is in a more-actions menu. Save and Cancel appear only once the draft differs from what was loaded, and Cancel restores it. A new entry always shows them, and its Cancel closes the page. Naming rules appear only when the name breaks them.
+Creating or opening a memory opens a compact modal dialog over the current view: lightweight pills show and choose the `type` (including an entry's undeclared type so opening never changes it) and `store` (selectable across writable stores when creating), `name` and `description` are edited in place as frameless card headings, and the Markdown `body` sits in a recessed frameless surface. A new memory opens in source mode. An existing memory opens in Markdown preview, where one icon button or a double-click switches to source and Escape returns to preview. **Delete** sits at the left of the footer for writable existing memories, with **Cancel** and **Save** at the right. Naming rules appear only when the name breaks them.
 
 - **Save** writes the file and keeps its index line in step: it adds `- [Title](name.md) — hook` for a new entry, updates the line of an existing one, and renames both when `name` changes. The hook defaults to the description.
 - **Delete** removes the file and its index line after confirmation.
@@ -52,8 +53,8 @@ The Dreams view lists Dreams runs, with search over the store, summary, and mess
 
 ## 5. Summary Sources
 
-In a thread's Summary, Memory Studio adds the memories the thread read or wrote to **Sources** through `summary.sources`, most recent first, each named by its file. It derives them from the memory presentation marks on the thread's file tool calls, so it shows exactly what Core counts as memory operations and never guesses from paths. Selecting a memory opens it in the Memory view. It adds no rows when the thread has no memory operations.
+In a thread's Summary, Memory Studio adds the memories the thread read or wrote to **Sources** through `summary.sources`, most recent first, each named by its file. It derives them from the memory presentation marks on the thread's file tool calls, so it shows exactly what Core counts as memory operations and never guesses from paths. Selecting a memory opens its compact modal dialog directly over the conversation. It adds no rows when the thread has no memory operations.
 
 ## 6. Remember Action
 
-An assistant message gets a **Remember** action. It opens a new entry in the workspace store, which the user may change to another writable store, with the message text as its body. Nothing is saved until the user saves the entry, so the action never writes memory on its own.
+An assistant message gets a **Remember** action. It opens the **New memory** modal dialog over the current conversation—without navigating away to the Memory view—defaulted to the workspace store (which the user may change to another writable store) and prefilled with the message text as its body. Nothing is saved until the user saves the dialog, so the action never writes memory on its own.
