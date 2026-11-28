@@ -226,7 +226,7 @@ public sealed class McpServerConfig
             StartupTimeoutSec = StartupTimeoutSec,
             ToolTimeoutSec = ToolTimeoutSec,
             ToolApprovalMode = ToolApprovalMode,
-            Tools = Tools?.ToDictionary(static pair => pair.Key, static pair => pair.Value.Clone(), StringComparer.Ordinal),
+            Tools = Tools?.ToDictionary(static pair => pair.Key, static pair => pair.Value?.Clone() ?? new McpToolConfig(), StringComparer.Ordinal),
             EnabledTools = EnabledTools is null ? null : [.. EnabledTools],
             DisabledTools = DisabledTools is null ? null : [.. DisabledTools],
             Origin = Origin.Clone()

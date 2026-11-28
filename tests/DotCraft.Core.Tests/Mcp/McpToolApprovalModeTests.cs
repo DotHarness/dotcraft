@@ -101,6 +101,22 @@ public sealed class McpToolApprovalModeTests
     }
 
     [Fact]
+    public async Task NullToolEntry_InheritsServerMode()
+    {
+        var config = System.Text.Json.JsonSerializer.Deserialize<McpServerConfig>(
+            """{ "Name": "inventory", "Command": "inventory-mcp-server", "ToolApprovalMode": "prompt", "Tools": { "read": null } }""",
+            AppConfig.SerializerOptions)!;
+        await using var manager = new McpClientManager((_, _) => Task.FromResult(
+            new McpConnectionResult(new FakeClient(), [new FakeFunction("read")])));
+        await manager.ConnectAsync([config]);
+        await manager.WaitForStartupCompletionAsync();
+
+        var registration = Assert.Single(await new McpToolSource(manager, new AppConfig()).GetRegistrationsAsync(Context));
+
+        Assert.True(registration.Definition.PolicyHints.RequiresApproval);
+    }
+
+    [Fact]
     public void WorkspaceAuto_OverridesUserApproveAfterMergedLoad()
     {
         var root = Path.Combine(Path.GetTempPath(), $"mcp_approval_merge_{Guid.NewGuid():N}");
