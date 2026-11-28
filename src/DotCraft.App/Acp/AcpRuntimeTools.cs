@@ -81,10 +81,10 @@ internal static class AcpRuntimeTools
         if (caps == null)
             return null;
 
-        var fs = caps.Fs.HasValue ? caps.Fs.Value : null;
-        var fsRead = fs is { ReadTextFile: { HasValue: true, Value: true } };
-        var fsWrite = fs is { WriteTextFile: { HasValue: true, Value: true } };
-        var terminal = caps.Terminal is { HasValue: true, Value: true };
+        var fs = caps.Fs.GetValueOrDefault();
+        var fsRead = fs?.ReadTextFile.GetValueOrDefault() == true;
+        var fsWrite = fs?.WriteTextFile.GetValueOrDefault() == true;
+        var terminal = caps.Terminal.GetValueOrDefault();
         var extensions = GetCustomExtensionFamilies(runtimeDescriptors);
 
         if (!fsRead && !fsWrite && !terminal && extensions.Count == 0)
@@ -285,7 +285,7 @@ internal static class AcpRuntimeTools
         capability = null;
         message = string.Empty;
 
-        if (caps is not { Meta: { HasValue: true, Value: { } meta } })
+        if (caps?.Meta.GetValueOrDefault() is not { } meta)
             return true;
         if (!meta.TryGetValue("dotcraft", out var dotcraftEl) || dotcraftEl.ValueKind != JsonValueKind.Object)
             return true;
@@ -333,11 +333,11 @@ internal static class AcpRuntimeTools
 
         if (parts[0].Equals("fs", StringComparison.OrdinalIgnoreCase))
         {
-            var fs = caps is { Fs.HasValue: true } ? caps.Fs.Value : null;
+            var fs = caps?.Fs.GetValueOrDefault();
             var supported = parts[1] switch
             {
-                "read_text_file" => fs is { ReadTextFile: { HasValue: true, Value: true } },
-                "write_text_file" => fs is { WriteTextFile: { HasValue: true, Value: true } },
+                "read_text_file" => fs?.ReadTextFile.GetValueOrDefault() == true,
+                "write_text_file" => fs?.WriteTextFile.GetValueOrDefault() == true,
                 _ => false
             };
             if (!supported)
@@ -348,7 +348,7 @@ internal static class AcpRuntimeTools
         }
         else if (parts[0].Equals("terminal", StringComparison.OrdinalIgnoreCase))
         {
-            if (caps is not { Terminal: { HasValue: true, Value: true } })
+            if (caps?.Terminal.GetValueOrDefault() != true)
             {
                 message = $"runtime tool acpMethod '{rawMethod}' requires an advertised terminal capability.";
                 return false;

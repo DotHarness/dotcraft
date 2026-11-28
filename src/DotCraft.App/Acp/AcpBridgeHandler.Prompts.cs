@@ -249,10 +249,10 @@ public sealed partial class AcpBridgeHandler
         {
             switch (block)
             {
-                case ContentBlock.Case1 text when !string.IsNullOrEmpty(text.Value.Text):
+                case ContentBlock.Text text when !string.IsNullOrEmpty(text.Value.Text):
                     parts.Add(new SessionInputPart { Type = "text", Text = text.Value.Text });
                     break;
-                case ContentBlock.Case2 image
+                case ContentBlock.Image image
                     when !string.IsNullOrEmpty(image.Value.Data)
                          && image.Value.MimeType.StartsWith("image/", StringComparison.OrdinalIgnoreCase):
                     parts.Add(new SessionInputPart
@@ -261,15 +261,15 @@ public sealed partial class AcpBridgeHandler
                         Url = $"data:{image.Value.MimeType};base64,{image.Value.Data}"
                     });
                     break;
-                case ContentBlock.Case4 link:
+                case ContentBlock.ResourceLink link:
                 {
                     var t = $"[File: {link.Value.Uri}]";
-                    if (link.Value.Description is { HasValue: true, Value: { Length: > 0 } desc })
+                    if (link.Value.Description.GetValueOrDefault() is { Length: > 0 } desc)
                         t += "\n" + desc;
                     parts.Add(new SessionInputPart { Type = "text", Text = t });
                     break;
                 }
-                case ContentBlock.Case5 resource when resource.Value.Resource is EmbeddedResourceResource.Case1 textRes:
+                case ContentBlock.Resource resource when resource.Value.Resource is EmbeddedResourceResource.TextResourceContents textRes:
                 {
                     var t = $"[File: {textRes.Value.Uri}]";
                     if (!string.IsNullOrEmpty(textRes.Value.Text))
@@ -277,10 +277,10 @@ public sealed partial class AcpBridgeHandler
                     parts.Add(new SessionInputPart { Type = "text", Text = t });
                     break;
                 }
-                case ContentBlock.Case5 resource when resource.Value.Resource is EmbeddedResourceResource.Case2 blobRes:
+                case ContentBlock.Resource resource when resource.Value.Resource is EmbeddedResourceResource.BlobResourceContents blobRes:
                 {
                     var blob = blobRes.Value;
-                    var mimeType = blob.MimeType is { HasValue: true } ? blob.MimeType.Value : null;
+                    var mimeType = blob.MimeType.GetValueOrDefault();
                     if (!string.IsNullOrEmpty(blob.Blob)
                         && !string.IsNullOrEmpty(mimeType)
                         && mimeType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
@@ -316,15 +316,15 @@ public sealed partial class AcpBridgeHandler
         {
             switch (block)
             {
-                case ContentBlock.Case1 text when !string.IsNullOrEmpty(text.Value.Text):
+                case ContentBlock.Text text when !string.IsNullOrEmpty(text.Value.Text):
                     if (sb.Length > 0) sb.Append('\n');
                     sb.Append(text.Value.Text);
                     break;
-                case ContentBlock.Case4 link:
+                case ContentBlock.ResourceLink link:
                     if (sb.Length > 0) sb.Append('\n');
                     sb.Append($"[File: {link.Value.Uri}]");
                     break;
-                case ContentBlock.Case5 resource when resource.Value.Resource is EmbeddedResourceResource.Case1 textRes:
+                case ContentBlock.Resource resource when resource.Value.Resource is EmbeddedResourceResource.TextResourceContents textRes:
                     if (sb.Length > 0) sb.Append('\n');
                     sb.Append($"[File: {textRes.Value.Uri}]");
                     if (!string.IsNullOrEmpty(textRes.Value.Text))
@@ -333,7 +333,7 @@ public sealed partial class AcpBridgeHandler
                         sb.Append(textRes.Value.Text);
                     }
                     break;
-                case ContentBlock.Case5 resource when resource.Value.Resource is EmbeddedResourceResource.Case2 blobRes:
+                case ContentBlock.Resource resource when resource.Value.Resource is EmbeddedResourceResource.BlobResourceContents blobRes:
                     if (sb.Length > 0) sb.Append('\n');
                     sb.Append($"[File: {blobRes.Value.Uri}]");
                     break;

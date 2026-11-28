@@ -21,8 +21,8 @@ public sealed class AcpBridgeHandlerToolResultContentTests
         }
 
         Assert.NotNull(content);
-        var wrapped = Assert.IsType<ToolCallContent.Case1>(Assert.Single(content!));
-        var text = Assert.IsType<ContentBlock.Case1>(wrapped.Value.Content);
+        var wrapped = Assert.IsType<ToolCallContent.Content>(Assert.Single(content!));
+        var text = Assert.IsType<ContentBlock.Text>(wrapped.Value.ContentValue);
         Assert.Equal(expected, text.Value.Text);
     }
 }

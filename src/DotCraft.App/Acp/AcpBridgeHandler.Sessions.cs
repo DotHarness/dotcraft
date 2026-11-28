@@ -68,7 +68,7 @@ public sealed partial class AcpBridgeHandler
             await ReleaseSessionObservationAsync(threadId).ConfigureAwait(false);
         }
 
-        QueueSlashCommandsBroadcast(threadId);
+        ScheduleSlashCommandsBroadcast(threadId);
         return response;
     }
 
@@ -147,7 +147,7 @@ public sealed partial class AcpBridgeHandler
             await ReleaseSessionObservationAsync(sessionId).ConfigureAwait(false);
         }
 
-        QueueSlashCommandsBroadcast(sessionId);
+        ScheduleSlashCommandsBroadcast(sessionId);
         return response;
     }
 
@@ -227,7 +227,7 @@ public sealed partial class AcpBridgeHandler
         SetSessionConfigOptionRequest parameters,
         CancellationToken ct)
     {
-        if (parameters is not SetSessionConfigOptionRequest.Case2 select)
+        if (parameters is not SetSessionConfigOptionRequest.ValueId select)
             throw new AcpRpcException(-32602, "Only select config options are supported.");
 
         var sessionId = select.Value.SessionId.Value;
@@ -343,7 +343,7 @@ public sealed partial class AcpBridgeHandler
         {
             switch (server)
             {
-                case McpServer.Case3 stdio when !string.IsNullOrWhiteSpace(stdio.Value.Name):
+                case McpServer.Stdio stdio when !string.IsNullOrWhiteSpace(stdio.Value.Name):
                     configs.Add(new McpServerConfig
                     {
                         Name = stdio.Value.Name,
@@ -356,7 +356,7 @@ public sealed partial class AcpBridgeHandler
                         Headers = new Dictionary<string, string>()
                     });
                     break;
-                case McpServer.Case1 http when !string.IsNullOrWhiteSpace(http.Value.Name):
+                case McpServer.Http http when !string.IsNullOrWhiteSpace(http.Value.Name):
                     configs.Add(new McpServerConfig
                     {
                         Name = http.Value.Name,

@@ -38,8 +38,8 @@ public sealed partial class AcpBridgeHandler(
 
     private static readonly JsonSerializerOptions WireReadOptions = SessionWireJsonOptions.Default;
 
-    private readonly TaskCompletionSource<AcpV1Agent> _agentReady =
-        new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private AcpClientCaller? _client;
+    private AcpConnection? _connection;
     private CancellationToken _bridgeLifetime;
 
     private ClientCapabilities? _clientCapabilities;
@@ -47,7 +47,6 @@ public sealed partial class AcpBridgeHandler(
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _activePrompts = new();
     private readonly ConcurrentDictionary<string, string> _activeToolNames = new();
     private readonly ConcurrentDictionary<string, AcpRuntimeToolDescriptor> _runtimeToolDescriptors = new();
-    private readonly ConcurrentDictionary<string, AvailableCommand[]> _pendingSlashCommands = new();
     private IReadOnlyList<RuntimeDynamicToolDeclarationSpec> _runtimeDynamicTools = [];
 
     private readonly AppServerProcess? _appServerProcess = appServerProcess;
@@ -59,20 +58,22 @@ public sealed partial class AcpBridgeHandler(
     public async Task RunAsync(IAcpTransport transport, CancellationToken ct = default)
     {
         _bridgeLifetime = ct;
-        var postResponseTransport = new PostResponseTransport(transport, OnSessionInitResponseWritten);
-        await using var agent = new AcpV1Agent(postResponseTransport, this);
-        _agentReady.TrySetResult(agent);
+        await using var agent = new AcpV1Agent(transport, (client, connection) =>
+        {
+            _client = client;
+            _connection = connection;
+            return this;
+        });
         await agent.Connection.Completion.WaitAsync(ct).ConfigureAwait(false);
     }
 
-    private ValueTask<AcpV1Agent> GetAgentAsync(CancellationToken ct = default) =>
-        _agentReady.Task.IsCompletedSuccessfully
-            ? ValueTask.FromResult(_agentReady.Task.Result)
-            : new ValueTask<AcpV1Agent>(_agentReady.Task.WaitAsync(ct));
+    private AcpClientCaller Client => _client ?? throw new InvalidOperationException("ACP bridge is not running.");
+
+    private AcpConnection Connection => _connection ?? throw new InvalidOperationException("ACP bridge is not running.");
 
     public async ValueTask<InitializeResponse> InitializeAsync(InitializeRequest parameters, CancellationToken ct)
     {
-        _clientCapabilities = parameters.ClientCapabilities.HasValue ? parameters.ClientCapabilities.Value : null;
+        _clientCapabilities = parameters.ClientCapabilities.GetValueOrDefault();
 
         if (!AcpRuntimeTools.TryBuildRuntimeTools(_clientCapabilities, out var dynamicTools, out var runtimeDescriptors, out var dynamicToolError))
             throw new AcpRpcException(-32602, dynamicToolError);
@@ -142,10 +143,10 @@ public sealed partial class AcpBridgeHandler(
         };
 
         var caps = new List<string>();
-        var fs = _clientCapabilities is { Fs.HasValue: true } ? _clientCapabilities.Fs.Value : null;
-        if (fs is { ReadTextFile: { HasValue: true, Value: true } }) caps.Add("fs.read");
-        if (fs is { WriteTextFile: { HasValue: true, Value: true } }) caps.Add("fs.write");
-        if (_clientCapabilities is { Terminal: { HasValue: true, Value: true } }) caps.Add("terminal");
+        var fs = _clientCapabilities?.Fs.GetValueOrDefault();
+        if (fs?.ReadTextFile.GetValueOrDefault() == true) caps.Add("fs.read");
+        if (fs?.WriteTextFile.GetValueOrDefault() == true) caps.Add("fs.write");
+        if (_clientCapabilities?.Terminal.GetValueOrDefault() == true) caps.Add("terminal");
         var extensionFamilies = AcpRuntimeTools.GetCustomExtensionFamilies(runtimeDescriptors);
         caps.AddRange(extensionFamilies.Select(e => $"ext:{e}"));
         if (_runtimeDynamicTools.Count > 0)
@@ -220,106 +221,4 @@ public sealed partial class AcpBridgeHandler(
     }
 
     private sealed record ThreadConfigurationState(string Mode, string? Model, JsonObject? Configuration);
-
-    private sealed class PostResponseTransport(
-        IAcpTransport inner,
-        Action<string?, bool> onSessionInitResponseWritten) : IAcpTransport
-    {
-        private readonly ConcurrentDictionary<string, string?> _pendingSessionInits = new();
-
-        public async ValueTask<ReadOnlyMemory<byte>?> ReadMessageAsync(CancellationToken ct = default)
-        {
-            var frame = await inner.ReadMessageAsync(ct).ConfigureAwait(false);
-            if (frame is { } bytes)
-                TrackIncomingSessionInit(bytes);
-            return frame;
-        }
-
-        public async ValueTask WriteMessageAsync(ReadOnlyMemory<byte> message, CancellationToken ct = default)
-        {
-            await inner.WriteMessageAsync(message, ct).ConfigureAwait(false);
-            if (!_pendingSessionInits.IsEmpty)
-                TryNotifySessionInitResponse(message);
-        }
-
-        public ValueTask DisposeAsync() => inner.DisposeAsync();
-
-        private static string? GetRequestKey(JsonElement id) =>
-            id.ValueKind switch
-            {
-                JsonValueKind.String => "s:" + id.GetString(),
-                JsonValueKind.Number when id.TryGetInt64(out var number) =>
-                    "n:" + number.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                _ => null
-            };
-
-        private void TrackIncomingSessionInit(ReadOnlyMemory<byte> frame)
-        {
-            try
-            {
-                using var doc = JsonDocument.Parse(frame);
-                var root = doc.RootElement;
-                if (root.ValueKind != JsonValueKind.Object
-                    || !root.TryGetProperty("id", out var idEl)
-                    || GetRequestKey(idEl) is not { } requestKey
-                    || !root.TryGetProperty("method", out var methodEl)
-                    || methodEl.ValueKind != JsonValueKind.String)
-                {
-                    return;
-                }
-
-                var method = methodEl.GetString();
-                if (method == "session/new")
-                {
-                    _pendingSessionInits[requestKey] = null;
-                }
-                else if (method == "session/load"
-                    && root.TryGetProperty("params", out var paramsEl)
-                    && paramsEl.ValueKind == JsonValueKind.Object
-                    && paramsEl.TryGetProperty("sessionId", out var sidEl)
-                    && sidEl.ValueKind == JsonValueKind.String)
-                {
-                    _pendingSessionInits[requestKey] = sidEl.GetString();
-                }
-            }
-            catch (JsonException)
-            {
-            }
-        }
-
-        private void TryNotifySessionInitResponse(ReadOnlyMemory<byte> frame)
-        {
-            try
-            {
-                using var doc = JsonDocument.Parse(frame);
-                var root = doc.RootElement;
-                if (root.ValueKind != JsonValueKind.Object
-                    || root.TryGetProperty("method", out _)
-                    || !root.TryGetProperty("id", out var idEl)
-                    || GetRequestKey(idEl) is not { } requestKey)
-                {
-                    return;
-                }
-
-                if (!_pendingSessionInits.TryRemove(requestKey, out var trackedSessionId))
-                    return;
-
-                var succeeded = root.TryGetProperty("result", out var resultEl);
-                var sessionId = trackedSessionId;
-                if (string.IsNullOrEmpty(sessionId)
-                    && succeeded
-                    && resultEl.ValueKind == JsonValueKind.Object
-                    && resultEl.TryGetProperty("sessionId", out var sidEl)
-                    && sidEl.ValueKind == JsonValueKind.String)
-                {
-                    sessionId = sidEl.GetString();
-                }
-
-                onSessionInitResponseWritten(sessionId, succeeded);
-            }
-            catch (JsonException)
-            {
-            }
-        }
-    }
 }

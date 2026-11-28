@@ -24,7 +24,7 @@ public sealed class AcpBridgeHandlerModelConfigTests
                 ])
             });
 
-        var selectOptions = options.OfType<SessionConfigOption.Case1>().Select(c => c.Value).ToList();
+        var selectOptions = options.OfType<SessionConfigOption.Select>().Select(c => c.Value).ToList();
 
         var mode = Assert.Single(selectOptions, o => o.Id.Value == "mode");
         Assert.Equal("plan", mode.CurrentValue.Value);
@@ -34,7 +34,7 @@ public sealed class AcpBridgeHandlerModelConfigTests
         Assert.Equal("model", model.Category.Value?.Value);
         Assert.Equal("gpt-current", model.CurrentValue.Value);
 
-        var flatOptions = Assert.IsType<SessionConfigSelectOptions.Case1>(model.Options).Value;
+        var flatOptions = Assert.IsType<SessionConfigSelectOptions.Ungrouped>(model.Options).Value;
         Assert.Equal(
             [AcpConfigOptions.DefaultModelValue, "gpt-alpha", "gpt-beta", "gpt-current"],
             flatOptions.Select(o => o.Value.Value).ToArray());
@@ -54,7 +54,7 @@ public sealed class AcpBridgeHandlerModelConfigTests
                 ErrorMessage = "Endpoint does not support model listing."
             });
 
-        var selectOptions = options.OfType<SessionConfigOption.Case1>().Select(c => c.Value).ToList();
+        var selectOptions = options.OfType<SessionConfigOption.Select>().Select(c => c.Value).ToList();
         Assert.Contains(selectOptions, o => o.Id.Value == "mode");
         Assert.DoesNotContain(selectOptions, o => o.Id.Value == "model");
     }
