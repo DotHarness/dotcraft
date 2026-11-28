@@ -20,6 +20,7 @@
 
     <!-- Keep the exact framework compilation references inside the self-contained bundle. -->
     <PreserveCompilationContext>true</PreserveCompilationContext>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
 
     <!-- Emit compiler generated files for debugging -->
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
@@ -35,7 +36,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Include="Resources\favicon.ico" />
     <EmbeddedResource Include="Resources\favicon.ico" LogicalName="DotCraft.Resources.favicon.ico" />
     <EmbeddedResource Include="Resources\Templates\**\*" />
     <EmbeddedResource Include="..\..\docker\dotcraft\docker-compose.yml" Link="Resources\Stack\docker-compose.yml" />
@@ -93,5 +93,70 @@
       <_Parameter1>DotCraft.App.Tests</_Parameter1>
     </AssemblyAttribute>
   </ItemGroup>
+
+  <Target Name="PruneUnusedPublishFiles"
+          AfterTargets="ComputeResolvedFilesToPublishList"
+          BeforeTargets="_ComputeFilesToBundle;PrepareForBundle"
+          Condition="'$(PublishSingleFile)' == 'true'">
+    <ItemGroup>
+      <!-- CSharpReferenceSet requires Core and Agents XML docs. -->
+      <_UnusedPublishFiles Include="@(ResolvedFileToPublish)"
+                           Condition="'%(Extension)' == '.xml'
+                                      and '%(Filename)' != 'DotCraft.Core'
+                                      and '%(Filename)' != 'DotCraft.Agents'" />
+
+      <!-- Matches CSharpReferenceSet.IsBclReference, excluding non-BCL PowerShell refs. -->
+      <_UnusedPublishFiles Include="@(ResolvedFileToPublish)"
+                           Condition="($([System.String]::Copy('%(RelativePath)').Replace('\', '/').StartsWith('refs/', System.StringComparison.OrdinalIgnoreCase)))
+                                      and (
+                                        (
+                                          !$([System.String]::Copy('%(Filename)').StartsWith('System', System.StringComparison.OrdinalIgnoreCase))
+                                          and !$([System.String]::Copy('%(Filename)').StartsWith('Microsoft.Win32', System.StringComparison.OrdinalIgnoreCase))
+                                          and '%(Filename)' != 'Microsoft.CSharp'
+                                          and !$([System.String]::Copy('%(Filename)').StartsWith('Microsoft.VisualBasic', System.StringComparison.OrdinalIgnoreCase))
+                                          and '%(Filename)' != 'netstandard'
+                                          and '%(Filename)' != 'mscorlib'
+                                        )
+                                        or '%(Filename)' == 'System.Management.Automation'
+                                        or '%(Filename)' == 'System.DirectoryServices'
+                                        or '%(Filename)' == 'System.Management'
+                                        or '%(Filename)' == 'System.Windows.Extensions'
+                                      )" />
+
+      <_UnusedPublishFiles Include="@(ResolvedFileToPublish)"
+                           Condition="'%(Filename)%(Extension)' == 'aspnetcorev2_inprocess.dll'
+                                      or $([System.String]::Copy('%(Filename)').StartsWith('Microsoft.AspNetCore.Components', System.StringComparison.OrdinalIgnoreCase))
+                                      or $([System.String]::Copy('%(Filename)').StartsWith('Microsoft.AspNetCore.Mvc', System.StringComparison.OrdinalIgnoreCase))
+                                      or $([System.String]::Copy('%(Filename)').StartsWith('Microsoft.AspNetCore.Razor', System.StringComparison.OrdinalIgnoreCase))
+                                      or $([System.String]::Copy('%(Filename)').StartsWith('Microsoft.AspNetCore.Identity', System.StringComparison.OrdinalIgnoreCase))
+                                      or $([System.String]::Copy('%(Filename)').StartsWith('Microsoft.Extensions.Identity', System.StringComparison.OrdinalIgnoreCase))
+                                      or $([System.String]::Copy('%(Filename)').StartsWith('Microsoft.AspNetCore.SignalR', System.StringComparison.OrdinalIgnoreCase))
+                                      or $([System.String]::Copy('%(Filename)').StartsWith('Microsoft.AspNetCore.Http.Connections', System.StringComparison.OrdinalIgnoreCase))
+                                      or $([System.String]::Copy('%(Filename)').StartsWith('Microsoft.AspNetCore.Localization', System.StringComparison.OrdinalIgnoreCase))
+                                      or $([System.String]::Copy('%(Filename)').StartsWith('Microsoft.AspNetCore.ResponseCaching', System.StringComparison.OrdinalIgnoreCase))
+                                      or '%(Filename)' == 'Microsoft.JSInterop'
+                                      or '%(Filename)' == 'Microsoft.AspNetCore.Antiforgery'
+                                      or '%(Filename)' == 'Microsoft.AspNetCore.Authentication.BearerToken'
+                                      or '%(Filename)' == 'Microsoft.AspNetCore.Authentication.Cookies'
+                                      or '%(Filename)' == 'Microsoft.AspNetCore.Authentication.OAuth'
+                                      or '%(Filename)' == 'Microsoft.AspNetCore.CookiePolicy'
+                                      or '%(Filename)' == 'Microsoft.AspNetCore.Cryptography.KeyDerivation'
+                                      or '%(Filename)' == 'Microsoft.AspNetCore.DataProtection.Extensions'
+                                      or '%(Filename)' == 'Microsoft.AspNetCore.Diagnostics.HealthChecks'
+                                      or '%(Filename)' == 'Microsoft.AspNetCore.Html.Abstractions'
+                                      or '%(Filename)' == 'Microsoft.AspNetCore.HttpLogging'
+                                      or '%(Filename)' == 'Microsoft.AspNetCore.HttpsPolicy'
+                                      or '%(Filename)' == 'Microsoft.AspNetCore.OutputCaching'
+                                      or '%(Filename)' == 'Microsoft.AspNetCore.RateLimiting'
+                                      or '%(Filename)' == 'Microsoft.AspNetCore.RequestDecompression'
+                                      or '%(Filename)' == 'Microsoft.AspNetCore.ResponseCompression'
+                                      or '%(Filename)' == 'Microsoft.AspNetCore.Rewrite'
+                                      or '%(Filename)' == 'Microsoft.AspNetCore.Session'
+                                      or '%(Filename)' == 'Microsoft.AspNetCore.StaticAssets'
+                                      or '%(Filename)' == 'Microsoft.AspNetCore.StaticFiles'" />
+
+      <ResolvedFileToPublish Remove="@(_UnusedPublishFiles)" />
+    </ItemGroup>
+  </Target>
 
 </Project>
