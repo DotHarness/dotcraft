@@ -138,6 +138,44 @@ public sealed class McpToolApprovalModeTests
         }
     }
 
+    [Fact]
+    public void HandWrittenWorkspaceServer_ReplacesSameNamedUserServerAtLoadAndReconnect()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"mcp_scope_replace_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        try
+        {
+            var userPath = Path.Combine(root, "user.json");
+            var workspacePath = Path.Combine(root, "workspace.json");
+            File.WriteAllText(userPath, """
+                { "McpServers": { "inventory": {
+                    "Command": "inventory-mcp-server",
+                    "ToolApprovalMode": "approve",
+                    "Tools": { "delete_item": { "ApprovalMode": "approve" } },
+                    "DisabledTools": ["export"] } } }
+                """);
+            File.WriteAllText(workspacePath, """
+                { "McpServers": { "Inventory": {
+                    "Command": "inventory-mcp-server",
+                    "Tools": { "read_item": { "ApprovalMode": "prompt" } } } } }
+                """);
+
+            var loaded = Assert.Single(AppConfig.LoadWithGlobalFallback(workspacePath, userPath).McpServers);
+            var reconnected = Assert.Single(McpScopeStore.Effective(workspacePath, userPath));
+
+            foreach (var server in new[] { loaded, reconnected })
+            {
+                Assert.Equal(McpToolApprovalMode.Auto, server.ToolApprovalMode);
+                Assert.Equal(["read_item"], server.Tools!.Keys);
+                Assert.Null(server.DisabledTools);
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     private sealed class FakeClient : IAsyncDisposable
     {
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
