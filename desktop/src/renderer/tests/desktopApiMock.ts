@@ -101,6 +101,7 @@ export function installDesktopApiMock(overrides: ApiOverrides<Api>): Api {
       onOwnedChanged: () => () => undefined,
       ...overrides.threadTasks
     },
+    window: { onOpenThread: () => () => undefined, ...overrides.window },
     satellites: { ...SATELLITES_DEFAULT, ...overrides.satellites },
     pairedComputers: { ...PAIRED_COMPUTERS_DEFAULT, ...overrides.pairedComputers },
     desktopPet: { ...DESKTOP_PET_DEFAULT, ...overrides.desktopPet },

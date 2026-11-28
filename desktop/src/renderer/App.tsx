@@ -623,15 +623,6 @@ export function App(): JSX.Element {
   }, [])
 
   useEffect(() => {
-    return window.api.window.onOpenThread((payload) => {
-      const threadId = payload.threadId.trim()
-      if (!threadId) return
-      useUIStore.getState().setActiveMainView('conversation')
-      useThreadStore.getState().setActiveThreadId(threadId)
-    })
-  }, [])
-
-  useEffect(() => {
     return window.api.window.onOpenNewChat(({ prompt }) => {
       const ui = useUIStore.getState()
       ui.goToNewChat()

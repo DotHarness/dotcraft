@@ -1,16 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const electronMocks = vi.hoisted(() => {
-  const show = vi.fn()
-  const on = vi.fn()
-  const Notification = Object.assign(
-    vi.fn().mockImplementation(() => ({ show, on })),
-    { isSupported: vi.fn(() => true) }
-  )
-  return { Notification, show }
-})
+const electronMocks = vi.hoisted(() => ({
+  show: vi.fn(),
+  notifications: [] as import('node:events').EventEmitter[]
+}))
 
-vi.mock('electron', () => ({ Notification: electronMocks.Notification }))
+vi.mock('electron', async () => {
+  const { EventEmitter } = await import('node:events')
+  return {
+    Notification: class extends EventEmitter {
+      static isSupported() { return true }
+      show = electronMocks.show
+      constructor() {
+        super()
+        electronMocks.notifications.push(this)
+      }
+    }
+  }
+})
 
 import type { WindowAttentionContext } from '../windowAttentionNotifier'
 import { createWindowAttentionNotifier } from '../windowAttentionNotifier'
@@ -31,30 +38,34 @@ function context(
     settings: { locale: 'en' },
     threads: [{ id: 'thread_1', displayName: 'Fix login' }],
     isViewingThread: (threadId) => threadId === viewingThreadId,
-    openThread: vi.fn()
+    activation: vi.fn(() => ({ open: vi.fn() }))
   }
 }
 
 describe('window attention notifications', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    electronMocks.show.mockClear()
+    electronMocks.notifications.length = 0
   })
 
   it('leaves Hub-managed connections to the tray and notifies once per request for remote connections', async () => {
     const notify = createWindowAttentionNotifier(async () => true)
 
     expect(await notify('item/approval/request', approval, context('local'))).toBe(false)
-    expect(electronMocks.Notification).not.toHaveBeenCalled()
+    expect(electronMocks.notifications).toHaveLength(0)
 
     const remoteApproval = { ...approval, requestId: 'request_2' }
-    expect(await notify('item/approval/request', remoteApproval, context('remote'))).toBe(true)
-    expect(await notify('item/approval/request', remoteApproval, context('remote'))).toBe(false)
-    expect(electronMocks.Notification).toHaveBeenCalledOnce()
-    expect(electronMocks.Notification).toHaveBeenCalledWith({
-      title: 'Fix login',
-      body: 'Needs your approval'
-    })
+    const open = vi.fn()
+    const activation = vi.fn(() => ({ open }))
+    const remote = { ...context('remote'), activation }
+    expect(await notify('item/approval/request', remoteApproval, remote)).toBe(true)
+    expect(await notify('item/approval/request', remoteApproval, remote)).toBe(false)
     expect(electronMocks.show).toHaveBeenCalledOnce()
+    expect(activation).toHaveBeenCalledExactlyOnceWith('thread_1')
+    const [notification] = electronMocks.notifications
+    notification.emit('close', { reason: 'timedOut' })
+    notification.emit('click')
+    expect(open).toHaveBeenCalledOnce()
   })
 
   it('notifies about a new-task offer unless the user is viewing its thread', async () => {
@@ -63,6 +74,6 @@ describe('window attention notifications', () => {
 
     expect(await notify('desktop/newTaskOffer', offer, context('local', 'thread_1'))).toBe(false)
     expect(await notify('desktop/newTaskOffer', { ...offer, requestId: 'task_00000002' }, context('local', 'thread_2'))).toBe(true)
-    expect(electronMocks.Notification).toHaveBeenCalledOnce()
+    expect(electronMocks.show).toHaveBeenCalledOnce()
   })
 })

@@ -76,6 +76,10 @@ export function useForegroundThreadNavigation(props: Props) {
 
   useEffect(() => { pruneWorkspaceResources() }, [projects, chat, readyScope])
 
+  useEffect(() => window.api.window.onOpenThread((target) => {
+    useUIStore.getState().setPendingProjectThreadOpen({ ...target, includeArchived: true })
+  }), [])
+
   useLayoutEffect(() => {
     const before = previous.current
     previous.current = { identityKey, connectionKey, connectionId, status }

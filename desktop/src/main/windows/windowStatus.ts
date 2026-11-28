@@ -38,6 +38,7 @@ export function emitConnectionStatus(
       ...payload,
       dashboardUrl: sanitized ?? undefined
     })
+    ctx.flushPendingWorkspaceOpenThread(win)
   } else {
     ctx.lastConnectionStatus = { ...payload, dashboardUrl: undefined }
     ctx.lastDashboardUrl = null

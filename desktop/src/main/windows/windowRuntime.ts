@@ -1,6 +1,7 @@
 import { BrowserWindow } from 'electron'
 import type { ConnectionStatusPayload } from '../../shared/connectionStatus'
 import { findNewThreadDeepLink, findWorkspaceOpenDeepLink } from '../../shared/desktopDeepLink'
+import { normalizeWorkspaceProjectKey } from '../../shared/workspaceProjectKey'
 import type { WorkspaceStatusPayload } from '../../shared/workspaceSetup'
 import type { DesktopApplicationServices } from '../desktopApplicationServices'
 import { DesktopAppServerClient } from '../DesktopAppServerClient'
@@ -54,7 +55,7 @@ export interface DesktopWindowState {
   startupProjectRestore?: 'pending' | 'running'
   pendingChromeSettingsDeepLink: boolean
   pendingPairingLink: string | null
-  pendingWorkspaceOpenThreadId: string | null
+  pendingWorkspaceOpenThread: { projectKey: string; threadId: string } | null
   pendingNewThreadLink: ReturnType<typeof findNewThreadDeepLink>
   prewarmedAppServer: {
     workspacePath: string
@@ -97,9 +98,17 @@ function bindActions<T extends Record<string, (ctx: DesktopWindowRuntime, ...arg
 }
 
 export function createWindowRuntime(app: DesktopApplicationServices, argv: string[]): DesktopWindowRuntime {
+  const workspaceLink = findWorkspaceOpenDeepLink(argv)
+  const settings: AppSettings = { ...app.settings }
+  if (workspaceLink) {
+    settings.connectionMode = 'local'
+    settings.activeRemoteDevice = undefined
+    settings.activeRemoteProject = undefined
+    settings.activeRemoteStack = undefined
+  }
   const ctx: DesktopWindowRuntime = {
     app,
-    settings: { ...app.settings },
+    settings,
     argv,
     disposed: false,
     disposers: [],
@@ -135,7 +144,9 @@ export function createWindowRuntime(app: DesktopApplicationServices, argv: strin
     startupProjectStates: new Map(),
     pendingChromeSettingsDeepLink: false,
     pendingPairingLink: null,
-    pendingWorkspaceOpenThreadId: findWorkspaceOpenDeepLink(argv)?.threadId ?? null,
+    pendingWorkspaceOpenThread: workspaceLink?.threadId
+      ? { projectKey: normalizeWorkspaceProjectKey(workspaceLink.workspacePath), threadId: workspaceLink.threadId }
+      : null,
     pendingNewThreadLink: findNewThreadDeepLink(argv),
     prewarmedAppServer: null,
     runtimeIsStopping: () => ctx.disposed || app.lifecycle.isStopping,

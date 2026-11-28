@@ -1,6 +1,7 @@
 import './setupPluginRuntime'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { OpenThreadPayload } from '../../preload'
 import { ConversationPanel } from '../components/layout/ConversationPanel'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { useForegroundThreadNavigation } from '../hooks/useForegroundThreadNavigation'
@@ -59,6 +60,7 @@ const ids = [a.id, b.id, c.id, 'archived-target']
 const sendRequest = vi.fn()
 const sendConnectionRequest = vi.fn()
 const settingsGet = vi.fn()
+let openFromDesktop: (target: OpenThreadPayload) => void
 
 function connect(path: string, connectionId = `${path}-1`) {
   useConnectionStore.getState().setStatus({ status: 'connected', connectionKey: path, connectionId })
@@ -106,6 +108,12 @@ beforeEach(() => {
   })
   settingsGet.mockReset().mockResolvedValue({})
   installDesktopApiMock({
+    window: {
+      onOpenThread: (callback) => {
+        openFromDesktop = callback
+        return () => undefined
+      }
+    },
     settings: { get: settingsGet, set: vi.fn().mockResolvedValue(undefined) },
     appServer: { sendRequest, sendConnectionRequest },
     file: { readFile: vi.fn().mockResolvedValue('{}') },
@@ -140,6 +148,29 @@ async function warmB() {
 function pending(path = '/b', threadId = b.id) {
   return useUIStore.getState().setPendingProjectThreadOpen({ projectKey: path, workspacePath: path, threadId })!
 }
+
+it('opens a cold Desktop notification target only when its project and connection agree', async () => {
+  connect('/a')
+  projects('/a')
+  sendRequest.mockImplementation(async (method) => method === 'thread/list'
+    ? { data: useConnectionStore.getState().connectionKey === '/b' ? [b] : [a] }
+    : {})
+  const view = render(<View path="/a" />)
+  await act(async () => { useThreadStore.getState().setActiveThreadId(a.id) })
+  expect(screen.getByRole('log')).toHaveTextContent('Answer thread-a')
+
+  act(() => { openFromDesktop({ projectKey: '/b', workspacePath: '/b', threadId: b.id }) })
+  expect(useThreadStore.getState().activeThreadId).toBe(a.id)
+  act(() => { connect('/b') })
+  expect(useThreadStore.getState().activeThreadId).toBeNull()
+
+  await act(async () => {
+    projects('/b')
+    view.rerender(<View path="/b" />)
+  })
+  expect(useThreadStore.getState().activeThreadId).toBe(b.id)
+  expect(screen.getByRole('log')).toHaveTextContent('Answer thread-b')
+})
 
 describe('foreground warm navigation', () => {
   it.each(['workspace-first', 'connection-first'] as const)(

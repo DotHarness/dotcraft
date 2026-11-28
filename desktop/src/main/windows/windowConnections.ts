@@ -14,6 +14,7 @@ import {
   registerWorkspaceNodeReplClient
 } from './windowNodeReplMcp'
 import { handleWorkspaceThreadPanelDeletion } from './windowThreadPanelDeletion'
+import { showJobResultNotification } from './windowNotifications'
 import { handleDevServerThreadNotification } from '../devServers/devServerThreadEvents'
 import { recoverThreadQuestions } from './windowThreadQuestionRecovery'
 import { connectLinkedChats, observeLinkedChatNotification } from './windowThreadProjects'
@@ -131,8 +132,9 @@ export async function connectViaWebSocket(
 
     if (foreground != null && ctx.mainWindow && !ctx.mainWindow.isDestroyed()) {
       ctx.applyWorkspaceThreadNotification(entry, method, params)
-      broadcastNotification(ctx.mainWindow, method, params, ctx.settings, entry.workspacePath, foreground,
+      broadcastNotification(ctx.mainWindow, method, params, entry.workspacePath, foreground,
         client.connectionId ? { connectionKey: entry.key, connectionId: client.connectionId } : undefined)
+      if (method === 'system/jobResult') showJobResultNotification(ctx, entry, ctx.mainWindow, params)
     }
     ctx.getThreadTasks().handleNotification(method, params, win.webContents.id)
     ctx.app.toolConfirm.observeNotification(method, params)
@@ -232,7 +234,6 @@ export async function connectViaWebSocket(
         connectionKey: entry.key,
         ...(client.connectionId ? { connectionId: client.connectionId } : {})
       })
-      ctx.flushPendingWorkspaceOpenThread(ctx.mainWindow)
       ctx.emitWorkspaceProjects()
     }
   }

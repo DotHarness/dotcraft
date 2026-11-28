@@ -1,6 +1,6 @@
-import { Notification } from 'electron'
 import { DEFAULT_LOCALE, normalizeLocale, translate } from '../shared/locales'
 import type { WorkspaceProjectKind } from '../shared/workspaceProjects'
+import { createDesktopNotification, type DesktopNotificationActivation } from './desktopNotification'
 import type { AppSettings } from './settings'
 
 export const NEW_TASK_OFFER_ATTENTION = 'desktop/newTaskOffer'
@@ -40,7 +40,7 @@ export interface WindowAttentionContext {
   settings: AppSettings
   threads: unknown[]
   isViewingThread: (threadId: string) => boolean
-  openThread: (threadId: string) => void
+  activation(threadId: string): DesktopNotificationActivation
 }
 
 export type WindowAttentionNotifier = (
@@ -78,13 +78,11 @@ export function createWindowAttentionNotifier(
 
     if (context.settings.notifications?.[request.setting] === false || context.isViewingThread(threadId)) return false
     if (request.hubDelivers && context.connectionKind !== 'remote' && await trayRunning()) return false
-    if (!Notification.isSupported()) return false
-
-    const notification = new Notification({
+    const notification = createDesktopNotification({
       title: chatName(context.threads, threadId) || 'DotCraft',
       body: translate(normalizeLocale(context.settings.locale ?? DEFAULT_LOCALE), request.bodyKey)
-    })
-    notification.on('click', () => context.openThread(threadId))
+    }, context.activation(threadId))
+    if (!notification) return false
     notification.show()
     return true
   }

@@ -161,7 +161,8 @@ it('continues the startup restore queue while another local project is connectin
   await started.promise
   expect(window.startLocalProjectConnection).toHaveBeenCalledTimes(2)
   window.currentWorkspacePath = '/work/selected'
-  window.pendingWorkspaceOpenThreadId = 'selected-thread'
+  const navigation = { projectKey: '/work/selected', threadId: 'selected-thread' }
+  window.pendingWorkspaceOpenThread = navigation
   window.lastConnectionStatus = { status: 'connecting' }
   release.resolve()
   await restoring
@@ -169,7 +170,7 @@ it('continues the startup restore queue while another local project is connectin
   expect(completedWhileConnecting).toEqual([true, true])
   expect(window.startLocalProjectConnection).toHaveBeenNthCalledWith(3, '/work/background-0', expect.any(Function))
   expect(window.currentWorkspacePath).toBe('/work/selected')
-  expect(window.pendingWorkspaceOpenThreadId).toBe('selected-thread')
+  expect(window.pendingWorkspaceOpenThread).toEqual(navigation)
   expect(window.lastConnectionStatus.status).toBe('connecting')
   expect(window.startupProjectRestore).toBeUndefined()
 })

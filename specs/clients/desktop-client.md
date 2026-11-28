@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.14.4 |
+| **Version** | 0.15.0 |
 | **Status** | Living |
-| **Date** | 2026-11-27 |
+| **Date** | 2026-11-28 |
 | **Parent Spec** | [AppServer Protocol](../protocols/appserver-protocol.md) |
 | **Related Specs** | [Tool Architecture](../architecture/tools-architecture.md), [Plugin Architecture](../architecture/plugin-architecture.md), [Hub Architecture](../architecture/hub-architecture.md), [Device Gateway](../protocols/device-gateway.md), [Remote Tool Host](../architecture/remote-tool-host.md), [Goal Design](../features/goal.md), [Session Import](../features/session-import.md), [Desktop DESIGN.md](../architecture/DESIGN.md) |
 
@@ -1006,6 +1006,8 @@ Every result opens by automation id and run id. Follow-ups locate the exact turn
 - Task completion notifications (`whenUnfocused` default, `always`, `never`) and on-by-default switches for approval requests and questions are Desktop-local preferences. They gate the Hub tray notification kinds in [Hub Architecture §10](../architecture/hub-architecture.md#10-tray-and-notifications): a waiting approval or question notifies unless a focused Desktop window shows that chat, and clicking opens the chat.
 - When Hub cannot deliver (non-Hub foreground connections such as Remote, SSH, paired computers, and Docker, or no tray), the window notifies itself under the same switches unless the related chat is open in that window and the window is focused.
 - Each request notifies at most once; a replay after reconnect or thread switch does not notify again.
+- Clicking a notification with a Desktop action opens its chat in the source project. Desktop prefers an existing window with the target project in the foreground, then a window with the project connected in the background. It brings the target project to the foreground and waits for the connection and conversation interface before selecting the chat. A job result with a chat target follows the same navigation. A job result without a target is informational.
+- On Windows, an actionable local chat notification can open its chat from the notification center even when Desktop has exited. A remote notification uses its source connection rather than interpreting a remote path as a local workspace.
 
 **New tasks**
 

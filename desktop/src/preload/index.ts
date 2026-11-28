@@ -298,6 +298,8 @@ if (typeof document !== 'undefined') {
 
 export interface OpenThreadPayload {
   threadId: string
+  projectKey: string
+  workspacePath: string
 }
 
 export interface OpenNewChatPayload {
@@ -395,8 +397,10 @@ ipcRenderer.on('app:open-update-dialog', () => {
 
 let openThreadToken = 0
 let activeOpenThreadCallback: ((payload: OpenThreadPayload) => void) | null = null
+let pendingOpenThread: OpenThreadPayload | null = null
 ipcRenderer.on('app:open-thread', (_event: Electron.IpcRendererEvent, payload: OpenThreadPayload) => {
-  activeOpenThreadCallback?.(payload)
+  if (activeOpenThreadCallback) activeOpenThreadCallback(payload)
+  else pendingOpenThread = payload
 })
 
 let openNewChatToken = 0
@@ -741,6 +745,9 @@ const api = {
     onOpenThread(callback: (payload: OpenThreadPayload) => void): () => void {
       const token = ++openThreadToken
       activeOpenThreadCallback = callback
+      const pending = pendingOpenThread
+      pendingOpenThread = null
+      if (pending) callback(pending)
       return () => {
         if (openThreadToken === token) {
           activeOpenThreadCallback = null

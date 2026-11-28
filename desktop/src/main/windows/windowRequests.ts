@@ -35,6 +35,7 @@ import {
 import { hasRemoteEndpointArg } from '../workspaceArgs'
 import { isRendererInteractiveServerRequest } from '../workspaceConnectionRouting'
 import type { DesktopWindowRuntime } from './windowRuntime'
+import { notificationThreadActivation } from './windowNotifications'
 import type { WorkspaceConnectionEntry } from './windowTypes'
 import {
   disconnectedThreadProjectName,
@@ -185,21 +186,10 @@ function notifyThreadAttention(ctx: DesktopWindowRuntime, kind: string, threadId
         settings: ctx.settings,
         threads: entry.threads,
         isViewingThread: (threadId) => ctx.userInputAutoResolution.isViewing(threadId),
-        openThread: (threadId) => openSourceThread(ctx, entry, win, threadId)
+        activation: (threadId) => notificationThreadActivation(ctx, entry, threadId)
       }
     )
     .catch(console.warn)
-}
-
-export function openSourceThread(ctx: DesktopWindowRuntime, entry: WorkspaceConnectionEntry, win: BrowserWindow, threadId: string): void {
-  void (async () => {
-    if (!isCurrentWorkspaceRequestSource(ctx, entry)) return
-    if (entry.role !== 'foreground' || ctx.wireClient !== entry.client) {
-      if (await ctx.promoteWorkspaceConnection(entry) === false) return
-    }
-    ctx.showWindowSafely(win)
-    ctx.sendOpenThread(win, threadId)
-  })().catch(console.warn)
 }
 
 export function resetThreadToolState(ctx: DesktopWindowRuntime): void {
@@ -318,7 +308,7 @@ export async function bridgeServerRequestToRenderer(
       settings: ctx.settings,
       threads: entry.threads,
       isViewingThread: (threadId) => ctx.userInputAutoResolution.isViewing(threadId),
-      openThread: (threadId) => openSourceThread(ctx, entry, win, threadId)
+      activation: (threadId) => notificationThreadActivation(ctx, entry, threadId)
     })
     .catch(console.warn)
   if (method === 'item/approval/request' || method === 'mcpServer/elicitation/request') {

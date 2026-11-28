@@ -20,6 +20,7 @@ import {
   registerWorkspaceNodeReplClient
 } from './windowNodeReplMcp'
 import { handleWorkspaceThreadPanelDeletion } from './windowThreadPanelDeletion'
+import { showJobResultNotification } from './windowNotifications'
 import { handleDevServerThreadNotification } from '../devServers/devServerThreadEvents'
 import { recoverThreadQuestions } from './windowThreadQuestionRecovery'
 import { connectLinkedChats, linkedChatsNeedProject, observeLinkedChatNotification, threadToolsHoldConnection } from './windowThreadProjects'
@@ -156,7 +157,6 @@ export function startHubEventSubscription(
           ctx.mainWindow,
           data?.kind ?? 'hub/notification',
           data ?? {},
-          ctx.settings,
           event.workspacePath ?? workspacePath
         )
       }
@@ -283,8 +283,9 @@ export function createSecondaryWorkspaceConnection(
     if (foreground != null) {
       ctx.applyWorkspaceThreadNotification(entry, method, params)
       if (ctx.mainWindow && !ctx.mainWindow.isDestroyed()) {
-        broadcastNotification(ctx.mainWindow, method, params, ctx.settings, workspacePath, foreground,
+        broadcastNotification(ctx.mainWindow, method, params, workspacePath, foreground,
           client.connectionId ? { connectionKey: entry.key, connectionId: client.connectionId } : undefined)
+        if (method === 'system/jobResult') showJobResultNotification(ctx, entry, ctx.mainWindow, params)
       }
     }
     if (current) {

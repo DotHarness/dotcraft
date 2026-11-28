@@ -1,9 +1,11 @@
-import { app, Notification } from 'electron'
+import { app } from 'electron'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
+import { buildWorkspaceOpenDeepLink, parseWorkspaceOpenDeepLink } from '../shared/desktopDeepLink'
 import { DEFAULT_LOCALE, translate, type AppLocale } from '../shared/locales'
 import { resolveTaskCompletionNotificationMode, type AppSettings } from './settings'
 import type { HubEvent } from './desktopHub'
+import { createDesktopNotification } from './desktopNotification'
 
 export interface HubNotificationPayload {
   kind: string | null
@@ -76,11 +78,12 @@ export function showHubNotification(
     settings: AppSettings
     isWorkspaceFocused(workspacePath: string): boolean
     isViewingThread(workspacePath: string, threadId: string): boolean
-    open(payload: HubNotificationPayload): void
+    openWorkspace(workspacePath?: string | null, threadId?: string | null): void
+    openExternal(url: string): void
   }
 ): boolean {
   const payload = parseHubNotificationPayload(event, options.locale)
-  if (!payload || !Notification.isSupported()) return false
+  if (!payload) return false
   const workspacePath = payload.workspacePath ?? ''
   const focused = options.isWorkspaceFocused(workspacePath)
   if (payload.kind === 'turnCompleted' || payload.kind === 'turnFailed') {
@@ -95,12 +98,24 @@ export function showHubNotification(
     return false
   if (payload.kind === 'inputRequested' && (options.settings.notifications?.questions === false || viewing))
     return false
-  const notification = new Notification({
+  const { actionUrl } = payload
+  const link = actionUrl ? parseWorkspaceOpenDeepLink(actionUrl) : null
+  const targetPath = link?.workspacePath ?? payload.workspacePath
+  const targetThread = link ? link.threadId : payload.threadId
+  const activation = actionUrl && !link
+    ? { open: () => options.openExternal(actionUrl) }
+    : payload.openDesktopOnClick !== false
+      ? {
+        open: () => options.openWorkspace(targetPath, targetThread),
+        url: targetPath?.trim() ? buildWorkspaceOpenDeepLink(targetPath, targetThread) : undefined
+      }
+      : undefined
+  const notification = createDesktopNotification({
     title: payload.title,
     body: payload.body ?? undefined,
     icon: resolveNotificationIconPath() ?? undefined
-  })
-  notification.on('click', () => options.open(payload))
+  }, activation)
+  if (!notification) return false
   notification.show()
   return true
 }

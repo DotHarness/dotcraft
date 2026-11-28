@@ -6,14 +6,13 @@ import { normalizeShowInMenuBar, type AppSettings } from './settings'
 import type { DesktopHubClient, HubAppServerResponse } from './desktopHub'
 import { resolveDotCraftRuntimeTools } from './ripgrepRuntime'
 import { isDefaultChatWorkspace } from './defaultChatWorkspace'
-import { parseWorkspaceOpenDeepLink } from '../shared/desktopDeepLink'
 import {
   TrayRecentThreadCatalog,
   DIRECT_RECENT_THREAD_COUNT,
   RECENT_THREAD_TITLE_MAX_LENGTH,
   type TrayRecentThread
 } from './trayRecentThreads'
-import { showHubNotification, type HubNotificationPayload } from './trayNotifications'
+import { showHubNotification } from './trayNotifications'
 import { createTrayInlineLabels } from './trayInlineLabels'
 
 export interface DesktopTrayHost {
@@ -131,17 +130,6 @@ export function createDesktopTray(host: DesktopTrayHost): DesktopTray {
   let timer: ReturnType<typeof setInterval> | null = null
   const recent = new TrayRecentThreadCatalog()
   const updateInlineLabels = createTrayInlineLabels()
-  const openNotification = (payload: HubNotificationPayload): void => {
-    if (payload.actionUrl) {
-      const link = parseWorkspaceOpenDeepLink(payload.actionUrl)
-      if (!link) {
-        void shell.openExternal(payload.actionUrl)
-        return
-      }
-      if (payload.openDesktopOnClick !== false) void host.openWindow(link.workspacePath, link.threadId)
-    } else if (payload.openDesktopOnClick !== false)
-      void host.openWindow(payload.workspacePath, payload.threadId)
-  }
   const destroyTray = (): void => {
     tray?.destroy()
     tray = null
@@ -209,7 +197,8 @@ export function createDesktopTray(host: DesktopTrayHost): DesktopTray {
           settings: host.getSettings(),
           isWorkspaceFocused: host.isWorkspaceFocused,
           isViewingThread: host.isViewingThread,
-          open: openNotification
+          openWorkspace: host.openWindow,
+          openExternal: (url) => void shell.openExternal(url)
         })
         void refresh()
       }, controller.signal)

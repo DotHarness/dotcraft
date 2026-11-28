@@ -1,5 +1,8 @@
 import { EventEmitter } from 'node:events'
+import type { NotificationConstructorOptions } from 'electron'
+import { JSDOM } from 'jsdom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { buildWorkspaceOpenDeepLink, parseWorkspaceOpenDeepLink } from '../../shared/desktopDeepLink'
 import { createDesktopTray, shouldShowDesktopTray } from '../trayManager'
 import { showHubNotification } from '../trayNotifications'
 import type { DesktopHubClient, HubEvent } from '../desktopHub'
@@ -8,7 +11,7 @@ import type { TrayRecentThread } from '../trayRecentThreads'
 
 const fake = vi.hoisted(() => ({
   trays: [] as unknown[],
-  notifications: [] as unknown[],
+  notifications: [] as { options: NotificationConstructorOptions; native: EventEmitter }[],
   menus: [] as unknown[],
   threads: [] as TrayRecentThread[],
   updateInlineLabels: vi.fn(),
@@ -51,9 +54,9 @@ vi.mock('electron', async () => {
         return true
       }
       show = vi.fn()
-      constructor(options: unknown) {
+      constructor(options: NotificationConstructorOptions) {
         super()
-        fake.notifications.push(options)
+        fake.notifications.push({ options, native: this })
       }
     }
   }
@@ -67,7 +70,10 @@ vi.mock('../trayRecentThreads', async (importOriginal) => ({
   }
 }))
 
+const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')!
+
 afterEach(() => {
+  Object.defineProperty(process, 'platform', originalPlatform)
   fake.trays.length = 0
   fake.menus.length = 0
   fake.notifications.length = 0
@@ -206,7 +212,8 @@ describe('application-owned tray', () => {
         settings: { notifications: { taskCompletionMode: 'whenUnfocused' } },
         isWorkspaceFocused: () => true,
         isViewingThread: () => true,
-        open: vi.fn()
+        openWorkspace: vi.fn(),
+        openExternal: vi.fn()
       })
     ).toBe(false)
     expect(fake.notifications).toHaveLength(0)
@@ -223,11 +230,68 @@ describe('application-owned tray', () => {
       settings: {},
       isWorkspaceFocused: () => true,
       isViewingThread: (_workspacePath: string, threadId: string) => threadId === 'thread_a',
-      open: vi.fn()
+      openWorkspace: vi.fn(),
+      openExternal: vi.fn()
     }
 
     expect(showHubNotification(approval('thread_a'), options)).toBe(false)
     expect(showHubNotification(approval('thread_b'), options)).toBe(true)
     expect(fake.notifications).toHaveLength(1)
+  })
+
+  it('carries the exact Windows conversation target in the toast body, independent of a click listener', () => {
+    Object.defineProperty(process, 'platform', { value: 'win32', configurable: true })
+    const openWorkspace = vi.fn()
+    const options = {
+      locale: 'en' as const,
+      settings: {},
+      isWorkspaceFocused: () => false,
+      isViewingThread: () => false,
+      openWorkspace,
+      openExternal: vi.fn()
+    }
+    const target = { workspacePath: 'C:/Project & copy', threadId: 'thread_a' }
+    const explicit = buildWorkspaceOpenDeepLink(target.workspacePath, target.threadId)
+    const title = 'Review <draft> & "notes"'
+    for (const data of [
+      { workspacePath: 'C:/Other', threadId: 'wrong', actionUrl: explicit },
+      { workspacePath: target.workspacePath, threadId: target.threadId }
+    ]) {
+      expect(showHubNotification({ kind: 'notification.requested', data: { ...data, title } } as HubEvent, options)).toBe(true)
+      const { options: nativeOptions, native } = fake.notifications.at(-1)!
+      const document = new JSDOM(nativeOptions.toastXml, { contentType: 'application/xml' }).window.document
+      const toast = document.documentElement
+      expect(toast.getAttribute('activationType')).toBe('protocol')
+      expect(parseWorkspaceOpenDeepLink(toast.getAttribute('launch')!)).toEqual(target)
+      expect(toast.querySelector('text')?.textContent).toBe(title)
+      native.emit('click')
+    }
+    expect(openWorkspace).not.toHaveBeenCalled()
+  })
+
+  it('keeps external clicks live, and never opens the workspace when a Hub notification opts out', () => {
+    Object.defineProperty(process, 'platform', { value: 'win32', configurable: true })
+    const openWorkspace = vi.fn()
+    const openExternal = vi.fn()
+    const options = {
+      locale: 'en' as const,
+      settings: {},
+      isWorkspaceFocused: () => false,
+      isViewingThread: () => false,
+      openWorkspace,
+      openExternal
+    }
+    const external = 'https://example.com/result'
+    for (const actionUrl of [external, buildWorkspaceOpenDeepLink('C:/Project', 'thread_a')]) {
+      expect(showHubNotification({
+        kind: 'notification.requested',
+        data: { title: 'Completed', actionUrl, openDesktopOnClick: false }
+      } as HubEvent, options)).toBe(true)
+      const { options: nativeOptions, native } = fake.notifications.at(-1)!
+      expect(nativeOptions.toastXml).toBeUndefined()
+      native.emit('click')
+    }
+    expect(openExternal).toHaveBeenCalledExactlyOnceWith(external)
+    expect(openWorkspace).not.toHaveBeenCalled()
   })
 })

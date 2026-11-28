@@ -1,4 +1,4 @@
-import { BrowserWindow, Notification } from 'electron'
+import { BrowserWindow } from 'electron'
 import type { ConnectionStatusPayload } from '../shared/connectionStatus'
 import type { AppServerConnectionSource } from '../shared/appServerBoundary'
 import type { WorkspaceStatusPayload } from '../shared/workspaceSetup'
@@ -16,7 +16,6 @@ import { getSatellitesHubBridge } from './satellites/satellitesHubBridge'
 import { registerSatellitesHandlers } from './satellites/satellitesIpc'
 import { registerScreenViewHandlers } from './screenView/screenViewIpc'
 import type { AppSettings } from './settings'
-import { resolveTaskCompletionNotificationMode } from './settings'
 import { registerPairedComputersHandlers } from './pairedComputers/pairedComputersIpc'
 import { registerSshMachinesHandlers } from './sshMachines/sshMachinesIpc'
 import { viewerTextWatchManager } from './viewerTextWatch'
@@ -170,44 +169,14 @@ export function broadcastWorkspaceStatus(win: BrowserWindow, payload: WorkspaceS
   }
 }
 
-function stripMarkdownForNotify(text: string): string {
-  return text
-    .replace(/\r?\n/g, ' ')
-    .replace(/\*\*(.+?)\*\*/g, '$1')
-    .replace(/`([^`]+)`/g, '$1')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
-export function shouldShowTaskCompletionNotification(win: BrowserWindow, settings?: AppSettings): boolean {
-  const mode = resolveTaskCompletionNotificationMode(settings)
-  if (mode === 'never') return false
-  if (mode === 'always') return true
-  return !win.isFocused()
-}
-
 export function broadcastNotification(
   win: BrowserWindow,
   method: string,
   params: unknown,
-  settings?: AppSettings,
   workspacePath?: string,
   foreground?: boolean,
   source?: AppServerConnectionSource
 ): void {
-  if (method === 'system/jobResult' && !win.isDestroyed() && shouldShowTaskCompletionNotification(win, settings)) {
-    const p = (params ?? {}) as Record<string, unknown>
-    const jobName = String((p.jobName as string) ?? (p.name as string) ?? 'Job')
-    const err = (p.error as string) ?? ''
-    const result = (p.result as string) ?? (p.text as string) ?? ''
-    const bodyRaw = err || result || 'Job completed'
-    const body = stripMarkdownForNotify(bodyRaw).slice(0, 240)
-    try {
-      if (Notification.isSupported()) {
-        new Notification({ title: jobName, body }).show()
-      }
-    } catch {}
-  }
   if (!win.isDestroyed()) {
     win.webContents.send('appserver:delivery', {
       kind: 'notification',

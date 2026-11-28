@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { ipcMain, Notification, shell } from 'electron'
+import { ipcMain, shell } from 'electron'
 import { promises as fs } from 'fs'
 import * as path from 'path'
 import { EventEmitter } from 'events'
@@ -9,15 +9,13 @@ const {
   execFileMock,
   existsSyncMock,
   readFileSyncMock,
-  listWorkspaceFilesMock,
-  notificationShowMock
+  listWorkspaceFilesMock
 } = vi.hoisted(() => ({
   openInTargetMock: vi.fn(),
   execFileMock: vi.fn(),
   existsSyncMock: vi.fn(),
   readFileSyncMock: vi.fn(),
-  listWorkspaceFilesMock: vi.fn(),
-  notificationShowMock: vi.fn()
+  listWorkspaceFilesMock: vi.fn()
 }))
 
 vi.mock('fs', () => ({
@@ -44,14 +42,7 @@ vi.mock('../chrome/chromeRelayClient', () => ({
   ChromeRelayClient: vi.fn()
 }))
 
-vi.mock('electron', () => {
-  const NotificationMock = vi.fn(function (this: { show: () => void }, _options: unknown) {
-    this.show = notificationShowMock
-  })
-  Object.assign(NotificationMock, {
-    isSupported: vi.fn(() => false)
-  })
-  return {
+vi.mock('electron', () => ({
   app: {
     isPackaged: true,
     getPath: vi.fn(() => 'C:\\Users\\tester'),
@@ -72,13 +63,12 @@ vi.mock('electron', () => {
   dialog: {
     showOpenDialog: vi.fn()
   },
-  Notification: NotificationMock,
   shell: {
     openExternal: vi.fn().mockResolvedValue(undefined),
     openPath: vi.fn().mockResolvedValue(''),
     showItemInFolder: vi.fn()
   }
-}})
+}))
 
 vi.mock('../openTargets', () => ({
   listOpenTargets: vi.fn().mockResolvedValue([]),
@@ -107,9 +97,7 @@ import {
   sanitizeExternalUrl,
   openExternalUrl,
   openExternalHttpUrl,
-  broadcastNotification,
-  broadcastServerRequest,
-  shouldShowTaskCompletionNotification
+  broadcastNotification
 } from '../ipcBridge'
 import { SshMachinesManager } from '../sshMachines/sshMachinesManager'
 import { normalizeSshMachines } from '../../shared/sshMachines'
@@ -834,94 +822,19 @@ describe('registerIpcHandlers', () => {
   })
 })
 
-describe('task completion notifications', () => {
-  function createWindow(focused: boolean): Electron.BrowserWindow {
-    return {
-      isDestroyed: vi.fn(() => false),
-      isFocused: vi.fn(() => focused),
-      webContents: {
-        send: vi.fn()
-      }
-    } as unknown as Electron.BrowserWindow
-  }
+it('tags forwarded notifications with workspace, foreground state and connection source', () => {
+  const params = { threadId: 'thread_1', runtime: { running: true } }
+  const source = { connectionKey: 'project-b', connectionId: 'connection-b' }
 
-  beforeEach(() => {
-    vi.clearAllMocks()
-    vi.mocked(Notification.isSupported).mockReturnValue(true)
-  })
+  broadcastNotification(testWindow, 'thread/status/changed', params, 'F:/workspace-b', false, source)
 
-  it('shows task completion notifications per mode, defaulting to unfocused only', () => {
-    expect(shouldShowTaskCompletionNotification(createWindow(false))).toBe(true)
-    expect(shouldShowTaskCompletionNotification(createWindow(true))).toBe(false)
-    expect(shouldShowTaskCompletionNotification(createWindow(true), {
-      notifications: { taskCompletionMode: 'always' }
-    })).toBe(true)
-    expect(shouldShowTaskCompletionNotification(createWindow(false), {
-      notifications: { taskCompletionMode: 'never' }
-    })).toBe(false)
-  })
-
-  it('shows or suppresses native job result notifications per settings while always forwarding renderer events', () => {
-    const shown = createWindow(true)
-    broadcastNotification(shown, 'system/jobResult', {
-      jobName: 'Scheduled task',
-      result: '**Done** with `task`'
-    }, {
-      notifications: { taskCompletionMode: 'always' }
-    })
-
-    expect(Notification).toHaveBeenCalledWith({
-      title: 'Scheduled task',
-      body: 'Done with task'
-    })
-    expect(notificationShowMock).toHaveBeenCalledOnce()
-    expect(shown.webContents.send).toHaveBeenCalledWith('appserver:delivery', { kind: 'notification', payload: {
-      method: 'system/jobResult',
-      params: {
-        jobName: 'Scheduled task',
-        result: '**Done** with `task`'
-      }
-    } })
-
-    vi.mocked(Notification).mockClear()
-    const suppressed = createWindow(false)
-    broadcastNotification(suppressed, 'system/jobResult', { jobName: 'Automation', result: 'Done' }, {
-      notifications: { taskCompletionMode: 'never' }
-    })
-
-    expect(Notification).not.toHaveBeenCalled()
-    expect(suppressed.webContents.send).toHaveBeenCalledWith('appserver:delivery', { kind: 'notification', payload: {
-      method: 'system/jobResult',
-      params: { jobName: 'Automation', result: 'Done' }
-    } })
-  })
-
-  it('tags forwarded notifications with workspace and foreground state and forwards interactive requests without a native notification', () => {
-    const win = createWindow(false)
-    const params = { threadId: 'thread_1', runtime: { running: true } }
-
-    broadcastNotification(win, 'thread/status/changed', params, undefined, 'F:/workspace-b')
-    broadcastNotification(win, 'thread/status/changed', params, undefined, 'F:/workspace-b', false)
-
-    expect(win.webContents.send).toHaveBeenNthCalledWith(1, 'appserver:delivery', { kind: 'notification', payload: {
-      method: 'thread/status/changed',
-      params,
-      workspacePath: 'F:/workspace-b'
-    } })
-    expect(win.webContents.send).toHaveBeenNthCalledWith(2, 'appserver:delivery', { kind: 'notification', payload: {
-      method: 'thread/status/changed',
-      params,
-      workspacePath: 'F:/workspace-b',
-      foreground: false
-    } })
-
-    const request = createServerRequestBridge(undefined, win)
-    const payload = { bridgeId: request.bridgeId, method: 'item/approval/request', params: { reason: 'Run a command' } }
-    broadcastServerRequest(win, payload)
-    expect(Notification).not.toHaveBeenCalled()
-    expect(win.webContents.send).toHaveBeenLastCalledWith('appserver:server-request', payload)
-    resolveServerRequestBridge(request.bridgeId, {}, win.webContents.id)
-  })
+  expect(testWindow.webContents.send).toHaveBeenCalledWith('appserver:delivery', { kind: 'notification', payload: {
+    method: 'thread/status/changed',
+    params,
+    workspacePath: 'F:/workspace-b',
+    foreground: false,
+    ...source
+  } })
 })
 
 describe('unregisterIpcHandlers', () => {

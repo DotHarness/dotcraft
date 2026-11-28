@@ -233,14 +233,15 @@ describe('workspace NodeRepl MCP mounting and source-bound routing', () => {
 
   it('keeps background interactions source-bound and promotes their project only on notification click', async () => {
     const { a, ctx, promoteB, owner } = fixture()
+    a.kind = 'remote'
     promoteB()
-    let onOpen!: (threadId: string) => void
+    let open!: () => void
     let opened!: () => void
     const didOpen = new Promise<void>(resolve => { opened = resolve })
     Object.assign(ctx, {
       userInputAutoResolution: { remove: vi.fn() }, settings: {},
-      app: { notifyWindowAttention: vi.fn(async (_method: string, _params: unknown, options: { openThread(threadId: string): void }) => { onOpen = options.openThread }) },
-      showWindowSafely: vi.fn(), sendOpenThread: vi.fn(() => opened()),
+      app: { notifyWindowAttention: vi.fn(async (_method: string, _params: unknown, options: { activation(threadId: string): { open(): void } }) => { open = options.activation('thread').open }) },
+      showWindowSafely: vi.fn(), openCurrentWorkspaceThread: vi.fn(() => opened()),
       observeComputerUseApproval: vi.fn(),
       promoteWorkspaceConnection: vi.fn(async () => { a.role = 'foreground'; ctx.wireClient = a.client; return true })
     })
@@ -252,10 +253,10 @@ describe('workspace NodeRepl MCP mounting and source-bound routing', () => {
     expect(ctx.observeComputerUseApproval).toHaveBeenCalledWith(owner, expect.any(Object), expect.any(Promise), false)
     observeComputerUseApproval(ctx, owner, { threadId: 'thread', turnId: 'turn' }, Promise.resolve({}), false)
     expect(ctx.showWindowSafely).not.toHaveBeenCalled()
-    onOpen('thread')
+    open()
     await didOpen
     expect(ctx.promoteWorkspaceConnection).toHaveBeenCalledWith(a)
-    expect(ctx.sendOpenThread).toHaveBeenCalledWith(owner, 'thread')
+    expect(ctx.openCurrentWorkspaceThread).toHaveBeenCalledWith('thread')
   })
 
   it('routes registered Desktop tools through their background source instead of the foreground', async () => {

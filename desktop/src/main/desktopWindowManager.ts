@@ -3,7 +3,7 @@ import type { DesktopApplicationServices } from './desktopApplicationServices'
 import type { DesktopWindowRuntime } from './windows/windowRuntime'
 import { startDesktopWindow } from './windows/startDesktopWindow'
 import { NO_WORKSPACE_ARG, hasRemoteEndpointArg } from './workspaceArgs'
-import { findNewThreadDeepLink, findWorkspaceOpenDeepLink } from '../shared/desktopDeepLink'
+import { buildWorkspaceOpenDeepLink, findNewThreadDeepLink, findWorkspaceOpenDeepLink } from '../shared/desktopDeepLink'
 
 export class DesktopWindowManager {
   readonly windows = new Map<number, DesktopWindowRuntime>()
@@ -29,22 +29,32 @@ export class DesktopWindowManager {
 
   async openWorkspace(workspacePath?: string | null, threadId?: string | null): Promise<void> {
     if (this.services.lifecycle.isStopping) return
+    const windows = [...this.windows.values()].filter(
+      (window) => !window.disposed && window.mainWindow && !window.mainWindow.isDestroyed()
+    )
+    const focused = this.focused()
+    if (focused && windows.includes(focused)) {
+      windows.splice(windows.indexOf(focused), 1)
+      windows.unshift(focused)
+    }
     const selected = workspacePath
-      ? [...this.windows.values()].find(
-          (window) =>
-            !window.disposed &&
-            !window.activeRemoteProject &&
-            window.isSameWorkspacePath(window.currentWorkspacePath, workspacePath)
-        )
-      : this.focused()
-    if (selected?.mainWindow) {
-      selected.showWindowSafely(selected.mainWindow)
-      if (threadId) selected.openCurrentWorkspaceThread(threadId)
+      ? windows.find((window) => window.isWorkspaceForeground(workspacePath))
+      : windows[0]
+    if (selected) {
+      selected.openCurrentWorkspaceThread(threadId)
       return
     }
-    const args = workspacePath ? ['--workspace', workspacePath] : [NO_WORKSPACE_ARG]
-    const created = this.open(args)
-    if (threadId && created) created.pendingWorkspaceOpenThreadId = threadId
+    if (workspacePath) {
+      for (const window of windows) {
+        const entry = window.getWorkspaceConnection(workspacePath)
+        if (!entry?.connected || entry.kind === 'remote') continue
+        if (await window.promoteWorkspaceConnection(entry)) window.openCurrentWorkspaceThread(threadId)
+        return
+      }
+      this.open([buildWorkspaceOpenDeepLink(workspacePath, threadId)])
+      return
+    }
+    this.open([NO_WORKSPACE_ARG])
   }
 
   async routeLaunch(argv: string[], initial = false): Promise<void> {

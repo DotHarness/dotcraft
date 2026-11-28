@@ -422,7 +422,3 @@ export function disposeWorkspaceConnection(ctx: DesktopWindowRuntime, entry: Wor
   entry.client.dispose()
   ctx.emitWorkspaceProjects()
 }
-
-export function canActivateWorkspaceInThisWindow(ctx: DesktopWindowRuntime, workspacePath: string): boolean {
-  return !ctx.activeRemoteProject && workspacePath.trim().length > 0
-}

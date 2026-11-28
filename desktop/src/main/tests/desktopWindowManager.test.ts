@@ -4,6 +4,7 @@ import { createDesktopLifecycle } from '../desktopLifecycle'
 import type { DesktopApplicationServices } from '../desktopApplicationServices'
 import type { DesktopWindowRuntime } from '../windows/windowRuntime'
 import { startDesktopWindow } from '../windows/startDesktopWindow'
+import { findWorkspaceOpenDeepLink } from '../../shared/desktopDeepLink'
 
 const electron = vi.hoisted(() => ({ focused: null as unknown }))
 vi.mock('electron', () => ({ BrowserWindow: { getFocusedWindow: () => electron.focused } }))
@@ -29,7 +30,9 @@ function fixture() {
       openCurrentWorkspaceThread: vi.fn(),
       handleNewThreadDeepLink: vi.fn(async () => {}),
       handleDesktopDeepLink: vi.fn(async () => {}),
-      isSameWorkspacePath: (left: string, right: string) => left === right,
+      isWorkspaceForeground: (path: string) => runtime.currentWorkspacePath === path,
+      getWorkspaceConnection: vi.fn(),
+      promoteWorkspaceConnection: vi.fn(async () => true),
       teardownRuntime: vi.fn(async () => {})
     } as unknown as DesktopWindowRuntime
     return runtime
@@ -51,11 +54,42 @@ describe('application window ownership', () => {
     electron.focused = first.mainWindow
     await manager.routeLaunch(['dotcraft', '--workspace', '/two'])
     expect(create).toHaveBeenCalledTimes(2)
-    expect(second.showWindowSafely).toHaveBeenCalledWith(second.mainWindow)
-    expect(first.showWindowSafely).not.toHaveBeenCalled()
+    expect(second.openCurrentWorkspaceThread).toHaveBeenCalledWith(undefined)
+    expect(first.openCurrentWorkspaceThread).not.toHaveBeenCalled()
     await manager.openWorkspace('/two', 'thread-two')
     expect(second.openCurrentWorkspaceThread).toHaveBeenCalledWith('thread-two')
     expect(first.openCurrentWorkspaceThread).not.toHaveBeenCalled()
+  })
+
+  it('promotes the notification project in its existing window before opening the chat', async () => {
+    const { manager, create } = fixture()
+    const owner = manager.open(['--workspace', '/one'])!
+    const unrelated = manager.open(['--workspace', '/two'])!
+    electron.focused = unrelated.mainWindow
+    const target = { kind: 'local', connected: true } as const
+    vi.mocked(owner.getWorkspaceConnection).mockReturnValue(target as ReturnType<typeof owner.getWorkspaceConnection>)
+    vi.mocked(owner.promoteWorkspaceConnection).mockImplementation(async () => {
+      expect(owner.openCurrentWorkspaceThread).not.toHaveBeenCalled()
+      return true
+    })
+
+    await manager.routeLaunch(['dotcraft', 'dotcraft://workspace/open?path=%2Fproject&threadId=thread-project'])
+
+    expect(create).toHaveBeenCalledTimes(2)
+    expect(owner.promoteWorkspaceConnection).toHaveBeenCalledWith(target)
+    expect(owner.openCurrentWorkspaceThread).toHaveBeenCalledWith('thread-project')
+    expect(unrelated.openCurrentWorkspaceThread).not.toHaveBeenCalled()
+  })
+
+  it('keeps the chat target when a notification starts Desktop without a window', async () => {
+    const { manager, create } = fixture()
+    await manager.routeLaunch(['dotcraft', 'dotcraft://workspace/open?path=%2Fproject&threadId=thread-cold'], true)
+
+    expect(create).toHaveBeenCalledOnce()
+    expect(findWorkspaceOpenDeepLink(create.mock.calls[0][1])).toEqual({
+      workspacePath: '/project',
+      threadId: 'thread-cold'
+    })
   })
 
   it('preserves explicit remote and no-workspace arguments for newly opened windows', async () => {

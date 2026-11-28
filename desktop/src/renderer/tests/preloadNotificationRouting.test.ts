@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest'
+import type { OpenThreadPayload } from '../../preload/index'
 import type { RawNotificationPayload, RawServerRequestPayload, ServerRequestSettledPayload } from '../../shared/appServerBoundary'
 
 const electronMock = vi.hoisted(() => ({
@@ -33,7 +34,10 @@ interface ExposedApi {
     onServerRequestRaw(callback: (payload: RawServerRequestPayload) => void): () => void
     onServerRequestSettled(callback: (payload: ServerRequestSettledPayload) => void): () => void
   }
-  window: { onMaximizedChange(callback: (maximized: boolean) => void): () => void }
+  window: {
+    onMaximizedChange(callback: (maximized: boolean) => void): () => void
+    onOpenThread(callback: (payload: OpenThreadPayload) => void): () => void
+  }
 }
 
 const KNOWN_METHOD = 'item/usage/delta'
@@ -92,6 +96,24 @@ describe('preload bridge', () => {
     stopSettled()
     stopKnown()
     stopRaw()
+  })
+
+  it('delivers a thread open received before subscription once and keeps delivering live opens', () => {
+    const startup = { threadId: 'startup-thread', projectKey: '/startup', workspacePath: '/startup' }
+    const live = { threadId: 'live-thread', projectKey: 'remote:device:example', workspacePath: '/workspace' }
+    emit('app:open-thread', startup)
+
+    const open = vi.fn()
+    const stop = api.window.onOpenThread(open)
+    expect(open.mock.calls).toEqual([[startup]])
+    emit('app:open-thread', live)
+    expect(open.mock.calls).toEqual([[startup], [live]])
+    stop()
+
+    const nextOpen = vi.fn()
+    const stopNext = api.window.onOpenThread(nextOpen)
+    expect(nextOpen).not.toHaveBeenCalled()
+    stopNext()
   })
 
   it('updates window maximize subscribers independently', () => {

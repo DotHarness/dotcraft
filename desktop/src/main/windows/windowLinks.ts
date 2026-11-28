@@ -5,8 +5,7 @@ import {
   parseNewThreadDeepLink,
   parseSatelliteJoinDeepLink,
   parseWorkspaceOpenDeepLink,
-  type NewThreadDeepLink,
-  type WorkspaceOpenDeepLink
+  type NewThreadDeepLink
 } from '../../shared/desktopDeepLink'
 import { openNewThreadDeepLink } from '../newThreadDeepLink'
 import { forwardSatelliteJoinDeepLink } from '../satellites/satelliteJoinLink'
@@ -27,13 +26,13 @@ export function isChromeSettingsDeepLink(_ctx: DesktopWindowRuntime, value: stri
   }
 }
 
-export function sendOpenThread(_ctx: DesktopWindowRuntime, win: BrowserWindow, threadId: string): void {
+export function sendOpenThread(ctx: DesktopWindowRuntime, win: BrowserWindow, threadId: string): void {
   const id = threadId.trim()
-  if (!id || win.isDestroyed()) return
+  const projectKey = ctx.lastConnectionStatus.connectionKey
+  if (!id || !projectKey || win.isDestroyed()) return
+  const payload = { threadId: id, projectKey, workspacePath: ctx.getProtocolWorkspacePath() }
   const send = (): void => {
-    if (!win.isDestroyed()) {
-      win.webContents.send('app:open-thread', { threadId: id })
-    }
+    if (!win.isDestroyed()) win.webContents.send('app:open-thread', payload)
   }
   if (win.webContents.isLoading()) {
     win.webContents.once('did-finish-load', send)
@@ -43,27 +42,22 @@ export function sendOpenThread(_ctx: DesktopWindowRuntime, win: BrowserWindow, t
 }
 
 export function flushPendingWorkspaceOpenThread(ctx: DesktopWindowRuntime, win: BrowserWindow): void {
-  const threadId = ctx.pendingWorkspaceOpenThreadId?.trim()
-  if (!threadId) return
-  ctx.pendingWorkspaceOpenThreadId = null
-  ctx.sendOpenThread(win, threadId)
+  const request = ctx.pendingWorkspaceOpenThread
+  if (!request || request.projectKey !== ctx.lastConnectionStatus.connectionKey) return
+  ctx.pendingWorkspaceOpenThread = null
+  ctx.sendOpenThread(win, request.threadId)
 }
 
 export function openCurrentWorkspaceThread(ctx: DesktopWindowRuntime, threadId?: string | null): void {
   const win = ctx.mainWindow
-  if (!win || win.isDestroyed()) {
-    if (threadId?.trim()) ctx.pendingWorkspaceOpenThreadId = threadId.trim()
-    return
-  }
+  if (!win || win.isDestroyed()) return
 
   ctx.showWindowSafely(win)
-  if (!threadId?.trim()) return
-
-  if (ctx.lastConnectionStatus.status === 'connected') {
-    ctx.sendOpenThread(win, threadId)
-  } else {
-    ctx.pendingWorkspaceOpenThreadId = threadId.trim()
-  }
+  const id = threadId?.trim()
+  if (!id) return
+  const projectKey = ctx.activeRemoteProject?.projectId ?? ctx.localProjectId(ctx.currentWorkspacePath)
+  ctx.pendingWorkspaceOpenThread = { projectKey, threadId: id }
+  ctx.flushPendingWorkspaceOpenThread(win)
 }
 
 export function sendOpenChromeSettings(_ctx: DesktopWindowRuntime, win: BrowserWindow): void {
@@ -93,28 +87,6 @@ export function openChromeSettingsFromDeepLink(ctx: DesktopWindowRuntime): void 
 
 export function satelliteJoinLinkWindow(ctx: DesktopWindowRuntime): BrowserWindow | null {
   return ctx.mainWindow
-}
-
-export function handleWorkspaceOpenDeepLink(ctx: DesktopWindowRuntime, link: WorkspaceOpenDeepLink): void {
-  if (ctx.canActivateWorkspaceInThisWindow(link.workspacePath)) {
-    if (ctx.currentWorkspacePath && ctx.isSameWorkspacePath(ctx.currentWorkspacePath, link.workspacePath)) {
-      ctx.openCurrentWorkspaceThread(link.threadId)
-    } else {
-      void ctx
-        .connectToAppServer(link.workspacePath)
-        .then((connected) => {
-          if (connected) {
-            ctx.openCurrentWorkspaceThread(link.threadId)
-          }
-        })
-        .catch((error) => {
-          console.warn('[desktop] failed to open workspace deep link in current window', error)
-        })
-    }
-    return
-  }
-
-  void ctx.app.openDesktopWindow(link.workspacePath, link.threadId)
 }
 
 export function sendOpenNewChat(
@@ -177,10 +149,7 @@ export function openPairingDeepLink(ctx: DesktopWindowRuntime, link: string): vo
 
 export function handleDesktopDeepLink(ctx: DesktopWindowRuntime, url: string): Promise<void> | null {
   const workspaceOpen = parseWorkspaceOpenDeepLink(url)
-  if (workspaceOpen) {
-    ctx.handleWorkspaceOpenDeepLink(workspaceOpen)
-    return Promise.resolve()
-  }
+  if (workspaceOpen) return ctx.app.openDesktopWindow(workspaceOpen.workspacePath, workspaceOpen.threadId)
 
   const newThread = parseNewThreadDeepLink(url)
   if (newThread) return ctx.handleNewThreadDeepLink(newThread)

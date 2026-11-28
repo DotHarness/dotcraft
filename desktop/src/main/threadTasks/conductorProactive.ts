@@ -1,11 +1,12 @@
-import { Notification } from 'electron'
+import type { Notification } from 'electron'
 import { DEFAULT_LOCALE, normalizeLocale } from '../../shared/locales'
 import type { OwnedThreadRecord } from '../../shared/ownedThreads'
 import { resolveDefaultChatWorkspacePath } from '../defaultChatWorkspace'
 import { sendDesktopAppServerRequest, threadTaskConnection } from '../desktopRuntimeThreadTools'
 import type { DesktopWindowRuntime } from '../windows/windowRuntime'
 import { listThreadProjects, openThreadProject } from '../windows/windowThreadProjects'
-import { openSourceThread } from '../windows/windowRequests'
+import { createDesktopNotification } from '../desktopNotification'
+import { notificationThreadActivation } from '../windows/windowNotifications'
 import type { WorkspaceConnectionEntry } from '../windows/windowTypes'
 import { classifyActiveThread, type ActiveThreadSummaryWire } from './activeThreads'
 import type { LinkedChat } from './linkedChatStore'
@@ -324,17 +325,20 @@ async function handleConductorTurnCompleted(
   const win = ctx.mainWindow
   if (!win || win.isDestroyed() || win.isFocused()) return
   if (ctx.settings.notifications?.questions === false && ctx.settings.notifications?.approvalRequests === false) return
-  if (!Notification.isSupported()) return
-
-  dismissConductorNotification(state, conductor.threadId)
-  const notification = new Notification({
+  const activation = notificationThreadActivation(ctx, entry, conductor.threadId)
+  const notification = createDesktopNotification({
     title: conductor.title || 'Oratorio',
     body: formatNotificationPreview(reply)
+  }, {
+    ...activation,
+    open: () => {
+      dismissConductorNotification(state, conductor.threadId)
+      activation.open()
+    }
   })
-  notification.on('click', () => {
-    dismissConductorNotification(state, conductor.threadId)
-    openSourceThread(ctx, entry, win, conductor.threadId)
-  })
+  if (!notification) return
+
+  dismissConductorNotification(state, conductor.threadId)
   notification.on('close', () => {
     if (state.activeNotifications.get(conductor.threadId) === notification) {
       state.activeNotifications.delete(conductor.threadId)
