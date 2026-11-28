@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using DotCraft.AppServer;
 using DotCraft.Sessions;
+using DotHarness.Acp.Protocol;
 using DotHarness.Acp.Rpc;
 using DotHarness.Acp.V1;
 using Contract = DotCraft.Protocol.AppServer;
@@ -96,19 +97,18 @@ public sealed partial class AcpBridgeHandler
 
         try
         {
-            var agent = await GetAgentAsync(ct).ConfigureAwait(false);
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             timeoutCts.CancelAfter(_permissionRequestTimeout);
-            var response = await agent.Client.SessionRequestPermissionAsync(request, timeoutCts.Token).ConfigureAwait(false);
+            var response = await Client.SessionRequestPermissionAsync(request, timeoutCts.Token).ConfigureAwait(false);
             var decision = response.Outcome switch
             {
-                RequestPermissionOutcome.Case2 selected => selected.Value.OptionId.Value switch
+                RequestPermissionOutcome.Selected selected => selected.Value.OptionId.Value switch
                 {
                     "allow-always" => "acceptAlways",
                     "allow-once" => "accept",
                     _ => "decline"
                 },
-                RequestPermissionOutcome.Case1 => "cancel",
+                RequestPermissionOutcome.Cancelled => "cancel",
                 _ => "decline"
             };
             return new { decision };
@@ -139,10 +139,9 @@ public sealed partial class AcpBridgeHandler
 
         try
         {
-            var agent = await GetAgentAsync(ct).ConfigureAwait(false);
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             timeoutCts.CancelAfter(_extForwardTimeout);
-            var result = await agent.Connection.RequestAsync(
+            var result = await Connection.RequestAsync(
                 descriptor.AcpMethod,
                 argumentsElement,
                 timeoutCts.Token).ConfigureAwait(false);
@@ -209,7 +208,6 @@ public sealed partial class AcpBridgeHandler
 
         try
         {
-            var agent = await GetAgentAsync(ct).ConfigureAwait(false);
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             timeoutCts.CancelAfter(_extForwardTimeout);
             var callCt = timeoutCts.Token;
@@ -221,12 +219,12 @@ public sealed partial class AcpBridgeHandler
                     var path = TryGetStringProperty(wireParams, "path") ?? "";
                     var line = TryGetUInt32Property(wireParams, "line");
                     var limit = TryGetUInt32Property(wireParams, "limit");
-                    var response = await agent.Client.FsReadTextFileAsync(new ReadTextFileRequest
+                    var response = await Client.FsReadTextFileAsync(new ReadTextFileRequest
                     {
                         SessionId = new(sessionId),
                         Path = path,
-                        Line = line.HasValue ? new DotHarness.Acp.Protocol.Optional<uint?>(line.Value) : default,
-                        Limit = limit.HasValue ? new DotHarness.Acp.Protocol.Optional<uint?>(limit.Value) : default
+                        Line = Optional<uint?>.OmitIfNull(line),
+                        Limit = Optional<uint?>.OmitIfNull(limit)
                     }, callCt).ConfigureAwait(false);
                     return new Contract.AcpFsReadTextFileResult { Content = response.Content };
                 }
@@ -236,7 +234,7 @@ public sealed partial class AcpBridgeHandler
                     var content = wireParams.TryGetProperty("content", out var c) && c.ValueKind == JsonValueKind.String
                         ? c.GetString() ?? ""
                         : "";
-                    await agent.Client.FsWriteTextFileAsync(new WriteTextFileRequest
+                    await Client.FsWriteTextFileAsync(new WriteTextFileRequest
                     {
                         SessionId = new(sessionId),
                         Path = path,
@@ -251,32 +249,30 @@ public sealed partial class AcpBridgeHandler
                     var cwd = TryGetStringProperty(wireParams, "cwd");
                     var env = TryGetEnvVariablesProperty(wireParams, "env");
                     var outputByteLimit = TryGetUInt64Property(wireParams, "outputByteLimit");
-                    var response = await agent.Client.TerminalCreateAsync(new CreateTerminalRequest
+                    var response = await Client.TerminalCreateAsync(new CreateTerminalRequest
                     {
                         SessionId = new(sessionId),
                         Command = command,
-                        Args = args != null ? new DotHarness.Acp.Protocol.Optional<string[]>(args) : default,
-                        Env = env != null ? new DotHarness.Acp.Protocol.Optional<EnvVariable[]>(env) : default,
-                        Cwd = cwd != null ? new DotHarness.Acp.Protocol.Optional<string?>(cwd) : default,
-                        OutputByteLimit = outputByteLimit.HasValue
-                            ? new DotHarness.Acp.Protocol.Optional<ulong?>(outputByteLimit.Value)
-                            : default
+                        Args = Optional<string[]>.OmitIfNull(args),
+                        Env = Optional<EnvVariable[]>.OmitIfNull(env),
+                        Cwd = Optional<string?>.OmitIfNull(cwd),
+                        OutputByteLimit = Optional<ulong?>.OmitIfNull(outputByteLimit)
                     }, callCt).ConfigureAwait(false);
                     return new Contract.AcpTerminalCreateResult { TerminalId = response.TerminalId.Value };
                 }
                 case "terminal/output":
                 {
                     var terminalId = TryGetStringProperty(wireParams, "terminalId") ?? "";
-                    var response = await agent.Client.TerminalOutputAsync(new TerminalOutputRequest
+                    var response = await Client.TerminalOutputAsync(new TerminalOutputRequest
                     {
                         SessionId = new(sessionId),
                         TerminalId = new(terminalId)
                     }, callCt).ConfigureAwait(false);
-                    var exitStatus = response.ExitStatus is { HasValue: true, Value: { } status }
+                    var exitStatus = response.ExitStatus.GetValueOrDefault() is { } status
                         ? new Contract.AcpTerminalExitStatus
                         {
-                            ExitCode = status.ExitCode is { HasValue: true } ? status.ExitCode.Value : null,
-                            Signal = status.Signal is { HasValue: true } ? status.Signal.Value : null
+                            ExitCode = status.ExitCode.GetValueOrDefault(),
+                            Signal = status.Signal.GetValueOrDefault()
                         }
                         : null;
                     return new Contract.AcpTerminalOutputResult
@@ -289,21 +285,21 @@ public sealed partial class AcpBridgeHandler
                 case "terminal/wait_for_exit":
                 {
                     var terminalId = TryGetStringProperty(wireParams, "terminalId") ?? "";
-                    var response = await agent.Client.TerminalWaitForExitAsync(new WaitForTerminalExitRequest
+                    var response = await Client.TerminalWaitForExitAsync(new WaitForTerminalExitRequest
                     {
                         SessionId = new(sessionId),
                         TerminalId = new(terminalId)
                     }, callCt).ConfigureAwait(false);
                     return new Contract.AcpTerminalWaitForExitResult
                     {
-                        ExitCode = response.ExitCode is { HasValue: true } ? response.ExitCode.Value : null,
-                        Signal = response.Signal is { HasValue: true } ? response.Signal.Value : null
+                        ExitCode = response.ExitCode.GetValueOrDefault(),
+                        Signal = response.Signal.GetValueOrDefault()
                     };
                 }
                 case "terminal/kill":
                 {
                     var terminalId = TryGetStringProperty(wireParams, "terminalId") ?? "";
-                    await agent.Client.TerminalKillAsync(new KillTerminalRequest
+                    await Client.TerminalKillAsync(new KillTerminalRequest
                     {
                         SessionId = new(sessionId),
                         TerminalId = new(terminalId)
@@ -313,7 +309,7 @@ public sealed partial class AcpBridgeHandler
                 case "terminal/release":
                 {
                     var terminalId = TryGetStringProperty(wireParams, "terminalId") ?? "";
-                    await agent.Client.TerminalReleaseAsync(new ReleaseTerminalRequest
+                    await Client.TerminalReleaseAsync(new ReleaseTerminalRequest
                     {
                         SessionId = new(sessionId),
                         TerminalId = new(terminalId)
@@ -326,7 +322,7 @@ public sealed partial class AcpBridgeHandler
                     var paramElement = forwarded is null
                         ? EmptyObjectElement()
                         : JsonSerializer.SerializeToElement(forwarded, JsonOptions);
-                    var el = await agent.Connection.RequestAsync(acpMethod, paramElement, callCt).ConfigureAwait(false);
+                    var el = await Connection.RequestAsync(acpMethod, paramElement, callCt).ConfigureAwait(false);
                     return JsonSerializer.Deserialize<object>(el.GetRawText(), JsonOptions) ?? new { };
                 }
             }

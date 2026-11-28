@@ -4,6 +4,8 @@ using DotCraft.CLI;
 using DotCraft.Memory;
 using DotCraft.Sessions;
 using DotCraft.Sessions.Wire;
+using DotHarness.Acp.Protocol;
+using DotHarness.Acp.Rpc;
 using DotHarness.Acp.V1;
 using Contract = DotCraft.Protocol.AppServer;
 
@@ -17,13 +19,13 @@ public sealed partial class AcpBridgeHandler
         if (text == null)
             return;
 
-        SessionUpdate? update = null;
-        if (item.Type == ItemType.UserMessage)
-            update = new SessionUpdate.Case1(new SessionUpdateCase1Payload { Content = TextBlock(text) });
-        else if (item.Type == ItemType.AgentMessage)
-            update = new SessionUpdate.Case2(new SessionUpdateCase2Payload { Content = TextBlock(text) });
-        else if (item.Type == ItemType.ReasoningContent)
-            update = new SessionUpdate.Case3(new SessionUpdateCase3Payload { Content = TextBlock(text) });
+        SessionUpdate? update = item.Type switch
+        {
+            ItemType.UserMessage => SessionUpdate.FromUserMessage(text),
+            ItemType.AgentMessage => SessionUpdate.FromAgentMessage(text),
+            ItemType.ReasoningContent => SessionUpdate.FromAgentThought(text),
+            _ => null
+        };
 
         if (update != null)
             await SendSessionUpdateAsync(sessionId, update, ct).ConfigureAwait(false);
@@ -62,7 +64,7 @@ public sealed partial class AcpBridgeHandler
 
         var preview = ImageContentSanitizingChatClient.DescribeResult(resultObj);
         if (preview.Length > 500) preview = preview[..500] + "...";
-        return [TextToolContent(preview)];
+        return [ToolCallContent.FromText(preview)];
     }
 
     private async Task MapWireNotificationToAcpAsync(
@@ -77,24 +79,14 @@ public sealed partial class AcpBridgeHandler
             {
                 var delta = @params.TryGetProperty("delta", out var d) ? d.GetString() : null;
                 if (!string.IsNullOrEmpty(delta))
-                {
-                    await SendSessionUpdateAsync(
-                        sessionId,
-                        new SessionUpdate.Case2(new SessionUpdateCase2Payload { Content = TextBlock(delta) }),
-                        ct).ConfigureAwait(false);
-                }
+                    await SendSessionUpdateAsync(sessionId, SessionUpdate.FromAgentMessage(delta), ct).ConfigureAwait(false);
                 break;
             }
             case Contract.AppServerMethodNames.ReasoningDelta:
             {
                 var delta = @params.TryGetProperty("delta", out var d) ? d.GetString() : null;
                 if (!string.IsNullOrEmpty(delta))
-                {
-                    await SendSessionUpdateAsync(
-                        sessionId,
-                        new SessionUpdate.Case3(new SessionUpdateCase3Payload { Content = TextBlock(delta) }),
-                        ct).ConfigureAwait(false);
-                }
+                    await SendSessionUpdateAsync(sessionId, SessionUpdate.FromAgentThought(delta), ct).ConfigureAwait(false);
                 break;
             }
             case Contract.AppServerMethodNames.ItemStarted:
@@ -120,22 +112,19 @@ public sealed partial class AcpBridgeHandler
                 var declaredKind = ResolveRuntimeToolKind(payload, toolName);
                 var kind = AcpToolKindMapper.GetKind(toolName, declaredKind);
                 var filePaths = AcpToolKindMapper.ExtractFilePaths(toolName, argsElement);
-                var payloadUpdate = new SessionUpdateCase4Payload
+                var toolCall = new ToolCall
                 {
                     ToolCallId = new(callId),
                     Title = toolName,
                     Kind = kind,
                     Status = ToolCallStatus.InProgress,
-                    Content = string.IsNullOrEmpty(argsStr)
-                        ? default
-                        : new DotHarness.Acp.Protocol.Optional<ToolCallContent[]>([TextToolContent(argsStr)]),
-                    Locations = filePaths is { Count: > 0 }
-                        ? new DotHarness.Acp.Protocol.Optional<ToolCallLocation[]>(
-                            filePaths.Select(fp => new ToolCallLocation { Path = fp }).ToArray())
-                        : default
+                    Content = Optional<ToolCallContent[]>.OmitIfNull(
+                        string.IsNullOrEmpty(argsStr) ? null : new[] { ToolCallContent.FromText(argsStr) }),
+                    Locations = Optional<ToolCallLocation[]>.OmitIfNull(
+                        filePaths is { Count: > 0 } ? filePaths.Select(fp => new ToolCallLocation { Path = fp }).ToArray() : null)
                 };
 
-                await SendSessionUpdateAsync(sessionId, new SessionUpdate.Case4(payloadUpdate), ct).ConfigureAwait(false);
+                await SendSessionUpdateAsync(sessionId, toolCall, ct).ConfigureAwait(false);
                 break;
             }
             case Contract.AppServerMethodNames.ItemCompleted:
@@ -168,16 +157,14 @@ public sealed partial class AcpBridgeHandler
                 }
 
                 var content = BuildToolResultContent(toolName, resultObj, success);
-                var updatePayload = new SessionUpdateCase5Payload
+                var toolCallUpdate = new ToolCallUpdate
                 {
                     ToolCallId = new(callId),
                     Status = success ? ToolCallStatus.Completed : ToolCallStatus.Failed,
-                    Content = content != null
-                        ? new DotHarness.Acp.Protocol.Optional<ToolCallContent[]?>(content)
-                        : default
+                    Content = Optional<ToolCallContent[]?>.OmitIfNull(content)
                 };
 
-                await SendSessionUpdateAsync(sessionId, new SessionUpdate.Case5(updatePayload), ct).ConfigureAwait(false);
+                await SendSessionUpdateAsync(sessionId, toolCallUpdate, ct).ConfigureAwait(false);
                 break;
             }
             case Contract.AppServerMethodNames.TurnCompleted:
@@ -210,10 +197,7 @@ public sealed partial class AcpBridgeHandler
                     });
                 }
 
-                await SendSessionUpdateAsync(
-                    sessionId,
-                    new SessionUpdate.Case6(new SessionUpdateCase6Payload { Entries = [.. entries] }),
-                    ct).ConfigureAwait(false);
+                await SendSessionUpdateAsync(sessionId, SessionUpdate.FromPlan([.. entries]), ct).ConfigureAwait(false);
                 break;
             }
         }
@@ -269,35 +253,19 @@ public sealed partial class AcpBridgeHandler
             }
         }).ToArray();
 
-        await SendSessionUpdateAsync(
-            sessionId,
-            new SessionUpdate.Case6(new SessionUpdateCase6Payload { Entries = entries }),
-            ct).ConfigureAwait(false);
+        await SendSessionUpdateAsync(sessionId, SessionUpdate.FromPlan(entries), ct).ConfigureAwait(false);
     }
 
-    private async Task SendModeUpdateAsync(string sessionId, AgentMode mode, CancellationToken ct)
-    {
-        await SendSessionUpdateAsync(
-            sessionId,
-            new SessionUpdate.Case10(new SessionUpdateCase10Payload
-            {
-                CurrentModeId = new(mode.ToString().ToLowerInvariant())
-            }),
-            ct).ConfigureAwait(false);
-    }
+    private Task SendModeUpdateAsync(string sessionId, AgentMode mode, CancellationToken ct) =>
+        SendSessionUpdateAsync(sessionId, SessionUpdate.FromCurrentMode(new(mode.ToString().ToLowerInvariant())), ct);
 
-    private async Task SendConfigOptionsUpdateAsync(
+    private Task SendConfigOptionsUpdateAsync(
         string sessionId,
         SessionConfigOption[] configOptions,
-        CancellationToken ct)
-    {
-        await SendSessionUpdateAsync(
-            sessionId,
-            new SessionUpdate.Case11(new SessionUpdateCase11Payload { ConfigOptions = configOptions }),
-            ct).ConfigureAwait(false);
-    }
+        CancellationToken ct) =>
+        SendSessionUpdateAsync(sessionId, SessionUpdate.FromConfigOptions(configOptions), ct);
 
-    private void QueueSlashCommandsBroadcast(string sessionId)
+    private void ScheduleSlashCommandsBroadcast(string sessionId)
     {
         var commands = commandRegistry?.ListCommands()
             .Where(static command => command.Category == "workflow")
@@ -312,45 +280,14 @@ public sealed partial class AcpBridgeHandler
         if (commands.Length == 0)
             return;
 
-        _pendingSlashCommands[sessionId] = commands;
+        AcpRequestContext.ScheduleAfterReply(ct =>
+            SendSessionUpdateAsync(sessionId, SessionUpdate.FromAvailableCommands(commands), ct));
     }
 
-    private void OnSessionInitResponseWritten(string? sessionId, bool succeeded)
-    {
-        if (string.IsNullOrEmpty(sessionId))
-            return;
-
-        if (!_pendingSlashCommands.TryRemove(sessionId, out var commands) || !succeeded)
-            return;
-
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await SendSessionUpdateAsync(
-                    sessionId,
-                    new SessionUpdate.Case9(new SessionUpdateCase9Payload { AvailableCommands = commands }),
-                    _bridgeLifetime).ConfigureAwait(false);
-            }
-            catch
-            {
-            }
-        }, _bridgeLifetime);
-    }
-
-    private async Task SendSessionUpdateAsync(string sessionId, SessionUpdate update, CancellationToken ct)
-    {
-        var agent = await GetAgentAsync(ct).ConfigureAwait(false);
-        await agent.Client.SessionUpdateAsync(new SessionNotification
+    private Task SendSessionUpdateAsync(string sessionId, SessionUpdate update, CancellationToken ct) =>
+        Client.SessionUpdateAsync(new SessionNotification
         {
             SessionId = new(sessionId),
             Update = update
-        }, ct).ConfigureAwait(false);
-    }
-
-    private static ContentBlock TextBlock(string text) =>
-        new ContentBlock.Case1(new ContentBlockCase1Payload { Text = text });
-
-    private static ToolCallContent TextToolContent(string text) =>
-        new ToolCallContent.Case1(new ToolCallContentCase1Payload { Content = TextBlock(text) });
+        }, ct);
 }

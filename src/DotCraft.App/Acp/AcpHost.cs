@@ -1,3 +1,4 @@
+using System.Text;
 using DotCraft.AppServer;
 using DotCraft.CLI;
 using DotCraft.Commands.Core;
@@ -6,6 +7,7 @@ using DotCraft.Hooks;
 using DotCraft.Hosting;
 using DotCraft.Memory;
 using DotCraft.Workspaces;
+using DotHarness.Acp.Transport;
 using AcpStdioTransport = DotHarness.Acp.Transport.StdioTransport;
 using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console;
@@ -30,14 +32,12 @@ public sealed class AcpHost(
         var commandRegistry = sp.GetService<CommandRegistry>();
 
         using var acpLogger = AcpLogger.Create(paths.Data.RootPath, config.DebugMode);
-        await using var transport = new AcpLoggingTransport(
-            new AcpStdioTransport(
-                Console.OpenStandardInput(),
-                Console.OpenStandardOutput(),
-                leaveOpen: true,
-                maxMessageBytes: MaxStdioMessageBytes),
-            acpLogger,
-            TimeSpan.FromSeconds(acpConfig.WriteTimeoutSeconds));
+        var writeTimeout = TimeSpan.FromSeconds(acpConfig.WriteTimeoutSeconds > 0 ? acpConfig.WriteTimeoutSeconds : 30);
+        await using var transport = new ObservingAcpTransport(
+            AcpStdioTransport.OpenStandardStreams(MaxStdioMessageBytes),
+            onRead: acpLogger is null ? null : bytes => acpLogger.LogIncoming(Encoding.UTF8.GetString(bytes.Span)),
+            onWrite: acpLogger is null ? null : bytes => acpLogger.LogOutgoing(Encoding.UTF8.GetString(bytes.Span)),
+            writeTimeout: writeTimeout);
 
         AppServerWireClient wire;
         if (!string.IsNullOrWhiteSpace(acpConfig.AppServerUrl))

@@ -38,28 +38,28 @@ internal static class AcpConfigOptions
     {
         var options = new List<SessionConfigOption>
         {
-            new SessionConfigOption.Case1(new SessionConfigOptionCase1Payload
+            new SessionConfigOptionSelectPayload
             {
                 Id = new("mode"),
                 Name = "Mode",
                 Category = SessionConfigOptionCategory.Mode,
                 CurrentValue = new(string.IsNullOrWhiteSpace(currentMode) ? "agent" : currentMode.Trim()),
-                Options = new SessionConfigSelectOptions.Case1(
-                [
-                    new SessionConfigSelectOption
+                Options = new SessionConfigSelectOption[]
+                {
+                    new()
                     {
                         Value = new("agent"),
                         Name = "Agent",
                         Description = "Full agent mode with all tools"
                     },
-                    new SessionConfigSelectOption
+                    new()
                     {
                         Value = new("plan"),
                         Name = "Plan",
                         Description = "Read-only planning mode"
                     }
-                ])
-            })
+                }
+            }
         };
 
         if (modelList?.Success is { IsSet: true, Value: true })
@@ -94,7 +94,7 @@ internal static class AcpConfigOptions
                 Name = id
             }));
 
-            options.Add(new SessionConfigOption.Case1(new SessionConfigOptionCase1Payload
+            options.Add(new SessionConfigOptionSelectPayload
             {
                 Id = new("model"),
                 Name = "Model",
@@ -102,29 +102,29 @@ internal static class AcpConfigOptions
                 CurrentValue = new(string.IsNullOrWhiteSpace(normalizedCurrentModel)
                     ? DefaultModelValue
                     : normalizedCurrentModel),
-                Options = new SessionConfigSelectOptions.Case1([.. modelOptions])
-            }));
+                Options = modelOptions.ToArray()
+            });
         }
 
         return [.. options];
     }
 
     internal static bool IsModelOption(SessionConfigOption option) =>
-        option is SessionConfigOption.Case1 select
+        option is SessionConfigOption.Select select
         && (string.Equals(select.Value.Id.Value, "model", StringComparison.OrdinalIgnoreCase)
-            || (select.Value.Category is { HasValue: true, Value: { } category }
+            || (select.Value.Category.GetValueOrDefault() is { } category
                 && string.Equals(category.Value, "model", StringComparison.OrdinalIgnoreCase)));
 
     internal static bool ContainsSelectValue(SessionConfigOption option, string value)
     {
-        if (option is not SessionConfigOption.Case1 select)
+        if (option is not SessionConfigOption.Select select)
             return false;
 
         return select.Value.Options switch
         {
-            SessionConfigSelectOptions.Case1 flat =>
+            SessionConfigSelectOptions.Ungrouped flat =>
                 flat.Value.Any(item => string.Equals(item.Value.Value, value, StringComparison.Ordinal)),
-            SessionConfigSelectOptions.Case2 grouped =>
+            SessionConfigSelectOptions.Grouped grouped =>
                 grouped.Value.SelectMany(group => group.Options)
                     .Any(item => string.Equals(item.Value.Value, value, StringComparison.Ordinal)),
             _ => false
