@@ -27,11 +27,6 @@
   color: var(--text-primary);
 }
 
-/* Sidebar icon actions share IconButton behavior but use the sidebar's quieter state ramp. */
-.dc-icon-button.dc-sidebar-icon-button {
-  color: var(--text-dimmed);
-}
-
 .dc-icon-button.dc-sidebar-icon-button:hover:not(:disabled),
 .dc-icon-button.dc-sidebar-icon-button[aria-expanded="true"] {
   background: var(--sidebar-control-hover);
