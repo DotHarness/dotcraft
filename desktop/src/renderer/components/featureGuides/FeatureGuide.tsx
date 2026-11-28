@@ -103,9 +103,10 @@ export function FeatureGuideSpotlight({
   body,
   points,
   primaryLabel,
+  primaryBusy = false,
   onPrimary,
   onClose
-}: FeatureGuideContent & { points: FeatureGuidePoint[] }): JSX.Element {
+}: FeatureGuideContent & { points: FeatureGuidePoint[]; primaryBusy?: boolean }): JSX.Element {
   const titleId = useId()
   useEscape(onClose)
   return (
@@ -122,7 +123,7 @@ export function FeatureGuideSpotlight({
       )}
       footer={(
         <div className="dc-modal__footer">
-          <Button variant="primary" onClick={onPrimary}>{primaryLabel}</Button>
+          <Button variant="primary" loading={primaryBusy} disabled={primaryBusy} onClick={onPrimary}>{primaryLabel}</Button>
         </div>
       )}
     >

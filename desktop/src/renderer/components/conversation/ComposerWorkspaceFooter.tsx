@@ -16,6 +16,7 @@ import { useAddProjectFlow } from '../projects/AddProject'
 import { DesktopPluginSurface } from '../desktopPlugins/DesktopPluginSurface'
 import { useDesktopPluginRegistry } from '../../plugins/desktopPluginRegistry'
 import { WorkLocationToggle } from './WorkLocationToggle'
+import { WorktreesFeatureGuide } from '../featureGuides/WorktreesFeatureGuide'
 import { WorktreeEnvironmentPicker } from './WorktreeEnvironmentPicker'
 import {
   FooterMenuButton,
@@ -63,6 +64,8 @@ interface ComposerWorkspaceFooterProps {
 type OpenMenu = 'project' | 'branch' | 'changelist' | 'runOn' | 'environment' | null
 
 const GIT_BRANCH_REFRESH_INTERVAL_MS = 5_000
+
+const toggleAnchorStyle: CSSProperties = { position: 'relative', display: 'flex', minWidth: 0 }
 
 const footerStyle: CSSProperties = {
   alignItems: 'center',
@@ -494,6 +497,7 @@ export function ComposerWorkspaceFooter({
       )}
       {showGitFooterControls && (
         <>
+      <div style={toggleAnchorStyle}>
       <WorkLocationToggle
         variant={variant}
         mode={mode}
@@ -510,6 +514,18 @@ export function ComposerWorkspaceFooter({
           setHandoffMode(targetMode)
         }}
       />
+      {variant === 'welcome' && (
+        <WorktreesFeatureGuide
+          workspacePath={branchActionPath}
+          available={canUseWorktrees && mode === 'local' && !busy}
+          worktreeMode={mode === 'worktree'}
+          onUseWorktree={() => {
+            setOpenMenu(null)
+            onWelcomeModeChange?.('worktree')
+          }}
+        />
+      )}
+      </div>
       {!isThread && canUseWorktrees && mode === 'worktree' && (
         <WorktreeEnvironmentPicker
           workspacePath={branchActionPath}

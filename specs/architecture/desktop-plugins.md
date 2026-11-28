@@ -4,7 +4,7 @@
 | --- | --- |
 | Version | 0.15.0 |
 | Status | Living |
-| Date | 2026-11-26 |
+| Date | 2026-11-28 |
 | Parent Specs | [Plugin Architecture](plugin-architecture.md), [Tool Architecture](tools-architecture.md) |
 
 ## Overview
@@ -313,7 +313,7 @@ The plan is the thread's saved snapshot. `implementsPlan` identifies the executi
 
 `settled` is true once the turn has ended and no Agent or Workflow it started is still running, so a contribution announces the user's task as done only when it is settled.
 
-`runningTasks.count` is the thread's running background task count that the turn's working line shows: every running task while the turn runs, and only Agents and Workflows after it ends, and `open` shows the Summary that lists them. A contribution that shows the count itself calls `claim` and disposes the handle when it stops. While any claim is live, the working line omits the count.
+`runningTasks.count` is the thread's running background task count that the turn's working line shows: every running task while the turn runs, and only Agents and Workflows after it ends, and `open` opens the Subagents detail panel when only subagents are working or shows the Summary otherwise. A contribution that shows the count itself calls `claim` and disposes the handle when it stops. While any claim is live, the working line omits the count.
 
 The seat stays mounted after the turn ends, so a contribution decides from how the turn ended whether its status still applies. Content renders in the reading column with the transcript's spacing, and an empty contribution takes no space.
 
@@ -372,7 +372,7 @@ interface DesktopPluginSpaceSidebarProps extends DesktopPluginViewProps {
 - A main view named in a space is reached only through it: it is not a sidebar destination, a More item, or a pin, and `openMainView` on it opens the space.
 - While the active location belongs to a space, the Host keeps the persistent sidebar header, `New chat`, pinned destinations (marking the active space row), `More`, and footer, replacing only the lower thread-list body with the space's section title and the contribution's `sidebar`. There is no separate `Back to app` row. Selecting the active space row again returns to the recorded location outside the space. The Host owns the frame and the sidebar's width and collapse. The contribution renders its rows with `SidebarRow`.
 - A space destination in the sidebar (and inside the `More` menu, without rolling badges onto the `More` trigger itself) displays the status of the space's owned thread across workspaces: waiting badge, failed dot, running spinner, or a restrained neutral unread count pill (`1`–`99+`).
-- A space may declare a `guide`: a [feature guide](../clients/desktop-client.md#69-feature-guides) that introduces it. The plugin decides when its usage shows the space would help and calls `host.ui.requestSpaceGuide(spaceId)`. The Host owns everything else: the guide shows as a coachmark beside the space's pinned sidebar entry at the next pause, under the same limits as Desktop's own readiness guides, and never while the entry is in More. `media` renders inert on the guide's gradient band. The guide's action enters the space, and entering the space by any route settles the guide.
+- A space may declare a `guide`: a [feature guide](../clients/desktop-client.md#69-feature-guides) that introduces it. The plugin decides when its usage shows the space would help and calls `host.ui.requestSpaceGuide(spaceId)`. The Host owns everything else: the guide shows as a coachmark beside the space's pinned sidebar entry at the next pause, under the same limits as Desktop's own readiness guides, and never while the entry is in More. `media` renders inert on the guide's gradient band. The guide's action enters the space, and entering the space by any route settles the guide. A plugin cannot request a guide before it runs, so Desktop introduces the bundled Oratorio space itself while that plugin is not installed ([Desktop §6.9](../clients/desktop-client.md#69-feature-guides)); that guide installs the plugin, enters the space, and shares the space guide's record.
 - On entering a space, the Host records the location it left, including its workspace. Back returns there, switching workspace when an owned thread's workspace replaced it. Moving between the space's own locations keeps the record, including while a workspace switch is in progress. Opening a location outside the space leaves the space without returning, and the record is dropped. Archiving the open owned thread leaves the space as Back does.
 
 ## Runtime lifecycle

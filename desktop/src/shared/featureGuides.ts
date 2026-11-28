@@ -1,4 +1,4 @@
-const CORE_FEATURE_GUIDE_IDS = ['creator', 'subagentModels', 'findOutWhy'] as const
+const CORE_FEATURE_GUIDE_IDS = ['creator', 'subagentModels', 'findOutWhy', 'worktrees'] as const
 
 export type CoreFeatureGuideId = (typeof CORE_FEATURE_GUIDE_IDS)[number]
 
@@ -9,7 +9,8 @@ export type FeatureGuideMoment = 'entry' | 'readiness' | 'friction'
 const CORE_FEATURE_GUIDE_MOMENTS: Record<CoreFeatureGuideId, FeatureGuideMoment> = {
   creator: 'entry',
   subagentModels: 'readiness',
-  findOutWhy: 'friction'
+  findOutWhy: 'friction',
+  worktrees: 'readiness'
 }
 
 export function spaceFeatureGuideId(spaceKey: string): FeatureGuideId {
@@ -39,6 +40,16 @@ export interface FeatureGuidesSettings {
 }
 
 export const SUBAGENT_MODELS_MIN_CHATS = 2
+
+export const ORATORIO_GUIDE_MIN_PROJECTS = 3
+const ORATORIO_GUIDE_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000
+
+export function countRecentlyOpenedProjects(lastOpened: readonly (string | undefined)[], now: number): number {
+  return lastOpened.filter((value) => {
+    const at = value ? Date.parse(value) : NaN
+    return Number.isFinite(at) && now - at <= ORATORIO_GUIDE_LOOKBACK_MS
+  }).length
+}
 
 const MAX_SHOWINGS = 2
 const RETURN_AFTER_MS = 7 * 24 * 60 * 60 * 1000

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   canShowFeatureGuide,
+  countRecentlyOpenedProjects,
   normalizeFeatureGuides,
   recordFeatureGuideClosed,
   recordFeatureGuideShown,
@@ -61,5 +62,12 @@ describe('feature guide scheduling', () => {
     state = recordSubagentChat(state, 'thread-a')
     state = recordSubagentChat(state, 'thread-b')
     expect(normalizeFeatureGuides(JSON.parse(JSON.stringify(state))).subagentChats).toEqual(['thread-a', 'thread-b'])
+  })
+})
+
+describe('Oratorio guide signal', () => {
+  it('counts only projects opened within the last seven days', () => {
+    const iso = (offset: number): string => new Date(start - offset).toISOString()
+    expect(countRecentlyOpenedProjects([iso(0), iso(6 * DAY), iso(8 * DAY), undefined, 'not a date'], start)).toBe(2)
   })
 })

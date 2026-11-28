@@ -87,6 +87,7 @@ import { MainViewOutlet } from './components/layout/MainViewOutlet'
 import { SettingsViewSkeleton } from './components/settings/SettingsSkeleton'
 import { scheduleIdlePrefetch } from './core/idlePrefetch'
 import { CreatorFeatureGuide } from './components/featureGuides/guides'
+import { OratorioFeatureGuide } from './components/featureGuides/OratorioFeatureGuide'
 import { useFeatureGuideStore } from './stores/featureGuideStore'
 import { McpElicitationHost } from './components/mcp/McpElicitationHost'
 import { DesktopToolConfirmHost } from './components/DesktopToolConfirmHost'
@@ -1401,6 +1402,7 @@ export function App(): JSX.Element {
         {content}
         <FindOverlay />
         {showMainWorkspaceUi && <CreatorFeatureGuide />}
+        {showMainWorkspaceUi && <OratorioFeatureGuide />}
         <McpElicitationHost />
         <DesktopToolConfirmHost />
       </>
