@@ -27,9 +27,4 @@
     <ProjectReference Include="..\DotCraft.McpTestServer\DotCraft.McpTestServer.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <EmbeddedResource Include="..\..\specs\protocols\fixtures\appserver-v1\messages.json"
-                      LogicalName="DotCraft.Tests.AppServerMessagesV1.json" />
-  </ItemGroup>
-
 </Project>

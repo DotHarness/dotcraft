@@ -265,33 +265,50 @@ public sealed class ContractKernelTests
     }
 
     [Fact]
-    public void Initial_Contract_Slice_RoundTrips_Shared_Fixtures()
+    public void Shared_Fixtures_Cover_Required_Scenarios_And_RoundTrip_Wire_Payloads()
     {
         using var fixture = LoadFixture();
-        var catalog = AppServerRpcCatalog.All;
+        var catalog = AppServerRpcCatalog.All.ToDictionary(static method => method.Name, StringComparer.Ordinal);
+        var cases = fixture.RootElement.GetProperty("cases").EnumerateArray()
+            .ToDictionary(static testCase => testCase.GetProperty("name").GetString()!, StringComparer.Ordinal);
+        string[] requiredCases =
+        [
+            "initialize", "thread-start-response-before-notification", "thread-resume",
+            "thread-read", "thread-list", "turn-start-and-complete",
+            "turn-enqueue-and-interrupt", "turn-failed", "turn-cancelled",
+            "approval-callback", "user-input-callback", "dynamic-tool-callback",
+            "structured-error", "unknown-notification", "opaque-mcp-result",
+            "automation", "acp-callbacks"
+        ];
+        Assert.All(requiredCases, name => Assert.Contains(name, cases.Keys));
 
-        foreach (var testCase in fixture.RootElement.GetProperty("cases").EnumerateArray())
+        foreach (var (caseName, testCase) in cases)
         {
             var pending = new Dictionary<string, IRpcMethodDescriptor>(StringComparer.Ordinal);
             foreach (var message in testCase.GetProperty("messages").EnumerateArray())
             {
+                Assert.Equal("2.0", message.GetProperty("jsonrpc").GetString());
                 if (message.TryGetProperty("method", out var methodElement))
                 {
                     var method = methodElement.GetString()!;
-                    var descriptor = catalog.SingleOrDefault(candidate => candidate.Name == method);
-                    if (descriptor is null)
+                    var hasId = message.TryGetProperty("id", out var id);
+                    if (caseName == "unknown-notification" && method == "fixture/unknownNotification" && !hasId)
                         continue;
 
+                    Assert.True(catalog.TryGetValue(method, out var descriptor),
+                        $"Unknown method '{method}' in shared fixture case '{caseName}'.");
                     var payload = message.GetProperty("params");
-                    AssertWireEquivalent(payload, RoundTrip(payload, descriptor.ParamsType), testCase.GetProperty("name").GetString()!);
-                    if (message.TryGetProperty("id", out var id))
+                    AssertWireEquivalent(payload, RoundTrip(payload, descriptor.ParamsType), caseName);
+                    if (hasId)
                         pending[id.GetRawText()] = descriptor;
                 }
-                else if (message.TryGetProperty("id", out var responseId) &&
-                         message.TryGetProperty("result", out var result) &&
-                         pending.TryGetValue(responseId.GetRawText(), out var descriptor))
+                else
                 {
-                    AssertWireEquivalent(result, RoundTrip(result, descriptor.ResultType), testCase.GetProperty("name").GetString()!);
+                    var responseId = message.GetProperty("id").GetRawText();
+                    if (!message.TryGetProperty("result", out var result))
+                        Assert.True(message.TryGetProperty("error", out _));
+                    else if (pending.TryGetValue(responseId, out var descriptor))
+                        AssertWireEquivalent(result, RoundTrip(result, descriptor.ResultType), caseName);
                 }
             }
         }

@@ -1,9 +1,14 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using DotCraft.RemoteTools;
 using DotCraft.Tools;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 using Xunit;
 
 namespace DotCraft.Tests.Tools;
@@ -180,15 +185,33 @@ public sealed class RemoteToolHostPairingTests
     [Fact]
     public async Task Client_ListsPeersFromHub_WithoutOpeningDataConnection()
     {
-        var port = RemoteToolHostTestHost.GetAvailablePort();
-        using var listener = new HttpListener();
-        listener.Prefixes.Add($"http://127.0.0.1:{port}/");
-        listener.Start();
-        var requests = new List<string>();
-        var serving = ServeAsync(listener, requests);
+        const string body = """
+        [
+          {
+            "peerId": "sat_remote",
+            "displayName": "Ann",
+            "online": true,
+            "workspaces": [
+              { "workspaceId": "repo", "path": "C:\\repo", "busy": true, "busyOwner": "other" }
+            ]
+          }
+        ]
+        """;
+        var requests = new ConcurrentQueue<string>();
+        var builder = WebApplication.CreateSlimBuilder();
+        builder.Logging.ClearProviders();
+        builder.WebHost.ConfigureKestrel(options => options.Listen(IPAddress.Loopback, 0));
+        await using var hub = builder.Build();
+        hub.Run(context =>
+        {
+            requests.Enqueue($"{context.Request.Method} {context.Request.Path}");
+            context.Response.ContentType = "application/json";
+            return context.Response.WriteAsync(body, context.RequestAborted);
+        });
+        await hub.StartAsync();
 
-        using var scope = new HubEnvironmentScope($"http://127.0.0.1:{port}", "hub-token");
-        using var directory = new HubRemoteToolHostDirectory(new HubEndpointProvider());
+        var endpoint = new HubEndpoint(new Uri(hub.Urls.Single()), "hub-token");
+        using var directory = new HubRemoteToolHostDirectory(new FixedHubEndpointProvider(endpoint));
         await using var client = new RemoteToolHostClient(directory);
 
         var catalog = await client.ListAsync("thread");
@@ -200,10 +223,7 @@ public sealed class RemoteToolHostPairingTests
         Assert.Equal("repo", workspace.WorkspaceId);
         Assert.False(workspace.Available);
         Assert.Equal("other", workspace.BusyOwner);
-        Assert.Equal(["/v1/satellites"], requests);
-
-        listener.Stop();
-        await serving;
+        Assert.Equal("GET /v1/satellites", Assert.Single(requests));
     }
 
     private static RemoteToolHubPeer PairedWith(Uri hub) => new()
@@ -217,42 +237,9 @@ public sealed class RemoteToolHostPairingTests
         PairedAt = DateTimeOffset.UtcNow
     };
 
-    private static async Task ServeAsync(HttpListener listener, List<string> requests)
+    private sealed class FixedHubEndpointProvider(HubEndpoint endpoint) : IHubEndpointProvider
     {
-        const string body = """
-        [
-          {
-            "peerId": "sat_remote",
-            "displayName": "Ann",
-            "online": true,
-            "machineName": "ANN-PC",
-            "operatingSystem": "Windows",
-            "userName": "ann",
-            "buildVersion": "0.6.2",
-            "workspaces": [
-              { "workspaceId": "repo", "path": "C:\\repo", "busy": true, "busyOwner": "other" }
-            ],
-            "pairedAt": "2026-09-05T10:00:00+00:00",
-            "lastSeenAt": "2026-09-05T10:01:00+00:00"
-          }
-        ]
-        """;
-        try
-        {
-            while (listener.IsListening)
-            {
-                var context = await listener.GetContextAsync();
-                requests.Add(context.Request.Url!.AbsolutePath);
-                context.Response.ContentType = "application/json";
-                var bytes = Encoding.UTF8.GetBytes(body);
-                await context.Response.OutputStream.WriteAsync(bytes);
-                context.Response.Close();
-            }
-        }
-        catch (Exception)
-        {
-            // Stopping the listener ends the loop.
-        }
+        public HubEndpoint TryResolve() => endpoint;
     }
 
     private sealed class HubEnvironmentScope : IDisposable

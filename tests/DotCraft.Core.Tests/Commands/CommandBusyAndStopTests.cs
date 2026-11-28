@@ -14,18 +14,22 @@ public sealed class CommandBusyAndStopTests
         await using var harness = CommandSessionHarness.Create();
         var thread = await harness.CreateThreadAsync();
         var shell = await harness.StartBackgroundShellAsync(thread.Id);
-        var turn = await harness.StartBlockedTurnAsync(thread.Id);
-        var queued = await harness.Service.EnqueueTurnInputAsync(thread.Id, [new TextContent("later")]);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var turn = await harness.Service.StartOrSteerTurnAsync(thread.Id, [new TextContent("keep working")], ct: timeout.Token);
+        Assert.NotNull(turn.Events);
+        var queued = await harness.Service.EnqueueTurnInputAsync(thread.Id, [new TextContent("later")], ct: timeout.Token);
 
         Assert.Equal(FallbackText.CommandBusy, (await harness.ExecuteAsync(thread.Id, "/compact")).Message);
         var result = await harness.ExecuteAsync(thread.Id, "/stop");
 
         Assert.True(result.Handled);
-        var after = await harness.WaitForAsync(thread.Id, current =>
-            current.Turns.Single(item => item.Id == turn.Id).Status == TurnStatus.Cancelled);
-        Assert.True(
-            after.QueuedInputs.Any(input => input.Id == queued.Id)
-            || after.Turns.Any(item => item.Input?.AsUserMessage?.Text == "later"));
+        var outcome = await turn.Events.FirstAsync(static evt => evt.EventType is
+            SessionEventType.TurnCompleted or SessionEventType.TurnCancelled or SessionEventType.TurnFailed,
+            timeout.Token);
+        Assert.Equal(turn.Turn.Id, outcome.TurnId);
+        Assert.Equal(SessionEventType.TurnCancelled, outcome.EventType);
+        var snapshot = await harness.Service.ReadThreadSnapshotAsync(thread.Id, timeout.Token);
+        Assert.Contains(snapshot.Thread.QueuedInputs, input => input.Id == queued.Id);
         Assert.Equal(BackgroundTerminalStatus.Running, (await harness.Terminals.ReadAsync(shell.SessionId)).Status);
     }
 
