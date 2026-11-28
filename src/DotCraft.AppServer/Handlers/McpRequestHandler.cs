@@ -44,7 +44,7 @@ internal sealed class McpRequestHandler(
         return new Contract.McpListResult
         {
             Servers = new Protocol.Optional<IReadOnlyList<Contract.McpServerConfig>>(
-                servers.Select(McpContractMapper.ToContract).ToArray())
+                servers.Select(server => McpContractMapper.ToContract(Stored(server))).ToArray())
         };
     }
 
@@ -60,8 +60,13 @@ internal sealed class McpRequestHandler(
         if (server == null)
             throw AppServerErrors.McpServerNotFound(name);
 
-        return new Contract.McpGetResult { Server = McpContractMapper.ToContract(server) };
+        return new Contract.McpGetResult { Server = McpContractMapper.ToContract(Stored(server)) };
     }
+
+    // The runtime holds expanded values; editable projections return the stored declaration so a client
+    // that saves what it read never writes resolved environment references back to disk.
+    private McpServerConfig Stored(McpServerConfig server) =>
+        server.ReadOnly ? server : configService.GetScoped(server.Origin.Kind, server.Name) ?? server;
 
     private async Task<object?> HandleMcpUpsertAsync(AppServerTypedRequest<Contract.McpUpsertParams> request, CancellationToken ct)
     {
@@ -93,7 +98,7 @@ internal sealed class McpRequestHandler(
         if (status != null)
             broadcastMcpStatusChanged?.Invoke(status);
 
-        return new Contract.McpUpsertResult { Server = McpContractMapper.ToContract(updated) };
+        return new Contract.McpUpsertResult { Server = McpContractMapper.ToContract(Stored(updated)) };
     }
 
     private async Task<object?> HandleMcpRemoveAsync(AppServerTypedRequest<Contract.McpRemoveParams> request, CancellationToken ct)

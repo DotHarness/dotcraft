@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | 0.14.0 |
+| Version | 0.15.1 |
 | Status | Living |
-| Date | 2026-11-24 |
+| Date | 2026-11-28 |
 | Scope | Agent tools, authority binding, execution, session projection, and interactive presentation |
 
 ## 1. Purpose
@@ -442,7 +442,7 @@ case-sensitive on other platforms. Connection identity uses the same effective e
 
 Reconciliation retains available connections with matching transport, effective environment/working directory, endpoint, and authentication inputs. Call policy and timeout changes do not replace ready connections. Removed, disabled, changed, or closed connections are released or replaced.
 
-Successful OAuth login invalidates loaded threads' next snapshots. Failed authentication is retried during preparation when that server's saved credentials change; ready clients retain SDK-managed authentication across token renewal.
+An OAuth login requests the scopes the login request names, else the declaration's `oauth.scopes`, else the scopes the server names in its authorization challenge or protected resource metadata. Requested or configured scopes replace the server's list entirely. Successful OAuth login invalidates loaded threads' next snapshots. Failed authentication is retried during preparation when that server's saved credentials change; ready clients retain SDK-managed authentication across token renewal.
 
 OAuth login and elicitation forwarding use the AppServer control surface. Thread-scoped status, tool, resource, OAuth, and MCP App operations resolve the thread's runtime. Unscoped management uses a separate workspace runtime, never a thread execution fallback. Status origin identifies configuration provenance, not connection ownership.
 
@@ -459,10 +459,17 @@ Whether an MCP invocation requires approval follows the server's `toolApprovalMo
 | Mode | Invocation approval |
 |---|---|
 | `auto` (default) | Follows the tool's standard annotations: not required when the tool declares `readOnlyHint: true` without `destructiveHint: true`, or declares both `destructiveHint: false` and `openWorldHint: false`; required otherwise, including for unannotated tools. |
+| `writes` | Required unless the tool declares `readOnlyHint: true`. |
 | `approve` | Never required. The deployer has confirmed the server is safe to call unattended. |
 | `prompt` | Always required, whatever the annotations say. |
 
-The mode is deployment configuration: workspace and user `McpServers` entries and plugin `.mcp.json` declarations carry it. Thread-origin servers always use `auto`, because the client that starts a thread supplies them. The Agent Profile selects servers but cannot set a mode. An invocation that still requires approval follows the thread's approval policy; an exempt invocation never reaches it, so the mode exempts one server without widening any other approval. Registration does not bypass invocation approval. MCP App-initiated calls use the same policy. Settings tools follow [§12.4](#124-settings-extension).
+A declaration may also set a mode per tool in `tools`, a map from the server's own tool name to `{ approvalMode }`. A tool's entry takes precedence over the server's `toolApprovalMode`, and an entry without `approvalMode` uses the server's mode, so a deployer can require approval for one write tool of an otherwise trusted server, or trust one read tool of a server that prompts.
+
+The mode is deployment configuration: workspace and user `McpServers` entries and plugin `.mcp.json` declarations carry it. Thread-origin servers always use `auto` for every tool, because the client that starts a thread supplies them. The Agent Profile selects servers but cannot set a mode. An invocation that still requires approval follows the thread's approval policy; an exempt invocation never reaches it, so the mode exempts one server without widening any other approval. Registration does not bypass invocation approval. MCP App-initiated calls use the same policy. Settings tools follow [§12.4](#124-settings-extension).
+
+### 12.3.1 Tool filters
+
+A declaration may narrow the tools a server contributes. `enabledTools` lists the only tools it contributes, and `disabledTools` removes tools from what remains. Both take the server's own tool names. An omitted `enabledTools` contributes every tool, and an empty one contributes none. A filtered tool is absent from the agent's tools, from runtime status, and from MCP App calls, and invoking it fails as an unknown tool. Filters are deployment configuration, carried by the same declarations as approval modes.
 
 ### 12.4 Settings extension
 

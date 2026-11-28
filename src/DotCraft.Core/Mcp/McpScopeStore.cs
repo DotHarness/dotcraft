@@ -6,12 +6,15 @@ namespace DotCraft.Mcp;
 
 public static class McpScopeStore
 {
-    public static List<McpServerConfig> Read(string path, string scope)
+    public static List<McpServerConfig> Read(string path, string scope) => Read(path, scope, expand: false);
+
+    private static List<McpServerConfig> Read(string path, string scope, bool expand)
     {
         var document = AtomicConfigDocument.Read(path);
         var node = document[AtomicConfigDocument.Key(document, "McpServers") ?? "McpServers"];
         if (node == null) return [];
         if (node is not JsonObject servers) throw new InvalidDataException("McpServers must be an object.");
+        if (expand) AppConfig.ExpandEnvironmentVariables(servers);
         return servers.Select(pair =>
         {
             var server = pair.Value!.Deserialize<McpServerConfig>(AppConfig.SerializerOptions)!;
@@ -40,8 +43,8 @@ public static class McpScopeStore
 
     public static List<McpServerConfig> Effective(string workspacePath, string? userPath)
     {
-        var servers = userPath == null ? [] : Read(userPath, "user");
-        foreach (var server in Read(workspacePath, "workspace"))
+        var servers = userPath == null ? [] : Read(userPath, "user", expand: true);
+        foreach (var server in Read(workspacePath, "workspace", expand: true))
         {
             servers.RemoveAll(s => string.Equals(s.Name, server.Name, StringComparison.OrdinalIgnoreCase));
             servers.Add(server);

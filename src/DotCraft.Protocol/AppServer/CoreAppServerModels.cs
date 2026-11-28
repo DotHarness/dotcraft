@@ -1939,9 +1939,17 @@ public sealed class McpServerConfig : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<string?> Cwd { get; init; }
 
+    [JsonPropertyName("disabledTools")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>?> DisabledTools { get; init; }
+
     [JsonPropertyName("enabled")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> Enabled { get; init; }
+
+    [JsonPropertyName("enabledTools")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>?> EnabledTools { get; init; }
 
     [JsonPropertyName("env")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -1977,11 +1985,15 @@ public sealed class McpServerConfig : ExtensibleJsonObject
 
     [JsonPropertyName("toolApprovalMode")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> ToolApprovalMode { get; init; }
+    public Optional<string?> ToolApprovalMode { get; init; }
 
     [JsonPropertyName("toolTimeoutSec")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<double?> ToolTimeoutSec { get; init; }
+
+    [JsonPropertyName("tools")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyDictionary<string, McpToolConfig>?> Tools { get; init; }
 
     [JsonPropertyName("transport")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -6648,8 +6660,20 @@ public sealed class McpOAuthConfig : ExtensibleJsonObject
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<int?> CallbackPort { get; init; }
 
+    [JsonPropertyName("scopes")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<IReadOnlyList<string>?> Scopes { get; init; }
+
     [JsonPropertyName("hasClientSecret")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Optional<bool> HasClientSecret { get; init; }
+
+}
+
+public sealed class McpToolConfig : ExtensibleJsonObject
+{
+    [JsonPropertyName("approvalMode")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<string?> ApprovalMode { get; init; }
 
 }

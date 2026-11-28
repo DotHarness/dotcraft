@@ -10,6 +10,12 @@ public sealed class McpOAuthConfig
     public string? ClientSecretEnvVar { get; set; }
     public string? CallbackUrl { get; set; }
     public int? CallbackPort { get; set; }
+    public List<string>? Scopes { get; set; }
 
-    public McpOAuthConfig Clone() => (McpOAuthConfig)MemberwiseClone();
+    public McpOAuthConfig Clone()
+    {
+        var clone = (McpOAuthConfig)MemberwiseClone();
+        clone.Scopes = Scopes is null ? null : [.. Scopes];
+        return clone;
+    }
 }

@@ -111,7 +111,40 @@ MCP 示例：
 }
 ```
 
-此后调用该服务不再审批，Agent 的其他审批保持不变。设为 `prompt` 时，无论工具如何标记，每次调用都要审批。默认值 `auto` 按工具自身的标记决定。插件也可以在自己的 `.mcp.json` 中设置同一字段。
+此后调用该服务不再审批，Agent 的其他审批保持不变。设为 `writes` 时，服务未标记为只读的工具都要审批。设为 `prompt` 时，无论工具如何标记，每次调用都要审批。默认值 `auto` 按工具自身的标记决定。
+
+如果某个工具需要与同一服务的其他工具区别对待，在 `tools` 下以服务自己的工具名为键设置它的模式。工具的模式优先于服务的模式：
+
+```json
+{
+  "McpServers": {
+    "inventory": {
+      "command": "inventory-mcp-server",
+      "toolApprovalMode": "approve",
+      "tools": {
+        "delete_item": { "approvalMode": "prompt" }
+      }
+    }
+  }
+}
+```
+
+### 限制服务提供的工具
+
+用 `enabledTools` 列出服务向 Agent 提供的全部工具，用 `disabledTools` 从剩余工具中移除部分工具。两者都使用服务自己的工具名。被移除的工具对 Agent 不可见，也无法调用。
+
+```json
+{
+  "McpServers": {
+    "inventory": {
+      "command": "inventory-mcp-server",
+      "disabledTools": ["delete_item"]
+    }
+  }
+}
+```
+
+插件也可以用同样的方式在自己的 `.mcp.json` 中设置 `toolApprovalMode`、`tools`、`enabledTools` 和 `disabledTools`。
 
 ### 预注册 OAuth 客户端
 
@@ -133,7 +166,7 @@ MCP 示例：
 }
 ```
 
-在启动 DotCraft 宿主前设置引用的环境变量。`clientSecretEnvVar` 优先于 `clientSecret`，引用的变量缺失或为空时会失败，不会回退到明文密钥。URL 已包含端口时无需填写 `callbackPort`。固定回调端口必须可用。不配置 OAuth 时，继续使用现有的自动注册流程。保存服务后，使用认证操作完成授权。
+在启动 DotCraft 宿主前设置引用的环境变量。`clientSecretEnvVar` 优先于 `clientSecret`，引用的变量缺失或为空时会失败，不会回退到明文密钥。URL 已包含端口时无需填写 `callbackPort`。固定回调端口必须可用。如需请求特定的 OAuth 权限范围，而不是服务公布的范围，设置 `scopes`。不配置 OAuth 时，继续使用现有的自动注册流程。保存服务后，使用认证操作完成授权。
 
 ## LSP
 

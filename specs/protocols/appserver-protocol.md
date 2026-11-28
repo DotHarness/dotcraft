@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.14.0 |
+| **Version** | 0.15.1 |
 | **Status** | Living |
-| **Date** | 2026-11-24 |
+| **Date** | 2026-11-28 |
 | **Parent Spec** | [Session Core](../architecture/session-core.md) (Section 20) |
 | **Related Specs** | [Plugin Architecture](../architecture/plugin-architecture.md), [.NET Extension Runtime](../architecture/dotnet-extensions.md), [Context Compaction](../architecture/context-compaction.md), [Tool Architecture](../architecture/tools-architecture.md) |
 
@@ -1839,17 +1839,18 @@ Two surfaces:
 
 ### 22.2 `McpServerConfig` Wire DTO
 
-`McpServerConfig` has `name`, `enabled`, `transport` (`stdio` or `streamableHttp`), transport-specific fields, optional startup and tool timeouts, `toolApprovalMode` (`auto`, `approve`, or `prompt`; see [Tool Architecture](../architecture/tools-architecture.md#123-approval)), and, with `capabilities.mcpServerOrigins`, `origin` (`kind`, `pluginId`, `pluginDisplayName`, `declaredName`) and `readOnly`.
+`McpServerConfig` has `name`, `enabled`, `transport` (`stdio` or `streamableHttp`), transport-specific fields, optional startup and tool timeouts, `toolApprovalMode` (`auto`, `writes`, `approve`, or `prompt`; see [Tool Architecture](../architecture/tools-architecture.md#123-approval)), optional `tools` (per-tool `{ approvalMode }` keyed by the server's tool name), optional `enabledTools` and `disabledTools` (tool name lists), and, with `capabilities.mcpServerOrigins`, `origin` (`kind`, `pluginId`, `pluginDisplayName`, `declaredName`) and `readOnly`.
 
 Validation:
 
 - `name` is the logical primary key, compared case-insensitively.
 - `stdio` allows only `command`, `args`, `env`, `envVars`, and `cwd`. `streamableHttp` allows only `url`, `bearerTokenEnvVar`, `httpHeaders`, `envHttpHeaders`, and optional `oauth`.
-- `oauth` holds optional `clientId`, `clientSecret`, `clientSecretEnvVar`, `callbackUrl`, and `callbackPort`. A secret requires a client id; an environment reference takes precedence over a literal and must resolve to a non-empty value. OAuth cannot be combined with explicit Bearer/Authorization headers or with stdio.
+- `oauth` holds optional `clientId`, `clientSecret`, `clientSecretEnvVar`, `callbackUrl`, `callbackPort`, and `scopes`. A secret requires a client id; an environment reference takes precedence over a literal and must resolve to a non-empty value. OAuth cannot be combined with explicit Bearer/Authorization headers or with stdio.
 - Callback URLs are HTTP loopback URLs without credentials, query, or fragment. An explicit URL port and `callbackPort` must agree; a configured port must be available and is never substituted. Without one, login uses an ephemeral port.
 - Read projections mask a literal `clientSecret` and expose `hasClientSecret`. On `mcp/upsert`, omitted `oauth` keeps the existing configuration and `null` removes it; within an OAuth object, an omitted secret or the read mask keeps the stored secret (the mask is never stored), while `null` or empty removes it. Switching to stdio removes OAuth.
-- `toolApprovalMode` accepts only `auto`, `approve`, or `prompt`; reads always report it. On `mcp/upsert`, an omitted mode keeps the existing server's mode, so a client that does not edit it never resets it, and a new server defaults to `auto`.
-- Workspace-origin servers are editable. Plugin-origin servers are read-only runtime entries derived from plugin `.mcp.json`. Runtime status additionally reports thread origins.
+- `toolApprovalMode` and each `tools` entry's `approvalMode` accept only `auto`, `writes`, `approve`, or `prompt`; reads always report `toolApprovalMode` and report `tools`, `enabledTools`, and `disabledTools` when set. On `mcp/upsert`, an omitted `toolApprovalMode`, `tools`, `enabledTools`, or `disabledTools` keeps the existing server's value, so a client that does not edit them never resets them, and `null` clears the field. A new server defaults to `auto` with no per-tool modes or filters. `enabledTools: []` is kept as an empty list that contributes no tools.
+- Workspace-origin servers are editable. Plugin-origin servers are read-only runtime entries derived from plugin `.mcp.json`.
+- `mcp/list`, `mcp/get`, and the `mcp/upsert` result return an editable server's stored declaration, with environment references unexpanded, so a client that saves what it read keeps them. The runtime connects with expanded values. Runtime status additionally reports thread origins.
 
 ### 22.3 `mcp/list`
 
@@ -1895,7 +1896,7 @@ Params `threadId`, `server`, `tool`, `arguments?`, `_meta?`. The call resolves t
 
 #### 22.8.4 `mcpServer/oauth/login`
 
-Params `name`, `threadId?`, `scopes?`, `timeoutSecs?`; result `{ authorizationUrl }`. Rejected unless the effective runtime's `authStatus` is `notLoggedIn`. Clients open only HTTPS or explicit loopback URLs. Completion arrives as `mcpServer/oauthLogin/completed`.
+Params `name`, `threadId?`, `scopes?`, `timeoutSecs?`; result `{ authorizationUrl }`. `scopes` takes precedence over the server's configured `oauth.scopes`. Rejected unless the effective runtime's `authStatus` is `notLoggedIn`. Clients open only HTTPS or explicit loopback URLs. Completion arrives as `mcpServer/oauthLogin/completed`.
 
 - OAuth requires discovered authorization-server metadata advertising PKCE S256. Missing metadata fails authentication without synthesizing authorization, token, or registration endpoints.
 - Credentials are stored only in the user-scoped protected MCP auth store, partitioned by origin, runtime name, and endpoint identity — never in workspace config, Session items, or logs. Refresh preserves the canonical resource identifier and retains the existing refresh token when the response omits a replacement. Expired credentials that cannot refresh report `reauthenticationRequired`; clients restart login.

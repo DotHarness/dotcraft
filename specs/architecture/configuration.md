@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| **Version** | 0.14.0 |
+| **Version** | 0.15.1 |
 | **Status** | Living |
-| **Date** | 2026-11-21 |
+| **Date** | 2026-11-28 |
 
 Purpose: Define how DotCraft configuration fields are declared, layered, read, written, applied at runtime, and exposed to AppServer clients.
 
@@ -50,7 +50,7 @@ Configuration has two file layers, from lowest to highest precedence:
 
 The user layer holds settings that follow the user across workspaces, and clients write it by default. The workspace layer is a hand-authored override for one checkout, and clients write it only when they name it.
 
-The effective configuration is the descriptor defaults overlaid by the user layer and then the workspace layer. Objects merge recursively by case-insensitive key; scalars and arrays are replaced by the higher layer. `ProviderPreferences` replaces per provider. Environment-variable expansion applies to the effective result.
+The effective configuration is the descriptor defaults overlaid by the user layer and then the workspace layer. Objects merge recursively by case-insensitive key; scalars and arrays are replaced by the higher layer. `ProviderPreferences` replaces per provider, and `McpServers` replaces per server name, so a workspace server never inherits fields such as approval modes or tool filters from a same-named user server. Environment-variable expansion applies to the effective result. Every reader of the effective configuration, including MCP reconnection after a server is saved, resolves servers and expands their values this way, while reads for editing a server return its stored values.
 
 Each layer has a version: `sha256:` followed by the hex digest of the layer's JSON serialized with sorted keys. A missing file has the version of an empty object.
 

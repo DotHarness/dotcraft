@@ -46,8 +46,7 @@ public static class McpOAuthLoginCoordinator
         if (timeoutSecs is > 0)
             timeoutCts.CancelAfter(TimeSpan.FromSeconds(Math.Min(timeoutSecs.Value, 3600)));
         var loginCancellationToken = timeoutCts.Token;
-        var oauth = McpOAuthOptionsFactory.Create(server, userDataPath, redirectUri);
-        oauth.Scopes = scopes;
+        var oauth = McpOAuthOptionsFactory.Create(server, userDataPath, redirectUri, scopes);
         oauth.AuthorizationCallbackHandler = async (context, ct) =>
         {
             if (!IsSafeAuthorizationUrl(context.AuthorizationUri))

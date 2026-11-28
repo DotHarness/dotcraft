@@ -413,11 +413,12 @@ public sealed partial class AppConfig
             {
                 var existingKey = AtomicConfigDocument.Key(result, property.Key);
                 if (existingKey is not null
-                    && string.Equals(property.Key, "ProviderPreferences", StringComparison.OrdinalIgnoreCase)
-                    && result[existingKey] is JsonObject basePreferences
-                    && property.Value is JsonObject overridePreferences)
+                    && (string.Equals(property.Key, "ProviderPreferences", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(property.Key, "McpServers", StringComparison.OrdinalIgnoreCase))
+                    && result[existingKey] is JsonObject baseEntries
+                    && property.Value is JsonObject overrideEntries)
                 {
-                    result[existingKey] = MergeProviderPreferences(basePreferences, overridePreferences);
+                    result[existingKey] = ReplaceEntries(baseEntries, overrideEntries);
                 }
                 else if (existingKey is not null)
                 {
@@ -438,17 +439,17 @@ public sealed partial class AppConfig
         return overrideNode.DeepClone();
     }
 
-    private static JsonObject MergeProviderPreferences(JsonObject basePreferences, JsonObject overridePreferences)
+    private static JsonObject ReplaceEntries(JsonObject baseEntries, JsonObject overrideEntries)
     {
-        var result = (JsonObject)basePreferences.DeepClone();
-        foreach (var (providerId, preference) in overridePreferences)
+        var result = (JsonObject)baseEntries.DeepClone();
+        foreach (var (name, entry) in overrideEntries)
         {
             var existingKey = result
                 .Select(candidate => candidate.Key)
-                .FirstOrDefault(key => string.Equals(key, providerId, StringComparison.OrdinalIgnoreCase));
+                .FirstOrDefault(key => string.Equals(key, name, StringComparison.OrdinalIgnoreCase));
             if (existingKey is not null)
                 result.Remove(existingKey);
-            result[providerId] = preference?.DeepClone();
+            result[name] = entry?.DeepClone();
         }
 
         return result;
