@@ -26,7 +26,7 @@ import { rootLabel } from '../../../utils/viewerRoots'
 import { changesByFolder } from './folderChanges'
 import { sumChanges, type ChangeTotals, type FileChanges } from './sources'
 import type { SummaryServices } from './summaryServices'
-import { CollapsibleSection, GLYPH, Row, Section } from './SummaryRows'
+import { GLYPH, Row, Section } from './SummaryRows'
 import { sameEnvironmentPath, type ThreadWorktreeEnvironment } from './worktreeEnvironment'
 
 const ACTION_GLYPHS: Record<DesktopPluginProjectActionIcon, typeof Play> = {
@@ -88,22 +88,26 @@ function settle(promise: Promise<unknown>): void {
   promise.catch(() => {})
 }
 
+function changeTotalsMeta(changes: ChangeTotals | undefined): JSX.Element | null {
+  if (!changes || (changes.additions === 0 && changes.deletions === 0)) return null
+  return (
+    <>
+      {changes.additions > 0 ? <span className="conversation-summary-row__added">+{changes.additions}</span> : null}
+      {changes.deletions > 0 ? <span className="conversation-summary-row__removed">-{changes.deletions}</span> : null}
+    </>
+  )
+}
+
 function ChangesRow({ services, changes }: {
   services: SummaryServices
   changes: ChangeTotals
 }): JSX.Element {
   const t = useT()
-  const meta = changes.additions > 0 || changes.deletions > 0 ? (
-    <>
-      {changes.additions > 0 ? <span className="conversation-summary-row__added">+{changes.additions}</span> : null}
-      {changes.deletions > 0 ? <span className="conversation-summary-row__removed">-{changes.deletions}</span> : null}
-    </>
-  ) : null
   return (
     <Row
       leading={<FileDiff {...GLYPH} />}
       label={t('summary.changes')}
-      meta={meta}
+      meta={changeTotalsMeta(changes)}
       onClick={() => services.navigation.openDetailPanel('changes')}
     />
   )
@@ -130,9 +134,14 @@ export function EnvironmentSection({ services, threadId, workspacePath, roots, c
         const totals = folders.get(root)
         return totals
           ? [(
-              <CollapsibleSection key={root} title={rootLabel(root)} defaultExpanded={false}>
+              <Section
+                key={root}
+                title={rootLabel(root)}
+                defaultExpanded={false}
+                collapsedSummary={changeTotalsMeta(totals)}
+              >
                 <ChangesRow services={services} changes={totals} />
-              </CollapsibleSection>
+              </Section>
             )]
           : []
       })
@@ -140,11 +149,24 @@ export function EnvironmentSection({ services, threadId, workspacePath, roots, c
   const environment = (actions: JSX.Element | undefined, children: JSX.Element | null) => (
     <>
       {multiFolder ? (
-        <CollapsibleSection title={rootLabel(roots[0])} actions={actions} defaultExpanded>
+        <Section
+          sectionKey="environment-primary"
+          title={rootLabel(roots[0])}
+          actions={actions}
+          defaultExpanded
+          collapsedSummary={changeTotalsMeta(primaryChanges)}
+        >
           {children}
-        </CollapsibleSection>
+        </Section>
       ) : (
-        <Section title={t('summary.environment')} actions={actions}>{children}</Section>
+        <Section
+          sectionKey="environment"
+          title={t('summary.environment')}
+          actions={actions}
+          collapsedSummary={changeTotalsMeta(primaryChanges)}
+        >
+          {children}
+        </Section>
       )}
       {folderSections}
     </>

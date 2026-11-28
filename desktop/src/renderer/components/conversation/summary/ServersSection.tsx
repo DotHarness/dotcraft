@@ -45,7 +45,9 @@ export function ServersSection({ threadId }: { threadId: string }): JSX.Element 
 
   return (
     <Section
+      sectionKey="servers"
       title={t('devServers.servers')}
+      count={servers.length}
       actions={<span className="conversation-summary-section__summary">{t('devServers.running', { count: running })}</span>}
     >
       {shown.map((server) => {
@@ -80,6 +82,7 @@ export function ServersSection({ threadId }: { threadId: string }): JSX.Element 
           label={expanded ? t('summary.showLess') : t('devServers.showAll', { count: servers.length })}
           ariaExpanded={expanded}
           muted
+          interaction="foreground"
           onClick={() => setExpanded((value) => !value)}
         />
       ) : null}

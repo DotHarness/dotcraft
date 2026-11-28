@@ -10,10 +10,10 @@ import type { SummaryServices } from './summaryServices'
 import { GLYPH, Row, Section } from './SummaryRows'
 
 const GROUPS = [
-  { title: 'summary.chats.needsYou', statuses: ['waitingForInput'] },
-  { title: 'summary.chats.inProgress', statuses: ['running', 'idle'] },
-  { title: 'summary.chats.done', statuses: ['completed', 'failed', 'stopped'] }
-] as const satisfies ReadonlyArray<{ title: string; statuses: readonly LinkedChatStatus[] }>
+  { key: 'chats-needs-you', title: 'summary.chats.needsYou', statuses: ['waitingForInput'] },
+  { key: 'chats-in-progress', title: 'summary.chats.inProgress', statuses: ['running', 'idle'] },
+  { key: 'chats-done', title: 'summary.chats.done', statuses: ['completed', 'failed', 'stopped'] }
+] as const satisfies ReadonlyArray<{ key: string; title: string; statuses: readonly LinkedChatStatus[] }>
 
 const OUTCOME = {
   failed: 'threadActionCard.status.failed',
@@ -43,7 +43,7 @@ export function LinkedChatsSection({ services, threadId }: { services: SummarySe
       {GROUPS.map((group) => {
         const rows = sorted.filter((chat) => (group.statuses as readonly LinkedChatStatus[]).includes(chat.status))
         return rows.length ? (
-          <Section key={group.title} title={t(group.title)}>
+          <Section key={group.key} sectionKey={group.key} title={t(group.title)} count={rows.length}>
             {rows.map((chat) => (
               <ChatRow
                 key={`${chat.projectId}:${chat.threadId}`}

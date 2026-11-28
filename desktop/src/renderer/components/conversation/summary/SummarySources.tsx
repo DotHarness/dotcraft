@@ -90,7 +90,7 @@ function SourceRows({ services, threadId, sources, webSearch }: Omit<SourcesProp
 export function SummarySources({ contributed, onViewAll, ...props }: SourcesProps & { onViewAll: () => void }): JSX.Element {
   const t = useT()
   const list = useRef<HTMLUListElement>(null)
-  const [hasSources, setHasSources] = useState(false)
+  const [sourceCount, setSourceCount] = useState(0)
 
   useLayoutEffect(() => {
     const element = list.current
@@ -98,7 +98,7 @@ export function SummarySources({ contributed, onViewAll, ...props }: SourcesProp
     const apply = (): void => {
       const rows = element.querySelectorAll<HTMLElement>(SOURCE_ROWS)
       rows.forEach((row, index) => row.toggleAttribute('data-source-overflow', index >= SOURCE_LIMIT))
-      setHasSources(rows.length > 0)
+      setSourceCount(rows.length)
     }
     apply()
     const observer = new MutationObserver(apply)
@@ -107,11 +107,11 @@ export function SummarySources({ contributed, onViewAll, ...props }: SourcesProp
   }, [])
 
   return (
-    <Section title={t('summary.sources')} hideWhenEmpty listRef={list}>
+    <Section sectionKey="sources" title={t('summary.sources')} count={sourceCount} hideWhenEmpty listRef={list}>
       <SourceRows {...props} />
       {contributed}
-      {hasSources && (
-        <Row leading={<Link {...GLYPH} />} label={t('summary.viewAll')} muted onClick={onViewAll} />
+      {sourceCount > 0 && (
+        <Row leading={<Link {...GLYPH} />} label={t('summary.viewAll')} muted interaction="foreground" onClick={onViewAll} />
       )}
     </Section>
   )

@@ -2189,16 +2189,29 @@ Content beside the conversation stays quieter than the conversation itself.
   16px radius and 20px horizontal padding, lifted by surface and shadow:
   `--shadow-md` pinned, where it aligns to the stream's trailing edge 16px in, and
   `--shadow-lg` as a popover. A section title is secondary-size muted text with no
-  count; sections separate by space alone, with no rule between them, and the
-  card's header carries no rule either. Rows are single-line at UI size with a 16px
-  leading glyph and no trailing meta (except line totals, `+N` in `--success` and
-  `-M` in `--error`, tabular, zero side omitted); a trailing row action stays hidden
-  until hover or focus and is a sibling of the row's own button, never inside it.
+  count while expanded. Sections separate by space alone, with no rule between
+  them, and the card's header carries no rule either. Content sections are
+  collapsible from their title row, keeping the muted title colour: the inline
+  chevron follows the title, shows while collapsed, and while expanded appears
+  only on hover or keyboard focus of the title row. A collapsed section may show
+  its item count (`· N`, dimmed, tabular) before the chevron and an optional
+  dimmed summary on the trailing edge. When a collapsed section carries both a
+  trailing summary and header actions, the actions swap in over the summary slot
+  on hover, keyboard focus, or while a menu is open so collapsed summaries stay
+  right-aligned. Expansion state persists per section key.
+  Rows are single-line at UI size with a 16px leading glyph and no trailing meta
+  (except line totals, `+N` in `--success` and `-M` in `--error`, tabular, zero
+  side omitted); a trailing row action stays hidden until hover or focus and is a
+  sibling of the row's own button, never inside it. Inline overflow controls such
+  as **View all** and **Show all / Show less** carry no hover fill, lifting their
+  icon and label to `--text-primary` instead.
   The card is its own scroll container, so its radius stays whole while it
   scrolls; it scrolls by wheel or trackpad with no visible scrollbar.
 - **Summary sources.** The card previews up to three source rows and ends the
-  nonempty section with **View all**. The action opens the standard detail tab
-  surface, using its full-width layout when the dock does not fit. There each
+  nonempty section with **View all**. **View all** carries no hover fill,
+  lifting its icon and label to `--text-primary` instead. The action opens the
+  standard detail tab surface, using its full-width layout when the dock does
+  not fit. There each
   source is an entry rather than a single-line row: its Summary icon, a
   medium-weight name that wraps, a secondary-size dimmed path or address that
   breaks anywhere, and its activity below in secondary text aligned with the
@@ -2206,10 +2219,9 @@ Content beside the conversation stays quieter than the conversation itself.
   searches, and opened pages use the same disclosure treatment as transcript
   activity, collapsed by default.
 - **Summary folder sections.** A multi-folder project's Summary sections are
-  titled with the folder name. The title is the section's toggle and keeps its
-  muted colour; its chevron follows the title, shows while the section is
-  collapsed, and while expanded appears only on hover or keyboard focus of the
-  title.
+  titled with the folder name and use the same collapsible section toggle as
+  other sections, with the primary folder expanded by default and secondary
+  folders collapsed by default.
 - **Summary context.** The Context section is one row with no leading glyph (the
   composer ring already shows usage): "n% used", and used / window tokens as meta
   with a reveal chevron. Open, it shows an 8px segmented bar and one flat legend at

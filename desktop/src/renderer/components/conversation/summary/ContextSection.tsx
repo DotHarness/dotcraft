@@ -7,6 +7,7 @@ import { DisclosureChevron } from '../../ui/DisclosureChevron'
 import { Skeleton } from '../../ui/Skeleton'
 import { buildContextBreakdownView, type ContextBreakdownCategory, type ContextRow } from './contextBreakdown'
 import type { SummaryContextState, SummaryServices } from './summaryServices'
+import { Section } from './SummaryRows'
 import { setContextExpanded, useSummaryView } from './view'
 
 const SOON_SHARE = 0.05
@@ -68,11 +69,13 @@ function useBreakdown(services: SummaryServices, threadId: string, enabled: bool
 
 export function ContextSection({ services, threadId }: { services: SummaryServices; threadId: string }): JSX.Element | null {
   const t = useT()
-  const { contextExpanded, contextReveal } = useSummaryView()
+  const { contextExpanded, contextReveal, sectionExpanded } = useSummaryView()
+  const sectionOpen = sectionExpanded.context ?? true
   const { usage, running, canCompact } = useContextState(services, threadId)
   const available = usage !== null && usage.contextWindow > 0
-  const breakdown = useBreakdown(services, threadId, available && contextExpanded, running ? 'running' : String(usage?.tokens))
+  const breakdown = useBreakdown(services, threadId, available && sectionOpen && contextExpanded, running ? 'running' : String(usage?.tokens))
   const sectionRef = useRef<HTMLElement>(null)
+  const toggleRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     if (!contextReveal || contextReveal.id <= handledReveal || breakdown.status === 'loading') return
@@ -82,7 +85,7 @@ export function ContextSection({ services, threadId }: { services: SummaryServic
       if (!section || !scroller) return
       handledReveal = contextReveal.id
       scroller.scrollTop = section.offsetTop
-      if (contextReveal.focus) section.querySelector('button')?.focus({ preventScroll: true })
+      if (contextReveal.focus) toggleRef.current?.focus({ preventScroll: true })
     }, REVEAL_DELAY_MS)
     return () => clearTimeout(timer)
   }, [contextReveal, breakdown.status])
@@ -94,25 +97,12 @@ export function ContextSection({ services, threadId }: { services: SummaryServic
   const percent = Math.round((used / contextWindow) * 100)
 
   return (
-    <section ref={sectionRef} className="conversation-summary-section" aria-label={t('summary.context.title')}>
-      <h3 className="conversation-summary-section__title">{t('summary.context.title')}</h3>
-      <ul className="conversation-summary-rows">
-        <li>
-          <button
-            type="button"
-            className="conversation-summary-row conversation-summary-row--action"
-            aria-expanded={contextExpanded}
-            onClick={() => setContextExpanded(!contextExpanded)}
-          >
-            <span className="conversation-summary-row__label">{t('summary.context.used', { percent })}</span>
-            <span className="conversation-summary-row__meta">
-              {t('summary.context.tokens', { used: formatCompactCount(used), total: formatCompactCount(contextWindow) })}
-              <DisclosureChevron expanded={contextExpanded} direction="reveal" />
-            </span>
-          </button>
-        </li>
-      </ul>
-      {contextExpanded ? (
+    <Section
+      sectionKey="context"
+      sectionRef={sectionRef}
+      title={t('summary.context.title')}
+      collapsedSummary={`${percent}%`}
+      footer={contextExpanded ? (
         <ContextDetail
           breakdown={breakdown}
           usedTokens={used}
@@ -123,7 +113,23 @@ export function ContextSection({ services, threadId }: { services: SummaryServic
           onOpenFile={(path) => void services.navigation.openFile(path)}
         />
       ) : null}
-    </section>
+    >
+      <li>
+        <button
+          ref={toggleRef}
+          type="button"
+          className="conversation-summary-row conversation-summary-row--action"
+          aria-expanded={contextExpanded}
+          onClick={() => setContextExpanded(!contextExpanded)}
+        >
+          <span className="conversation-summary-row__label">{t('summary.context.used', { percent })}</span>
+          <span className="conversation-summary-row__meta">
+            {t('summary.context.tokens', { used: formatCompactCount(used), total: formatCompactCount(contextWindow) })}
+            <DisclosureChevron expanded={contextExpanded} direction="reveal" />
+          </span>
+        </button>
+      </li>
+    </Section>
   )
 }
 

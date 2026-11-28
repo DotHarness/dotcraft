@@ -151,7 +151,11 @@ export function SummaryPanel({
       {header}
 
       {plan ? (
-        <Section title={plan.title ? t('summary.plan') : t('summary.progress')}>
+        <Section
+          sectionKey="plan"
+          title={plan.title ? t('summary.plan') : t('summary.progress')}
+          collapsedSummary={plan.total > 0 ? `${plan.done}/${plan.total}` : undefined}
+        >
           <Row
             leading={<Lightbulb {...GLYPH} />}
             label={planLabel}
@@ -162,7 +166,7 @@ export function SummaryPanel({
       ) : null}
 
       {state.subagents.length > 0 ? (
-        <Section title={t('summary.subagents')}>
+        <Section sectionKey="subagents" title={t('summary.subagents')} count={state.subagents.length}>
           <SubagentsRow services={services} state={state} />
         </Section>
       ) : null}
@@ -181,7 +185,7 @@ export function SummaryPanel({
       />
 
       {state.automations.length > 0 ? (
-        <Section title={t('summary.scheduled')}>
+        <Section sectionKey="scheduled" title={t('summary.scheduled')} count={state.automations.length}>
           {state.automations.map((automation) => (
             <Row
               key={automation.id}

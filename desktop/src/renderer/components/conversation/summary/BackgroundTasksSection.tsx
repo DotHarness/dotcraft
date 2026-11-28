@@ -110,7 +110,7 @@ export function BackgroundTasksSection({ services, threadId, terminals: ownTermi
       : callId ? () => services.navigation.revealToolCall(threadId, callId) : undefined
 
   return (
-    <Section title={t('summary.backgroundTasks')}>
+    <Section sectionKey="background-tasks" title={t('summary.backgroundTasks')} count={workflows.length + terminals.length}>
       {workflows.map((workflow) => (
         <Row
           key={workflow.runId}

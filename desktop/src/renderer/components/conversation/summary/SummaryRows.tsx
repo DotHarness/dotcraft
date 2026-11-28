@@ -1,5 +1,6 @@
 import { useState, type JSX, type ReactNode, type Ref } from 'react'
 import { DisclosureChevron } from '../../ui/DisclosureChevron'
+import { setSectionExpanded, useSummaryView } from './view'
 
 export const GLYPH = { size: 16, strokeWidth: 1.75 } as const
 
@@ -11,6 +12,7 @@ export function Row({
   title,
   ariaExpanded,
   muted,
+  interaction = 'background',
   trailing,
   onClick
 }: {
@@ -21,6 +23,7 @@ export function Row({
   title?: string
   ariaExpanded?: boolean
   muted?: boolean
+  interaction?: 'background' | 'foreground'
   trailing?: ReactNode
   onClick?: () => void
 }): JSX.Element {
@@ -51,6 +54,7 @@ export function Row({
         title={title}
         aria-expanded={ariaExpanded}
         data-muted={muted || undefined}
+        data-interaction={interaction === 'foreground' ? 'foreground' : undefined}
         onClick={onClick}
       >
         {content}
@@ -61,60 +65,91 @@ export function Row({
 }
 
 export function Section({
+  sectionKey,
+  sectionRef,
   title,
+  count,
+  collapsedSummary,
   actions,
+  footer,
+  defaultExpanded = true,
   hideWhenEmpty,
   listRef,
   children
 }: {
+  sectionKey?: string
+  sectionRef?: Ref<HTMLElement>
   title?: string
+  count?: number
+  collapsedSummary?: ReactNode
   actions?: ReactNode
+  footer?: ReactNode
+  defaultExpanded?: boolean
   /** Hides the section while its rows render nothing, for rows contributed by plugins. */
   hideWhenEmpty?: boolean
   listRef?: Ref<HTMLUListElement>
   children: ReactNode
 }): JSX.Element {
-  const heading = title ? <h3 className="conversation-summary-section__title">{title}</h3> : null
-  return (
-    <section className="conversation-summary-section" aria-label={title} data-hide-empty={hideWhenEmpty || undefined}>
-      {actions ? (
-        <div className="conversation-summary-section__header">
-          {heading}
-          <div className="conversation-summary-section__actions">{actions}</div>
-        </div>
-      ) : heading}
-      <ul ref={listRef} className="conversation-summary-rows">{children}</ul>
-    </section>
-  )
-}
+  const { sectionExpanded } = useSummaryView()
+  const [localExpanded, setLocalExpanded] = useState(defaultExpanded)
+  const persisted = sectionKey ? sectionExpanded[sectionKey] : undefined
+  const expanded = !title ? true : persisted ?? localExpanded
+  const toggle = (): void => {
+    const next = !expanded
+    if (sectionKey) setSectionExpanded(sectionKey, next)
+    else setLocalExpanded(next)
+  }
 
-export function CollapsibleSection({
-  title,
-  actions,
-  defaultExpanded,
-  children
-}: {
-  title: string
-  actions?: ReactNode
-  defaultExpanded: boolean
-  children: ReactNode
-}): JSX.Element {
-  const [expanded, setExpanded] = useState(defaultExpanded)
+  const list = <ul ref={listRef} className="conversation-summary-rows">{children}</ul>
+
+  if (!title) {
+    return (
+      <section ref={sectionRef} className="conversation-summary-section" data-hide-empty={hideWhenEmpty || undefined}>
+        {list}
+      </section>
+    )
+  }
+
   return (
-    <section className="conversation-summary-section" aria-label={title}>
+    <section
+      ref={sectionRef}
+      className="conversation-summary-section"
+      aria-label={title}
+      data-hide-empty={hideWhenEmpty || undefined}
+      data-collapsed={!expanded || undefined}
+    >
       <div className="conversation-summary-section__header">
         <button
           type="button"
           className="conversation-summary-section__toggle"
           aria-expanded={expanded}
-          onClick={() => setExpanded((value) => !value)}
+          onClick={toggle}
         >
           <h3 className="conversation-summary-section__title">{title}</h3>
+          {!expanded && count !== undefined && count > 0 ? (
+            <span className="conversation-summary-section__count" aria-hidden="true">
+              <span>·</span>
+              <span>{count}</span>
+            </span>
+          ) : null}
           <DisclosureChevron expanded={expanded} />
+          {!expanded && collapsedSummary ? (
+            <span className="conversation-summary-section__collapsed-summary">{collapsedSummary}</span>
+          ) : null}
         </button>
         {actions ? <div className="conversation-summary-section__actions">{actions}</div> : null}
       </div>
-      {expanded ? <ul className="conversation-summary-rows">{children}</ul> : null}
+      <div
+        className="conversation-summary-section__body"
+        data-expanded={expanded || undefined}
+        aria-hidden={!expanded || undefined}
+        inert={!expanded ? true : undefined}
+      >
+        <div className="conversation-summary-section__body-inner">
+          {list}
+          {footer}
+        </div>
+      </div>
     </section>
   )
 }

@@ -4,6 +4,7 @@ import { SummaryPanel } from '../components/conversation/summary/SummaryPanel'
 import { SourcesDetail } from '../components/conversation/summary/SourcesTab'
 import { desktopSummaryServices, type SummaryServices } from '../components/conversation/summary/summaryServices'
 import { disposeSummaryFeeds } from '../components/conversation/summary/store'
+import { resetView } from '../components/conversation/summary/view'
 import { LocaleProvider } from '../contexts/LocaleContext'
 import { useDetailPanelStore } from '../stores/detailPanelStore'
 import { installDesktopApiMock } from './desktopApiMock'
@@ -22,6 +23,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   disposeSummaryFeeds()
+  resetView()
   useDetailPanelStore.getState().reset()
 })
 
@@ -105,4 +107,53 @@ it('expands every recorded call of a tool without turning the server name into a
   fireEvent.click(within(detail).getByRole('button', { name: /Opened 1 page/ }))
   fireEvent.click(within(detail).getByRole('button', { name: 'Triage guide' }))
   expect(openExternal).toHaveBeenCalledWith('https://example.com/triage')
+})
+
+it('collapses a Summary section from its header and persists expansion state across remounts', async () => {
+  const call = {
+    id: 'call',
+    type: 'mcpToolCall',
+    status: 'completed',
+    createdAt: '2026-11-23T09:00:00Z',
+    payload: { callId: 'call', server: 'tracker:issues', toolName: 'lookup', status: 'completed' }
+  }
+  const request = vi.fn(async (method: string) => {
+    if (method === 'thread/turns/list') return { data: [{ id: turnId, items: [], itemCount: 1 }] }
+    if (method === 'thread/items/list') return { data: [{ turnId, item: call }] }
+    return {}
+  })
+  const services: SummaryServices = {
+    ...desktopSummaryServices,
+    appServer: {
+      request: request as SummaryServices['appServer']['request'],
+      connectionKey: () => 'collapse-fixture',
+      onConnectionChange: () => () => {},
+      onNotification: () => () => {}
+    }
+  }
+  const first = render(<LocaleProvider loadSettings={false}>
+    <SummaryPanel services={services} threadId={threadId} workspacePath={null} busy={false} variant="popover" />
+  </LocaleProvider>)
+
+  const section = await screen.findByRole('region', { name: 'Sources' })
+  const toggle = within(section).getByRole('button', { name: 'Sources' })
+  expect(toggle.getAttribute('aria-expanded')).toBe('true')
+  expect(within(section).getByRole('button', { name: 'View all' })).toBeTruthy()
+
+  fireEvent.click(toggle)
+  expect(toggle.getAttribute('aria-expanded')).toBe('false')
+  expect(within(section).queryByRole('button', { name: 'View all' })).toBeNull()
+
+  first.unmount()
+  render(<LocaleProvider loadSettings={false}>
+    <SummaryPanel services={services} threadId={threadId} workspacePath={null} busy={false} variant="popover" />
+  </LocaleProvider>)
+
+  const remounted = await screen.findByRole('region', { name: 'Sources' })
+  const remountedToggle = within(remounted).getByRole('button', { name: 'Sources' })
+  expect(remountedToggle.getAttribute('aria-expanded')).toBe('false')
+
+  fireEvent.click(remountedToggle)
+  expect(remountedToggle.getAttribute('aria-expanded')).toBe('true')
+  expect(within(remounted).getByRole('button', { name: 'View all' })).toBeTruthy()
 })
