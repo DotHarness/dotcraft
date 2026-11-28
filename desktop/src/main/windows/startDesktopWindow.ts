@@ -22,7 +22,11 @@ import { installThemeNavigationGuard } from '../themes/themeNavigation'
 import { hasRemoteEndpointArg, NO_WORKSPACE_ARG, resolveStartupWorkspacePath } from '../workspaceArgs'
 import { createWindowRuntime, type DesktopWindowRuntime } from './windowRuntime'
 import { archiveOwnedThread, ensureOwnedThread, setOwnedThreadPaused } from '../threadTasks/ownedThreadsWindow'
-import { attachConductorProactiveLifecycle, notifyConductorEntered } from '../threadTasks/conductorProactive'
+import {
+  attachOwnedThreadNotificationCleanup,
+  collectRunningThreadsSnapshot,
+  startOwnedThreadBackgroundCheckIn
+} from '../threadTasks/ownedThreadCheckIn'
 import { remoteViewerFilesFor } from '../remoteViewerFiles'
 
 export function startDesktopWindow(
@@ -92,7 +96,8 @@ export function startDesktopWindow(
       ensureOwnedThread: (request) => ensureOwnedThread(ctx, application.ownedThreads, request),
       setOwnedThreadPaused: (threadId, paused) => setOwnedThreadPaused(ctx, application.ownedThreads, threadId, paused),
       archiveOwnedThread: (threadId) => archiveOwnedThread(ctx, application.ownedThreads, threadId),
-      notifyConductorEntered: () => notifyConductorEntered(ctx),
+      listRunningThreads: (options) => collectRunningThreadsSnapshot(ctx, options),
+      startOwnedCheckIn: (request) => startOwnedThreadBackgroundCheckIn(ctx, application.ownedThreads, request),
       getConnection: (threadId) => {
         const entry = threadId
           ? [...ctx.workspaceConnections.values()].find(
@@ -150,7 +155,7 @@ export function startDesktopWindow(
   )
     ctx.prewarmLocalAppServer(workspace)
   win.on('focus', application.refreshAppMenu)
-  ctx.disposers.push(attachConductorProactiveLifecycle(ctx))
+  ctx.disposers.push(attachOwnedThreadNotificationCleanup(ctx))
   win.webContents.once('did-finish-load', () => {
     ctx.emitWorkspaceStatus(win, status)
     ctx.getSshMachinesManager().connectAutoMachines()

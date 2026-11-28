@@ -1,5 +1,6 @@
 export const OWNED_THREADS_CHANGED_CHANNEL = 'threadTasks:owned-changed'
 export const LINKED_CHATS_CHANGED_CHANNEL = 'threadTasks:linked-changed'
+export const PROJECT_CONNECTED_CHANNEL = 'threadTasks:project-connected'
 
 export interface OwnedThreadConfig {
   developerInstructions: string
@@ -23,6 +24,42 @@ export interface OwnedThreadRecord {
   workspacePath: string
   fingerprint: string
   paused?: boolean
+}
+
+export interface RunningThreadDigest {
+  id: string
+  projectId: string
+  activeState: 'needsUser' | 'working'
+  waitingFor?: string
+}
+
+export interface RecentFinishedThreadDigest {
+  id: string
+  projectId: string
+  lastActiveAt: string
+}
+
+export interface RunningThreadsSnapshot {
+  activeThreads: RunningThreadDigest[]
+  recentFinished: RecentFinishedThreadDigest[]
+}
+
+export interface BackgroundCheckInRequest {
+  threadId: string
+  prompt: string
+  requireExistingTurns?: boolean
+  silentReplyToken?: string
+  notificationTitle?: string
+}
+
+export interface BackgroundCheckInResult {
+  started: boolean
+  turnId?: string
+}
+
+export interface ConnectedProjectEvent {
+  id: string
+  workspacePath: string
 }
 
 let ownedThreadIds: ReadonlySet<string> = new Set()

@@ -15,7 +15,10 @@ import type {
   DesktopPluginSurfaceComponent,
   DesktopPluginSurfaceContextMap,
   DesktopPluginSurfaceWrapper,
-  DesktopPluginToolRendererContribution
+  DesktopPluginThreadMenuResolver,
+  DesktopPluginThreadSurfaceContext,
+  DesktopPluginToolRendererContribution,
+  MenuEntry
 } from '@dotcraft/plugin'
 import { normalizeLocale, type AppLocale } from '../../shared/locales'
 import { CORE_SETTINGS_SURFACES } from '../components/settings/coreSettingsSections'
@@ -69,6 +72,13 @@ export interface ActiveDesktopPluginMessageAction extends DesktopPluginMessageAc
   contributionKey: string
 }
 
+export interface ActiveDesktopPluginThreadMenuResolver {
+  pluginId: string
+  registrationId: number
+  order?: number
+  resolve: DesktopPluginThreadMenuResolver
+}
+
 export interface DesktopPluginGeneration {
   pluginId: string
   version: string
@@ -92,20 +102,21 @@ interface DesktopPluginRegistryState {
   toolRenderers: readonly ActiveDesktopPluginToolRenderer[]
   messageActions: readonly ActiveDesktopPluginMessageAction[]
   surfaces: readonly ActiveDesktopPluginSurface[]
+  threadMenuResolvers: readonly ActiveDesktopPluginThreadMenuResolver[]
   conversationSelections: ReadonlyMap<string, string>
 }
 
 let nextDesktopPluginSurfaceRegistrationId = 1
 
 export const useDesktopPluginRegistry = create<DesktopPluginRegistryState>(() =>
-  registryState(new Map(), new Map(), [])
+  registryState(new Map(), new Map(), [], [])
 )
 
 export function publishDesktopPluginGeneration(generation: DesktopPluginGeneration): void {
   useDesktopPluginRegistry.setState((state) => {
     const generations = new Map(state.generations)
     generations.set(generation.pluginId, generation)
-    return registryState(generations, state.conversationSelections, state.surfaces)
+    return registryState(generations, state.conversationSelections, state.surfaces, state.threadMenuResolvers)
   })
 }
 
@@ -114,13 +125,13 @@ export function withdrawDesktopPluginGeneration(pluginId: string): void {
     if (!state.generations.has(pluginId)) return state
     const generations = new Map(state.generations)
     generations.delete(pluginId)
-    return registryState(generations, state.conversationSelections, state.surfaces)
+    return registryState(generations, state.conversationSelections, state.surfaces, state.threadMenuResolvers)
   })
 }
 
 export function clearDesktopPluginRegistry(): void {
   nextDesktopPluginSurfaceRegistrationId = 1
-  useDesktopPluginRegistry.setState(registryState(new Map(), new Map(), []))
+  useDesktopPluginRegistry.setState(registryState(new Map(), new Map(), [], []))
 }
 
 /** Core's own surface names. Typed against the SDK map so a typo in this list is a compile error. */
@@ -226,6 +237,47 @@ function reportUnknownCoreSurface(pluginId: string, surface: string): void {
     `Desktop extension '${pluginId}' registered into '${surface}', which Core does not define. `
       + 'Check the spelling; the registration stays and renders only if a surface with that name is mounted.'
   )
+}
+
+export function registerDesktopPluginThreadMenuItems(
+  pluginId: string,
+  resolve: DesktopPluginThreadMenuResolver,
+  options?: DesktopPluginAddOptions
+): DesktopPluginDispose {
+  const registration: ActiveDesktopPluginThreadMenuResolver = {
+    pluginId,
+    order: options?.order,
+    resolve,
+    registrationId: nextDesktopPluginSurfaceRegistrationId++
+  }
+  useDesktopPluginRegistry.setState((state) => ({
+    threadMenuResolvers: [...state.threadMenuResolvers, registration]
+  }))
+  return () => {
+    useDesktopPluginRegistry.setState((state) => {
+      if (!state.threadMenuResolvers.includes(registration)) return state
+      return { threadMenuResolvers: state.threadMenuResolvers.filter((candidate) => candidate !== registration) }
+    })
+  }
+}
+
+export function resolveDesktopPluginThreadMenuItems(
+  resolvers: readonly ActiveDesktopPluginThreadMenuResolver[],
+  context: DesktopPluginThreadSurfaceContext
+): MenuEntry[] {
+  const ordered = [...resolvers].sort(
+    (left, right) => (left.order ?? 100) - (right.order ?? 100) || left.registrationId - right.registrationId
+  )
+  const items: MenuEntry[] = []
+  for (const entry of ordered) {
+    try {
+      const next = entry.resolve(context)
+      if (next?.length) items.push(...next)
+    } catch (error) {
+      console.error(`Desktop extension '${entry.pluginId}' thread menu items failed:`, error)
+    }
+  }
+  return items
 }
 
 export function compareDesktopPluginAddition(
@@ -335,7 +387,8 @@ function sameLocale(key: string, appLocale: AppLocale): boolean {
 function registryState(
   generations: ReadonlyMap<string, DesktopPluginGeneration>,
   previousSelections: ReadonlyMap<string, string>,
-  surfaces: readonly ActiveDesktopPluginSurface[]
+  surfaces: readonly ActiveDesktopPluginSurface[],
+  threadMenuResolvers: readonly ActiveDesktopPluginThreadMenuResolver[]
 ): DesktopPluginRegistryState {
   const values = [...generations.values()]
   const conversationViews = values.flatMap((generation) => generation.conversationViews).sort(compareContribution)
@@ -353,6 +406,7 @@ function registryState(
     toolRenderers: values.flatMap((generation) => generation.toolRenderers).sort(compareToolRenderer),
     messageActions: values.flatMap((generation) => generation.messageActions).sort(compareContribution),
     surfaces,
+    threadMenuResolvers,
     conversationSelections
   }
 }

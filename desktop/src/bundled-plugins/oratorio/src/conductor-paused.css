@@ -1,15 +1,15 @@
-.container {
+.ora-paused-composer {
   position: relative;
   flex-shrink: 0;
 }
 
-.composerHidden {
+.ora-paused-composer__hidden {
   visibility: hidden;
   pointer-events: none;
   user-select: none;
 }
 
-.overlay {
+.ora-paused-composer__overlay {
   position: absolute;
   inset: 0;
   display: flex;
@@ -18,7 +18,7 @@
   padding: 0 16px;
 }
 
-.resumeButton {
+.ora-paused-composer__button {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -36,17 +36,17 @@
   transition: background-color 120ms ease, border-color 120ms ease;
 }
 
-.resumeButton:hover {
+.ora-paused-composer__button:hover {
   background: var(--bg-hover);
   border-color: var(--border-active, var(--border-default));
 }
 
-.resumeButton:focus-visible {
+.ora-paused-composer__button:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
   outline-offset: 2px;
 }
 
-.icon {
+.ora-paused-composer__icon {
   flex-shrink: 0;
   color: var(--text-secondary);
 }

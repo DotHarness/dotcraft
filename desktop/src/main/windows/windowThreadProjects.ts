@@ -5,7 +5,7 @@ import { isDefaultChatWorkspace, resolveDefaultChatWorkspacePath } from '../defa
 import { sendDesktopAppServerRequest } from '../desktopRuntimeThreadTools'
 import { getLocalProjectDetails } from '../settings'
 import type { LinkedChatConnection } from '../threadTasks/linkedChats'
-import { notifyConductorProjectConnected, observeConductorNotification } from '../threadTasks/conductorProactive'
+import { emitProjectConnected, observeOwnedThreadNotification } from '../threadTasks/ownedThreadCheckIn'
 import { notConnectedMessage, ThreadProjectError, type ThreadProject, type ThreadProjectLocation } from '../threadTasks/threadProjects'
 import type { DesktopWindowRuntime } from './windowRuntime'
 import type { WorkspaceConnectionEntry } from './windowTypes'
@@ -178,11 +178,11 @@ export function connectLinkedChats(ctx: DesktopWindowRuntime, entry: WorkspaceCo
     entry.client.on('close', disconnect).once('disposed', disconnect)
   }
   linkedChats.connected(connection)
-  notifyConductorProjectConnected(ctx)
+  emitProjectConnected(ctx, entry)
 }
 
 export function observeLinkedChatNotification(ctx: DesktopWindowRuntime, entry: WorkspaceConnectionEntry, method: string, params: unknown): void {
   const connection = observed.get(entry)
   if (connection) ctx.app.tasks.linkedChats?.handleNotification(connection, method, params)
-  observeConductorNotification(ctx, entry, method, params)
+  observeOwnedThreadNotification(ctx, entry, method, params)
 }

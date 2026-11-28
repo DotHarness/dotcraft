@@ -9,11 +9,14 @@ interface MenuTriggerProps {
   'aria-expanded'?: boolean
 }
 
-function toContextMenuEntry(entry: MenuEntry): ContextMenuEntry {
+export function toContextMenuEntry(entry: MenuEntry, onAfterSelect?: () => void): ContextMenuEntry {
   if ('type' in entry) return entry
   return {
     label: entry.label,
-    onClick: entry.onSelect,
+    onClick: () => {
+      onAfterSelect?.()
+      entry.onSelect()
+    },
     icon: entry.icon,
     disabled: entry.disabled,
     danger: entry.danger,
@@ -46,7 +49,7 @@ export function DesktopPluginMenu({ items, children }: MenuProps): JSX.Element {
       })}
       {open && (
         <ContextMenu
-          items={items.map(toContextMenuEntry)}
+          items={items.map((entry) => toContextMenuEntry(entry))}
           position={open.position}
           onClose={close}
           autoFocus={open.keyboard}

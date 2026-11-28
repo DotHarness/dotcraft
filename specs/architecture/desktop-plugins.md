@@ -121,7 +121,7 @@ Rows and tables inside a group remain plugin code built from theme tokens.
 
 `SummarySection` (`{ title, actions?, children }`) and `SummaryRow` (`{ leading, label, meta?, title?, onClick? }`) render a Summary section and its rows with Core's presentation. A row with `onClick` is a button.
 
-`SidebarRow` (`{ icon, label, active?, threadId?, onClick }`) renders one navigation row of a space sidebar with Core's sidebar row presentation. A row with `threadId` shows that thread's status in the same slot and vocabulary as a thread row: the waiting badge, then the running indicator, then the unread dot.
+`SidebarRow` (`{ icon, label, active?, threadId?, contextMenu?, onClick }`) renders one navigation row of a space sidebar with Core's sidebar row presentation. A row with `threadId` shows that thread's status in the same slot and vocabulary as a thread row: a quiet pause icon when paused, otherwise the waiting badge, failed dot, running indicator, or unread mark. When `contextMenu` supplies `Menu` entries, right-clicking the row opens Core's context menu with those entries.
 
 `MascotOutfit` (`{ pack, wear, children }`) dresses the Composer character it wraps in a `composer.mascot` wrapper. The person's own mascot wears the `wear` items in place of its own for those slots and keeps its palette, other slots, expressions, and motion. `pack` is an avatar extension pack holding the plugin's items ([Avatar System §5.1](../features/avatar-system.md#51-extension-packs-registries-and-outfit-presets)).
 
@@ -253,7 +253,7 @@ interface DesktopPluginThreadSurfaceContext {
 }
 ```
 
-`thread.header.actions` holds compact controls for the current thread, each a single UI-kit icon button; the Host owns spacing, order, and header height.
+`thread.header.actions` holds compact controls for the current thread, each a single UI-kit icon button; the Host owns spacing, order, and header height. `ui.addThreadMenuItems(resolver, options?)` contributes `Menu` entries to the thread header's overflow menu for the active `DesktopPluginThreadSurfaceContext`, ordered like additive surfaces. For an owned thread, Core omits project-scoped, pin, rename, and fork items so the overflow menu presents only plugin-contributed entries and hides the trigger when none apply.
 
 The conversation asides add layout:
 
@@ -352,6 +352,7 @@ interface DesktopPluginSpaceContribution {
   readonly views: readonly string[]
   readonly sidebar: ComponentType<DesktopPluginSpaceSidebarProps>
   readonly guide?: DesktopPluginSpaceGuide
+  readonly contextMenu?: (host: DesktopPluginHost) => readonly MenuEntry[]
   open(host: DesktopPluginHost): void | Promise<void>
 }
 
@@ -371,7 +372,7 @@ interface DesktopPluginSpaceSidebarProps extends DesktopPluginViewProps {
 - A space's entry is a sidebar destination like a plugin main view, ordered with them by `order`. It is pinned by default, and the person can unpin it to More and pin it again. Selecting the entry returns to the view last open in the space. Otherwise it calls `open`, which navigates with the ordinary Host operations, so a plugin reaching an owned thread confirms it through `threads.ensureOwned` each time.
 - A main view named in a space is reached only through it: it is not a sidebar destination, a More item, or a pin, and `openMainView` on it opens the space.
 - While the active location belongs to a space, the Host keeps the persistent sidebar header, `New chat`, pinned destinations (marking the active space row), `More`, and footer, replacing only the lower thread-list body with the space's section title and the contribution's `sidebar`. There is no separate `Back to app` row. Selecting the active space row again returns to the recorded location outside the space. The Host owns the frame and the sidebar's width and collapse. The contribution renders its rows with `SidebarRow`.
-- A space destination in the sidebar (and inside the `More` menu, without rolling badges onto the `More` trigger itself) displays the status of the space's owned thread across workspaces: waiting badge, failed dot, running spinner, or a restrained neutral unread count pill (`1`–`99+`).
+- A space destination in the sidebar (and inside the `More` menu, without rolling badges onto the `More` trigger itself) displays the status of the space's owned thread across workspaces while the space is closed: a quiet neutral pause icon when paused, otherwise waiting badge, failed dot, running spinner, or a restrained neutral unread count pill (`1`–`99+`). While the space is open, the space destination omits the duplicate mark so the sidebar row inside the space owns it. When `contextMenu` returns `Menu` entries, right-clicking the pinned space destination shows them above `Unpin from sidebar`.
 - A space may declare a `guide`: a [feature guide](../clients/desktop-client.md#69-feature-guides) that introduces it. The plugin decides when its usage shows the space would help and calls `host.ui.requestSpaceGuide(spaceId)`. The Host owns everything else: the guide shows as a coachmark beside the space's pinned sidebar entry at the next pause, under the same limits as Desktop's own readiness guides, and never while the entry is in More. `media` renders inert on the guide's gradient band. The guide's action enters the space, and entering the space by any route settles the guide. A plugin cannot request a guide before it runs, so Desktop introduces the bundled Oratorio space itself while that plugin is not installed ([Desktop §6.9](../clients/desktop-client.md#69-feature-guides)); that guide installs the plugin, enters the space, and shares the space guide's record.
 - On entering a space, the Host records the location it left, including its workspace. Back returns there, switching workspace when an owned thread's workspace replaced it. Moving between the space's own locations keeps the record, including while a workspace switch is in progress. Opening a location outside the space leaves the space without returning, and the record is dropped. Archiving the open owned thread leaves the space as Back does.
 
@@ -457,10 +458,15 @@ interface DesktopPluginOwnedThreadConfig {
 interface DesktopPluginOwnedThread {
   readonly threadId: string
   readonly workspacePath: string
+  readonly paused?: boolean
 }
 ```
 
-- Desktop records each owned thread per plugin and key in its per-user state. A later call returns the recorded thread while it exists, and creates a new one when it was deleted. `threads.findOwned(key)` returns the recorded thread without creating one, or `null`, so a plugin can recognize its thread before the person opens it.
+- Desktop records each owned thread per plugin and key in its per-user state. A later call returns the recorded thread while it exists, and creates a new one when it was deleted. `threads.findOwned(key)` returns the recorded thread without creating one, or `null`, so a plugin can recognize its thread before the person opens it. `threads.onOwnedChange(key, listener)` notifies whenever that key's owned thread is created, updated, paused/resumed, or removed.
+- `threads.setOwnedPaused(key, paused)` persists the paused flag on the owned record. While paused, Desktop holds incoming linked-chat reports for that thread and rejects background check-in requests for it. Resuming flushes held reports.
+- `threads.archiveOwned(key)` archives the owned thread on its AppServer, removes the owned record, clears linked chats for that parent thread while leaving child chats intact, and leaves the active space if it was open.
+- `threads.listRunningThreads({ excludeThreadId?, finishedSinceMs? })` aggregates active/waiting threads and recently finished unread threads across currently connected projects without starting any LLM turn. `workspaces.onProjectConnected(listener)` notifies when a workspace project connection becomes ready.
+- `threads.startBackgroundCheckIn({ key, prompt, requireExistingTurns?, silentReplyToken?, notificationTitle? })` starts a hidden kickoff turn on the plugin's owned thread when it is not paused, archived, or busy (and has at least one turn when `requireExistingTurns` is not `false`). When the turn finishes with `silentReplyToken` (such as `DONT_NOTIFY`), Desktop marks it read and suppresses OS notifications. For non-silent replies on any owned thread while the window is unfocused, Desktop posts a deduplicated OS notification that opens the thread on click and clears once read.
 - The thread starts in its own chat folder with Desktop's thread tools and standalone-chat instructions, like any new chat, followed by the plugin's instructions and approval policy. When a later call's configuration differs from the one last applied, Desktop updates the thread's configuration before returning, so a plugin update reaches its existing thread.
 - `space` attaches the thread to one of the plugin's spaces, so opening it opens that space.
 - Desktop leaves an owned thread out of its thread lists, search, and archived threads. The thread stays an ordinary AppServer thread, so other clients list it like any Chats thread.

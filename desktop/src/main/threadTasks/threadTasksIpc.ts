@@ -13,7 +13,13 @@ import {
 import type { ThreadTaskConnection } from './childThreads'
 import { callingThread } from './threadProjects'
 import type { LinkedChatSummary } from '../../shared/linkedChats'
-import type { OwnedThreadRecord, OwnedThreadRequest } from '../../shared/ownedThreads'
+import type {
+  BackgroundCheckInRequest,
+  BackgroundCheckInResult,
+  OwnedThreadRecord,
+  OwnedThreadRequest,
+  RunningThreadsSnapshot
+} from '../../shared/ownedThreads'
 import type { DesktopLinkedChats } from './linkedChats'
 import type { DesktopOwnedThreads } from './ownedThreads'
 import { DesktopThreadTasks } from './threadTaskService'
@@ -52,7 +58,8 @@ export interface ThreadTasksIpcHost {
   ensureOwnedThread(request: OwnedThreadRequest): Promise<OwnedThreadRecord>
   setOwnedThreadPaused?(threadId: string, paused: boolean): OwnedThreadRecord | null
   archiveOwnedThread?(threadId: string): Promise<boolean>
-  notifyConductorEntered?(): Promise<boolean>
+  listRunningThreads?(options?: { excludeThreadId?: string; finishedSinceMs?: number }): Promise<RunningThreadsSnapshot>
+  startOwnedCheckIn?(request: BackgroundCheckInRequest): Promise<BackgroundCheckInResult>
 }
 
 export function registerThreadTasksIpc(host: ThreadTasksIpcHost, ipc: WindowIpcMain): void {
@@ -119,8 +126,33 @@ export function registerThreadTasksIpc(host: ThreadTasksIpcHost, ipc: WindowIpcM
     return (await host.archiveOwnedThread?.(threadId)) ?? false
   })
 
-  ipc.handle('threadTasks:conductor-entered', async (): Promise<boolean> => {
-    return (await host.notifyConductorEntered?.()) ?? false
+  ipc.handle('threadTasks:running-threads', async (_event, params: unknown): Promise<RunningThreadsSnapshot> => {
+    const record = isRecord(params) ? params : {}
+    const excludeThreadId = typeof record.excludeThreadId === 'string' ? record.excludeThreadId : undefined
+    const finishedSinceMs = typeof record.finishedSinceMs === 'number' && Number.isFinite(record.finishedSinceMs)
+      ? record.finishedSinceMs
+      : undefined
+    return (await host.listRunningThreads?.({ excludeThreadId, finishedSinceMs })) ?? { activeThreads: [], recentFinished: [] }
+  })
+
+  ipc.handle('threadTasks:owned-check-in', async (_event, params: unknown): Promise<BackgroundCheckInResult> => {
+    const record = isRecord(params) ? params : {}
+    const threadId = requireString(record.threadId, 'threadId')
+    const prompt = requireString(record.prompt, 'prompt')
+    const requireExistingTurns = typeof record.requireExistingTurns === 'boolean' ? record.requireExistingTurns : undefined
+    const silentReplyToken = typeof record.silentReplyToken === 'string' && record.silentReplyToken.trim()
+      ? record.silentReplyToken.trim()
+      : undefined
+    const notificationTitle = typeof record.notificationTitle === 'string' && record.notificationTitle.trim()
+      ? record.notificationTitle.trim()
+      : undefined
+    return (await host.startOwnedCheckIn?.({
+      threadId,
+      prompt,
+      requireExistingTurns,
+      silentReplyToken,
+      notificationTitle
+    })) ?? { started: false }
   })
 
   ipc.handle('threadTasks:answer-offer', async (_event, params: unknown): Promise<ThreadTaskActionResult> => {

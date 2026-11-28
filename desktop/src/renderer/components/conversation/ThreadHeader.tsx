@@ -15,7 +15,9 @@ import { PerforcePrepareDialog } from '../detail/PerforcePrepareDialog'
 import { CommitIcon } from '../ui/AppIcons'
 import { usePerforceChangelistStore, type PerforceChangelistEntry } from '../../stores/perforceChangelistStore'
 import { DetailPanelToggleButton } from './DetailPanelToggleButton'
+import { toContextMenuEntry } from '../desktopPlugins/DesktopPluginMenu'
 import { DesktopPluginSurface } from '../desktopPlugins/DesktopPluginSurface'
+import { resolveDesktopPluginThreadMenuItems, useDesktopPluginRegistry } from '../../plugins/desktopPluginRegistry'
 import { ActionTooltip } from '../ui/ActionTooltip'
 import { ContextMenu, type ContextMenuEntry, type ContextMenuPosition } from '../ui/ContextMenu'
 import { MoreActionsButton } from '../ui/MoreActionsButton'
@@ -24,7 +26,6 @@ import { isSubAgentThread } from '../../utils/subAgentThreads'
 import { canForkThread, canForkWorktree, runThreadFork } from '../../utils/threadFork'
 import { openSideChat, useCanOpenSideChat } from '../../utils/sideChat'
 import { archiveThreadWithUndo } from '../../utils/threadArchive'
-import { buildOwnedThreadMenuEntries } from '../../utils/ownedThreadLifecycle'
 import { buildOpenInSubmenu, useOpenTargets } from '../../utils/openTargets'
 import { isDefaultChatWorkspacePathCandidate } from '../../../shared/defaultChatWorkspace'
 import { SummaryHeaderAction } from './summary/SummaryHeaderAction'
@@ -53,6 +54,7 @@ export function ThreadHeader({
   const renameInputRef = useRef<HTMLInputElement>(null)
   const hasWrittenFiles = useConversationStore((s) => writtenFileSummaries(s.turnDiffs).length > 0)
   const ownedThread = useOwnedThread(threadId)
+  const threadMenuResolvers = useDesktopPluginRegistry((s) => s.threadMenuResolvers)
   const activeThread = useThreadStore((s) => s.activeThread)
   const pinnedThreadIds = useThreadStore((s) => s.pinnedThreadIds)
   const togglePinnedThread = useThreadStore((s) => s.togglePinnedThread)
@@ -292,8 +294,15 @@ export function ThreadHeader({
         ? t('threadHeader.noCommitTitle')
         : undefined
   const showOpenIn = !remoteWorkspace && Boolean(workspacePath)
+  const threadMenuContext: DesktopPluginThreadSurfaceContext = pluginSurfaceContext ?? {
+    workspacePath: workspacePath || null,
+    threadId,
+    busy: false
+  }
+  const pluginMenuItems: ContextMenuEntry[] = resolveDesktopPluginThreadMenuItems(threadMenuResolvers, threadMenuContext)
+    .map((entry) => toContextMenuEntry(entry, () => setMenuPosition(null)))
   const menuItems: ContextMenuEntry[] = ownedThread
-    ? buildOwnedThreadMenuEntries(ownedThread, t, () => setMenuPosition(null))
+    ? pluginMenuItems
     : [
     ...(showOpenIn
       ? [buildOpenInSubmenu({
@@ -369,7 +378,8 @@ export function ThreadHeader({
             ]
           }
         ]
-      : [])
+      : []),
+    ...(pluginMenuItems.length > 0 ? [{ type: 'separator' as const }, ...pluginMenuItems] : [])
   ]
 
   return (
@@ -454,16 +464,18 @@ export function ThreadHeader({
           </div>
         )}
 
-        <MoreActionsButton
-          size={28}
-          label={t('threadHeader.moreActions')}
-          open={menuPosition != null}
-          onClick={(event) => {
-            const rect = event.currentTarget.getBoundingClientRect()
-            if (!remoteWorkspace) void openTargets.refresh()
-            setMenuPosition({ x: rect.right - 200, y: rect.bottom + 4 })
-          }}
-        />
+        {menuItems.length > 0 && (
+          <MoreActionsButton
+            size={28}
+            label={t('threadHeader.moreActions')}
+            open={menuPosition != null}
+            onClick={(event) => {
+              const rect = event.currentTarget.getBoundingClientRect()
+              if (!remoteWorkspace) void openTargets.refresh()
+              setMenuPosition({ x: rect.right - 200, y: rect.bottom + 4 })
+            }}
+          />
+        )}
 
         {pluginSurfaceContext && (
           <DesktopPluginSurface name="thread.header.actions" context={pluginSurfaceContext} />

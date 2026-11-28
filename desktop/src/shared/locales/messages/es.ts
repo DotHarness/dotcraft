@@ -5005,12 +5005,5 @@ export const MESSAGES_ES = {
   "devServers.failure.exited": "El servidor de desarrollo se cerró.",
   "devServers.startFailed": "No se pudo iniciar el servidor de desarrollo.",
   "devServers.stopFailed": "No se pudo detener el servidor de desarrollo.",
-  "conductor.pause": "Pausar",
-  "conductor.resume": "Reanudar",
-  "conductor.paused": "En pausa",
-  "conductor.archive": "Archivar",
-  "conductor.archiveConfirm.title": "¿Archivar el director?",
-  "conductor.archiveConfirm.message": "Esto archiva la conversación del director y limpia su lista de seguimiento. Los chats que inició se conservan. La próxima visita iniciará uno nuevo.",
-  "conductor.archiveConfirm.confirm": "Archivar",
-  "conductor.lifecycle.actionFailed": "La acción del director falló: {{error}}",
+  "threadEntry.paused": "En pausa",
 } satisfies Partial<Record<MessageId, string>>

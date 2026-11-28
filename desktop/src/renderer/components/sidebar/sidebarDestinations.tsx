@@ -1,7 +1,6 @@
 import { useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { PinOff } from 'lucide-react'
 import type { DesktopPluginContributionIcon } from '@dotcraft/plugin'
-import type { OwnedThreadRecord } from '../../../shared/ownedThreads'
 import { useLocale, useT } from '../../contexts/LocaleContext'
 import { prefetchCoreMainView } from '../../core/coreMainViewRoutes'
 import { compareContribution, resolveDesktopPluginLabel, useDesktopPluginRegistry, type ActiveDesktopPluginSpace } from '../../plugins/desktopPluginRegistry'
@@ -10,8 +9,8 @@ import { useOwnedThreadsStore } from '../../stores/ownedThreadsStore'
 import { useSidebarDestinationsStore } from '../../stores/sidebarDestinationsStore'
 import { enterSpace, leaveSpace, useActiveSpace } from '../../stores/spaceStore'
 import { useUIStore } from '../../stores/uiStore'
-import { buildOwnedThreadMenuEntries } from '../../utils/ownedThreadLifecycle'
 import { resolveDesktopPluginIcon } from '../desktopPlugins/DesktopPluginIcon'
+import { toContextMenuEntry } from '../desktopPlugins/DesktopPluginMenu'
 import { ContextMenu, type ContextMenuEntry, type ContextMenuPosition } from '../ui/ContextMenu'
 import { SidebarNavIcon } from './SidebarNavIcon'
 import { ThreadStatusIndicator } from './ThreadStatusIndicator'
@@ -26,7 +25,6 @@ export interface SidebarDestination {
   select: () => void
   prefetch?: () => void
   space?: ActiveDesktopPluginSpace
-  ownedThread?: OwnedThreadRecord
 }
 
 const PINNED_BY_DEFAULT = new Set<string>(['agents', 'skills'])
@@ -78,8 +76,7 @@ export function useSidebarDestinations(): { pinned: SidebarDestination[]; more: 
             if (active) void leaveSpace()
             else enterSpace(space)
           },
-          space,
-          ownedThread: owned
+          space
         }
       }
     }),
@@ -112,22 +109,26 @@ export function useSidebarDestinations(): { pinned: SidebarDestination[]; more: 
 }
 
 export function useUnpinContextMenu(): {
-  open: (event: ReactMouseEvent, destination: Pick<SidebarDestination, 'id' | 'ownedThread'>) => void
+  open: (event: ReactMouseEvent, destination: Pick<SidebarDestination, 'id' | 'space'>) => void
   menu: JSX.Element | null
 } {
   const t = useT()
   const setPinned = useSidebarDestinationsStore((s) => s.setPinned)
-  const ownedThreads = useOwnedThreadsStore((s) => s.records)
-  const [target, setTarget] = useState<{ id: string; ownedThreadId?: string; position: ContextMenuPosition } | null>(null)
+  const [target, setTarget] = useState<{ id: string; space?: ActiveDesktopPluginSpace; position: ContextMenuPosition } | null>(null)
 
-  const liveOwned = target?.ownedThreadId
-    ? ownedThreads.find((record) => record.threadId === target.ownedThreadId)
-    : undefined
+  let pluginItems: ContextMenuEntry[] = []
+  if (target?.space?.contextMenu) {
+    try {
+      pluginItems = target.space.contextMenu(target.space.host)
+        .map((entry) => toContextMenuEntry(entry, () => setTarget(null)))
+    } catch (error) {
+      console.error(`Desktop extension space '${target.space.pluginId}/${target.space.id}' contextMenu failed:`, error)
+    }
+  }
+
   const items: ContextMenuEntry[] = target
     ? [
-        ...(liveOwned
-          ? [...buildOwnedThreadMenuEntries(liveOwned, t, () => setTarget(null)), { type: 'separator' as const }]
-          : []),
+        ...(pluginItems.length > 0 ? [...pluginItems, { type: 'separator' as const }] : []),
         {
           label: t('sidebar.unpinFromSidebar'),
           icon: <PinOff size={14} aria-hidden />,
@@ -141,7 +142,7 @@ export function useUnpinContextMenu(): {
       event.preventDefault()
       setTarget({
         id: destination.id,
-        ownedThreadId: destination.ownedThread?.threadId,
+        space: destination.space,
         position: { x: event.clientX, y: event.clientY }
       })
     },

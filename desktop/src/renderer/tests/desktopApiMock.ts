@@ -100,7 +100,9 @@ export function installDesktopApiMock(overrides: ApiOverrides<Api>): Api {
       listOwned: async () => [],
       setOwnedPaused: async () => null,
       archiveOwned: async () => true,
-      conductorEntered: async () => false,
+      listRunningThreads: async () => ({ activeThreads: [], recentFinished: [] }),
+      startOwnedCheckIn: async () => ({ started: false }),
+      onProjectConnected: () => () => undefined,
       onOwnedChanged: () => () => undefined,
       ...overrides.threadTasks
     },

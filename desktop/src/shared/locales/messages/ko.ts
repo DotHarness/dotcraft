@@ -5004,12 +5004,5 @@ export const MESSAGES_KO = {
   "devServers.failure.exited": "개발 서버가 종료되었습니다.",
   "devServers.startFailed": "개발 서버를 시작할 수 없습니다.",
   "devServers.stopFailed": "개발 서버를 중지할 수 없습니다.",
-  "conductor.pause": "일시 중지",
-  "conductor.resume": "재개",
-  "conductor.paused": "일시 중지됨",
-  "conductor.archive": "보관",
-  "conductor.archiveConfirm.title": "지휘자를 보관할까요?",
-  "conductor.archiveConfirm.message": "지휘자 대화를 보관하고 추적 목록을 비웁니다. 시작한 채팅은 유지됩니다. 다음에 열면 새 지휘자로 시작합니다.",
-  "conductor.archiveConfirm.confirm": "보관",
-  "conductor.lifecycle.actionFailed": "지휘자 작업 실패: {{error}}",
+  "threadEntry.paused": "일시 중지됨",
 } satisfies Partial<Record<MessageId, string>>

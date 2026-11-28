@@ -1,8 +1,5 @@
 import { useState, type CSSProperties, type JSX, type MouseEvent as ReactMouseEvent } from 'react'
 import type { SidebarRowProps } from '@dotcraft/plugin'
-import { useT } from '../../contexts/LocaleContext'
-import { useOwnedThread } from '../../stores/ownedThreadsStore'
-import { buildOwnedThreadMenuEntries } from '../../utils/ownedThreadLifecycle'
 import {
   SIDEBAR_NAV_BORDER_INACTIVE,
   SIDEBAR_NAV_ICON_SLOT,
@@ -10,14 +7,21 @@ import {
 } from '../sidebar/sidebarNavRowStyles'
 import { ThreadStatusIndicator } from '../sidebar/ThreadStatusIndicator'
 import { ContextMenu, type ContextMenuPosition } from '../ui/ContextMenu'
+import { toContextMenuEntry } from './DesktopPluginMenu'
 
-export function DesktopPluginSidebarRow({ icon, label, active = false, threadId, onClick }: SidebarRowProps): JSX.Element {
-  const t = useT()
-  const ownedThread = useOwnedThread(threadId)
+export function DesktopPluginSidebarRow({
+  icon,
+  label,
+  active = false,
+  threadId,
+  contextMenu,
+  onClick
+}: SidebarRowProps): JSX.Element {
   const [menuPosition, setMenuPosition] = useState<ContextMenuPosition | null>(null)
+  const hasMenu = Boolean(contextMenu?.length)
 
   const handleContextMenu = (event: ReactMouseEvent<HTMLButtonElement>): void => {
-    if (!ownedThread) return
+    if (!hasMenu) return
     event.preventDefault()
     setMenuPosition({ x: event.clientX, y: event.clientY })
   }
@@ -29,7 +33,7 @@ export function DesktopPluginSidebarRow({ icon, label, active = false, threadId,
         type="button"
         data-nav-icon-host=""
         onClick={onClick}
-        onContextMenu={ownedThread ? handleContextMenu : undefined}
+        onContextMenu={hasMenu ? handleContextMenu : undefined}
         style={rowStyle}
         aria-current={active ? 'page' : undefined}
         data-active={active ? 'true' : undefined}
@@ -42,11 +46,11 @@ export function DesktopPluginSidebarRow({ icon, label, active = false, threadId,
           </span>
         )}
       </button>
-      {menuPosition && ownedThread && (
+      {menuPosition && contextMenu && contextMenu.length > 0 && (
         <ContextMenu
           position={menuPosition}
           onClose={() => setMenuPosition(null)}
-          items={buildOwnedThreadMenuEntries(ownedThread, t, () => setMenuPosition(null))}
+          items={contextMenu.map((entry) => toContextMenuEntry(entry, () => setMenuPosition(null)))}
         />
       )}
     </>

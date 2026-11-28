@@ -5005,12 +5005,5 @@ export const MESSAGES_FR = {
   "devServers.failure.exited": "Le serveur de développement s’est arrêté.",
   "devServers.startFailed": "Impossible de démarrer le serveur de développement.",
   "devServers.stopFailed": "Impossible d’arrêter le serveur de développement.",
-  "conductor.pause": "Mettre en pause",
-  "conductor.resume": "Reprendre",
-  "conductor.paused": "En pause",
-  "conductor.archive": "Archiver",
-  "conductor.archiveConfirm.title": "Archiver le chef d’orchestre ?",
-  "conductor.archiveConfirm.message": "Cela archive la conversation du chef d’orchestre et vide sa liste de suivi. Les discussions qu’il a lancées sont conservées. La prochaine ouverture en démarrera un nouveau.",
-  "conductor.archiveConfirm.confirm": "Archiver",
-  "conductor.lifecycle.actionFailed": "L’action du chef d’orchestre a échoué : {{error}}",
+  "threadEntry.paused": "En pause",
 } satisfies Partial<Record<MessageId, string>>

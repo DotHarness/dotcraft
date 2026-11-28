@@ -4,6 +4,7 @@ import type {
 } from "@dotcraft/sdk/contracts";
 import type { ComponentType, CSSProperties, ExoticComponent, ReactNode } from "react";
 import type { DesktopPluginSatellites, DesktopPluginRemoteToolHost, DesktopPluginScreenView, DesktopPluginRemoteTransferProgress } from "./satellite.js";
+import type { MenuEntry } from "./ui.js";
 
 export type DesktopPluginDispose = () => void;
 
@@ -366,6 +367,38 @@ export interface DesktopPluginOwnedThreadRequest {
 export interface DesktopPluginOwnedThread {
   readonly threadId: string;
   readonly workspacePath: string;
+  readonly paused?: boolean;
+}
+
+export interface DesktopPluginRunningThreadDigest {
+  readonly id: string;
+  readonly projectId: string;
+  readonly activeState: "needsUser" | "working";
+  readonly waitingFor?: string;
+}
+
+export interface DesktopPluginRecentFinishedThreadDigest {
+  readonly id: string;
+  readonly projectId: string;
+  readonly lastActiveAt: string;
+}
+
+export interface DesktopPluginRunningThreadsSnapshot {
+  readonly activeThreads: readonly DesktopPluginRunningThreadDigest[];
+  readonly recentFinished: readonly DesktopPluginRecentFinishedThreadDigest[];
+}
+
+export interface DesktopPluginBackgroundCheckInRequest {
+  readonly key: string;
+  readonly prompt: string;
+  readonly requireExistingTurns?: boolean;
+  readonly silentReplyToken?: string;
+  readonly notificationTitle?: string;
+}
+
+export interface DesktopPluginBackgroundCheckInResult {
+  readonly started: boolean;
+  readonly turnId?: string;
 }
 
 export type DesktopPluginLinkedChatState = "idle" | "working" | "waiting" | "done" | "failed" | "stopped";
@@ -384,6 +417,19 @@ export interface DesktopPluginThreads {
   /** Returns the plugin's thread for the key, creating it in the default Chat workspace the first time. */
   ensureOwned(request: DesktopPluginOwnedThreadRequest): Promise<DesktopPluginOwnedThread>;
   findOwned(key: string): DesktopPluginOwnedThread | null;
+  onOwnedChange(
+    key: string,
+    listener: (thread: DesktopPluginOwnedThread | null) => void,
+  ): DesktopPluginDispose;
+  setOwnedPaused(key: string, paused: boolean): Promise<DesktopPluginOwnedThread | null>;
+  archiveOwned(key: string): Promise<boolean>;
+  listRunningThreads(options?: {
+    readonly excludeThreadId?: string;
+    readonly finishedSinceMs?: number;
+  }): Promise<DesktopPluginRunningThreadsSnapshot>;
+  startBackgroundCheckIn(
+    request: DesktopPluginBackgroundCheckInRequest,
+  ): Promise<DesktopPluginBackgroundCheckInResult>;
   linked(parentThreadId: string): Promise<readonly DesktopPluginLinkedChat[]>;
   /** Notifies with the complete list when a linked chat is added, removed, renamed, or changes state, and never fires on subscribe. */
   onLinkedChange(
@@ -487,6 +533,10 @@ export interface DesktopPluginFolderPickerOptions {
   readonly title: string;
 }
 
+export type DesktopPluginThreadMenuResolver = (
+  context: DesktopPluginThreadSurfaceContext,
+) => readonly MenuEntry[];
+
 export interface DesktopPluginUi {
   showToast(options: DesktopPluginToastOptions): DesktopPluginDispose;
   confirm(options: DesktopPluginConfirmOptions): Promise<boolean>;
@@ -494,6 +544,10 @@ export interface DesktopPluginUi {
   /** Resolves to the chosen absolute path on the Desktop machine, or `null` when cancelled. */
   pickFolder(options: DesktopPluginFolderPickerOptions): Promise<string | null>;
   requestSpaceGuide(spaceId: string): void;
+  addThreadMenuItems(
+    resolver: DesktopPluginThreadMenuResolver,
+    options?: DesktopPluginAddOptions,
+  ): DesktopPluginDispose;
   add<Surface extends string>(
     surface: Surface,
     component: DesktopPluginSurfaceComponent<Surface>,
@@ -607,10 +661,18 @@ export interface DesktopPluginLocalProject {
   readonly active: boolean;
 }
 
+export interface DesktopPluginConnectedProject {
+  readonly id: string;
+  readonly workspacePath: string;
+}
+
 export interface DesktopPluginWorkspaceReader {
   listLocalProjects(): Promise<readonly DesktopPluginLocalProject[]>;
   /** Reads an image attachment from its owning local or remote workspace as a data URL. Other paths are rejected. */
   readImageAttachment(path: string): Promise<string>;
+  onProjectConnected(
+    listener: (project: DesktopPluginConnectedProject) => void,
+  ): DesktopPluginDispose;
 }
 
 export interface DesktopPluginOratorioContext {
@@ -824,6 +886,7 @@ export interface DesktopPluginSpaceContribution {
   readonly views: readonly string[];
   readonly sidebar: ComponentType<DesktopPluginSpaceSidebarProps>;
   readonly guide?: DesktopPluginSpaceGuide;
+  readonly contextMenu?: (host: DesktopPluginHost) => readonly MenuEntry[];
   /** Called when the entry is selected and no location in the space was open before. */
   open(host: DesktopPluginHost): void | Promise<void>;
 }

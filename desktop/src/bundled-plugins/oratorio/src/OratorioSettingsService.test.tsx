@@ -4,8 +4,8 @@ import {
   loadOratorioSettings,
   saveOratorioSettings,
   saveOratorioSyncSchedule
-} from '../../bundled-plugins/oratorio/src/settings/oratorio-settings-service'
-import { installDesktopApiMock } from './desktopApiMock'
+} from './settings/oratorio-settings-service'
+import { installDesktopApiMock } from '../../../renderer/tests/desktopApiMock'
 import { installOratorioTestHost } from './oratorioPluginTestHost'
 
 describe('Oratorio settings service', () => {

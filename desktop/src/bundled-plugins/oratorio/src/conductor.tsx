@@ -11,12 +11,17 @@ import type {
 } from '@dotcraft/plugin'
 import { OratorioBatonIcon } from './OratorioBatonIcon'
 import { CONDUCTOR_OUTFIT } from './conductorOutfit'
+import {
+  buildConductorMenuEntries,
+  useConductorThread,
+  type ConductorLifecycleHooks
+} from './conductor-lifecycle'
+import { CONDUCTOR_KEY } from './conductor-proactive'
 import conductorInstructions from './prompts/conductor.md?raw'
 import { BoardIcon, ConductorIcon } from './OratorioSpaceIcons'
 import { oratorioLocalizedText, useOratorioI18n } from './oratorio-i18n'
 import './oratorio.css'
 
-const CONDUCTOR_KEY = 'conductor'
 const SPACE_ID = 'conductor'
 const CONDUCTOR_TITLE = 'Oratorio'
 
@@ -39,14 +44,21 @@ export async function openConductor(host: DesktopPluginHost): Promise<void> {
   await host.navigation.openThread(conductor.threadId, conductor.workspacePath)
 }
 
-export function conductorSpace(label: DesktopLocalizedText): DesktopPluginSpaceContribution {
+export function conductorSpace(
+  label: DesktopLocalizedText,
+  hooks?: ConductorLifecycleHooks
+): DesktopPluginSpaceContribution {
+  const Sidebar = (props: DesktopPluginSpaceSidebarProps): JSX.Element => (
+    <ConductorSpaceSidebar {...props} hooks={hooks} />
+  )
   return {
     id: SPACE_ID,
     label,
     icon: OratorioBatonIcon,
     order: 10,
     views: ['board'],
-    sidebar: ConductorSpaceSidebar,
+    sidebar: Sidebar,
+    contextMenu: (host) => buildConductorMenuEntries(host, hooks),
     guide: {
       title: oratorioLocalizedText('guideTitle'),
       body: oratorioLocalizedText('introDescription'),
@@ -131,9 +143,14 @@ function FollowedChatStatus({ state, waitingLabel }: { state: DesktopPluginLinke
   return null
 }
 
-function ConductorSpaceSidebar({ host, location }: DesktopPluginSpaceSidebarProps): JSX.Element {
+function ConductorSpaceSidebar({
+  host,
+  location,
+  hooks
+}: DesktopPluginSpaceSidebarProps & { hooks?: ConductorLifecycleHooks }): JSX.Element {
   const { t } = useOratorioI18n()
-  const conductorThreadId = findConductor(host)?.threadId
+  const conductor = useConductorThread(host)
+  const conductorThreadId = conductor?.threadId
   const linkedChats = useConductorLinkedChats(host, conductorThreadId)
   return (
     <>
@@ -142,6 +159,7 @@ function ConductorSpaceSidebar({ host, location }: DesktopPluginSpaceSidebarProp
         label={t('conductor')}
         active={location.kind === 'thread'}
         threadId={conductorThreadId}
+        contextMenu={conductor ? buildConductorMenuEntries(host, hooks) : undefined}
         onClick={() => void openConductor(host)}
       />
       <SidebarRow

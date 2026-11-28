@@ -50,11 +50,11 @@ export function ThreadStatusIndicator({
 
   if (ownedThread?.paused) {
     return (
-      <ActionTooltip label={t('conductor.paused')}>
+      <ActionTooltip label={t('threadEntry.paused')}>
         <span
           className="dc-status-indicator"
           role="img"
-          aria-label={t('conductor.paused')}
+          aria-label={t('threadEntry.paused')}
           data-testid={`thread-paused-${threadId}`}
         >
           <Pause size={13} strokeWidth={2} className="dc-status-indicator__icon" aria-hidden />

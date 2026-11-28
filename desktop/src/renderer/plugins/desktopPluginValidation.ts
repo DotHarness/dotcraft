@@ -171,6 +171,9 @@ function validateSpaces(value: unknown, ids: Set<string>, mainViewIds: ReadonlyS
         validateLocalizedText(guide[field], `space '${candidate.id}' guide ${field}`)
       }
     }
+    if (candidate.contextMenu != null && typeof candidate.contextMenu !== 'function') {
+      throw new Error(`Desktop extension space '${candidate.id}' contextMenu must be a function.`)
+    }
     return candidate as unknown as DesktopPluginSpaceContribution
   })
 }

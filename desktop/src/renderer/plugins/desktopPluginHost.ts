@@ -55,7 +55,8 @@ import {
   buildDesktopPluginContributionKey,
   buildDesktopPluginMainViewKey,
   buildDesktopPluginSettingsKey,
-  registerDesktopPluginSurface
+  registerDesktopPluginSurface,
+  registerDesktopPluginThreadMenuItems
 } from './desktopPluginRegistry'
 import {
   onDesktopPluginSessionChange,
@@ -334,6 +335,9 @@ export function createDesktopPluginHost(
         if (!scope.active) return
         useFeatureGuideStore.getState().requestSpaceGuide(buildDesktopPluginContributionKey(pluginId, spaceId), host)
       },
+      addThreadMenuItems(resolver, options) {
+        return own(cleanups, registerDesktopPluginThreadMenuItems(pluginId, resolver, options))
+      },
       add(surface, component, options) {
         return own(cleanups, registerDesktopPluginSurface(
           pluginId,
@@ -443,6 +447,9 @@ export function createDesktopPluginHost(
       },
       async readImageAttachment(path) {
         return loadLocalImageDataUrl(path, useThreadStore.getState().activeThreadId ?? undefined)
+      },
+      onProjectConnected(listener) {
+        return own(cleanups, window.api.threadTasks.onProjectConnected(listener))
       }
     },
     satellites: createDesktopPluginSatellites(scope),

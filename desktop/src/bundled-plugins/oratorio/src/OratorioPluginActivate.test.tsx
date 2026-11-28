@@ -1,10 +1,10 @@
-import './setupPluginRuntime'
+import '../../../renderer/tests/setupPluginRuntime'
 import { describe, expect, it, vi } from 'vitest'
 
-import { requestConductorGuide } from '../../bundled-plugins/oratorio/src/conductor'
-import { activate } from '../../bundled-plugins/oratorio/src/index'
-import { validateActivation } from '../plugins/desktopPluginValidation'
-import { installDesktopApiMock } from './desktopApiMock'
+import { requestConductorGuide } from './conductor'
+import { activate } from './index'
+import { validateActivation } from '../../../renderer/plugins/desktopPluginValidation'
+import { installDesktopApiMock } from '../../../renderer/tests/desktopApiMock'
 import { installOratorioTestHost } from './oratorioPluginTestHost'
 
 describe('Oratorio plugin activation', () => {

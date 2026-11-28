@@ -396,6 +396,7 @@ export interface SidebarRowProps {
   readonly label: string;
   readonly active?: boolean;
   readonly threadId?: string;
+  readonly contextMenu?: readonly MenuEntry[];
   readonly onClick: () => void;
 }
 

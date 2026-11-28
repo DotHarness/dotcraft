@@ -192,10 +192,28 @@ const rows = {
   resultFindings: ['Review suggestions to look at', '有评审建议待查看', '確認が必要なレビューの提案', '확인할 검토 제안', 'Sugerencias de revisión por revisar', 'Suggestions d’examen à consulter', 'Prüfvorschläge ansehen'],
   resultChangesReady: ['Changes ready to look at', '改动待查看', '確認待ちの変更', '확인할 변경 사항', 'Cambios listos para revisar', 'Modifications prêtes à consulter', 'Änderungen bereit zur Ansicht'],
   resultFollowUps: ['Follow-ups waiting for you', '有后续任务待处理', '対応待ちのフォローアップ', '처리할 후속 작업', 'Seguimientos pendientes', 'Suivis en attente', 'Folgeaufgaben warten auf dich'],
+  conductorPause: ['Pause', '暂停', '一時停止', '일시정지', 'Pausar', 'Mettre en pause', 'Pausieren'],
+  conductorResume: ['Resume', '恢复', '再開', '재개', 'Reanudar', 'Reprendre', 'Fortsetzen'],
+  conductorPaused: ['Paused', '已暂停', '一時停止', '일시정지됨', 'En pausa', 'En pause', 'Pausiert'],
+  conductorArchive: ['Archive', '归档', 'アーカイブ', '보관', 'Archivar', 'Archiver', 'Archivieren'],
+  conductorArchiveConfirmTitle: ['Archive conductor?', '归档指挥家对话？', '指揮者をアーカイブしますか？', '지휘자 대화를 보관할까요?', '¿Archivar la conversación del director?', 'Archiver le chef d’orchestre ?', 'Dirigent archivieren?'],
+  conductorArchiveConfirmMessage: ['This archives the conductor conversation and clears its tracked chat list. Chats it started stay intact, and opening Oratorio again starts a fresh conductor.', '这将归档当前指挥家对话并清空其跟进列表。它启动的子对话会保留，下次打开 Oratorio 时会以新的指挥家对话开始。', '指揮者の会話をアーカイブし、追跡中のチャット一覧をクリアします。指揮者が開始したチャットはそのまま残り、次に Oratorio を開くと新しい指揮者が始まります。', '지휘자 대화를 보관하고 추적 중인 채팅 목록을 비웁니다. 지휘자가 시작한 채팅은 그대로 유지되며 다음에 Oratorio를 열면 새 지휘자가 시작됩니다.', 'Se archivará la conversación del director y se vaciará su lista de chats seguidos. Los chats que inició se conservarán y al abrir Oratorio de nuevo empezará un director nuevo.', 'La conversation du chef d’orchestre sera archivée et sa liste de discussions suivies sera effacée. Les discussions lancées restent intactes et la prochaine ouverture d’Oratorio en démarrera une nouvelle.', 'Dadurch wird die Dirigent-Unterhaltung archiviert und ihre verfolgte Chatliste geleert. Gestartete Chats bleiben erhalten und beim nächsten Öffnen von Oratorio startet ein neuer Dirigent.'],
+  conductorArchiveConfirmAction: ['Archive', '归档', 'アーカイブ', '보관', 'Archivar', 'Archiver', 'Archivieren'],
+  conductorActionFailed: ['Could not update conductor: {error}', '无法更新指挥家状态：{error}', '指揮者を更新できませんでした: {error}', '지휘자 상태를 업데이트하지 못했습니다: {error}', 'No se pudo actualizar el director: {error}', 'Impossible de mettre à jour le chef d’orchestre : {error}', 'Dirigent konnte nicht aktualisiert werden: {error}'],
 } as const satisfies Record<string, Row>
 
 export type OratorioMessageKey = keyof typeof rows
 export type OratorioTranslate = (key: OratorioMessageKey, values?: Record<string, string | number>) => string
+
+export function translateOratorio(
+  locale: string,
+  key: OratorioMessageKey,
+  values?: Record<string, string | number>
+): string {
+  const index = Math.max(0, locales.indexOf(locale as Locale))
+  const text: string = rows[key][index]
+  return values ? text.replace(/\{(\w+)\}/g, (match, name: string) => name in values ? String(values[name]) : match) : text
+}
 
 export function oratorioLocalizedText(key: OratorioMessageKey): DesktopLocalizedText {
   const row: Row = rows[key]

@@ -5004,12 +5004,5 @@ export const MESSAGES_JA = {
   "devServers.failure.exited": "開発サーバーが終了しました。",
   "devServers.startFailed": "開発サーバーを起動できませんでした。",
   "devServers.stopFailed": "開発サーバーを停止できませんでした。",
-  "conductor.pause": "一時停止",
-  "conductor.resume": "再開",
-  "conductor.paused": "一時停止中",
-  "conductor.archive": "アーカイブ",
-  "conductor.archiveConfirm.title": "指揮者をアーカイブしますか？",
-  "conductor.archiveConfirm.message": "指揮者の会話をアーカイブし、追跡リストをクリアします。開始したチャットは保持されます。次回開くと新しい指揮者が始まります。",
-  "conductor.archiveConfirm.confirm": "アーカイブ",
-  "conductor.lifecycle.actionFailed": "指揮者の操作に失敗しました: {{error}}",
+  "threadEntry.paused": "一時停止中",
 } satisfies Partial<Record<MessageId, string>>

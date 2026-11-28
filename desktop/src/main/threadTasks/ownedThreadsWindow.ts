@@ -4,12 +4,7 @@ import { threadTaskConnection } from '../desktopRuntimeThreadTools'
 import type { OwnedThreadRecord, OwnedThreadRequest } from '../../shared/ownedThreads'
 import type { DesktopWindowRuntime } from '../windows/windowRuntime'
 import { openThreadProject } from '../windows/windowThreadProjects'
-import {
-  CONDUCTOR_KEY,
-  CONDUCTOR_PLUGIN_ID,
-  resetConductorProactiveState,
-  runConductorProactiveCheckIn
-} from './conductorProactive'
+import { clearOwnedThreadCheckInState } from './ownedThreadCheckIn'
 import type { DesktopOwnedThreads } from './ownedThreads'
 
 export async function ensureOwnedThread(
@@ -38,9 +33,6 @@ export function setOwnedThreadPaused(
   if (!updated) return null
   if (previous?.paused === true && !paused) {
     ctx.app.tasks.linkedChats?.flushParent(threadId)
-    if (updated.pluginId === CONDUCTOR_PLUGIN_ID && updated.key === CONDUCTOR_KEY) {
-      void runConductorProactiveCheckIn(ctx, 'resume').catch(() => {})
-    }
   }
   return updated
 }
@@ -56,8 +48,6 @@ export async function archiveOwnedThread(
   await entry.client.sendRequest('thread/archive', { threadId })
   ownedThreads.removeByThreadId(threadId)
   ctx.app.tasks.linkedChats?.removeForParent(threadId)
-  if (record.pluginId === CONDUCTOR_PLUGIN_ID && record.key === CONDUCTOR_KEY) {
-    resetConductorProactiveState(ctx)
-  }
+  clearOwnedThreadCheckInState(ctx, threadId)
   return true
 }

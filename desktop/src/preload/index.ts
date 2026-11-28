@@ -1,6 +1,16 @@
 import type { TextContextMenuRequest } from '../shared/textContextMenu'
 import type { LinkedChatSummary } from '../shared/linkedChats'
-import { LINKED_CHATS_CHANGED_CHANNEL, OWNED_THREADS_CHANGED_CHANNEL, type OwnedThreadRecord, type OwnedThreadRequest } from '../shared/ownedThreads'
+import {
+  LINKED_CHATS_CHANGED_CHANNEL,
+  OWNED_THREADS_CHANGED_CHANNEL,
+  PROJECT_CONNECTED_CHANNEL,
+  type BackgroundCheckInRequest,
+  type BackgroundCheckInResult,
+  type ConnectedProjectEvent,
+  type OwnedThreadRecord,
+  type OwnedThreadRequest,
+  type RunningThreadsSnapshot
+} from '../shared/ownedThreads'
 import { viewerPanelState } from './viewerPanelState'
 import { serverRequestEvents } from './serverRequestEvents'
 import { viewerBrowserLifecycle } from './viewerBrowserLifecycle'
@@ -1442,8 +1452,16 @@ const api = {
     archiveOwned(threadId: string): Promise<boolean> {
       return ipcRenderer.invoke('threadTasks:owned-archive', threadId)
     },
-    conductorEntered(): Promise<boolean> {
-      return ipcRenderer.invoke('threadTasks:conductor-entered')
+    listRunningThreads(options?: { excludeThreadId?: string; finishedSinceMs?: number }): Promise<RunningThreadsSnapshot> {
+      return ipcRenderer.invoke('threadTasks:running-threads', options ?? {})
+    },
+    startOwnedCheckIn(request: BackgroundCheckInRequest): Promise<BackgroundCheckInResult> {
+      return ipcRenderer.invoke('threadTasks:owned-check-in', request)
+    },
+    onProjectConnected(listener: (project: ConnectedProjectEvent) => void): UnsubscribeFn {
+      const wrapped = (_event: Electron.IpcRendererEvent, project: ConnectedProjectEvent): void => listener(project)
+      ipcRenderer.on(PROJECT_CONNECTED_CHANNEL, wrapped)
+      return () => ipcRenderer.removeListener(PROJECT_CONNECTED_CHANNEL, wrapped)
     },
     onOwnedChanged(listener: (records: OwnedThreadRecord[]) => void): UnsubscribeFn {
       const wrapped = (_event: Electron.IpcRendererEvent, records: OwnedThreadRecord[]): void => listener(records)
