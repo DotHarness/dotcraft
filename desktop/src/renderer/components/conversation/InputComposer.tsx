@@ -72,6 +72,7 @@ import { ComposerCommandTrigger } from './ComposerCommandTrigger'
 import { ContextUsageRing } from './ContextUsageRing'
 import { ApprovalPolicyPicker } from './ApprovalPolicyPicker'
 import { QueuedInputDock } from './QueuedInputDock'
+import { SideChatFeatureGuide } from '../featureGuides/SideChatFeatureGuide'
 import { useQueuedInputEditing } from './useQueuedInputEditing'
 import { usePausedQueueActions } from './usePausedQueueActions'
 import {
@@ -1630,6 +1631,7 @@ function InputComposerCore({
         dragOver={dragOver}
         dropLabel={t(dragOverThread ? 'composer.dropThread' : 'composer.dropImage')}
         topAccessory={(
+          <div style={queuedDockAnchorStyle}>
           <QueuedInputDock
             queuedInputs={visibleQueuedInputs}
             onQueueSteer={(id: string) => { void steerQueuedInput(id) }}
@@ -1642,6 +1644,11 @@ function InputComposerCore({
             paused={queuePaused}
             editingQueuedInputId={queuedEditing.editingQueuedInputId}
           />
+          <SideChatFeatureGuide
+            queuedInputs={visibleQueuedInputs}
+            onSendInSideChat={canOpenSideChat && !queuePaused ? (id: string) => { void sendQueuedInputInSideChat(id) } : undefined}
+          />
+          </div>
         )}
         topAccessoryVisible={hasBackgroundActivityDock}
         onDragOver={onDragOver}
@@ -1954,6 +1961,8 @@ function InputComposerCore({
     </>
   )
 }
+
+const queuedDockAnchorStyle: CSSProperties = { position: 'relative' }
 
 const composerDockStyle: CSSProperties = {
   flexShrink: 0,

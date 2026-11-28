@@ -1,4 +1,4 @@
-const CORE_FEATURE_GUIDE_IDS = ['creator', 'subagentModels', 'findOutWhy', 'worktrees'] as const
+const CORE_FEATURE_GUIDE_IDS = ['creator', 'subagentModels', 'findOutWhy', 'worktrees', 'environments', 'sideChat'] as const
 
 export type CoreFeatureGuideId = (typeof CORE_FEATURE_GUIDE_IDS)[number]
 
@@ -10,7 +10,9 @@ const CORE_FEATURE_GUIDE_MOMENTS: Record<CoreFeatureGuideId, FeatureGuideMoment>
   creator: 'entry',
   subagentModels: 'readiness',
   findOutWhy: 'friction',
-  worktrees: 'readiness'
+  worktrees: 'readiness',
+  environments: 'readiness',
+  sideChat: 'friction'
 }
 
 export function spaceFeatureGuideId(spaceKey: string): FeatureGuideId {

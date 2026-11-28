@@ -3,6 +3,7 @@ import { ChevronDown, CircleOff, Layers, Plus, Settings2 } from 'lucide-react'
 import { useT } from '../../contexts/LocaleContext'
 import { useUIStore } from '../../stores/uiStore'
 import { useWorktreeEnvironments } from '../projectActions/worktreeEnvironments'
+import { EnvironmentsFeatureGuide } from '../featureGuides/EnvironmentsFeatureGuide'
 import { FooterMenuButton, FooterMenuDivider, WorkspaceFooterPill, menuStyle } from './composerFooterPrimitives'
 import { ComposerOverlapBand, useComposerOverlapBandHeight } from './useComposerOverlapBand'
 import css from './ComposerWorkspaceFooter.module.css'
@@ -56,6 +57,12 @@ export function WorktreeEnvironmentPicker({
         <span className={css.compactLabel} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
         <ChevronDown size={14} strokeWidth={1.8} aria-hidden />
       </WorkspaceFooterPill>
+      <EnvironmentsFeatureGuide
+        workspacePath={workspacePath}
+        available={result != null && !result.unavailable && !busy && !menuOpen}
+        environmentCount={environments.length}
+        onSetUp={openSettings}
+      />
       {menuOpen && (
         <div ref={menuRef} style={menuStyle}>
           <ComposerOverlapBand height={bandHeight} radius={10} />

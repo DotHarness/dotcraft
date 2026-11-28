@@ -9,6 +9,7 @@ import { useThreadStore } from '../stores/threadStore'
 import { addToast } from '../stores/toastStore'
 import { useUIStore } from '../stores/uiStore'
 import { useDetailPanelStore } from '../stores/detailPanelStore'
+import { useFeatureGuideStore } from '../stores/featureGuideStore'
 import { isSubAgentThread } from './subAgentThreads'
 
 type Translate = (key: string, vars?: Record<string, string | number>) => string
@@ -29,10 +30,12 @@ export async function openSideChat(
   options: { prompt?: SideChatPrompt; contexts?: ComposerContextRecord[] } = {}
 ): Promise<string | null> {
   try {
-    return await useSideChatStore.getState().open(parentThreadId, {
+    const key = await useSideChatStore.getState().open(parentThreadId, {
       ...options,
       label: (ordinal) => ordinal === 1 ? t('sideChat.tabTitle') : t('sideChat.tabTitleNumbered', { number: ordinal })
     })
+    if (key) useFeatureGuideStore.getState().settle('sideChat')
+    return key
   } catch (error) {
     addToast(t('sideChat.openFailed', { error: error instanceof Error ? error.message : String(error) }), 'error')
     return null
