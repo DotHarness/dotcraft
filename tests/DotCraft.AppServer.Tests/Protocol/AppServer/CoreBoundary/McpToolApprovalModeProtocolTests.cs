@@ -85,6 +85,35 @@ public sealed class McpToolApprovalModeProtocolTests : IDisposable
         AssertSavedToolSettings(McpToolApprovalMode.Auto, null, null, null);
     }
 
+    [Fact]
+    public async Task ListedServer_KeepsEnvironmentReferences_ThroughASaveRoundTrip()
+    {
+        var variable = $"DOTCRAFT_TEST_TOKEN_{Guid.NewGuid():N}";
+        Environment.SetEnvironmentVariable(variable, "resolved-secret");
+        try
+        {
+            File.WriteAllText(Path.Combine(_craft, "config.json"), $$"""
+                { "McpServers": { "inventory": { "Enabled": false, "Command": "inventory-mcp-server", "EnvironmentVariables": { "TOKEN": "${{{variable}}}" } } } }
+                """);
+            await using var manager = new McpClientManager();
+            using var harness = new AppServerTestHarness(mcpClientManager: manager, workspaceCraftPath: _craft);
+            await harness.InitializeAsync();
+            using (await UpsertAsync(harness, new { name = "other", enabled = false, command = "other-mcp-server" })) { }
+
+            var listed = (await ListAsync(harness)).Single(server => server.GetProperty("name").GetString() == "inventory");
+            Assert.Equal($"${{{variable}}}", listed.GetProperty("env").GetProperty("TOKEN").GetString());
+
+            using (await UpsertAsync(harness, listed)) { }
+
+            var saved = McpScopeStore.Read(Path.Combine(_craft, "config.json"), "workspace").Single(server => server.Name == "inventory");
+            Assert.Equal($"${{{variable}}}", saved.EnvironmentVariables["TOKEN"]);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(variable, null);
+        }
+    }
+
     public void Dispose()
     {
         try { Directory.Delete(Path.GetDirectoryName(_craft)!, recursive: true); }
@@ -113,11 +142,25 @@ public sealed class McpToolApprovalModeProtocolTests : IDisposable
     private static string? ResultMode(JsonDocument response) =>
         response.RootElement.GetProperty("result").GetProperty("server").GetProperty("toolApprovalMode").GetString();
 
+    private static async Task<JsonElement[]> ListAsync(AppServerTestHarness harness)
+    {
+        await harness.ExecuteRequestAsync(harness.BuildRequest(
+            DotCraft.Protocol.AppServer.AppServerMethodNames.McpList, JsonSerializer.SerializeToElement(new { })));
+        using var response = await ReadResponseAsync(harness);
+        return response.RootElement.GetProperty("result").GetProperty("servers").EnumerateArray()
+            .Select(server => server.Clone()).ToArray();
+    }
+
     private static async Task<JsonDocument> UpsertAsync(AppServerTestHarness harness, object server)
     {
         await harness.ExecuteRequestAsync(harness.BuildRequest(
             DotCraft.Protocol.AppServer.AppServerMethodNames.McpUpsert,
             JsonSerializer.SerializeToElement(new { scope = "workspace", server })));
+        return await ReadResponseAsync(harness);
+    }
+
+    private static async Task<JsonDocument> ReadResponseAsync(AppServerTestHarness harness)
+    {
         while (true)
         {
             var message = await harness.Transport.ReadNextSentAsync();

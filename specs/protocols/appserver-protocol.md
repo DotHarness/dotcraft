@@ -1849,7 +1849,8 @@ Validation:
 - Callback URLs are HTTP loopback URLs without credentials, query, or fragment. An explicit URL port and `callbackPort` must agree; a configured port must be available and is never substituted. Without one, login uses an ephemeral port.
 - Read projections mask a literal `clientSecret` and expose `hasClientSecret`. On `mcp/upsert`, omitted `oauth` keeps the existing configuration and `null` removes it; within an OAuth object, an omitted secret or the read mask keeps the stored secret (the mask is never stored), while `null` or empty removes it. Switching to stdio removes OAuth.
 - `toolApprovalMode` and each `tools` entry's `approvalMode` accept only `auto`, `writes`, `approve`, or `prompt`; reads always report `toolApprovalMode` and report `tools`, `enabledTools`, and `disabledTools` when set. On `mcp/upsert`, an omitted `toolApprovalMode`, `tools`, `enabledTools`, or `disabledTools` keeps the existing server's value, so a client that does not edit them never resets them, and `null` clears the field. A new server defaults to `auto` with no per-tool modes or filters. `enabledTools: []` is kept as an empty list that contributes no tools.
-- Workspace-origin servers are editable. Plugin-origin servers are read-only runtime entries derived from plugin `.mcp.json`. Runtime status additionally reports thread origins.
+- Workspace-origin servers are editable. Plugin-origin servers are read-only runtime entries derived from plugin `.mcp.json`.
+- `mcp/list`, `mcp/get`, and the `mcp/upsert` result return an editable server's stored declaration, with environment references unexpanded, so a client that saves what it read keeps them. The runtime connects with expanded values. Runtime status additionally reports thread origins.
 
 ### 22.3 `mcp/list`
 
