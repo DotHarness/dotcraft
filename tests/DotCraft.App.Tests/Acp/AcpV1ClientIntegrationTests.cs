@@ -8,6 +8,7 @@ using DotCraft.Modules;
 using DotCraft.Sessions;
 using DotCraft.Tests.Sessions.Protocol.AppServer;
 using DotCraft.Tracing;
+using DotHarness.Acp.Rpc;
 using DotHarness.Acp.V1;
 using Xunit;
 using AcpClientCapabilities = DotHarness.Acp.V1.ClientCapabilities;
@@ -121,6 +122,9 @@ public sealed class AcpV1ClientIntegrationTests
                 Assert.True(wrote);
                 Assert.Equal($"{sessionId}:/workspace/Out.cs:hello", fakeClientHandler.LastWrite);
 
+                var rejectedWrite = await wireAcp.WriteTextFileAsync("/workspace/Denied.cs", "blocked", cts.Token);
+                Assert.False(rejectedWrite);
+
                 var termId = await wireAcp.CreateTerminalAsync(
                     "dotnet",
                     args: ["--version"],
@@ -134,11 +138,20 @@ public sealed class AcpV1ClientIntegrationTests
                 Assert.NotNull(output);
                 Assert.Equal("10.0.100", output!.Output);
                 Assert.False(output.Truncated);
-                Assert.Equal(0, output.ExitCode);
+                Assert.Equal(0u, output.ExitCode);
 
                 var exit = await wireAcp.WaitForTerminalExitAsync("term-1", cts.Token);
                 Assert.NotNull(exit);
-                Assert.Equal(0, exit!.ExitCode);
+                Assert.Equal(0u, exit!.ExitCode);
+
+                const uint ntStatusAccessViolation = 0xC0000005u;
+                var crashOutput = await wireAcp.GetTerminalOutputAsync("term-crash", cts.Token);
+                Assert.NotNull(crashOutput);
+                Assert.Equal(ntStatusAccessViolation, crashOutput!.ExitCode);
+
+                var crashExit = await wireAcp.WaitForTerminalExitAsync("term-crash", cts.Token);
+                Assert.NotNull(crashExit);
+                Assert.Equal(ntStatusAccessViolation, crashExit!.ExitCode);
 
                 await wireAcp.KillTerminalAsync("term-1", cts.Token);
                 await wireAcp.ReleaseTerminalAsync("term-1", cts.Token);
@@ -194,6 +207,9 @@ public sealed class AcpV1ClientIntegrationTests
 
         public ValueTask<WriteTextFileResponse> FsWriteTextFileAsync(WriteTextFileRequest parameters, CancellationToken ct)
         {
+            if (parameters.Path.EndsWith("Denied.cs", StringComparison.Ordinal))
+                throw new AcpRpcException(-32000, "Permission denied");
+
             LastWrite = $"{parameters.SessionId.Value}:{parameters.Path}:{parameters.Content}";
             return ValueTask.FromResult(new WriteTextFileResponse());
         }
@@ -211,13 +227,19 @@ public sealed class AcpV1ClientIntegrationTests
         public ValueTask<TerminalOutputResponse> TerminalOutputAsync(TerminalOutputRequest parameters, CancellationToken ct) =>
             ValueTask.FromResult(new TerminalOutputResponse
             {
-                Output = "10.0.100",
+                Output = parameters.TerminalId.Value == "term-crash" ? "" : "10.0.100",
                 Truncated = false,
-                ExitStatus = new TerminalExitStatus { ExitCode = 0u }
+                ExitStatus = new TerminalExitStatus
+                {
+                    ExitCode = parameters.TerminalId.Value == "term-crash" ? 0xC0000005u : 0u
+                }
             });
 
         public ValueTask<WaitForTerminalExitResponse> TerminalWaitForExitAsync(WaitForTerminalExitRequest parameters, CancellationToken ct) =>
-            ValueTask.FromResult(new WaitForTerminalExitResponse { ExitCode = 0u });
+            ValueTask.FromResult(new WaitForTerminalExitResponse
+            {
+                ExitCode = parameters.TerminalId.Value == "term-crash" ? 0xC0000005u : 0u
+            });
 
         public ValueTask<KillTerminalResponse> TerminalKillAsync(KillTerminalRequest parameters, CancellationToken ct)
         {

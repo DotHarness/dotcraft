@@ -17,6 +17,9 @@ public sealed class AcpHost(
     AppConfig config,
     DotCraftPaths paths) : IDotCraftHost
 {
+    // Accommodate base64-encoded images up to SessionInputPartResolver.MaxInlineImageBytes (64 MiB).
+    private const int MaxStdioMessageBytes = 96 * 1024 * 1024;
+
     private AppServerProcess? _appServerProcess;
     private WebSocketClientConnection? _wsConnection;
 
@@ -28,7 +31,11 @@ public sealed class AcpHost(
 
         using var acpLogger = AcpLogger.Create(paths.Data.RootPath, config.DebugMode);
         await using var transport = new AcpLoggingTransport(
-            AcpStdioTransport.OpenStandardStreams(),
+            new AcpStdioTransport(
+                Console.OpenStandardInput(),
+                Console.OpenStandardOutput(),
+                leaveOpen: true,
+                maxMessageBytes: MaxStdioMessageBytes),
             acpLogger,
             TimeSpan.FromSeconds(acpConfig.WriteTimeoutSeconds));
 

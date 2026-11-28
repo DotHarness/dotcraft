@@ -205,7 +205,7 @@ public sealed partial class AcpBridgeHandler
         CancellationToken ct)
     {
         if (string.IsNullOrEmpty(acpMethod))
-            return new { error = "bad ext method" };
+            throw new AppServerException(AppServerErrors.InvalidParamsCode, "Invalid ACP extension method.");
 
         try
         {
@@ -275,7 +275,7 @@ public sealed partial class AcpBridgeHandler
                     var exitStatus = response.ExitStatus is { HasValue: true, Value: { } status }
                         ? new Contract.AcpTerminalExitStatus
                         {
-                            ExitCode = status.ExitCode is { HasValue: true, Value: { } code } ? checked((int)code) : null,
+                            ExitCode = status.ExitCode is { HasValue: true } ? status.ExitCode.Value : null,
                             Signal = status.Signal is { HasValue: true } ? status.Signal.Value : null
                         }
                         : null;
@@ -296,7 +296,7 @@ public sealed partial class AcpBridgeHandler
                     }, callCt).ConfigureAwait(false);
                     return new Contract.AcpTerminalWaitForExitResult
                     {
-                        ExitCode = response.ExitCode is { HasValue: true, Value: { } code } ? checked((int)code) : null,
+                        ExitCode = response.ExitCode is { HasValue: true } ? response.ExitCode.Value : null,
                         Signal = response.Signal is { HasValue: true } ? response.Signal.Value : null
                     };
                 }
@@ -331,9 +331,13 @@ public sealed partial class AcpBridgeHandler
                 }
             }
         }
-        catch
+        catch (AcpRpcException ex)
         {
-            return new { error = "ext forward failed" };
+            throw new AppServerException(ex.Code, ex.Message, ex.ErrorData);
+        }
+        catch (Exception ex) when (ex is not AppServerException)
+        {
+            throw new AppServerException(AppServerErrors.InternalErrorCode, ex.Message);
         }
     }
 

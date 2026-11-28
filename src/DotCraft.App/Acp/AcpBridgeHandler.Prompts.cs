@@ -57,7 +57,7 @@ public sealed partial class AcpBridgeHandler
                 ct: promptCts.Token).ConfigureAwait(false);
             ThrowIfWireError(resumeDoc, "thread/resume");
 
-            using var startDoc = await wire.SendRequestAsync(
+            var startTurnTask = wire.SendRequestAsync(
                 Contract.AppServerMethodNames.TurnStart,
                 new
                 {
@@ -65,12 +65,29 @@ public sealed partial class AcpBridgeHandler
                     input = inputParts
                 },
                 timeout: TimeSpan.FromSeconds(120),
-                ct: promptCts.Token).ConfigureAwait(false);
+                ct: _bridgeLifetime);
 
-            ThrowIfWireError(startDoc, "turn/start");
-            var turnId = startDoc.RootElement.GetProperty("result").GetProperty("turn").GetProperty("id").GetString()
-                ?? throw new AcpRpcException(-32603, "turn/start returned no turn id");
-            _activeTurnIds[sessionId] = turnId;
+            JsonDocument startDoc;
+            try
+            {
+                startDoc = await startTurnTask.WaitAsync(promptCts.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (sessionCancelCts.IsCancellationRequested || ct.IsCancellationRequested)
+            {
+                await InterruptPendingTurnStartAsync(sessionId, startTurnTask).ConfigureAwait(false);
+                throw;
+            }
+
+            string turnId;
+            using (startDoc)
+            {
+                ThrowIfWireError(startDoc, "turn/start");
+                turnId = startDoc.RootElement.GetProperty("result").GetProperty("turn").GetProperty("id").GetString()
+                    ?? throw new AcpRpcException(-32603, "turn/start returned no turn id");
+                _activeTurnIds[sessionId] = turnId;
+            }
+
+            promptCts.Token.ThrowIfCancellationRequested();
 
             var turnFailed = false;
             string? turnFailMessage = null;
@@ -129,6 +146,7 @@ public sealed partial class AcpBridgeHandler
         }
         catch (OperationCanceledException) when (sessionCancelCts.IsCancellationRequested)
         {
+            await TryInterruptActiveTurnAsync(sessionId).ConfigureAwait(false);
             logger?.LogEvent($"Prompt cancelled [session={sessionId}]");
             return new PromptResponse { StopReason = StopReason.Cancelled };
         }
@@ -176,11 +194,42 @@ public sealed partial class AcpBridgeHandler
         AnsiConsole.MarkupLine($"[yellow][[ACP]][/] Cancelled session: {Markup.Escape(sessionId)}");
     }
 
+    private async Task InterruptPendingTurnStartAsync(string sessionId, Task<JsonDocument> startTurnTask)
+    {
+        try
+        {
+            using var interruptCts = CancellationTokenSource.CreateLinkedTokenSource(_bridgeLifetime);
+            interruptCts.CancelAfter(TimeSpan.FromSeconds(10));
+            using var startDoc = await startTurnTask.WaitAsync(interruptCts.Token).ConfigureAwait(false);
+            if (!startDoc.RootElement.TryGetProperty("result", out var result)
+                || !result.TryGetProperty("turn", out var turn)
+                || !turn.TryGetProperty("id", out var idEl)
+                || idEl.ValueKind != JsonValueKind.String)
+            {
+                return;
+            }
+
+            var turnId = idEl.GetString();
+            if (!string.IsNullOrEmpty(turnId))
+                await InterruptTurnAsync(sessionId, turnId, interruptCts.Token).ConfigureAwait(false);
+        }
+        catch
+        {
+        }
+    }
+
     private async Task TryInterruptActiveTurnAsync(string sessionId, CancellationToken ct = default)
     {
-        if (!_activeTurnIds.TryGetValue(sessionId, out var turnId) || string.IsNullOrEmpty(turnId))
+        if (!_activeTurnIds.TryRemove(sessionId, out var turnId) || string.IsNullOrEmpty(turnId))
             return;
 
+        using var interruptCts = CancellationTokenSource.CreateLinkedTokenSource(ct, _bridgeLifetime);
+        interruptCts.CancelAfter(TimeSpan.FromSeconds(10));
+        await InterruptTurnAsync(sessionId, turnId, interruptCts.Token).ConfigureAwait(false);
+    }
+
+    private async Task InterruptTurnAsync(string sessionId, string turnId, CancellationToken ct)
+    {
         try
         {
             using var _ = await wire.SendRequestAsync(
@@ -228,6 +277,26 @@ public sealed partial class AcpBridgeHandler
                     parts.Add(new SessionInputPart { Type = "text", Text = t });
                     break;
                 }
+                case ContentBlock.Case5 resource when resource.Value.Resource is EmbeddedResourceResource.Case2 blobRes:
+                {
+                    var blob = blobRes.Value;
+                    var mimeType = blob.MimeType is { HasValue: true } ? blob.MimeType.Value : null;
+                    if (!string.IsNullOrEmpty(blob.Blob)
+                        && !string.IsNullOrEmpty(mimeType)
+                        && mimeType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+                    {
+                        parts.Add(new SessionInputPart
+                        {
+                            Type = "image",
+                            Url = $"data:{mimeType};base64,{blob.Blob}"
+                        });
+                    }
+                    else
+                    {
+                        parts.Add(new SessionInputPart { Type = "text", Text = $"[File: {blob.Uri}]" });
+                    }
+                    break;
+                }
             }
         }
 
@@ -263,6 +332,10 @@ public sealed partial class AcpBridgeHandler
                         sb.Append('\n');
                         sb.Append(textRes.Value.Text);
                     }
+                    break;
+                case ContentBlock.Case5 resource when resource.Value.Resource is EmbeddedResourceResource.Case2 blobRes:
+                    if (sb.Length > 0) sb.Append('\n');
+                    sb.Append($"[File: {blobRes.Value.Uri}]");
                     break;
             }
         }

@@ -119,7 +119,7 @@ public sealed partial class AcpBridgeHandler
 
                 var declaredKind = ResolveRuntimeToolKind(payload, toolName);
                 var kind = AcpToolKindMapper.GetKind(toolName, declaredKind);
-                var filePaths = AcpToolKindMapper.ExtractFilePaths(toolName, argsElement);
+                var filePaths = AcpToolKindMapper.ExtractFilePaths(toolName, argsElement, workspacePath);
                 var payloadUpdate = new SessionUpdateCase4Payload
                 {
                     ToolCallId = new(callId),
@@ -297,7 +297,7 @@ public sealed partial class AcpBridgeHandler
             ct).ConfigureAwait(false);
     }
 
-    private void ScheduleSlashCommandsBroadcast(string sessionId)
+    private void QueueSlashCommandsBroadcast(string sessionId)
     {
         var commands = commandRegistry?.ListCommands()
             .Where(static command => command.Category == "workflow")
@@ -312,12 +312,21 @@ public sealed partial class AcpBridgeHandler
         if (commands.Length == 0)
             return;
 
-        // Defer until after session/new or session/load writes its response so clients already know sessionId.
+        _pendingSlashCommands[sessionId] = commands;
+    }
+
+    private void OnSessionInitResponseWritten(string? sessionId, bool succeeded)
+    {
+        if (string.IsNullOrEmpty(sessionId))
+            return;
+
+        if (!_pendingSlashCommands.TryRemove(sessionId, out var commands) || !succeeded)
+            return;
+
         _ = Task.Run(async () =>
         {
             try
             {
-                await Task.Yield();
                 await SendSessionUpdateAsync(
                     sessionId,
                     new SessionUpdate.Case9(new SessionUpdateCase9Payload { AvailableCommands = commands }),

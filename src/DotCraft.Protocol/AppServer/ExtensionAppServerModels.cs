@@ -111,7 +111,7 @@ public sealed class AcpTerminalExitStatus : ExtensibleJsonObject
 {
     [JsonPropertyName("exitCode")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<int?> ExitCode { get; init; }
+    public Optional<uint?> ExitCode { get; init; }
 
     [JsonPropertyName("signal")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -193,7 +193,7 @@ public sealed class AcpTerminalWaitForExitResult : ExtensibleJsonObject
 {
     [JsonPropertyName("exitCode")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<int?> ExitCode { get; init; }
+    public Optional<uint?> ExitCode { get; init; }
 
     [JsonPropertyName("signal")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

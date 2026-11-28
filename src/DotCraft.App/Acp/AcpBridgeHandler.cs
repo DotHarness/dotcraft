@@ -47,6 +47,7 @@ public sealed partial class AcpBridgeHandler(
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _activePrompts = new();
     private readonly ConcurrentDictionary<string, string> _activeToolNames = new();
     private readonly ConcurrentDictionary<string, AcpRuntimeToolDescriptor> _runtimeToolDescriptors = new();
+    private readonly ConcurrentDictionary<string, AvailableCommand[]> _pendingSlashCommands = new();
     private IReadOnlyList<RuntimeDynamicToolDeclarationSpec> _runtimeDynamicTools = [];
 
     private readonly AppServerProcess? _appServerProcess = appServerProcess;
@@ -58,7 +59,8 @@ public sealed partial class AcpBridgeHandler(
     public async Task RunAsync(IAcpTransport transport, CancellationToken ct = default)
     {
         _bridgeLifetime = ct;
-        await using var agent = new AcpV1Agent(transport, this);
+        var postResponseTransport = new PostResponseTransport(transport, OnSessionInitResponseWritten);
+        await using var agent = new AcpV1Agent(postResponseTransport, this);
         _agentReady.TrySetResult(agent);
         await agent.Connection.Completion.WaitAsync(ct).ConfigureAwait(false);
     }
@@ -218,4 +220,97 @@ public sealed partial class AcpBridgeHandler(
     }
 
     private sealed record ThreadConfigurationState(string Mode, string? Model, JsonObject? Configuration);
+
+    private sealed class PostResponseTransport(
+        IAcpTransport inner,
+        Action<string?, bool> onSessionInitResponseWritten) : IAcpTransport
+    {
+        private readonly ConcurrentDictionary<string, string?> _pendingSessionInits = new();
+
+        public async ValueTask<ReadOnlyMemory<byte>?> ReadMessageAsync(CancellationToken ct = default)
+        {
+            var frame = await inner.ReadMessageAsync(ct).ConfigureAwait(false);
+            if (frame is { } bytes)
+                TrackIncomingSessionInit(bytes);
+            return frame;
+        }
+
+        public async ValueTask WriteMessageAsync(ReadOnlyMemory<byte> message, CancellationToken ct = default)
+        {
+            await inner.WriteMessageAsync(message, ct).ConfigureAwait(false);
+            if (!_pendingSessionInits.IsEmpty)
+                TryNotifySessionInitResponse(message);
+        }
+
+        public ValueTask DisposeAsync() => inner.DisposeAsync();
+
+        private void TrackIncomingSessionInit(ReadOnlyMemory<byte> frame)
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(frame);
+                var root = doc.RootElement;
+                if (root.ValueKind != JsonValueKind.Object
+                    || !root.TryGetProperty("id", out var idEl)
+                    || idEl.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined
+                    || !root.TryGetProperty("method", out var methodEl)
+                    || methodEl.ValueKind != JsonValueKind.String)
+                {
+                    return;
+                }
+
+                var method = methodEl.GetString();
+                if (method == "session/new")
+                {
+                    _pendingSessionInits[idEl.GetRawText()] = null;
+                }
+                else if (method == "session/load"
+                    && root.TryGetProperty("params", out var paramsEl)
+                    && paramsEl.ValueKind == JsonValueKind.Object
+                    && paramsEl.TryGetProperty("sessionId", out var sidEl)
+                    && sidEl.ValueKind == JsonValueKind.String)
+                {
+                    _pendingSessionInits[idEl.GetRawText()] = sidEl.GetString();
+                }
+            }
+            catch (JsonException)
+            {
+            }
+        }
+
+        private void TryNotifySessionInitResponse(ReadOnlyMemory<byte> frame)
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(frame);
+                var root = doc.RootElement;
+                if (root.ValueKind != JsonValueKind.Object
+                    || root.TryGetProperty("method", out _)
+                    || !root.TryGetProperty("id", out var idEl)
+                    || idEl.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
+                {
+                    return;
+                }
+
+                if (!_pendingSessionInits.TryRemove(idEl.GetRawText(), out var trackedSessionId))
+                    return;
+
+                var succeeded = root.TryGetProperty("result", out var resultEl);
+                var sessionId = trackedSessionId;
+                if (string.IsNullOrEmpty(sessionId)
+                    && succeeded
+                    && resultEl.ValueKind == JsonValueKind.Object
+                    && resultEl.TryGetProperty("sessionId", out var sidEl)
+                    && sidEl.ValueKind == JsonValueKind.String)
+                {
+                    sessionId = sidEl.GetString();
+                }
+
+                onSessionInitResponseWritten(sessionId, succeeded);
+            }
+            catch (JsonException)
+            {
+            }
+        }
+    }
 }

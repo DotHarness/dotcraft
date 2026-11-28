@@ -3,11 +3,11 @@ namespace DotCraft.Tools;
 public sealed record AcpTerminalOutput(
     string Output,
     bool Truncated,
-    int? ExitCode = null,
+    uint? ExitCode = null,
     string? Signal = null);
 
 public sealed record AcpTerminalExitResult(
-    int? ExitCode = null,
+    uint? ExitCode = null,
     string? Signal = null);
 
 public interface IAcpExtensionProxy

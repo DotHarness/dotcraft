@@ -44,6 +44,7 @@ public sealed partial class AcpBridgeHandler
         var threadId = threadEl.GetProperty("id").GetString()
             ?? throw new AcpRpcException(-32603, "thread/start returned no thread id");
 
+        NewSessionResponse response;
         await ObserveSessionAsync(threadId, _bridgeLifetime).ConfigureAwait(false);
         try
         {
@@ -52,11 +53,10 @@ public sealed partial class AcpBridgeHandler
                 await hookRunner.RunAsync(HookEvent.SessionStart, new HookInput { SessionId = threadId }, ct).ConfigureAwait(false);
 
             var configOptions = await BuildConfigOptionsAsync(mode, model, ct).ConfigureAwait(false);
-            ScheduleSlashCommandsBroadcast(threadId);
             logger?.LogEvent($"Session created: {threadId}");
             AnsiConsole.MarkupLine($"[green][[ACP]][/] Session created: {Markup.Escape(threadId)}");
 
-            return new NewSessionResponse
+            response = new NewSessionResponse
             {
                 SessionId = new(threadId),
                 Modes = AcpConfigOptions.BuildModeState(mode),
@@ -67,6 +67,9 @@ public sealed partial class AcpBridgeHandler
         {
             await ReleaseSessionObservationAsync(threadId).ConfigureAwait(false);
         }
+
+        QueueSlashCommandsBroadcast(threadId);
+        return response;
     }
 
     public async ValueTask<LoadSessionResponse> SessionLoadAsync(LoadSessionRequest parameters, CancellationToken ct)
@@ -75,6 +78,7 @@ public sealed partial class AcpBridgeHandler
         if (string.IsNullOrWhiteSpace(sessionId))
             throw new AcpRpcException(-32602, "Invalid params: sessionId is required.");
 
+        LoadSessionResponse response;
         await ObserveSessionAsync(sessionId, _bridgeLifetime).ConfigureAwait(false);
         try
         {
@@ -129,11 +133,10 @@ public sealed partial class AcpBridgeHandler
             if (hookRunner != null)
                 await hookRunner.RunAsync(HookEvent.SessionStart, new HookInput { SessionId = sessionId }, ct).ConfigureAwait(false);
 
-            ScheduleSlashCommandsBroadcast(sessionId);
             logger?.LogEvent($"Session loaded: {sessionId}");
             AnsiConsole.MarkupLine($"[green][[ACP]][/] Session loaded: {Markup.Escape(sessionId)}");
 
-            return new LoadSessionResponse
+            response = new LoadSessionResponse
             {
                 Modes = AcpConfigOptions.BuildModeState(loadedMode),
                 ConfigOptions = configOptions
@@ -143,6 +146,9 @@ public sealed partial class AcpBridgeHandler
         {
             await ReleaseSessionObservationAsync(sessionId).ConfigureAwait(false);
         }
+
+        QueueSlashCommandsBroadcast(sessionId);
+        return response;
     }
 
     public async ValueTask<ListSessionsResponse> SessionListAsync(ListSessionsRequest parameters, CancellationToken ct)
