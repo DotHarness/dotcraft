@@ -64,7 +64,15 @@ public sealed partial class AcpBridgeHandler(
             _connection = connection;
             return this;
         });
-        await agent.Connection.Completion.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            await agent.Connection.Completion.WaitAsync(ct).ConfigureAwait(false);
+        }
+        catch (TimeoutException ex)
+        {
+            logger?.LogError("ACP connection timed out", ex);
+            throw;
+        }
     }
 
     private AcpClientCaller Client => _client ?? throw new InvalidOperationException("ACP bridge is not running.");

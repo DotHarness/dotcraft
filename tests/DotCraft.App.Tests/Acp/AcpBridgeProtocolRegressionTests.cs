@@ -6,6 +6,7 @@ using DotCraft.Acp;
 using DotCraft.AppServer;
 using DotCraft.Commands.Core;
 using DotCraft.Commands.Handlers;
+using DotHarness.Acp.Transport;
 using Xunit;
 using AcpStdioTransport = DotHarness.Acp.Transport.StdioTransport;
 using Contract = DotCraft.Protocol.AppServer;
@@ -151,6 +152,62 @@ public sealed class AcpBridgeProtocolRegressionTests
 
         var loadCommandsFrame = await fixture.ReadAsync();
         AssertAvailableCommandsUpdate(loadCommandsFrame, "session", "deploy");
+    }
+
+    [Fact]
+    public async Task RunAsync_WriteTimeout_LogsErrorThroughAcpLoggerBeforeRethrowing()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"dotcraft-acp-timeout-{Guid.NewGuid():N}");
+        try
+        {
+            var incoming = new Pipe();
+            var outgoing = new Pipe();
+            await using var wire = new AppServerWireClient(incoming.Reader.AsStream(), outgoing.Writer.AsStream());
+
+            using (var acpLogger = AcpLogger.Create(tempRoot, enabled: true)!)
+            {
+                await using var transport = new ObservingAcpTransport(
+                    new BlockedWriteTransport(
+                        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"session/new\",\"params\":{\"cwd\":\"/workspace\",\"mcpServers\":[]}}"),
+                    onRead: bytes => acpLogger.LogIncoming(Encoding.UTF8.GetString(bytes.Span)),
+                    onWrite: bytes => acpLogger.LogOutgoing(Encoding.UTF8.GetString(bytes.Span)),
+                    writeTimeout: TimeSpan.FromMilliseconds(50));
+
+                var bridge = new AcpBridgeHandler(wire, "/workspace", logger: acpLogger);
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                await Assert.ThrowsAsync<TimeoutException>(() => bridge.RunAsync(transport, cts.Token));
+            }
+
+            var logFile = Assert.Single(Directory.GetFiles(Path.Combine(tempRoot, "logs"), "acp-*.log"));
+            var logText = await File.ReadAllTextAsync(logFile);
+            Assert.Contains("ERR ACP connection timed out", logText);
+            Assert.Contains("TimeoutException", logText);
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot))
+                Directory.Delete(tempRoot, recursive: true);
+        }
+    }
+
+    private sealed class BlockedWriteTransport(string firstFrame) : IAcpTransport
+    {
+        private byte[]? _frame = Encoding.UTF8.GetBytes(firstFrame);
+
+        public async ValueTask<ReadOnlyMemory<byte>?> ReadMessageAsync(CancellationToken ct = default)
+        {
+            var next = Interlocked.Exchange(ref _frame, null);
+            if (next is not null)
+                return next;
+
+            await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+            return null;
+        }
+
+        public async ValueTask WriteMessageAsync(ReadOnlyMemory<byte> message, CancellationToken ct = default) =>
+            await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
     private static void AssertAvailableCommandsUpdate(JsonElement frame, string expectedSessionId, string expectedCommand)
