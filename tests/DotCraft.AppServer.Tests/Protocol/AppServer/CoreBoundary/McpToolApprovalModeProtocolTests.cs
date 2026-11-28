@@ -93,7 +93,7 @@ public sealed class McpToolApprovalModeProtocolTests : IDisposable
         try
         {
             File.WriteAllText(Path.Combine(_craft, "config.json"), $$"""
-                { "McpServers": { "inventory": { "Enabled": false, "Command": "inventory-mcp-server", "EnvironmentVariables": { "TOKEN": "${{{variable}}}" } } } }
+                { "McpServers": { "inventory": { "Enabled": false, "Command": "inventory-mcp-server", "EnvironmentVariables": { "TOKEN": "${{{variable}}}" }, "Tools": { "read": null } } } }
                 """);
             await using var manager = new McpClientManager();
             using var harness = new AppServerTestHarness(mcpClientManager: manager, workspaceCraftPath: _craft);

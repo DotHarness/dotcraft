@@ -34,7 +34,7 @@ internal static class McpContractMapper
                 static pair => pair.Key,
                 static pair => new Contract.McpToolConfig
                 {
-                    ApprovalMode = pair.Value.ApprovalMode is { } mode ? ToContract(mode) : default
+                    ApprovalMode = pair.Value?.ApprovalMode is { } mode ? ToContract(mode) : default
                 },
                 StringComparer.Ordinal)),
         EnabledTools = ToolNames(config.EnabledTools),
