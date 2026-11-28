@@ -1262,18 +1262,18 @@ The ACP (Agent Client Protocol) integration lets agent tools use the IDE client'
 
   | ACP method (IDE) | Wire extension method |
   |------------------|----------------------|
-  | `fs/readTextFile` | `ext/acp/fs/readTextFile` |
-  | `fs/writeTextFile` | `ext/acp/fs/writeTextFile` |
+  | `fs/read_text_file` | `ext/acp/fs/read_text_file` |
+  | `fs/write_text_file` | `ext/acp/fs/write_text_file` |
   | `terminal/create` | `ext/acp/terminal/create` |
-  | `terminal/getOutput` | `ext/acp/terminal/getOutput` |
-  | `terminal/waitForExit` | `ext/acp/terminal/waitForExit` |
+  | `terminal/output` | `ext/acp/terminal/output` |
+  | `terminal/wait_for_exit` | `ext/acp/terminal/wait_for_exit` |
   | `terminal/kill` | `ext/acp/terminal/kill` |
   | `terminal/release` | `ext/acp/terminal/release` |
 
 - **Per-thread binding**: a thread created by a connection that declared `acpExtensions` is bound to it; tool calls during its turns route to that connection. If the connection closes before a request completes, the request fails.
-- **`threadId`**: every `ext/acp/*` request carries `threadId` in `params` alongside method fields, so a single-connection bridge can route concurrent requests to the right IDE session. Bridges strip it when the IDE protocol does not define it.
+- **`threadId`**: every `ext/acp/*` request carries `threadId` in `params` alongside method fields, so a single-connection bridge can route concurrent requests to the right IDE session. Bridges map `threadId` to ACP `sessionId` for standard `fs/*` and `terminal/*` requests and strip it when forwarding custom `_`-prefixed IDE methods that do not define it.
 
-**ACP bridge runtime tools**: an ACP client may declare DotCraft runtime tool descriptors through the private ACP extension `clientCapabilities._meta.dotcraft.runtimeTools` (`version` must be `1`, plus `tools`). A missing or unsupported version, or an invalid descriptor, fails ACP `initialize` with `-32602`. Custom descriptor methods start with `_`; `fs/*` and `terminal/*` descriptors stay gated by standard ACP capabilities. The bridge derives custom families from validated methods, must not add custom fields to the root ACP capability object, and translates descriptors into `dynamicTools` on `thread/start` and `thread/resume`. Callbacks return the `item/tool/call` result envelope inside the ACP JSON-RPC `result`, validated with the Runtime Dynamic rules; a callback's non-empty `errorCode`/`errorMessage` are preserved, and a JSON-RPC `error` maps to the corresponding Runtime Dynamic failure category.
+**ACP bridge runtime tools**: an ACP client may declare DotCraft runtime tool descriptors through the private ACP extension `clientCapabilities._meta.dotcraft.runtimeTools` (`version` must be `1`, plus `tools`). A missing or unsupported version, or an invalid descriptor, fails ACP `initialize` with `-32602`. Custom descriptor methods start with `_`, and standard `fs/*` (`fs/read_text_file`, `fs/write_text_file`) and `terminal/*` descriptors stay gated by standard ACP capabilities. The bridge derives custom families from validated methods, must not add custom fields to the root ACP capability object, and translates descriptors into `dynamicTools` on `thread/start` and `thread/resume`. Callbacks return the `item/tool/call` result envelope inside the ACP JSON-RPC `result`, validated with the Runtime Dynamic rules; a callback's non-empty `errorCode`/`errorMessage` are preserved, and a JSON-RPC `error` maps to the corresponding Runtime Dynamic failure category.
 
 ### 11.5 Dynamic Workflow Control
 

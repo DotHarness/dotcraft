@@ -3,13 +3,13 @@
 import type * as Models from "./models.generated.js";
 
 export interface ServerRequestMethods {
-  "ext/acp/fs/readTextFile": { params: Models.AcpFsReadTextFileParams; result: Models.AcpFsReadTextFileResult };
-  "ext/acp/fs/writeTextFile": { params: Models.AcpFsWriteTextFileParams; result: Models.AcpFsWriteTextFileResult };
+  "ext/acp/fs/read_text_file": { params: Models.AcpFsReadTextFileParams; result: Models.AcpFsReadTextFileResult };
+  "ext/acp/fs/write_text_file": { params: Models.AcpFsWriteTextFileParams; result: Models.RpcEmpty };
   "ext/acp/terminal/create": { params: Models.AcpTerminalCreateParams; result: Models.AcpTerminalCreateResult };
-  "ext/acp/terminal/getOutput": { params: Models.AcpTerminalGetOutputParams; result: Models.AcpTerminalOutputResult };
   "ext/acp/terminal/kill": { params: Models.AcpTerminalKillParams; result: Models.RpcEmpty };
+  "ext/acp/terminal/output": { params: Models.AcpTerminalOutputParams; result: Models.AcpTerminalOutputResult };
   "ext/acp/terminal/release": { params: Models.AcpTerminalReleaseParams; result: Models.RpcEmpty };
-  "ext/acp/terminal/waitForExit": { params: Models.AcpTerminalWaitForExitParams; result: Models.AcpTerminalOutputResult };
+  "ext/acp/terminal/wait_for_exit": { params: Models.AcpTerminalWaitForExitParams; result: Models.AcpTerminalWaitForExitResult };
   "ext/channel/configOptionAvailability": { params: Models.ExtChannelConfigOptionAvailabilityParams; result: Models.ExtChannelConfigOptionAvailabilityResult };
   "ext/channel/heartbeat": { params: Models.RpcEmpty; result: Models.RpcEmpty };
   "ext/channel/history": { params: Models.ExtChannelHistoryParams; result: Models.ExtChannelHistoryResult };

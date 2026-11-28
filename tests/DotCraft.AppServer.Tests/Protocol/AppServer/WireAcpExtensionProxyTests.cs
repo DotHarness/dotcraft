@@ -52,8 +52,8 @@ public sealed class WireAcpExtensionProxyTests
     [Fact]
     public void MapToWireMethod_PrefixesExtAcp()
     {
-        Assert.Equal("ext/acp/fs/readTextFile", WireAcpExtensionProxy.MapToWireMethod("fs/readTextFile"));
+        Assert.Equal("ext/acp/fs/read_text_file", WireAcpExtensionProxy.MapToWireMethod("fs/read_text_file"));
         Assert.Equal("ext/acp/_unity/scene_query", WireAcpExtensionProxy.MapToWireMethod("_unity/scene_query"));
-        Assert.Equal("ext/acp/fs/readTextFile", WireAcpExtensionProxy.MapToWireMethod("ext/acp/fs/readTextFile"));
+        Assert.Equal("ext/acp/fs/read_text_file", WireAcpExtensionProxy.MapToWireMethod("ext/acp/fs/read_text_file"));
     }
 }

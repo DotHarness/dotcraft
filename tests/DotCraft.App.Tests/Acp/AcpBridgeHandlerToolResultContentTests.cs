@@ -1,4 +1,5 @@
 using DotCraft.Acp;
+using DotHarness.Acp.V1;
 using Xunit;
 
 namespace DotCraft.App.Tests.Acp;
@@ -13,6 +14,15 @@ public sealed class AcpBridgeHandlerToolResultContentTests
     {
         var content = AcpBridgeHandler.BuildToolResultContent(tool, result, success);
 
-        Assert.Equal(expected, content?[0].Text);
+        if (expected == null)
+        {
+            Assert.Null(content);
+            return;
+        }
+
+        Assert.NotNull(content);
+        var wrapped = Assert.IsType<ToolCallContent.Case1>(Assert.Single(content!));
+        var text = Assert.IsType<ContentBlock.Case1>(wrapped.Value.Content);
+        Assert.Equal(expected, text.Value.Text);
     }
 }

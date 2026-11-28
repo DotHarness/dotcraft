@@ -1499,7 +1499,7 @@
       ]
     },
     {
-      "name": "ext/acp/fs/readTextFile",
+      "name": "ext/acp/fs/read_text_file",
       "paramStructure": "by-name",
       "params": [
         {
@@ -1532,7 +1532,7 @@
       ]
     },
     {
-      "name": "ext/acp/fs/writeTextFile",
+      "name": "ext/acp/fs/write_text_file",
       "paramStructure": "by-name",
       "params": [
         {
@@ -1546,7 +1546,7 @@
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "./schemas/acp/AcpFsWriteTextFileResult.schema.json"
+          "$ref": "./schemas/core/RpcEmpty.schema.json"
         }
       },
       "x-dotcraft-direction": "serverToClient",
@@ -1598,21 +1598,21 @@
       ]
     },
     {
-      "name": "ext/acp/terminal/getOutput",
+      "name": "ext/acp/terminal/kill",
       "paramStructure": "by-name",
       "params": [
         {
           "name": "params",
           "required": true,
           "schema": {
-            "$ref": "./schemas/acp/AcpTerminalGetOutputParams.schema.json"
+            "$ref": "./schemas/acp/AcpTerminalKillParams.schema.json"
           }
         }
       ],
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "./schemas/acp/AcpTerminalOutputResult.schema.json"
+          "$ref": "./schemas/core/RpcEmpty.schema.json"
         }
       },
       "x-dotcraft-direction": "serverToClient",
@@ -1631,21 +1631,21 @@
       ]
     },
     {
-      "name": "ext/acp/terminal/kill",
+      "name": "ext/acp/terminal/output",
       "paramStructure": "by-name",
       "params": [
         {
           "name": "params",
           "required": true,
           "schema": {
-            "$ref": "./schemas/acp/AcpTerminalKillParams.schema.json"
+            "$ref": "./schemas/acp/AcpTerminalOutputParams.schema.json"
           }
         }
       ],
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "./schemas/core/RpcEmpty.schema.json"
+          "$ref": "./schemas/acp/AcpTerminalOutputResult.schema.json"
         }
       },
       "x-dotcraft-direction": "serverToClient",
@@ -1697,7 +1697,7 @@
       ]
     },
     {
-      "name": "ext/acp/terminal/waitForExit",
+      "name": "ext/acp/terminal/wait_for_exit",
       "paramStructure": "by-name",
       "params": [
         {
@@ -1711,7 +1711,7 @@
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "./schemas/acp/AcpTerminalOutputResult.schema.json"
+          "$ref": "./schemas/acp/AcpTerminalWaitForExitResult.schema.json"
         }
       },
       "x-dotcraft-direction": "serverToClient",

@@ -4,10 +4,10 @@
   "title": "AcpTerminalOutputResult",
   "type": "object",
   "properties": {
-    "exitCode": {
+    "exitStatus": {
       "anyOf": [
         {
-          "type": "integer"
+          "$ref": "./AcpTerminalExitStatus.schema.json"
         },
         {
           "type": "null"
@@ -23,6 +23,9 @@
           "type": "null"
         }
       ]
+    },
+    "truncated": {
+      "type": "boolean"
     }
   },
   "additionalProperties": true

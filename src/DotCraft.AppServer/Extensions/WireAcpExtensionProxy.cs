@@ -84,7 +84,7 @@ public sealed class WireAcpExtensionProxy : IAcpExtensionProxy
     }
 
     /// <inheritdoc />
-    public async Task<string?> ReadTextFileAsync(string path, int? offset = null, int? limit = null,
+    public async Task<string?> ReadTextFileAsync(string path, int? line = null, int? limit = null,
         CancellationToken ct = default)
     {
         if (!SupportsFileRead)
@@ -95,7 +95,7 @@ public sealed class WireAcpExtensionProxy : IAcpExtensionProxy
             {
                 ThreadId = threadId,
                 Path = path,
-                Offset = offset,
+                Line = line,
                 Limit = limit
             },
             ct);
@@ -116,12 +116,17 @@ public sealed class WireAcpExtensionProxy : IAcpExtensionProxy
                 Content = content
             },
             ct);
-        return result is not null && ValueOrDefault(result.Success);
+        return result is not null;
     }
 
     /// <inheritdoc />
-    public async Task<string?> CreateTerminalAsync(string command, string? cwd = null,
-        Dictionary<string, string>? env = null, CancellationToken ct = default)
+    public async Task<string?> CreateTerminalAsync(
+        string command,
+        IReadOnlyList<string>? args = null,
+        string? cwd = null,
+        Dictionary<string, string>? env = null,
+        long? outputByteLimit = null,
+        CancellationToken ct = default)
     {
         if (!SupportsTerminal)
             return null;
@@ -131,42 +136,54 @@ public sealed class WireAcpExtensionProxy : IAcpExtensionProxy
             {
                 ThreadId = threadId,
                 Command = command,
+                Args = args is null ? default : new Optional<IReadOnlyList<string>?>(args),
                 Cwd = cwd,
-                Env = env
+                Env = env is null
+                    ? default
+                    : new Optional<IReadOnlyList<Contract.AcpEnvVariable>?>(env.Select(pair => new Contract.AcpEnvVariable
+                    {
+                        Name = pair.Key,
+                        Value = pair.Value
+                    }).ToArray()),
+                OutputByteLimit = outputByteLimit
             },
             ct);
         return result is null ? null : ValueOrDefault(result.TerminalId);
     }
 
     /// <inheritdoc />
-    public async Task<(string output, int? exitCode)> GetTerminalOutputAsync(string terminalId,
+    public async Task<AcpTerminalOutput?> GetTerminalOutputAsync(string terminalId,
         CancellationToken ct = default)
     {
         var result = await SendTypedAsync(
-            Contract.AppServerRpc.ExtAcpTerminalGetOutput,
-            threadId => new Contract.AcpTerminalGetOutputParams { ThreadId = threadId, TerminalId = terminalId },
+            Contract.AppServerRpc.ExtAcpTerminalOutput,
+            threadId => new Contract.AcpTerminalOutputParams { ThreadId = threadId, TerminalId = terminalId },
             ct);
-        return result is null
-            ? ("", null)
-            : (ValueOrDefault(result.Output) ?? "", ValueOrDefault(result.ExitCode));
+        if (result is null)
+            return null;
+        var exitStatus = ValueOrDefault(result.ExitStatus);
+        return new AcpTerminalOutput(
+            ValueOrDefault(result.Output) ?? "",
+            ValueOrDefault(result.Truncated),
+            exitStatus is null ? null : ValueOrDefault(exitStatus.ExitCode),
+            exitStatus is null ? null : ValueOrDefault(exitStatus.Signal));
     }
 
     /// <inheritdoc />
-    public async Task<(string output, int? exitCode)> WaitForTerminalExitAsync(string terminalId,
-        int? timeoutSeconds = null, CancellationToken ct = default)
+    public async Task<AcpTerminalExitResult?> WaitForTerminalExitAsync(string terminalId,
+        CancellationToken ct = default)
     {
         var result = await SendTypedAsync(
             Contract.AppServerRpc.ExtAcpTerminalWaitForExit,
             threadId => new Contract.AcpTerminalWaitForExitParams
             {
                 ThreadId = threadId,
-                TerminalId = terminalId,
-                Timeout = timeoutSeconds
+                TerminalId = terminalId
             },
             ct);
         return result is null
-            ? ("", null)
-            : (ValueOrDefault(result.Output) ?? "", ValueOrDefault(result.ExitCode));
+            ? null
+            : new AcpTerminalExitResult(ValueOrDefault(result.ExitCode), ValueOrDefault(result.Signal));
     }
 
     /// <inheritdoc />

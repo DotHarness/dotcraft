@@ -1,24 +1,25 @@
-using DotCraft.Workspaces;
+using DotCraft.AppServer;
 using DotCraft.CLI;
 using DotCraft.Commands.Core;
 using DotCraft.Configuration;
 using DotCraft.Hooks;
 using DotCraft.Hosting;
 using DotCraft.Memory;
+using DotCraft.Workspaces;
+using AcpStdioTransport = DotHarness.Acp.Transport.StdioTransport;
 using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console;
-using DotCraft.AppServer;
 
 namespace DotCraft.Acp;
 
-/// <summary>
-/// Host for ACP mode: stdio to the IDE and AppServer Session Wire protocol for session/agent work.
-/// </summary>
 public sealed class AcpHost(
     IServiceProvider sp,
     AppConfig config,
     DotCraftPaths paths) : IDotCraftHost
 {
+    // Accommodate base64-encoded images up to SessionInputPartResolver.MaxInlineImageBytes (64 MiB).
+    private const int MaxStdioMessageBytes = 96 * 1024 * 1024;
+
     private AppServerProcess? _appServerProcess;
     private WebSocketClientConnection? _wsConnection;
 
@@ -29,11 +30,14 @@ public sealed class AcpHost(
         var commandRegistry = sp.GetService<CommandRegistry>();
 
         using var acpLogger = AcpLogger.Create(paths.Data.RootPath, config.DebugMode);
-
-        await using var transport = AcpTransport.CreateStdio();
-        transport.Logger = acpLogger;
-        transport.WriteTimeout = TimeSpan.FromSeconds(acpConfig.WriteTimeoutSeconds);
-        transport.StartReaderLoop();
+        await using var transport = new AcpLoggingTransport(
+            new AcpStdioTransport(
+                Console.OpenStandardInput(),
+                Console.OpenStandardOutput(),
+                leaveOpen: true,
+                maxMessageBytes: MaxStdioMessageBytes),
+            acpLogger,
+            TimeSpan.FromSeconds(acpConfig.WriteTimeoutSeconds));
 
         AppServerWireClient wire;
         if (!string.IsNullOrWhiteSpace(acpConfig.AppServerUrl))
@@ -68,7 +72,6 @@ public sealed class AcpHost(
 
             if (!_appServerProcess.IsRunning)
             {
-                // Allow the stderr forwarder to read any lines written before exit.
                 await Task.Delay(150, cancellationToken);
                 var stderr = _appServerProcess.RecentStderr.Trim();
                 var msg =
@@ -83,7 +86,6 @@ public sealed class AcpHost(
 
         var planStore = new PlanStore(paths.Data.RootPath);
         var bridge = new AcpBridgeHandler(
-            transport,
             wire,
             paths.WorkspacePath,
             hookRunner,
@@ -94,18 +96,14 @@ public sealed class AcpHost(
             permissionRequestTimeoutSeconds: acpConfig.PermissionRequestTimeoutSeconds,
             commandRegistry: commandRegistry);
 
-        // When the transport detects client disconnection via heartbeat failures,
-        // signal cancellation so the bridge exits and the client can reconnect.
-        using var disconnectCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        transport.OnDisconnected += () =>
-        {
-            AnsiConsole.MarkupLine("[red][[ACP]][/] Transport disconnected (heartbeat failure). Shutting down bridge.");
-            acpLogger?.LogEvent("Transport disconnected via heartbeat; cancelling bridge");
-            try { disconnectCts.Cancel(); } catch { /* disposed */ }
-        };
-
         AnsiConsole.MarkupLine("[green][[ACP]][/] DotCraft ACP bridge ready (stdio → AppServer)");
-        await bridge.RunAsync(disconnectCts.Token);
+        try
+        {
+            await bridge.RunAsync(transport, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
         AnsiConsole.MarkupLine("[grey][[ACP]][/] ACP bridge stopped");
     }
 

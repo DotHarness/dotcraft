@@ -5,8 +5,11 @@ using System.Text.Json;
 using System.Threading.Channels;
 using DotCraft.Acp;
 using DotCraft.AppServer;
+using DotHarness.Acp.Transport;
 using Xunit;
+using AcpStdioTransport = DotHarness.Acp.Transport.StdioTransport;
 using Contract = DotCraft.Protocol.AppServer;
+using WireStdioTransport = DotCraft.AppServer.StdioTransport;
 
 namespace DotCraft.Tests.Acp;
 
@@ -17,14 +20,14 @@ public sealed class AcpSessionObservationTests
     {
         await using var fixture = new BridgeFixture(restorePermission: true);
         await fixture.InitializeAsync();
-        await fixture.SendAsync(2, AcpMethods.SessionLoad, new { sessionId = "session", cwd = "/workspace" });
+        await fixture.SendAsync(2, "session/load", new { sessionId = "session", cwd = "/workspace", mcpServers = Array.Empty<object>() });
 
         JsonElement permission = default;
         var loaded = false;
         while (!loaded || permission.ValueKind == JsonValueKind.Undefined)
         {
             var message = await fixture.ReadAsync();
-            if (message.TryGetProperty("method", out var method) && method.GetString() == AcpMethods.RequestPermission)
+            if (message.TryGetProperty("method", out var method) && method.GetString() == "session/request_permission")
                 permission = message;
             if (message.TryGetProperty("id", out var id) && id.GetInt32() == 2)
             {
@@ -43,10 +46,10 @@ public sealed class AcpSessionObservationTests
         var answer = await fixture.PermissionAnswer.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal("accept", answer.Result!.Value.GetProperty("decision").GetString());
 
-        await fixture.SendAsync(3, AcpMethods.SessionPrompt,
+        await fixture.SendAsync(3, "session/prompt",
             new { sessionId = "session", prompt = new[] { new { type = "text", text = "continue" } } });
         var promptResult = await fixture.ReadUntilResponseAsync(3);
-        Assert.Equal(AcpStopReason.EndTurn, promptResult.GetProperty("result").GetProperty("stopReason").GetString());
+        Assert.Equal("end_turn", promptResult.GetProperty("result").GetProperty("stopReason").GetString());
         await fixture.WaitForDetachAsync();
 
         var resumes = fixture.Requests.Where(r => r.Method == Contract.AppServerMethodNames.ThreadResume).ToArray();
@@ -56,19 +59,19 @@ public sealed class AcpSessionObservationTests
     }
 
     [Theory]
-    [InlineData("turn/completed", AcpStopReason.EndTurn)]
-    [InlineData("turn/cancelled", AcpStopReason.Cancelled)]
+    [InlineData("turn/completed", "end_turn")]
+    [InlineData("turn/cancelled", "cancelled")]
     [InlineData("turn/failed", null)]
     public async Task Prompt_RejoinsAfterInitialization_ConsumesOnlyItsTurn_AndReleasesObservation(
         string terminalMethod, string? expectedStopReason)
     {
         await using var fixture = new BridgeFixture(terminalMethod: terminalMethod);
         await fixture.InitializeAsync();
-        await fixture.SendAsync(2, AcpMethods.SessionNew, new { });
+        await fixture.SendAsync(2, "session/new", new { cwd = "/workspace", mcpServers = Array.Empty<object>() });
         Assert.True((await fixture.ReadUntilResponseAsync(2)).TryGetProperty("result", out _));
         await fixture.WaitForDetachAsync();
 
-        await fixture.SendAsync(3, AcpMethods.SessionPrompt,
+        await fixture.SendAsync(3, "session/prompt",
             new { sessionId = "session", prompt = new[] { new { type = "text", text = "work" } } });
         var output = new List<string>();
         var result = await fixture.ReadUntilResponseAsync(3, message =>
@@ -94,9 +97,9 @@ public sealed class AcpSessionObservationTests
     private sealed class BridgeFixture : IAsyncDisposable
     {
         private readonly CancellationTokenSource _lifetime = new(TimeSpan.FromSeconds(15));
-        private readonly StdioTransport _server;
+        private readonly WireStdioTransport _server;
         private readonly AppServerWireClient _wire;
-        private readonly AcpTransport _acp;
+        private readonly AcpStdioTransport _acp;
         private readonly StreamWriter _ideWriter;
         private readonly StreamReader _ideReader;
         private readonly Task _serverTask;
@@ -117,19 +120,15 @@ public sealed class AcpSessionObservationTests
             var serverToClient = new Pipe();
             var ideToBridge = new Pipe();
             var bridgeToIde = new Pipe();
-            _server = StdioTransport.Create(clientToServer.Reader.AsStream(), serverToClient.Writer.AsStream());
+            _server = WireStdioTransport.Create(clientToServer.Reader.AsStream(), serverToClient.Writer.AsStream());
             _server.Start();
             _wire = new AppServerWireClient(serverToClient.Reader.AsStream(), clientToServer.Writer.AsStream());
             _wire.Start();
-            _acp = new AcpTransport(ideToBridge.Reader.AsStream(), bridgeToIde.Writer.AsStream())
-            {
-                HeartbeatInterval = Timeout.InfiniteTimeSpan
-            };
-            _acp.StartReaderLoop();
+            _acp = new AcpStdioTransport(ideToBridge.Reader.AsStream(), bridgeToIde.Writer.AsStream());
             _ideWriter = new StreamWriter(ideToBridge.Writer.AsStream(), new UTF8Encoding(false)) { AutoFlush = true };
             _ideReader = new StreamReader(bridgeToIde.Reader.AsStream());
             _serverTask = ServeAsync();
-            _bridgeTask = new AcpBridgeHandler(_acp, _wire, "/workspace").RunAsync(_lifetime.Token);
+            _bridgeTask = new AcpBridgeHandler(_wire, "/workspace").RunAsync(_acp, _lifetime.Token);
         }
 
         public ConcurrentQueue<AppServerIncomingMessage> Requests { get; } = new();
@@ -137,8 +136,8 @@ public sealed class AcpSessionObservationTests
 
         public async Task InitializeAsync()
         {
-            await SendAsync(1, AcpMethods.Initialize,
-                new { protocolVersion = 1, clientCapabilities = new { }, clientInfo = new { name = "test" } });
+            await SendAsync(1, "initialize",
+                new { protocolVersion = 1, clientCapabilities = new { }, clientInfo = new { name = "test", version = "1.0" } });
             Assert.True((await ReadUntilResponseAsync(1)).TryGetProperty("result", out _));
         }
 

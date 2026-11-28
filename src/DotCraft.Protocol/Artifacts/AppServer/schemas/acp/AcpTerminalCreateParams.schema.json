@@ -4,6 +4,19 @@
   "title": "AcpTerminalCreateParams",
   "type": "object",
   "properties": {
+    "args": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "command": {
       "type": "string"
     },
@@ -20,10 +33,22 @@
     "env": {
       "anyOf": [
         {
-          "type": "object",
-          "additionalProperties": {
-            "type": "string"
+          "type": "array",
+          "items": {
+            "$ref": "./AcpEnvVariable.schema.json"
           }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "outputByteLimit": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
         },
         {
           "type": "null"

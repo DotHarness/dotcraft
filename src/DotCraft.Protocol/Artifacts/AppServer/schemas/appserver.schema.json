@@ -3,6 +3,19 @@
   "$id": "https://schemas.dotcraft.dev/appserver/v1/appserver.schema.json",
   "title": "DotCraft AppServer contract bundle",
   "$defs": {
+    "AcpEnvVariable": {
+      "title": "AcpEnvVariable",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
     "AcpExtensionCapability": {
       "title": "AcpExtensionCapability",
       "type": "object",
@@ -67,7 +80,7 @@
             }
           ]
         },
-        "offset": {
+        "line": {
           "anyOf": [
             {
               "type": "integer"
@@ -119,20 +132,23 @@
       },
       "additionalProperties": true
     },
-    "AcpFsWriteTextFileResult": {
-      "title": "AcpFsWriteTextFileResult",
-      "type": "object",
-      "properties": {
-        "success": {
-          "type": "boolean"
-        }
-      },
-      "additionalProperties": true
-    },
     "AcpTerminalCreateParams": {
       "title": "AcpTerminalCreateParams",
       "type": "object",
       "properties": {
+        "args": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "command": {
           "type": "string"
         },
@@ -149,10 +165,22 @@
         "env": {
           "anyOf": [
             {
-              "type": "object",
-              "additionalProperties": {
-                "type": "string"
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/AcpEnvVariable"
               }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "outputByteLimit": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
             },
             {
               "type": "null"
@@ -182,15 +210,29 @@
       },
       "additionalProperties": true
     },
-    "AcpTerminalGetOutputParams": {
-      "title": "AcpTerminalGetOutputParams",
+    "AcpTerminalExitStatus": {
+      "title": "AcpTerminalExitStatus",
       "type": "object",
       "properties": {
-        "terminalId": {
-          "type": "string"
+        "exitCode": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
-        "threadId": {
-          "type": "string"
+        "signal": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": true
@@ -208,14 +250,27 @@
       },
       "additionalProperties": true
     },
+    "AcpTerminalOutputParams": {
+      "title": "AcpTerminalOutputParams",
+      "type": "object",
+      "properties": {
+        "terminalId": {
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
     "AcpTerminalOutputResult": {
       "title": "AcpTerminalOutputResult",
       "type": "object",
       "properties": {
-        "exitCode": {
+        "exitStatus": {
           "anyOf": [
             {
-              "type": "integer"
+              "$ref": "#/$defs/AcpTerminalExitStatus"
             },
             {
               "type": "null"
@@ -231,6 +286,9 @@
               "type": "null"
             }
           ]
+        },
+        "truncated": {
+          "type": "boolean"
         }
       },
       "additionalProperties": true
@@ -257,11 +315,28 @@
         },
         "threadId": {
           "type": "string"
-        },
-        "timeout": {
+        }
+      },
+      "additionalProperties": true
+    },
+    "AcpTerminalWaitForExitResult": {
+      "title": "AcpTerminalWaitForExitResult",
+      "type": "object",
+      "properties": {
+        "exitCode": {
           "anyOf": [
             {
               "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "signal": {
+          "anyOf": [
+            {
+              "type": "string"
             },
             {
               "type": "null"

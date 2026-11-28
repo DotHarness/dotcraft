@@ -3,19 +3,19 @@ namespace DotCraft.Protocol.AppServer;
 
 public static partial class AppServerRpc
 {
-    public static readonly RpcRequest<AcpFsReadTextFileParams, AcpFsReadTextFileResult> ExtAcpFsReadTextFile = new("ext/acp/fs/readTextFile", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", module: "acp", scope: "connection", capability: "acpExtensions", errors: CommonErrors);
+    public static readonly RpcRequest<AcpFsReadTextFileParams, AcpFsReadTextFileResult> ExtAcpFsReadTextFile = new("ext/acp/fs/read_text_file", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", module: "acp", scope: "connection", capability: "acpExtensions", errors: CommonErrors);
 
-    public static readonly RpcRequest<AcpFsWriteTextFileParams, AcpFsWriteTextFileResult> ExtAcpFsWriteTextFile = new("ext/acp/fs/writeTextFile", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", module: "acp", scope: "connection", capability: "acpExtensions", errors: CommonErrors);
+    public static readonly RpcRequest<AcpFsWriteTextFileParams, global::DotCraft.Protocol.RpcEmpty> ExtAcpFsWriteTextFile = new("ext/acp/fs/write_text_file", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", module: "acp", scope: "connection", capability: "acpExtensions", errors: CommonErrors);
 
     public static readonly RpcRequest<AcpTerminalCreateParams, AcpTerminalCreateResult> ExtAcpTerminalCreate = new("ext/acp/terminal/create", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", module: "acp", scope: "connection", capability: "acpExtensions", errors: CommonErrors);
 
-    public static readonly RpcRequest<AcpTerminalGetOutputParams, AcpTerminalOutputResult> ExtAcpTerminalGetOutput = new("ext/acp/terminal/getOutput", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", module: "acp", scope: "connection", capability: "acpExtensions", errors: CommonErrors);
+    public static readonly RpcRequest<AcpTerminalOutputParams, AcpTerminalOutputResult> ExtAcpTerminalOutput = new("ext/acp/terminal/output", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", module: "acp", scope: "connection", capability: "acpExtensions", errors: CommonErrors);
 
     public static readonly RpcRequest<AcpTerminalKillParams, global::DotCraft.Protocol.RpcEmpty> ExtAcpTerminalKill = new("ext/acp/terminal/kill", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", module: "acp", scope: "connection", capability: "acpExtensions", errors: CommonErrors);
 
     public static readonly RpcRequest<AcpTerminalReleaseParams, global::DotCraft.Protocol.RpcEmpty> ExtAcpTerminalRelease = new("ext/acp/terminal/release", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", module: "acp", scope: "connection", capability: "acpExtensions", errors: CommonErrors);
 
-    public static readonly RpcRequest<AcpTerminalWaitForExitParams, AcpTerminalOutputResult> ExtAcpTerminalWaitForExit = new("ext/acp/terminal/waitForExit", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", module: "acp", scope: "connection", capability: "acpExtensions", errors: CommonErrors);
+    public static readonly RpcRequest<AcpTerminalWaitForExitParams, AcpTerminalWaitForExitResult> ExtAcpTerminalWaitForExit = new("ext/acp/terminal/wait_for_exit", RpcDirection.ServerToClient, "1", "specs/protocols/appserver-protocol.md", module: "acp", scope: "connection", capability: "acpExtensions", errors: CommonErrors);
 
     public static readonly RpcRequest<ExtChannelConfigOptionAvailabilityParams, ExtChannelConfigOptionAvailabilityResult> ExtChannelConfigOptionAvailability = new("ext/channel/configOptionAvailability", RpcDirection.ServerToClient, "1", "specs/protocols/external-channel-adapter.md", module: "external-channel", scope: "connection", capability: "channelAdapter", errors: CommonErrors);
 

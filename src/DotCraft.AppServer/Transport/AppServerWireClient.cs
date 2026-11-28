@@ -507,6 +507,15 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
         await WriteLineAsync(response);
     }
 
+    public async Task SendErrorResponseAsync(int requestId, int code, string message, object? data = null)
+    {
+        var error = new AppServerError { Code = code, Message = message, Data = data };
+        var response = JsonSerializer.Serialize(
+            new { jsonrpc = "2.0", id = requestId, error },
+            SessionWireJsonOptions.Default);
+        await WriteLineAsync(response);
+    }
+
     // -------------------------------------------------------------------------
     // Background reader loop
     // -------------------------------------------------------------------------
@@ -561,7 +570,19 @@ public sealed class AppServerWireClient(Stream input, Stream output) : IAsyncDis
                                 var result = await handler(requestDoc);
                                 await SendResponseAsync(reqId, result);
                             }
-                            catch { /* failures silently suppressed; caller should handle internally */ }
+                            catch (AppServerException ex)
+                            {
+                                try { await SendErrorResponseAsync(reqId, ex.Code, ex.Message, ex.ErrorData); }
+                                catch { }
+                            }
+                            catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
+                            {
+                                try { await SendErrorResponseAsync(reqId, AppServerErrors.InternalErrorCode, ex.Message); }
+                                catch { }
+                            }
+                            catch
+                            {
+                            }
                         }, ct);
                         continue;
                     }

@@ -12,7 +12,7 @@ DotCraft 可以直接在编辑器里当编码助手用——JetBrains、Obsidian
 |---|---|
 | **JetBrains IDEs** | AI Assistant 内置的 Agent 支持 |
 | **Obsidian** | [obsidian-agent-client](https://github.com/RAIT-09/obsidian-agent-client) |
-| **Unity Editor** | [dotcraft-unity](https://github.com/DotHarness/dotcraft-unity) |
+| **Unity Editor** | [unity-acp](https://github.com/DotHarness/unity-acp) |
 
 ACP 是开放标准，生态还在扩展。其他支持 ACP 的编辑器用同样的配置方式接入。
 
@@ -81,13 +81,13 @@ AppServer 监听的是裸地址 `ws://host:port`，客户端连接时一律在�
 
 ## Unity Editor
 
-Unity 客户端维护在单独的仓库：[DotHarness/dotcraft-unity](https://github.com/DotHarness/dotcraft-unity)。Unity 通过 ACP 启动的仍然是 DotCraft 本体，所以先按上面的步骤装好并初始化 DotCraft，再把 `dotcraft-unity` 加进 Unity 项目：
+Unity ACP 客户端维护在单独的仓库：[DotHarness/unity-acp](https://github.com/DotHarness/unity-acp)。Unity 通过 ACP 启动 DotCraft 本体，所以先按上面的步骤装好并初始化 DotCraft，再通过 Unity Package Manager（**Add package from git URL**）添加 `unity-acp`：
 
 ```text
-https://github.com/DotHarness/dotcraft-unity.git
+https://github.com/DotHarness/unity-acp.git?path=/Packages/com.dotharness.unity-acp
 ```
 
-连上之后，Agent 可以查询场景、当前选中的对象、Console 和项目信息。这些工具由 `dotcraft-unity` 插件提供并维护。
+如果需要让 Agent 自动化操作 Unity Editor（场景、选中对象、Console 与项目工具），可以配合安装 [DotHarness/dotcraft-unity](https://github.com/DotHarness/dotcraft-unity)。
 
 ## 在编辑器里多出来的能力
 
